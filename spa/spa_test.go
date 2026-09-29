@@ -19,9 +19,10 @@ const shell = `<!doctype html><html><head><title>app</title></head><body></body>
 func build() fstest.MapFS {
 	return fstest.MapFS{
 		"index.html":              {Data: []byte(shell)},
-		"assets/app-abc123.js":    {Data: []byte("console.log('app')")},
-		"assets/app-abc123.js.br": {Data: []byte("brotli bytes")},
-		"assets/app-abc123.js.gz": {Data: []byte("gzip bytes")},
+		"_build/app-abc123.js":    {Data: []byte("console.log('app')")},
+		"_build/app-abc123.js.br": {Data: []byte("brotli bytes")},
+		"_build/app-abc123.js.gz": {Data: []byte("gzip bytes")},
+		"assets/logo.svg":         {Data: []byte("<svg/>")},
 		"robots.txt":              {Data: []byte("User-agent: *")},
 		"docs/intro/index.html":   {Data: []byte("<html>prerendered intro</html>")},
 	}
@@ -50,7 +51,7 @@ func newHandler(t *testing.T, opts spa.Options) http.Handler {
 func TestServesFilesWithCaching(t *testing.T) {
 	h := newHandler(t, spa.Options{})
 
-	rec := get(t, h, "/assets/app-abc123.js")
+	rec := get(t, h, "/_build/app-abc123.js")
 	if rec.Code != http.StatusOK || rec.Body.String() != "console.log('app')" {
 		t.Fatalf("asset = %d %q", rec.Code, rec.Body)
 	}
@@ -61,9 +62,12 @@ func TestServesFilesWithCaching(t *testing.T) {
 		t.Errorf("asset Content-Type = %q", ct)
 	}
 
-	rec = get(t, h, "/robots.txt")
-	if rec.Code != http.StatusOK || rec.Header().Get("Cache-Control") != "" {
-		t.Errorf("robots.txt = %d, Cache-Control %q", rec.Code, rec.Header().Get("Cache-Control"))
+	// Files from public/ keep their names, so they must stay revalidatable.
+	for _, p := range []string{"/robots.txt", "/assets/logo.svg"} {
+		rec = get(t, h, p)
+		if rec.Code != http.StatusOK || rec.Header().Get("Cache-Control") != "" {
+			t.Errorf("%s = %d, Cache-Control %q", p, rec.Code, rec.Header().Get("Cache-Control"))
+		}
 	}
 }
 
@@ -76,7 +80,7 @@ func TestPrefersPrecompressedSiblings(t *testing.T) {
 		{"", "", "console.log('app')"},
 	}
 	for _, tt := range tests {
-		rec := get(t, h, "/assets/app-abc123.js", "Accept-Encoding", tt.accept)
+		rec := get(t, h, "/_build/app-abc123.js", "Accept-Encoding", tt.accept)
 		if rec.Header().Get("Content-Encoding") != tt.encoding || rec.Body.String() != tt.body {
 			t.Errorf("Accept-Encoding %q: encoding %q body %q", tt.accept, rec.Header().Get("Content-Encoding"), rec.Body)
 		}
@@ -87,7 +91,7 @@ func TestPrefersPrecompressedSiblings(t *testing.T) {
 			t.Errorf("Accept-Encoding %q: Content-Type %q", tt.accept, ct)
 		}
 	}
-	if rec := get(t, h, "/assets/app-abc123.js.br"); rec.Code != http.StatusNotFound {
+	if rec := get(t, h, "/_build/app-abc123.js.br"); rec.Code != http.StatusNotFound {
 		t.Errorf("a .br file by name = %d, want 404", rec.Code)
 	}
 }
@@ -119,15 +123,11 @@ func TestServesPrerenderedPages(t *testing.T) {
 
 func TestOptions(t *testing.T) {
 	h := newHandler(t, spa.Options{
-		Immutable: "/_build/",
 		Index: func(r *http.Request, html []byte) []byte {
 			return []byte(strings.Replace(string(html), "<html>", `<html lang="`+r.Header.Get("Accept-Language")+`">`, 1))
 		},
 		NotFound: func(r *http.Request) bool { return !strings.HasPrefix(r.URL.Path, "/app/") },
 	})
-	if cc := get(t, h, "/assets/app-abc123.js").Header().Get("Cache-Control"); cc != "" {
-		t.Errorf("/assets/ outside Immutable: Cache-Control %q", cc)
-	}
 	rec := get(t, h, "/app/x", "Accept-Language", "ja")
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `<html lang="ja">`) {
 		t.Errorf("/app/x = %d %q", rec.Code, rec.Body)

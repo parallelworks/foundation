@@ -16,11 +16,14 @@ import (
 	"strings"
 )
 
+// BuildDir is where the app's content-hashed build output goes, set in
+// vite.config.ts as build.assetsDir. Handler caches everything under it as
+// immutable, so it must hold nothing else: files copied from public/ keep
+// their names, and cached forever they could never change.
+const BuildDir = "_build"
+
 // Options configure Handler.
 type Options struct {
-	// Immutable is the path prefix of Vite's content-hashed output, served with
-	// a one-year immutable cache. The default is "/assets/", Vite's default.
-	Immutable string
 	// Index rewrites index.html for a request, for example to set <html lang>
 	// from Accept-Language or add <base href>. It applies in development too.
 	Index func(r *http.Request, html []byte) []byte
@@ -38,7 +41,7 @@ type Options struct {
 // order: the file at that path, preferring a precompressed .br or .gz sibling
 // the client accepts; a prerendered <path>/index.html; for a path with no
 // file extension, index.html, so client-side routes work on reload; and
-// otherwise a 404.
+// otherwise a 404. Files under BuildDir are cached for a year.
 //
 // When dist holds no build, as when the Go module is built before the web
 // app, Handler proxies every request to opts.DevServer, including Vite's HMR
@@ -54,9 +57,6 @@ func Handler(dist fs.FS, opts Options) (http.Handler, error) {
 			return nil, fmt.Errorf("spa: invalid DevServer %q", opts.DevServer)
 		}
 		return devProxy(target, opts.Index), nil
-	}
-	if opts.Immutable == "" {
-		opts.Immutable = "/assets/"
 	}
 	return &handler{dist: dist, index: index, opts: opts}, nil
 }
@@ -114,7 +114,7 @@ func (h *handler) serveFile(w http.ResponseWriter, r *http.Request, name string)
 	if !isFile(h.dist, name) {
 		return false
 	}
-	if strings.HasPrefix("/"+name, h.opts.Immutable) {
+	if strings.HasPrefix(name, BuildDir+"/") {
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	} else if path.Base(name) == "index.html" {
 		w.Header().Set("Cache-Control", "no-cache")

@@ -194,11 +194,20 @@ mux.Handle("/", app) // after the API routes
 ```
 
 With a build embedded, it serves each file (preferring a `.br` or `.gz`
-sibling the client accepts, and caching `/assets/` as immutable), then a
+sibling the client accepts), then a
 prerendered `<path>/index.html`, then `index.html` for client-side routes.
 When `dist` holds only a placeholder, as it does before `pnpm build`, it
 proxies everything to the Vite dev server, including the HMR WebSocket. Open
 the Go server's address in development, not Vite's.
+
+Put Vite's content-hashed output in `/_build/`, which `spa.Handler` caches as
+immutable; files copied from `public/` keep their names and stay revalidatable,
+so a changed logo or font is never stuck in a browser cache:
+
+```ts
+// vite.config.ts
+build: { assetsDir: '_build' }
+```
 
 `Options.Index` rewrites `index.html` for each request (in development too),
 for example to set `<html lang>` or `<base href>`; `Options.NotFound` sends the
