@@ -14,6 +14,11 @@
       "release-type": "node",
       "component": "problem",
       "pull-request-title-pattern": "chore(problem): release ${version}"
+    },
+    "packages/lint": {
+      "release-type": "node",
+      "component": "lint",
+      "pull-request-title-pattern": "chore(lint): release ${version}"
     }
   }
 }
