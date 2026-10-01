@@ -27,12 +27,14 @@
     "packages/i18n": {
       "release-type": "node",
       "component": "i18n",
-      "pull-request-title-pattern": "chore(i18n): release ${version}"
+      "pull-request-title-pattern": "chore(i18n): release ${version}",
+      "initial-version": "0.1.0"
     },
     "packages/lint": {
       "release-type": "node",
       "component": "lint",
-      "pull-request-title-pattern": "chore(lint): release ${version}"
+      "pull-request-title-pattern": "chore(lint): release ${version}",
+      "initial-version": "0.1.0"
     }
   }
 }
