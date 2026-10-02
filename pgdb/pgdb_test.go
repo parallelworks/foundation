@@ -20,7 +20,7 @@ func migrations() pgdb.Migrations {
 }
 
 func TestOpenRejectsInvalidSchema(t *testing.T) {
-	for _, schema := range []string{"", "Pie", "pie; DROP TABLE x", "1pie"} {
+	for _, schema := range []string{"", "App", "app; DROP TABLE x", "1app"} {
 		if _, err := pgdb.Open(t.Context(), "postgres://localhost/x", schema); err == nil {
 			t.Errorf("Open accepted schema %q", schema)
 		}
