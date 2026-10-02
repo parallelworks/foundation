@@ -16,13 +16,9 @@ pattern words() {
 }
 
 // Example values in placeholders: https://example.com, localhost, ~/data.
-pattern example_value() {
-  r"^['\"`](?:\S*(?:://|…)\S*|[~.]\S*|[a-z][a-z0-9.\-_/]*)['\"`]$"
-}
+pattern example_value() { r"^['\"`](?:\S*(?:://|…)\S*|[~.]\S*|[a-z][a-z0-9.\-_/]*)['\"`]$" }
 
-pattern placeholder_words() {
-  words() as $s where { $s <: not example_value() }
-}
+pattern placeholder_words() { words() as $s where { $s <: not example_value() } }
 
 // CSS classes ('mb-1.5 flex items-center') and sample values ('1Gi',
 // 'user@example.com', 'https://example.com') in object definitions.
@@ -78,10 +74,7 @@ or {
     $name <: r"^(?:label|title|placeholder|aria-label|aria-description|alt|tooltip|description|helpText|helperText|emptyText|emptyMessage|heading|subheading|subtitle|confirmLabel|enabledTooltip|disabledTooltip)$",
     if ($name <: r"^placeholder$") {
       $init <: JsxAttributeInitializerClause(value=or {
-        JsxString() as $text where {
-          $text <: r"(?s).*\p{L}\p{L}.*",
-          $text <: not example_value()
-        },
+        JsxString() as $text where { $text <: r"(?s).*\p{L}\p{L}.*", $text <: not example_value() },
         JsxExpressionAttributeValue(expression=placeholder_text())
       })
     } else {
