@@ -237,7 +237,8 @@ export function pointerToPath(pointer: string): string {
 
 /**
  * An openapi-fetch middleware that asks for problem details, for servers
- * that still send an older error shape to clients that do not. A problem the
+ * that still send an older error shape to clients that do not, in the page's
+ * language (`<html lang>`) when it has one. A problem the
  * server wrote in the reader's language comes with Content-Language, which it
  * copies into the body as `language`, so `useErrorMessage` can show the
  * server's detail.
@@ -264,6 +265,12 @@ export const problemMiddleware = {
     })
   },
   onRequest({ request }: { request: Request }): Request {
+    // The page's language, which LocaleProvider keeps current, so a server
+    // that localizes writes problems in the language the reader sees.
+    const lang = globalThis.document?.documentElement.lang
+    if (lang && !request.headers.has('Accept-Language')) {
+      request.headers.set('Accept-Language', lang)
+    }
     const accept = request.headers.get('Accept')
     if (!accept?.includes(problemMediaType)) {
       request.headers.set(
