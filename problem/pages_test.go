@@ -66,7 +66,7 @@ func TestPagesStyleMatchesCSP(t *testing.T) {
 
 func TestTypePage(t *testing.T) {
 	body := getPage(t, "/problems/shop/name_taken").Body.String()
-	for _, want := range []string{"409 Conflict", ">name_taken<", "That name is taken", "‹name› is taken.", "Names are unique.", "<li>Pick another name.</li>", `href="https://example.com/naming"`, `&#34;code&#34;: &#34;name_taken&#34;`} {
+	for _, want := range []string{"409 · <code>name_taken</code>", "That name is taken", "{name} is taken.", "Names are unique.", "<li>Pick another name.</li>", `href="https://example.com/naming"`, `&#34;code&#34;: &#34;name_taken&#34;`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("type page lacks %q", want)
 		}
@@ -75,7 +75,7 @@ func TestTypePage(t *testing.T) {
 
 func TestTypePageInTheReadersLanguage(t *testing.T) {
 	body := getPage(t, "/problems/shop/name_taken", "Accept-Language", "ja-JP").Body.String()
-	for _, want := range []string{`lang="ja"`, "その名前は使われています", "‹name›は使われています。", "名前は一意です。", "解決方法", "<li>Pick another name.</li>"} {
+	for _, want := range []string{`lang="ja"`, "その名前は使われています", "{name}は使われています。", "名前は一意です。", "解決方法", "<li>Pick another name.</li>"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("ja page lacks %q", want)
 		}
@@ -88,8 +88,8 @@ func TestTypePageInTheReadersLanguage(t *testing.T) {
 
 func TestStatusAndRulePages(t *testing.T) {
 	for path, want := range map[string]string{
-		"/problems/not_found":  "404 Not Found",
-		"/problems/internal":   "500 Internal Server Error",
+		"/problems/not_found":  "404 · <code>not_found</code>",
+		"/problems/internal":   "500 · <code>internal</code>",
 		"/problems/too_long":   "Shorten the value",
 		"/problems/validation": "errors list",
 	} {

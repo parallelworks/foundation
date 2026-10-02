@@ -73,15 +73,14 @@ type entry struct {
 }
 
 type typeData struct {
-	Lang       string
-	T          map[string]string
-	Type       *Type
-	Title      string
-	Doc        Doc
-	Message    string
-	StatusText string
-	Server     bool
-	Example    string
+	Lang    string
+	T       map[string]string
+	Type    *Type
+	Title   string
+	Doc     Doc
+	Message string
+	Server  bool
+	Example string
 }
 
 func (h *pages) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -156,7 +155,7 @@ func (h *pages) index(lang string) indexData {
 func (h *pages) typeData(lang string, t *Type) typeData {
 	d := typeData{
 		Lang: lang, T: pageText[lang], Type: t, Title: h.title(lang, t),
-		Doc: doc(h.docs, lang, t.Code), StatusText: http.StatusText(t.Status),
+		Doc:    doc(h.docs, lang, t.Code),
 		Server: t.Status >= http.StatusInternalServerError,
 	}
 	if d.Doc.Why == "" {
@@ -164,7 +163,7 @@ func (h *pages) typeData(lang string, t *Type) typeData {
 	}
 	params := map[string]any{}
 	for _, p := range t.Params {
-		params[p] = "‹" + p + "›"
+		params[p] = "{" + p + "}"
 	}
 	msg, ok := h.opts.Localizer.Message(lang, t.Code, params)
 	if !ok {
@@ -251,38 +250,40 @@ func render(w http.ResponseWriter, lang string, t *template.Template, data any) 
 }
 
 const style = `
-:root{color-scheme:light dark;--bg:#fafafa;--fg:#111;--muted:#666;--line:#e5e5e5;--card:#fff;--accent:#0060df;--warn:#b45309;--warnbg:#fef3c7;--err:#b91c1c;--errbg:#fee2e2;--code:#f3f4f6}
-@media (prefers-color-scheme:dark){:root{--bg:#0b0b0c;--fg:#ededed;--muted:#a1a1aa;--line:#27272a;--card:#141416;--accent:#60a5fa;--warn:#fbbf24;--warnbg:#3a2a06;--err:#f87171;--errbg:#3b0d0d;--code:#1f1f23}}
+:root{color-scheme:light dark;--bg:oklch(98.5% 0 0);--ink:oklch(22% 0.01 255);--muted:oklch(46% 0.01 255);--line:oklch(90% 0.005 255);--code:oklch(95.5% 0.004 255);--link:oklch(50% 0.17 255);--client:oklch(95% 0.035 85);--client-ink:oklch(38% 0.08 70);--server:oklch(95% 0.03 25);--server-ink:oklch(42% 0.12 25);--focus:oklch(58% 0.17 255)}
+@media (prefers-color-scheme:dark){:root{--bg:oklch(17% 0.005 255);--ink:oklch(94% 0.005 255);--muted:oklch(72% 0.01 255);--line:oklch(30% 0.01 255);--code:oklch(22% 0.008 255);--link:oklch(74% 0.13 255);--client:oklch(26% 0.04 75);--client-ink:oklch(86% 0.08 85);--server:oklch(26% 0.045 25);--server-ink:oklch(85% 0.07 25);--focus:oklch(74% 0.13 255)}}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Sans","Noto Sans CJK JP","Noto Sans KR","PingFang SC",sans-serif;-webkit-font-smoothing:antialiased}
-main{max-width:760px;margin:0 auto;padding:48px 20px 80px}
-a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
-code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em}
-.eyebrow{font-size:.85rem;color:var(--muted);letter-spacing:.02em;margin-bottom:20px;display:block}
-.meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
-.pill{border-radius:999px;padding:2px 10px;font-size:.8rem;font-weight:600;background:var(--warnbg);color:var(--warn)}
-.pill.server{background:var(--errbg);color:var(--err)}
-.chip{border:1px solid var(--line);border-radius:6px;padding:1px 8px;background:var(--code);user-select:all}
-h1{font-size:2rem;line-height:1.25;margin:0 0 24px;letter-spacing:-.01em}
-h2{font-size:1.1rem;margin:40px 0 12px}
-.message{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:8px;padding:16px 20px;font-size:1.05rem}
-.message.server{border-left-color:var(--err)}
-.label{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:4px}
-ol.steps{list-style:none;counter-reset:step;padding:0;margin:0}
-ol.steps li{counter-increment:step;position:relative;padding:0 0 14px 40px}
-ol.steps li::before{content:counter(step);position:absolute;left:0;top:1px;width:26px;height:26px;border-radius:50%;background:var(--code);border:1px solid var(--line);font-size:.8rem;font-weight:600;display:flex;align-items:center;justify-content:center}
-details{border:1px solid var(--line);border-radius:8px;background:var(--card);margin-top:40px}
-summary{cursor:pointer;padding:12px 16px;font-weight:600}
-details>div{padding:0 16px 16px}
-dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;margin:0 0 16px}dt{color:var(--muted)}dd{margin:0}
-pre{background:var(--code);border:1px solid var(--line);border-radius:8px;padding:14px;overflow-x:auto;margin:0}
-.lead{color:var(--muted);margin:0 0 32px}
-.list{border:1px solid var(--line);border-radius:8px;background:var(--card);overflow:hidden}
-.list a{display:flex;gap:12px;align-items:baseline;padding:10px 16px;border-top:1px solid var(--line);color:var(--fg)}
-.list a:first-child{border-top:0}.list a:hover{background:var(--code);text-decoration:none}
-.list code{color:var(--accent);min-width:13em}
-.list .status{margin-left:auto;color:var(--muted);font-size:.85rem}
-footer{margin-top:48px;font-size:.9rem}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Sans","Noto Sans CJK JP","Noto Sans KR","PingFang SC",sans-serif;-webkit-font-smoothing:antialiased}
+main{max-width:46rem;margin:0 auto;padding:40px 20px 72px}
+p,li,dd{max-width:60ch;text-wrap:pretty}
+a{color:var(--link);text-underline-offset:2px}
+a:focus-visible,summary:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:2px}
+code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.875em}
+.back{display:inline-block;font-size:.875rem;color:var(--muted);text-decoration:none;margin-bottom:28px}
+.back:hover{color:var(--ink)}
+.facts{margin:0 0 8px;font-size:.875rem;color:var(--muted)}
+.facts code{color:var(--ink)}
+h1{font-size:1.875rem;line-height:1.25;margin:0 0 20px;letter-spacing:-.02em;text-wrap:balance}
+h2{font-size:1.0625rem;margin:36px 0 8px;text-wrap:balance}
+.seen{margin:0;padding:14px 18px;border-radius:8px;background:var(--client);color:var(--client-ink)}
+.seen.server{background:var(--server);color:var(--server-ink)}
+.seen p{margin:0;font-size:1.0625rem;color:var(--ink)}
+.seen .label{margin:0 0 2px;font-size:.8125rem;font-weight:600}
+ul{padding-left:1.25rem;margin:0}li{margin:0 0 6px}li::marker{color:var(--muted)}
+.technical{margin-top:44px;border-top:1px solid var(--line);padding-top:12px}
+summary{cursor:pointer;font-weight:600;padding:6px 0;width:fit-content}
+dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 20px;margin:12px 0 20px}dt{color:var(--muted)}dd{margin:0}
+.label{font-size:.8125rem;font-weight:600;color:var(--muted);margin:0 0 6px}
+pre{background:var(--code);border-radius:8px;padding:14px 16px;overflow-x:auto;margin:0;line-height:1.5}
+.lead{color:var(--muted);margin:0 0 8px}
+.rows{list-style:none;padding:0;margin:12px 0 0;border-top:1px solid var(--line)}
+.rows li{margin:0;max-width:none}
+.rows a{display:grid;grid-template-columns:minmax(11rem,max-content) 1fr auto;gap:2px 20px;align-items:baseline;padding:9px 4px;border-bottom:1px solid var(--line);color:var(--ink);text-decoration:none}
+.rows a:hover{background:var(--code)}
+.rows code{color:var(--link)}
+.rows .status{color:var(--muted);font-size:.875rem;font-variant-numeric:tabular-nums}
+@media (max-width:560px){.rows a{grid-template-columns:1fr auto}.rows .title{grid-column:1/-1;grid-row:2;color:var(--muted);font-size:.9375rem}}
+footer{margin-top:40px;font-size:.9375rem}
 `
 
 var styleHash = func() string {
@@ -304,48 +305,45 @@ var indexPage = template.Must(template.New("index").Parse(head + `<title>{{.T.re
 
 <h2>{{.T.statusOnly}}</h2>
 <p>{{.T.statusOnlyDoc}}</p>
-<div class="list">
-{{range .Status}}<a href="/problems/{{.Code}}"><code>{{.Code}}</code><span class="status">{{.Status}}</span></a>
-{{end}}</div>
+<ul class="rows">
+{{range .Status}}<li><a href="/problems/{{.Code}}"><code>{{.Code}}</code><span class="title"></span><span class="status">{{.Status}}</span></a></li>
+{{end}}</ul>
 
 <h2>{{.T.validation}}</h2>
-<div class="list"><a href="{{.Validation.URI}}"><code>{{.Validation.Code}}</code><span>{{.Validation.Title}}</span><span class="status">{{.Validation.Status}}</span></a></div>
+<ul class="rows"><li><a href="{{.Validation.URI}}"><code>{{.Validation.Code}}</code><span class="title">{{.Validation.Title}}</span><span class="status">{{.Validation.Status}}</span></a></li></ul>
 <p>{{.T.rulesDoc}}</p>
-<div class="list">
-{{range .Rules}}<a href="{{.URI}}"><code>{{.Code}}</code><span>{{.Title}}</span></a>
-{{end}}</div>
+<ul class="rows">
+{{range .Rules}}<li><a href="{{.URI}}"><code>{{.Code}}</code><span class="title">{{.Title}}</span><span class="status"></span></a></li>
+{{end}}</ul>
 {{range .Registries}}
 <h2>{{.Name}}</h2>
-<div class="list">
-{{range .Types}}<a href="{{.URI}}"><code>{{.Code}}</code><span>{{.Title}}</span><span class="status">{{.Status}}</span></a>
-{{end}}</div>
+<ul class="rows">
+{{range .Types}}<li><a href="{{.URI}}"><code>{{.Code}}</code><span class="title">{{.Title}}</span><span class="status">{{.Status}}</span></a></li>
+{{end}}</ul>
 {{end}}
 </main>`))
 
 var typePage = template.Must(template.New("type").Parse(head + `<title>{{.Title}} · {{.Type.Code}}</title>
 <main>
-<a class="eyebrow" href="/problems/">← {{.T.reference}}</a>
-<div class="meta"><span class="pill{{if .Server}} server{{end}}">{{.Type.Status}} {{.StatusText}}</span><code class="chip">{{.Type.Code}}</code></div>
+<a class="back" href="/problems/">← {{.T.allTypes}}</a>
+<p class="facts">{{.Type.Status}} · <code>{{.Type.Code}}</code></p>
 <h1>{{.Title}}</h1>
-{{with .Message}}<div class="message{{if $.Server}} server{{end}}"><div class="label">{{$.T.message}}</div>{{.}}</div>{{end}}
+{{with .Message}}<div class="seen{{if $.Server}} server{{end}}"><p class="label">{{$.T.message}}</p><p>{{.}}</p></div>{{end}}
 {{with .Doc.Why}}<h2>{{$.T.why}}</h2>
 <p>{{.}}</p>{{end}}
 {{with .Doc.Fix}}<h2>{{$.T.fix}}</h2>
-<ol class="steps">{{range .}}<li>{{.}}</li>{{end}}</ol>{{end}}
+<ul>{{range .}}<li>{{.}}</li>{{end}}</ul>{{end}}
 {{with .Doc.Links}}<h2>{{$.T.links}}</h2>
 <ul>{{range .}}<li><a href="{{.Href}}">{{.Title}}</a></li>{{end}}</ul>{{end}}
-<details>
+<details class="technical">
 <summary>{{.T.technical}}</summary>
-<div>
 <dl>
 <dt>{{.T.type}}</dt><dd><code>{{.Type.URI}}</code></dd>
 <dt>{{.T.code}}</dt><dd><code>{{.Type.Code}}</code></dd>
 <dt>{{.T.status}}</dt><dd>{{.Type.Status}}</dd>
 {{with .Type.Params}}<dt>{{$.T.params}}</dt><dd>{{range $i, $p := .}}{{if $i}}, {{end}}<code>{{$p}}</code>{{end}}</dd>{{end}}
 </dl>
-<div class="label">{{.T.example}}</div>
+<p class="label">{{.T.example}}</p>
 <pre>{{.Example}}</pre>
-</div>
 </details>
-<footer><a href="/problems/">{{.T.allTypes}} →</a></footer>
 </main>`))
