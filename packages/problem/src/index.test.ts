@@ -158,6 +158,21 @@ describe('problemMiddleware', () => {
     expect(await problemMiddleware.onResponse({ response: ok })).toBe(ok)
   })
 
+  it("sends the page's language as Accept-Language, unless the request has one", () => {
+    const doc = { documentElement: { lang: 'ja' } }
+    Object.defineProperty(globalThis, 'document', { value: doc, configurable: true })
+    try {
+      const req = problemMiddleware.onRequest({ request: new Request('https://x.test/') })
+      expect(req.headers.get('Accept-Language')).toBe('ja')
+      const own = problemMiddleware.onRequest({
+        request: new Request('https://x.test/', { headers: { 'Accept-Language': 'es' } }),
+      })
+      expect(own.headers.get('Accept-Language')).toBe('es')
+    } finally {
+      Reflect.deleteProperty(globalThis, 'document')
+    }
+  })
+
   it('leaves an Accept that already asks for problems', () => {
     const req = problemMiddleware.onRequest({
       request: new Request('https://x.test/', { headers: { Accept: 'application/problem+json' } }),
