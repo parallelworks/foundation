@@ -66,7 +66,7 @@ function ViewToggle({
 
 // A preview has no run to list cleanup steps, so it appends each one as the
 // POST step a run would show.
-const addCleanupSteps = ({ jobs }: { jobs: Record<string, WorkflowJob> }) => {
+export const addCleanupSteps = ({ jobs }: { jobs: Record<string, WorkflowJob> }) => {
   const clonedJobs = structuredClone(jobs)
 
   for (const job in jobs) {
@@ -92,7 +92,8 @@ const addCleanupSteps = ({ jobs }: { jobs: Record<string, WorkflowJob> }) => {
             linkedStep: `${sourceSteps.length - index - 1}`,
           }
           delete newStep.cleanup
-          const clonedStep = cloned.steps[index]
+          // index counts from the end, because the loop runs over the reversed steps.
+          const clonedStep = cloned.steps[sourceSteps.length - index - 1]
           if (clonedStep) {
             delete clonedStep.cleanup
           }
@@ -117,7 +118,7 @@ const addCleanupSteps = ({ jobs }: { jobs: Record<string, WorkflowJob> }) => {
             linkedStep: `${sourceCleanup.length - index - 1 + cloned.steps.length}`,
           }
           delete newStep.cleanup
-          const clonedStep = clonedCleanup[index]
+          const clonedStep = clonedCleanup[sourceCleanup.length - index - 1]
           if (clonedStep) {
             delete clonedStep.cleanup
           }
