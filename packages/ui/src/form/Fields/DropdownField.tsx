@@ -24,7 +24,6 @@ export interface IDropdownField extends BaseField {
         }>
       >
   parentValue?: string
-  resetOnChange?: boolean
   autoselect?: boolean
   allowCustomValue?: boolean
   customValueLabel?: string
