@@ -1,5 +1,5 @@
-import cx from 'classnames'
 import { asRecord, type FieldPatch } from '@parallelworks/workflow-parser'
+import cx from 'classnames'
 import {
   type ComponentProps,
   createContext,
@@ -13,10 +13,7 @@ import {
 } from 'react'
 import { BareModal, modalPanelClasses } from '../components/BareModal'
 import { Button } from '../components/Button'
-import {
-  ghostButtonClasses,
-  primaryButtonClasses,
-} from '../components/ghostButton'
+import { ghostButtonClasses, primaryButtonClasses } from '../components/ghostButton'
 import { IconButton } from '../components/IconButton'
 import { Input, Textarea } from '../components/Input'
 import { useStrings } from '../components/Provider'
@@ -37,9 +34,7 @@ export const DURATION = /^(\d+)(d|h|m|s)?$/
 export { asRecord }
 
 export function withoutUndefined(value: Json): Json {
-  return Object.fromEntries(
-    Object.entries(value).filter(([, item]) => item !== undefined)
-  )
+  return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined))
 }
 
 export function text(value: unknown): string {
@@ -47,11 +42,7 @@ export function text(value: unknown): string {
 }
 
 export function isScalar(value: unknown): boolean {
-  return (
-    typeof value === 'string' ||
-    typeof value === 'number' ||
-    typeof value === 'boolean'
-  )
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
 }
 
 // A number only when it writes back as the same text: `4` is a number, `3.10` and `01` keep their digits.
@@ -74,18 +65,10 @@ export function sameValue(a: unknown, b: unknown): boolean {
       a.every((item, i) => sameValue(item, b[i]))
     )
   }
-  if (
-    typeof a === 'object' &&
-    typeof b === 'object' &&
-    a !== null &&
-    b !== null
-  ) {
+  if (typeof a === 'object' && typeof b === 'object' && a !== null && b !== null) {
     const ak = Object.keys(a)
     const bk = Object.keys(b)
-    return (
-      ak.length === bk.length &&
-      ak.every(k => sameValue((a as Json)[k], (b as Json)[k]))
-    )
+    return ak.length === bk.length && ak.every((k) => sameValue((a as Json)[k], (b as Json)[k]))
   }
   return a === b
 }
@@ -128,7 +111,7 @@ export function parseCondition(value: string): unknown {
 export function durationError(
   value: string,
   t: Strings,
-  pattern: RegExp = DURATION
+  pattern: RegExp = DURATION,
 ): string | undefined {
   const trimmed = value.trim()
   return !trimmed || pattern.test(trimmed) || EXPRESSION.test(trimmed)
@@ -138,8 +121,7 @@ export function durationError(
 
 export function expressionError(value: string, t: Strings): string | undefined {
   const trimmed = value.trim()
-  return !trimmed ||
-    (EXPRESSION.test(trimmed) && !EMPTY_EXPRESSION.test(trimmed))
+  return !trimmed || (EXPRESSION.test(trimmed) && !EMPTY_EXPRESSION.test(trimmed))
     ? undefined
     : t.invalidExpressionValue
 }
@@ -148,11 +130,7 @@ export function orUndefined(value: string): string | undefined {
   return value.trim() ? value.trim() : undefined
 }
 
-export function countError(
-  value: string,
-  min: number,
-  message: string
-): string | undefined {
+export function countError(value: string, min: number, message: string): string | undefined {
   const trimmed = value.trim()
   if (!trimmed || EXPRESSION.test(trimmed)) {
     return undefined
@@ -186,15 +164,8 @@ export interface Row {
 }
 
 // The text a row showed for `original`; unchanged text means the value is unchanged.
-export function unchangedValue(
-  text: string,
-  original: unknown,
-  nested = false
-): boolean {
-  return (
-    original !== undefined &&
-    text === (nested ? JSON.stringify(original) : String(original))
-  )
+export function unchangedValue(text: string, original: unknown, nested = false): boolean {
+  return original !== undefined && text === (nested ? JSON.stringify(original) : String(original))
 }
 
 /** Rows for a map; with `nested` false a non-scalar is shown as its JSON text and saved as a string. */
@@ -204,26 +175,23 @@ export function rowsFrom(value: unknown, nested = true): Row[] {
       ? { key, value: String(item), original: item }
       : nested
         ? { key, value: JSON.stringify(item), nested: true, original: item }
-        : { key, value: JSON.stringify(item) ?? '' }
+        : { key, value: JSON.stringify(item) ?? '' },
   )
 }
 
-export function rowsTo(
-  rows: Row[],
-  parse: (value: string) => unknown
-): Json | undefined {
+export function rowsTo(rows: Row[], parse: (value: string) => unknown): Json | undefined {
   if (rows.length === 0) {
     return undefined
   }
   return Object.fromEntries(
-    rows.map(row => [
+    rows.map((row) => [
       row.key.trim(),
       unchangedValue(row.value, row.original, row.nested)
         ? row.original
         : row.nested
           ? parseJson(row.value).value
           : parse(row.value),
-    ])
+    ]),
   )
 }
 
@@ -232,9 +200,9 @@ export function rowsError(
   keyPattern: RegExp,
   keyMessage: string,
   t: Strings,
-  valueError?: (value: string) => string | undefined
+  valueError?: (value: string) => string | undefined,
 ): string | undefined {
-  const keys = rows.map(row => row.key.trim())
+  const keys = rows.map((row) => row.key.trim())
   for (const [i, row] of rows.entries()) {
     const key = keys[i] ?? ''
     if (!keyPattern.test(key)) {
@@ -259,9 +227,7 @@ export function rowsError(
 export type Flag = boolean | string | undefined
 
 export function flagOf(value: unknown): Flag {
-  return typeof value === 'boolean' || typeof value === 'string'
-    ? value
-    : undefined
+  return typeof value === 'boolean' || typeof value === 'string' ? value : undefined
 }
 
 export function flagError(value: Flag, t: Strings): string | undefined {
@@ -269,11 +235,7 @@ export function flagError(value: Flag, t: Strings): string | undefined {
 }
 
 // Writes nothing when the switch matches the default, unless the YAML spelled it out.
-export function flagValue(
-  checked: boolean,
-  fallback: boolean,
-  original: unknown
-): Flag {
+export function flagValue(checked: boolean, fallback: boolean, original: unknown): Flag {
   if (checked !== fallback) {
     return checked
   }
@@ -318,20 +280,18 @@ export function Section({
     <details
       ref={details}
       open={initial}
-      onToggle={e => memory?.set(title, e.currentTarget.open)}
-      className='group border-t theme-border'
+      onToggle={(e) => memory?.set(title, e.currentTarget.open)}
+      className="group border-t theme-border"
     >
-      <summary className='flex cursor-pointer select-none list-none items-center gap-1.5 py-2.5 text-sm font-semibold [&::-webkit-details-marker]:hidden'>
+      <summary className="flex cursor-pointer select-none list-none items-center gap-1.5 py-2.5 text-sm font-semibold [&::-webkit-details-marker]:hidden">
         <ChevronRightIcon
-          aria-hidden='true'
-          className='h-3.5 w-3.5 shrink-0 theme-muted-text transition-transform group-open:rotate-90 motion-reduce:transition-none'
+          aria-hidden="true"
+          className="h-3.5 w-3.5 shrink-0 theme-muted-text transition-transform group-open:rotate-90 motion-reduce:transition-none"
         />
         {title}
       </summary>
-      <div className='flex flex-col gap-3 pb-4'>
-        {description && (
-          <div className='text-xs theme-muted-text'>{description}</div>
-        )}
+      <div className="flex flex-col gap-3 pb-4">
+        {description && <div className="text-xs theme-muted-text">{description}</div>}
         {children}
       </div>
     </details>
@@ -339,21 +299,13 @@ export function Section({
 }
 
 export function FieldError({ message }: { message: string | undefined }) {
-  return message ? (
-    <div className='text-xs text-(--theme-error)'>{message}</div>
-  ) : null
+  return message ? <div className="text-xs text-(--theme-error)">{message}</div> : null
 }
 
 /** The YAML key a field sets, beside its name; left out where the name already says it. */
-export function KeyHint({
-  label,
-  yamlKey,
-}: {
-  label: string
-  yamlKey: string
-}) {
+export function KeyHint({ label, yamlKey }: { label: string; yamlKey: string }) {
   return label.trim().toLowerCase() === yamlKey.toLowerCase() ? null : (
-    <code aria-hidden='true' className='font-mono text-xs theme-muted-text'>
+    <code aria-hidden="true" className="font-mono text-xs theme-muted-text">
       {yamlKey}
     </code>
   )
@@ -382,8 +334,8 @@ export function FieldLabel({
 }) {
   const nameClass = 'text-[0.8125rem] font-medium'
   const text = (
-    <div className='flex min-w-0 flex-col'>
-      <div className='flex flex-wrap items-baseline gap-x-1.5'>
+    <div className="flex min-w-0 flex-col">
+      <div className="flex flex-wrap items-baseline gap-x-1.5">
         {htmlFor ? (
           <label htmlFor={htmlFor} className={nameClass}>
             {label}
@@ -393,15 +345,15 @@ export function FieldLabel({
         )}
         {yamlKey && <KeyHint label={label} yamlKey={yamlKey} />}
       </div>
-      <span id={descriptionId} className='text-xs theme-muted-text'>
+      <span id={descriptionId} className="text-xs theme-muted-text">
         {description}
       </span>
     </div>
   )
   return actions ? (
-    <div className='flex items-start justify-between gap-3'>
+    <div className="flex items-start justify-between gap-3">
       {text}
-      <div className='flex shrink-0 items-center gap-1'>{actions}</div>
+      <div className="flex shrink-0 items-center gap-1">{actions}</div>
     </div>
   ) : (
     text
@@ -415,7 +367,7 @@ export function LabelledField({
   ...label
 }: ComponentProps<typeof FieldLabel> & { children: ReactNode }) {
   return (
-    <div className='flex flex-col gap-1.5'>
+    <div className="flex flex-col gap-1.5">
       <FieldLabel {...label} />
       {children}
     </div>
@@ -432,10 +384,10 @@ export function ExpressionToggle({
   const { graphEditor: t } = useStrings()
   return (
     <IconButton
-      icon={<ExpressionIcon className='h-4 w-4' />}
+      icon={<ExpressionIcon className="h-4 w-4" />}
       label={active ? t.stopExpression : t.useExpression}
-      size='sm'
-      variant='ghost'
+      size="sm"
+      variant="ghost"
       active={active}
       aria-pressed={active}
       onClick={() => onChange(!active)}
@@ -459,7 +411,7 @@ export function ToggleField({
   disabled?: boolean
 }) {
   return (
-    <div className='flex items-center justify-between gap-3'>
+    <div className="flex items-center justify-between gap-3">
       <FieldLabel label={label} yamlKey={yamlKey} description={description} />
       <Toggle
         checked={checked}
@@ -490,17 +442,17 @@ export function ChoiceButtons<T extends string>({
   size?: 'sm' | 'xs'
 }) {
   return (
-    <div className='flex gap-2'>
-      {options.map(option => (
+    <div className="flex gap-2">
+      {options.map((option) => (
         <button
           key={option.value}
-          type='button'
+          type="button"
           aria-pressed={value === option.value}
           onClick={() => onChange(option.value)}
           className={cx(
             'flex-1 cursor-pointer rounded-md border px-3 py-2 transition-colors',
             size === 'sm' ? 'text-sm' : 'text-xs',
-            pressedClasses(value === option.value)
+            pressedClasses(value === option.value),
           )}
         >
           {option.label}
@@ -510,22 +462,16 @@ export function ChoiceButtons<T extends string>({
   )
 }
 
-export function AddRowButton({
-  label,
-  onClick,
-}: {
-  label: string
-  onClick: () => void
-}) {
+export function AddRowButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <div>
       <Button
-        type='button'
-        variant='ghost'
-        size='sm'
+        type="button"
+        variant="ghost"
+        size="sm"
         fullWidth={false}
-        icon={<AddIcon className='h-3 w-3' />}
-        iconPosition='left'
+        icon={<AddIcon className="h-3 w-3" />}
+        iconPosition="left"
         onClick={onClick}
       >
         {label}
@@ -557,12 +503,12 @@ export function KeyValueEditor({
 }) {
   const { graphEditor: t } = useStrings()
   return (
-    <div className='flex flex-col gap-2'>
+    <div className="flex flex-col gap-2">
       {rows.map((row, i) => (
         <KeyValueRow
           key={i}
           row={row}
-          onChange={next => onChange(updateAt(rows, i, next))}
+          onChange={(next) => onChange(updateAt(rows, i, next))}
           onRemove={() => onChange(removeAt(rows, i))}
           keyPlaceholder={keyPlaceholder ?? t.key}
           valuePlaceholder={valuePlaceholder ?? t.value}
@@ -602,35 +548,35 @@ function KeyValueRow({
     linted ? row.key.trim() || undefined : undefined,
     id,
     row.value,
-    value => onChange({ ...row, value })
+    (value) => onChange({ ...row, value }),
   )
   return (
-    <div className='flex flex-col gap-1.5'>
-      <div className='flex items-center gap-2'>
-        <div className='w-2/5'>
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-2">
+        <div className="w-2/5">
           <Input
             mono
             aria-label={t.key}
             placeholder={keyPlaceholder}
             value={row.key}
-            onChange={e => onChange({ ...row, key: e.target.value })}
+            onChange={(e) => onChange({ ...row, key: e.target.value })}
           />
         </div>
-        <div className='flex-1' title={row.nested ? t.jsonValue : undefined}>
+        <div className="flex-1" title={row.nested ? t.jsonValue : undefined}>
           <SuggestionInput
             id={id}
             ariaLabel={t.value}
             placeholder={valuePlaceholder}
             value={row.value}
-            suggestions={valueSuggestions.map(value => ({ value }))}
-            onChange={value => onChange({ ...row, value })}
+            suggestions={valueSuggestions.map((value) => ({ value }))}
+            onChange={(value) => onChange({ ...row, value })}
           />
         </div>
         <IconButton
-          icon={<CloseIcon className='h-4 w-4' />}
+          icon={<CloseIcon className="h-4 w-4" />}
           label={t.removeRow}
-          variant='ghost'
-          size='sm'
+          variant="ghost"
+          size="sm"
           onClick={onRemove}
         />
       </div>
@@ -667,32 +613,29 @@ export function StringListEditor({
 }) {
   const { graphEditor: t } = useStrings()
   return (
-    <div className='flex flex-col gap-2'>
+    <div className="flex flex-col gap-2">
       {values.map((value, i) => (
-        <div key={i} className='flex items-center gap-2'>
-          <div className='flex-1'>
+        <div key={i} className="flex items-center gap-2">
+          <div className="flex-1">
             <SuggestionInput
               ariaLabel={addLabel}
               value={value}
               placeholder={placeholder}
-              suggestions={suggestions.map(option => ({ value: option }))}
-              onChange={next => onChange(updateAt(values, i, next))}
+              suggestions={suggestions.map((option) => ({ value: option }))}
+              onChange={(next) => onChange(updateAt(values, i, next))}
             />
           </div>
           <IconButton
-            icon={<CloseIcon className='h-4 w-4' />}
+            icon={<CloseIcon className="h-4 w-4" />}
             label={t.removeRow}
-            variant='ghost'
-            size='sm'
+            variant="ghost"
+            size="sm"
             onClick={() => onChange(removeAt(values, i))}
           />
         </div>
       ))}
       <FieldError message={error} />
-      <AddRowButton
-        label={addLabel}
-        onClick={() => onChange([...values, ''])}
-      />
+      <AddRowButton label={addLabel} onClick={() => onChange([...values, ''])} />
     </div>
   )
 }
@@ -719,17 +662,12 @@ export function SuggestedInput({
   const id = useId()
   const lint = useFieldLint(yamlKey, id, value, onChange)
   return (
-    <LabelledField
-      label={label}
-      yamlKey={yamlKey}
-      description={description ?? ''}
-      htmlFor={id}
-    >
+    <LabelledField label={label} yamlKey={yamlKey} description={description ?? ''} htmlFor={id}>
       <SuggestionInput
         id={id}
         value={value}
         placeholder={placeholder}
-        suggestions={suggestions.map(option => ({ value: option }))}
+        suggestions={suggestions.map((option) => ({ value: option }))}
         onChange={onChange}
       />
       <FieldError message={error ?? lint.message} />
@@ -739,7 +677,7 @@ export function SuggestedInput({
 }
 
 /** A text area that starts one line tall and grows with its text. */
-export function useGrowingArea(value: string) {
+export function useGrowingArea(_value: string) {
   const ref = useRef<HTMLTextAreaElement>(null)
   useLayoutEffect(() => {
     const area = ref.current
@@ -747,7 +685,7 @@ export function useGrowingArea(value: string) {
       area.style.height = 'auto'
       area.style.height = `${area.scrollHeight + area.offsetHeight - area.clientHeight}px`
     }
-  }, [value])
+  }, [])
   return ref
 }
 
@@ -755,7 +693,7 @@ export function useGrowingArea(value: string) {
 export const GROWING_AREA = '!min-h-0 !resize-none overflow-hidden'
 
 export function GrowingTextarea(
-  props: Omit<ComponentProps<typeof Textarea>, 'rows'> & { value: string }
+  props: Omit<ComponentProps<typeof Textarea>, 'rows'> & { value: string },
 ) {
   const ref = useGrowingArea(props.value)
   return <Textarea {...props} ref={ref} rows={1} className={GROWING_AREA} />
@@ -769,9 +707,7 @@ export interface OpenOnAdd {
 
 /** The dialogs' "open when adding" switch, when the host keeps the setting. */
 export function openOnAddOf(
-  editor:
-    | { openOnAdd?: boolean; onOpenOnAddChange?: (open: boolean) => void }
-    | undefined
+  editor: { openOnAdd?: boolean; onOpenOnAddChange?: (open: boolean) => void } | undefined,
 ): OpenOnAdd | undefined {
   return editor?.onOpenOnAddChange
     ? { open: editor.openOnAdd !== false, onChange: editor.onOpenOnAddChange }
@@ -797,15 +733,15 @@ function OpenOnAddSwitch({ open, onChange }: OpenOnAdd) {
   const { graphEditor: t } = useStrings()
   return (
     <label
-      className='flex cursor-pointer items-center gap-2 text-xs theme-muted-text'
+      className="flex cursor-pointer items-center gap-2 text-xs theme-muted-text"
       data-tooltip-id={TOOLTIP_ID}
       data-tooltip-content={t.openOnAddHelp}
     >
       <input
-        type='checkbox'
-        className='h-4 w-4 cursor-pointer accent-(--theme-element)'
+        type="checkbox"
+        className="h-4 w-4 cursor-pointer accent-(--theme-element)"
         checked={open}
-        onChange={e => onChange(e.target.checked)}
+        onChange={(e) => onChange(e.target.checked)}
       />
       {t.openOnAdd}
     </label>
@@ -836,40 +772,28 @@ export function DialogShell({
       open
       onClose={onClose}
       ariaLabel={title}
-      align='center'
+      align="center"
       preventClose={dirty || locked}
-      className={cx(
-        modalPanelClasses,
-        'flex max-h-[85vh] w-full max-w-2xl flex-col'
-      )}
+      className={cx(modalPanelClasses, 'flex max-h-[85vh] w-full max-w-2xl flex-col')}
     >
-      <div className='flex min-h-0 flex-col'>
-        <div className='flex items-center gap-3 border-b theme-border px-5 py-4'>
-          <div className='flex-1 text-[1rem] font-semibold'>{title}</div>
+      <div className="flex min-h-0 flex-col">
+        <div className="flex items-center gap-3 border-b theme-border px-5 py-4">
+          <div className="flex-1 text-[1rem] font-semibold">{title}</div>
           {headerEnd}
         </div>
-        <div className='flex min-h-0 flex-col gap-3 overflow-y-auto px-5 py-4'>
-          {children}
-        </div>
-        <div className='flex items-center gap-2 border-t theme-border px-5 py-3'>
+        <div className="flex min-h-0 flex-col gap-3 overflow-y-auto px-5 py-4">{children}</div>
+        <div className="flex items-center gap-2 border-t theme-border px-5 py-3">
           {footerStart}
           {openOnAdd && <OpenOnAddSwitch {...openOnAdd} />}
-          <div className='flex-1' />
-          <button
-            type='button'
-            className={ghostButtonClasses}
-            onClick={onClose}
-          >
+          <div className="flex-1" />
+          <button type="button" className={ghostButtonClasses} onClick={onClose}>
             {t.cancel}
           </button>
           <button
-            type='button'
+            type="button"
             disabled={saveDisabled}
             onClick={submit}
-            className={cx(
-              primaryButtonClasses,
-              'disabled:cursor-not-allowed disabled:opacity-50'
-            )}
+            className={cx(primaryButtonClasses, 'disabled:cursor-not-allowed disabled:opacity-50')}
           >
             {t.save}
           </button>

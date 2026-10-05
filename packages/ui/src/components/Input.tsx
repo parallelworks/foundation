@@ -1,12 +1,8 @@
-import { useId, useState, forwardRef } from 'react'
-import type {
-  InputHTMLAttributes,
-  TextareaHTMLAttributes,
-  ReactNode,
-} from 'react'
+import cx from 'classnames'
+import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from 'react'
+import { forwardRef, useId, useState } from 'react'
 import { AlertIcon, EyeIcon, EyeOffIcon } from '../icons'
 import { RequiredMark } from './RequiredMark'
-import cx from 'classnames'
 
 interface FieldProps {
   label?: ReactNode
@@ -18,19 +14,15 @@ interface FieldProps {
   mono?: boolean
 }
 
-interface InputProps
-  extends InputHTMLAttributes<HTMLInputElement>,
-    FieldProps {}
+interface InputProps extends InputHTMLAttributes<HTMLInputElement>, FieldProps {}
 
-interface TextareaProps
-  extends TextareaHTMLAttributes<HTMLTextAreaElement>,
-    FieldProps {}
+interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement>, FieldProps {}
 
 /** The box a text field draws, for other controls that should look like one. */
 export const fieldBoxClasses = cx(
   'w-full py-3 px-4 bg-[var(--theme-muted-panel-bg)] border border-[var(--theme-border)] rounded-lg text-[var(--theme-app)] text-sm transition-all duration-200 box-border',
   'focus:outline-none focus:border-[var(--theme-element)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--theme-element)_25%,transparent)]',
-  'placeholder:text-[var(--theme-muted-text-color)]'
+  'placeholder:text-[var(--theme-muted-text-color)]',
 )
 
 function LabelRow({
@@ -45,16 +37,13 @@ function LabelRow({
   required: boolean | undefined
 }) {
   const element = (
-    <label
-      className='text-[0.8125rem] font-medium text-[var(--theme-app)]'
-      htmlFor={id}
-    >
+    <label className="text-[0.8125rem] font-medium text-[var(--theme-app)]" htmlFor={id}>
       {label}
       {required && <RequiredMark />}
     </label>
   )
   return hint ? (
-    <div className='flex flex-wrap items-baseline gap-x-1.5'>
+    <div className="flex flex-wrap items-baseline gap-x-1.5">
       {element}
       {hint}
     </div>
@@ -68,7 +57,7 @@ function useFieldFrame(
   { label, labelHint, description, error }: FieldProps,
   ownId: string | undefined,
   describedBy: string | undefined,
-  required: boolean | undefined
+  required: boolean | undefined,
 ) {
   const generatedId = useId()
   const id = ownId ?? generatedId
@@ -77,28 +66,14 @@ function useFieldFrame(
   return {
     id,
     describedBy:
-      [
-        describedBy,
-        description ? descriptionId : undefined,
-        error ? errorId : undefined,
-      ]
+      [describedBy, description ? descriptionId : undefined, error ? errorId : undefined]
         .filter(Boolean)
         .join(' ') || undefined,
     frame: (control: ReactNode) => (
-      <div className='flex flex-col gap-1.5'>
-        {label && (
-          <LabelRow
-            id={id}
-            label={label}
-            hint={labelHint}
-            required={required}
-          />
-        )}
+      <div className="flex flex-col gap-1.5">
+        {label && <LabelRow id={id} label={label} hint={labelHint} required={required} />}
         {description && (
-          <span
-            id={descriptionId}
-            className='-mt-1 text-xs text-(--theme-muted-text-color)'
-          >
+          <span id={descriptionId} className="-mt-1 text-xs text-(--theme-muted-text-color)">
             {description}
           </span>
         )}
@@ -106,10 +81,10 @@ function useFieldFrame(
         {error && (
           <span
             id={errorId}
-            role='alert'
-            className='text-[0.8125rem] text-[#ef4444] flex items-center gap-1.5'
+            role="alert"
+            className="text-[0.8125rem] text-[#ef4444] flex items-center gap-1.5"
           >
-            <AlertIcon className='w-4 h-4' />
+            <AlertIcon className="w-4 h-4" />
             {error}
           </span>
         )}
@@ -120,18 +95,8 @@ function useFieldFrame(
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
   (
-    {
-      label,
-      labelHint,
-      description,
-      error,
-      className = '',
-      mono,
-      type,
-      required,
-      ...props
-    },
-    ref
+    { label, labelHint, description, error, className = '', mono, type, required, ...props },
+    ref,
   ) => {
     const [showPassword, setShowPassword] = useState(false)
     const isPassword = type === 'password'
@@ -139,7 +104,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
       { label, labelHint, description, error },
       props.id,
       props['aria-describedby'],
-      required
+      required,
     )
     return field.frame(
       <div className={isPassword ? 'relative w-full' : ''}>
@@ -153,7 +118,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             // Important: the box's own border color comes later in the stylesheet.
             error && '!border-[#ef4444]',
             isPassword && 'pr-11',
-            className
+            className,
           )}
           {...props}
           id={field.id}
@@ -163,45 +128,29 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         />
         {isPassword && (
           <button
-            type='button'
-            className='absolute right-3 top-1/2 -translate-y-1/2 bg-transparent border-none text-[var(--theme-muted-text-color)] cursor-pointer p-1 transition-colors duration-200 flex items-center justify-center hover:text-[var(--theme-app)]'
+            type="button"
+            className="absolute right-3 top-1/2 -translate-y-1/2 bg-transparent border-none text-[var(--theme-muted-text-color)] cursor-pointer p-1 transition-colors duration-200 flex items-center justify-center hover:text-[var(--theme-app)]"
             onClick={() => setShowPassword(!showPassword)}
             tabIndex={-1}
             aria-label={showPassword ? 'Hide password' : 'Show password'}
           >
-            {showPassword ? (
-              <EyeOffIcon className='w-5 h-5' />
-            ) : (
-              <EyeIcon className='w-5 h-5' />
-            )}
+            {showPassword ? <EyeOffIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
           </button>
         )}
-      </div>
+      </div>,
     )
-  }
+  },
 )
 
 Input.displayName = 'Input'
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
-  (
-    {
-      label,
-      labelHint,
-      description,
-      error,
-      className = '',
-      mono,
-      required,
-      ...props
-    },
-    ref
-  ) => {
+  ({ label, labelHint, description, error, className = '', mono, required, ...props }, ref) => {
     const field = useFieldFrame(
       { label, labelHint, description, error },
       props.id,
       props['aria-describedby'],
-      required
+      required,
     )
     return field.frame(
       <textarea
@@ -211,16 +160,16 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           'min-h-[140px] resize-y',
           mono && 'font-mono text-[0.8125rem]',
           error && '!border-[#ef4444]',
-          className
+          className,
         )}
         {...props}
         id={field.id}
         required={required}
         aria-invalid={error ? true : props['aria-invalid']}
         aria-describedby={field.describedBy}
-      />
+      />,
     )
-  }
+  },
 )
 
 Textarea.displayName = 'Textarea'

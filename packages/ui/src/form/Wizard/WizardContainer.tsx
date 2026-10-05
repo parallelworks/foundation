@@ -1,18 +1,14 @@
 import { type FormikValues, useFormikContext } from 'formik'
 import { useCallback } from 'react'
 import { useFormEditing } from '../formEditing'
+import type { WizardContainerProps } from './types'
+import { useWizardState } from './useWizardState'
 import { WizardNavigation } from './WizardNavigation'
 import { WizardStepContent } from './WizardStepContent'
 import { WizardStepIndicator } from './WizardStepIndicator'
-import { useWizardState } from './useWizardState'
-import type { WizardContainerProps } from './types'
 
 function hasNestedError(stepErrors: unknown, fieldName: string): boolean {
-  return (
-    typeof stepErrors === 'object' &&
-    stepErrors !== null &&
-    fieldName in stepErrors
-  )
+  return typeof stepErrors === 'object' && stepErrors !== null && fieldName in stepErrors
 }
 
 export function WizardContainer({
@@ -28,16 +24,8 @@ export function WizardContainer({
   setFieldValue,
   setFieldTouched,
 }: WizardContainerProps & {
-  setFieldValue: (
-    field: string,
-    value: unknown,
-    shouldValidate?: boolean
-  ) => void
-  setFieldTouched: (
-    field: string,
-    touched?: boolean,
-    shouldValidate?: boolean
-  ) => void
+  setFieldValue: (field: string, value: unknown, shouldValidate?: boolean) => void
+  setFieldTouched: (field: string, touched?: boolean, shouldValidate?: boolean) => void
 }) {
   const { validateForm, setTouched, touched } = useFormikContext<FormikValues>()
   const editing = useFormEditing()
@@ -60,10 +48,8 @@ export function WizardContainer({
 
       // Check if any step fields have errors
       const hasStepErrors = shouldFlatten
-        ? stepFieldNames.some(fieldName => errors[fieldName])
-        : stepFieldNames.some(fieldName =>
-            hasNestedError(errors[stepKey], fieldName)
-          )
+        ? stepFieldNames.some((fieldName) => errors[fieldName])
+        : stepFieldNames.some((fieldName) => hasNestedError(errors[stepKey], fieldName))
 
       // Mark fields as touched to show errors
       if (hasStepErrors) {
@@ -72,7 +58,7 @@ export function WizardContainer({
             acc[fieldName] = true
             return acc
           },
-          {} as Record<string, boolean>
+          {} as Record<string, boolean>,
         )
         if (shouldFlatten) {
           setTouched({ ...touched, ...touchedFields }, false)
@@ -83,7 +69,7 @@ export function WizardContainer({
 
       return !hasStepErrors
     },
-    [steps, validateForm, setTouched, touched]
+    [steps, validateForm, setTouched, touched, config.flatten],
   )
 
   const {
@@ -119,7 +105,7 @@ export function WizardContainer({
       }
       return jumpToStep(stepKey)
     },
-    [jumpToStep, config_.allowJump, visitedSteps]
+    [jumpToStep, config_.allowJump, visitedSteps],
   )
 
   const handleSubmit = useCallback(async () => {
@@ -137,7 +123,7 @@ export function WizardContainer({
           acc[fieldName] = true
           return acc
         },
-        {} as Record<string, boolean>
+        {} as Record<string, boolean>,
       )
       setTouched({ ...touched, ...touchedFields }, false)
       throw new Error('Please fix errors before submitting')
@@ -150,7 +136,7 @@ export function WizardContainer({
   if (editing) {
     return (
       <div className={className}>
-        {stepOrder.map(stepKey => {
+        {stepOrder.map((stepKey) => {
           const stepConfig = steps[stepKey]
           return stepConfig ? (
             <WizardStepContent
@@ -192,7 +178,7 @@ export function WizardContainer({
 
       {/* Step content */}
       {currentStepConfig && (
-        <div className='mb-4'>
+        <div className="mb-4">
           <WizardStepContent
             currentStep={currentStep}
             stepConfig={currentStepConfig}

@@ -6,10 +6,10 @@ const workflow = JSON.parse(
   readFileSync(
     new URL(
       '../../../../cmd/ingress/internal/handlers/workflows/workflowschema/workflow.schema.json',
-      import.meta.url
+      import.meta.url,
     ),
-    'utf8'
-  )
+    'utf8',
+  ),
 ) as JsonSchema
 
 function refs(value: unknown, out: string[] = []): string[] {
@@ -37,9 +37,7 @@ function resolves(schema: JsonSchema, ref: string): boolean {
   for (const part of ref.slice(2).split('/')) {
     const key = part.replace(/~1/g, '/').replace(/~0/g, '~')
     current =
-      typeof current === 'object' && current !== null
-        ? (current as JsonSchema)[key]
-        : undefined
+      typeof current === 'object' && current !== null ? (current as JsonSchema)[key] : undefined
   }
   return current !== undefined
 }
@@ -57,22 +55,20 @@ describe('settingsSchemas', () => {
 
   it('takes the job and the step schema out of the workflow schema', () => {
     expect(Object.keys(job['properties'] as JsonSchema)).toEqual(
-      expect.arrayContaining(['steps', 'needs', 'if', 'strategy'])
+      expect.arrayContaining(['steps', 'needs', 'if', 'strategy']),
     )
     expect(job['additionalProperties']).toBe(false)
     expect(Object.keys(step['properties'] as JsonSchema)).toEqual(
-      expect.arrayContaining(['run', 'uses', 'cleanup', 'if'])
+      expect.arrayContaining(['run', 'uses', 'cleanup', 'if']),
     )
   })
 
   it("takes an input's schema, one of the input types, out of the inputs", () => {
     const types = (input['oneOf'] as JsonSchema[]).map(
-      variant =>
-        (
-          (variant['properties'] as JsonSchema | undefined)?.['type'] as
-            | JsonSchema
-            | undefined
-        )?.['const']
+      (variant) =>
+        ((variant['properties'] as JsonSchema | undefined)?.['type'] as JsonSchema | undefined)?.[
+          'const'
+        ],
     )
     expect(types).toEqual(expect.arrayContaining(['string', 'group', 'list']))
   })
@@ -81,7 +77,7 @@ describe('settingsSchemas', () => {
     for (const part of [job, step, input, settings]) {
       expect(part['$schema']).toBe(workflow['$schema'])
       expect(refs(part).length).toBeGreaterThan(0)
-      expect(refs(part).filter(ref => !resolves(part, ref))).toEqual([])
+      expect(refs(part).filter((ref) => !resolves(part, ref))).toEqual([])
     }
   })
 })

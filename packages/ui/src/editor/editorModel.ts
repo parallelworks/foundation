@@ -6,7 +6,7 @@ const listeners = new WeakMap<monaco.editor.ITextModel, monaco.IDisposable[]>()
 export function modelFor(
   uri: monaco.Uri,
   value: string,
-  language: string | undefined
+  language: string | undefined,
 ): monaco.editor.ITextModel {
   const existing = monaco.editor.getModel(uri)
   // A YAML model is refilled rather than made anew: a new one starts over at version 1, and the
@@ -17,9 +17,7 @@ export function modelFor(
     }
     // Its markers describe the text being replaced, and nothing else clears them all.
     const owners = new Set(
-      monaco.editor
-        .getModelMarkers({ resource: uri })
-        .map(marker => marker.owner)
+      monaco.editor.getModelMarkers({ resource: uri }).map((marker) => marker.owner),
     )
     for (const owner of owners) {
       monaco.editor.setModelMarkers(existing, owner, [])
@@ -36,7 +34,7 @@ export function modelFor(
 /** An editor's listeners on its model, dropped when the next editor takes the model over. */
 export function holdListeners(
   model: monaco.editor.ITextModel,
-  disposables: monaco.IDisposable[]
+  disposables: monaco.IDisposable[],
 ): void {
   listeners.set(model, disposables)
 }

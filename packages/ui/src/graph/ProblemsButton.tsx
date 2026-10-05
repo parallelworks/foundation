@@ -23,43 +23,35 @@ export function ProblemsButton({ problems }: { problems: ListedProblem[] }) {
     <>
       <button
         ref={button}
-        type='button'
+        type="button"
         aria-label={label}
         aria-expanded={open}
         {...(open ? {} : { 'data-tooltip-id': TOOLTIP_ID })}
         data-tooltip-content={label}
-        className='flex h-7 cursor-pointer items-center gap-1 rounded px-2 text-xs font-medium text-(--theme-error) theme-hover'
-        onClick={() => setOpen(current => !current)}
+        className="flex h-7 cursor-pointer items-center gap-1 rounded px-2 text-xs font-medium text-(--theme-error) theme-hover"
+        onClick={() => setOpen((current) => !current)}
       >
-        <AlertIcon className='h-3.5 w-3.5' />
+        <AlertIcon className="h-3.5 w-3.5" />
         {problems.length}
       </button>
       {open && (
-        <ToolbarPopover
-          anchor={button}
-          label={label}
-          onClose={() => setOpen(false)}
-        >
-          <div className='mb-2 text-[0.8125rem] font-semibold'>{label}</div>
-          <ul className='flex flex-col gap-0.5'>
+        <ToolbarPopover anchor={button} label={label} onClose={() => setOpen(false)}>
+          <div className="mb-2 text-[0.8125rem] font-semibold">{label}</div>
+          <ul className="flex flex-col gap-0.5">
             {problems.map((problem, i) => {
               const { pick } = problem
               const text = (
                 <>
-                  <span className='mr-1.5 theme-muted-text'>
-                    {t.problemLine(problem.line)}
-                  </span>
-                  <span className='text-(--theme-error)'>
-                    {problem.message}
-                  </span>
+                  <span className="mr-1.5 theme-muted-text">{t.problemLine(problem.line)}</span>
+                  <span className="text-(--theme-error)">{problem.message}</span>
                 </>
               )
               return (
                 <li key={`${problem.line}:${i}`}>
                   {pick ? (
                     <button
-                      type='button'
-                      className='w-full cursor-pointer rounded px-1.5 py-1 text-left theme-hover'
+                      type="button"
+                      className="w-full cursor-pointer rounded px-1.5 py-1 text-left theme-hover"
                       onClick={() => {
                         setOpen(false)
                         pick()
@@ -68,7 +60,7 @@ export function ProblemsButton({ problems }: { problems: ListedProblem[] }) {
                       {text}
                     </button>
                   ) : (
-                    <div className='px-1.5 py-1'>{text}</div>
+                    <div className="px-1.5 py-1">{text}</div>
                   )}
                 </li>
               )

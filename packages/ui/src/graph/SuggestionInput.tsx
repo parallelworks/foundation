@@ -8,17 +8,14 @@ export interface Suggestion {
   label?: string | undefined
 }
 
-export function suggestionOptions(
-  suggestions: Suggestion[]
-): (IOptions | string)[] {
+export function suggestionOptions(suggestions: Suggestion[]): (IOptions | string)[] {
   return suggestions.map(({ value, label }) =>
-    label ? { label, value, description: value } : value
+    label ? { label, value, description: value } : value,
   )
 }
 
 // Input's box, so a field with suggestions sits level with the text fields beside it.
-export const FIELD_TEXT_BOX =
-  'py-3 pl-4 rounded-lg text-sm !bg-[var(--theme-muted-panel-bg)]'
+export const FIELD_TEXT_BOX = 'py-3 pl-4 rounded-lg text-sm !bg-[var(--theme-muted-panel-bg)]'
 
 /**
  * The dropdown for a field that takes any typed value as well as the ones it offers. Any of
@@ -43,7 +40,7 @@ export function SuggestionInput({
       allowCustomValue={allowCustomValue}
       value={value}
       options={suggestionOptions(suggestions)}
-      onChange={next => onChange(next === undefined ? '' : String(next))}
+      onChange={(next) => onChange(next === undefined ? '' : String(next))}
     />
   )
 }

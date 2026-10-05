@@ -1,7 +1,7 @@
+import type { ReactNode } from 'react'
 import { Indicator } from '../components/Indicator'
 import { useStrings, useWorkflowEngine } from '../components/Provider'
 import type { MatrixGroup, RunStatus } from '../engine'
-import type { ReactNode } from 'react'
 import { EditableJobRow, emptyRowsStyle, ProblemOutline } from './GraphEditor'
 import { Joblist } from './JobSummary'
 import { Reveal } from './Reveal'
@@ -39,23 +39,23 @@ export function MatrixGroupSummaryItem({
 }) {
   const { dag: t } = useStrings()
   return (
-    <div key={'matrix-' + matrixGroup.originaljob} className='py-1.5'>
+    <div key={`matrix-${matrixGroup.originaljob}`} className="py-1.5">
       <button
-        type='button'
+        type="button"
         aria-expanded={isExpanded}
         onClick={onToggle}
-        className='cursor-pointer flex items-center gap-x-1.5 w-full text-left'
+        className="cursor-pointer flex items-center gap-x-1.5 w-full text-left"
       >
         <Indicator status={status} />
-        <div className='font-semibold'>
+        <div className="font-semibold">
           {t.matrixOf(matrixGroup.originaljob)}
-          <span className='font-normal text-sm ml-1'>
+          <span className="font-normal text-sm ml-1">
             ({t.jobCount(matrixGroup.members.length)})
           </span>
         </div>
       </button>
       <Reveal open={isExpanded}>
-        <div className='ml-3 mt-0.5'>
+        <div className="ml-3 mt-0.5">
           <Joblist
             jobs={jobs}
             jobNames={matrixGroup.members}
@@ -127,26 +127,22 @@ export function MatrixGroupNode({
   const matrixName = matrixGroup.originaljob
   const matrixMembers = matrixGroup.members
   const { aggStatus, statusLabel } = useWorkflowEngine().matrixStatus(
-    matrixMembers.map(m => jobs[m]?.status)
+    matrixMembers.map((m) => jobs[m]?.status),
   )
   const header = (
     <button
-      type='button'
+      type="button"
       aria-expanded={isExpanded}
-      className='cursor-pointer w-full text-left'
+      className="cursor-pointer w-full text-left"
       onClick={onToggle}
     >
-      <div className='font-semibold text-md p-0.5'>
-        {t.matrixOf(
-          matrixName.length > 20 ? matrixName.slice(0, 20) + '...' : matrixName
-        )}
+      <div className="font-semibold text-md p-0.5">
+        {t.matrixOf(matrixName.length > 20 ? `${matrixName.slice(0, 20)}...` : matrixName)}
       </div>
       {!isExpanded && (
-        <div className='mt-1 border-t border-(--theme-border) pt-1 flex items-center gap-x-1'>
+        <div className="mt-1 border-t border-(--theme-border) pt-1 flex items-center gap-x-1">
           {!preview && <Indicator status={aggStatus} />}
-          <span>
-            {preview ? t.jobCount(matrixMembers.length) : statusLabel}
-          </span>
+          <span>{preview ? t.jobCount(matrixMembers.length) : statusLabel}</span>
         </div>
       )}
     </button>
@@ -154,10 +150,10 @@ export function MatrixGroupNode({
 
   return (
     <div
-      key={'node_' + jobNames[0]}
-      id={'node_' + idPrefix + jobNames[0]}
-      role='none'
-      className='relative m-24'
+      key={`node_${jobNames[0]}`}
+      id={`node_${idPrefix}${jobNames[0]}`}
+      role="none"
+      className="relative m-24"
       style={{
         zIndex: (activeDists?.has(jobNames[0]!) ? 25 : 1) + zBase,
         ...emptyRowsStyle(rowsAbove),
@@ -167,29 +163,24 @@ export function MatrixGroupNode({
       onFocus={onMouseEnter}
       onBlur={onMouseLeave}
     >
-      <div className='absolute inset-0 rounded-2xl bg-(--theme-panel-bg)' />
+      <div className="absolute inset-0 rounded-2xl bg-(--theme-panel-bg)" />
       <div
-        className='relative border-solid shadow py-4 px-8 rounded-xl border-4 whitespace-nowrap bg-(--theme-panel-bg) text-2xl'
+        className="relative border-solid shadow py-4 px-8 rounded-xl border-4 whitespace-nowrap bg-(--theme-panel-bg) text-2xl"
         style={{
-          opacity:
-            hoveredRelated && !hoveredRelated.has(jobNames[0]!) ? 0.5 : 1,
+          opacity: hoveredRelated && !hoveredRelated.has(jobNames[0]!) ? 0.5 : 1,
           transition: `opacity ${animT}s`,
         }}
       >
         {editable && <ProblemOutline jobs={[matrixName]} />}
         {editable ? (
-          <EditableJobRow
-            job={matrixName}
-            label={t.matrixOf(matrixName)}
-            badge={false}
-          >
+          <EditableJobRow job={matrixName} label={t.matrixOf(matrixName)} badge={false}>
             {header}
           </EditableJobRow>
         ) : (
           header
         )}
         <Reveal open={isExpanded} growWidth={true}>
-          <div className='mt-1 border-t border-(--theme-border) pt-1'>
+          <div className="mt-1 border-t border-(--theme-border) pt-1">
             <Joblist
               jobs={jobs}
               jobNames={matrixMembers}

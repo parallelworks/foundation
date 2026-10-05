@@ -22,7 +22,7 @@ describe('inputRefs', () => {
       },
       hosts: { type: 'list', template: { host: { type: 'string' } } },
     })
-    expect(refs.map(ref => [ref.path, ref.type, ref.label])).toEqual([
+    expect(refs.map((ref) => [ref.path, ref.type, ref.label])).toEqual([
       [['cluster'], 'compute-clusters', 'Cluster'],
       [['settings', 'size'], 'number', 'size'],
       [['depth'], 'number', 'depth'],
@@ -36,21 +36,16 @@ describe('inputRefs', () => {
       title: 'One',
       options: { a: { type: 'string' } },
     }
-    expect(inputRefs({ one: step }).map(ref => ref.path)).toEqual([['a']])
+    expect(inputRefs({ one: step }).map((ref) => ref.path)).toEqual([['a']])
     expect(
-      inputRefs({ $meta: { wizard: { flatten: false } }, one: step }).map(
-        ref => ref.path
-      )
+      inputRefs({ $meta: { wizard: { flatten: false } }, one: step }).map((ref) => ref.path),
     ).toEqual([['one', 'a']])
   })
 })
 
 describe('input expressions', () => {
   it('reads back the input an expression names', () => {
-    expect(readRef(refExpression(['settings', 'size']))).toEqual([
-      'settings',
-      'size',
-    ])
+    expect(readRef(refExpression(['settings', 'size']))).toEqual(['settings', 'size'])
     expect(readRef(refExpression(['cluster'], 'ip'), 'ip')).toEqual(['cluster'])
     expect(readRef('${{ inputs.cluster.user }}', 'ip')).toBeNull()
     expect(readRef('${{ !inputs.on }}')).toBeNull()

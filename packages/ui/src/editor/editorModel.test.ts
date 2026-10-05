@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest'
+
 // The full monaco bundle registers browser commands jsdom lacks, so it loads after these;
 // only the text model is needed here.
 document.queryCommandSupported ??= () => false
@@ -32,9 +33,7 @@ describe('modelFor', () => {
     expect(next).toBe(first)
     expect(next.getValue()).toBe('name: Step 2\nuses: marketplace/x\n')
     expect(next.getVersionId()).toBeGreaterThan(version)
-    next.applyEdits([
-      { range: new monaco.Range(3, 1, 3, 1), text: 'id: two\n' },
-    ])
+    next.applyEdits([{ range: new monaco.Range(3, 1, 3, 1), text: 'id: two\n' }])
     expect(heard).toEqual([])
   })
 

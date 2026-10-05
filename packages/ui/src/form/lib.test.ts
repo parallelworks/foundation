@@ -1,10 +1,10 @@
+import deepEqual from 'fast-deep-equal'
 import {
   enforceOneMustBeTrue,
   flattenGroups,
   impureSetValueFromPath,
   initializeValues,
 } from './lib'
-import deepEqual from 'fast-deep-equal'
 
 const MockSchema = {
   group1: {
@@ -289,9 +289,9 @@ describe('initializeValues', () => {
     ])
     // A saved value wins, even an empty one, so a rerun keeps what was run.
     expect(initializeValues(schema, { hosts: [] })?.['hosts']).toEqual([])
-    expect(
-      initializeValues(schema, { hosts: [{ name: 'c' }] })?.['hosts']
-    ).toEqual([{ name: 'c', port: 80 }])
+    expect(initializeValues(schema, { hosts: [{ name: 'c' }] })?.['hosts']).toEqual([
+      { name: 'c', port: 80 },
+    ])
   })
 
   it('restores secondary values for persisted grouped storage selections', () => {
@@ -461,12 +461,7 @@ function getSampleOptions() {
           label: 'Zone',
           type: 'dropdown',
           options: {
-            'us-central1': [
-              'us-central1-a',
-              'us-central1-b',
-              'us-central1-c',
-              'us-central1-f',
-            ],
+            'us-central1': ['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f'],
             'us-east1': ['us-east1-b', 'us-east1-c', 'us-east1-d'],
             'us-east4': ['us-east4-a', 'us-east4-b', 'us-east4-c'],
             'us-west1': ['us-west1-a', 'us-west1-b', 'us-west1-c'],
@@ -503,15 +498,13 @@ function getSampleOptions() {
             { label: 'Latest', value: 'latest' },
             {
               label: 'Pworks pw-hpc-c7-x86-64-v27-slurm',
-              value:
-                'projects/cloud-parallel-works/global/images/pw-hpc-c7-x86-64-v27-slurm',
+              value: 'projects/cloud-parallel-works/global/images/pw-hpc-c7-x86-64-v27-slurm',
             },
             { label: 'new-gcp', value: 'pw-egarcia-new-gcp' },
             { label: 'testing-cloud', value: 'pw-egarcia-testing-cloud' },
             {
               label: 'pw-hpc-c7-x86-64-v31-slurm',
-              value:
-                'projects/cloud-parallel-works/global/images/pw-hpc-c7-x86-64-v31-slurm',
+              value: 'projects/cloud-parallel-works/global/images/pw-hpc-c7-x86-64-v31-slurm',
             },
           ],
           tooltip: [
@@ -528,8 +521,7 @@ function getSampleOptions() {
             'us-central1': [
               {
                 label: '/apps',
-                value:
-                  'projects/modular-magpie-167320/global/images/apps-08-image',
+                value: 'projects/modular-magpie-167320/global/images/apps-08-image',
                 secondaryValue: 'ext4',
               },
             ],
@@ -630,15 +622,13 @@ function getSampleOptions() {
                 { label: 'Latest', value: 'latest' },
                 {
                   label: 'Pworks pw-hpc-c7-x86-64-v27-slurm',
-                  value:
-                    'projects/cloud-parallel-works/global/images/pw-hpc-c7-x86-64-v27-slurm',
+                  value: 'projects/cloud-parallel-works/global/images/pw-hpc-c7-x86-64-v27-slurm',
                 },
                 { label: 'new-gcp', value: 'pw-egarcia-new-gcp' },
                 { label: 'testing-cloud', value: 'pw-egarcia-testing-cloud' },
                 {
                   label: 'pw-hpc-c7-x86-64-v31-slurm',
-                  value:
-                    'projects/cloud-parallel-works/global/images/pw-hpc-c7-x86-64-v31-slurm',
+                  value: 'projects/cloud-parallel-works/global/images/pw-hpc-c7-x86-64-v31-slurm',
                 },
               ],
               tooltip: [
@@ -652,12 +642,7 @@ function getSampleOptions() {
               type: 'dropdown',
               depends_on: 'cluster_config.region',
               options: {
-                'us-central1': [
-                  'us-central1-a',
-                  'us-central1-b',
-                  'us-central1-c',
-                  'us-central1-f',
-                ],
+                'us-central1': ['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f'],
                 'us-east1': ['us-east1-b', 'us-east1-c', 'us-east1-d'],
                 'us-east4': ['us-east4-a', 'us-east4-b', 'us-east4-c'],
                 'us-west1': ['us-west1-a', 'us-west1-b', 'us-west1-c'],
@@ -675,9 +660,7 @@ function getSampleOptions() {
               type: 'boolean',
               disabled: false,
               default: true,
-              tooltip: [
-                'GVNIC is required to support higher network bandwidths.',
-              ],
+              tooltip: ['GVNIC is required to support higher network bandwidths.'],
             },
             tier_1: {
               label: 'TIER_1',
@@ -717,18 +700,14 @@ function getSampleOptions() {
               label: 'Resume Timeout',
               disabled: false,
               type: 'number',
-              tooltip: [
-                'Max time to wait for nodes to start before giving up.',
-              ],
+              tooltip: ['Max time to wait for nodes to start before giving up.'],
               placeholder: 1200,
             },
             slurm_suspend_timeout: {
               label: 'Suspend Timeout',
               disabled: false,
               type: 'number',
-              tooltip: [
-                'How long to wait for a node to be ready again after being shutdown.',
-              ],
+              tooltip: ['How long to wait for a node to be ready again after being shutdown.'],
               placeholder: 300,
             },
             slurm_return_to_service: {

@@ -1,12 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import {
-  cleanup,
-  createEvent,
-  fireEvent,
-  render,
-  screen,
-} from '@testing-library/react'
+import { cleanup, createEvent, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { testEngine } from '../test/engine'
 
@@ -22,8 +16,8 @@ global.requestAnimationFrame = (() => 0) as typeof requestAnimationFrame
 global.cancelAnimationFrame = (() => {}) as typeof cancelAnimationFrame
 
 // Pan/zoom + animation wrappers reduced to plain passthroughs (no layout in jsdom).
-vi.mock('../components/Provider', async importOriginal =>
-  (await import('../test/engine')).mockEngineHooks(importOriginal)
+vi.mock('../components/Provider', async (importOriginal) =>
+  (await import('../test/engine')).mockEngineHooks(importOriginal),
 )
 
 vi.mock('react-zoom-pan-pinch', () => ({
@@ -40,7 +34,7 @@ vi.mock('framer-motion', () => ({
         () =>
         ({ children }: { children: unknown }) =>
           children,
-    }
+    },
   ),
 }))
 
@@ -57,8 +51,8 @@ vi.mock('../logviewer', () => ({
     additionalBottomRightBarComponents?: React.ReactNode
   }) => (
     <>
-      <pre data-testid='log'>{log}</pre>
-      <div data-testid='log-footer'>
+      <pre data-testid="log">{log}</pre>
+      <div data-testid="log-footer">
         {additionalBottomLeftBarComponents}
         {additionalBottomRightBarComponents}
       </div>
@@ -68,7 +62,7 @@ vi.mock('../logviewer', () => ({
 vi.mock('./AnnotationBanner', () => ({ AnnotationBanner: () => null }))
 
 import { detectMatrixGroups, emptyLayout } from '@parallelworks/workflow-parser'
-import { UIProvider, type RunFileResult } from '../components/Provider'
+import { type RunFileResult, UIProvider } from '../components/Provider'
 import DependencyGraph, { computeGraphLayout } from './DependencyGraph'
 import type { WorkflowJob } from './types'
 
@@ -166,9 +160,7 @@ describe('DependencyGraph inline subworkflows', () => {
     // In the same bar as the other view buttons, ahead of them.
     const bar = back.parentElement as HTMLElement
     expect(bar).toContainElement(forward)
-    expect(bar).toContainElement(
-      screen.getByRole('button', { name: 'Reset View' })
-    )
+    expect(bar).toContainElement(screen.getByRole('button', { name: 'Reset View' }))
     fireEvent.click(back)
     expect(screen.getByText('Notify')).toBeInTheDocument()
     expect(back).toBeDisabled()
@@ -337,7 +329,7 @@ describe('DependencyGraph sidebar', () => {
       testEngine,
       executedJobs,
       detectMatrixGroups(executedJobs),
-      slots
+      slots,
     )
     expect(laidOut.dependencyCols).toEqual([[['setup']], [['build-0']]])
     expect(laidOut.colSlots).toEqual([0, 2])
@@ -359,18 +351,15 @@ describe('DependencyGraph step log states', () => {
         }}
       >
         <DependencyGraph run={run} />
-      </UIProvider>
+      </UIProvider>,
     )
 
-  const openGeneralLog = () =>
-    fireEvent.click(screen.getByRole('button', { name: 'General log' }))
+  const openGeneralLog = () => fireEvent.click(screen.getByRole('button', { name: 'General log' }))
 
   it('words a log it could not fetch differently from an empty one', () => {
     withRunFile({ error: new Error('boom') })
     openGeneralLog()
-    expect(screen.getByTestId('log')).toHaveTextContent(
-      'Log could not be loaded'
-    )
+    expect(screen.getByTestId('log')).toHaveTextContent('Log could not be loaded')
     expect(screen.queryByText('No log found')).not.toBeInTheDocument()
   })
 
@@ -388,12 +377,12 @@ describe('DependencyGraph general log', () => {
       <UIProvider
         strings={{
           dag: {
-            statusReason: reason => (reason ? 'why: ' + reason : undefined),
+            statusReason: (reason) => (reason ? `why: ${reason}` : undefined),
           },
         }}
       >
         <DependencyGraph run={r} />
-      </UIProvider>
+      </UIProvider>,
     )
 
   // A run rejected before it could write a log left this pane saying only
@@ -405,9 +394,7 @@ describe('DependencyGraph general log', () => {
       statusReason: 'insufficientDiskSpace',
     })
     fireEvent.click(screen.getByRole('button', { name: 'General log' }))
-    expect(screen.getByTestId('log')).toHaveTextContent(
-      'why: insufficientDiskSpace'
-    )
+    expect(screen.getByTestId('log')).toHaveTextContent('why: insufficientDiskSpace')
   })
 
   it('reports a missing log when the run offers no reason', () => {
@@ -430,8 +417,8 @@ describe('DependencyGraph general log', () => {
   })
 
   const footerButtons = () =>
-    [...screen.getByTestId('log-footer').querySelectorAll('button')].map(b =>
-      b.textContent?.trim()
+    [...screen.getByTestId('log-footer').querySelectorAll('button')].map((b) =>
+      b.textContent?.trim(),
     )
 
   // The run's logs.out belongs to no job or step, so paging off it read step_ off
@@ -447,9 +434,7 @@ describe('DependencyGraph general log', () => {
   it('keeps step paging on a subworkflow general log', () => {
     renderGraph(run)
     fireEvent.click(screen.getAllByText('Build')[0]!)
-    fireEvent.click(
-      screen.getAllByRole('button', { name: 'Open in new graph' })[0]!
-    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'Open in new graph' })[0]!)
     fireEvent.click(screen.getByRole('button', { name: 'General log' }))
     expect(footerButtons()).toEqual(['Prev', 'Next', 'Show Script'])
     // And paging still resolves to a real step rather than throwing.

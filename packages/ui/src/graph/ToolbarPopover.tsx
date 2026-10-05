@@ -1,11 +1,4 @@
-import {
-  type ReactNode,
-  type RefObject,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react'
+import { type ReactNode, type RefObject, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 interface Place {
@@ -64,10 +57,7 @@ export function ToolbarPopover({
     panel.current?.focus({ preventScroll: true })
     const away = (e: PointerEvent) => {
       const target = e.target as Node
-      if (
-        !panel.current?.contains(target) &&
-        !anchor.current?.contains(target)
-      ) {
+      if (!panel.current?.contains(target) && !anchor.current?.contains(target)) {
         close.current()
       }
     }
@@ -91,14 +81,14 @@ export function ToolbarPopover({
   return createPortal(
     <div
       ref={panel}
-      role='dialog'
+      role="dialog"
       aria-label={label}
       tabIndex={-1}
-      className='fixed z-50 w-96 max-w-[calc(100vw-16px)] overflow-y-auto rounded-md border theme-border bg-(--theme-panel-bg) p-3 text-xs text-(--theme-app) shadow-lg outline-none'
+      className="fixed z-50 w-96 max-w-[calc(100vw-16px)] overflow-y-auto rounded-md border theme-border bg-(--theme-panel-bg) p-3 text-xs text-(--theme-app) shadow-lg outline-none"
       style={place ?? { visibility: 'hidden' }}
     >
       {children}
     </div>,
-    document.body
+    document.body,
   )
 }

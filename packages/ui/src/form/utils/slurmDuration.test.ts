@@ -35,7 +35,7 @@ describe('parseSlurmDuration', () => {
     '1-2:3:4:5',
     '1.5:00:00',
     '1:00:00:00',
-  ])('rejects %s', text => {
+  ])('rejects %s', (text) => {
     expect(parseSlurmDuration(text)).toBeNull()
   })
 })
@@ -61,25 +61,17 @@ describe('formatSecondsAsSlurmDuration', () => {
 
   it.each([30, 300, 7200, 86400, 131400, 604800])(
     'round-trips %d through format and parse',
-    seconds => {
-      expect(parseSlurmDuration(formatSecondsAsSlurmDuration(seconds))).toBe(
-        seconds
-      )
-    }
+    (seconds) => {
+      expect(parseSlurmDuration(formatSecondsAsSlurmDuration(seconds))).toBe(seconds)
+    },
   )
 })
 
 describe('collectPartitionDurationIssues', () => {
   it('flags empty required fields on flex partitions', () => {
-    const issues = collectPartitionDurationIssues(
-      [{ provisioningMode: 'flex' }],
-      []
-    )
+    const issues = collectPartitionDurationIssues([{ provisioningMode: 'flex' }], [])
     expect(issues).toEqual(
-      expect.arrayContaining([
-        'partitions[0].maxDuration',
-        'partitions[0].flexStartWaitTime',
-      ])
+      expect.arrayContaining(['partitions[0].maxDuration', 'partitions[0].flexStartWaitTime']),
     )
     expect(issues).toHaveLength(2)
   })
@@ -93,35 +85,26 @@ describe('collectPartitionDurationIssues', () => {
           flexStartWaitTime: 300,
         },
       ],
-      []
+      [],
     )
     expect(issues).toEqual(['partitions[0].maxDuration'])
   })
 
   it('accepts an empty optional maxDuration on non-flex partitions', () => {
     expect(
-      collectPartitionDurationIssues(
-        [{ provisioningMode: 'standard', maxDuration: '' }],
-        []
-      )
+      collectPartitionDurationIssues([{ provisioningMode: 'standard', maxDuration: '' }], []),
     ).toEqual([])
   })
 
   it('flags a non-flex maxDuration below the standard minimum', () => {
     expect(
-      collectPartitionDurationIssues(
-        [{ provisioningMode: 'standard', maxDuration: 20 }],
-        []
-      )
+      collectPartitionDurationIssues([{ provisioningMode: 'standard', maxDuration: 20 }], []),
     ).toEqual(['partitions[0].maxDuration'])
   })
 
   it('coerces legacy numeric strings before range checks', () => {
     expect(
-      collectPartitionDurationIssues(
-        [{ provisioningMode: 'standard', maxDuration: '300' }],
-        []
-      )
+      collectPartitionDurationIssues([{ provisioningMode: 'standard', maxDuration: '300' }], []),
     ).toEqual([])
   })
 
@@ -133,7 +116,7 @@ describe('collectPartitionDurationIssues', () => {
         'partitions[0].maxDuration',
         'someOtherField',
         'partitions[0].instanceType',
-      ]
+      ],
     )
     expect(issues).toEqual(['partitions[0].maxDuration'])
   })
@@ -145,17 +128,14 @@ describe('collectPartitionDurationIssues', () => {
   it('accepts suspendTime registry paths and filters near-misses', () => {
     const issues = collectPartitionDurationIssues(
       [],
-      ['partitions[0].suspendTime', 'partitions[0].suspendTimeX']
+      ['partitions[0].suspendTime', 'partitions[0].suspendTimeX'],
     )
     expect(issues).toEqual(['partitions[0].suspendTime'])
   })
 
   it('does not flag the suspendTime never-suspend sentinel', () => {
     expect(
-      collectPartitionDurationIssues(
-        [{ provisioningMode: 'standard', suspendTime: -1 }],
-        []
-      )
+      collectPartitionDurationIssues([{ provisioningMode: 'standard', suspendTime: -1 }], []),
     ).toEqual([])
   })
 
@@ -170,8 +150,8 @@ describe('collectPartitionDurationIssues', () => {
             maxDuration: 600,
           },
         ],
-        []
-      )
+        [],
+      ),
     ).toEqual([])
     expect(
       collectPartitionDurationIssues(
@@ -183,8 +163,8 @@ describe('collectPartitionDurationIssues', () => {
             maxDuration: 600,
           },
         ],
-        []
-      )
+        [],
+      ),
     ).toEqual([])
   })
 
@@ -193,8 +173,8 @@ describe('collectPartitionDurationIssues', () => {
     expect(
       collectPartitionDurationIssues(
         [{ provisioningMode: 'standard', useNodeGroup: true, maxNodes: 4 }],
-        []
-      )
+        [],
+      ),
     ).toEqual([])
   })
 
@@ -208,8 +188,8 @@ describe('collectPartitionDurationIssues', () => {
             maxDuration: 599,
           },
         ],
-        []
-      )
+        [],
+      ),
     ).toEqual(['partitions[0].maxDuration'])
   })
 
@@ -223,8 +203,8 @@ describe('collectPartitionDurationIssues', () => {
             maxDuration: 600,
           },
         ],
-        []
-      )
+        [],
+      ),
     ).toEqual([])
   })
 
@@ -238,8 +218,8 @@ describe('collectPartitionDurationIssues', () => {
             maxDuration: 60,
           },
         ],
-        []
-      )
+        [],
+      ),
     ).toEqual([])
   })
 })

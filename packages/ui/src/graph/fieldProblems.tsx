@@ -41,11 +41,9 @@ export function FieldProblems({
 }) {
   const [fields, setFields] = useState<ReadonlyMap<string, string>>(new Map())
   const register = useCallback((key: string, id: string) => {
-    setFields(current =>
-      current.get(key) === id ? current : new Map(current).set(key, id)
-    )
+    setFields((current) => (current.get(key) === id ? current : new Map(current).set(key, id)))
     return () =>
-      setFields(current => {
+      setFields((current) => {
         if (current.get(key) !== id) {
           return current
         }
@@ -54,27 +52,14 @@ export function FieldProblems({
         return next
       })
   }, [])
-  const value = useMemo(
-    () => ({ problems, fields, register }),
-    [problems, fields, register]
-  )
-  return (
-    <FieldProblemsContext.Provider value={value}>
-      {children}
-    </FieldProblemsContext.Provider>
-  )
+  const value = useMemo(() => ({ problems, fields, register }), [problems, fields, register])
+  return <FieldProblemsContext.Provider value={value}>{children}</FieldProblemsContext.Provider>
 }
 
 const LintScopeContext = createContext('')
 
 /** Where the fields inside sit, such as `ssh` for a remote host's fields. */
-export function LintScope({
-  at,
-  children,
-}: {
-  at: string
-  children: ReactNode
-}) {
+export function LintScope({ at, children }: { at: string; children: ReactNode }) {
   const outer = useContext(LintScopeContext)
   return (
     <LintScopeContext.Provider value={outer ? `${outer}.${at}` : at}>
@@ -84,21 +69,13 @@ export function LintScope({
 }
 
 /** The problems at the field with id `id`, which sets `key`; the dialog's list then leads to it. */
-export function useFieldProblems(
-  key: string | undefined,
-  id: string
-): ScopedProblem[] {
+export function useFieldProblems(key: string | undefined, id: string): ScopedProblem[] {
   const context = useContext(FieldProblemsContext)
   const scope = useContext(LintScopeContext)
   const full = key === undefined ? undefined : scope ? `${scope}.${key}` : key
   const register = context?.register
-  useEffect(
-    () => (full && register ? register(full, id) : undefined),
-    [full, id, register]
-  )
-  return full && context
-    ? context.problems.filter(problem => within(problem, full))
-    : []
+  useEffect(() => (full && register ? register(full, id) : undefined), [full, id, register])
+  return full && context ? context.problems.filter((problem) => within(problem, full)) : []
 }
 
 /** A field's problems as one message, and the buttons that make their likely fixes. */
@@ -106,46 +83,35 @@ export function useFieldLint(
   key: string | undefined,
   id: string,
   value: string,
-  onChange: (value: string) => void
+  onChange: (value: string) => void,
 ): { message: string | undefined; fixes: ReactNode } {
   const problems = useFieldProblems(key, id)
   const fixes = problems.flatMap(({ fix }) =>
-    fix && !fix.key && replaceReference(value, fix.find, fix.replace) !== value
-      ? [fix]
-      : []
+    fix && !fix.key && replaceReference(value, fix.find, fix.replace) !== value ? [fix] : [],
   )
   return {
-    message:
-      problems.length > 0
-        ? problems.map(problem => problem.message).join(' ')
-        : undefined,
+    message: problems.length > 0 ? problems.map((problem) => problem.message).join(' ') : undefined,
     fixes: (
       <FixButtons
         fixes={fixes}
-        onFix={fix => onChange(replaceReference(value, fix.find, fix.replace))}
+        onFix={(fix) => onChange(replaceReference(value, fix.find, fix.replace))}
       />
     ),
   }
 }
 
-export function FixButtons({
-  fixes,
-  onFix,
-}: {
-  fixes: LintFix[]
-  onFix: (fix: LintFix) => void
-}) {
+export function FixButtons({ fixes, onFix }: { fixes: LintFix[]; onFix: (fix: LintFix) => void }) {
   const { graphEditor: t } = useStrings()
   if (fixes.length === 0) {
     return null
   }
   return (
-    <div className='flex flex-wrap gap-2'>
-      {fixes.map(fix => (
+    <div className="flex flex-wrap gap-2">
+      {fixes.map((fix) => (
         <button
           key={`${fix.find}>${fix.replace}`}
-          type='button'
-          className='cursor-pointer text-left text-xs font-medium text-(--theme-link) hover:underline'
+          type="button"
+          className="cursor-pointer text-left text-xs font-medium text-(--theme-link) hover:underline"
           onClick={() => onFix(fix)}
         >
           {t.applyFix(fix.replace)}
@@ -178,16 +144,16 @@ export function ProblemList({ problems }: { problems: ScopedProblem[] }) {
       .filter(([key]) => within(problem, key))
       .sort(([a], [b]) => b.length - a.length)[0]?.[1]
   return (
-    <ul className='flex flex-col gap-1 text-sm text-(--theme-error)'>
+    <ul className="flex flex-col gap-1 text-sm text-(--theme-error)">
       {problems.map((problem, i) => {
         const field = fieldOf(problem)
         return (
-          <li key={i} className='flex gap-1.5'>
-            <AlertIcon className='mt-0.5 h-4 w-4 shrink-0' />
+          <li key={i} className="flex gap-1.5">
+            <AlertIcon className="mt-0.5 h-4 w-4 shrink-0" />
             {field ? (
               <button
-                type='button'
-                className='cursor-pointer text-left hover:underline'
+                type="button"
+                className="cursor-pointer text-left hover:underline"
                 onClick={() => reveal(field)}
               >
                 {problem.message}

@@ -54,8 +54,7 @@ export const FLEX_MAX_DURATION_RANGE = { min: 600, max: 604800 }
 export const FLEX_WAIT_TIME_RANGE = { min: 30, max: 604800 }
 export const STANDARD_MAX_DURATION_RANGE = { min: 30, max: 10368000 }
 
-const DURATION_PATH =
-  /^partitions\[\d+\]\.(maxDuration|flexStartWaitTime|suspendTime)$/
+const DURATION_PATH = /^partitions\[\d+\]\.(maxDuration|flexStartWaitTime|suspendTime)$/
 
 interface PartitionDurations {
   provisioningMode?: unknown
@@ -65,17 +64,15 @@ interface PartitionDurations {
 
 export function collectPartitionDurationIssues(
   partitions: unknown[] | undefined,
-  invalidDurationPaths: string[]
+  invalidDurationPaths: string[],
 ): string[] {
-  const issues = new Set(
-    invalidDurationPaths.filter(path => DURATION_PATH.test(path))
-  )
+  const issues = new Set(invalidDurationPaths.filter((path) => DURATION_PATH.test(path)))
   ;(partitions ?? []).forEach((partition, i) => {
     const p = partition as PartitionDurations | undefined
     const check = (
       fieldName: 'maxDuration' | 'flexStartWaitTime',
       range: { min: number; max: number },
-      required: boolean
+      required: boolean,
     ) => {
       const raw = p?.[fieldName]
       if (raw === undefined || raw === null || raw === '') {

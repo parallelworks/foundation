@@ -1,12 +1,8 @@
 import { type LintFix, WORKFLOW_FORMS } from '@parallelworks/workflow-parser'
 import { useEffect, useId, useState } from 'react'
-import { Input, Textarea } from '../components/Input'
-import {
-  useRepoSuggestions,
-  useStrings,
-  useWorkflowJsonResolver,
-} from '../components/Provider'
 import { IconButton } from '../components/IconButton'
+import { Input, Textarea } from '../components/Input'
+import { useRepoSuggestions, useStrings, useWorkflowJsonResolver } from '../components/Provider'
 import { DynamicForm } from '../form/Form'
 import { CloseIcon } from '../icons'
 import {
@@ -18,38 +14,24 @@ import {
   isScalar,
   type Json,
   KeyValueEditor,
-  labelled,
   LabelledField,
+  labelled,
   parseScalar,
   type Row,
   rowsError,
   rowsFrom,
   rowsTo,
-  sameValue,
   StringListEditor,
   type Strings,
   SuggestedInput,
+  sameValue,
   ToggleField,
 } from './editorFields'
 import type { GraphEditorStrings } from './editorStrings'
-import {
-  DEFAULT_GITLAB_HOST,
-  DEFAULT_REPO_YAML,
-  loadUsesInputs,
-  splitAtRef,
-} from './usesInputs'
-import {
-  type InputSource,
-  refSuggestions,
-  ValueOrInputField,
-} from './inputRefs'
-import {
-  FixButtons,
-  LintScope,
-  useFieldLint,
-  useFieldProblems,
-} from './fieldProblems'
+import { FixButtons, LintScope, useFieldLint, useFieldProblems } from './fieldProblems'
+import { type InputSource, refSuggestions, ValueOrInputField } from './inputRefs'
 import { SuggestionInput } from './SuggestionInput'
+import { DEFAULT_GITLAB_HOST, DEFAULT_REPO_YAML, loadUsesInputs, splitAtRef } from './usesInputs'
 
 type ActionHelp = keyof GraphEditorStrings['actionHelp']
 /** An action input's help, which also keys its name. */
@@ -150,17 +132,14 @@ const REPO_INPUTS: WithSpec[] = [
   { key: '$yaml', kind: 'text', help: 'repoYaml' },
   { key: '$thumbnail', kind: 'text', help: 'repoThumbnail' },
 ]
-const GITLAB_INPUTS: WithSpec[] = [
-  ...REPO_INPUTS,
-  { key: '$host', kind: 'text', help: 'repoHost' },
-]
+const GITLAB_INPUTS: WithSpec[] = [...REPO_INPUTS, { key: '$host', kind: 'text', help: 'repoHost' }]
 
 /** Every `with` key the step dialog writes, for the schema coverage test. */
 export function withFields(): string[] {
   const specs = [...Object.values(ACTION_INPUTS).flat(), ...GITLAB_INPUTS]
   return [
     ...new Set([
-      ...specs.map(spec => spec.key),
+      ...specs.map((spec) => spec.key),
       ...TARGET_KEYS.map(([key]) => `targetInfo.${key}`),
     ]),
   ]
@@ -226,9 +205,7 @@ function draftFor(spec: WithSpec, value: unknown): unknown {
       return rowsFrom(value)
     case 'target': {
       const target = asRecord(value)
-      return Object.fromEntries(
-        TARGET_KEYS.map(([key]) => [key, textDraft(target[key])])
-      )
+      return Object.fromEntries(TARGET_KEYS.map(([key]) => [key, textDraft(target[key])]))
     }
     default:
       return textDraft(value)
@@ -246,9 +223,7 @@ export function withDraftFrom(value: unknown): WithDraft {
   return {
     values,
     rows: rowsFrom(
-      Object.fromEntries(
-        Object.entries(original).filter(([key]) => !key.startsWith('$'))
-      )
+      Object.fromEntries(Object.entries(original).filter(([key]) => !key.startsWith('$'))),
     ),
     removed: [],
   }
@@ -259,7 +234,7 @@ const slot = (spec: WithSpec) => `${spec.kind}:${spec.key}`
 function valueFor(spec: WithSpec, draft: unknown): unknown {
   switch (spec.kind) {
     case 'list': {
-      const items = (draft as string[]).map(item => item.trim()).filter(Boolean)
+      const items = (draft as string[]).map((item) => item.trim()).filter(Boolean)
       return items.length > 0 ? items : undefined
     }
     case 'bool':
@@ -287,21 +262,15 @@ function valueFor(spec: WithSpec, draft: unknown): unknown {
 }
 
 /** Keys the step already has that `uses` doesn't take: any for an action, `$` ones otherwise. */
-function extraKeys(
-  uses: string,
-  original: unknown,
-  draft: WithDraft
-): string[] {
+function extraKeys(uses: string, original: unknown, draft: WithDraft): string[] {
   const kind = usesKind(uses)
   if (kind === 'other') {
     return []
   }
-  const known = new Set(specsFor(uses).map(spec => spec.key))
+  const known = new Set(specsFor(uses).map((spec) => spec.key))
   return Object.keys(asRecord(original)).filter(
-    key =>
-      !known.has(key) &&
-      !draft.removed.includes(key) &&
-      (kind === 'action' || key.startsWith('$'))
+    (key) =>
+      !known.has(key) && !draft.removed.includes(key) && (kind === 'action' || key.startsWith('$')),
   )
 }
 
@@ -311,7 +280,7 @@ export function withValue(
   draft: WithDraft,
   initial: WithDraft,
   originalUses: string,
-  original: unknown
+  original: unknown,
 ): unknown {
   if (uses === originalUses && sameValue(draft, initial)) {
     return original
@@ -338,7 +307,7 @@ export function withError(
   uses: string,
   draft: WithDraft,
   original: unknown,
-  t: Strings
+  t: Strings,
 ): string | undefined {
   const kind = usesKind(uses)
   if (extraKeys(uses, original, draft).length > 0) {
@@ -349,11 +318,7 @@ export function withError(
     if (spec.required && value === undefined) {
       return t.missingInput(spec.key)
     }
-    if (
-      spec.kind === 'number' &&
-      value !== undefined &&
-      typeof value !== 'number'
-    ) {
+    if (spec.kind === 'number' && value !== undefined && typeof value !== 'number') {
       return t.invalidNumberInput
     }
     if (
@@ -365,12 +330,7 @@ export function withError(
       return t.invalidChoice(spec.key)
     }
     if (spec.kind === 'flags') {
-      const error = rowsError(
-        draft.values[slot(spec)] as Row[],
-        INPUT_KEY,
-        t.invalidKey,
-        t
-      )
+      const error = rowsError(draft.values[slot(spec)] as Row[], INPUT_KEY, t.invalidKey, t)
       if (error) {
         return error
       }
@@ -378,12 +338,7 @@ export function withError(
   }
   return kind === 'action'
     ? undefined
-    : rowsError(
-        draft.rows,
-        kind === 'other' ? /^\$?[a-zA-Z0-9_-]+$/ : INPUT_KEY,
-        t.invalidKey,
-        t
-      )
+    : rowsError(draft.rows, kind === 'other' ? /^\$?[a-zA-Z0-9_-]+$/ : INPUT_KEY, t.invalidKey, t)
 }
 
 function SpecField({
@@ -420,16 +375,8 @@ function SpecField({
   switch (spec.kind) {
     case 'list':
       return (
-        <LabelledField
-          label={label}
-          yamlKey={spec.key}
-          description={description}
-        >
-          <StringListEditor
-            values={draft as string[]}
-            onChange={onChange}
-            addLabel={t.addRow}
-          />
+        <LabelledField label={label} yamlKey={spec.key} description={description}>
+          <StringListEditor values={draft as string[]} onChange={onChange} addLabel={t.addRow} />
         </LabelledField>
       )
     case 'bool':
@@ -438,21 +385,13 @@ function SpecField({
           label={label}
           yamlKey={spec.key}
           description={description}
-          checked={
-            typeof draft === 'boolean' ? draft : (spec.fallback ?? false)
-          }
-          onChange={on =>
-            onChange(on === (spec.fallback ?? false) ? undefined : on)
-          }
+          checked={typeof draft === 'boolean' ? draft : (spec.fallback ?? false)}
+          onChange={(on) => onChange(on === (spec.fallback ?? false) ? undefined : on)}
         />
       )
     case 'flags':
       return (
-        <LabelledField
-          label={label}
-          yamlKey={spec.key}
-          description={description}
-        >
+        <LabelledField label={label} yamlKey={spec.key} description={description}>
           <KeyValueEditor
             rows={draft as Row[]}
             onChange={onChange}
@@ -464,12 +403,8 @@ function SpecField({
     case 'target': {
       const target = draft as Record<string, string>
       return (
-        <div className='flex flex-col gap-2'>
-          <FieldLabel
-            label={label}
-            yamlKey={spec.key}
-            description={description}
-          />
+        <div className="flex flex-col gap-2">
+          <FieldLabel label={label} yamlKey={spec.key} description={description} />
           {TARGET_KEYS.map(([key, help]) => (
             <Input
               key={key}
@@ -477,7 +412,7 @@ function SpecField({
               {...labelled(t.actionFields[help], key)}
               description={t.actionHelp[help]}
               value={target[key] ?? ''}
-              onChange={e => onChange({ ...target, [key]: e.target.value })}
+              onChange={(e) => onChange({ ...target, [key]: e.target.value })}
             />
           ))}
         </div>
@@ -491,7 +426,7 @@ function SpecField({
           description={description}
           rows={4}
           value={String(draft)}
-          onChange={e => onChange(e.target.value)}
+          onChange={(e) => onChange(e.target.value)}
         />
       )
     default:
@@ -509,10 +444,7 @@ function SpecField({
 }
 
 /** Where a repository `uses` reads its workflow from, for the repository fields. */
-export function repositoryOf(
-  uses: string,
-  host: string
-): { repo: string; branch: string } {
+export function repositoryOf(uses: string, host: string): { repo: string; branch: string } {
   const kind = usesKind(uses)
   if (kind !== 'github' && kind !== 'gitlab') {
     return { repo: '', branch: '' }
@@ -525,7 +457,7 @@ export function repositoryOf(
 /** The `uses` for a repository URL and branch, plus the $host a GitLab server needs. */
 export function usesOfRepository(
   repo: string,
-  branch: string
+  branch: string,
 ): { uses: string; host: string } | null {
   let url: URL
   try {
@@ -570,13 +502,10 @@ function RepositoryForm({
     <DynamicForm
       formJSONs={REPOSITORY_FIELDS}
       initialValues={initial}
-      labelPosition='top'
+      labelPosition="top"
       workflowForm
-      setValues={values => {
-        const next = usesOfRepository(
-          String(values['repo'] ?? ''),
-          String(values['branch'] ?? '')
-        )
+      setValues={(values) => {
+        const next = usesOfRepository(String(values['repo'] ?? ''), String(values['branch'] ?? ''))
         if (next) {
           onUses(next.uses)
         }
@@ -584,10 +513,7 @@ function RepositoryForm({
           ...draft,
           values: {
             ...draft.values,
-            'text:$yaml':
-              values['yaml'] === DEFAULT_REPO_YAML
-                ? ''
-                : String(values['yaml'] ?? ''),
+            'text:$yaml': values['yaml'] === DEFAULT_REPO_YAML ? '' : String(values['yaml'] ?? ''),
             'text:$thumbnail': String(values['thumbnail'] ?? ''),
             'text:$host': next?.host ?? host,
           },
@@ -639,32 +565,27 @@ export function UsesPicker({
   const id = useId()
   const lint = useFieldLint('uses', id, uses, onUses)
   const [mode, setMode] = useState<UsesMode>(() => usesMode(uses))
-  const options = (prefix: string) =>
-    choices.filter(choice => choice.startsWith(prefix))
+  const options = (prefix: string) => choices.filter((choice) => choice.startsWith(prefix))
   // Typed, not only picked: a version pin or a workflow the lists don't show still works.
   const select = (
     values: string[],
     placeholder: string,
-    labels?: (value: string) => string | undefined
+    labels?: (value: string) => string | undefined,
   ) => (
     <SuggestionInput
       id={id}
       ariaLabel={t.fields.uses}
       value={uses}
       placeholder={placeholder}
-      suggestions={values.map(value => ({ value, label: labels?.(value) }))}
+      suggestions={values.map((value) => ({ value, label: labels?.(value) }))}
       onChange={onUses}
     />
   )
   return (
-    <div className='flex flex-col gap-2'>
-      <FieldLabel
-        label={t.fields.uses}
-        yamlKey='uses'
-        description={t.help.uses}
-      />
+    <div className="flex flex-col gap-2">
+      <FieldLabel label={t.fields.uses} yamlKey="uses" description={t.help.uses} />
       <ChoiceButtons
-        size='xs'
+        size="xs"
         options={[
           { value: 'action', label: t.usesAction },
           { value: 'workflow', label: t.usesWorkflow },
@@ -672,7 +593,7 @@ export function UsesPicker({
           { value: 'repository', label: t.usesRepository },
         ]}
         value={mode}
-        onChange={next => {
+        onChange={(next) => {
           setMode(next)
           if (next !== usesMode(uses)) {
             onUses('')
@@ -680,7 +601,7 @@ export function UsesPicker({
         }}
       />
       {mode === 'action' ? (
-        select(Object.keys(ACTION_INPUTS), t.chooseAction, value => {
+        select(Object.keys(ACTION_INPUTS), t.chooseAction, (value) => {
           const about = ACTION_ABOUT[value]
           return about ? t.actionHelp[about] : undefined
         })
@@ -689,12 +610,7 @@ export function UsesPicker({
       ) : mode === 'marketplace' ? (
         select(options('marketplace/'), t.chooseMarketplace)
       ) : (
-        <RepositoryForm
-          uses={uses}
-          draft={draft}
-          onUses={onUses}
-          onDraft={onDraft}
-        />
+        <RepositoryForm uses={uses} draft={draft} onUses={onUses} onDraft={onDraft} />
       )}
       <FieldError message={error ?? lint.message} />
     </div>
@@ -712,7 +628,7 @@ function useSubworkflowInputs(uses: string, draft: WithDraft): Json | null {
     let live = true
     setInputs(null)
     loadUsesInputs(uses, { yamlPath, host }, { resolve, repos })
-      .then(loaded => {
+      .then((loaded) => {
         if (live) {
           setInputs(loaded)
         }
@@ -751,36 +667,30 @@ export function WithEditor({
   const extras = extraKeys(uses, original, draft)
   const references = refSuggestions(source)
   const subworkflow = useSubworkflowInputs(uses, draft)
-  const known = subworkflow
-    ? Object.entries(subworkflow).filter(([key]) => key !== '$meta')
-    : []
+  const known = subworkflow ? Object.entries(subworkflow).filter(([key]) => key !== '$meta') : []
   const knownKeys = new Set(known.map(([key]) => key))
   const setRow = (key: string, value: string) => {
     const rows =
       value === ''
-        ? draft.rows.filter(row => row.key !== key)
-        : draft.rows.some(row => row.key === key)
-          ? draft.rows.map(row => (row.key === key ? { ...row, value } : row))
+        ? draft.rows.filter((row) => row.key !== key)
+        : draft.rows.some((row) => row.key === key)
+          ? draft.rows.map((row) => (row.key === key ? { ...row, value } : row))
           : [...draft.rows, { key, value }]
     onChange({ ...draft, rows })
   }
   return (
-    <LintScope at='with'>
-      <div className='flex flex-col gap-3'>
-        <FieldLabel
-          label={t.fields.with}
-          yamlKey='with'
-          description={t.help.with}
-        />
+    <LintScope at="with">
+      <div className="flex flex-col gap-3">
+        <FieldLabel label={t.fields.with} yamlKey="with" description={t.help.with} />
         {kind === 'action' &&
-          specsFor(uses).map(spec => (
+          specsFor(uses).map((spec) => (
             <SpecField
               key={slot(spec)}
               spec={spec}
               draft={draft.values[slot(spec)]}
               references={references}
               source={source}
-              onChange={value =>
+              onChange={(value) =>
                 onChange({
                   ...draft,
                   values: { ...draft.values, [slot(spec)]: value },
@@ -788,7 +698,7 @@ export function WithEditor({
               }
             />
           ))}
-        {extras.map(key => (
+        {extras.map((key) => (
           <ExtraKey
             key={key}
             name={key}
@@ -811,27 +721,21 @@ export function WithEditor({
                   label={label || key}
                   yamlKey={key}
                   description={about || (typeNames[type] ?? type)}
-                  value={draft.rows.find(row => row.key === key)?.value ?? ''}
+                  value={draft.rows.find((row) => row.key === key)?.value ?? ''}
                   suggestions={references}
-                  onChange={value => setRow(key, value)}
+                  onChange={(value) => setRow(key, value)}
                 />
               )
             })}
             {known.length > 0 && (
-              <FieldLabel
-                label={t.otherInputs}
-                description={t.help.withInputs}
-              />
+              <FieldLabel label={t.otherInputs} description={t.help.withInputs} />
             )}
             <KeyValueEditor
-              rows={draft.rows.filter(row => !knownKeys.has(row.key))}
-              onChange={rows =>
+              rows={draft.rows.filter((row) => !knownKeys.has(row.key))}
+              onChange={(rows) =>
                 onChange({
                   ...draft,
-                  rows: [
-                    ...draft.rows.filter(row => knownKeys.has(row.key)),
-                    ...rows,
-                  ],
+                  rows: [...draft.rows.filter((row) => knownKeys.has(row.key)), ...rows],
                 })
               }
               error={undefined}
@@ -863,11 +767,11 @@ function ExtraKey({
   const { graphEditor: t } = useStrings()
   const id = useId()
   const fixes = useFieldProblems(name, id).flatMap(({ fix }) =>
-    fix?.key && fix.find === name ? [fix] : []
+    fix?.key && fix.find === name ? [fix] : [],
   )
   const remove = () => onChange({ ...draft, removed: [...draft.removed, name] })
   const rename = (fix: LintFix) => {
-    const spec = specsFor(uses).find(spec => spec.key === fix.replace)
+    const spec = specsFor(uses).find((spec) => spec.key === fix.replace)
     if (spec) {
       onChange({
         ...draft,
@@ -880,15 +784,15 @@ function ExtraKey({
     }
   }
   return (
-    <div id={id} tabIndex={-1} className='flex flex-col gap-1'>
-      <div className='flex items-center gap-2 text-sm'>
-        <span className='font-mono'>{name}</span>
-        <span className='text-xs text-(--theme-error)'>{t.notActionInput}</span>
+    <div id={id} tabIndex={-1} className="flex flex-col gap-1">
+      <div className="flex items-center gap-2 text-sm">
+        <span className="font-mono">{name}</span>
+        <span className="text-xs text-(--theme-error)">{t.notActionInput}</span>
         <IconButton
-          icon={<CloseIcon className='h-4 w-4' />}
+          icon={<CloseIcon className="h-4 w-4" />}
           label={t.removeRow}
-          variant='ghost'
-          size='sm'
+          variant="ghost"
+          size="sm"
           onClick={remove}
         />
       </div>

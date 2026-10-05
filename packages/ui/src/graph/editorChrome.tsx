@@ -1,9 +1,5 @@
 import cx from 'classnames'
-import {
-  type PointerEvent as ReactPointerEvent,
-  type ReactNode,
-  useSyncExternalStore,
-} from 'react'
+import { type ReactNode, type PointerEvent as ReactPointerEvent, useSyncExternalStore } from 'react'
 import { IconButton } from '../components/IconButton'
 import { useStrings } from '../components/Provider'
 import { TOOLTIP_ID } from '../components/Tooltip'
@@ -47,10 +43,7 @@ export function createStore<T extends object>(initial: T) {
 
 export type Store<T extends object> = ReturnType<typeof createStore<T>>
 
-export function useStore<T extends object, V>(
-  store: Store<T>,
-  select: (state: T) => V
-): V {
+export function useStore<T extends object, V>(store: Store<T>, select: (state: T) => V): V {
   return useSyncExternalStore(store.subscribe, () => select(store.get()))
 }
 
@@ -85,14 +78,7 @@ interface DragOptions {
 /** Follows a press from `start` until it's released or cancelled. */
 export function trackDrag(
   start: Point,
-  {
-    onMove,
-    onEnd,
-    onCancel,
-    escape = false,
-    holdText,
-    swallowClick = 'never',
-  }: DragOptions
+  { onMove, onEnd, onCancel, escape = false, holdText, swallowClick = 'never' }: DragOptions,
 ) {
   let dragged = false
   const cleanup = () => {
@@ -105,10 +91,7 @@ export function trackDrag(
     }
   }
   const move = (ev: PointerEvent) => {
-    if (
-      !dragged &&
-      Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < DRAG_THRESHOLD
-    ) {
+    if (!dragged && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < DRAG_THRESHOLD) {
       return
     }
     if (!dragged && holdText === 'drag') {
@@ -159,18 +142,12 @@ export function place(box: Box) {
 }
 
 /** The box a shift + drag draws, in its layer's coordinates. */
-export function MarqueeBox({
-  box,
-  className,
-}: {
-  box: Box
-  className?: string
-}) {
+export function MarqueeBox({ box, className }: { box: Box; className?: string }) {
   return (
     <div
       className={cx(
         'absolute rounded-md border-2 border-dashed border-(--theme-element) bg-(--theme-element)/10',
-        className
+        className,
       )}
       style={place(box)}
     />
@@ -191,7 +168,7 @@ export function DragLabel({
     <div
       className={cx(
         'pointer-events-none absolute z-30 rounded-md border bg-(--theme-panel-bg) px-2 py-1 text-xs shadow',
-        refused ? 'border-(--theme-error) text-(--theme-error)' : 'theme-border'
+        refused ? 'border-(--theme-error) text-(--theme-error)' : 'theme-border',
       )}
       style={{ left: at.x + 12, top: at.y + 12 }}
     >
@@ -201,7 +178,7 @@ export function DragLabel({
 }
 
 export function BarDivider() {
-  return <div className='mx-0.5 h-5 w-px bg-(--theme-border)' />
+  return <div className="mx-0.5 h-5 w-px bg-(--theme-border)" />
 }
 
 /** A toolbar chip that adds something: click to add it, or drag it to where it goes. */
@@ -222,10 +199,10 @@ export function AddChip({
 }) {
   return (
     <button
-      type='button'
+      type="button"
       className={cx(
         'flex h-7 cursor-grab items-center gap-1 whitespace-nowrap rounded px-2 text-xs theme-hover',
-        className
+        className,
       )}
       data-tooltip-id={TOOLTIP_ID}
       data-tooltip-content={hint}
@@ -255,7 +232,7 @@ export function EditorBar({
     <div
       className={cx(
         'flex max-w-full flex-wrap items-center justify-end gap-0.5 rounded-md border theme-border bg-(--theme-panel-bg) p-0.5',
-        className
+        className,
       )}
     >
       {!!editor.listedProblems?.length && (
@@ -265,18 +242,18 @@ export function EditorBar({
         </>
       )}
       <IconButton
-        icon={<UndoIcon className='h-4 w-4' />}
+        icon={<UndoIcon className="h-4 w-4" />}
         label={t.undo}
-        size='sm'
-        variant='ghost'
+        size="sm"
+        variant="ghost"
         disabled={!editor.canUndo}
         onClick={editor.onUndo}
       />
       <IconButton
-        icon={<RedoIcon className='h-4 w-4' />}
+        icon={<RedoIcon className="h-4 w-4" />}
         label={t.redo}
-        size='sm'
-        variant='ghost'
+        size="sm"
+        variant="ghost"
         disabled={!editor.canRedo}
         onClick={editor.onRedo}
       />
@@ -284,10 +261,10 @@ export function EditorBar({
       {children}
       {editor.onOpenSettings && (
         <IconButton
-          icon={<SettingsIcon className='h-4 w-4' />}
+          icon={<SettingsIcon className="h-4 w-4" />}
           label={t.workflowSettings}
-          size='sm'
-          variant='ghost'
+          size="sm"
+          variant="ghost"
           onClick={editor.onOpenSettings}
         />
       )}

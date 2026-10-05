@@ -1,5 +1,5 @@
-import { FieldsFromOptions } from '../Form'
 import type { TSetFormDirty } from '../Form'
+import { FieldsFromOptions } from '../Form'
 import { EditingScope, useFormEditing } from '../formEditing'
 import type { WizardStepContentProps } from './types'
 
@@ -15,16 +15,8 @@ export function WizardStepContent({
   ...fieldsProps
 }: WizardStepContentProps & {
   setFormDirty: TSetFormDirty
-  setFieldValue: (
-    field: string,
-    value: unknown,
-    shouldValidate?: boolean
-  ) => void
-  setFieldTouched: (
-    field: string,
-    touched?: boolean,
-    shouldValidate?: boolean
-  ) => void
+  setFieldValue: (field: string, value: unknown, shouldValidate?: boolean) => void
+  setFieldTouched: (field: string, touched?: boolean, shouldValidate?: boolean) => void
   flatten?: boolean | undefined
 }) {
   const editing = useFormEditing()
@@ -34,20 +26,14 @@ export function WizardStepContent({
   const path = editing ? [...editing.parent, currentStep] : null
 
   const content = (
-    <div className='mb-4 w-full'>
+    <div className="mb-4 w-full">
       {stepConfig.title && (
-        <h2
-          className='text-2xl font-bold mb-2'
-          style={{ color: 'var(--theme-app)' }}
-        >
+        <h2 className="text-2xl font-bold mb-2" style={{ color: 'var(--theme-app)' }}>
           {stepConfig.title}
         </h2>
       )}
       {stepConfig.description && (
-        <p
-          className='mb-4 leading-relaxed'
-          style={{ color: 'var(--theme-muted-text-color)' }}
-        >
+        <p className="mb-4 leading-relaxed" style={{ color: 'var(--theme-muted-text-color)' }}>
           {stepConfig.description}
         </p>
       )}
@@ -72,9 +58,5 @@ export function WizardStepContent({
       </EditingScope>
     </div>
   )
-  return editing && path ? (
-    <editing.Row path={path}>{content}</editing.Row>
-  ) : (
-    content
-  )
+  return editing && path ? <editing.Row path={path}>{content}</editing.Row> : content
 }

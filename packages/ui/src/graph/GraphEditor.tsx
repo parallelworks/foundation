@@ -1,4 +1,3 @@
-import cx from 'classnames'
 import {
   applyGraphEdit,
   dependsOn,
@@ -12,21 +11,23 @@ import {
   jobsYaml,
   layoutFromCols,
   layoutPosition,
+  loadYaml,
   moveJobs,
   type NeedRef,
   type NudgeDirection,
-  needTarget,
   needInUse,
-  snippetKind,
+  needTarget,
   type StepRef,
+  snippetKind,
   stepMoveProblem,
   stepsYaml,
 } from '@parallelworks/workflow-parser'
+import cx from 'classnames'
 import {
   type CSSProperties,
   createContext,
-  type PointerEvent as ReactPointerEvent,
   type ReactNode,
+  type PointerEvent as ReactPointerEvent,
   type RefObject,
   useContext,
   useEffect,
@@ -38,6 +39,7 @@ import {
 import { IconButton } from '../components/IconButton'
 import { useStrings } from '../components/Provider'
 import { TOOLTIP_ID } from '../components/Tooltip'
+import type { UsesCompletions } from '../editor/Monaco'
 import {
   AddIcon,
   AlertIcon,
@@ -51,9 +53,7 @@ import {
   RefreshIcon,
   TrashIcon,
 } from '../icons'
-import type { UsesCompletions } from '../editor/Monaco'
 import { type RowMenuItem, useRowMenu } from '../list/RowContextMenu'
-import { loadYaml } from '@parallelworks/workflow-parser'
 import {
   AddChip,
   BarDivider,
@@ -69,9 +69,9 @@ import {
 } from './editorChrome'
 import { asRecord, openOnAddOf } from './editorFields'
 import { JobDialog, type SettingsView, StepDialog } from './GraphEditorDialogs'
+import { formatJobLabel } from './jobLabel'
 import type { ListedProblem } from './ProblemsButton'
 import { MOD_KEY, type ShortcutGroup } from './ShortcutsButton'
-import { formatJobLabel } from './jobLabel'
 import type { WorkflowJob } from './types'
 
 /** A problem in the workflow, placed on the job, step or input its line is in. */
@@ -186,8 +186,7 @@ type Dialog =
   | { kind: 'job'; job: string; addition?: Addition }
   | { kind: 'step'; job: string; index: number; addition?: Addition }
 
-const labelsOf = (jobs: string[]) =>
-  jobs.map(job => formatJobLabel(job)).join(', ')
+const labelsOf = (jobs: string[]) => jobs.map((job) => formatJobLabel(job)).join(', ')
 
 /** A drawn connector, named by the head jobs of the boxes it joins. */
 export interface EdgeSelection {
@@ -215,10 +214,9 @@ const NO_PROBLEMS: EditorProblem[] = []
 
 // The problems in a job itself, or in one of its steps.
 const problemsIn = (problems: EditorProblem[], job: string, step?: number) =>
-  problems.filter(problem => problem.job === job && problem.step === step)
+  problems.filter((problem) => problem.job === job && problem.step === step)
 
-const sameStep = (a: StepRef, b: StepRef) =>
-  a.job === b.job && a.index === b.index
+const sameStep = (a: StepRef, b: StepRef) => a.job === b.job && a.index === b.index
 
 // What this page copied last, so pasting it back keeps the jobs' arrangement.
 let copied: {
@@ -288,7 +286,7 @@ export interface GraphEditorApi {
     e: ReactPointerEvent,
     edge: EdgeSelection,
     end: 'from' | 'to',
-    fixed: Point
+    fixed: Point,
   ) => void
   /** Removes the selected jobs, steps and connectors; false when nothing is selected. */
   deleteSelection: () => boolean
@@ -328,56 +326,43 @@ export function useGraphEditor(): GraphEditorApi | null {
 
 const noopSubscribe = () => () => {}
 
-function useUi<T>(
-  api: GraphEditorApi | null,
-  select: (state: UiState) => T,
-  fallback: T
-): T {
+function useUi<T>(api: GraphEditorApi | null, select: (state: UiState) => T, fallback: T): T {
   return useSyncExternalStore(api ? api.store.subscribe : noopSubscribe, () =>
-    api ? select(api.store.get()) : fallback
+    api ? select(api.store.get()) : fallback,
   )
 }
 
 export function useSelectedEdges(api: GraphEditorApi | null): EdgeSelection[] {
-  return useUi(api, state => state.edges, NO_EDGES)
+  return useUi(api, (state) => state.edges, NO_EDGES)
 }
 
-const sameEdge = (a: EdgeSelection, b: EdgeSelection) =>
-  a.from === b.from && a.to === b.to
+const sameEdge = (a: EdgeSelection, b: EdgeSelection) => a.from === b.from && a.to === b.to
 
 // Needs as they'd be without `refs`.
-function withoutRefs(
-  needs: Record<string, string[]>,
-  refs: NeedRef[]
-): Record<string, string[]> {
+function withoutRefs(needs: Record<string, string[]>, refs: NeedRef[]): Record<string, string[]> {
   if (refs.length === 0) {
     return needs
   }
   const out: Record<string, string[]> = Object.create(null)
   for (const [job, list] of Object.entries(needs)) {
-    out[job] = list.filter(
-      need => !refs.some(ref => ref.job === job && ref.need === need)
-    )
+    out[job] = list.filter((need) => !refs.some((ref) => ref.job === job && ref.need === need))
   }
   return out
 }
 
 // Whether connecting `edits` would only put back the needs `refs` names.
 function restores(edits: GraphEdit[], refs: NeedRef[]): boolean {
-  const pairs = edits.flatMap(e => (e.type === 'connect' ? [e] : []))
+  const pairs = edits.flatMap((e) => (e.type === 'connect' ? [e] : []))
   return (
     pairs.length === refs.length &&
-    pairs.every(pair =>
-      refs.some(
-        ref => ref.job === pair.to && needTarget(ref.need) === pair.from
-      )
+    pairs.every((pair) =>
+      refs.some((ref) => ref.job === pair.to && needTarget(ref.need) === pair.from),
     )
   )
 }
 
 function isMatrix(job: unknown): boolean {
-  const strategy = (job as { strategy?: { matrix?: unknown } } | undefined)
-    ?.strategy
+  const strategy = (job as { strategy?: { matrix?: unknown } } | undefined)?.strategy
   return strategy?.matrix !== undefined && strategy.matrix !== null
 }
 
@@ -413,21 +398,19 @@ const SELECTION_SIDE_PAD = 36
  * as wide as their nodes, so its circles sit clear of the nodes' own.
  */
 function selectionBounds(wrapper: HTMLElement, jobs: string[]): Box | null {
-  const found = jobs.flatMap(job => {
+  const found = jobs.flatMap((job) => {
     const row = wrapper.querySelector(`[data-dag-job="${CSS.escape(job)}"]`)
     const node = row?.closest('[id^="node_"]')
-    return row && node
-      ? [{ row: contentBox(wrapper, row), node: contentBox(wrapper, node) }]
-      : []
+    return row && node ? [{ row: contentBox(wrapper, row), node: contentBox(wrapper, node) }] : []
   })
   if (found.length === 0) {
     return null
   }
   return {
-    left: Math.min(...found.map(f => f.node.left)) - SELECTION_SIDE_PAD,
-    top: Math.min(...found.map(f => f.row.top)) - SELECTION_PAD,
-    right: Math.max(...found.map(f => f.node.right)) + SELECTION_SIDE_PAD,
-    bottom: Math.max(...found.map(f => f.row.bottom)) + SELECTION_PAD,
+    left: Math.min(...found.map((f) => f.node.left)) - SELECTION_SIDE_PAD,
+    top: Math.min(...found.map((f) => f.row.top)) - SELECTION_PAD,
+    right: Math.max(...found.map((f) => f.node.right)) + SELECTION_SIDE_PAD,
+    bottom: Math.max(...found.map((f) => f.row.bottom)) + SELECTION_PAD,
   }
 }
 
@@ -446,28 +429,28 @@ function boxOf(cols: string[][][], job: string): string[] {
 function slotAt(
   grid: GraphGrid,
   client: Point,
-  moving: { jobs: string[]; anchor: string } | null
+  moving: { jobs: string[]; anchor: string } | null,
 ): DropTarget | null {
   const { wrapper, cols } = grid
   const p = toContent(wrapper, client)
   const columns = cols.map((col, c) => {
-    const boxes = col.flatMap(box => {
-      const el = document.getElementById('node_' + box[0])
+    const boxes = col.flatMap((box) => {
+      const el = document.getElementById(`node_${box[0]}`)
       return el ? [contentBox(wrapper, el)] : []
     })
     return {
       boxes,
-      left: Math.min(...boxes.map(b => b.left)),
-      right: Math.max(...boxes.map(b => b.right)),
+      left: Math.min(...boxes.map((b) => b.left)),
+      right: Math.max(...boxes.map((b) => b.right)),
       number: grid.columns[c] ?? c,
     }
   })
-  const drawn = columns.flatMap(c => c.boxes)
+  const drawn = columns.flatMap((c) => c.boxes)
   if (drawn.length === 0) {
     return null
   }
-  const top = Math.min(...drawn.map(b => b.top))
-  const bottom = Math.max(...drawn.map(b => b.bottom))
+  const top = Math.min(...drawn.map((b) => b.top))
+  const bottom = Math.max(...drawn.map((b) => b.bottom))
 
   let origin: {
     col: number
@@ -479,7 +462,7 @@ function slotAt(
   for (const [c, col] of cols.entries()) {
     for (const [index, box] of col.entries()) {
       if (moving && box.includes(moving.anchor)) {
-        const whole = box.every(job => moving.jobs.includes(job))
+        const whole = box.every((job) => moving.jobs.includes(job))
         const only = whole && moving.jobs.length === box.length
         origin = {
           col: c,
@@ -526,7 +509,7 @@ function slotAt(
     indicator: line(
       left + ROW_GAP,
       left + COLUMN_PITCH - ROW_GAP,
-      ROW_GAP / 2 + pointerRow * SLOT_PITCH
+      ROW_GAP / 2 + pointerRow * SLOT_PITCH,
     ),
   })
   // Empty rows, above, between or below a column's boxes, take the job as they are; a line
@@ -539,8 +522,7 @@ function slotAt(
     const rows = grid.rows[c] ?? []
     const own = origin?.col === c ? origin : null
     const at = (row: number, y: number): DropTarget | null =>
-      own?.whole &&
-      (row === own.row || (row === own.row + 1 && rows.includes(row)))
+      own?.whole && (row === own.row || (row === own.row + 1 && rows.includes(row)))
         ? null
         : {
             kind: 'slot',
@@ -557,10 +539,7 @@ function slotAt(
       if (p.y < box.top) {
         const empty = row - above - 1
         if (empty > 0) {
-          const band = Math.min(
-            empty - 1,
-            Math.max(0, Math.floor((p.y - edge) / SLOT_PITCH))
-          )
+          const band = Math.min(empty - 1, Math.max(0, Math.floor((p.y - edge) / SLOT_PITCH)))
           return at(above + 1 + band, edge + ROW_GAP / 2 + band * SLOT_PITCH)
         }
         return at(row, i === 0 ? box.top - ROW_GAP / 2 : (edge + box.top) / 2)
@@ -594,10 +573,7 @@ function slotAt(
           return rowSlot(c)
         }
         const away = Math.ceil((col.left - EDGE_ZONE - p.x) / COLUMN_PITCH)
-        return emptyColumn(
-          col.number - away,
-          col.left - ROW_GAP - away * COLUMN_PITCH
-        )
+        return emptyColumn(col.number - away, col.left - ROW_GAP - away * COLUMN_PITCH)
       }
       const empty = col.number - prev.number - 1
       if (empty > 0) {
@@ -609,10 +585,7 @@ function slotAt(
         if (p.x >= col.left - ROW_GAP) {
           return rowSlot(c)
         }
-        const band = Math.min(
-          empty - 1,
-          Math.floor((p.x - start) / COLUMN_PITCH)
-        )
+        const band = Math.min(empty - 1, Math.floor((p.x - start) / COLUMN_PITCH))
         return emptyColumn(prev.number + 1 + band, start + band * COLUMN_PITCH)
       }
       const third = (col.left - prev.right) / 3
@@ -634,10 +607,7 @@ function slotAt(
   }
   // Right of the last column, likewise.
   const away = Math.ceil((p.x - last.right - EDGE_ZONE) / COLUMN_PITCH)
-  return emptyColumn(
-    last.number + away,
-    last.right + ROW_GAP + (away - 1) * COLUMN_PITCH
-  )
+  return emptyColumn(last.number + away, last.right + ROW_GAP + (away - 1) * COLUMN_PITCH)
 }
 
 // Where steps dropped or pasted at `client` land: among the steps of the job under the pointer,
@@ -646,7 +616,7 @@ function stepDropAt(
   grid: GraphGrid,
   client: Point,
   hit: Element | null,
-  stepCount: (job: string) => number
+  stepCount: (job: string) => number,
 ): { job: string; index: number; indicator: Box; around: boolean } | null {
   const { wrapper } = grid
   const stepRow = hit?.closest<HTMLElement>('[data-dag-step-job]')
@@ -661,20 +631,16 @@ function stepDropAt(
     return null
   }
   const rows = [
-    ...wrapper.querySelectorAll<HTMLElement>(
-      `[data-dag-step-job="${CSS.escape(job)}"]`
-    ),
+    ...wrapper.querySelectorAll<HTMLElement>(`[data-dag-step-job="${CSS.escape(job)}"]`),
   ]
-    .map(row => ({
+    .map((row) => ({
       index: Number(row.dataset['dagStep']),
       box: contentBox(wrapper, row),
     }))
-    .filter(row => row.box.bottom > row.box.top)
+    .filter((row) => row.box.bottom > row.box.top)
     .sort((a, b) => a.index - b.index)
   if (rows.length === 0) {
-    const row = wrapper.querySelector<HTMLElement>(
-      `[data-dag-job="${CSS.escape(job)}"]`
-    )
+    const row = wrapper.querySelector<HTMLElement>(`[data-dag-job="${CSS.escape(job)}"]`)
     const around = row ?? on?.el
     return around
       ? {
@@ -686,16 +652,14 @@ function stepDropAt(
       : null
   }
   const p = toContent(wrapper, client)
-  const below = stepRow
-    ? rows.find(r => (r.box.top + r.box.bottom) / 2 >= p.y)
-    : undefined
+  const below = stepRow ? rows.find((r) => (r.box.top + r.box.bottom) / 2 >= p.y) : undefined
   const index = below
     ? below.index
     : stepRow
       ? (rows[rows.length - 1]?.index ?? -1) + 1
       : stepCount(job)
-  const before = [...rows].reverse().find(r => r.index < index)
-  const after = rows.find(r => r.index >= index)
+  const before = [...rows].reverse().find((r) => r.index < index)
+  const after = rows.find((r) => r.index >= index)
   const y = !before
     ? (after?.box.top ?? 0) - 2
     : !after
@@ -705,8 +669,8 @@ function stepDropAt(
     job,
     index,
     indicator: {
-      left: Math.min(...rows.map(r => r.box.left)),
-      right: Math.max(...rows.map(r => r.box.right)),
+      left: Math.min(...rows.map((r) => r.box.left)),
+      right: Math.max(...rows.map((r) => r.box.right)),
       top: y - 2,
       bottom: y + 2,
     },
@@ -766,12 +730,8 @@ function segmentInBox(a: Point, b: Point, box: Box): boolean {
 const CONNECTOR_SAMPLE = 6
 
 // Each editable connector's line on screen, as points along its path.
-function connectorLines(
-  container: HTMLElement
-): { edge: EdgeSelection; points: Point[] }[] {
-  return [
-    ...container.querySelectorAll<SVGPathElement>('path[data-dag-edge-from]'),
-  ].map(path => {
+function connectorLines(container: HTMLElement): { edge: EdgeSelection; points: Point[] }[] {
+  return [...container.querySelectorAll<SVGPathElement>('path[data-dag-edge-from]')].map((path) => {
     const edge = {
       from: path.getAttribute('data-dag-edge-from') ?? '',
       to: path.getAttribute('data-dag-edge-to') ?? '',
@@ -801,7 +761,7 @@ type Picked = Pick<UiState, 'selection' | 'steps' | 'edges'>
 // A box adds to what's selected; with nothing yet, it takes jobs, else steps, else connectors.
 function boxSelection(
   base: Picked,
-  touched: { jobs: string[]; steps: StepRef[]; edges: EdgeSelection[] }
+  touched: { jobs: string[]; steps: StepRef[]; edges: EdgeSelection[] },
 ): Picked {
   const kind =
     (base.selection.length > 0 && 'jobs') ||
@@ -812,26 +772,22 @@ function boxSelection(
     (touched.edges.length > 0 && 'edges')
   const added = <T,>(kept: T[], more: T[], same: (a: T, b: T) => boolean) => [
     ...kept,
-    ...more.filter(item => !kept.some(other => same(other, item))),
+    ...more.filter((item) => !kept.some((other) => same(other, item))),
   ]
   return {
     selection:
-      kind === 'jobs'
-        ? added(base.selection, touched.jobs, (a, b) => a === b)
-        : NO_SELECTION,
-    steps:
-      kind === 'steps' ? added(base.steps, touched.steps, sameStep) : NO_STEPS,
-    edges:
-      kind === 'edges' ? added(base.edges, touched.edges, sameEdge) : NO_EDGES,
+      kind === 'jobs' ? added(base.selection, touched.jobs, (a, b) => a === b) : NO_SELECTION,
+    steps: kind === 'steps' ? added(base.steps, touched.steps, sameStep) : NO_STEPS,
+    edges: kind === 'edges' ? added(base.edges, touched.edges, sameEdge) : NO_EDGES,
   }
 }
 
 // The top-level node an element is on; a nested graph's node defers to the node hosting it.
 function nodeAt(
   hit: Element | null | undefined,
-  grid: GraphGrid
+  grid: GraphGrid,
 ): { head: string; el: HTMLElement } | null {
-  const heads = new Set(grid.cols.flat().map(box => box[0]))
+  const heads = new Set(grid.cols.flat().map((box) => box[0]))
   for (
     let el = hit?.closest<HTMLElement>('[id^="node_"]');
     el;
@@ -895,17 +851,13 @@ export function useGraphEditorState({
         gridRef.current?.cols ?? [],
         latest.current.layout,
         gridRef.current?.rows,
-        gridRef.current?.columns
+        gridRef.current?.columns,
       )
     const needs = () => jobNeeds(latest.current.source)
     const selected = () =>
-      store
-        .get()
-        .selection.filter(job => Object.hasOwn(latest.current.source, job))
-    const stepCount = (job: string) =>
-      stepsOf(latest.current.source[job]).length
-    const selectedSteps = () =>
-      store.get().steps.filter(ref => ref.index < stepCount(ref.job))
+      store.get().selection.filter((job) => Object.hasOwn(latest.current.source, job))
+    const stepCount = (job: string) => stepsOf(latest.current.source[job]).length
+    const selectedSteps = () => store.get().steps.filter((ref) => ref.index < stepCount(ref.job))
     // A drag asks about each job it passes over once.
     const problems = new Map<string, string | undefined>()
     const stepProblem = (refs: StepRef[], job: string) => {
@@ -913,8 +865,7 @@ export function useGraphEditorState({
         const yml = latest.current.editor?.readSource?.()
         let problem: string | undefined
         try {
-          const reason =
-            yml === undefined ? undefined : stepMoveProblem(yml, refs, job)
+          const reason = yml === undefined ? undefined : stepMoveProblem(yml, refs, job)
           problem = reason && t.refusal(reason)
         } catch {
           problem = undefined
@@ -1012,32 +963,25 @@ export function useGraphEditorState({
         !isMatrix(source[head]) &&
         listed(head) &&
         jobs.every(
-          job =>
+          (job) =>
             !isMatrix(source[job]) &&
             listed(job) &&
             !targets.includes(job) &&
-            targets.every(dep => !dependsOn(all, dep, job)) &&
-            box.every(
-              member => !(all[member] ?? []).some(n => needTarget(n) === job)
-            )
+            targets.every((dep) => !dependsOn(all, dep, job)) &&
+            box.every((member) => !(all[member] ?? []).some((n) => needTarget(n) === job)),
         )
       )
     }
     // Every new need between the dragged node and the drop; null if any would need itself or loop.
-    const connectEdits = (
-      payload: ConnectPayload,
-      jobs: string[]
-    ): GraphEdit[] | null => {
+    const connectEdits = (payload: ConnectPayload, jobs: string[]): GraphEdit[] | null => {
       const [deps, dependents] =
         payload.side === 'out' ? [payload.from, jobs] : [jobs, payload.from]
       const all = withoutRefs(needs(), payload.replaces ?? [])
       const edits: GraphEdit[] = []
       for (const to of dependents) {
-        const raw = (
-          latest.current.source[to] as { needs?: unknown } | undefined
-        )?.needs
+        const raw = (latest.current.source[to] as { needs?: unknown } | undefined)?.needs
         for (const from of deps) {
-          if ((all[to] ?? []).some(need => needTarget(need) === from)) {
+          if ((all[to] ?? []).some((need) => needTarget(need) === from)) {
             continue
           }
           if (
@@ -1057,10 +1001,10 @@ export function useGraphEditorState({
     const connectWith = (
       edits: GraphEdit[],
       acting?: Pick<ConnectPayload, 'from' | 'side'>,
-      moved: NeedRef[] = []
+      moved: NeedRef[] = [],
     ) => {
       const ends = (end: 'from' | 'to') => [
-        ...new Set(edits.flatMap(e => (e.type === 'connect' ? [e[end]] : []))),
+        ...new Set(edits.flatMap((e) => (e.type === 'connect' ? [e[end]] : []))),
       ]
       const dependents = ends('to')
       const left = acting?.side === 'out' && moved.length === 0
@@ -1079,19 +1023,14 @@ export function useGraphEditorState({
       return edit({
         type: 'batch',
         edits: [
-          ...(moved.length > 0
-            ? [{ type: 'disconnect' as const, needs: moved }]
-            : []),
+          ...(moved.length > 0 ? [{ type: 'disconnect' as const, needs: moved }] : []),
           ...edits,
           place,
         ],
       })
     }
 
-    const findTarget = (
-      payload: DragPayload,
-      client: Point
-    ): DropTarget | null => {
+    const findTarget = (payload: DragPayload, client: Point): DropTarget | null => {
       const grid = gridRef.current
       const trash = trashRef.current?.getBoundingClientRect()
       if (
@@ -1130,12 +1069,9 @@ export function useGraphEditorState({
           return connecting(selected(), bounds)
         }
         const head = port?.dataset['dagNode']
-        const node = head ? document.getElementById('node_' + head) : null
+        const node = head ? document.getElementById(`node_${head}`) : null
         if (head && node) {
-          return connecting(
-            boxOf(grid.cols, head),
-            contentBox(grid.wrapper, node)
-          )
+          return connecting(boxOf(grid.cols, head), contentBox(grid.wrapper, node))
         }
         const row = hit?.closest<HTMLElement>('[data-dag-job]')
         const job = row?.dataset['dagJob']
@@ -1144,26 +1080,19 @@ export function useGraphEditorState({
         }
         // Anywhere else on a node counts as its circles.
         const on = nodeAt(hit, grid)
-        return on
-          ? connecting(
-              boxOf(grid.cols, on.head),
-              contentBox(grid.wrapper, on.el)
-            )
-          : null
+        return on ? connecting(boxOf(grid.cols, on.head), contentBox(grid.wrapper, on.el)) : null
       }
       if (payload.kind === 'steps') {
         const at = stepDropAt(grid, client, hit, stepCount)
         if (!at) {
           return null
         }
-        const indices = payload.steps
-          .map(ref => ref.index)
-          .sort((a, b) => a - b)
+        const indices = payload.steps.map((ref) => ref.index).sort((a, b) => a - b)
         const first = indices[0] ?? 0
         const last = indices[indices.length - 1] ?? 0
         // A block dropped at its own place changes nothing.
         if (
-          payload.steps.every(ref => ref.job === at.job) &&
+          payload.steps.every((ref) => ref.job === at.job) &&
           last - first === indices.length - 1 &&
           at.index >= first &&
           at.index <= last + 1
@@ -1180,28 +1109,19 @@ export function useGraphEditorState({
       // Over another node, the dragged jobs join it rather than take a row.
       const on = nodeAt(hit, grid)
       const box = on ? boxOf(grid.cols, on.head) : []
-      if (on && !moving?.jobs.some(job => box.includes(job))) {
+      if (on && !moving?.jobs.some((job) => box.includes(job))) {
         const jobs = moving?.jobs ?? []
         return {
           kind: 'merge',
           into: on.head,
           jobs,
-          valid:
-            payload.kind === 'new'
-              ? !payload.matrix && canJoin([], box)
-              : canJoin(jobs, box),
+          valid: payload.kind === 'new' ? !payload.matrix && canJoin([], box) : canJoin(jobs, box),
           box: contentBox(grid.wrapper, on.el),
         }
       }
       const slot = slotAt(grid, client, moving)
       if (slot?.kind === 'slot' && moving) {
-        const { cuts } = moveJobs(
-          materialize(),
-          needs(),
-          moving.jobs,
-          slot.slot,
-          moving.anchor
-        )
+        const { cuts } = moveJobs(materialize(), needs(), moving.jobs, slot.slot, moving.anchor)
         if (needInUse(latest.current.source, cuts)) {
           return { ...slot, blocked: true }
         }
@@ -1215,9 +1135,7 @@ export function useGraphEditorState({
           if (target?.kind === 'trash') {
             edit({ type: 'deleteJob', jobs: payload.jobs })
             store.set({
-              selection: store
-                .get()
-                .selection.filter(job => !payload.jobs.includes(job)),
+              selection: store.get().selection.filter((job) => !payload.jobs.includes(job)),
             })
           } else if (target?.kind === 'merge') {
             if (target.valid) {
@@ -1241,10 +1159,7 @@ export function useGraphEditorState({
         case 'new':
           if (target?.kind === 'merge') {
             if (target.valid) {
-              addJob(
-                { type: 'addJob', ...(payload.matrix ? { matrix: true } : {}) },
-                target.into
-              )
+              addJob({ type: 'addJob', ...(payload.matrix ? { matrix: true } : {}) }, target.into)
             }
           } else if (target?.kind === 'slot') {
             addJob({
@@ -1273,7 +1188,7 @@ export function useGraphEditorState({
           if (target?.kind === 'steps' && !target.problem) {
             const kept =
               payload.steps.length > 1 ||
-              selectedSteps().some(ref => sameStep(ref, payload.steps[0]!))
+              selectedSteps().some((ref) => sameStep(ref, payload.steps[0]!))
             const result = edit({
               type: 'moveSteps',
               steps: payload.steps,
@@ -1310,14 +1225,12 @@ export function useGraphEditorState({
           escape: true,
           holdText: 'drag',
           swallowClick: 'drag',
-          onMove: client =>
+          onMove: (client) =>
             store.set({
               drag: {
                 payload,
                 client,
-                content: gridRef.current
-                  ? toContent(gridRef.current.wrapper, client)
-                  : null,
+                content: gridRef.current ? toContent(gridRef.current.wrapper, client) : null,
                 origin,
                 target: findTarget(payload, client),
               },
@@ -1330,33 +1243,28 @@ export function useGraphEditorState({
             }
           },
           onCancel: () => store.set({ drag: null }),
-        }
+        },
       )
     }
 
     // The jobs `job` could come to need ('in') or be needed by ('out'), for connecting without a drag.
     const connectMenu = (job: string, side: PortSide, label: string) => {
-      const items = Object.keys(latest.current.source).flatMap(
-        (other): RowMenuItem[] => {
-          const edits =
-            other === job
-              ? null
-              : connectEdits(
-                  { kind: 'connect', from: [job], side, label: job, port: '' },
-                  [other]
-                )
-          // Named as the graph names it, so the menu and the nodes read the same.
-          return edits
-            ? [
-                {
-                  kind: 'action',
-                  label: formatJobLabel(other),
-                  onSelect: () => connectWith(edits, { from: [job], side }),
-                },
-              ]
-            : []
-        }
-      )
+      const items = Object.keys(latest.current.source).flatMap((other): RowMenuItem[] => {
+        const edits =
+          other === job
+            ? null
+            : connectEdits({ kind: 'connect', from: [job], side, label: job, port: '' }, [other])
+        // Named as the graph names it, so the menu and the nodes read the same.
+        return edits
+          ? [
+              {
+                kind: 'action',
+                label: formatJobLabel(other),
+                onSelect: () => connectWith(edits, { from: [job], side }),
+              },
+            ]
+          : []
+      })
       return items.length > 0
         ? [{ kind: 'submenu' as const, label, icon: <LinkIcon />, items }]
         : []
@@ -1374,8 +1282,7 @@ export function useGraphEditorState({
           kind: 'action',
           label: t.duplicate,
           icon: <DuplicateIcon />,
-          onSelect: () =>
-            edit({ type: 'duplicateJob', job, layout: materialize() }),
+          onSelect: () => edit({ type: 'duplicateJob', job, layout: materialize() }),
         },
         {
           kind: 'action',
@@ -1438,22 +1345,21 @@ export function useGraphEditorState({
       const cols = gridRef.current?.cols ?? []
       const deps = boxOf(cols, edge.from)
       const all = needs()
-      return boxOf(cols, edge.to).flatMap(job =>
+      return boxOf(cols, edge.to).flatMap((job) =>
         (all[job] ?? [])
-          .filter(need => deps.includes(needTarget(need)))
-          .map(need => ({ job, need }))
+          .filter((need) => deps.includes(needTarget(need)))
+          .map((need) => ({ job, need })),
       )
     }
-    const refsInUse = (refs: NeedRef[]) =>
-      !!needInUse(latest.current.source, refs)
+    const refsInUse = (refs: NeedRef[]) => !!needInUse(latest.current.source, refs)
     const selectEdge = (edge: EdgeSelection, add: boolean) => {
       const { edges, selection, steps } = store.get()
       if (!add) {
         store.set({ edges: [edge], selection: NO_SELECTION, steps: NO_STEPS })
       } else if (steps.length === 0 && selection.length === 0) {
         store.set({
-          edges: edges.some(other => sameEdge(other, edge))
-            ? edges.filter(other => !sameEdge(other, edge))
+          edges: edges.some((other) => sameEdge(other, edge))
+            ? edges.filter((other) => !sameEdge(other, edge))
             : [...edges, edge],
         })
       }
@@ -1462,17 +1368,14 @@ export function useGraphEditorState({
       e: ReactPointerEvent,
       edge: EdgeSelection,
       end: 'from' | 'to',
-      fixed: Point
+      fixed: Point,
     ) => {
       const refs = edgeRefs(edge)
       if (refs.length === 0 || refsInUse(refs)) {
         return
       }
       // Moving the target end keeps the source box's jobs as the needs; moving the source end keeps the target's.
-      const jobs = boxOf(
-        gridRef.current?.cols ?? [],
-        end === 'to' ? edge.from : edge.to
-      )
+      const jobs = boxOf(gridRef.current?.cols ?? [], end === 'to' ? edge.from : edge.to)
       startDrag(e, {
         kind: 'connect',
         from: jobs,
@@ -1504,16 +1407,14 @@ export function useGraphEditorState({
       const refs = store
         .get()
         .edges.flatMap(edgeRefs)
-        .filter(ref => !gone(ref.job) && !gone(needTarget(ref.need)))
+        .filter((ref) => !gone(ref.job) && !gone(needTarget(ref.need)))
       // Later steps of a job go first, so the earlier ones keep their places.
       const steps = selectedSteps()
-        .filter(ref => !gone(ref.job))
+        .filter((ref) => !gone(ref.job))
         .sort((a, b) => b.index - a.index)
       const edits: GraphEdit[] = [
-        ...(refs.length > 0
-          ? [{ type: 'disconnect' as const, needs: refs }]
-          : []),
-        ...steps.map(ref => ({
+        ...(refs.length > 0 ? [{ type: 'disconnect' as const, needs: refs }] : []),
+        ...steps.map((ref) => ({
           type: 'deleteStep' as const,
           job: ref.job,
           index: ref.index,
@@ -1548,7 +1449,7 @@ export function useGraphEditorState({
         },
       ]
       if (deps.length === 1 && isMatrix(latest.current.source[edge.from])) {
-        const any = refs.length > 0 && refs.every(r => r.need.endsWith(':any'))
+        const any = refs.length > 0 && refs.every((r) => r.need.endsWith(':any'))
         items.unshift({
           kind: 'action',
           label: t.waitForAny,
@@ -1563,7 +1464,7 @@ export function useGraphEditorState({
             }),
         })
       }
-      if (!store.get().edges.some(other => sameEdge(other, edge))) {
+      if (!store.get().edges.some((other) => sameEdge(other, edge))) {
         selectEdge(edge, false)
       }
       openMenu(x, y, items)
@@ -1581,12 +1482,9 @@ export function useGraphEditorState({
         return text
       }
       const layout = materialize()
-      const at = (job: string) =>
-        layoutPosition(layout, job) ?? { column: 0, row: 0 }
+      const at = (job: string) => layoutPosition(layout, job) ?? { column: 0, row: 0 }
       // The top-left job first; the others keep their offsets from it.
-      const jobs = selected().sort(
-        (a, b) => at(a).column - at(b).column || at(a).row - at(b).row
-      )
+      const jobs = selected().sort((a, b) => at(a).column - at(b).column || at(a).row - at(b).row)
       const origin = jobs[0] ? at(jobs[0]) : undefined
       if (!origin) {
         return null
@@ -1596,13 +1494,13 @@ export function useGraphEditorState({
         text,
         jobs,
         offsets: Object.fromEntries(
-          jobs.map(job => [
+          jobs.map((job) => [
             job,
             {
               column: at(job).column - origin.column,
               row: at(job).row - origin.row,
             },
-          ])
+          ]),
         ),
       }
       return text
@@ -1618,12 +1516,10 @@ export function useGraphEditorState({
         const slot = pointer && grid ? slotAt(grid, pointer, null) : null
         if (slot?.kind === 'slot') {
           to = slot.slot
-        } else if (memo?.jobs?.every(job => layoutPosition(layout, job))) {
+        } else if (memo?.jobs?.every((job) => layoutPosition(layout, job))) {
           // Off the graph, the copies go below the jobs they copy.
           const first = layoutPosition(layout, memo.jobs[0] ?? '')
-          const bottom = Math.max(
-            ...memo.jobs.map(job => layoutPosition(layout, job)?.row ?? 0)
-          )
+          const bottom = Math.max(...memo.jobs.map((job) => layoutPosition(layout, job)?.row ?? 0))
           to = first ? { column: first.column, row: bottom + 1 } : undefined
         }
         const result = edit({
@@ -1638,12 +1534,8 @@ export function useGraphEditorState({
         return true
       }
       if (kind === 'steps') {
-        const hit =
-          pointer && grid
-            ? document.elementFromPoint(pointer.x, pointer.y)
-            : null
-        const at =
-          pointer && grid ? stepDropAt(grid, pointer, hit, stepCount) : null
+        const hit = pointer && grid ? document.elementFromPoint(pointer.x, pointer.y) : null
+        const at = pointer && grid ? stepDropAt(grid, pointer, hit, stepCount) : null
         const last = memo?.steps?.[memo.steps.length - 1]
         const target =
           at ??
@@ -1677,56 +1569,55 @@ export function useGraphEditorState({
 
     return {
       store,
-      isMatrixJob: job => isMatrix(latest.current.source[job]),
+      isMatrixJob: (job) => isMatrix(latest.current.source[job]),
       startDrag,
       openJobMenu,
       openStepMenu,
       openEdgeMenu,
       selectEdge,
-      edgeInUse: edge => refsInUse(edgeRefs(edge)),
+      edgeInUse: (edge) => refsInUse(edgeRefs(edge)),
       startEdgeEnd,
       deleteSelection,
       editSelection,
-      addJob: matrix =>
-        addJob({ type: 'addJob', ...(matrix ? { matrix: true } : {}) }),
+      addJob: (matrix) => addJob({ type: 'addJob', ...(matrix ? { matrix: true } : {}) }),
       addStep,
       editJob,
       editStep,
-      registerGrid: grid => {
+      registerGrid: (grid) => {
         gridRef.current = grid
       },
       grid: () => gridRef.current,
-      registerView: view => {
+      registerView: (view) => {
         viewRef.current = view
       },
       selected,
-      toggleSelected: job => {
+      toggleSelected: (job) => {
         const { selection, steps, edges } = store.get()
         if (steps.length > 0 || edges.length > 0) {
           return
         }
         store.set({
           selection: selection.includes(job)
-            ? selection.filter(other => other !== job)
+            ? selection.filter((other) => other !== job)
             : [...selection, job],
         })
       },
       selectedSteps,
-      toggleStep: step => {
+      toggleStep: (step) => {
         const { selection, steps, edges } = store.get()
         if (selection.length > 0 || edges.length > 0) {
           return
         }
         store.set({
-          steps: steps.some(ref => sameStep(ref, step))
-            ? steps.filter(ref => !sameStep(ref, step))
+          steps: steps.some((ref) => sameStep(ref, step))
+            ? steps.filter((ref) => !sameStep(ref, step))
             : [...steps, step],
         })
       },
       copySelection,
       paste,
       nudge,
-      reveal: target => latest.current.editor?.onReveal?.(target),
+      reveal: (target) => latest.current.editor?.onReveal?.(target),
       focus: ({ job, step }) =>
         store.set(
           step === undefined
@@ -1735,7 +1626,7 @@ export function useGraphEditorState({
                 selection: NO_SELECTION,
                 steps: [{ job, index: step }],
                 edges: NO_EDGES,
-              }
+              },
         ),
     }
   }, [store, openMenu, t])
@@ -1751,11 +1642,7 @@ export function useGraphEditorState({
       return
     }
     const onDown = (e: PointerEvent) => {
-      if (
-        e.button !== 0 ||
-        !(e.target instanceof Element) ||
-        e.target.closest(NOT_EMPTY)
-      ) {
+      if (e.button !== 0 || !(e.target instanceof Element) || e.target.closest(NOT_EMPTY)) {
         return
       }
       const start = { x: e.clientX, y: e.clientY }
@@ -1787,32 +1674,23 @@ export function useGraphEditorState({
           bottom: Math.max(start.y, client.y),
         }
         const touched = (selector: string) =>
-          [...container.querySelectorAll<HTMLElement>(selector)].filter(row =>
-            overlaps(row.getBoundingClientRect(), rect)
+          [...container.querySelectorAll<HTMLElement>(selector)].filter((row) =>
+            overlaps(row.getBoundingClientRect(), rect),
           )
         const wrapper = gridRef.current?.wrapper
-        const from =
-          wrapper && toContent(wrapper, { x: rect.left, y: rect.top })
-        const to =
-          wrapper && toContent(wrapper, { x: rect.right, y: rect.bottom })
+        const from = wrapper && toContent(wrapper, { x: rect.left, y: rect.top })
+        const to = wrapper && toContent(wrapper, { x: rect.right, y: rect.bottom })
         lines ??= connectorLines(container)
         store.set({
           ...boxSelection(base, {
-            jobs: touched('[data-dag-job]').map(
-              row => row.dataset['dagJob'] ?? ''
-            ),
-            steps: touched('[data-dag-step-job]').map(row => ({
+            jobs: touched('[data-dag-job]').map((row) => row.dataset['dagJob'] ?? ''),
+            steps: touched('[data-dag-step-job]').map((row) => ({
               job: row.dataset['dagStepJob'] ?? '',
               index: Number(row.dataset['dagStep']),
             })),
-            edges: lines
-              .filter(({ points }) => lineInBox(points, rect))
-              .map(({ edge }) => edge),
+            edges: lines.filter(({ points }) => lineInBox(points, rect)).map(({ edge }) => edge),
           }),
-          marquee:
-            from && to
-              ? { left: from.x, top: from.y, right: to.x, bottom: to.y }
-              : null,
+          marquee: from && to ? { left: from.x, top: from.y, right: to.x, bottom: to.y } : null,
         })
       }
       const done = (dragged: boolean) => {
@@ -1856,8 +1734,7 @@ export function useGraphEditorState({
     const onKey = (e: KeyboardEvent) => {
       const busy =
         typing(e.target) ||
-        (e.target instanceof Element &&
-          !!e.target.closest('[role="dialog"], [role="menu"]'))
+        (e.target instanceof Element && !!e.target.closest('[role="dialog"], [role="menu"]'))
       const direction = ARROWS[e.key]
       if (direction && !busy && !e.metaKey && !e.ctrlKey && !e.altKey) {
         if (api.nudge(direction)) {
@@ -1990,9 +1867,7 @@ export function useGraphEditorState({
   }
 }
 
-function graphShortcuts(
-  t: ReturnType<typeof useStrings>['graphEditor']
-): ShortcutGroup[] {
+function graphShortcuts(t: ReturnType<typeof useStrings>['graphEditor']): ShortcutGroup[] {
   const key = t.shortcutKeys
   const does = t.shortcutDoes
   return [
@@ -2058,17 +1933,11 @@ function EditorToolbar({
     const label = matrix ? t.addMatrixJob : t.addJob
     return (
       <AddChip
-        icon={
-          matrix ? (
-            <GridIcon className='h-3 w-3' />
-          ) : (
-            <AddIcon className='h-3 w-3' />
-          )
-        }
+        icon={matrix ? <GridIcon className="h-3 w-3" /> : <AddIcon className="h-3 w-3" />}
         label={label}
         hint={matrix ? t.addMatrixJobHint : t.addJobHint}
         className={EDITOR_HANDLE_CLASS}
-        onPointerDown={e => api.startDrag(e, { kind: 'new', matrix, label })}
+        onPointerDown={(e) => api.startDrag(e, { kind: 'new', matrix, label })}
         onClick={() => api.addJob(matrix)}
       />
     )
@@ -2077,19 +1946,16 @@ function EditorToolbar({
     <EditorBar
       editor={editor}
       groups={graphShortcuts(t)}
-      className={cx(
-        EDITOR_HANDLE_CLASS,
-        'absolute bottom-2 right-2 z-10 max-w-[calc(100%-1rem)]'
-      )}
+      className={cx(EDITOR_HANDLE_CLASS, 'absolute bottom-2 right-2 z-10 max-w-[calc(100%-1rem)]')}
     >
       {chip(false)}
       {chip(true)}
       <BarDivider />
       <IconButton
-        icon={<RefreshIcon className='h-4 w-4' />}
+        icon={<RefreshIcon className="h-4 w-4" />}
         label={t.resetLayout}
-        size='sm'
-        variant='ghost'
+        size="sm"
+        variant="ghost"
         disabled={!hasLayout(layout)}
         onClick={() => editor.onEdit({ type: 'resetLayout' })}
       />
@@ -2107,14 +1973,13 @@ function DragOverlays({
   trashRef: RefObject<HTMLDivElement | null>
 }) {
   const { graphEditor: t } = useStrings()
-  const drag = useUi(api, state => state.drag, null)
+  const drag = useUi(api, (state) => state.drag, null)
   if (!drag || !container) {
     return null
   }
   const rect = container.getBoundingClientRect()
   const overTrash = drag.target?.kind === 'trash'
-  const problem =
-    drag.target?.kind === 'steps' ? drag.target.problem : undefined
+  const problem = drag.target?.kind === 'steps' ? drag.target.problem : undefined
   return (
     <>
       {drag.payload.kind === 'jobs' && (
@@ -2124,10 +1989,10 @@ function DragOverlays({
             'absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 rounded-lg border-2 border-dashed px-4 py-2 text-sm',
             overTrash
               ? 'border-(--theme-error) bg-(--theme-error-muted) text-(--theme-error)'
-              : 'theme-border bg-(--theme-panel-bg) theme-muted-text'
+              : 'theme-border bg-(--theme-panel-bg) theme-muted-text',
           )}
         >
-          <TrashIcon className='h-4 w-4' />
+          <TrashIcon className="h-4 w-4" />
           {t.dropToDelete}
         </div>
       )}
@@ -2145,9 +2010,9 @@ function DragOverlays({
 /** Drop indicators, the connection line and the selection, drawn in the graph's own coordinates. */
 export function GraphEditorCanvas() {
   const api = useGraphEditor()
-  const drag = useUi(api, state => state.drag, null)
-  const selection = useUi(api, state => state.selection, NO_SELECTION)
-  const marquee = useUi(api, state => state.marquee, null)
+  const drag = useUi(api, (state) => state.drag, null)
+  const selection = useUi(api, (state) => state.selection, NO_SELECTION)
+  const marquee = useUi(api, (state) => state.marquee, null)
   if (!api || (!drag && !marquee && selection.length === 0)) {
     return null
   }
@@ -2156,23 +2021,18 @@ export function GraphEditorCanvas() {
     target?.kind === 'slot' || (target?.kind === 'steps' && !target.around)
       ? target.indicator
       : null
-  const outline =
-    target?.kind === 'steps' && target.around ? target.indicator : null
+  const outline = target?.kind === 'steps' && target.around ? target.indicator : null
   const refused =
-    (target?.kind === 'slot' && target.blocked) ||
-    (target?.kind === 'steps' && !!target.problem)
+    (target?.kind === 'slot' && target.blocked) || (target?.kind === 'steps' && !!target.problem)
   return (
-    <div
-      className='pointer-events-none absolute inset-0'
-      style={{ zIndex: 60 }}
-    >
+    <div className="pointer-events-none absolute inset-0" style={{ zIndex: 60 }}>
       {marquee && <MarqueeBox box={marquee} />}
       {!marquee && drag?.payload.kind !== 'jobs' && <SelectionBox api={api} />}
       {indicator && (
         <div
           className={cx(
             'absolute rounded-full',
-            refused ? 'bg-(--theme-error)' : 'bg-(--theme-element)'
+            refused ? 'bg-(--theme-error)' : 'bg-(--theme-element)',
           )}
           style={place(indicator)}
         />
@@ -2181,7 +2041,7 @@ export function GraphEditorCanvas() {
         <div
           className={cx(
             'absolute rounded-md border-4',
-            refused ? 'border-(--theme-error)' : 'border-(--theme-element)'
+            refused ? 'border-(--theme-error)' : 'border-(--theme-element)',
           )}
           style={{
             left: outline.left - 8,
@@ -2197,7 +2057,7 @@ export function GraphEditorCanvas() {
             'absolute rounded-md border-4',
             (target.kind === 'connect' ? target.edits : target.valid)
               ? 'border-(--theme-element)'
-              : 'border-(--theme-error)'
+              : 'border-(--theme-error)',
           )}
           style={{
             left: target.box.left - 8,
@@ -2208,11 +2068,7 @@ export function GraphEditorCanvas() {
         />
       )}
       {drag?.payload.kind === 'connect' && drag.origin && drag.content && (
-        <svg
-          aria-hidden='true'
-          overflow='visible'
-          className='absolute left-0 top-0'
-        >
+        <svg aria-hidden="true" overflow="visible" className="absolute left-0 top-0">
           <line
             x1={drag.origin.x}
             y1={drag.origin.y}
@@ -2224,7 +2080,7 @@ export function GraphEditorCanvas() {
                 : 'var(--theme-element)'
             }
             strokeWidth={6}
-            strokeDasharray='16 10'
+            strokeDasharray="16 10"
           />
         </svg>
       )}
@@ -2234,7 +2090,7 @@ export function GraphEditorCanvas() {
 
 // Selected jobs that sit together in one column with no unselected job between, top-left first.
 function selectionRuns(cols: string[][][], selected: string[]): string[][] {
-  return cols.flatMap(col => {
+  return cols.flatMap((col) => {
     const runs: string[][] = [[]]
     for (const job of col.flat()) {
       if (selected.includes(job)) {
@@ -2243,7 +2099,7 @@ function selectionRuns(cols: string[][][], selected: string[]): string[][] {
         runs.push([])
       }
     }
-    return runs.filter(run => run.length > 0)
+    return runs.filter((run) => run.length > 0)
   })
 }
 
@@ -2253,7 +2109,7 @@ function SelectionBox({ api }: { api: GraphEditorApi }) {
   const grid = api.grid()
   const jobs = api.selected()
   const runs = grid
-    ? selectionRuns(grid.cols, jobs).flatMap(run => {
+    ? selectionRuns(grid.cols, jobs).flatMap((run) => {
         const box = selectionBounds(grid.wrapper, run)
         return box ? [{ run, box }] : []
       })
@@ -2271,21 +2127,21 @@ function SelectionBox({ api }: { api: GraphEditorApi }) {
       {runs.map(({ run, box }) => (
         <div
           key={run.join()}
-          className='absolute rounded-xl border-2 border-dashed border-(--theme-element)'
+          className="absolute rounded-xl border-2 border-dashed border-(--theme-element)"
           style={place(box)}
         />
       ))}
       <button
-        type='button'
+        type="button"
         aria-label={t.moveSelectionHint}
         data-tooltip-id={TOOLTIP_ID}
         data-tooltip-content={t.moveSelectionHint}
         className={cx(
           EDITOR_HANDLE_CLASS,
-          'pointer-events-auto absolute flex h-8 w-8 cursor-grab items-center justify-center rounded-full border-4 border-(--theme-element) bg-(--theme-panel-bg)'
+          'pointer-events-auto absolute flex h-8 w-8 cursor-grab items-center justify-center rounded-full border-4 border-(--theme-element) bg-(--theme-panel-bg)',
         )}
         style={{ left: bounds.left - 16, top: bounds.top - 16 }}
-        onPointerDown={e =>
+        onPointerDown={(e) =>
           api.startDrag(e, {
             kind: 'jobs',
             jobs,
@@ -2294,22 +2150,22 @@ function SelectionBox({ api }: { api: GraphEditorApi }) {
           })
         }
       >
-        <DragHandleIcon className='h-5 w-5' />
+        <DragHandleIcon className="h-5 w-5" />
       </button>
       <PortCircle
-        side='in'
+        side="in"
         at={{ x: bounds.left, y }}
         draw
         jobs={jobs}
-        port='selection'
+        port="selection"
         hint={t.selectionInHint}
       />
       <PortCircle
-        side='out'
+        side="out"
         at={{ x: bounds.right, y }}
         draw
         jobs={jobs}
-        port='selection'
+        port="selection"
         hint={t.selectionOutHint}
       />
     </>
@@ -2325,20 +2181,18 @@ export function BoxGrip({ jobs }: { jobs: string[] }) {
   }
   return (
     <button
-      type='button'
+      type="button"
       aria-label={t.moveBoxHint}
       data-tooltip-id={TOOLTIP_ID}
       data-tooltip-content={t.moveBoxHint}
       className={cx(
         EDITOR_HANDLE_CLASS,
         // Centered on the border line, straight above the node's left circle.
-        'absolute -left-[18px] -top-[18px] flex h-8 w-8 cursor-grab items-center justify-center rounded-full border-4 theme-border bg-(--theme-panel-bg)'
+        'absolute -left-[18px] -top-[18px] flex h-8 w-8 cursor-grab items-center justify-center rounded-full border-4 theme-border bg-(--theme-panel-bg)',
       )}
-      onPointerDown={e =>
-        api.startDrag(e, { kind: 'jobs', jobs, label: labelsOf(jobs) })
-      }
+      onPointerDown={(e) => api.startDrag(e, { kind: 'jobs', jobs, label: labelsOf(jobs) })}
     >
-      <DragHandleIcon className='h-5 w-5' />
+      <DragHandleIcon className="h-5 w-5" />
     </button>
   )
 }
@@ -2347,48 +2201,40 @@ const onBadge = (target: EventTarget) =>
   target instanceof Element && !!target.closest('[data-problem-badge]')
 
 /** A step's problems, or a job's with its steps', listed on hover; a click shows the first one's line. */
-function ProblemBadge({
-  api,
-  job,
-  step,
-}: {
-  api: GraphEditorApi
-  job: string
-  step?: number
-}) {
+function ProblemBadge({ api, job, step }: { api: GraphEditorApi; job: string; step?: number }) {
   const { graphEditor: t } = useStrings()
   // A job's badge also lists its steps' problems, which stay in view while its steps are closed.
   const mine = (problems: EditorProblem[]) =>
     step === undefined
-      ? problems.filter(problem => problem.job === job)
+      ? problems.filter((problem) => problem.job === job)
       : problemsIn(problems, job, step)
   const messages = useUi(
     api,
-    state =>
+    (state) =>
       mine(state.problems)
-        .map(problem => problem.message)
+        .map((problem) => problem.message)
         .join('\n'),
-    ''
+    '',
   )
-  const line = useUi(api, state => mine(state.problems)[0]?.line ?? 0, 0)
+  const line = useUi(api, (state) => mine(state.problems)[0]?.line ?? 0, 0)
   if (!messages) {
     return null
   }
   return (
     <button
-      type='button'
-      data-problem-badge=''
+      type="button"
+      data-problem-badge=""
       aria-label={t.problemCount(messages.split('\n').length)}
       data-tooltip-id={TOOLTIP_ID}
       data-tooltip-content={messages}
-      className='cursor-pointer rounded p-0.5 text-(--theme-error) hover:bg-(--theme-muted-panel-bg)'
-      onPointerDown={e => e.stopPropagation()}
-      onClick={e => {
+      className="cursor-pointer rounded p-0.5 text-(--theme-error) hover:bg-(--theme-muted-panel-bg)"
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
         e.stopPropagation()
         api.reveal({ line })
       }}
     >
-      <AlertIcon className='h-[0.9em] w-[0.9em]' />
+      <AlertIcon className="h-[0.9em] w-[0.9em]" />
     </button>
   )
 }
@@ -2398,14 +2244,12 @@ export function ProblemOutline({ jobs }: { jobs: string[] }) {
   const api = useGraphEditor()
   const flagged = useUi(
     api,
-    state =>
-      state.problems.some(
-        problem => problem.job !== undefined && jobs.includes(problem.job)
-      ),
-    false
+    (state) =>
+      state.problems.some((problem) => problem.job !== undefined && jobs.includes(problem.job)),
+    false,
   )
   return flagged ? (
-    <div className='pointer-events-none absolute -inset-1 rounded-xl border-4 border-(--theme-error)' />
+    <div className="pointer-events-none absolute -inset-1 rounded-xl border-4 border-(--theme-error)" />
   ) : null
 }
 
@@ -2444,25 +2288,23 @@ function EditableRow({
 }) {
   return (
     <div
-      role='none'
+      role="none"
       {...data}
       {...(selected ? { 'data-selected': '' } : {})}
       className={cx(
         EDITOR_HANDLE_CLASS,
         className,
         selected && 'bg-(--theme-element)/15',
-        flagged
-          ? 'ring-2 ring-(--theme-error)'
-          : selected && 'ring-2 ring-(--theme-element)'
+        flagged ? 'ring-2 ring-(--theme-error)' : selected && 'ring-2 ring-(--theme-element)',
       )}
-      onPointerDown={e => {
+      onPointerDown={(e) => {
         if (e.shiftKey) {
           // Keeps shift-click from extending a text selection.
           e.preventDefault()
         }
         api.startDrag(e, drag())
       }}
-      onClickCapture={e => {
+      onClickCapture={(e) => {
         if (onBadge(e.target)) {
           return
         }
@@ -2475,7 +2317,7 @@ function EditableRow({
         }
         reveal()
       }}
-      onContextMenu={e => {
+      onContextMenu={(e) => {
         e.preventDefault()
         e.stopPropagation()
         openMenu(e.clientX, e.clientY)
@@ -2484,14 +2326,14 @@ function EditableRow({
       {children}
       {badges}
       <button
-        type='button'
+        type="button"
         aria-label={menuLabel}
         className={cx(
           'cursor-pointer rounded theme-muted-text opacity-0 transition-opacity hover:bg-(--theme-muted-panel-bg) focus-visible:opacity-100',
-          menuClassName
+          menuClassName,
         )}
-        onPointerDown={e => e.stopPropagation()}
-        onClick={e => {
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
           e.stopPropagation()
           const r = e.currentTarget.getBoundingClientRect()
           openMenu(r.right, r.bottom)
@@ -2517,12 +2359,8 @@ export function EditableJobRow({
 }) {
   const api = useGraphEditor()
   const { graphEditor: t } = useStrings()
-  const selected = useUi(api, state => state.selection.includes(job), false)
-  const flagged = useUi(
-    api,
-    state => problemsIn(state.problems, job).length > 0,
-    false
-  )
+  const selected = useUi(api, (state) => state.selection.includes(job), false)
+  const flagged = useUi(api, (state) => problemsIn(state.problems, job).length > 0, false)
   if (!api) {
     return children
   }
@@ -2532,7 +2370,7 @@ export function EditableJobRow({
       selected={selected}
       flagged={flagged}
       data={{ 'data-dag-job': job }}
-      className='group/row relative flex cursor-grab items-center gap-x-2 rounded-md [&>button:first-child]:w-auto [&>button:first-child]:flex-1'
+      className="group/row relative flex cursor-grab items-center gap-x-2 rounded-md [&>button:first-child]:w-auto [&>button:first-child]:flex-1"
       drag={() => {
         const selection = api.selected()
         return selection.length > 1 && selection.includes(job)
@@ -2551,13 +2389,13 @@ export function EditableJobRow({
       reveal={() => api.reveal({ job })}
       openMenu={(x, y) => api.openJobMenu(x, y, job)}
       menuLabel={t.jobActions}
-      menuClassName='p-1 group-hover/row:opacity-100'
-      iconClassName='h-[1em] w-[1em]'
+      menuClassName="p-1 group-hover/row:opacity-100"
+      iconClassName="h-[1em] w-[1em]"
       badges={
         <>
           <ProblemBadge api={api} job={job} />
           {badge && api.isMatrixJob(job) && (
-            <span className='rounded-full border-2 theme-border px-2 text-[1rem] theme-muted-text'>
+            <span className="rounded-full border-2 theme-border px-2 text-[1rem] theme-muted-text">
               {t.matrixBadge}
             </span>
           )}
@@ -2589,34 +2427,30 @@ function PortCircle({
   zIndex?: number
 }) {
   const api = useGraphEditor()
-  const drag = useUi(api, state => state.drag, null)
+  const drag = useUi(api, (state) => state.drag, null)
   if (!api) {
     return null
   }
   const dragging =
-    drag?.payload.kind === 'connect' &&
-    drag.payload.port === port &&
-    drag.payload.side === side
+    drag?.payload.kind === 'connect' && drag.payload.port === port && drag.payload.side === side
   return (
     <span
-      role='none'
+      role="none"
       data-dag-port={side}
-      {...(port === 'selection'
-        ? { 'data-dag-selection': '' }
-        : { 'data-dag-node': jobs[0] })}
+      {...(port === 'selection' ? { 'data-dag-selection': '' } : { 'data-dag-node': jobs[0] })}
       // A hint popping up over the drop target mid-drag would hide the graph.
       {...(drag ? {} : { 'data-tooltip-id': TOOLTIP_ID })}
       data-tooltip-content={hint}
       className={cx(
         EDITOR_HANDLE_CLASS,
-        'group/port pointer-events-auto absolute flex h-8 w-8 cursor-crosshair items-center justify-center'
+        'group/port pointer-events-auto absolute flex h-8 w-8 cursor-crosshair items-center justify-center',
       )}
       style={{
         left: at.x - 16,
         top: at.y - 16,
         ...(zIndex === undefined ? {} : { zIndex }),
       }}
-      onPointerDown={e =>
+      onPointerDown={(e) =>
         api.startDrag(e, {
           kind: 'connect',
           from: jobs,
@@ -2626,11 +2460,11 @@ function PortCircle({
         })
       }
     >
-      {draw && <span className='absolute inset-0 bg-(--theme-panel-bg)' />}
+      {draw && <span className="absolute inset-0 bg-(--theme-panel-bg)" />}
       <span
         className={cx(
           'relative h-4 w-4 rounded-full group-hover/port:bg-(--theme-element)',
-          dragging ? 'bg-(--theme-element)' : draw && 'bg-(--theme-border)'
+          dragging ? 'bg-(--theme-element)' : draw && 'bg-(--theme-border)',
         )}
       />
     </span>
@@ -2661,7 +2495,7 @@ export function NodePorts({
   return (
     <>
       <PortCircle
-        side='in'
+        side="in"
         at={left}
         draw={drawLeft}
         jobs={jobs}
@@ -2670,7 +2504,7 @@ export function NodePorts({
         zIndex={zIndex}
       />
       <PortCircle
-        side='out'
+        side="out"
         at={right}
         draw={drawRight}
         jobs={jobs}
@@ -2698,14 +2532,10 @@ export function EditableStepRow({
   const { graphEditor: t } = useStrings()
   const selected = useUi(
     api,
-    state => state.steps.some(ref => ref.job === job && ref.index === index),
-    false
+    (state) => state.steps.some((ref) => ref.job === job && ref.index === index),
+    false,
   )
-  const flagged = useUi(
-    api,
-    state => problemsIn(state.problems, job, index).length > 0,
-    false
-  )
+  const flagged = useUi(api, (state) => problemsIn(state.problems, job, index).length > 0, false)
   if (!api) {
     return children
   }
@@ -2715,7 +2545,7 @@ export function EditableStepRow({
       selected={selected}
       flagged={flagged}
       data={{ 'data-dag-step-job': job, 'data-dag-step': index }}
-      className='group/step flex cursor-grab items-center gap-x-1 rounded'
+      className="group/step flex cursor-grab items-center gap-x-1 rounded"
       drag={() => {
         const steps = api.selectedSteps()
         return selected && steps.length > 1
@@ -2724,13 +2554,13 @@ export function EditableStepRow({
       }}
       toggle={() => {
         api.toggleStep({ job, index })
-        return api.store.get().steps.some(ref => sameStep(ref, { job, index }))
+        return api.store.get().steps.some((ref) => sameStep(ref, { job, index }))
       }}
       reveal={() => api.reveal({ job, step: index })}
       openMenu={(x, y) => api.openStepMenu(x, y, job, index)}
       menuLabel={t.stepActions}
-      menuClassName='p-0.5 group-hover/step:opacity-100'
-      iconClassName='h-[0.9em] w-[0.9em]'
+      menuClassName="p-0.5 group-hover/step:opacity-100"
+      iconClassName="h-[0.9em] w-[0.9em]"
       badges={<ProblemBadge api={api} job={job} step={index} />}
     >
       {children}
@@ -2746,15 +2576,15 @@ export function AddStepButton({ job }: { job: string }) {
   }
   return (
     <button
-      type='button'
-      className='ml-1.5 flex cursor-pointer items-center gap-x-1.5 text-left theme-muted-text hover:text-(--theme-link)'
-      onPointerDown={e => e.stopPropagation()}
-      onClick={e => {
+      type="button"
+      className="ml-1.5 flex cursor-pointer items-center gap-x-1.5 text-left theme-muted-text hover:text-(--theme-link)"
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
         e.stopPropagation()
         api.addStep(job)
       }}
     >
-      <AddIcon className='h-[0.8em] w-[0.8em]' />
+      <AddIcon className="h-[0.8em] w-[0.8em]" />
       {t.addStep}
     </button>
   )
@@ -2764,36 +2594,36 @@ export function AddStepButton({ job }: { job: string }) {
 export function EdgeHitPath({ d, edge }: { d: string; edge: EdgeSelection }) {
   const api = useGraphEditor()
   const { graphEditor: t } = useStrings()
-  const selected = useSelectedEdges(api).some(other => sameEdge(other, edge))
+  const selected = useSelectedEdges(api).some((other) => sameEdge(other, edge))
   if (!api) {
     return null
   }
   return (
     // biome-ignore lint/a11y/useSemanticElements: an SVG connector can't be a <button>; it is the pointer target for its dependency.
     <path
-      role='button'
+      role="button"
       tabIndex={0}
       aria-label={t.dependencyOf(edge.from, edge.to)}
       aria-pressed={selected}
       data-dag-edge-from={edge.from}
       data-dag-edge-to={edge.to}
       d={d}
-      stroke='transparent'
+      stroke="transparent"
       strokeWidth={28}
-      fill='none'
+      fill="none"
       className={cx(
         EDITOR_HANDLE_CLASS,
-        'outline-none focus-visible:[stroke:color-mix(in_srgb,var(--theme-element)_35%,transparent)]'
+        'outline-none focus-visible:[stroke:color-mix(in_srgb,var(--theme-element)_35%,transparent)]',
       )}
       style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
-      onClick={e => api.selectEdge(edge, e.shiftKey)}
-      onKeyDown={e => {
+      onClick={(e) => api.selectEdge(edge, e.shiftKey)}
+      onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
           api.selectEdge(edge, e.shiftKey)
         }
       }}
-      onContextMenu={e => {
+      onContextMenu={(e) => {
         e.preventDefault()
         api.openEdgeMenu(e.clientX, e.clientY, edge)
       }}
@@ -2815,7 +2645,7 @@ export function EdgeEnds({
 }) {
   const api = useGraphEditor()
   const { graphEditor: t } = useStrings()
-  const drag = useUi(api, state => state.drag, null)
+  const drag = useUi(api, (state) => state.drag, null)
   if (!api) {
     return null
   }
@@ -2823,23 +2653,23 @@ export function EdgeEnds({
   const handle = (side: 'from' | 'to', at: Point, fixed: Point) => (
     <span
       key={side}
-      role='none'
+      role="none"
       data-dag-edge-end={side}
       {...(drag ? {} : { 'data-tooltip-id': TOOLTIP_ID })}
       data-tooltip-content={inUse ? t.dependencyInUse : t.moveDependencyEnd}
       className={cx(
         EDITOR_HANDLE_CLASS,
         'pointer-events-auto absolute flex h-8 w-8 items-center justify-center',
-        inUse ? 'cursor-not-allowed' : 'cursor-grab'
+        inUse ? 'cursor-not-allowed' : 'cursor-grab',
       )}
       style={{ left: at.x - 16, top: at.y - 16, zIndex }}
-      onPointerDown={e => {
+      onPointerDown={(e) => {
         if (!inUse) {
           api.startEdgeEnd(e, edge, side, fixed)
         }
       }}
     >
-      <span className='h-5 w-5 rounded-full border-4 border-(--theme-element) bg-(--theme-panel-bg)' />
+      <span className="h-5 w-5 rounded-full border-4 border-(--theme-element) bg-(--theme-panel-bg)" />
     </span>
   )
   return (
@@ -2851,18 +2681,9 @@ export function EdgeEnds({
 }
 
 /** Shown in place of the graph when the workflow has no jobs yet. */
-export function EmptyGraphEditor({
-  overlays,
-  height,
-}: {
-  overlays: ReactNode
-  height: string
-}) {
+export function EmptyGraphEditor({ overlays, height }: { overlays: ReactNode; height: string }) {
   return (
-    <div
-      className='panel relative w-full overflow-hidden border'
-      style={{ height }}
-    >
+    <div className="panel relative w-full overflow-hidden border" style={{ height }}>
       {overlays}
     </div>
   )
@@ -2881,7 +2702,7 @@ function EditorDialogs({
   inputs: Record<string, unknown> | undefined
   workflow: Record<string, unknown> | undefined
 }) {
-  const dialog = useUi(api, state => state.dialog, null)
+  const dialog = useUi(api, (state) => state.dialog, null)
   const close = () => api.store.set({ dialog: null })
   const onEdit = (edit: GraphEdit) => {
     editor.onEdit(edit)

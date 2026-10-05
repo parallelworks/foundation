@@ -1,18 +1,13 @@
 import cx from 'classnames'
-import { DocumentIcon, OpenInNewGraphIcon } from '../icons'
-import { TOOLTIP_ID } from '../components/Tooltip'
 import type { ReactNode } from 'react'
-import { Reveal } from './Reveal'
-import type { WorkflowJob, WorkflowSubworkflow } from './types'
 import { Indicator } from '../components/Indicator'
-import {
-  useNavigation,
-  useSlots,
-  useStrings,
-  useWorkflowEngine,
-} from '../components/Provider'
+import { useNavigation, useSlots, useStrings, useWorkflowEngine } from '../components/Provider'
+import { TOOLTIP_ID } from '../components/Tooltip'
+import { DocumentIcon, OpenInNewGraphIcon } from '../icons'
 import { AddStepButton, EditableJobRow, EditableStepRow } from './GraphEditor'
 import { formatJobLabel } from './jobLabel'
+import { Reveal } from './Reveal'
+import type { WorkflowJob, WorkflowSubworkflow } from './types'
 
 // Opens a subworkflow step's source: an in-app workflow, the repository page
 // the server resolved, or a marketplace item, depending on the `uses` scheme.
@@ -32,12 +27,12 @@ function UsesIcon({
   const open = () => navigation.openStepSource(uses, subworkflow.sourceUrl)
   return (
     <button
-      type='button'
+      type="button"
       aria-label={jobActions.openOriginalWorkflow}
       data-tooltip-id={TOOLTIP_ID}
       data-tooltip-content={jobActions.openOriginalWorkflow}
       onClick={open}
-      className='cursor-pointer'
+      className="cursor-pointer"
     >
       {slots.workflowIcon({
         image: subworkflow.image,
@@ -70,7 +65,7 @@ export function Joblist(inputs: {
 }) {
   const { jobActions } = useStrings()
   const engine = useWorkflowEngine()
-  return inputs.jobNames.map(jobName => {
+  return inputs.jobNames.map((jobName) => {
     // Skip synthetic matrix group nodes — rendered by the caller, not Joblist
     if (inputs.jobs[jobName]?._matrixGroup) {
       return null
@@ -79,22 +74,22 @@ export function Joblist(inputs: {
     const jobLabel = formatJobLabel(jobName, inputs.jobs[jobName])
     const toggle = (
       <button
-        type='button'
+        type="button"
         aria-expanded={inputs.isStepsOpen(jobName)}
         onClick={() => inputs.onJobClick(jobName)}
         className={cx(
           'flex items-center gap-x-1.5 w-full text-left',
           jobStatus === 'skipped' || jobStatus === 'skipped-failed'
             ? 'cursor-default'
-            : 'cursor-pointer'
+            : 'cursor-pointer',
         )}
       >
         {!inputs.preview && <Indicator status={inputs.jobs[jobName]?.status} />}
-        <div className='font-medium'>{jobLabel}</div>
+        <div className="font-medium">{jobLabel}</div>
       </button>
     )
     return (
-      <div key={'job-' + jobName} className='py-1 select-none'>
+      <div key={`job-${jobName}`} className="py-1 select-none">
         {inputs.editable ? (
           <EditableJobRow job={jobName} label={jobLabel}>
             {toggle}
@@ -102,25 +97,20 @@ export function Joblist(inputs: {
         ) : (
           toggle
         )}
-        <Reveal
-          open={inputs.isStepsOpen(jobName)}
-          growWidth={inputs.growWidth ?? false}
-        >
-          <div className='flex flex-col gap-y-0.5 mt-0.5'>
+        <Reveal open={inputs.isStepsOpen(jobName)} growWidth={inputs.growWidth ?? false}>
+          <div className="flex flex-col gap-y-0.5 mt-0.5">
             {(inputs.jobs[jobName]?.steps || []).map((step, i) => {
               const stepLabel = engine.stepLabel(step, i)
               const subJobs = step.subworkflow?.jobs
               const canExpand =
-                !!inputs.renderSubworkflow &&
-                !!subJobs &&
-                Object.keys(subJobs).length > 0
+                !!inputs.renderSubworkflow && !!subJobs && Object.keys(subJobs).length > 0
               const stepButton = (
                 <button
-                  type='button'
+                  type="button"
                   onClick={() => inputs.onStepClick(jobName, i)}
                   className={cx(
                     inputs.preview ? 'ml-1.5' : 'ml-4',
-                    'gap-x-1.5 flex items-center text-left'
+                    'gap-x-1.5 flex items-center text-left',
                   )}
                   data-testid={stepLabel}
                 >
@@ -129,22 +119,18 @@ export function Joblist(inputs: {
                 </button>
               )
               return (
-                <div key={'step-' + jobName + '-' + i}>
+                <div key={`step-${jobName}-${i}`}>
                   <div
                     className={cx(
                       'flex items-center',
-                      step.status === 'skipped' ||
-                        step.status === 'skipped-failed'
+                      step.status === 'skipped' || step.status === 'skipped-failed'
                         ? 'cursor-default'
-                        : 'cursor-pointer'
+                        : 'cursor-pointer',
                     )}
                   >
-                    {(inputs.editable || inputs.editableSteps) &&
-                    !step.linkedStep ? (
+                    {(inputs.editable || inputs.editableSteps) && !step.linkedStep ? (
                       <EditableStepRow
-                        job={
-                          inputs.jobs[jobName]?._matrix?.originaljob ?? jobName
-                        }
+                        job={inputs.jobs[jobName]?._matrix?.originaljob ?? jobName}
                         index={i}
                         label={stepLabel}
                       >
@@ -157,38 +143,33 @@ export function Joblist(inputs: {
                       <>
                         {inputs.onStepLogClick && (
                           <button
-                            type='button'
+                            type="button"
                             aria-label={jobActions.openSubworkflowLogs}
                             data-tooltip-id={TOOLTIP_ID}
-                            data-tooltip-content={
-                              jobActions.openSubworkflowLogs
-                            }
-                            onClick={e => {
+                            data-tooltip-content={jobActions.openSubworkflowLogs}
+                            onClick={(e) => {
                               e.stopPropagation()
                               inputs.onStepLogClick?.(jobName, i)
                             }}
-                            className='link ml-1'
+                            className="link ml-1"
                           >
-                            <DocumentIcon className='w-[1.2em] h-[1.2em]' />
+                            <DocumentIcon className="w-[1.2em] h-[1.2em]" />
                           </button>
                         )}
-                        <UsesIcon
-                          uses={step.uses}
-                          subworkflow={step.subworkflow}
-                        />
+                        <UsesIcon uses={step.uses} subworkflow={step.subworkflow} />
                         {inputs.onSubworkflowIcon && (
                           <button
-                            type='button'
+                            type="button"
                             aria-label={jobActions.openInNewGraph}
                             data-tooltip-id={TOOLTIP_ID}
                             data-tooltip-content={jobActions.openInNewGraph}
-                            onClick={e => {
+                            onClick={(e) => {
                               e.stopPropagation()
                               inputs.onSubworkflowIcon?.(jobName, i)
                             }}
-                            className='link ml-1'
+                            className="link ml-1"
                           >
-                            <OpenInNewGraphIcon className='w-[1.2em] h-[1.2em]' />
+                            <OpenInNewGraphIcon className="w-[1.2em] h-[1.2em]" />
                           </button>
                         )}
                       </>

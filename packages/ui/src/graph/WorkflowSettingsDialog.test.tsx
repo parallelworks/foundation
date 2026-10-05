@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { dumpYaml } from '@parallelworks/workflow-parser'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { GRAPH_EDITOR_STRINGS } from './editorStrings'
 import { WorkflowSettingsDialog } from './WorkflowSettingsDialog'
@@ -15,13 +15,7 @@ vi.mock('../editor/Monaco', () => ({
     value?: string
     onChange?: (value: string) => void
     path?: string
-  }) => (
-    <textarea
-      aria-label={path}
-      value={value}
-      onChange={e => onChange?.(e.target.value)}
-    />
-  ),
+  }) => <textarea aria-label={path} value={value} onChange={(e) => onChange?.(e.target.value)} />,
 }))
 
 global.ResizeObserver = class implements ResizeObserver {
@@ -52,13 +46,7 @@ const WORKFLOW = {
 
 function open(workflow: Record<string, unknown> = WORKFLOW) {
   const onEdit = vi.fn()
-  render(
-    <WorkflowSettingsDialog
-      workflow={workflow}
-      onEdit={onEdit}
-      onClose={() => {}}
-    />
-  )
+  render(<WorkflowSettingsDialog workflow={workflow} onEdit={onEdit} onClose={() => {}} />)
   return onEdit
 }
 
@@ -111,9 +99,7 @@ describe('WorkflowSettingsDialog', () => {
     })
     const redirects = screen.getAllByLabelText('Open when the run starts')
     fireEvent.click(redirects[redirects.length - 1] as HTMLElement)
-    expect(
-      screen.getAllByText(GRAPH_EDITOR_STRINGS.oneRedirect).length
-    ).toBeGreaterThan(0)
+    expect(screen.getAllByText(GRAPH_EDITOR_STRINGS.oneRedirect).length).toBeGreaterThan(0)
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
   })
 
@@ -161,10 +147,10 @@ describe('WorkflowSettingsDialog as YAML', () => {
         source={dumpYaml(WORKFLOW)}
         onEdit={onEdit}
         onClose={() => {}}
-      />
+      />,
     )
     const text = (await screen.findByLabelText(
-      'file:///workflow-settings.yaml'
+      'file:///workflow-settings.yaml',
     )) as HTMLTextAreaElement
     expect(text.value).toContain('permissions:')
     expect(text.value).not.toContain('jobs:')
@@ -183,7 +169,7 @@ describe('WorkflowSettingsDialog as YAML', () => {
         source={dumpYaml(WORKFLOW)}
         onEdit={() => {}}
         onClose={() => {}}
-      />
+      />,
     )
     const text = await screen.findByLabelText('file:///workflow-settings.yaml')
     fireEvent.change(text, { target: { value: 'timeout: 2h\n' } })

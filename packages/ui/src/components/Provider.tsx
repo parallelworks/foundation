@@ -435,11 +435,7 @@ export interface UIData {
     file: (repo: string, ref: string, path: string) => Promise<string>
     repos: (owner: string) => Promise<RepoSummary[]>
     gitlabProjects: (search: string, host?: string) => Promise<GitlabProject[]>
-    owners: (
-      provider: 'github' | 'gitlab',
-      search: string,
-      host?: string,
-    ) => Promise<RepoOwner[]>
+    owners: (provider: 'github' | 'gitlab', search: string, host?: string) => Promise<RepoOwner[]>
   }
   /**
    * Provisions browser-access CORS rules on a storage. Absent, the storage

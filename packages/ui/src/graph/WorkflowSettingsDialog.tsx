@@ -1,14 +1,10 @@
-import {
-  type GraphEdit,
-  settingsYaml,
-  workflowInputsSchema,
-} from '@parallelworks/workflow-parser'
+import { type GraphEdit, settingsYaml, workflowInputsSchema } from '@parallelworks/workflow-parser'
 import { type ReactNode, useState } from 'react'
 import { IconButton } from '../components/IconButton'
 import { Input } from '../components/Input'
 import { useStrings } from '../components/Provider'
-import { CloseIcon } from '../icons'
 import { SETTINGS_YAML_PATH } from '../editor/settingsYaml'
+import { CloseIcon } from '../icons'
 import {
   AddRowButton,
   asRecord,
@@ -17,11 +13,11 @@ import {
   type DialogShellProps,
   diffPatch,
   durationError,
-  expressionError,
+  ENV_KEY,
   ExpressionToggle,
+  expressionError,
   FieldError,
   FieldLabel,
-  ENV_KEY,
   type Flag,
   flagError,
   flagOf,
@@ -37,29 +33,19 @@ import {
   Section,
   StringListEditor,
   type Strings,
-  text,
   ToggleField,
+  text,
   withoutUndefined,
 } from './editorFields'
 import { expressionRefs } from './expressionRefs'
-import {
-  type SettingsFormHooks,
-  type SettingsView,
-  useSettingsViews,
-} from './GraphEditorDialogs'
+import { type SettingsFormHooks, type SettingsView, useSettingsViews } from './GraphEditorDialogs'
 import { useNewInputs } from './InputDialog'
 import { FlagField, refSuggestions } from './inputRefs'
 
 const LINK_NAME = /^[a-z0-9_-]*[a-z0-9]$/
 const ORG_VARIABLE = /^[A-Z][A-Z0-9_]*$/
 const USER_VARIABLE = /^[a-zA-Z0-9_-]+$/
-const SESSION_FLAGS = [
-  'redirect',
-  'useTLS',
-  'useCustomDomain',
-  'openAI',
-  'detach',
-] as const
+const SESSION_FLAGS = ['redirect', 'useTLS', 'useCustomDomain', 'openAI', 'detach'] as const
 const LINK_FLAGS = ['redirect', 'detach'] as const
 const WIZARD_FLAGS = ['showSteps', 'allowJump', 'hideStepNumbers'] as const
 /** What this dialog writes; the schema coverage test holds these to the workflow schema. */
@@ -78,17 +64,13 @@ export const SESSION_FIELDS = [
   ...SESSION_FLAGS,
 ]
 export const LINK_FIELDS = ['endpoint', 'url', ...LINK_FLAGS]
-export const NEEDS_FIELDS = [
-  'organizationVariables',
-  'userVariables',
-  'userVariables.<*>.hint',
-]
+export const NEEDS_FIELDS = ['organizationVariables', 'userVariables', 'userVariables.<*>.hint']
 export const INPUT_FORM_FIELDS = [
   'labelPosition',
   'wizard',
   'wizard.mode',
   'wizard.navigation',
-  ...WIZARD_FLAGS.map(flag => `wizard.navigation.${flag}`),
+  ...WIZARD_FLAGS.map((flag) => `wizard.navigation.${flag}`),
   'wizard.submitLabel',
   'wizard.flatten',
 ]
@@ -113,7 +95,7 @@ function sessionsFrom(value: unknown): SessionDraft[] {
       prompt: Object.hasOwn(session, 'prompt-for-name'),
       promptDefault: text(asRecord(prompt)['default']),
       flags: Object.fromEntries(
-        SESSION_FLAGS.map(flag => [flag, flagOf(session[flag])])
+        SESSION_FLAGS.map((flag) => [flag, flagOf(session[flag])]),
       ) as SessionDraft['flags'],
     }
   })
@@ -135,9 +117,7 @@ function sessionValue(draft: SessionDraft): unknown {
       session[flag] = draft.flags[flag]
     }
   }
-  return Object.keys(session).length === 0 && draft.original === null
-    ? null
-    : session
+  return Object.keys(session).length === 0 && draft.original === null ? null : session
 }
 
 interface LinkDraft {
@@ -158,7 +138,7 @@ function linksFrom(value: unknown): LinkDraft[] {
       target,
       value: text(link[target]),
       flags: Object.fromEntries(
-        LINK_FLAGS.map(flag => [flag, flagOf(link[flag])])
+        LINK_FLAGS.map((flag) => [flag, flagOf(link[flag])]),
       ) as LinkDraft['flags'],
     }
   })
@@ -188,7 +168,7 @@ function userVariablesFrom(value: unknown): UserVariablesDraft {
     return {
       expression: undefined,
       asList: true,
-      rows: value.map(name => ({ key: String(name), value: '' })),
+      rows: value.map((name) => ({ key: String(name), value: '' })),
     }
   }
   return {
@@ -208,14 +188,11 @@ function userVariablesValue(draft: UserVariablesDraft): unknown {
   if (draft.rows.length === 0) {
     return undefined
   }
-  if (draft.asList && draft.rows.every(row => !row.value.trim())) {
-    return draft.rows.map(row => row.key.trim())
+  if (draft.asList && draft.rows.every((row) => !row.value.trim())) {
+    return draft.rows.map((row) => row.key.trim())
   }
   return Object.fromEntries(
-    draft.rows.map(row => [
-      row.key.trim(),
-      row.value.trim() ? { hint: row.value.trim() } : {},
-    ])
+    draft.rows.map((row) => [row.key.trim(), row.value.trim() ? { hint: row.value.trim() } : {}]),
   )
 }
 
@@ -223,9 +200,9 @@ function namesError(
   names: string[],
   pattern: RegExp,
   message: string,
-  t: Strings
+  t: Strings,
 ): string | undefined {
-  const trimmed = names.map(name => name.trim())
+  const trimmed = names.map((name) => name.trim())
   for (const [i, name] of trimmed.entries()) {
     if (!pattern.test(name)) {
       return message
@@ -247,15 +224,15 @@ function Card({
   children: ReactNode
 }) {
   return (
-    <div className='flex items-start gap-2'>
-      <div className='flex flex-1 flex-col gap-3 rounded-md border theme-border p-3'>
+    <div className="flex items-start gap-2">
+      <div className="flex flex-1 flex-col gap-3 rounded-md border theme-border p-3">
         {children}
       </div>
       <IconButton
-        icon={<CloseIcon className='h-4 w-4' />}
+        icon={<CloseIcon className="h-4 w-4" />}
         label={removeLabel}
-        variant='ghost'
-        size='sm'
+        variant="ghost"
+        size="sm"
         onClick={onRemove}
       />
     </div>
@@ -275,7 +252,7 @@ export function WorkflowSettingsDialog(
     source?: string | undefined
     view?: SettingsView | undefined
     onViewChange?: ((view: SettingsView) => void) | undefined
-  }
+  },
 ) {
   const { graphEditor: t } = useStrings()
   const views = useSettingsViews({
@@ -293,7 +270,7 @@ export function WorkflowSettingsDialog(
   if (views.yaml !== null) {
     return views.yamlDialog(t.workflowSettings, SETTINGS_YAML_PATH, views.yaml)
   }
-  return views.formDialog(host => (
+  return views.formDialog((host) => (
     <SettingsForm
       key={views.version}
       {...props}
@@ -316,47 +293,34 @@ function SettingsForm({
   const newInputs = useNewInputs(workflowInputsSchema(original))
   const source = { ...newInputs.source, extras: expressionRefs(original) }
   const needs = asRecord(original['needs'])
-  const [meta] = useState(() =>
-    asRecord(asRecord(workflowInputsSchema(workflow))['$meta'])
-  )
+  const [meta] = useState(() => asRecord(asRecord(workflowInputsSchema(workflow))['$meta']))
   const wizard = asRecord(meta['wizard'])
   const [touched, setTouched] = useState<Set<string>>(() => new Set())
   const touch = (section: string) =>
-    setTouched(current =>
-      current.has(section) ? current : new Set(current).add(section)
-    )
+    setTouched((current) => (current.has(section) ? current : new Set(current).add(section)))
 
   const [env, setEnvRows] = useState(() => rowsFrom(original['env'], false))
   const [timeout, setTimeoutText] = useState(text(original['timeout']))
   const [permissions, setPermissionsList] = useState<string[]>(() =>
-    Array.isArray(original['permissions'])
-      ? original['permissions'].map(String)
-      : []
+    Array.isArray(original['permissions']) ? original['permissions'].map(String) : [],
   )
-  const [sessions, setSessionsList] = useState(() =>
-    sessionsFrom(original['sessions'])
-  )
+  const [sessions, setSessionsList] = useState(() => sessionsFrom(original['sessions']))
   const [links, setLinksList] = useState(() => linksFrom(original['links']))
   const [orgVariables, setOrgVariablesList] = useState<string[]>(() =>
-    Array.isArray(needs['organizationVariables'])
-      ? needs['organizationVariables'].map(String)
-      : []
+    Array.isArray(needs['organizationVariables']) ? needs['organizationVariables'].map(String) : [],
   )
   const [userVariables, setUserVariablesDraft] = useState(() =>
-    userVariablesFrom(needs['userVariables'])
+    userVariablesFrom(needs['userVariables']),
   )
   const [labelPosition, setLabelPositionValue] = useState<'left' | 'top'>(
-    meta['labelPosition'] === 'top' ? 'top' : 'left'
+    meta['labelPosition'] === 'top' ? 'top' : 'left',
   )
   const [wizardOn, setWizardOn] = useState(wizard['mode'] === 'wizard')
   const [wizardFlags, setWizardFlags] = useState(
     () =>
       Object.fromEntries(
-        WIZARD_FLAGS.map(flag => [
-          flag,
-          flagOf(asRecord(wizard['navigation'])[flag]),
-        ])
-      ) as Record<(typeof WIZARD_FLAGS)[number], Flag>
+        WIZARD_FLAGS.map((flag) => [flag, flagOf(asRecord(wizard['navigation'])[flag])]),
+      ) as Record<(typeof WIZARD_FLAGS)[number], Flag>,
   )
   const [submitLabel, setSubmitLabel] = useState(text(wizard['submitLabel']))
   const [flatten, setFlatten] = useState(wizard['flatten'] !== false)
@@ -381,51 +345,44 @@ function SettingsForm({
     setLinks(links.map((l, j) => (j === i ? { ...l, ...patch } : l)))
 
   const redirects = [
-    ...sessions.map(session => session.flags.redirect),
-    ...links.map(link => link.flags.redirect),
-  ].filter(value => value === true).length
+    ...sessions.map((session) => session.flags.redirect),
+    ...links.map((link) => link.flags.redirect),
+  ].filter((value) => value === true).length
   const errors = {
     env: rowsError(env, ENV_KEY, t.invalidEnvKey, t),
     timeout: durationError(timeout, t),
-    permissions: permissions.some(value => !value.trim())
-      ? t.required
-      : undefined,
+    permissions: permissions.some((value) => !value.trim()) ? t.required : undefined,
     sessions:
       namesError(
-        sessions.map(session => session.name),
+        sessions.map((session) => session.name),
         /\S/,
         t.required,
-        t
+        t,
       ) ??
       sessions
-        .flatMap(session => SESSION_FLAGS.map(flag => session.flags[flag]))
-        .map(value => flagError(value, t))
+        .flatMap((session) => SESSION_FLAGS.map((flag) => session.flags[flag]))
+        .map((value) => flagError(value, t))
         .find(Boolean),
     links:
       namesError(
-        links.map(link => link.name),
+        links.map((link) => link.name),
         LINK_NAME,
         t.invalidLinkName,
-        t
+        t,
       ) ??
-      (links.some(link => !link.value.trim()) ? t.required : undefined) ??
+      (links.some((link) => !link.value.trim()) ? t.required : undefined) ??
       links
-        .flatMap(link => LINK_FLAGS.map(f => link.flags[f]))
-        .map(value => flagError(value, t))
+        .flatMap((link) => LINK_FLAGS.map((f) => link.flags[f]))
+        .map((value) => flagError(value, t))
         .find(Boolean),
     redirect: redirects > 1 ? t.oneRedirect : undefined,
-    orgVariables: namesError(
-      orgVariables,
-      ORG_VARIABLE,
-      t.invalidOrganizationVariable,
-      t
-    ),
+    orgVariables: namesError(orgVariables, ORG_VARIABLE, t.invalidOrganizationVariable, t),
     userVariables:
       userVariables.expression !== undefined
         ? expressionError(userVariables.expression, t)
         : rowsError(userVariables.rows, USER_VARIABLE, t.invalidKey, t),
     wizard: wizardOn
-      ? WIZARD_FLAGS.map(flag => flagError(wizardFlags[flag], t)).find(Boolean)
+      ? WIZARD_FLAGS.map((flag) => flagError(wizardFlags[flag], t)).find(Boolean)
       : undefined,
   }
 
@@ -435,9 +392,7 @@ function SettingsForm({
     }
     const next: Json = { ...needs }
     next['organizationVariables'] =
-      orgVariables.length > 0
-        ? orgVariables.map(name => name.trim())
-        : undefined
+      orgVariables.length > 0 ? orgVariables.map((name) => name.trim()) : undefined
     next['userVariables'] = userVariablesValue(userVariables)
     const written = withoutUndefined(next)
     return Object.keys(written).length > 0 ? written : undefined
@@ -446,29 +401,22 @@ function SettingsForm({
     touched.has(section) ? value() : original[section]
 
   const patch = diffPatch(original, {
-    env: pick('env', () => rowsTo(env, value => value)),
+    env: pick('env', () => rowsTo(env, (value) => value)),
     timeout: pick('timeout', () => orUndefined(timeout)),
     permissions: pick('permissions', () =>
-      permissions.length > 0
-        ? permissions.map(value => value.trim())
-        : undefined
+      permissions.length > 0 ? permissions.map((value) => value.trim()) : undefined,
     ),
     sessions: pick('sessions', () =>
       sessions.length > 0
         ? Object.fromEntries(
-            sessions.map(session => [
-              session.name.trim(),
-              sessionValue(session),
-            ])
+            sessions.map((session) => [session.name.trim(), sessionValue(session)]),
           )
-        : undefined
+        : undefined,
     ),
     links: pick('links', () =>
       links.length > 0
-        ? Object.fromEntries(
-            links.map(link => [link.name.trim(), linkValue(link)])
-          )
-        : undefined
+        ? Object.fromEntries(links.map((link) => [link.name.trim(), linkValue(link)]))
+        : undefined,
     ),
     needs: nextNeeds(),
   } satisfies Record<(typeof WORKFLOW_FIELDS)[number], unknown>)
@@ -484,24 +432,15 @@ function SettingsForm({
       }
     }
     const next: Json = { ...wizard, mode: 'wizard' }
-    next['navigation'] =
-      Object.keys(navigation).length > 0 ? navigation : undefined
+    next['navigation'] = Object.keys(navigation).length > 0 ? navigation : undefined
     next['submitLabel'] = orUndefined(submitLabel)
-    next['flatten'] = flatten
-      ? wizard['flatten'] === true
-        ? true
-        : undefined
-      : false
+    next['flatten'] = flatten ? (wizard['flatten'] === true ? true : undefined) : false
     return withoutUndefined(next)
   }
   const metaPatch = touched.has('meta')
     ? diffPatch(meta, {
         labelPosition:
-          labelPosition === 'top'
-            ? 'top'
-            : meta['labelPosition'] === 'left'
-              ? 'left'
-              : undefined,
+          labelPosition === 'top' ? 'top' : meta['labelPosition'] === 'left' ? 'left' : undefined,
         wizard: nextWizard(),
       })
     : { set: {}, unset: [] }
@@ -511,18 +450,14 @@ function SettingsForm({
   const setWizard = <T,>(set: (value: T) => void) => tracked<T>('meta', set)
 
   const saveEdit = newInputs.save(
-    dirty ? { type: 'updateWorkflow', ...patch, inputsMeta: metaPatch } : null
+    dirty ? { type: 'updateWorkflow', ...patch, inputsMeta: metaPatch } : null,
   )
   onDraft?.(saveEdit)
   const children = (
     <>
       {newInputs.dialog}
       <Section title={t.sectionGeneral} open>
-        <FieldLabel
-          label={t.fields.env}
-          yamlKey='env'
-          description={t.help.workflowEnv}
-        />
+        <FieldLabel label={t.fields.env} yamlKey="env" description={t.help.workflowEnv} />
         <KeyValueEditor
           rows={env}
           onChange={setEnv}
@@ -535,7 +470,7 @@ function SettingsForm({
           description={t.help.workflowTimeout}
           value={timeout}
           error={errors.timeout}
-          onChange={e => changeTimeout(e.target.value)}
+          onChange={(e) => changeTimeout(e.target.value)}
         />
       </Section>
       <Section
@@ -548,7 +483,7 @@ function SettingsForm({
           values={permissions}
           onChange={setPermissions}
           addLabel={t.addPermission}
-          placeholder='*'
+          placeholder="*"
           error={errors.permissions}
         />
       </Section>
@@ -569,47 +504,45 @@ function SettingsForm({
               label={t.fields.name}
               description={t.help.sessionName}
               value={session.name}
-              onChange={e => updateSession(i, { name: e.target.value })}
+              onChange={(e) => updateSession(i, { name: e.target.value })}
             />
             <FieldLabel
               label={t.fields.sessionType}
-              yamlKey='type'
+              yamlKey="type"
               description={t.help.sessionType}
             />
             <ChoiceButtons
-              size='xs'
+              size="xs"
               options={[
                 { value: 'tunnel', label: t.sessionTypeTunnel },
                 { value: 'link', label: t.sessionTypeLink },
               ]}
               value={session.type}
-              onChange={type => updateSession(i, { type })}
+              onChange={(type) => updateSession(i, { type })}
             />
             <FieldLabel
               label={t.fields.promptForName}
-              yamlKey='prompt-for-name'
+              yamlKey="prompt-for-name"
               description={t.help.promptForName}
             />
             <ChoiceButtons
-              size='xs'
+              size="xs"
               options={[
                 { value: 'off', label: t.promptOff },
                 { value: 'ask', label: t.promptAsk },
               ]}
               value={session.prompt ? 'ask' : 'off'}
-              onChange={mode => updateSession(i, { prompt: mode === 'ask' })}
+              onChange={(mode) => updateSession(i, { prompt: mode === 'ask' })}
             />
             {session.prompt && (
               <Input
                 {...labelled(t.fields.promptDefault, 'default')}
                 description={t.help.promptDefault}
                 value={session.promptDefault}
-                onChange={e =>
-                  updateSession(i, { promptDefault: e.target.value })
-                }
+                onChange={(e) => updateSession(i, { promptDefault: e.target.value })}
               />
             )}
-            {SESSION_FLAGS.map(flag => (
+            {SESSION_FLAGS.map((flag) => (
               <FlagField
                 key={flag}
                 label={t.fields[flag]}
@@ -674,41 +607,32 @@ function SettingsForm({
               label={t.fields.name}
               description={t.help.linkName}
               value={link.name}
-              onChange={e => updateLink(i, { name: e.target.value })}
+              onChange={(e) => updateLink(i, { name: e.target.value })}
             />
-            <FieldLabel
-              label={t.fields.linkTarget}
-              description={t.help.linkTarget}
-            />
+            <FieldLabel label={t.fields.linkTarget} description={t.help.linkTarget} />
             <ChoiceButtons
-              size='xs'
+              size="xs"
               options={[
                 { value: 'endpoint', label: t.linkToEndpoint },
                 { value: 'url', label: t.linkToUrl },
               ]}
               value={link.target}
-              onChange={target => updateLink(i, { target })}
+              onChange={(target) => updateLink(i, { target })}
             />
             <Input
               mono
-              aria-label={
-                link.target === 'url' ? t.linkToUrl : t.linkToEndpoint
-              }
-              description={
-                link.target === 'url' ? t.help.linkUrl : t.help.linkEndpoint
-              }
+              aria-label={link.target === 'url' ? t.linkToUrl : t.linkToEndpoint}
+              description={link.target === 'url' ? t.help.linkUrl : t.help.linkEndpoint}
               value={link.value}
               placeholder={link.target === 'url' ? 'https://' : 'app'}
-              onChange={e => updateLink(i, { value: e.target.value })}
+              onChange={(e) => updateLink(i, { value: e.target.value })}
             />
-            {LINK_FLAGS.map(flag => (
+            {LINK_FLAGS.map((flag) => (
               <FlagField
                 key={flag}
                 label={t.fields[flag]}
                 yamlKey={flag}
-                description={
-                  flag === 'redirect' ? t.help.linkRedirect : t.help.linkDetach
-                }
+                description={flag === 'redirect' ? t.help.linkRedirect : t.help.linkDetach}
                 value={link.flags[flag]}
                 original={asRecord(link.original)[flag]}
                 onChange={(value: Flag) =>
@@ -747,24 +671,24 @@ function SettingsForm({
       >
         <FieldLabel
           label={t.fields.organizationVariables}
-          yamlKey='needs.organizationVariables'
+          yamlKey="needs.organizationVariables"
           description={t.help.organizationVariables}
         />
         <StringListEditor
           values={orgVariables}
           onChange={setOrgVariables}
           addLabel={t.addOrganizationVariable}
-          placeholder='MY_VARIABLE'
+          placeholder="MY_VARIABLE"
           error={errors.orgVariables}
         />
         <FieldLabel
           label={t.fields.userVariables}
-          yamlKey='needs.userVariables'
+          yamlKey="needs.userVariables"
           description={t.help.userVariables}
           actions={
             <ExpressionToggle
               active={userVariables.expression !== undefined}
-              onChange={on =>
+              onChange={(on) =>
                 setUserVariables({
                   ...userVariables,
                   expression: on ? '' : undefined,
@@ -779,14 +703,12 @@ function SettingsForm({
             aria-label={t.fields.userVariables}
             value={userVariables.expression}
             error={errors.userVariables}
-            onChange={e =>
-              setUserVariables({ ...userVariables, expression: e.target.value })
-            }
+            onChange={(e) => setUserVariables({ ...userVariables, expression: e.target.value })}
           />
         ) : (
           <KeyValueEditor
             rows={userVariables.rows}
-            onChange={rows => setUserVariables({ ...userVariables, rows })}
+            onChange={(rows) => setUserVariables({ ...userVariables, rows })}
             error={errors.userVariables}
             keyPlaceholder={t.key}
             valuePlaceholder={t.help.userVariableHint}
@@ -794,18 +716,14 @@ function SettingsForm({
           />
         )}
       </Section>
-      <Section
-        title={t.sectionInputForm}
-        open={wizardOn}
-        alert={!!errors.wizard}
-      >
+      <Section title={t.sectionInputForm} open={wizardOn} alert={!!errors.wizard}>
         <FieldLabel
           label={t.fields.labelPosition}
-          yamlKey='labelPosition'
+          yamlKey="labelPosition"
           description={t.help.labelPosition}
         />
         <ChoiceButtons
-          size='xs'
+          size="xs"
           options={[
             { value: 'left', label: t.labelsBeside },
             { value: 'top', label: t.labelsAbove },
@@ -815,14 +733,14 @@ function SettingsForm({
         />
         <ToggleField
           label={t.fields.wizard}
-          yamlKey='wizard'
+          yamlKey="wizard"
           description={t.help.wizard}
           checked={wizardOn}
           onChange={setWizard(setWizardOn)}
         />
         {wizardOn && (
           <>
-            {WIZARD_FLAGS.map(flag => (
+            {WIZARD_FLAGS.map((flag) => (
               <FlagField
                 key={flag}
                 label={t.fields[flag]}
@@ -832,7 +750,7 @@ function SettingsForm({
                 original={asRecord(wizard['navigation'])[flag]}
                 fallback={flag === 'showSteps'}
                 onChange={setWizard((value: Flag) =>
-                  setWizardFlags(current => ({ ...current, [flag]: value }))
+                  setWizardFlags((current) => ({ ...current, [flag]: value })),
                 )}
               />
             ))}
@@ -840,11 +758,11 @@ function SettingsForm({
               {...labelled(t.fields.submitLabel, 'submitLabel')}
               description={t.help.submitLabel}
               value={submitLabel}
-              onChange={e => setWizard(setSubmitLabel)(e.target.value)}
+              onChange={(e) => setWizard(setSubmitLabel)(e.target.value)}
             />
             <ToggleField
               label={t.fields.flatten}
-              yamlKey='flatten'
+              yamlKey="flatten"
               description={t.help.wizardFlatten}
               checked={flatten}
               onChange={setWizard(setFlatten)}

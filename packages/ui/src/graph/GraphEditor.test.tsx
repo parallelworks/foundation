@@ -1,26 +1,15 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import {
-  act,
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  within,
-} from '@testing-library/react'
-import {
-  dumpYaml,
-  type GraphLayout,
-  layoutFromCols,
-} from '@parallelworks/workflow-parser'
+import { dumpYaml, type GraphLayout, layoutFromCols } from '@parallelworks/workflow-parser'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import type { NestedWorkflowText } from '../editor/Monaco'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { NestedWorkflowText } from '../editor/Monaco'
 import { testEngine } from '../test/engine'
 
 // The components call useWorkflowEngine(), which throws outside a UIProvider carrying one.
-vi.mock('../components/Provider', async importOriginal =>
-  (await import('../test/engine')).mockEngineHooks(importOriginal)
+vi.mock('../components/Provider', async (importOriginal) =>
+  (await import('../test/engine')).mockEngineHooks(importOriginal),
 )
 
 // jsdom lacks these; the graph relies on them for connector recompute + fit.
@@ -40,7 +29,7 @@ vi.mock('react-zoom-pan-pinch', () => ({
   TransformWrapper: ({ children }: { children: unknown }) =>
     typeof children === 'function' ? (children as () => unknown)() : children,
   TransformComponent: ({ children }: { children: ReactNode }) => (
-    <div className='react-transform-wrapper'>{children}</div>
+    <div className="react-transform-wrapper">{children}</div>
   ),
 }))
 vi.mock('framer-motion', () => ({
@@ -52,7 +41,7 @@ vi.mock('framer-motion', () => ({
         () =>
         ({ children }: { children: unknown }) =>
           children,
-    }
+    },
   ),
 }))
 vi.mock('../logviewer', () => ({ LogViewer: () => null }))
@@ -63,7 +52,7 @@ const editorProps = vi.hoisted(
     ({}) as {
       nested?: NestedWorkflowText | undefined
       workflows?: unknown[] | undefined
-    }
+    },
 )
 vi.mock('../editor/Monaco', () => ({
   default: ({
@@ -81,13 +70,7 @@ vi.mock('../editor/Monaco', () => ({
   }) => {
     editorProps.nested = nested
     editorProps.workflows = workflows
-    return (
-      <textarea
-        aria-label={path}
-        value={value}
-        onChange={e => onChange?.(e.target.value)}
-      />
-    )
+    return <textarea aria-label={path} value={value} onChange={(e) => onChange?.(e.target.value)} />
   },
 }))
 vi.mock('../components/Dropdown')
@@ -153,40 +136,30 @@ describe('computeGraphLayout with a stored layout', () => {
   for (const [name, jobs] of Object.entries(graphs)) {
     it(`draws the captured grid of ${name} exactly as before`, () => {
       const drawn = computeGraphLayout(testEngine, jobs, {}).dependencyCols
-      const replayed = computeGraphLayout(
-        testEngine,
-        jobs,
-        {},
-        layoutFromCols(drawn)
-      )
+      const replayed = computeGraphLayout(testEngine, jobs, {}, layoutFromCols(drawn))
       expect(replayed.dependencyCols).toEqual(drawn)
     })
   }
 
   it('keeps jobs with the same dependencies in one box', () => {
-    const cols = computeGraphLayout(
-      testEngine,
-      graphs['fanOut']!,
-      {}
-    ).dependencyCols
+    const cols = computeGraphLayout(testEngine, graphs['fanOut']!, {}).dependencyCols
     expect(cols[1]).toEqual([['linux', 'mac', 'windows']])
   })
 
   it('follows a stored column and pushes dependents right', () => {
     const jobs = graphs['diamond']!
     const layout = layoutFromCols([[['a']], [['b']], [['c']], [['d']]])
-    expect(
-      computeGraphLayout(testEngine, jobs, {}, layout).dependencyCols
-    ).toEqual([[['a']], [['b']], [['c']], [['d']]])
+    expect(computeGraphLayout(testEngine, jobs, {}, layout).dependencyCols).toEqual([
+      [['a']],
+      [['b']],
+      [['c']],
+      [['d']],
+    ])
   })
 
   it('draws matrix `:any` needs from the job they name', () => {
     const jobs = { build: job(), deploy: job(['build:any']) }
-    const { dependencyCols, directDeps } = computeGraphLayout(
-      testEngine,
-      jobs,
-      {}
-    )
+    const { dependencyCols, directDeps } = computeGraphLayout(testEngine, jobs, {})
     expect(dependencyCols).toEqual([[['build']], [['deploy']]])
     expect(directDeps['deploy']).toEqual(['build'])
   })
@@ -242,10 +215,7 @@ const withInputs = {
 }
 
 // A connection's edit: each new need, then the jobs that gained one moved right of their needs.
-function connected(
-  pairs: [string, string][],
-  layout: unknown = expect.any(Object)
-) {
+function connected(pairs: [string, string][], layout: unknown = expect.any(Object)) {
   return {
     type: 'batch',
     edits: [
@@ -260,10 +230,7 @@ function connected(
 }
 
 // Started from the jobs needed instead: they move left of the jobs that now need them.
-function connectedFrom(
-  pairs: [string, string][],
-  layout: unknown = expect.any(Object)
-) {
+function connectedFrom(pairs: [string, string][], layout: unknown = expect.any(Object)) {
   return {
     type: 'batch',
     edits: [
@@ -315,14 +282,14 @@ describe('DependencyGraphPreview editor', () => {
 
   it('makes job rows draggable and gives multi-job boxes a grip', () => {
     render(<DependencyGraphPreview yml={yml} editor={editor()} />)
-    const rows = [...document.querySelectorAll('[data-dag-job]')].map(el =>
-      el.getAttribute('data-dag-job')
+    const rows = [...document.querySelectorAll('[data-dag-job]')].map((el) =>
+      el.getAttribute('data-dag-job'),
     )
     expect(rows).toEqual(['build', 'linux', 'mac'])
     expect(
       screen.getAllByRole('button', {
         name: 'Drag to move these jobs together',
-      })
+      }),
     ).toHaveLength(1)
   })
 
@@ -382,9 +349,7 @@ describe('DependencyGraphPreview editor', () => {
     fireEvent.click(screen.getByText('Edit job'))
     const name = screen.getByLabelText('Job name')
     fireEvent.change(name, { target: { value: 'linux' } })
-    expect(
-      screen.getByText('A job with this name already exists.')
-    ).toBeInTheDocument()
+    expect(screen.getByText('A job with this name already exists.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
     fireEvent.change(name, { target: { value: 'macos' } })
     fireEvent.click(screen.getByLabelText('linux'))
@@ -456,9 +421,7 @@ describe('DependencyGraphPreview editor', () => {
     expect(screen.queryByText('Edit job')).toBeNull()
     expect(screen.queryByText('Make matrix')).toBeNull()
     fireEvent.click(screen.getByText('Edit matrix'))
-    expect(
-      screen.getByText(GRAPH_EDITOR_STRINGS.help.include)
-    ).toBeInTheDocument()
+    expect(screen.getByText(GRAPH_EDITOR_STRINGS.help.include)).toBeInTheDocument()
     fireEvent.click(screen.getAllByText('Add entry')[0] as HTMLElement)
     fireEvent.change(screen.getAllByLabelText('Key').at(-1) as HTMLElement, {
       target: { value: 'os' },
@@ -525,13 +488,9 @@ describe('DependencyGraphPreview editor', () => {
     const row = document.querySelector('[data-dag-job="build"]') as HTMLElement
     fireEvent.click(within(row).getByRole('button', { name: 'Build' }))
     fireEvent.click(screen.getByTestId('get'))
-    expect(
-      screen.getByText(GRAPH_EDITOR_STRINGS.actionHelp.checkoutSparse)
-    ).toBeInTheDocument()
+    expect(screen.getByText(GRAPH_EDITOR_STRINGS.actionHelp.checkoutSparse)).toBeInTheDocument()
     const save = screen.getByRole('button', { name: 'Save' })
-    expect(
-      screen.getAllByText(GRAPH_EDITOR_STRINGS.notActionInput).length
-    ).toBeGreaterThan(0)
+    expect(screen.getAllByText(GRAPH_EDITOR_STRINGS.notActionInput).length).toBeGreaterThan(0)
     expect(save).toBeDisabled()
     const extra = screen.getByText('extra').parentElement as HTMLElement
     fireEvent.click(within(extra).getByRole('button', { name: 'Remove' }))
@@ -553,29 +512,19 @@ describe('DependencyGraphPreview editor', () => {
       jobs: { build: { steps: [{ name: 'get', uses: 'somewhere/else' }] } },
     }
     render(<DependencyGraphPreview yml={steps} editor={editor()} />)
-    fireEvent.click(
-      within(jobRow('build')).getByRole('button', { name: 'Build' })
-    )
+    fireEvent.click(within(jobRow('build')).getByRole('button', { name: 'Build' }))
     fireEvent.click(screen.getByTestId('get'))
-    expect(screen.getByLabelText('Workflow or action')).toHaveValue(
-      'somewhere/else'
-    )
-    expect(
-      screen.getByText(GRAPH_EDITOR_STRINGS.invalidUses)
-    ).toBeInTheDocument()
+    expect(screen.getByLabelText('Workflow or action')).toHaveValue('somewhere/else')
+    expect(screen.getByText(GRAPH_EDITOR_STRINGS.invalidUses)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
   })
 
   it('picks a built-in action for a step and fills in its inputs', () => {
     const e = editor()
     render(<DependencyGraphPreview yml={yml} editor={e} />)
-    fireEvent.click(
-      within(jobRow('build')).getByRole('button', { name: 'Build' })
-    )
+    fireEvent.click(within(jobRow('build')).getByRole('button', { name: 'Build' }))
     fireEvent.click(screen.getByTestId('compile'))
-    fireEvent.click(
-      screen.getByRole('button', { name: GRAPH_EDITOR_STRINGS.stepUses })
-    )
+    fireEvent.click(screen.getByRole('button', { name: GRAPH_EDITOR_STRINGS.stepUses }))
     fireEvent.click(screen.getByRole('button', { name: 'Action' }))
     fireEvent.change(screen.getByLabelText('Workflow or action'), {
       target: { value: 'parallelworks/checkout' },
@@ -602,13 +551,9 @@ describe('DependencyGraphPreview editor', () => {
   it('takes a typed uses that none of the lists offer', () => {
     const e = editor()
     render(<DependencyGraphPreview yml={yml} editor={e} />)
-    fireEvent.click(
-      within(jobRow('build')).getByRole('button', { name: 'Build' })
-    )
+    fireEvent.click(within(jobRow('build')).getByRole('button', { name: 'Build' }))
     fireEvent.click(screen.getByTestId('compile'))
-    fireEvent.click(
-      screen.getByRole('button', { name: GRAPH_EDITOR_STRINGS.stepUses })
-    )
+    fireEvent.click(screen.getByRole('button', { name: GRAPH_EDITOR_STRINGS.stepUses }))
     fireEvent.click(screen.getByRole('button', { name: 'Marketplace' }))
     fireEvent.change(screen.getByLabelText('Workflow or action'), {
       target: { value: 'marketplace/demo@2.0.0' },
@@ -653,16 +598,14 @@ describe('DependencyGraphPreview editor', () => {
       target: { value: 'my-hpc' },
     })
     expect(
-      within(dialog).getByText(GRAPH_EDITOR_STRINGS.runsOnNeedsEnvironment)
+      within(dialog).getByText(GRAPH_EDITOR_STRINGS.runsOnNeedsEnvironment),
     ).toBeInTheDocument()
     fireEvent.change(within(dialog).getByLabelText('Environment name'), {
       target: { value: 'gpu-large' },
     })
     const host = within(field('Host')).getByLabelText('Host')
     fireEvent.change(host, { target: { value: '10.0.0.1' } })
-    expect(
-      within(dialog).getByText(GRAPH_EDITOR_STRINGS.runsOnWithSsh)
-    ).toBeInTheDocument()
+    expect(within(dialog).getByText(GRAPH_EDITOR_STRINGS.runsOnWithSsh)).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Save' })).toBeDisabled()
     fireEvent.change(host, { target: { value: '' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
@@ -701,20 +644,12 @@ describe('DependencyGraphPreview editor', () => {
   it('offers the executor’s status checks for when a step runs', () => {
     const e = editor()
     render(<DependencyGraphPreview yml={yml} editor={e} />)
-    fireEvent.click(
-      within(jobRow('build')).getByRole('button', { name: 'Build' })
-    )
+    fireEvent.click(within(jobRow('build')).getByRole('button', { name: 'Build' }))
     fireEvent.click(screen.getByTestId('compile'))
     const condition = within(field('When to run')).getByLabelText('When to run')
     expect(condition).toHaveValue('')
-    expect(suggestionsOf(condition).map(option => option.value)).toEqual(
-      expect.arrayContaining([
-        'always',
-        'failure()',
-        'cancelled()',
-        'success()',
-        'false',
-      ])
+    expect(suggestionsOf(condition).map((option) => option.value)).toEqual(
+      expect.arrayContaining(['always', 'failure()', 'cancelled()', 'success()', 'false']),
     )
     fireEvent.change(condition, { target: { value: 'failure()' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -730,14 +665,11 @@ describe('DependencyGraphPreview editor', () => {
   it('writes Never as false', () => {
     const e = editor()
     render(<DependencyGraphPreview yml={yml} editor={e} />)
-    fireEvent.click(
-      within(jobRow('build')).getByRole('button', { name: 'Build' })
-    )
+    fireEvent.click(within(jobRow('build')).getByRole('button', { name: 'Build' }))
     fireEvent.click(screen.getByTestId('compile'))
-    fireEvent.change(
-      within(field('When to run')).getByLabelText('When to run'),
-      { target: { value: 'false' } }
-    )
+    fireEvent.change(within(field('When to run')).getByLabelText('When to run'), {
+      target: { value: 'false' },
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(e.onEdit).toHaveBeenCalledWith({
       type: 'updateStep',
@@ -754,9 +686,7 @@ describe('DependencyGraphPreview editor', () => {
     fireEvent.contextMenu(jobRow('mac'), { clientX: 5, clientY: 5 })
     fireEvent.click(screen.getByText('Edit job'))
     const needs = field('Depends on')
-    fireEvent.click(
-      within(needs).getByRole('button', { name: 'Use an expression instead' })
-    )
+    fireEvent.click(within(needs).getByRole('button', { name: 'Use an expression instead' }))
     fireEvent.change(within(needs).getByLabelText('Depends on'), {
       target: { value: '${{ inputs.jobs }}' },
     })
@@ -772,18 +702,12 @@ describe('DependencyGraphPreview editor', () => {
   it('types an expression in place of a switch', () => {
     const e = editor()
     render(<DependencyGraphPreview yml={yml} editor={e} />)
-    fireEvent.click(
-      within(jobRow('build')).getByRole('button', { name: 'Build' })
-    )
+    fireEvent.click(within(jobRow('build')).getByRole('button', { name: 'Build' }))
     fireEvent.click(screen.getByTestId('compile'))
     const lenient = field('Keep going if it fails')
-    fireEvent.click(
-      within(lenient).getByRole('button', { name: 'Use an expression instead' })
-    )
+    fireEvent.click(within(lenient).getByRole('button', { name: 'Use an expression instead' }))
     // The switch gives way to a typed field below the label.
-    expect(
-      screen.queryByRole('checkbox', { name: 'Keep going if it fails' })
-    ).toBeNull()
+    expect(screen.queryByRole('checkbox', { name: 'Keep going if it fails' })).toBeNull()
     fireEvent.change(screen.getByLabelText('Keep going if it fails'), {
       target: { value: '${{ inputs.lenient }}' },
     })
@@ -802,26 +726,22 @@ describe('DependencyGraphPreview editor', () => {
     const steps = {
       jobs: {
         build: {
-          steps: [
-            { name: 'notify', run: 'x', if: 'failure() && inputs.notify' },
-          ],
+          steps: [{ name: 'notify', run: 'x', if: 'failure() && inputs.notify' }],
         },
       },
     }
     render(<DependencyGraphPreview yml={steps} editor={e} />)
-    fireEvent.click(
-      within(jobRow('build')).getByRole('button', { name: 'Build' })
-    )
+    fireEvent.click(within(jobRow('build')).getByRole('button', { name: 'Build' }))
     fireEvent.click(screen.getByTestId('notify'))
-    expect(
-      within(field('When to run')).getByLabelText('When to run')
-    ).toHaveValue('failure() && inputs.notify')
+    expect(within(field('When to run')).getByLabelText('When to run')).toHaveValue(
+      'failure() && inputs.notify',
+    )
     fireEvent.change(screen.getByLabelText('Time limit'), {
       target: { value: '10m' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(e.onEdit).toHaveBeenCalledWith(
-      expect.objectContaining({ set: { timeout: '10m' }, unset: [] })
+      expect.objectContaining({ set: { timeout: '10m' }, unset: [] }),
     )
   })
 
@@ -844,7 +764,7 @@ describe('DependencyGraphPreview editor', () => {
     expect(
       within(insert).getByRole('option', {
         name: 'needs.build.outputs.version',
-      })
+      }),
     ).toBeInTheDocument()
     fireEvent.change(within(condition).getByLabelText('When to run'), {
       target: { value: "${{ needs.build.outputs.version == '2' }}" },
@@ -866,7 +786,7 @@ describe('DependencyGraphPreview editor', () => {
     fireEvent.click(
       within(field('When to run')).getByRole('button', {
         name: 'New Switch input…',
-      })
+      }),
     )
     const dialogs = screen.getAllByRole('dialog')
     const created = dialogs[dialogs.length - 1] as HTMLElement
@@ -901,9 +821,7 @@ describe('DependencyGraphPreview editor', () => {
     render(<DependencyGraphPreview yml={steps} editor={e} />)
     fireEvent.contextMenu(jobRow('build'), { clientX: 5, clientY: 5 })
     fireEvent.click(screen.getByText('Edit job'))
-    const outputs = screen
-      .getByText('Outputs')
-      .closest('details') as HTMLElement
+    const outputs = screen.getByText('Outputs').closest('details') as HTMLElement
     fireEvent.click(within(outputs).getByText('Add'))
     fireEvent.change(within(outputs).getByLabelText('Name'), {
       target: { value: 'version' },
@@ -939,9 +857,7 @@ describe('DependencyGraphPreview editor', () => {
     fireEvent.contextMenu(row, { clientX: 5, clientY: 5 })
     fireEvent.click(screen.getByText('Edit matrix'))
     expect(screen.queryByRole('button', { name: 'Expression' })).toBeNull()
-    expect(screen.getByLabelText('Extra combinations')).toHaveValue(
-      '${{ inputs.extra }}'
-    )
+    expect(screen.getByLabelText('Extra combinations')).toHaveValue('${{ inputs.extra }}')
     fireEvent.change(screen.getByLabelText('Runs at the same time'), {
       target: { value: '2' },
     })
@@ -965,14 +881,10 @@ describe('DependencyGraphPreview editor', () => {
     fireEvent.contextMenu(jobRow('mac'), { clientX: 5, clientY: 5 })
     fireEvent.click(screen.getByText('Edit job'))
     expect(
-      screen
-        .getAllByRole('button', { name: /^(YAML|Form)$/ })
-        .map(button => button.textContent)
+      screen.getAllByRole('button', { name: /^(YAML|Form)$/ }).map((button) => button.textContent),
     ).toEqual(['YAML', 'Form'])
     const text = await screen.findByLabelText('file:///workflow-job.yaml')
-    expect(text).toHaveValue(
-      '# macOS runners\nneeds:\n  - build\nsteps:\n  - run: y\n'
-    )
+    expect(text).toHaveValue('# macOS runners\nneeds:\n  - build\nsteps:\n  - run: y\n')
     const next = 'needs:\n  - linux\nsteps:\n  - run: y\n'
     fireEvent.change(text, { target: { value: next } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -1015,9 +927,7 @@ describe('DependencyGraphPreview editor', () => {
   it('edits one step as YAML and refuses YAML that doesn’t parse', async () => {
     const e = editor({ readSource: () => YML_TEXT })
     render(<DependencyGraphPreview yml={yml} editor={e} />)
-    fireEvent.click(
-      within(jobRow('build')).getByRole('button', { name: 'Build' })
-    )
+    fireEvent.click(within(jobRow('build')).getByRole('button', { name: 'Build' }))
     fireEvent.click(screen.getByTestId('compile'))
     const text = await screen.findByLabelText('file:///workflow-step.yaml')
     expect(text).toHaveValue('name: compile\nrun: make\n')
@@ -1069,9 +979,7 @@ describe('DependencyGraphPreview editor', () => {
       completions: { marketplaceItems: [], workflows: [{ name: 'other' }] },
     })
     render(<DependencyGraphPreview yml={yml} editor={e} />)
-    fireEvent.click(
-      within(jobRow('build')).getByRole('button', { name: 'Build' })
-    )
+    fireEvent.click(within(jobRow('build')).getByRole('button', { name: 'Build' }))
     fireEvent.click(screen.getByTestId('compile'))
     const text = await screen.findByLabelText('file:///workflow-step.yaml')
     expect(editorProps.workflows).toEqual([{ name: 'other' }])
@@ -1106,9 +1014,7 @@ describe('DependencyGraphPreview editor', () => {
   it('leaves out an added group the YAML no longer reads', async () => {
     const e = editor({ readSource: () => YML_TEXT })
     render(<DependencyGraphPreview yml={yml} editor={e} />)
-    fireEvent.click(
-      within(jobRow('build')).getByRole('button', { name: 'Build' })
-    )
+    fireEvent.click(within(jobRow('build')).getByRole('button', { name: 'Build' }))
     fireEvent.click(screen.getByTestId('compile'))
     const text = await screen.findByLabelText('file:///workflow-step.yaml')
     act(() => {
@@ -1155,9 +1061,7 @@ describe('DependencyGraphPreview editor', () => {
 
   it('opens the workflow settings from the toolbar', () => {
     const onOpenSettings = vi.fn()
-    render(
-      <DependencyGraphPreview yml={yml} editor={editor({ onOpenSettings })} />
-    )
+    render(<DependencyGraphPreview yml={yml} editor={editor({ onOpenSettings })} />)
     fireEvent.click(screen.getByRole('button', { name: 'Workflow settings' }))
     expect(onOpenSettings).toHaveBeenCalled()
   })
@@ -1193,9 +1097,7 @@ describe('DependencyGraphPreview editor', () => {
     fireEvent.click(screen.getByText('Job'))
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(e.onEdit).toHaveBeenCalledWith({ type: 'addJob' })
-    fireEvent.click(
-      within(jobRow('build')).getByRole('button', { name: 'Build' })
-    )
+    fireEvent.click(within(jobRow('build')).getByRole('button', { name: 'Build' }))
     fireEvent.click(screen.getByText('Add step'))
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(e.onEdit).toHaveBeenLastCalledWith({ type: 'addStep', job: 'build' })
@@ -1215,9 +1117,7 @@ describe('DependencyGraphPreview editor', () => {
   it('adds a step with its first save, as one edit with what the dialog set', async () => {
     const e = editor({ readSource: () => YML_TEXT })
     render(<DependencyGraphPreview yml={yml} editor={e} />)
-    fireEvent.click(
-      within(jobRow('build')).getByRole('button', { name: 'Build' })
-    )
+    fireEvent.click(within(jobRow('build')).getByRole('button', { name: 'Build' }))
     fireEvent.click(screen.getByText('Add step'))
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(e.onEdit).not.toHaveBeenCalled()
@@ -1242,9 +1142,7 @@ describe('DependencyGraphPreview editor', () => {
   it('discards a new step deleted from its dialog', () => {
     const e = editor({ readSource: () => YML_TEXT, settingsView: 'form' })
     render(<DependencyGraphPreview yml={yml} editor={e} />)
-    fireEvent.click(
-      within(jobRow('build')).getByRole('button', { name: 'Build' })
-    )
+    fireEvent.click(within(jobRow('build')).getByRole('button', { name: 'Build' }))
     fireEvent.click(screen.getByText('Add step'))
     fireEvent.click(screen.getByRole('button', { name: 'Delete step' }))
     expect(screen.queryByRole('dialog')).toBeNull()
@@ -1261,7 +1159,7 @@ describe('DependencyGraphPreview editor', () => {
     render(<DependencyGraphPreview yml={jobs} editor={editor()} />)
     fireEvent.pointerDown(
       screen.getByRole('button', { name: 'Drag to move these jobs together' }),
-      { button: 0, clientX: 10, clientY: 10 }
+      { button: 0, clientX: 10, clientY: 10 },
     )
     act(() => {
       fireEvent.pointerMove(window, { clientX: 60, clientY: 60 })
@@ -1296,7 +1194,7 @@ describe('connecting jobs from node circles', () => {
 
   function port(node: string, side: 'in' | 'out'): HTMLElement {
     return document.querySelector(
-      `[data-dag-port="${side}"][data-dag-node="${node}"]`
+      `[data-dag-port="${side}"][data-dag-node="${node}"]`,
     ) as HTMLElement
   }
 
@@ -1315,8 +1213,7 @@ describe('connecting jobs from node circles', () => {
     cleanup()
     renderGraph(editor())
     const ports = [...document.querySelectorAll('[data-dag-port]')].map(
-      el =>
-        `${el.getAttribute('data-dag-node')}:${el.getAttribute('data-dag-port')}`
+      (el) => `${el.getAttribute('data-dag-node')}:${el.getAttribute('data-dag-port')}`,
     )
     expect(ports.sort()).toEqual([
       'build:in',
@@ -1338,7 +1235,7 @@ describe('connecting jobs from node circles', () => {
         test: { column: 0, row: 1 },
         linux: { column: 1, row: 0 },
         mac: { column: 1, row: 0 },
-      })
+      }),
     )
   })
 
@@ -1367,15 +1264,12 @@ describe('connecting jobs from node circles', () => {
   it('counts a drop anywhere on a node as a drop on its circle', () => {
     const e = editor()
     renderGraph(e)
-    drag(
-      port('test', 'out'),
-      document.getElementById('node_linux') as HTMLElement
-    )
+    drag(port('test', 'out'), document.getElementById('node_linux') as HTMLElement)
     expect(e.onEdit).toHaveBeenCalledWith(
       connectedFrom([
         ['test', 'linux'],
         ['test', 'mac'],
-      ])
+      ]),
     )
   })
 
@@ -1407,7 +1301,7 @@ describe('a matrix job’s steps', () => {
     fireEvent.click(within(node).getByRole('button', { name: 'Build (1/2)' }))
     jobRow('build').getBoundingClientRect = () => new DOMRect(0, 0, 200, 30)
     const step = document.querySelector(
-      '[data-dag-step-job="build"][data-dag-step="0"]'
+      '[data-dag-step-job="build"][data-dag-step="0"]',
     ) as HTMLElement
     step.getBoundingClientRect = () => new DOMRect(0, 60, 200, 20)
     return { node, step }
@@ -1485,17 +1379,12 @@ describe('selecting jobs', () => {
 
   function selected(): string[] {
     return [...document.querySelectorAll('[data-dag-job][data-selected]')].map(
-      el => el.getAttribute('data-dag-job') ?? ''
+      (el) => el.getAttribute('data-dag-job') ?? '',
     )
   }
 
-  function marquee(
-    from: [number, number],
-    to: [number, number],
-    shift = false
-  ) {
-    const empty = document.getElementById('node_a')
-      ?.parentElement as HTMLElement
+  function marquee(from: [number, number], to: [number, number], shift = false) {
+    const empty = document.getElementById('node_a')?.parentElement as HTMLElement
     fireEvent.pointerDown(empty, {
       button: 0,
       clientX: from[0],
@@ -1530,7 +1419,7 @@ describe('selecting jobs', () => {
     expect(
       screen.getByRole('button', {
         name: 'Drag to move the selected jobs together',
-      })
+      }),
     ).toBeInTheDocument()
     marquee([500, 500], [500, 500])
     expect(selected()).toEqual([])
@@ -1538,11 +1427,9 @@ describe('selecting jobs', () => {
 
   const connector = () => screen.getByRole('button', { name: 'd depends on a' })
   function stepRowOf(job: string, rect: [number, number, number, number]) {
-    fireEvent.click(
-      within(jobRow(job)).getByRole('button', { name: job.toUpperCase() })
-    )
+    fireEvent.click(within(jobRow(job)).getByRole('button', { name: job.toUpperCase() }))
     const row = document.querySelector(
-      `[data-dag-step-job="${job}"][data-dag-step="0"]`
+      `[data-dag-step-job="${job}"][data-dag-step="0"]`,
     ) as HTMLElement
     row.getBoundingClientRect = () => new DOMRect(...rect)
     return row
@@ -1606,13 +1493,11 @@ describe('selecting jobs', () => {
 
   it('outlines each run of selected jobs, never an unselected job between', () => {
     renderGraph(editor())
-    const outlines = () =>
-      document.querySelectorAll('.rounded-xl.border-dashed').length
+    const outlines = () => document.querySelectorAll('.rounded-xl.border-dashed').length
     const pick = (job: string) =>
-      fireEvent.click(
-        within(jobRow(job)).getByRole('button', { name: job.toUpperCase() }),
-        { shiftKey: true }
-      )
+      fireEvent.click(within(jobRow(job)).getByRole('button', { name: job.toUpperCase() }), {
+        shiftKey: true,
+      })
     pick('a')
     pick('c')
     expect(outlines()).toBe(2)
@@ -1637,7 +1522,7 @@ describe('selecting jobs', () => {
         jobs: ['b', 'd'],
         anchor: 'd',
         to: { column: 0, row: 2 },
-      })
+      }),
     )
   })
 
@@ -1646,15 +1531,13 @@ describe('selecting jobs', () => {
     renderGraph(e)
     marquee([-10, 90], [150, 125], true)
     marquee([290, -10], [410, 30], true)
-    const out = document.querySelector(
-      '[data-dag-selection][data-dag-port="out"]'
-    ) as HTMLElement
+    const out = document.querySelector('[data-dag-selection][data-dag-port="out"]') as HTMLElement
     drag(out, jobRow('c'), [60, 60])
     expect(e.onEdit).toHaveBeenCalledWith(
       connectedFrom([
         ['b', 'c'],
         ['d', 'c'],
-      ])
+      ]),
     )
   })
 })
@@ -1712,13 +1595,10 @@ describe('moves and removals an expression depends on', () => {
     const e = editor()
     renderGraph(plain, e)
     dragIntoColumnOfB()
-    expect(e.onEdit).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'move', jobs: ['d'] })
-    )
+    expect(e.onEdit).toHaveBeenCalledWith(expect.objectContaining({ type: 'move', jobs: ['d'] }))
   })
 
-  const connectors = () =>
-    screen.getAllByRole('button', { name: / depends on / })
+  const connectors = () => screen.getAllByRole('button', { name: / depends on / })
   const ends = () => [...document.querySelectorAll('[data-dag-edge-end]')]
 
   it('keeps Remove dependency off where an expression reads the need', () => {
@@ -1726,9 +1606,7 @@ describe('moves and removals an expression depends on', () => {
     renderGraph(reading, e)
     const [fromA, fromB] = connectors()
     fireEvent.contextMenu(fromB as Element)
-    const inUse = within(screen.getByRole('menu'))
-      .getByText('Remove dependency')
-      .closest('button')
+    const inUse = within(screen.getByRole('menu')).getByText('Remove dependency').closest('button')
     expect(inUse).toHaveAttribute('aria-disabled', 'true')
     fireEvent.click(inUse as Element)
     expect(e.onEdit).not.toHaveBeenCalled()
@@ -1815,9 +1693,7 @@ describe('moves and removals an expression depends on', () => {
     renderGraph(plain, e)
     const [, fromB] = connectors()
     fireEvent.click(fromB as Element)
-    const start = document.querySelector(
-      '[data-dag-edge-end="from"]'
-    ) as HTMLElement
+    const start = document.querySelector('[data-dag-edge-end="from"]') as HTMLElement
     underPointer = jobRow('a')
     fireEvent.pointerDown(start, { button: 0, clientX: 400, clientY: 20 })
     act(() => {
@@ -1839,9 +1715,7 @@ describe('moves and removals an expression depends on', () => {
     renderGraph(reading, e)
     const [, fromB] = connectors()
     fireEvent.click(fromB as Element)
-    const start = document.querySelector(
-      '[data-dag-edge-end="from"]'
-    ) as HTMLElement
+    const start = document.querySelector('[data-dag-edge-end="from"]') as HTMLElement
     expect(start).toHaveClass('cursor-not-allowed')
     underPointer = jobRow('a')
     fireEvent.pointerDown(start, { button: 0, clientX: 400, clientY: 20 })
@@ -1871,12 +1745,7 @@ describe('nodes formed by hand', () => {
 
   it('draws jobs in separate slots of one column as separate nodes', () => {
     const layout = layoutFromCols([[['a']], [['b'], ['c']]])
-    const { dependencyCols, rowSlots } = computeGraphLayout(
-      testEngine,
-      jobs,
-      {},
-      layout
-    )
+    const { dependencyCols, rowSlots } = computeGraphLayout(testEngine, jobs, {}, layout)
     expect(dependencyCols).toEqual([[['a']], [['b'], ['c']]])
     expect(rowSlots).toEqual([[0], [0, 1]])
   })
@@ -1891,25 +1760,13 @@ describe('nodes formed by hand', () => {
     expect(rowSlots).toEqual([[0], [0, 3]])
     render(<DependencyGraphPreview yml={graph} layout={layout} />)
     // Two empty rows between b and c.
-    expect(document.getElementById('node_c')?.style.marginTop).toContain(
-      `${2 * SLOT_PITCH}px`
-    )
+    expect(document.getElementById('node_c')?.style.marginTop).toContain(`${2 * SLOT_PITCH}px`)
     expect(document.getElementById('node_b')?.style.marginTop).toBe('')
   })
 
   // jsdom lays nothing out, so each row and node gets a rect by hand.
-  function renderEditor(
-    e: DependencyGraphEditor,
-    layout?: GraphLayout,
-    bLeft = 300
-  ) {
-    render(
-      <DependencyGraphPreview
-        yml={graph}
-        editor={e}
-        {...(layout ? { layout } : {})}
-      />
-    )
+  function renderEditor(e: DependencyGraphEditor, layout?: GraphLayout, bLeft = 300) {
+    render(<DependencyGraphPreview yml={graph} editor={e} {...(layout ? { layout } : {})} />)
     const node = document.getElementById('node_a') as HTMLElement
     act(() => {
       fireEvent.mouseEnter(node)
@@ -1947,7 +1804,7 @@ describe('nodes formed by hand', () => {
         type: 'move',
         jobs: ['c'],
         to: { column: 1, row: 1 },
-      })
+      }),
     )
   })
 
@@ -1956,7 +1813,7 @@ describe('nodes formed by hand', () => {
     renderEditor(e)
     dragRow('d', [350, 30], document.getElementById('node_b'))
     expect(e.onEdit).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'groupJobs', jobs: ['d'], into: 'b' })
+      expect.objectContaining({ type: 'groupJobs', jobs: ['d'], into: 'b' }),
     )
   })
 
@@ -1976,7 +1833,7 @@ describe('nodes formed by hand', () => {
         type: 'move',
         jobs: ['d'],
         to: { column: 3, row: 2 },
-      })
+      }),
     )
     dragRow('d', [-500, 20], null)
     expect(e.onEdit).toHaveBeenLastCalledWith(
@@ -1984,7 +1841,7 @@ describe('nodes formed by hand', () => {
         type: 'move',
         jobs: ['d'],
         to: { column: -2, row: 0 },
-      })
+      }),
     )
   })
 
@@ -2004,7 +1861,7 @@ describe('nodes formed by hand', () => {
         type: 'move',
         jobs: ['d'],
         to: { column: 0, row: -1 },
-      })
+      }),
     )
   })
 
@@ -2015,24 +1872,20 @@ describe('nodes formed by hand', () => {
       b: [2, 0],
       c: [2, 0],
     })
-    expect(computeGraphLayout(testEngine, jobs, {}, layout).colSlots).toEqual([
-      0, 2,
-    ])
+    expect(computeGraphLayout(testEngine, jobs, {}, layout).colSlots).toEqual([0, 2])
     const e = editor()
     renderEditor(e, layout, 300 + COLUMN_PITCH)
-    expect(
-      document.getElementById('node_b')?.parentElement?.style.marginLeft
-    ).toBe(`${COLUMN_PITCH}px`)
-    expect(
-      document.getElementById('node_a')?.parentElement?.style.marginLeft
-    ).toBe('')
+    expect(document.getElementById('node_b')?.parentElement?.style.marginLeft).toBe(
+      `${COLUMN_PITCH}px`,
+    )
+    expect(document.getElementById('node_a')?.parentElement?.style.marginLeft).toBe('')
     dragRow('d', [400, 200], null)
     expect(e.onEdit).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'move',
         jobs: ['d'],
         to: { column: 1, row: 1 },
-      })
+      }),
     )
   })
 })
@@ -2041,11 +1894,8 @@ function emptyLayoutWith(entries: Record<string, [number, number]>) {
   return layoutFromCols(
     [],
     Object.fromEntries(
-      Object.entries(entries).map(([job, [column, row]]) => [
-        job,
-        { column, row },
-      ])
-    )
+      Object.entries(entries).map(([job, [column, row]]) => [job, { column, row }]),
+    ),
   )
 }
 
@@ -2077,7 +1927,7 @@ describe('steps, the clipboard and the arrow keys', () => {
   }
   function stepRow(job: string, index: number): HTMLElement {
     return document.querySelector(
-      `[data-dag-step-job="${job}"][data-dag-step="${index}"]`
+      `[data-dag-step-job="${job}"][data-dag-step="${index}"]`,
     ) as HTMLElement
   }
   const selected = (el: HTMLElement) => el.hasAttribute('data-selected')
@@ -2138,7 +1988,7 @@ describe('steps, the clipboard and the arrow keys', () => {
       fireEvent.pointerMove(window, { clientX: 60, clientY: 60 })
     })
     expect(
-      screen.getByText('"unit" reads needs.build, which lint doesn\'t need')
+      screen.getByText('"unit" reads needs.build, which lint doesn\'t need'),
     ).toBeInTheDocument()
     release([60, 60])
     expect(e.onEdit).not.toHaveBeenCalled()
@@ -2151,10 +2001,7 @@ describe('steps, the clipboard and the arrow keys', () => {
     const setData = vi.fn()
     fireEvent.copy(container, { clipboardData: { setData } })
     const copied = setData.mock.calls[0]?.[1] as string
-    expect(setData).toHaveBeenCalledWith(
-      'text/plain',
-      expect.stringContaining('lint:')
-    )
+    expect(setData).toHaveBeenCalledWith('text/plain', expect.stringContaining('lint:'))
     fireEvent.paste(container, { clipboardData: { getData: () => copied } })
     expect(e.onEdit).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -2162,7 +2009,7 @@ describe('steps, the clipboard and the arrow keys', () => {
         yaml: copied,
         offsets: { lint: { column: 0, row: 0 } },
         to: expect.objectContaining({ column: 0 }),
-      })
+      }),
     )
   })
 
@@ -2180,9 +2027,7 @@ describe('steps, the clipboard and the arrow keys', () => {
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('lint:'))
     fireEvent.keyDown(container, { key: 'v', metaKey: true })
     expect(e.onEdit).toHaveBeenCalledTimes(1)
-    expect(e.onEdit).toHaveBeenLastCalledWith(
-      expect.objectContaining({ type: 'pasteJobs' })
-    )
+    expect(e.onEdit).toHaveBeenLastCalledWith(expect.objectContaining({ type: 'pasteJobs' }))
     // Ctrl+V is the browser's own paste; without a paste event, what was copied here still pastes.
     vi.useFakeTimers()
     try {
@@ -2207,7 +2052,7 @@ describe('steps, the clipboard and the arrow keys', () => {
         type: 'nudge',
         jobs: ['lint'],
         direction: 'down',
-      })
+      }),
     )
   })
 
@@ -2216,9 +2061,7 @@ describe('steps, the clipboard and the arrow keys', () => {
     const button = screen.getByRole('button', { name: 'Shortcuts' })
     fireEvent.click(button)
     const list = screen.getByRole('dialog', { name: 'Shortcuts' })
-    expect(
-      within(list).getByText(GRAPH_EDITOR_STRINGS.shortcutDoes.connect)
-    ).toBeInTheDocument()
+    expect(within(list).getByText(GRAPH_EDITOR_STRINGS.shortcutDoes.connect)).toBeInTheDocument()
     expect(list).toHaveFocus()
     fireEvent.keyDown(list, { key: 'Escape' })
     expect(screen.queryByRole('dialog', { name: 'Shortcuts' })).toBeNull()
@@ -2230,12 +2073,8 @@ describe('steps, the clipboard and the arrow keys', () => {
       render(<DependencyGraphPreview yml={graph} {...props} />)
       const reset = screen.getByRole('button', { name: 'Reset View' })
       expect(reset).not.toHaveClass('btn')
-      expect(reset.parentElement).toContainElement(
-        screen.getByRole('button', { name: 'Zoom in' })
-      )
-      expect(reset.parentElement).toContainElement(
-        screen.getByRole('button', { name: 'Zoom out' })
-      )
+      expect(reset.parentElement).toContainElement(screen.getByRole('button', { name: 'Zoom in' }))
+      expect(reset.parentElement).toContainElement(screen.getByRole('button', { name: 'Zoom out' }))
       cleanup()
     }
   })
@@ -2263,8 +2102,7 @@ describe('problems and the YAML beside the graph', () => {
   function renderGraph(e: DependencyGraphEditor) {
     render(<DependencyGraphPreview yml={graph} editor={e} />)
   }
-  const badge = (el: HTMLElement) =>
-    el.querySelector('[data-problem-badge]') as HTMLElement | null
+  const badge = (el: HTMLElement) => el.querySelector('[data-problem-badge]') as HTMLElement | null
 
   it('counts its problems in the toolbar and picks one from the list', () => {
     const pick = vi.fn()
@@ -2272,20 +2110,16 @@ describe('problems and the YAML beside the graph', () => {
       editor({
         problems,
         listedProblems: [{ ...problems[0]!, pick }, problems[1]!],
-      })
+      }),
     )
     // The node's badge counts the same two; the toolbar's count is the one that opens a list.
     const count = screen
       .getAllByRole('button', { name: '2 problems' })
-      .find(button => button.hasAttribute('aria-expanded'))
+      .find((button) => button.hasAttribute('aria-expanded'))
     fireEvent.click(count as HTMLElement)
     const list = screen.getByRole('dialog', { name: '2 problems' })
-    expect(
-      within(list).queryByRole('button', { name: /unit reads matrix\.os/ })
-    ).toBeNull()
-    fireEvent.click(
-      within(list).getByRole('button', { name: /test reads needs\.lint/ })
-    )
+    expect(within(list).queryByRole('button', { name: /unit reads matrix\.os/ })).toBeNull()
+    fireEvent.click(within(list).getByRole('button', { name: /test reads needs\.lint/ }))
     expect(pick).toHaveBeenCalledOnce()
     expect(screen.queryByRole('dialog', { name: '2 problems' })).toBeNull()
   })
@@ -2295,21 +2129,19 @@ describe('problems and the YAML beside the graph', () => {
     renderGraph(
       editor({
         problems,
-        registerShow: next => {
+        registerShow: (next) => {
           show = next
           return () => {}
         },
-      })
+      }),
     )
     act(() => {
       expect(show?.({ message: '', line: 9, job: 'test', step: 0 })).toBe(true)
     })
-    expect(
-      document.querySelector('[data-dag-step-job="test"][data-dag-step="0"]')
-    ).toHaveAttribute('data-selected')
-    expect(
-      screen.getByRole('dialog', { name: 'Edit step' })
-    ).toBeInTheDocument()
+    expect(document.querySelector('[data-dag-step-job="test"][data-dag-step="0"]')).toHaveAttribute(
+      'data-selected',
+    )
+    expect(screen.getByRole('dialog', { name: 'Edit step' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     act(() => {
       show?.({ message: '', line: 3, job: 'build' })
@@ -2322,27 +2154,21 @@ describe('problems and the YAML beside the graph', () => {
   it('marks a job, its step and its node with their problems', () => {
     const onReveal = vi.fn()
     renderGraph(editor({ problems, onReveal }))
-    fireEvent.click(
-      within(jobRow('test')).getByRole('button', { name: 'Test' })
-    )
+    fireEvent.click(within(jobRow('test')).getByRole('button', { name: 'Test' }))
     // The job's badge lists its steps' problems too.
     expect(badge(jobRow('test'))?.dataset['tooltipContent']).toBe(
-      'test reads needs.lint\nunit reads matrix.os'
+      'test reads needs.lint\nunit reads matrix.os',
     )
     const step = document.querySelector(
-      '[data-dag-step-job="test"][data-dag-step="0"]'
+      '[data-dag-step-job="test"][data-dag-step="0"]',
     ) as HTMLElement
     expect(badge(step)?.dataset['tooltipContent']).toBe('unit reads matrix.os')
     expect(badge(jobRow('build'))).toBeNull()
     expect(
-      document
-        .getElementById('node_test')
-        ?.querySelector('.border-\\(--theme-error\\)')
+      document.getElementById('node_test')?.querySelector('.border-\\(--theme-error\\)'),
     ).not.toBeNull()
     expect(
-      document
-        .getElementById('node_build')
-        ?.querySelector('.border-\\(--theme-error\\)')
+      document.getElementById('node_build')?.querySelector('.border-\\(--theme-error\\)'),
     ).toBeNull()
     onReveal.mockClear()
     fireEvent.click(badge(step) as HTMLElement)
@@ -2353,9 +2179,7 @@ describe('problems and the YAML beside the graph', () => {
   it('shows a clicked or selected job or step in the YAML', () => {
     const onReveal = vi.fn()
     renderGraph(editor({ onReveal }))
-    fireEvent.click(
-      within(jobRow('build')).getByRole('button', { name: 'Build' })
-    )
+    fireEvent.click(within(jobRow('build')).getByRole('button', { name: 'Build' }))
     expect(onReveal).toHaveBeenLastCalledWith({ job: 'build' })
     fireEvent.click(screen.getByTestId('compile'))
     expect(onReveal).toHaveBeenLastCalledWith({ job: 'build', step: 0 })
@@ -2378,11 +2202,9 @@ describe('problems and the YAML beside the graph', () => {
         <DependencyGraphPreview
           yml={graph}
           editor={editor({ readSource: () => dumpYaml(graph) })}
-        />
+        />,
       )
-      fireEvent.click(
-        within(jobRow('build')).getByRole('button', { name: 'Build' })
-      )
+      fireEvent.click(within(jobRow('build')).getByRole('button', { name: 'Build' }))
       fireEvent.click(screen.getByTestId('compile'))
       expect(screen.getByText('reads inputs.nope')).toBeInTheDocument()
       expect(screen.queryByText('not this dialog’s')).toBeNull()
@@ -2416,11 +2238,9 @@ describe('problems and the YAML beside the graph', () => {
             readSource: () => dumpYaml(typo),
             settingsView: 'form',
           })}
-        />
+        />,
       )
-      fireEvent.click(
-        within(jobRow('build')).getByRole('button', { name: 'Build' })
-      )
+      fireEvent.click(within(jobRow('build')).getByRole('button', { name: 'Build' }))
       fireEvent.click(screen.getByTestId('compile'))
       const commands = screen.getByLabelText('Commands')
       expect(commands).toHaveAttribute('aria-invalid', 'true')
@@ -2459,19 +2279,15 @@ describe('problems and the YAML beside the graph', () => {
     const e = editor({ readSource: () => dumpYaml(typo), settingsView: 'form' })
     try {
       render(<DependencyGraphPreview yml={typo} editor={e} />)
-      fireEvent.click(
-        within(jobRow('build')).getByRole('button', { name: 'Build' })
-      )
+      fireEvent.click(within(jobRow('build')).getByRole('button', { name: 'Build' }))
       fireEvent.click(screen.getByTestId('agent'))
-      fireEvent.click(
-        screen.getByRole('button', { name: 'Use scheduler-type' })
-      )
+      fireEvent.click(screen.getByRole('button', { name: 'Use scheduler-type' }))
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
       expect(e.onEdit).toHaveBeenLastCalledWith(
         expect.objectContaining({
           type: 'updateStep',
           set: { with: { 'scheduler-type': 'pbs' } },
-        })
+        }),
       )
     } finally {
       delete window.validateWorkflow
@@ -2483,7 +2299,7 @@ describe('problems and the YAML beside the graph', () => {
 describe('dialog sections', () => {
   const section = (title: string) => {
     const found = [...document.querySelectorAll('details')].find(
-      details => details.querySelector('summary')?.textContent === title
+      (details) => details.querySelector('summary')?.textContent === title,
     )
     if (!found) {
       throw new Error(`no ${title} section`)
@@ -2499,21 +2315,12 @@ describe('dialog sections', () => {
     const retrying = {
       jobs: {
         build: {
-          steps: [
-            { name: 'compile', run: 'make', retry: { 'max-retries': 2 } },
-          ],
+          steps: [{ name: 'compile', run: 'make', retry: { 'max-retries': 2 } }],
         },
       },
     }
-    render(
-      <DependencyGraphPreview
-        yml={retrying}
-        editor={editor({ settingsView: 'form' })}
-      />
-    )
-    fireEvent.click(
-      within(jobRow('build')).getByRole('button', { name: 'Build' })
-    )
+    render(<DependencyGraphPreview yml={retrying} editor={editor({ settingsView: 'form' })} />)
+    fireEvent.click(within(jobRow('build')).getByRole('button', { name: 'Build' }))
     fireEvent.click(screen.getByTestId('compile'))
     expect(section('Retry').open).toBe(true)
     fireEvent.click(screen.getByLabelText('Try again if it fails'))
@@ -2525,7 +2332,7 @@ describe('dialog sections', () => {
       <DependencyGraphPreview
         yml={yml}
         editor={editor({ readSource: () => YML_TEXT, settingsView: 'form' })}
-      />
+      />,
     )
     fireEvent.contextMenu(jobRow('mac'), { clientX: 5, clientY: 5 })
     fireEvent.click(screen.getByText('Edit job'))

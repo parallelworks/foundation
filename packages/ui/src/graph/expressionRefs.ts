@@ -1,18 +1,8 @@
-import {
-  matrixNames,
-  needTarget,
-  workflowInputsSchema,
-} from '@parallelworks/workflow-parser'
+import { matrixNames, needTarget, workflowInputsSchema } from '@parallelworks/workflow-parser'
 import { asRecord, type Json } from './editorFields'
 import { inputRefs, refExpression } from './inputRefs'
 
-export type RefGroup =
-  | 'inputs'
-  | 'outputs'
-  | 'matrix'
-  | 'variables'
-  | 'sessions'
-  | 'env'
+export type RefGroup = 'inputs' | 'outputs' | 'matrix' | 'variables' | 'sessions' | 'env'
 
 /** Something a `${{ }}` expression can read, as the parser names it. */
 export interface ExpressionRef {
@@ -36,20 +26,15 @@ function names(value: unknown): string[] {
 }
 
 /** Everything an expression in `job` can read; without a job, only what the whole workflow has. */
-export function expressionRefs(
-  workflow: Json | undefined,
-  job?: string
-): ExpressionRef[] {
+export function expressionRefs(workflow: Json | undefined, job?: string): ExpressionRef[] {
   const root = asRecord(workflow)
   const jobs = asRecord(root['jobs'])
   const own = job === undefined ? {} : asRecord(jobs[job])
-  const out: ExpressionRef[] = inputRefs(workflowInputsSchema(root)).map(
-    input => ({
-      group: 'inputs',
-      label: `inputs.${input.path.join('.')}`,
-      expression: refExpression(input.path),
-    })
-  )
+  const out: ExpressionRef[] = inputRefs(workflowInputsSchema(root)).map((input) => ({
+    group: 'inputs',
+    label: `inputs.${input.path.join('.')}`,
+    expression: refExpression(input.path),
+  }))
   // The parser reads another job's outputs only through a job this one needs.
   const needs = Array.isArray(own['needs']) ? own['needs'] : []
   for (const need of needs) {
@@ -57,9 +42,7 @@ export function expressionRefs(
       continue
     }
     const target = needTarget(need)
-    for (const output of Object.keys(
-      asRecord(asRecord(jobs[target])['outputs'])
-    )) {
+    for (const output of Object.keys(asRecord(asRecord(jobs[target])['outputs']))) {
       out.push(ref('outputs', `needs.${target}.outputs.${output}`))
     }
   }
@@ -76,10 +59,7 @@ export function expressionRefs(
   for (const name of Object.keys(asRecord(root['sessions']))) {
     out.push(ref('sessions', `sessions.${name}`))
   }
-  const env = new Set([
-    ...Object.keys(asRecord(root['env'])),
-    ...Object.keys(asRecord(own['env'])),
-  ])
+  const env = new Set([...Object.keys(asRecord(root['env'])), ...Object.keys(asRecord(own['env']))])
   for (const key of env) {
     out.push(ref('env', `env.${key}`))
   }

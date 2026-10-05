@@ -43,7 +43,7 @@ const text = (value: unknown, fallback: string) =>
 export function lintContext(
   source: string,
   sources: LintSources,
-  onMore: () => void
+  onMore: () => void,
 ): WorkflowLintContext {
   let doc: unknown
   try {
@@ -57,11 +57,7 @@ export function lintContext(
     const steps = asRecord(job)['steps']
     for (const step of Array.isArray(steps) ? steps : []) {
       const uses = asRecord(step)['uses']
-      if (
-        typeof uses !== 'string' ||
-        uses.includes('${{') ||
-        uses.startsWith('parallelworks/')
-      ) {
+      if (typeof uses !== 'string' || uses.includes('${{') || uses.startsWith('parallelworks/')) {
         continue
       }
       const withBlock = asRecord(asRecord(step)['with'])
@@ -87,10 +83,9 @@ export function lintContext(
       continue
     }
     pending.add(key)
-    const [, yamlPath = DEFAULT_REPO_YAML, host = DEFAULT_GITLAB_HOST] =
-      key.split('\n')
+    const [, yamlPath = DEFAULT_REPO_YAML, host = DEFAULT_GITLAB_HOST] = key.split('\n')
     loadUsesInputs(uses, { yamlPath, host }, sources)
-      .then(inputs => {
+      .then((inputs) => {
         targets.set(key, inputs)
         onMore()
       })
@@ -102,7 +97,7 @@ export function lintContext(
     secretsPending = true
     sources
       .secrets()
-      .then(names => {
+      .then((names) => {
         secretNames = names
         onMore()
       })
@@ -122,18 +117,14 @@ export function useLintSources(): LintSources {
 }
 
 /** lintContext for a component, which renders again when more of it arrives. */
-export function useLintContext(
-  source: string | undefined
-): WorkflowLintContext {
+export function useLintContext(source: string | undefined): WorkflowLintContext {
   const sources = useLintSources()
   const [arrivals, setArrivals] = useState(0)
   // biome-ignore lint/correctness/useExhaustiveDependencies: each arrival reads the context again.
   return useMemo(
     () =>
-      source === undefined
-        ? {}
-        : lintContext(source, sources, () => setArrivals(n => n + 1)),
-    [source, sources, arrivals]
+      source === undefined ? {} : lintContext(source, sources, () => setArrivals((n) => n + 1)),
+    [source, sources, arrivals],
   )
 }
 
@@ -145,7 +136,7 @@ export function useLintReady(load = true): boolean {
       return
     }
     initializeParseStringsOfObj().catch(() => {})
-    return callWhenParserInitialized(loaded => {
+    return callWhenParserInitialized((loaded) => {
       if (loaded) {
         setReady(true)
       }

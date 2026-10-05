@@ -16,14 +16,10 @@ export function settingsSchemas(workflow: JsonSchema): {
   input: JsonSchema
   settings: JsonSchema
 } {
-  const patterns = record(
-    record(record(workflow['properties'])['jobs'])['patternProperties']
-  )
+  const patterns = record(record(record(workflow['properties'])['jobs'])['patternProperties'])
   const job = record(Object.values(patterns)[0])
   const step = record(record(record(job['properties'])['steps'])['items'])
-  const inputs = record(
-    record(record(workflow['$defs'])['inputs'])['patternProperties']
-  )
+  const inputs = record(record(record(workflow['$defs'])['inputs'])['patternProperties'])
   const input = record(Object.values(inputs)[0])
   const shared = { $schema: workflow['$schema'], $defs: workflow['$defs'] }
   // The workflow's own settings: every top-level key but the jobs and the trigger.

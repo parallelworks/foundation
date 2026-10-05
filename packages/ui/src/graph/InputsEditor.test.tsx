@@ -1,19 +1,12 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import {
-  act,
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  within,
-} from '@testing-library/react'
 import { convertToDynamicForm } from '@parallelworks/workflow-parser'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 // The editor calls useWorkflowEngine(), which throws outside a UIProvider carrying one.
-vi.mock('../components/Provider', async importOriginal =>
-  (await import('../test/engine')).mockEngineHooks(importOriginal)
+vi.mock('../components/Provider', async (importOriginal) =>
+  (await import('../test/engine')).mockEngineHooks(importOriginal),
 )
 
 // jsdom has no PointerEvent; without it pointer events lose button and coordinates.
@@ -23,7 +16,7 @@ if (!('PointerEvent' in window)) {
 
 vi.mock('@parallelworks/workflow-parser', async () => ({
   ...(await vi.importActual<typeof import('@parallelworks/workflow-parser')>(
-    '@parallelworks/workflow-parser'
+    '@parallelworks/workflow-parser',
   )),
   parseStringsOfObj: vi.fn(({ obj }: { obj: unknown }) => obj),
   parseStringsOfObjReady: true,
@@ -44,13 +37,7 @@ vi.mock('../editor/Monaco', () => ({
     value?: string
     onChange?: (value: string) => void
     path?: string
-  }) => (
-    <textarea
-      aria-label={path}
-      value={value}
-      onChange={e => onChange?.(e.target.value)}
-    />
-  ),
+  }) => <textarea aria-label={path} value={value} onChange={(e) => onChange?.(e.target.value)} />,
 }))
 vi.mock('../components/Dropdown')
 
@@ -73,9 +60,7 @@ const INPUTS = {
   },
 }
 
-function editor(
-  overrides: Partial<DependencyGraphEditor> = {}
-): DependencyGraphEditor {
+function editor(overrides: Partial<DependencyGraphEditor> = {}): DependencyGraphEditor {
   return {
     onEdit: vi.fn(() => ({ yml: '', layout: undefined })),
     canUndo: true,
@@ -91,19 +76,13 @@ function editor(
 function renderForm(e: DependencyGraphEditor, inputs = INPUTS) {
   return render(
     <InputsFormEditor editor={e} inputs={inputs}>
-      <DynamicForm
-        formJSONs={convertToDynamicForm(inputs)}
-        initialValues={{}}
-        workflowForm
-      />
-    </InputsFormEditor>
+      <DynamicForm formJSONs={convertToDynamicForm(inputs)} initialValues={{}} workflowForm />
+    </InputsFormEditor>,
   )
 }
 
 function row(path: string[]): HTMLElement {
-  const el = document.querySelector(
-    `[data-input-path='${JSON.stringify(path)}']`
-  )
+  const el = document.querySelector(`[data-input-path='${JSON.stringify(path)}']`)
   if (!(el instanceof HTMLElement)) {
     throw new Error(`no row for ${path.join('.')}`)
   }
@@ -123,9 +102,7 @@ describe('InputsFormEditor', () => {
     renderForm(editor())
     expect(within(row(['name'])).getByText('Text')).toBeInTheDocument()
     expect(within(row(['secret'])).getByText('hidden')).toBeInTheDocument()
-    expect(
-      within(row(['settings', 'size'])).getByText('Number')
-    ).toBeInTheDocument()
+    expect(within(row(['settings', 'size'])).getByText('Number')).toBeInTheDocument()
     expect(screen.getByText('Add input')).toBeInTheDocument()
     expect(screen.getByText('Add field')).toBeInTheDocument()
   })
@@ -154,11 +131,9 @@ describe('InputsFormEditor', () => {
     const labels = () =>
       within(menu)
         .getAllByRole('button')
-        .map(button => button.textContent)
+        .map((button) => button.textContent)
     expect(labels()).toEqual(
-      INPUT_TYPE_GROUPS.map(
-        ([group]) => INPUTS_EDITOR_STRINGS.typeGroups[group]
-      )
+      INPUT_TYPE_GROUPS.map(([group]) => INPUTS_EDITOR_STRINGS.typeGroups[group]),
     )
     const search = within(menu).getByRole('searchbox', { name: 'Search types' })
     expect(search).toHaveFocus()
@@ -174,33 +149,27 @@ describe('InputsFormEditor', () => {
     renderForm(editor())
     fireEvent.click(screen.getByRole('button', { name: 'Shortcuts' }))
     const list = screen.getByRole('dialog', { name: 'Shortcuts' })
-    expect(
-      within(list).getByText(GRAPH_EDITOR_STRINGS.shortcutDoes.moveInput)
-    ).toBeInTheDocument()
+    expect(within(list).getByText(GRAPH_EDITOR_STRINGS.shortcutDoes.moveInput)).toBeInTheDocument()
   })
 
   it('scrolls a picked problem’s input into view and opens it', () => {
     let show: ((problem: EditorProblem) => boolean) | undefined
     renderForm(
       editor({
-        registerShow: next => {
+        registerShow: (next) => {
           show = next
           return () => {}
         },
-      })
+      }),
     )
-    const row = document.querySelector(
-      '[data-input-path=\'["name"]\']'
-    ) as HTMLElement
+    const row = document.querySelector('[data-input-path=\'["name"]\']') as HTMLElement
     const scroll = vi.fn()
     row.scrollIntoView = scroll
     act(() => {
       expect(show?.({ message: '', line: 3, input: ['name'] })).toBe(true)
     })
     expect(scroll).toHaveBeenCalledOnce()
-    expect(
-      screen.getByRole('dialog', { name: 'Edit input' })
-    ).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Edit input' })).toBeInTheDocument()
     expect(show?.({ message: '', line: 3, input: ['nowhere'] })).toBe(false)
   })
 
@@ -216,16 +185,14 @@ describe('InputsFormEditor', () => {
         parent: ['settings'],
         index: 1,
         definition: { type: 'boolean' },
-      })
+      }),
     )
   })
 
   it('removes, moves and edits from a row', () => {
     const e = editor()
     renderForm(e)
-    fireEvent.click(
-      within(row(['name'])).getByRole('button', { name: 'Delete input' })
-    )
+    fireEvent.click(within(row(['name'])).getByRole('button', { name: 'Delete input' }))
     expect(e.onEdit).toHaveBeenCalledWith({
       type: 'deleteInput',
       path: ['name'],
@@ -240,9 +207,7 @@ describe('InputsFormEditor', () => {
       index: 2,
     })
 
-    fireEvent.click(
-      within(row(['name'])).getByRole('button', { name: 'Edit input' })
-    )
+    fireEvent.click(within(row(['name'])).getByRole('button', { name: 'Edit input' }))
     fireEvent.change(screen.getByLabelText('Label'), {
       target: { value: 'Full name' },
     })
@@ -276,7 +241,7 @@ describe('InputsFormEditor', () => {
     pickType('Text')
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(e.onEdit).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'addInput', parent: ['advanced'] })
+      expect.objectContaining({ type: 'addInput', parent: ['advanced'] }),
     )
   })
 
@@ -305,18 +270,14 @@ describe('InputsFormEditor', () => {
       cluster: { type: 'compute-clusters', label: 'Cluster' },
       partition: { type: 'slurm-partitions', resource: '' },
     } as unknown as typeof INPUTS)
-    fireEvent.click(
-      within(row(['partition'])).getByRole('button', { name: 'Edit input' })
-    )
+    fireEvent.click(within(row(['partition'])).getByRole('button', { name: 'Edit input' }))
     const resource = screen.getByLabelText('Cluster')
-    expect(
-      suggestionsOf(resource).map(option => [option.value, option.label])
-    ).toEqual([['${{ inputs.cluster }}', 'Cluster']])
+    expect(suggestionsOf(resource).map((option) => [option.value, option.label])).toEqual([
+      ['${{ inputs.cluster }}', 'Cluster'],
+    ])
     // Only an expression reads another input.
     fireEvent.change(resource, { target: { value: 'cluster' } })
-    expect(
-      screen.getByText(GRAPH_EDITOR_STRINGS.invalidExpressionValue)
-    ).toBeInTheDocument()
+    expect(screen.getByText(GRAPH_EDITOR_STRINGS.invalidExpressionValue)).toBeInTheDocument()
     fireEvent.change(resource, { target: { value: '${{ inputs.cluster }}' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(e.onEdit).toHaveBeenCalledWith({
@@ -333,9 +294,7 @@ describe('InputsFormEditor', () => {
       name: { type: 'string' },
       partition: { type: 'slurm-partitions', resource: '' },
     } as unknown as typeof INPUTS)
-    fireEvent.click(
-      within(row(['partition'])).getByRole('button', { name: 'Edit input' })
-    )
+    fireEvent.click(within(row(['partition'])).getByRole('button', { name: 'Edit input' }))
     fireEvent.click(screen.getByRole('button', { name: 'New Cluster input…' }))
     const dialogs = screen.getAllByRole('dialog')
     const created = dialogs[dialogs.length - 1] as HTMLElement
@@ -375,7 +334,7 @@ describe('InputsFormEditor', () => {
     fireEvent.click(
       within(row(['first', 'partition'])).getByRole('button', {
         name: 'Edit input',
-      })
+      }),
     )
     fireEvent.click(screen.getByRole('button', { name: 'New Cluster input…' }))
     const dialogs = screen.getAllByRole('dialog')
@@ -412,12 +371,8 @@ describe('InputsFormEditor', () => {
     }
     rerender(
       <InputsFormEditor editor={e} inputs={reordered}>
-        <DynamicForm
-          formJSONs={convertToDynamicForm(reordered)}
-          initialValues={{}}
-          workflowForm
-        />
-      </InputsFormEditor>
+        <DynamicForm formJSONs={convertToDynamicForm(reordered)} initialValues={{}} workflowForm />
+      </InputsFormEditor>,
     )
     expect(row(['settings']).dataset['inputIndex']).toBe('0')
     expect(row(['name']).dataset['inputIndex']).toBe('1')
@@ -431,15 +386,11 @@ describe('InputsFormEditor', () => {
     const swapped = { y: { type: 'string' }, x: { type: 'string' } }
     rerender(
       <InputsFormEditor editor={e} inputs={swapped}>
-        <DynamicForm
-          formJSONs={convertToDynamicForm(swapped)}
-          initialValues={{}}
-          workflowForm
-        />
-      </InputsFormEditor>
+        <DynamicForm formJSONs={convertToDynamicForm(swapped)} initialValues={{}} workflowForm />
+      </InputsFormEditor>,
     )
-    const paths = [...document.querySelectorAll('[data-input-path]')].map(el =>
-      el.getAttribute('data-input-path')
+    const paths = [...document.querySelectorAll('[data-input-path]')].map((el) =>
+      el.getAttribute('data-input-path'),
     )
     expect(paths).toEqual(['["y"]', '["x"]'])
   })
@@ -448,8 +399,8 @@ describe('InputsFormEditor', () => {
     renderForm(editor())
     // The strip the toolbar opens in, which sits above the field rather than over it.
     const toolbar = (path: string[]) =>
-      within(row(path)).getAllByRole('button', { name: 'Edit input' })[0]
-        ?.parentElement?.parentElement as HTMLElement
+      within(row(path)).getAllByRole('button', { name: 'Edit input' })[0]?.parentElement
+        ?.parentElement as HTMLElement
     expect(toolbar(['name'])).toHaveClass('h-0')
     expect(toolbar(['name'])).not.toHaveClass('absolute')
     fireEvent.pointerOver(row(['name']))
@@ -463,9 +414,7 @@ describe('InputsFormEditor', () => {
   it('opens an input as YAML and saves the text as written', async () => {
     const e = editor({ settingsView: 'yaml' })
     renderForm(e)
-    fireEvent.click(
-      within(row(['name'])).getByRole('button', { name: 'Edit input' })
-    )
+    fireEvent.click(within(row(['name'])).getByRole('button', { name: 'Edit input' }))
     const text = await screen.findByLabelText('file:///workflow-input.yaml')
     expect(text).toHaveValue('type: string\nlabel: Name\n')
     fireEvent.change(text, {
@@ -482,9 +431,7 @@ describe('InputsFormEditor', () => {
   it('renames an input from its YAML view', async () => {
     const e = editor({ settingsView: 'yaml' })
     renderForm(e)
-    fireEvent.click(
-      within(row(['name'])).getByRole('button', { name: 'Edit input' })
-    )
+    fireEvent.click(within(row(['name'])).getByRole('button', { name: 'Edit input' }))
     await screen.findByLabelText('file:///workflow-input.yaml')
     const name = screen.getByLabelText('Name')
     expect(name).toHaveValue('name')
@@ -509,13 +456,10 @@ describe('InputsFormEditor', () => {
     const onSettingsViewChange = vi.fn()
     const e = editor({ settingsView: 'yaml', onSettingsViewChange })
     renderForm(e)
-    fireEvent.click(
-      within(row(['name'])).getByRole('button', { name: 'Edit input' })
-    )
-    fireEvent.change(
-      await screen.findByLabelText('file:///workflow-input.yaml'),
-      { target: { value: 'type: string\nlabel: Full name\n' } }
-    )
+    fireEvent.click(within(row(['name'])).getByRole('button', { name: 'Edit input' }))
+    fireEvent.change(await screen.findByLabelText('file:///workflow-input.yaml'), {
+      target: { value: 'type: string\nlabel: Full name\n' },
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Form' }))
     expect(onSettingsViewChange).toHaveBeenCalledWith('form')
     expect(screen.getByLabelText('Label')).toHaveValue('Full name')
@@ -525,7 +469,7 @@ describe('InputsFormEditor', () => {
         type: 'updateInput',
         path: ['name'],
         set: { label: 'Full name' },
-      })
+      }),
     )
   })
 
@@ -558,12 +502,12 @@ describe('InputDialog', () => {
       isNew?: boolean
       siblings?: string[]
       inputs?: Record<string, unknown>
-    } = {}
+    } = {},
   ) {
     const onSave = vi.fn()
     render(
       <InputDialog
-        name='field'
+        name="field"
         definition={definition}
         isNew={options.isNew ?? false}
         siblings={options.siblings ?? []}
@@ -571,7 +515,7 @@ describe('InputDialog', () => {
         inputs={options.inputs}
         onSave={onSave}
         onClose={() => {}}
-      />
+      />,
     )
     return onSave
   }
@@ -580,8 +524,8 @@ describe('InputDialog', () => {
   it('opens only the sections that hold something', () => {
     const openSections = () =>
       [...document.querySelectorAll('details')]
-        .filter(section => section.open)
-        .map(section => section.querySelector('summary')?.textContent)
+        .filter((section) => section.open)
+        .map((section) => section.querySelector('summary')?.textContent)
     open({ type: 'string' })
     expect(openSections()).toEqual([])
     cleanup()
@@ -611,7 +555,7 @@ describe('InputDialog', () => {
       'field',
       { type: 'number', min: '${{ inputs.low }}' },
       expect.anything(),
-      []
+      [],
     )
     cleanup()
     onSave = open({ type: 'duration' })
@@ -623,24 +567,21 @@ describe('InputDialog', () => {
       'field',
       { type: 'duration', default: '${{ inputs.limit }}' },
       expect.anything(),
-      []
+      [],
     )
   })
 
   it('switches options and a hidden flag to expressions from the form', () => {
     const onSave = open({ type: 'dropdown', options: ['a'] })
-    const toggles = () =>
-      screen.getAllByRole('button', { name: 'Use an expression instead' })
+    const toggles = () => screen.getAllByRole('button', { name: 'Use an expression instead' })
     // The options' switch comes first, then the flags in Behavior.
     fireEvent.click(toggles()[0] as HTMLElement)
     fireEvent.change(screen.getByLabelText('Options'), {
       target: { value: '${{ inputs.choices }}' },
     })
-    const hidden = screen.getByText('Hidden', { selector: 'span' })
-      .parentElement?.parentElement?.parentElement as HTMLElement
-    fireEvent.click(
-      within(hidden).getByRole('button', { name: 'Use an expression instead' })
-    )
+    const hidden = screen.getByText('Hidden', { selector: 'span' }).parentElement?.parentElement
+      ?.parentElement as HTMLElement
+    fireEvent.click(within(hidden).getByRole('button', { name: 'Use an expression instead' }))
     fireEvent.change(screen.getByLabelText('Hidden'), {
       target: { value: '${{ inputs.simple }}' },
     })
@@ -653,7 +594,7 @@ describe('InputDialog', () => {
         hidden: '${{ inputs.simple }}',
       },
       expect.anything(),
-      []
+      [],
     )
   })
 
@@ -667,14 +608,14 @@ describe('InputDialog', () => {
     fireEvent.click(within(row).getByRole('button', { name: 'checkpoints' }))
     expect(within(row).getByRole('button', { name: 'logs' })).toHaveAttribute(
       'aria-pressed',
-      'true'
+      'true',
     )
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(onSave).toHaveBeenCalledWith(
       'field',
       expect.objectContaining({ implies: { all: ['logs', 'checkpoints'] } }),
       expect.anything(),
-      []
+      [],
     )
   })
 
@@ -711,7 +652,7 @@ describe('InputDialog', () => {
       'field',
       { type: 'number', label: 'Count', default: 5, min: 1 },
       { set: { min: 1 }, unset: [] },
-      []
+      [],
     )
   })
 
@@ -720,15 +661,13 @@ describe('InputDialog', () => {
     fireEvent.change(screen.getByLabelText('Type'), {
       target: { value: 'number' },
     })
-    expect(
-      screen.getByText(INPUTS_EDITOR_STRINGS.typeChangeNote)
-    ).toBeInTheDocument()
+    expect(screen.getByText(INPUTS_EDITOR_STRINGS.typeChangeNote)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(onSave).toHaveBeenCalledWith(
       'field',
       { type: 'number', label: 'X' },
       { set: { type: 'number' }, unset: ['placeholder'] },
-      []
+      [],
     )
   })
 
@@ -759,7 +698,7 @@ describe('InputDialog', () => {
         },
         unset: [],
       },
-      []
+      [],
     )
   })
 
@@ -775,7 +714,7 @@ describe('InputDialog', () => {
       'field',
       { type: 'header', text: 'Cluster' },
       { set: { type: 'header', text: 'Cluster' }, unset: [] },
-      []
+      [],
     )
   })
 
@@ -784,9 +723,7 @@ describe('InputDialog', () => {
     fireEvent.change(screen.getByLabelText('Name'), {
       target: { value: 'taken' },
     })
-    expect(
-      screen.getByText(INPUTS_EDITOR_STRINGS.inputExists)
-    ).toBeInTheDocument()
+    expect(screen.getByText(INPUTS_EDITOR_STRINGS.inputExists)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
   })
 
@@ -797,13 +734,11 @@ describe('InputDialog', () => {
         options: [{ value: 'a', label: 'A' }],
         placeholder: 'Pick',
       },
-      { inputs: { k: { type: 'dropdown', options: ['x'] } } }
+      { inputs: { k: { type: 'dropdown', options: ['x'] } } },
     )
     expect(screen.getByLabelText('Hint text')).toBeInTheDocument()
     expect(screen.queryByLabelText('Options depend on')).toBeNull()
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Per value of another input' })
-    )
+    fireEvent.click(screen.getByRole('button', { name: 'Per value of another input' }))
     fireEvent.change(screen.getByLabelText('Options'), {
       target: { value: '{"x": ["a"]}' },
     })
@@ -825,7 +760,7 @@ describe('InputDialog', () => {
         set: { options: { x: ['a'] }, 'option-key': '${{ inputs.k }}' },
         unset: ['placeholder'],
       },
-      []
+      [],
     )
   })
 
@@ -854,7 +789,7 @@ describe('InputDialog', () => {
         default: ['b', 'pw://greybackup/mycluster'],
       }),
       { set: { default: ['b', 'pw://greybackup/mycluster'] }, unset: [] },
-      []
+      [],
     )
   })
 
@@ -885,33 +820,27 @@ describe('InputDialog', () => {
         },
         unset: [],
       },
-      []
+      [],
     )
   })
 
   it('flattens a group unless a field would clash with an input beside it', () => {
     const onSave = open(
       { type: 'group', items: { size: { type: 'number' } } },
-      { siblings: ['size'] }
+      { siblings: ['size'] },
     )
-    fireEvent.click(
-      screen.getByRole('checkbox', { name: 'Leave out the group name' })
-    )
-    expect(
-      screen.getByText(INPUTS_EDITOR_STRINGS.flattenClash('size'))
-    ).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Leave out the group name' }))
+    expect(screen.getByText(INPUTS_EDITOR_STRINGS.flattenClash('size'))).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
     cleanup()
     const clean = open({ type: 'group', items: { size: { type: 'number' } } })
-    fireEvent.click(
-      screen.getByRole('checkbox', { name: 'Leave out the group name' })
-    )
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Leave out the group name' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(clean).toHaveBeenCalledWith(
       'field',
       { type: 'group', flatten: true, items: { size: { type: 'number' } } },
       { set: { flatten: true }, unset: [] },
-      []
+      [],
     )
     expect(onSave).not.toHaveBeenCalled()
   })
@@ -922,23 +851,17 @@ describe('InputDialog', () => {
     fireEvent.change(screen.getByLabelText('Minimum'), {
       target: { value: '90m' },
     })
-    expect(
-      screen.getByText(INPUTS_EDITOR_STRINGS.invalidDurationText)
-    ).toBeInTheDocument()
+    expect(screen.getByText(INPUTS_EDITOR_STRINGS.invalidDurationText)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
     fireEvent.change(screen.getByLabelText('Minimum'), {
       target: { value: '00:01:30' },
     })
     expect(screen.queryByLabelText('Checkbox text')).toBeNull()
-    fireEvent.click(
-      screen.getByRole('checkbox', { name: 'Checkbox to turn it off' })
-    )
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Checkbox to turn it off' }))
     fireEvent.change(screen.getByLabelText('Checkbox text'), {
       target: { value: 'Unlimited' },
     })
-    expect(
-      screen.getByText(INPUTS_EDITOR_STRINGS.disableNeedsBoth)
-    ).toBeInTheDocument()
+    expect(screen.getByText(INPUTS_EDITOR_STRINGS.disableNeedsBoth)).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Value when ticked'), {
       target: { value: '0' },
     })
@@ -956,7 +879,7 @@ describe('InputDialog', () => {
         set: { min: 90, disableLabel: 'Unlimited', disableValue: 0 },
         unset: [],
       },
-      []
+      [],
     )
   })
 
@@ -967,16 +890,10 @@ describe('InputDialog', () => {
       optionLabelPosition: 'side',
     })
     const input = screen.getByLabelText('Default')
-    expect(suggestionsOf(input).map(option => option.value)).toEqual([
-      'fp16',
-      'fp32',
-    ])
+    expect(suggestionsOf(input).map((option) => option.value)).toEqual(['fp16', 'fp32'])
     // A layout the schema doesn't know picks neither.
     for (const name of ['Side by side', 'One per line']) {
-      expect(screen.getByRole('button', { name })).toHaveAttribute(
-        'aria-pressed',
-        'false'
-      )
+      expect(screen.getByRole('button', { name })).toHaveAttribute('aria-pressed', 'false')
     }
     fireEvent.click(screen.getByRole('button', { name: 'One per line' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -984,7 +901,7 @@ describe('InputDialog', () => {
       'field',
       expect.objectContaining({ optionLabelPosition: 'top' }),
       expect.anything(),
-      []
+      [],
     )
   })
 
@@ -992,7 +909,7 @@ describe('InputDialog', () => {
     const onSave = open({ type: 'checkbox-group', options: ['logs'] })
     const optionDescription = screen
       .getAllByLabelText('Description')
-      .find(element => element.tagName === 'INPUT') as HTMLElement
+      .find((element) => element.tagName === 'INPUT') as HTMLElement
     fireEvent.change(optionDescription, {
       target: { value: 'stdout and stderr' },
     })
@@ -1003,7 +920,7 @@ describe('InputDialog', () => {
         options: [{ value: 'logs', description: 'stdout and stderr' }],
       }),
       expect.anything(),
-      []
+      [],
     )
   })
 
@@ -1022,7 +939,7 @@ describe('InputDialog', () => {
       'field',
       expect.objectContaining({ default: [{ host: 'a' }] }),
       { set: { label: 'Servers' }, unset: [] },
-      []
+      [],
     )
   })
 
@@ -1076,7 +993,7 @@ describe('InputDialog', () => {
         },
         unset: [],
       },
-      []
+      [],
     )
   })
 })
@@ -1095,14 +1012,12 @@ describe('problems in the inputs', () => {
           },
           { message: 'a job problem', line: 20, job: 'build' },
         ],
-      })
+      }),
     )
     const flagged = row(['settings', 'size'])
     const badge = within(flagged).getByRole('button', { name: '1 problem' })
     expect(badge.dataset['tooltipContent']).toBe('Size is not a number')
-    expect(
-      within(row(['name'])).queryByRole('button', { name: '1 problem' })
-    ).toBeNull()
+    expect(within(row(['name'])).queryByRole('button', { name: '1 problem' })).toBeNull()
     fireEvent.click(badge)
     expect(onReveal).toHaveBeenCalledWith({ line: 12 })
   })
@@ -1126,7 +1041,7 @@ describe('selecting inputs', () => {
   }
   const selected = () =>
     [...document.querySelectorAll('[data-input-path][data-selected]')]
-      .map(el => el.getAttribute('data-input-path'))
+      .map((el) => el.getAttribute('data-input-path'))
       .sort()
   const form = () => row(['name']).closest('[tabindex="0"]') as HTMLElement
 
@@ -1190,9 +1105,7 @@ describe('selecting inputs', () => {
     layOut()
     shiftClick(['secret'], [5, 55])
     shiftClick(['name'], [5, 5])
-    const handle = row(['name']).querySelector(
-      '[data-drag-handle]'
-    ) as HTMLElement
+    const handle = row(['name']).querySelector('[data-drag-handle]') as HTMLElement
     fireEvent.pointerDown(handle, { button: 0, clientX: 5, clientY: 5 })
     act(() => {
       fireEvent.pointerMove(window, { clientX: 5, clientY: 112 })
@@ -1219,12 +1132,8 @@ describe('selecting inputs', () => {
     }
     rerender(
       <InputsFormEditor editor={e} inputs={moved}>
-        <DynamicForm
-          formJSONs={convertToDynamicForm(moved)}
-          initialValues={{}}
-          workflowForm
-        />
-      </InputsFormEditor>
+        <DynamicForm formJSONs={convertToDynamicForm(moved)} initialValues={{}} workflowForm />
+      </InputsFormEditor>,
     )
     expect(selected()).toEqual(['["settings","name"]', '["settings","secret"]'])
   })

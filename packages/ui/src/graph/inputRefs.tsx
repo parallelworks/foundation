@@ -1,14 +1,10 @@
-import {
-  inputChildrenKey,
-  wizardFlattens,
-} from '@parallelworks/workflow-parser'
+import { inputChildrenKey, wizardFlattens } from '@parallelworks/workflow-parser'
 import { useId, useRef, useState } from 'react'
 import { IconButton } from '../components/IconButton'
 import { fieldBoxClasses, Textarea } from '../components/Input'
 import { useStrings } from '../components/Provider'
 import { Toggle } from '../components/Toggle'
 import { AddIcon } from '../icons'
-import type { ExpressionRef, RefGroup } from './expressionRefs'
 import {
   asRecord,
   ExpressionToggle,
@@ -23,6 +19,7 @@ import {
   text,
   useGrowingArea,
 } from './editorFields'
+import type { ExpressionRef, RefGroup } from './expressionRefs'
 import { useFieldLint } from './fieldProblems'
 import { type Suggestion, SuggestionInput } from './SuggestionInput'
 
@@ -48,11 +45,10 @@ export function inputRefs(inputs: Json | undefined): InputRef[] {
       const type = text(definition['type'])
       const childKey = inputChildrenKey(type)
       if (type === 'group' || type === 'step') {
-        const flat =
-          type === 'step' ? flatSteps : definition['flatten'] === true
+        const flat = type === 'step' ? flatSteps : definition['flatten'] === true
         walk(
           asRecord(childKey ? definition[childKey] : undefined),
-          flat ? prefix : [...prefix, name]
+          flat ? prefix : [...prefix, name],
         )
         continue
       }
@@ -72,8 +68,7 @@ export function inputRefs(inputs: Json | undefined): InputRef[] {
 }
 
 const REF = /^\$\{\{\s*(!?)\s*inputs\.([A-Za-z0-9_.-]+?)\s*\}\}$/
-const EQUALS =
-  /^\$\{\{\s*inputs\.([A-Za-z0-9_.-]+?)\s*(==|!=)\s*'([^']*)'\s*\}\}$/
+const EQUALS = /^\$\{\{\s*inputs\.([A-Za-z0-9_.-]+?)\s*(==|!=)\s*'([^']*)'\s*\}\}$/
 
 export function refExpression(path: string[], suffix?: string): string {
   return `\${{ inputs.${[...path, ...(suffix ? [suffix] : [])].join('.')} }}`
@@ -93,13 +88,9 @@ export function readRef(value: unknown, suffix?: string): string[] | null {
 }
 
 /** A switch read from a boolean input, possibly negated. */
-export function readFlagRef(
-  value: unknown
-): { path: string[]; negated: boolean } | null {
+export function readFlagRef(value: unknown): { path: string[]; negated: boolean } | null {
   const match = typeof value === 'string' ? REF.exec(value.trim()) : null
-  return match
-    ? { path: (match[2] ?? '').split('.'), negated: match[1] === '!' }
-    : null
+  return match ? { path: (match[2] ?? '').split('.'), negated: match[1] === '!' } : null
 }
 
 export function flagExpression(path: string[], negated: boolean): string {
@@ -108,7 +99,7 @@ export function flagExpression(path: string[], negated: boolean): string {
 
 /** A condition comparing an input to one of its values. */
 export function readEqualsRef(
-  value: unknown
+  value: unknown,
 ): { path: string[]; value: string; negated: boolean } | null {
   const match = typeof value === 'string' ? EQUALS.exec(value.trim()) : null
   return match
@@ -120,11 +111,7 @@ export function readEqualsRef(
     : null
 }
 
-export function equalsExpression(
-  path: string[],
-  value: string,
-  negated = false
-): string {
+export function equalsExpression(path: string[], value: string, negated = false): string {
   const operator = negated ? '!=' : '=='
   return `\${{ inputs.${path.join('.')} ${operator} '${value.replace(/'/g, '')}' }}`
 }
@@ -135,10 +122,10 @@ const pathKey = (path: string[]) => path.join('.')
 function optionValues(definition: Json): string[] {
   const options = definition['options']
   return Array.isArray(options)
-    ? options.map(option =>
+    ? options.map((option) =>
         typeof option === 'object' && option !== null
           ? text((option as Json)['value'])
-          : text(option)
+          : text(option),
       )
     : []
 }
@@ -163,15 +150,15 @@ export function InputRefSelect({
 }) {
   const { graphEditor: t } = useStrings()
   const id = useId()
-  const matching = refs.filter(ref => types.includes(ref.type))
+  const matching = refs.filter((ref) => types.includes(ref.type))
   const current = value ? pathKey(value) : ''
-  const known = matching.some(ref => pathKey(ref.path) === current)
+  const known = matching.some((ref) => pathKey(ref.path) === current)
   return (
     <select
       id={id}
       aria-label={label}
       value={known || !current ? current : `?${current}`}
-      onChange={e => {
+      onChange={(e) => {
         const next = e.target.value
         if (next === '+') {
           onNew?.()
@@ -181,20 +168,18 @@ export function InputRefSelect({
       }}
       className={fieldBoxClasses}
     >
-      <option value='' disabled>
+      <option value="" disabled>
         {matching.length > 0 ? t.chooseInput : t.noMatchingInputs}
       </option>
-      {!known && current && (
-        <option value={`?${current}`}>inputs.{current}</option>
-      )}
-      {matching.map(ref => (
+      {!known && current && <option value={`?${current}`}>inputs.{current}</option>}
+      {matching.map((ref) => (
         <option key={pathKey(ref.path)} value={pathKey(ref.path)}>
           {ref.label === ref.path.at(-1)
             ? `inputs.${pathKey(ref.path)}`
             : `${ref.label} (inputs.${pathKey(ref.path)})`}
         </option>
       ))}
-      {onNew && <option value='+'>{newLabel ?? t.newInput}</option>}
+      {onNew && <option value="+">{newLabel ?? t.newInput}</option>}
     </select>
   )
 }
@@ -205,9 +190,7 @@ export interface InputSource {
   /** Outputs, matrix values, variables, sessions and env an expression here can read. */
   extras?: ExpressionRef[] | undefined
   /** Opens a dialog for a new input of `type`, then reports where it lives. */
-  create?:
-    | ((type: string, onCreated: (path: string[]) => void) => void)
-    | undefined
+  create?: ((type: string, onCreated: (path: string[]) => void) => void) | undefined
 }
 
 /** Makes a new input of `type` for the field, when the host can; `onCreated` gets where it went. */
@@ -228,10 +211,10 @@ function NewInputButton({
   const types = inputsEditor.types as Record<string, string>
   return (
     <IconButton
-      icon={<AddIcon className='h-4 w-4' />}
+      icon={<AddIcon className="h-4 w-4" />}
       label={t.newInputOf(types[type] ?? type)}
-      size='sm'
-      variant='ghost'
+      size="sm"
+      variant="ghost"
       onClick={() => create(type, onCreated)}
     />
   )
@@ -241,7 +224,7 @@ function NewInputButton({
 function insertAt(
   element: HTMLInputElement | HTMLTextAreaElement | null,
   value: string,
-  reference: string
+  reference: string,
 ): string {
   const start = element?.selectionStart ?? value.length
   const end = element?.selectionEnd ?? value.length
@@ -290,7 +273,7 @@ export function ExpressionInput({
 /** Conditions on the form's switches and choices, for fields that run on one. */
 function conditionSuggestions(
   source: InputSource | undefined,
-  t: ReturnType<typeof useStrings>['graphEditor']
+  t: ReturnType<typeof useStrings>['graphEditor'],
 ): Suggestion[] {
   return (source?.refs ?? []).flatMap((ref): Suggestion[] => {
     if (ref.type === 'boolean') {
@@ -300,7 +283,7 @@ function conditionSuggestions(
       ]
     }
     return ONE_OF.includes(ref.type)
-      ? optionValues(ref.definition).map(option => ({
+      ? optionValues(ref.definition).map((option) => ({
           value: equalsExpression(ref.path, option),
           label: t.whenIs(ref.label, option),
         }))
@@ -332,29 +315,23 @@ export function FlagField({
   const id = useId()
   const [typed, setTyped] = useState(typeof value === 'string')
   const checked = typeof value === 'boolean' ? value : fallback
-  const setTypedValue = (next: string) =>
-    onChange(next.trim() ? next : undefined)
-  const lint = useFieldLint(
-    yamlKey,
-    id,
-    typeof value === 'string' ? value : '',
-    setTypedValue
-  )
+  const setTypedValue = (next: string) => onChange(next.trim() ? next : undefined)
+  const lint = useFieldLint(yamlKey, id, typeof value === 'string' ? value : '', setTypedValue)
   return (
-    <div className='flex flex-col gap-1.5'>
-      <div className='flex items-center justify-between gap-3'>
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center justify-between gap-3">
         <FieldLabel label={label} yamlKey={yamlKey} description={description} />
-        <div className='flex shrink-0 items-center gap-1'>
+        <div className="flex shrink-0 items-center gap-1">
           {!typed && (
             <Toggle
               checked={checked}
-              onChange={on => onChange(flagValue(on, fallback, original))}
+              onChange={(on) => onChange(flagValue(on, fallback, original))}
               label={label}
             />
           )}
           <ExpressionToggle
             active={typed}
-            onChange={on => {
+            onChange={(on) => {
               setTyped(on)
               onChange(undefined)
             }}
@@ -362,8 +339,8 @@ export function FlagField({
         </div>
       </div>
       {typed && (
-        <div className='flex items-center gap-2'>
-          <div className='flex-1'>
+        <div className="flex items-center gap-2">
+          <div className="flex-1">
             <ExpressionInput
               id={id}
               label={label}
@@ -374,9 +351,9 @@ export function FlagField({
             />
           </div>
           <NewInputButton
-            type='boolean'
+            type="boolean"
             source={source}
-            onCreated={path => onChange(flagExpression(path, false))}
+            onCreated={(path) => onChange(flagExpression(path, false))}
           />
         </div>
       )}
@@ -419,10 +396,7 @@ export function ConditionField({
   const insert = (reference: string) => {
     const element = document.getElementById(id)
     // A picked condition shows its name rather than its text, so only typed text has a cursor in it.
-    const typed =
-      element instanceof HTMLInputElement && element.value === value
-        ? element
-        : null
+    const typed = element instanceof HTMLInputElement && element.value === value ? element : null
     onChange(insertAt(typed, value, reference))
   }
   return (
@@ -435,16 +409,12 @@ export function ConditionField({
       actions={
         <>
           {allRefs(source).length > 0 && (
-            <InsertRefSelect
-              source={source}
-              label={t.insertValue}
-              onInsert={insert}
-            />
+            <InsertRefSelect source={source} label={t.insertValue} onInsert={insert} />
           )}
           <NewInputButton
-            type='boolean'
+            type="boolean"
             source={source}
-            onCreated={path => onChange(flagExpression(path, false))}
+            onCreated={(path) => onChange(flagExpression(path, false))}
           />
         </>
       }
@@ -509,12 +479,12 @@ export function ValueOrInputField({
   const firstType = types[0] ?? 'string'
   const offered: Suggestion[] = [
     ...source.refs
-      .filter(ref => types.includes(ref.type))
-      .map(ref => ({
+      .filter((ref) => types.includes(ref.type))
+      .map((ref) => ({
         value: refExpression(ref.path, suffix),
         label: ref.label,
       })),
-    ...(literal ? suggestions.map(suggestion => ({ value: suggestion })) : []),
+    ...(literal ? suggestions.map((suggestion) => ({ value: suggestion })) : []),
   ]
   return (
     <LabelledField
@@ -522,8 +492,8 @@ export function ValueOrInputField({
       yamlKey={yamlKey}
       description={description}
     >
-      <div className='flex items-center gap-2'>
-        <div className='flex-1'>
+      <div className="flex items-center gap-2">
+        <div className="flex-1">
           <ExpressionInput
             id={id}
             label={label}
@@ -536,7 +506,7 @@ export function ValueOrInputField({
         <NewInputButton
           type={firstType}
           source={source}
-          onCreated={path => onChange(refExpression(path, suffix))}
+          onCreated={(path) => onChange(refExpression(path, suffix))}
         />
       </div>
       <FieldError message={error ?? lint.message} />
@@ -586,11 +556,7 @@ export function ScriptField({
       descriptionId={`${id}-help`}
       actions={
         allRefs(source).length > 0 && (
-          <InsertRefSelect
-            source={source}
-            label={t.insertValue}
-            onInsert={insert}
-          />
+          <InsertRefSelect source={source} label={t.insertValue} onInsert={insert} />
         )
       }
     >
@@ -604,21 +570,14 @@ export function ScriptField({
         className={rows === undefined ? GROWING_AREA : ''}
         {...(shownError ? { error: shownError } : {})}
         {...(placeholder ? { placeholder } : {})}
-        onChange={e => onChange(e.target.value)}
+        onChange={(e) => onChange(e.target.value)}
       />
       {lint.fixes}
     </LabelledField>
   )
 }
 
-const GROUP_ORDER: RefGroup[] = [
-  'inputs',
-  'outputs',
-  'matrix',
-  'variables',
-  'sessions',
-  'env',
-]
+const GROUP_ORDER: RefGroup[] = ['inputs', 'outputs', 'matrix', 'variables', 'sessions', 'env']
 
 function InsertRefSelect({
   source,
@@ -633,27 +592,27 @@ function InsertRefSelect({
   const all = allRefs(source)
   // A select dressed as a button: the grouped list and keyboard handling come with it.
   return (
-    <span className='relative inline-flex shrink-0 items-center'>
+    <span className="relative inline-flex shrink-0 items-center">
       <AddIcon
-        aria-hidden='true'
-        className='pointer-events-none absolute left-2 h-3 w-3 theme-muted-text'
+        aria-hidden="true"
+        className="pointer-events-none absolute left-2 h-3 w-3 theme-muted-text"
       />
       <select
         aria-label={label}
-        value=''
-        onChange={e => {
+        value=""
+        onChange={(e) => {
           if (e.target.value) {
             onInsert(e.target.value)
           }
         }}
-        className='cursor-pointer appearance-none rounded-md border border-(--theme-border) bg-(--theme-panel-bg) py-1 pr-2 pl-6 text-xs text-(--theme-app) hover:bg-(--theme-muted-panel-bg)'
+        className="cursor-pointer appearance-none rounded-md border border-(--theme-border) bg-(--theme-panel-bg) py-1 pr-2 pl-6 text-xs text-(--theme-app) hover:bg-(--theme-muted-panel-bg)"
       >
-        <option value=''>{label}</option>
-        {GROUP_ORDER.map(group => {
-          const refs = all.filter(item => item.group === group)
+        <option value="">{label}</option>
+        {GROUP_ORDER.map((group) => {
+          const refs = all.filter((item) => item.group === group)
           return refs.length > 0 ? (
             <optgroup key={group} label={t.refGroups[group]}>
-              {refs.map(item => (
+              {refs.map((item) => (
                 <option key={item.label} value={item.expression}>
                   {item.label}
                 </option>
@@ -668,16 +627,16 @@ function InsertRefSelect({
 
 function allRefs(source: InputSource): ExpressionRef[] {
   return [
-    ...source.refs.map(input => ({
+    ...source.refs.map((input) => ({
       group: 'inputs' as const,
       label: `inputs.${pathKey(input.path)}`,
       expression: refExpression(input.path),
     })),
-    ...(source.extras ?? []).filter(extra => extra.group !== 'inputs'),
+    ...(source.extras ?? []).filter((extra) => extra.group !== 'inputs'),
   ]
 }
 
 /** References offered as suggestions on free-text values. */
 export function refSuggestions(source: InputSource): string[] {
-  return allRefs(source).map(item => item.expression)
+  return allRefs(source).map((item) => item.expression)
 }

@@ -49,7 +49,7 @@ describe('Dropdown Component', () => {
           allowCustomValue
           options={mockOptions}
           value={value}
-          onChange={next => {
+          onChange={(next) => {
             setValue(next as string)
             onChange(next)
           }}
@@ -73,19 +73,13 @@ describe('Dropdown Component', () => {
 
   it('shows loading state when loading prop is true', () => {
     setup({ loading: true })
-    expect(screen.getByRole('combobox')).toHaveAttribute(
-      'placeholder',
-      'Loading...'
-    )
+    expect(screen.getByRole('combobox')).toHaveAttribute('placeholder', 'Loading...')
   })
 
   it('displays placeholder when no value is selected', () => {
     const placeholder = 'Select an option'
     setup({ placeholder, value: '' })
-    expect(screen.getByRole('combobox')).toHaveAttribute(
-      'placeholder',
-      placeholder
-    )
+    expect(screen.getByRole('combobox')).toHaveAttribute('placeholder', placeholder)
   })
 
   it('disables the dropdown when disabled prop is true', () => {
@@ -95,9 +89,7 @@ describe('Dropdown Component', () => {
 
   it('names the combobox from ariaLabel', () => {
     setup({ ariaLabel: 'Provisioning Mode' })
-    expect(
-      screen.getByRole('combobox', { name: 'Provisioning Mode' })
-    ).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Provisioning Mode' })).toBeInTheDocument()
   })
 
   it('leaves the combobox unnamed when ariaLabel is empty or absent', () => {
@@ -111,10 +103,7 @@ describe('Dropdown Component', () => {
 
   it('applies the id prop to the combobox', () => {
     setup({ id: 'events-time-range' })
-    expect(screen.getByRole('combobox')).toHaveAttribute(
-      'id',
-      'events-time-range'
-    )
+    expect(screen.getByRole('combobox')).toHaveAttribute('id', 'events-time-range')
   })
 
   it('shows the selected option icon next to the closed input', () => {
@@ -123,7 +112,7 @@ describe('Dropdown Component', () => {
         {
           label: 'einstein',
           value: 'einstein',
-          icon: <span data-testid='selected-icon' />,
+          icon: <span data-testid="selected-icon" />,
         },
       ],
       value: 'einstein',
@@ -140,7 +129,7 @@ describe('Dropdown Component', () => {
             {
               label: 'einstein',
               value: { id: 'cluster-1', name: 'einstein' },
-              icon: <span data-testid='category-icon' />,
+              icon: <span data-testid="category-icon" />,
             },
           ],
         },
@@ -156,7 +145,7 @@ describe('Dropdown Component', () => {
         {
           label: 'einstein',
           value: 'einstein',
-          icon: <span data-testid='typing-icon' />,
+          icon: <span data-testid="typing-icon" />,
         },
       ],
       value: 'einstein',

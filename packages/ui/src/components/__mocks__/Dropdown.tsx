@@ -12,19 +12,19 @@ export default function Dropdown({
   disabled,
   'aria-describedby': describedBy,
 }: IProps) {
-  const all = options.flatMap(option =>
+  const all = options.flatMap((option) =>
     typeof option === 'string'
       ? [{ label: option, value: option }]
       : 'options' in option
         ? option.options
-        : [option]
+        : [option],
   )
   const listId = `${id ?? ariaLabel ?? 'field'}-options`
-  const picked = all.find(option => option.value === value)
+  const picked = all.find((option) => option.value === value)
   return (
     <>
       <input
-        role='combobox'
+        role="combobox"
         aria-expanded={false}
         aria-label={ariaLabel}
         id={id}
@@ -33,19 +33,17 @@ export default function Dropdown({
         placeholder={placeholder}
         disabled={disabled}
         value={picked?.label ?? String(value ?? '')}
-        onChange={e => onChange(e.target.value)}
+        onChange={(e) => onChange(e.target.value)}
       />
-      <div id={listId} role='listbox' hidden>
-        {all.map(option => (
+      <div id={listId} role="listbox" hidden>
+        {all.map((option) => (
           <div
             key={String(option.value)}
-            role='option'
+            role="option"
             tabIndex={-1}
             aria-selected={false}
             data-value={String(option.value)}
-            data-label={
-              option.label === option.value ? undefined : option.label
-            }
+            data-label={option.label === option.value ? undefined : option.label}
           />
         ))}
       </div>
@@ -55,10 +53,8 @@ export default function Dropdown({
 
 /** The options this stand-in lists for a field, read through its aria-controls. */
 export function suggestionsOf(input: HTMLElement) {
-  const list = document.getElementById(
-    input.getAttribute('aria-controls') ?? ''
-  )
-  return [...(list?.querySelectorAll('[role="option"]') ?? [])].map(option => ({
+  const list = document.getElementById(input.getAttribute('aria-controls') ?? '')
+  return [...(list?.querySelectorAll('[role="option"]') ?? [])].map((option) => ({
     value: option.getAttribute('data-value') ?? '',
     label: option.getAttribute('data-label') ?? '',
   }))

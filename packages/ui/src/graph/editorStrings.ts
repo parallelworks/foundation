@@ -8,15 +8,13 @@ export const GRAPH_EDITOR_STRINGS = {
   addJob: 'Job',
   addJobHint: 'Drag into the graph to add a job, or click to add one',
   addMatrixJob: 'Matrix job',
-  addMatrixJobHint:
-    'Drag into the graph to add a matrix job, or click to add one',
+  addMatrixJobHint: 'Drag into the graph to add a matrix job, or click to add one',
   resetLayout: 'Reset layout',
   dropToDelete: 'Drop here to delete',
   jobActions: 'Job actions',
   stepActions: 'Step actions',
   stepCount: (count: number) => (count === 1 ? '1 step' : `${count} steps`),
-  problemCount: (count: number) =>
-    count === 1 ? '1 problem' : `${count} problems`,
+  problemCount: (count: number) => (count === 1 ? '1 problem' : `${count} problems`),
   problemLine: (line: number) => `Line ${line}`,
   connectOutHint:
     'Drag onto a job to make it depend on this node. Drop on a circle to cover every job in that node.',
@@ -59,8 +57,7 @@ export const GRAPH_EDITOR_STRINGS = {
     delete: 'Delete',
   },
   shortcutDoes: {
-    select:
-      'Add a job, step or dependency to the selection, one kind at a time',
+    select: 'Add a job, step or dependency to the selection, one kind at a time',
     box: 'Select with a box drawn on empty space: jobs if it reaches any, else steps, else dependencies',
     pan: 'Pan',
     zoom: 'Zoom',
@@ -94,8 +91,7 @@ export const GRAPH_EDITOR_STRINGS = {
   matrixBadge: 'matrix',
   jobName: 'Job name',
   stepName: 'Step name',
-  invalidJobName:
-    'Use only lowercase letters, numbers, dashes, and underscores.',
+  invalidJobName: 'Use only lowercase letters, numbers, dashes, and underscores.',
   jobExists: 'A job with this name already exists.',
   matrixVariable: 'Variable',
   matrixValues: 'Values, separated by commas',
@@ -119,19 +115,16 @@ export const GRAPH_EDITOR_STRINGS = {
   missingJob: 'not found',
   runsInWorkspace: 'Leave Host empty to run in your workspace.',
   sectionComputeEnvironment: 'Compute environment',
-  runsOnHint:
-    'Run this job as a scheduler job on a compute environment, without your workspace.',
+  runsOnHint: 'Run this job as a scheduler job on a compute environment, without your workspace.',
   runsOnNeedsEnvironment: 'Fill in both the cluster and the environment name.',
   runsOnWithSsh:
     'A job runs on a compute environment or on a remote host, not both. Clear one of them.',
   matrixOn: 'Run once for every combination of values.',
   matrixNeedsVariable: 'Add at least one variable.',
-  matrixInvalidVariable:
-    'Each variable needs a unique name and at least one value.',
+  matrixInvalidVariable: 'Each variable needs a unique name and at least one value.',
   invalidMaxParallel: 'Use a whole number of 1 or more.',
   invalidDuration: 'Use seconds (300) or a duration such as 30s, 10m or 2h.',
-  invalidExpressionValue:
-    'Type an expression here, such as one that reads an input.',
+  invalidExpressionValue: 'Type an expression here, such as one that reads an input.',
   invalidEnvKey: 'Use letters, numbers, and underscores.',
   invalidKey: 'Use letters, numbers, dashes, and underscores.',
   duplicateKey: 'Each key must be unique.',
@@ -230,8 +223,7 @@ export const GRAPH_EDITOR_STRINGS = {
   outputKey: 'Output',
   outputValue: 'Value',
   outputNeedsStep: 'Pick a step and name one of its outputs.',
-  noStepIds:
-    'To hand on a step’s outputs, first give it a step ID in its Advanced settings.',
+  noStepIds: 'To hand on a step’s outputs, first give it a step ID in its Advanced settings.',
   usesAction: 'Action',
   usesWorkflow: 'My workflow',
   usesMarketplace: 'Marketplace',
@@ -315,8 +307,7 @@ export const GRAPH_EDITOR_STRINGS = {
     remoteUser: 'The account to log in as. Leave empty to use your username.',
     jumpNodeHost:
       'A machine to connect through first, when the remote machine can’t be reached directly. Leave empty to connect directly.',
-    jumpNodeUser:
-      'The account to log in to the jump host as. Leave empty to use your username.',
+    jumpNodeUser: 'The account to log in to the jump host as. Leave empty to use your username.',
     disconnectTimeout:
       'How long to keep trying to reconnect if the connection drops, such as 300 or 5m. 0 gives up at once, and a negative number never gives up. The default is 5 minutes.',
     runsOn:
@@ -336,60 +327,45 @@ export const GRAPH_EDITOR_STRINGS = {
       'Combinations to run on top of the ones the variables make. An entry that matches an existing combination adds its extra values to it instead.',
     exclude:
       'Combinations not to run. Any combination that matches every value in an entry is skipped.',
-    failFast:
-      'When one run of the matrix fails, cancel the runs that are still going.',
-    maxParallel:
-      'How many runs of the matrix can go at the same time. Leave empty for no limit.',
-    jobEnv:
-      'Variables every step of this job can read from its environment, such as DATA_DIR.',
+    failFast: 'When one run of the matrix fails, cancel the runs that are still going.',
+    maxParallel: 'How many runs of the matrix can go at the same time. Leave empty for no limit.',
+    jobEnv: 'Variables every step of this job can read from its environment, such as DATA_DIR.',
     outputs:
       'Values this job hands on to the jobs that depend on it, such as an output of one of its steps.',
-    jobWorkingDirectory:
-      'The folder this job’s steps run in. It’s created if it doesn’t exist.',
+    jobWorkingDirectory: 'The folder this job’s steps run in. It’s created if it doesn’t exist.',
     jobTimeout:
       'How long the job can run before it’s stopped and marked as failed, such as 300 (seconds), 10m or 2h.',
     stepName:
       'Shown in the graph and the run logs. If empty, the step’s command or workflow is shown.',
-    stepKind:
-      'Run shell commands, or run another workflow or a built-in action.',
+    stepKind: 'Run shell commands, or run another workflow or a built-in action.',
     run: 'The commands to run, as a shell script.',
     uses: 'What the step runs: a built-in action, one of your workflows, a marketplace workflow, or a workflow in a GitHub or GitLab repository. Pick one from the list or type your own.',
     view: 'Edit these settings in the form, or as the YAML the workflow stores. Changes carry over when you switch.',
     with: 'The values passed to the workflow or action this step runs.',
-    withInputs:
-      'The inputs that workflow asks for, by the names its form uses.',
+    withInputs: 'The inputs that workflow asks for, by the names its form uses.',
     stepIf:
       'Leave empty to run once the steps before it succeed. Pick a choice from the list, such as always or only after a failure, or type your own condition.',
     stepTimeout:
       'How long the step can run before it’s stopped and marked as failed, such as 300 (seconds), 10m or 2h.',
-    ignoreErrors:
-      'If the commands fail, mark the step as passed and carry on with the next one.',
+    ignoreErrors: 'If the commands fail, mark the step as passed and carry on with the next one.',
     earlyCancel: 'Stop this step as soon as any other job in the run fails.',
     retry: 'Run the step again if it fails.',
-    maxRetries:
-      'How many more times to try after the first failure. The default is 10.',
+    maxRetries: 'How many more times to try after the first failure. The default is 10.',
     retryInterval:
       'How long to wait before each new attempt, such as 5s or 1m. The default is 5 seconds.',
-    retryTimeout:
-      'How long each attempt can run, such as 30s or 5m. The default is 30 seconds.',
-    cleanOnRetry:
-      'Delete the step’s files before each new attempt so it starts fresh.',
-    stepSsh:
-      'Where this step runs: on the job’s host, on another host, or in your workspace.',
-    stepEnv:
-      'Variables this step can read from its environment, added to the job’s.',
+    retryTimeout: 'How long each attempt can run, such as 30s or 5m. The default is 30 seconds.',
+    cleanOnRetry: 'Delete the step’s files before each new attempt so it starts fresh.',
+    stepSsh: 'Where this step runs: on the job’s host, on another host, or in your workspace.',
+    stepEnv: 'Variables this step can read from its environment, added to the job’s.',
     stepWorkingDirectory:
       'The folder this step runs in. It’s created if it doesn’t exist. If empty, the job’s folder is used.',
     stepId:
       'A short name other steps and jobs use to read this step’s outputs. It must be unique in the job.',
-    shell:
-      'The program that runs the commands, such as bash -l. It must be bash or sh.',
+    shell: 'The program that runs the commands, such as bash -l. It must be bash or sh.',
     cleanup:
       'Commands that run when the job ends, if this step ran, even if a later step failed. Use it to remove temporary files or stop services.',
-    workflowEnv:
-      'Variables every job and step of the workflow can read from its environment.',
-    workflowTimeout:
-      'How long a whole run can take before it’s stopped, such as 30m or 2h.',
+    workflowEnv: 'Variables every job and step of the workflow can read from its environment.',
+    workflowTimeout: 'How long a whole run can take before it’s stopped, such as 30m or 2h.',
     permissions:
       'What the run’s API key is allowed to do, such as * for everything you can do. Users approve this before their first run.',
     sessions:
@@ -401,24 +377,15 @@ export const GRAPH_EDITOR_STRINGS = {
     promptDefault: 'The name filled in for them.',
     sessionRedirect:
       'Open this session for the user as soon as the run starts. Only one session or link can do this.',
-    useTLS:
-      'Connect to the session over HTTPS. Turn this on only if the app needs it.',
-    useCustomDomain:
-      'Serve the session on its own domain. Turn this on only if the app needs it.',
-    openAI:
-      'The session runs an AI model server, so connect it to the built-in chat.',
-    sessionDetach:
-      'Keep the session open after the run ends, until someone deletes it.',
-    links:
-      'Links shown on the run’s page, to sessions the workflow starts or to any web address.',
-    linkName:
-      'Lowercase letters, numbers, dashes, and underscores, ending in a letter or number.',
-    linkTarget:
-      'Link to a session the workflow starts, or straight to a web address.',
-    linkEndpoint:
-      'The name of the session to link to. The link works once the session is up.',
-    linkUrl:
-      'A web address starting with http or https. Without one, https is used.',
+    useTLS: 'Connect to the session over HTTPS. Turn this on only if the app needs it.',
+    useCustomDomain: 'Serve the session on its own domain. Turn this on only if the app needs it.',
+    openAI: 'The session runs an AI model server, so connect it to the built-in chat.',
+    sessionDetach: 'Keep the session open after the run ends, until someone deletes it.',
+    links: 'Links shown on the run’s page, to sessions the workflow starts or to any web address.',
+    linkName: 'Lowercase letters, numbers, dashes, and underscores, ending in a letter or number.',
+    linkTarget: 'Link to a session the workflow starts, or straight to a web address.',
+    linkEndpoint: 'The name of the session to link to. The link works once the session is up.',
+    linkUrl: 'A web address starting with http or https. Without one, https is used.',
     linkRedirect:
       'Open this link for the user as soon as the run starts. Only one session or link can do this.',
     linkDetach: 'Keep the session this link points to open after the run ends.',
@@ -426,17 +393,14 @@ export const GRAPH_EDITOR_STRINGS = {
       'Organization variables that must be set before anyone can run the workflow.',
     userVariables:
       'Your own variables the workflow reads. Users approve access before their first run.',
-    userVariableHint:
-      'Why the workflow needs this variable. Users see it when asked for access.',
-    labelPosition:
-      'Whether field names sit beside or above the fields on the input form.',
+    userVariableHint: 'Why the workflow needs this variable. Users see it when asked for access.',
+    labelPosition: 'Whether field names sit beside or above the fields on the input form.',
     wizard:
       'Show the input form one page at a time. Each input of the Wizard step type becomes a page.',
     showSteps: 'Show which page the user is on, above the form.',
     allowJump: 'Let users go back to pages they’ve already filled in.',
     hideStepNumbers: 'Hide the page numbers in the progress bar.',
-    submitLabel:
-      'The text of the button on the last page. The default is Execute.',
+    submitLabel: 'The text of the button on the last page. The default is Execute.',
     wizardFlatten:
       'On, the default: the workflow reads each field as inputs.FIELD. Off: as inputs.PAGE.FIELD, under its page’s name.',
   },
@@ -478,23 +442,17 @@ export const GRAPH_EDITOR_STRINGS = {
     repoHost: 'GitLab server',
   },
   actionHelp: {
-    checkoutRepo:
-      'The address of the Git repository to copy, such as https://github.com/org/repo.',
+    checkoutRepo: 'The address of the Git repository to copy, such as https://github.com/org/repo.',
     checkoutBranch: 'The branch, tag or commit to check out.',
-    checkoutSparse:
-      'Check out only these folders or files instead of the whole repository.',
-    checkoutPath:
-      'The folder to put the repository in, inside the job’s folder.',
+    checkoutSparse: 'Check out only these folders or files instead of the whole repository.',
+    checkoutPath: 'The folder to put the repository in, inside the job’s folder.',
     agentSchedulerType:
       'The scheduler to send the agent job to: slurm or pbs. Pick a cluster input to use its scheduler.',
-    agentSchedulerFlags:
-      'Options passed to sbatch or qsub, such as a partition or a time limit.',
-    agentWait:
-      'Wait until the agent is running before the next step starts. On by default.',
+    agentSchedulerFlags: 'Options passed to sbatch or qsub, such as a partition or a time limit.',
+    agentWait: 'Wait until the agent is running before the next step starts. On by default.',
     agentScriptHeaders:
       'Lines added to the top of the agent’s job script, such as scheduler options.',
-    agentDebug:
-      'Keep the scheduler job’s files and log more detail from the agent.',
+    agentDebug: 'Keep the scheduler job’s files and log more detail from the agent.',
     waitAgentId: 'The agent ID a scheduler-agent step returned in its outputs.',
     waitSchedulerJobId:
       'The scheduler job ID a scheduler-agent step returned. The step fails if that job ends early.',
@@ -503,8 +461,7 @@ export const GRAPH_EDITOR_STRINGS = {
     cancelJobs: 'The names of the jobs to cancel.',
     cancelWorkflow: 'The workflow whose run to cancel.',
     cancelRun: 'The number of the run to cancel.',
-    cancelSlug:
-      'The run’s ID from its page address, instead of a workflow and run number.',
+    cancelSlug: 'The run’s ID from its page address, instead of a workflow and run number.',
     updateName: 'The session to update, by the name it has under sessions.',
     updateType: 'link opens an address; tunnel forwards a port.',
     updateUrl: 'The address a link session opens.',
@@ -516,20 +473,16 @@ export const GRAPH_EDITOR_STRINGS = {
     updateStatus: 'The status to show for the session.',
     updateOpenAI: 'The session serves an OpenAI-compatible API.',
     updateApiKey: 'The API key for an OpenAI-compatible session.',
-    updateTargetInfo:
-      'A Kubernetes resource to forward to instead of a port on the workspace.',
+    updateTargetInfo: 'A Kubernetes resource to forward to instead of a port on the workspace.',
     targetName: 'The Kubernetes cluster.',
     targetNamespace: 'The namespace the resource is in.',
     targetResourceType: 'The kind of resource, such as services.',
     targetResourceName: 'The name of the resource to forward to.',
-    repoYaml:
-      'Path to the workflow file in the repository. Defaults to workflow.yaml.',
+    repoYaml: 'Path to the workflow file in the repository. Defaults to workflow.yaml.',
     repoThumbnail: 'Path to a thumbnail image for this subworkflow.',
-    repoHost:
-      'The registered GitLab server the project is on. Defaults to gitlab.com.',
+    repoHost: 'The registered GitLab server the project is on. Defaults to gitlab.com.',
     aboutCheckout: 'Check out a Git repository',
-    aboutSchedulerAgent:
-      'Submit a Slurm or PBS job that runs an agent you can SSH into',
+    aboutSchedulerAgent: 'Submit a Slurm or PBS job that runs an agent you can SSH into',
     aboutWaitForAgent: 'Wait for the agent a scheduler-agent step started',
     aboutCancelJobs: 'Cancel some or all jobs of a run',
     aboutUpdateSession: 'Update a session with its connection details',
@@ -551,8 +504,7 @@ export const INPUTS_EDITOR_STRINGS = {
   moveDown: 'Move down',
   deleteInput: 'Delete input',
   hidden: 'hidden',
-  noInputs:
-    'No inputs yet. Add one to build the form users fill in to run this workflow.',
+  noInputs: 'No inputs yet. Add one to build the form users fill in to run this workflow.',
   noFields: 'No fields yet.',
   inputName: 'Name',
   inputType: 'Type',
@@ -577,8 +529,7 @@ export const INPUTS_EDITOR_STRINGS = {
   optionsJson: 'As JSON',
   optionsByKeyHelp:
     'For each value of the input the options depend on, list the options to show, as JSON.',
-  optionsJsonHelp:
-    'These options have settings a list can’t show, so they’re edited as JSON.',
+  optionsJsonHelp: 'These options have settings a list can’t show, so they’re edited as JSON.',
   impliesNeedsOptions: 'Add at least two options above to link them.',
   impliesWhen: (option: string) => `${option} also ticks`,
   choices: {
@@ -587,14 +538,11 @@ export const INPUTS_EDITOR_STRINGS = {
   needsOptions: 'Add at least one option.',
   needsFields: 'Add at least one field.',
   optionsJsonShape: 'Use a JSON list of options.',
-  optionsByKeyShape:
-    'Use a JSON object that maps each key to a list of options.',
+  optionsByKeyShape: 'Use a JSON object that maps each key to a list of options.',
   jsonObject: 'Use a JSON object.',
   jsonObjectOrList: 'Use a JSON object or list.',
-  typeChangeNote:
-    'Settings the new type doesn’t use are removed when you save.',
-  flattenClash: (name: string) =>
-    `${name} is also the name of an input beside this group.`,
+  typeChangeNote: 'Settings the new type doesn’t use are removed when you save.',
+  flattenClash: (name: string) => `${name} is also the name of an input beside this group.`,
   disableNeedsBoth: 'Fill in both the checkbox text and its value.',
   typeGroups: {
     basic: 'Basic',
@@ -649,8 +597,7 @@ export const INPUTS_EDITOR_STRINGS = {
   typeHelp: {
     string: 'A line of text, or a larger text area.',
     number: 'A number, typed in or picked on a slider.',
-    duration:
-      'A length of time typed as HH:MM:SS or D-HH:MM:SS. The run gets it in seconds.',
+    duration: 'A length of time typed as HH:MM:SS or D-HH:MM:SS. The run gets it in seconds.',
     boolean: 'An on or off switch.',
     password: 'Text that stays hidden as it is typed.',
     editor: 'A code editor for scripts or configuration files.',
@@ -660,14 +607,12 @@ export const INPUTS_EDITOR_STRINGS = {
     radio: 'Choices shown as radio buttons. The user picks one.',
     'checkbox-group':
       'Choices shown as checkboxes, each with an optional description. The user picks any.',
-    group:
-      'A collapsible section of fields. Their values are nested under the group’s name.',
+    group: 'A collapsible section of fields. Their values are nested under the group’s name.',
     list: 'Rows users add and remove, each with the same fields.',
     header: 'A heading that separates parts of the form. It has no value.',
     step: 'One page of fields when the form is shown as a wizard.',
     'compute-clusters': 'Pick one of the user’s clusters.',
-    'compute-resources':
-      'Pick one of the user’s clusters or Kubernetes clusters.',
+    'compute-resources': 'Pick one of the user’s clusters or Kubernetes clusters.',
     bucket: 'Pick one of the user’s storage buckets.',
     'slurm-accounts': 'Pick a Slurm account on a cluster.',
     'slurm-partitions': 'Pick a Slurm partition on a cluster.',
@@ -751,16 +696,12 @@ export const INPUTS_EDITOR_STRINGS = {
       'What’s picked when the form opens, by its pw:// address, such as pw://user/name.',
     defaultResources: 'What’s picked when the form opens, by pw:// address.',
     defaultFromInput: 'Start with the value of this other input.',
-    durationDefault:
-      'The time the field starts with, as HH:MM:SS or D-HH:MM:SS.',
-    optional:
-      'Let users leave the field empty. Use an expression to decide when.',
+    durationDefault: 'The time the field starts with, as HH:MM:SS or D-HH:MM:SS.',
+    optional: 'Let users leave the field empty. Use an expression to decide when.',
     hidden:
       'Hide the field from the form; its default is still used. Use an expression to decide when.',
-    disabled:
-      'Show the field but don’t let users change it. Use an expression to decide when.',
-    ignore:
-      'Don’t pass this field’s value to the run. Use an expression to decide when.',
+    disabled: 'Show the field but don’t let users change it. Use an expression to decide when.',
+    ignore: 'Don’t pass this field’s value to the run. Use an expression to decide when.',
     placeholder: 'Grey hint text shown while the field is empty.',
     prefillDefault:
       'Put the default in the field as its value. When off, the field starts empty and shows the default as grey hint text.',
@@ -770,13 +711,11 @@ export const INPUTS_EDITOR_STRINGS = {
     minDuration: 'The shortest length of time allowed.',
     maxDuration: 'The longest length of time allowed.',
     disableLabel: 'What the checkbox says, such as Never suspend idle nodes.',
-    disableValue:
-      'What the workflow gets instead of a time while the box is ticked, such as -1.',
+    disableValue: 'What the workflow gets instead of a time while the box is ticked, such as -1.',
     optOut:
       'Adds a checkbox under the field. Ticking it hides the time and sends a fixed value instead, such as -1 for no limit.',
     step: 'How much the value goes up or down at a time, such as with the slider.',
-    slider:
-      'Pick the value by dragging a slider. It needs a minimum, a maximum and a step size.',
+    slider: 'Pick the value by dragging a slider. It needs a minimum, a maximum and a step size.',
     options:
       'The choices users pick from. Each has a value the workflow gets and, optionally, a label users see.',
     optionLabelPosition: 'Show the choices side by side, or one per line.',
@@ -791,24 +730,19 @@ export const INPUTS_EDITOR_STRINGS = {
     itemsCollapsible: 'Let users fold each row away.',
     minItems: 'The fewest rows users must add.',
     maxItems: 'The most rows users can add.',
-    language:
-      'The language the editor colors code for, such as bash, python or yaml.',
-    collapsed:
-      'Start with the group folded away. Use an expression to decide when.',
-    flatten:
-      'Pass the group’s fields as inputs.FIELD instead of inputs.GROUP.FIELD.',
+    language: 'The language the editor colors code for, such as bash, python or yaml.',
+    collapsed: 'Start with the group folded away. Use an expression to decide when.',
+    flatten: 'Pass the group’s fields as inputs.FIELD instead of inputs.GROUP.FIELD.',
     items: 'The fields in this group.',
     size: 'The header’s font size, in pixels.',
     text: 'The header’s text.',
     bold: 'Show the header in bold.',
     title: 'The heading at the top of this page.',
     nextLabel: 'The text of the button to the next page. The default is Next.',
-    prevLabel:
-      'The text of the button to the previous page. The default is Previous.',
+    prevLabel: 'The text of the button to the previous page. The default is Previous.',
     clusterName:
       'The Kubernetes cluster to list from. Pick a Kubernetes cluster input, or type a cluster’s name.',
-    namespace:
-      'The namespace to list from. Pick a namespace input, or type its name.',
+    namespace: 'The namespace to list from. Pick a namespace input, or type its name.',
     csp: 'Which cloud to list from: aws, azure, google or openstack. Or pick the input where users choose it.',
     region: 'The region to list from. Pick a region input, or type its name.',
     provider:
@@ -816,8 +750,7 @@ export const INPUTS_EDITOR_STRINGS = {
     multi: 'Let users pick more than one.',
     includeWorkspace: 'Also offer the user’s own workspace.',
     includeUnprovisioned: 'Also offer clusters that aren’t running yet.',
-    generateCredentials:
-      'Create credentials for the bucket and pass them to the run with it.',
+    generateCredentials: 'Create credentials for the bucket and pass them to the run with it.',
     resource: 'The input where users pick the cluster to list from.',
     account:
       'The input where users pick the Slurm account. Only what that account can use is listed.',

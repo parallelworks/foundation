@@ -1,15 +1,14 @@
 import cx from 'classnames'
-import { ChevronRightIcon, LoaderIcon } from '../icons'
-import { LogViewer } from '../logviewer'
-
-import { motion, AnimatePresence } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import { DateTime } from 'luxon'
-import { useMemo, useCallback, useId, useState } from 'react'
-import { toAbsHumanDuration } from '../duration'
-import type { WorkflowJob as Job, WorkflowStep as Step } from './types'
-import { formatJobLabel } from './jobLabel'
+import { useCallback, useId, useMemo, useState } from 'react'
 import { Indicator } from '../components/Indicator'
 import { useRunFile, useSlots, useWorkflowEngine } from '../components/Provider'
+import { toAbsHumanDuration } from '../duration'
+import { ChevronRightIcon, LoaderIcon } from '../icons'
+import { LogViewer } from '../logviewer'
+import { formatJobLabel } from './jobLabel'
+import type { WorkflowJob as Job, WorkflowStep as Step } from './types'
 
 interface TreeViewProps {
   jobs: Record<string, Job>
@@ -25,9 +24,7 @@ function getStepDuration(step: Step): string {
     return ''
   }
   const start = DateTime.fromISO(step.startedAt)
-  const end = step.completedAt
-    ? DateTime.fromISO(step.completedAt)
-    : DateTime.now()
+  const end = step.completedAt ? DateTime.fromISO(step.completedAt) : DateTime.now()
   return toAbsHumanDuration(start, end)
 }
 
@@ -36,9 +33,7 @@ function getJobDuration(job: Job): string {
     return ''
   }
   const start = DateTime.fromISO(job.startedAt)
-  const end = job.completedAt
-    ? DateTime.fromISO(job.completedAt)
-    : DateTime.now()
+  const end = job.completedAt ? DateTime.fromISO(job.completedAt) : DateTime.now()
   return toAbsHumanDuration(start, end)
 }
 
@@ -54,16 +49,12 @@ function InlineLogViewer({
 }) {
   const engine = useWorkflowEngine()
   const logPath = engine.stepLogPath('', jobName, stepIndex)
-  const {
-    data: logs,
-    isLoading,
-    error,
-  } = useRunFile(slug, logPath, { refreshInterval: 2000 })
+  const { data: logs, isLoading, error } = useRunFile(slug, logPath, { refreshInterval: 2000 })
 
   if (isLoading && !logs) {
     return (
-      <div className='flex items-center gap-2 px-5 py-4 text-sm text-[var(--theme-muted-text-color)]'>
-        <LoaderIcon className='w-4 h-4' />
+      <div className="flex items-center gap-2 px-5 py-4 text-sm text-[var(--theme-muted-text-color)]">
+        <LoaderIcon className="w-4 h-4" />
         <span>Loading logs...</span>
       </div>
     )
@@ -71,20 +62,20 @@ function InlineLogViewer({
 
   if (error || !logs) {
     return (
-      <div className='px-5 py-4 text-sm text-[var(--theme-muted-text-color)] italic'>
+      <div className="px-5 py-4 text-sm text-[var(--theme-muted-text-color)] italic">
         No logs available
       </div>
     )
   }
 
   return (
-    <div className='border-t border-[var(--theme-border)] '>
+    <div className="border-t border-[var(--theme-border)] ">
       <LogViewer
         log={logs}
-        width='100%'
-        height='unset'
+        width="100%"
+        height="unset"
         inline
-        contentClassName='bg-[var(--theme-app-bg)]'
+        contentClassName="bg-[var(--theme-app-bg)]"
         enableWorkflowCommands
       />
     </div>
@@ -123,10 +114,10 @@ function JobRow({
   const panelId = useId()
 
   return (
-    <div className='border-b border-[var(--theme-border)] last:border-b-0'>
+    <div className="border-b border-[var(--theme-border)] last:border-b-0">
       {/* Job Header */}
       <button
-        type='button'
+        type="button"
         aria-expanded={isExpanded}
         aria-controls={hasSteps ? panelId : undefined}
         className={cx(
@@ -134,7 +125,7 @@ function JobRow({
           job.status === 'skipped' || job.status === 'skipped-failed'
             ? 'cursor-default'
             : 'cursor-pointer',
-          isExpanded && 'bg-[var(--theme-panel-bg)]'
+          isExpanded && 'bg-[var(--theme-panel-bg)]',
         )}
         onClick={onToggle}
       >
@@ -144,14 +135,11 @@ function JobRow({
           transition={{ duration: 0.15 }}
           className={cx(
             'flex-shrink-0',
-            hasSteps ? 'text-[var(--theme-muted-text-color)]' : 'invisible'
+            hasSteps ? 'text-[var(--theme-muted-text-color)]' : 'invisible',
           )}
         >
           <ChevronRightIcon
-            className={cx(
-              'w-4 h-4',
-              isExpanded && 'text-[var(--theme-element)]'
-            )}
+            className={cx('w-4 h-4', isExpanded && 'text-[var(--theme-element)]')}
           />
         </motion.div>
 
@@ -159,19 +147,17 @@ function JobRow({
         <Indicator status={job.status} />
 
         {/* Job Info */}
-        <div className='flex flex-col gap-1 min-w-0 flex-1'>
-          <span className='font-mono text-sm text-[var(--theme-app)] truncate'>
+        <div className="flex flex-col gap-1 min-w-0 flex-1">
+          <span className="font-mono text-sm text-[var(--theme-app)] truncate">
             {formatJobLabel(jobName, job)}
           </span>
           {dependencies && dependencies.length > 0 && (
-            <div className='flex items-center gap-1.5'>
-              <span className='text-[10px] text-[var(--theme-muted-text-color)]'>
-                depends on:
-              </span>
-              {dependencies.map(dep => (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-[var(--theme-muted-text-color)]">depends on:</span>
+              {dependencies.map((dep) => (
                 <span
                   key={dep}
-                  className='text-[10px] px-1.5 py-0.5 rounded bg-[var(--theme-muted-panel-bg)] text-[var(--theme-muted-text-color)]'
+                  className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--theme-muted-panel-bg)] text-[var(--theme-muted-text-color)]"
                 >
                   {formatJobLabel(dep)}
                 </span>
@@ -181,11 +167,11 @@ function JobRow({
         </div>
 
         {/* Spacer */}
-        <div className='flex-1' />
+        <div className="flex-1" />
 
         {/* Duration */}
         {duration && (
-          <span className='font-mono text-xs text-[var(--theme-muted-text-color)] flex-shrink-0'>
+          <span className="font-mono text-xs text-[var(--theme-muted-text-color)] flex-shrink-0">
             {duration}
           </span>
         )}
@@ -199,10 +185,10 @@ function JobRow({
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
-            className='overflow-hidden'
+            className="overflow-hidden"
             id={panelId}
           >
-            <div className='ml-[38px] border-l-2 border-[var(--theme-border)]'>
+            <div className="ml-[38px] border-l-2 border-[var(--theme-border)]">
               {job.steps.map((step, index) => {
                 const stepKey = `${jobName}:${index}`
                 const isStepExpanded = expandedSteps.has(stepKey)
@@ -269,9 +255,7 @@ function StepRow({
   // Get subworkflow jobs if this is a subworkflow step
   const subworkflowJobs = step.subworkflow?.jobs ?? null
   const subworkflowJobNames = subworkflowJobs
-    ? Object.keys(subworkflowJobs).filter(
-        name => subworkflowJobs[name]?.if !== false
-      )
+    ? Object.keys(subworkflowJobs).filter((name) => subworkflowJobs[name]?.if !== false)
     : []
 
   // Build dependencies map for subworkflow
@@ -292,12 +276,12 @@ function StepRow({
   return (
     <div>
       <button
-        type='button'
+        type="button"
         aria-expanded={isExpanded}
         aria-controls={panelId}
         className={cx(
           'flex items-center gap-3 px-5 py-2.5 cursor-pointer transition-colors w-full text-left',
-          isExpanded ? '' : 'hover:bg-[var(--theme-hover)]'
+          isExpanded ? '' : 'hover:bg-[var(--theme-hover)]',
         )}
         onClick={onToggle}
       >
@@ -305,13 +289,10 @@ function StepRow({
         <motion.div
           animate={{ rotate: isExpanded ? 90 : 0 }}
           transition={{ duration: 0.15 }}
-          className='flex-shrink-0 text-[var(--theme-muted-text-color)]'
+          className="flex-shrink-0 text-[var(--theme-muted-text-color)]"
         >
           <ChevronRightIcon
-            className={cx(
-              'w-4 h-4',
-              isExpanded && 'text-[var(--theme-element)]'
-            )}
+            className={cx('w-4 h-4', isExpanded && 'text-[var(--theme-element)]')}
           />
         </motion.div>
 
@@ -327,18 +308,16 @@ function StepRow({
           })}
 
         {/* Step Name */}
-        <span className='font-mono text-sm text-[var(--theme-app)] truncate flex-1'>
+        <span className="font-mono text-sm text-[var(--theme-app)] truncate flex-1">
           {label}
           {isSubworkflow && (
-            <span className='ml-2 text-xs text-[var(--theme-muted-text-color)]'>
-              (subworkflow)
-            </span>
+            <span className="ml-2 text-xs text-[var(--theme-muted-text-color)]">(subworkflow)</span>
           )}
         </span>
 
         {/* Duration */}
         {duration && (
-          <span className='font-mono text-xs text-[var(--theme-muted-text-color)] flex-shrink-0'>
+          <span className="font-mono text-xs text-[var(--theme-muted-text-color)] flex-shrink-0">
             {duration}
           </span>
         )}
@@ -352,7 +331,7 @@ function StepRow({
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
-            className='overflow-hidden'
+            className="overflow-hidden"
             id={panelId}
           >
             <InlineLogViewer slug={slug} jobName={jobName} stepIndex={index} />
@@ -368,11 +347,11 @@ function StepRow({
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
-            className='overflow-hidden'
+            className="overflow-hidden"
             id={panelId}
           >
-            <div className='ml-[38px] border-l-2 border-[var(--theme-border)]'>
-              {subworkflowJobNames.map(subJobName => {
+            <div className="ml-[38px] border-l-2 border-[var(--theme-border)]">
+              {subworkflowJobNames.map((subJobName) => {
                 const subJob = subworkflowJobs?.[subJobName]
                 if (!subJob) {
                   return null
@@ -446,10 +425,10 @@ function SubworkflowJobRow({
   const panelId = useId()
 
   return (
-    <div className='border-b border-[var(--theme-border)] last:border-b-0'>
+    <div className="border-b border-[var(--theme-border)] last:border-b-0">
       {/* Job Header */}
       <button
-        type='button'
+        type="button"
         aria-expanded={isExpanded}
         aria-controls={hasSteps ? panelId : undefined}
         className={cx(
@@ -457,7 +436,7 @@ function SubworkflowJobRow({
           job.status === 'skipped' || job.status === 'skipped-failed'
             ? 'cursor-default'
             : 'cursor-pointer',
-          isExpanded && 'bg-[var(--theme-panel-bg)]'
+          isExpanded && 'bg-[var(--theme-panel-bg)]',
         )}
         onClick={onToggle}
       >
@@ -467,14 +446,11 @@ function SubworkflowJobRow({
           transition={{ duration: 0.15 }}
           className={cx(
             'flex-shrink-0',
-            hasSteps ? 'text-[var(--theme-muted-text-color)]' : 'invisible'
+            hasSteps ? 'text-[var(--theme-muted-text-color)]' : 'invisible',
           )}
         >
           <ChevronRightIcon
-            className={cx(
-              'w-4 h-4',
-              isExpanded && 'text-[var(--theme-element)]'
-            )}
+            className={cx('w-4 h-4', isExpanded && 'text-[var(--theme-element)]')}
           />
         </motion.div>
 
@@ -482,19 +458,17 @@ function SubworkflowJobRow({
         <Indicator status={job.status} />
 
         {/* Job Info */}
-        <div className='flex flex-col gap-1 min-w-0 flex-1'>
-          <span className='font-mono text-sm text-[var(--theme-app)] truncate'>
+        <div className="flex flex-col gap-1 min-w-0 flex-1">
+          <span className="font-mono text-sm text-[var(--theme-app)] truncate">
             {formatJobLabel(jobName, job)}
           </span>
           {dependencies && dependencies.length > 0 && (
-            <div className='flex items-center gap-1.5'>
-              <span className='text-[10px] text-[var(--theme-muted-text-color)]'>
-                depends on:
-              </span>
-              {dependencies.map(dep => (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-[var(--theme-muted-text-color)]">depends on:</span>
+              {dependencies.map((dep) => (
                 <span
                   key={dep}
-                  className='text-[10px] px-1.5 py-0.5 rounded bg-[var(--theme-muted-panel-bg)] text-[var(--theme-muted-text-color)]'
+                  className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--theme-muted-panel-bg)] text-[var(--theme-muted-text-color)]"
                 >
                   {formatJobLabel(dep)}
                 </span>
@@ -504,11 +478,11 @@ function SubworkflowJobRow({
         </div>
 
         {/* Spacer */}
-        <div className='flex-1' />
+        <div className="flex-1" />
 
         {/* Duration */}
         {duration && (
-          <span className='font-mono text-xs text-[var(--theme-muted-text-color)] flex-shrink-0'>
+          <span className="font-mono text-xs text-[var(--theme-muted-text-color)] flex-shrink-0">
             {duration}
           </span>
         )}
@@ -522,10 +496,10 @@ function SubworkflowJobRow({
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
-            className='overflow-hidden'
+            className="overflow-hidden"
             id={panelId}
           >
-            <div className='ml-[38px] border-l-2 border-[var(--theme-border)]'>
+            <div className="ml-[38px] border-l-2 border-[var(--theme-border)]">
               {job.steps.map((step, index) => {
                 const stepKey = `${nestedSubworkflowPrefix}${jobName}:${index}`
                 const isStepExpanded = expandedSteps.has(stepKey)
@@ -593,9 +567,7 @@ function SubworkflowStepRow({
   // Get subworkflow jobs if this is a subworkflow step
   const subworkflowJobs = step.subworkflow?.jobs ?? null
   const subworkflowJobNames = subworkflowJobs
-    ? Object.keys(subworkflowJobs).filter(
-        name => subworkflowJobs[name]?.if !== false
-      )
+    ? Object.keys(subworkflowJobs).filter((name) => subworkflowJobs[name]?.if !== false)
     : []
 
   // Build dependencies map for subworkflow
@@ -616,12 +588,12 @@ function SubworkflowStepRow({
   return (
     <div>
       <button
-        type='button'
+        type="button"
         aria-expanded={isExpanded}
         aria-controls={panelId}
         className={cx(
           'flex items-center gap-3 px-5 py-2.5 cursor-pointer transition-colors w-full text-left',
-          isExpanded ? '' : 'hover:bg-[var(--theme-hover)]'
+          isExpanded ? '' : 'hover:bg-[var(--theme-hover)]',
         )}
         onClick={onToggle}
       >
@@ -629,13 +601,10 @@ function SubworkflowStepRow({
         <motion.div
           animate={{ rotate: isExpanded ? 90 : 0 }}
           transition={{ duration: 0.15 }}
-          className='flex-shrink-0 text-[var(--theme-muted-text-color)]'
+          className="flex-shrink-0 text-[var(--theme-muted-text-color)]"
         >
           <ChevronRightIcon
-            className={cx(
-              'w-4 h-4',
-              isExpanded && 'text-[var(--theme-element)]'
-            )}
+            className={cx('w-4 h-4', isExpanded && 'text-[var(--theme-element)]')}
           />
         </motion.div>
 
@@ -651,18 +620,16 @@ function SubworkflowStepRow({
           })}
 
         {/* Step Name */}
-        <span className='font-mono text-sm text-[var(--theme-app)] truncate flex-1'>
+        <span className="font-mono text-sm text-[var(--theme-app)] truncate flex-1">
           {label}
           {isSubworkflow && (
-            <span className='ml-2 text-xs text-[var(--theme-muted-text-color)]'>
-              (subworkflow)
-            </span>
+            <span className="ml-2 text-xs text-[var(--theme-muted-text-color)]">(subworkflow)</span>
           )}
         </span>
 
         {/* Duration */}
         {duration && (
-          <span className='font-mono text-xs text-[var(--theme-muted-text-color)] flex-shrink-0'>
+          <span className="font-mono text-xs text-[var(--theme-muted-text-color)] flex-shrink-0">
             {duration}
           </span>
         )}
@@ -676,7 +643,7 @@ function SubworkflowStepRow({
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
-            className='overflow-hidden'
+            className="overflow-hidden"
             id={panelId}
           >
             <SubworkflowInlineLogViewer
@@ -697,11 +664,11 @@ function SubworkflowStepRow({
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
-            className='overflow-hidden'
+            className="overflow-hidden"
             id={panelId}
           >
-            <div className='ml-[38px] border-l-2 border-[var(--theme-border)]'>
-              {subworkflowJobNames.map(subJobName => {
+            <div className="ml-[38px] border-l-2 border-[var(--theme-border)]">
+              {subworkflowJobNames.map((subJobName) => {
                 const subJob = subworkflowJobs?.[subJobName]
                 if (!subJob) {
                   return null
@@ -750,16 +717,12 @@ function SubworkflowInlineLogViewer({
 }) {
   const engine = useWorkflowEngine()
   const logPath = engine.stepLogPath(subworkflowPrefix, jobName, stepIndex)
-  const {
-    data: logs,
-    isLoading,
-    error,
-  } = useRunFile(slug, logPath, { refreshInterval: 2000 })
+  const { data: logs, isLoading, error } = useRunFile(slug, logPath, { refreshInterval: 2000 })
 
   if (isLoading && !logs) {
     return (
-      <div className='flex items-center gap-2 px-5 py-4 text-sm text-[var(--theme-muted-text-color)]'>
-        <LoaderIcon className='w-4 h-4' />
+      <div className="flex items-center gap-2 px-5 py-4 text-sm text-[var(--theme-muted-text-color)]">
+        <LoaderIcon className="w-4 h-4" />
         <span>Loading logs...</span>
       </div>
     )
@@ -767,20 +730,20 @@ function SubworkflowInlineLogViewer({
 
   if (error || !logs) {
     return (
-      <div className='px-5 py-4 text-sm text-[var(--theme-muted-text-color)] italic'>
+      <div className="px-5 py-4 text-sm text-[var(--theme-muted-text-color)] italic">
         No logs available
       </div>
     )
   }
 
   return (
-    <div className='border-t border-[var(--theme-border)]'>
+    <div className="border-t border-[var(--theme-border)]">
       <LogViewer
         log={logs}
-        width='100%'
-        height='unset'
+        width="100%"
+        height="unset"
         inline
-        contentClassName='bg-[var(--theme-app-bg)]'
+        contentClassName="bg-[var(--theme-app-bg)]"
         enableWorkflowCommands
       />
     </div>
@@ -798,13 +761,11 @@ export default function TreeView({
   const engine = useWorkflowEngine()
   // Filter out jobs with if === false (same logic as DAG view)
   const visibleJobNames = useMemo(() => {
-    return Object.keys(jobs).filter(jobName => jobs[jobName]?.if !== false)
+    return Object.keys(jobs).filter((jobName) => jobs[jobName]?.if !== false)
   }, [jobs])
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set())
   // Track expanded subworkflow jobs separately
-  const [expandedSubworkflowJobs, setExpandedSubworkflowJobs] = useState<
-    Set<string>
-  >(new Set())
+  const [expandedSubworkflowJobs, setExpandedSubworkflowJobs] = useState<Set<string>>(new Set())
 
   const toggleJob = useCallback(
     (jobName: string) => {
@@ -820,11 +781,11 @@ export default function TreeView({
       }
       setExpandedJobs(newExpanded)
     },
-    [expandedJobs, setExpandedJobs, jobs]
+    [expandedJobs, setExpandedJobs, jobs],
   )
 
   const toggleSubworkflowJob = useCallback((jobKey: string) => {
-    setExpandedSubworkflowJobs(prev => {
+    setExpandedSubworkflowJobs((prev) => {
       const newSet = new Set(prev)
       if (newSet.has(jobKey)) {
         newSet.delete(jobKey)
@@ -836,7 +797,7 @@ export default function TreeView({
   }, [])
 
   const toggleStep = useCallback((stepKey: string) => {
-    setExpandedSteps(prev => {
+    setExpandedSteps((prev) => {
       const newSet = new Set(prev)
       if (newSet.has(stepKey)) {
         newSet.delete(stepKey)
@@ -872,13 +833,13 @@ export default function TreeView({
   }, [jobs, visibleJobNames])
 
   return (
-    <div className='flex flex-col'>
+    <div className="flex flex-col">
       {/* Expand/Collapse All Button Header */}
-      <div className='flex justify-end px-4 py-2 border-b border-[var(--theme-border)]'>
+      <div className="flex justify-end px-4 py-2 border-b border-[var(--theme-border)]">
         <button
-          type='button'
+          type="button"
           onClick={allExpanded ? collapseAll : expandAll}
-          className='text-xs font-mono text-[var(--theme-muted-text-color)] hover:text-[var(--theme-app)] transition-colors px-3 py-1.5 border border-[var(--theme-border)] rounded'
+          className="text-xs font-mono text-[var(--theme-muted-text-color)] hover:text-[var(--theme-app)] transition-colors px-3 py-1.5 border border-[var(--theme-border)] rounded"
         >
           {allExpanded ? 'Collapse all' : 'Expand all'}
         </button>
@@ -888,10 +849,7 @@ export default function TreeView({
       <div>
         {(() => {
           // Group matrix jobs under headers
-          const matrixGroups: Record<
-            string,
-            { members: string[]; originaljob: string }
-          > = {}
+          const matrixGroups: Record<string, { members: string[]; originaljob: string }> = {}
           for (const jobName of visibleJobNames) {
             const matrix = jobs[jobName]?._matrix
             if (matrix?.originaljob) {
@@ -905,8 +863,7 @@ export default function TreeView({
           // Sort members by index
           for (const group of Object.values(matrixGroups)) {
             group.members.sort(
-              (a, b) =>
-                (jobs[a]?._matrix?.index ?? 0) - (jobs[b]?._matrix?.index ?? 0)
+              (a, b) => (jobs[a]?._matrix?.index ?? 0) - (jobs[b]?._matrix?.index ?? 0),
             )
           }
 
@@ -916,10 +873,7 @@ export default function TreeView({
           for (const jobName of visibleJobNames) {
             const matrixOrigin = jobs[jobName]?._matrix?.originaljob
             // A matrix that ran as one job lists as that job.
-            if (
-              matrixOrigin &&
-              (matrixGroups[matrixOrigin]?.members.length ?? 0) > 1
-            ) {
+            if (matrixOrigin && (matrixGroups[matrixOrigin]?.members.length ?? 0) > 1) {
               if (seenMatrixGroups.has(matrixOrigin)) {
                 continue
               }
@@ -930,35 +884,30 @@ export default function TreeView({
               }
               const isGroupExpanded = expandedJobs.has(`matrix:${matrixOrigin}`)
               // Compute aggregate status
-              const { aggStatus } = engine.matrixStatus(
-                group.members.map(m => jobs[m]?.status)
-              )
+              const { aggStatus } = engine.matrixStatus(group.members.map((m) => jobs[m]?.status))
               rendered.push(
                 <div
                   key={`matrix-${matrixOrigin}`}
-                  className='border-b border-[var(--theme-border)]'
+                  className="border-b border-[var(--theme-border)]"
                 >
                   <button
-                    type='button'
+                    type="button"
                     aria-expanded={isGroupExpanded}
                     aria-controls={`matrix-panel-${matrixOrigin}`}
-                    className='flex items-center gap-3 px-5 py-3 cursor-pointer transition-colors w-full text-left'
+                    className="flex items-center gap-3 px-5 py-3 cursor-pointer transition-colors w-full text-left"
                     onClick={() => toggleJob(`matrix:${matrixOrigin}`)}
                   >
                     <motion.div
                       animate={{ rotate: isGroupExpanded ? 90 : 0 }}
                       transition={{ duration: 0.15 }}
-                      className='flex-shrink-0 text-[var(--theme-muted-text-color)]'
+                      className="flex-shrink-0 text-[var(--theme-muted-text-color)]"
                     >
                       <ChevronRightIcon
-                        className={cx(
-                          'w-4 h-4',
-                          isGroupExpanded && 'text-[var(--theme-element)]'
-                        )}
+                        className={cx('w-4 h-4', isGroupExpanded && 'text-[var(--theme-element)]')}
                       />
                     </motion.div>
                     <Indicator status={aggStatus} />
-                    <span className='font-mono text-sm text-[var(--theme-app)]'>
+                    <span className="font-mono text-sm text-[var(--theme-app)]">
                       Matrix: {matrixOrigin} ({group.members.length} jobs)
                     </span>
                   </button>
@@ -969,10 +918,10 @@ export default function TreeView({
                         animate={{ height: 'auto', opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
                         transition={{ duration: 0.15 }}
-                        className='overflow-hidden pl-4'
+                        className="overflow-hidden pl-4"
                         id={`matrix-panel-${matrixOrigin}`}
                       >
-                        {group.members.map(memberName => (
+                        {group.members.map((memberName) => (
                           <JobRow
                             key={memberName}
                             jobName={memberName}
@@ -992,7 +941,7 @@ export default function TreeView({
                       </motion.div>
                     )}
                   </AnimatePresence>
-                </div>
+                </div>,
               )
             } else {
               rendered.push(
@@ -1010,7 +959,7 @@ export default function TreeView({
                   onJobToggle={toggleSubworkflowJob}
                   expandedSteps={expandedSteps}
                   onStepToggle={toggleStep}
-                />
+                />,
               )
             }
           }

@@ -19,7 +19,7 @@ describe('RadioField', () => {
     let form: FormikProps<{ precision: string }> | undefined
     render(
       <Formik initialValues={{ precision: 'fp16' }} onSubmit={vi.fn()}>
-        {props => {
+        {(props) => {
           form = props
           return (
             <Form>
@@ -30,12 +30,12 @@ describe('RadioField', () => {
                   name: 'precision',
                   options: ['fp16', { label: 'Double', value: 'fp64' }],
                 }}
-                label='Precision'
+                label="Precision"
               />
             </Form>
           )
         }}
-      </Formik>
+      </Formik>,
     )
     expect(screen.getByRole('radio', { name: 'fp16' })).toBeChecked()
     expect(screen.getByText('fp16')).toHaveClass('capitalize')
@@ -48,23 +48,20 @@ describe('RadioField', () => {
     // The picked value comes back as text, whatever the default's type.
     let form: FormikProps<{ workers: number | string }> | undefined
     render(
-      <Formik<{ workers: number | string }>
-        initialValues={{ workers: 4 }}
-        onSubmit={vi.fn()}
-      >
-        {props => {
+      <Formik<{ workers: number | string }> initialValues={{ workers: 4 }} onSubmit={vi.fn()}>
+        {(props) => {
           form = props
           return (
             <Form>
               <RadioField
                 {...baseProps}
                 field={{ type: 'radio', name: 'workers', options: [1, 2, 4] }}
-                label='Workers'
+                label="Workers"
               />
             </Form>
           )
         }}
-      </Formik>
+      </Formik>,
     )
     expect(screen.getByRole('radio', { name: '4' })).toBeChecked()
     fireEvent.click(screen.getByRole('radio', { name: '2' }))

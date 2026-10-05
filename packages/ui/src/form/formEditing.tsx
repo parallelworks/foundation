@@ -1,9 +1,4 @@
-import {
-  type ComponentType,
-  createContext,
-  type ReactNode,
-  useContext,
-} from 'react'
+import { type ComponentType, createContext, type ReactNode, useContext } from 'react'
 
 /** Editing controls a form builder wraps around rendered fields. */
 export interface FormEditing {
@@ -38,9 +33,7 @@ export function EditingScope({
     return children
   }
   return (
-    <FormEditingContext.Provider
-      value={path ? { ...editing, parent: path } : null}
-    >
+    <FormEditingContext.Provider value={path ? { ...editing, parent: path } : null}>
       {children}
     </FormEditingContext.Provider>
   )

@@ -52,7 +52,7 @@ export default function RadioField(props: FieldComponentProps<IRadioField>) {
     >
       {({ labelId, describedBy }) => (
         <div
-          role='radiogroup'
+          role="radiogroup"
           aria-labelledby={labelId}
           aria-describedby={describedBy}
           aria-required={field.optional ? undefined : true}
@@ -61,21 +61,20 @@ export default function RadioField(props: FieldComponentProps<IRadioField>) {
             'flex py-1.5',
             field.optionLabelPosition === 'top'
               ? 'flex-col gap-2'
-              : 'flex-row flex-wrap gap-x-5 gap-y-2'
+              : 'flex-row flex-wrap gap-x-5 gap-y-2',
           )}
         >
-          {field.options?.map(raw => {
+          {field.options?.map((raw) => {
             const option = fieldOption(raw)
             // An option without a label of its own shows capitalized, as radio options always have.
-            const unlabelled =
-              typeof raw !== 'object' || raw.label === undefined
+            const unlabelled = typeof raw !== 'object' || raw.label === undefined
             return (
               <label
                 key={field.name + option.value}
                 htmlFor={`${uid}-${option.value}`}
                 className={cx(
                   'flex items-center gap-2',
-                  disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+                  disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer',
                 )}
               >
                 <input
@@ -83,10 +82,10 @@ export default function RadioField(props: FieldComponentProps<IRadioField>) {
                   className={cx(
                     'h-4 w-4',
                     disabled ? 'cursor-not-allowed' : 'cursor-pointer',
-                    missing && 'invalid'
+                    missing && 'invalid',
                   )}
                   name={field.name}
-                  type='radio'
+                  type="radio"
                   value={option.value}
                   checked={
                     fieldState.value !== undefined &&
@@ -98,9 +97,7 @@ export default function RadioField(props: FieldComponentProps<IRadioField>) {
                     handleChange(e.target.value)
                   }}
                 />
-                <span className={cx('theme-text', unlabelled && 'capitalize')}>
-                  {option.label}
-                </span>
+                <span className={cx('theme-text', unlabelled && 'capitalize')}>{option.label}</span>
               </label>
             )
           })}

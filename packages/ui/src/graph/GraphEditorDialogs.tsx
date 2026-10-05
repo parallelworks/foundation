@@ -1,4 +1,3 @@
-import cx from 'classnames'
 import {
   applyGraphEdit,
   batchOf,
@@ -9,17 +8,18 @@ import {
   jobYaml,
   linesAt,
   lintWorkflow,
+  loadYaml,
   needTarget,
   stepYaml,
 } from '@parallelworks/workflow-parser'
-import { loadYaml } from '@parallelworks/workflow-parser'
+import cx from 'classnames'
 import { type ReactNode, useId, useMemo, useRef, useState } from 'react'
-import type { NestedWorkflowText, UsesCompletions } from '../editor/Monaco'
-import { useLintContext, useLintReady } from '../editor/lintContext'
-import { JOB_YAML_PATH, STEP_YAML_PATH } from '../editor/settingsYaml'
 import { IconButton } from '../components/IconButton'
 import { fieldBoxClasses, Input } from '../components/Input'
 import { useStrings } from '../components/Provider'
+import { useLintContext, useLintReady } from '../editor/lintContext'
+import type { NestedWorkflowText, UsesCompletions } from '../editor/Monaco'
+import { JOB_YAML_PATH, STEP_YAML_PATH } from '../editor/settingsYaml'
 import { ArrowDownIcon, ArrowUpIcon, CloseIcon, TrashIcon } from '../icons'
 import {
   AddRowButton,
@@ -33,8 +33,8 @@ import {
   durationError,
   ENV_KEY,
   EXPRESSION,
-  expressionError,
   ExpressionToggle,
+  expressionError,
   FieldError,
   FieldLabel,
   type Flag,
@@ -44,29 +44,29 @@ import {
   isScalar,
   type Json,
   KeyValueEditor,
-  labelled,
   LabelledField,
+  labelled,
   type OpenOnAdd,
   orUndefined,
   parseCondition,
   parseCount,
   parseJson,
   parseScalar,
-  removeAt,
   type Row,
+  removeAt,
   rowsError,
   rowsFrom,
   rowsTo,
   Section,
   SectionMemory,
-  useSectionMemory,
   type Strings,
-  text,
   ToggleField,
+  text,
   updateAt,
+  useSectionMemory,
 } from './editorFields'
-import { expressionRefs } from './expressionRefs'
 import { editErrorText } from './editorStrings'
+import { expressionRefs } from './expressionRefs'
 import {
   FieldProblems,
   LintScope,
@@ -74,33 +74,20 @@ import {
   type ScopedProblem,
   useFieldProblems,
 } from './fieldProblems'
-import {
-  NO_SCOPED,
-  type ScopedProblems,
-  ViewSwitch,
-  YamlPane,
-  yamlProblem,
-} from './settingsViews'
 import { useNewInputs } from './InputDialog'
 import {
   ConditionField,
   FlagField,
-  type InputSource,
   InputRefSelect,
+  type InputSource,
   readRef,
   refExpression,
   refSuggestions,
   ScriptField,
   ValueOrInputField,
 } from './inputRefs'
-import {
-  UsesPicker,
-  usesKind,
-  WithEditor,
-  withDraftFrom,
-  withError,
-  withValue,
-} from './stepWith'
+import { NO_SCOPED, type ScopedProblems, ViewSwitch, YamlPane, yamlProblem } from './settingsViews'
+import { UsesPicker, usesKind, WithEditor, withDraftFrom, withError, withValue } from './stepWith'
 
 const SHELL = /^$|^(\/?([^/ ]+\/)*)?(bash|sh)( .*)?$/
 const OUTPUT_KEY = /^[a-zA-Z0-9_-]+$/
@@ -155,12 +142,7 @@ export const STEP_FIELDS = [
   'env',
   'ssh',
 ] as const
-export const RETRY_FIELDS = [
-  'max-retries',
-  'interval',
-  'timeout',
-  'clean-on-retry',
-] as const
+export const RETRY_FIELDS = ['max-retries', 'interval', 'timeout', 'clean-on-retry'] as const
 
 const CLUSTER_TYPES = ['compute-clusters', 'compute-resources']
 
@@ -168,13 +150,11 @@ type SshFields = Record<(typeof SSH_KEYS)[number], string>
 
 function sshFrom(value: unknown): SshFields {
   const record = asRecord(value)
-  return Object.fromEntries(
-    SSH_KEYS.map(key => [key, text(record[key])])
-  ) as SshFields
+  return Object.fromEntries(SSH_KEYS.map((key) => [key, text(record[key])])) as SshFields
 }
 
 function sshTo(fields: SshFields): Json | undefined {
-  const entries = SSH_KEYS.flatMap(key => {
+  const entries = SSH_KEYS.flatMap((key) => {
     const value = fields[key].trim()
     return value ? [[key, value] as const] : []
   })
@@ -182,7 +162,7 @@ function sshTo(fields: SshFields): Json | undefined {
 }
 
 function sshError(fields: SshFields, t: Strings): string | undefined {
-  const used = SSH_KEYS.some(key => fields[key].trim())
+  const used = SSH_KEYS.some((key) => fields[key].trim())
   // disconnect-timeout takes any string, as the schema does.
   return used && !fields.remoteHost.trim() ? t.remoteHostRequired : undefined
 }
@@ -217,11 +197,7 @@ function runsOnTo(fields: RunsOnFields): Json | undefined {
 const PARAM_KEY = /^[A-Za-z0-9_-]+$/
 
 // The engine refuses a job that sets both, and a compute environment needs both of its names.
-function runsOnError(
-  fields: RunsOnFields,
-  sshUsed: boolean,
-  t: Strings
-): string | undefined {
+function runsOnError(fields: RunsOnFields, sshUsed: boolean, t: Strings): string | undefined {
   if (!runsOnTo(fields)) {
     return undefined
   }
@@ -239,9 +215,7 @@ function sshHelp(key: (typeof SSH_KEYS)[number], t: Strings): string {
 }
 
 function sshLabel(key: (typeof SSH_KEYS)[number], t: Strings): string {
-  return key === 'disconnect-timeout'
-    ? t.fields.disconnectTimeout
-    : t.fields[key]
+  return key === 'disconnect-timeout' ? t.fields.disconnectTimeout : t.fields[key]
 }
 
 function SshEditor({
@@ -259,39 +233,37 @@ function SshEditor({
   const set = (key: (typeof SSH_KEYS)[number]) => (value: string) =>
     onChange({ ...fields, [key]: value })
   return (
-    <LintScope at='ssh'>
+    <LintScope at="ssh">
       <ValueOrInputField
         label={t.fields.remoteHost}
-        yamlKey='remoteHost'
+        yamlKey="remoteHost"
         description={t.help.remoteHost}
         value={fields.remoteHost}
         onChange={set('remoteHost')}
         source={source}
         types={CLUSTER_TYPES}
-        suffix='ip'
+        suffix="ip"
       />
       <ValueOrInputField
         label={t.fields.remoteUser}
-        yamlKey='remoteUser'
+        yamlKey="remoteUser"
         description={t.help.remoteUser}
         value={fields.remoteUser}
         onChange={set('remoteUser')}
         source={source}
         types={CLUSTER_TYPES}
-        suffix='user'
+        suffix="user"
       />
-      {(['jumpNodeHost', 'jumpNodeUser', 'disconnect-timeout'] as const).map(
-        key => (
-          <Input
-            key={key}
-            mono
-            {...labelled(sshLabel(key, t), key)}
-            description={sshHelp(key, t)}
-            value={fields[key]}
-            onChange={e => set(key)(e.target.value)}
-          />
-        )
-      )}
+      {(['jumpNodeHost', 'jumpNodeUser', 'disconnect-timeout'] as const).map((key) => (
+        <Input
+          key={key}
+          mono
+          {...labelled(sshLabel(key, t), key)}
+          description={sshHelp(key, t)}
+          value={fields[key]}
+          onChange={(e) => set(key)(e.target.value)}
+        />
+      ))}
       <FieldError message={error} />
     </LintScope>
   )
@@ -319,7 +291,7 @@ function EnvSection({
       open={rows.length > 0}
       alert={!!error}
     >
-      <LintScope at='env'>
+      <LintScope at="env">
         <KeyValueEditor
           lint
           rows={rows}
@@ -357,16 +329,15 @@ function outputsTo(rows: OutputRow[], job: string): Json | undefined {
     return undefined
   }
   return Object.fromEntries(
-    rows.map(row => [
+    rows.map((row) => [
       row.name.trim(),
-      row.custom ??
-        `\${{ needs.${job}.steps.${row.step}.outputs.${row.output.trim()} }}`,
-    ])
+      row.custom ?? `\${{ needs.${job}.steps.${row.step}.outputs.${row.output.trim()} }}`,
+    ]),
   )
 }
 
 function outputsError(rows: OutputRow[], t: Strings): string | undefined {
-  const names = rows.map(row => row.name.trim())
+  const names = rows.map((row) => row.name.trim())
   for (const [i, row] of rows.entries()) {
     if (!OUTPUT_KEY.test(names[i] ?? '')) {
       return t.invalidKey
@@ -377,10 +348,7 @@ function outputsError(rows: OutputRow[], t: Strings): string | undefined {
     if (row.custom !== undefined && !row.custom.trim()) {
       return t.required
     }
-    if (
-      row.custom === undefined &&
-      (!row.step || !OUTPUT_KEY.test(row.output.trim()))
-    ) {
+    if (row.custom === undefined && (!row.step || !OUTPUT_KEY.test(row.output.trim()))) {
       return t.outputNeedsStep
     }
   }
@@ -402,79 +370,77 @@ function OutputsEditor({
   const update = (i: number, patch: Partial<OutputRow>) =>
     onChange(rows.map((row, j) => (i === j ? { ...row, ...patch } : row)))
   return (
-    <div className='flex flex-col gap-2'>
-      {stepIds.length === 0 && (
-        <div className='text-xs theme-muted-text'>{t.noStepIds}</div>
-      )}
+    <div className="flex flex-col gap-2">
+      {stepIds.length === 0 && <div className="text-xs theme-muted-text">{t.noStepIds}</div>}
       {rows.map((row, i) => (
-        <div key={i} className='flex items-center gap-2'>
-          <div className='w-1/3'>
+        <div key={i} className="flex items-center gap-2">
+          <div className="w-1/3">
             <Input
               mono
               aria-label={t.outputName}
               placeholder={t.outputName}
               value={row.name}
-              onChange={e => update(i, { name: e.target.value })}
+              onChange={(e) => update(i, { name: e.target.value })}
             />
           </div>
           {row.custom !== undefined ? (
-            <div className='flex-1'>
+            <div className="flex-1">
               <Input
                 mono
                 aria-label={t.outputValue}
                 value={row.custom}
-                onChange={e => update(i, { custom: e.target.value })}
+                onChange={(e) => update(i, { custom: e.target.value })}
               />
             </div>
           ) : (
             <>
-              <div className='w-1/3'>
+              <div className="w-1/3">
                 <select
                   aria-label={t.outputStep}
                   value={row.step}
-                  onChange={e => update(i, { step: e.target.value })}
+                  onChange={(e) => update(i, { step: e.target.value })}
                   className={fieldBoxClasses}
                 >
-                  <option value='' disabled>
+                  <option value="" disabled>
                     {t.outputStep}
                   </option>
-                  {stepIds.map(id => (
+                  {stepIds.map((id) => (
                     <option key={id} value={id}>
                       {id}
                     </option>
                   ))}
                 </select>
               </div>
-              <div className='flex-1'>
+              <div className="flex-1">
                 <Input
                   mono
                   aria-label={t.outputKey}
                   placeholder={t.outputKey}
                   value={row.output}
-                  onChange={e => update(i, { output: e.target.value })}
+                  onChange={(e) => update(i, { output: e.target.value })}
                 />
               </div>
             </>
           )}
           <ExpressionToggle
             active={row.custom !== undefined}
-            onChange={on =>
+            onChange={(on) =>
               onChange(
                 rows.map((other, j) =>
                   j === i
                     ? on
                       ? { name: other.name, step: '', output: '', custom: '' }
                       : { name: other.name, step: stepIds[0] ?? '', output: '' }
-                    : other
-                )
+                    : other,
+                ),
               )
             }
           />
           <IconButton
-            icon={<CloseIcon className='h-4 w-4' />}
+            icon={<CloseIcon className="h-4 w-4" />}
             label={t.removeRow}
-            variant='ghost'
-            size='sm'
+            variant="ghost"
+            size="sm"
             onClick={() => onChange(removeAt(rows, i))}
           />
         </div>
@@ -482,9 +448,7 @@ function OutputsEditor({
       <FieldError message={error} />
       <AddRowButton
         label={t.addRow}
-        onClick={() =>
-          onChange([...rows, { name: '', step: stepIds[0] ?? '', output: '' }])
-        }
+        onClick={() => onChange([...rows, { name: '', step: stepIds[0] ?? '', output: '' }])}
       />
     </div>
   )
@@ -509,9 +473,7 @@ function matrixRowsFrom(matrix: unknown): MatrixRow[] {
       if (
         Array.isArray(values) &&
         values.every(
-          value =>
-            isScalar(value) &&
-            !(typeof value === 'string' && value.includes(','))
+          (value) => isScalar(value) && !(typeof value === 'string' && value.includes(',')),
         )
       ) {
         const joined = values.join(', ')
@@ -541,7 +503,7 @@ function matrixValues(row: MatrixRow): unknown {
   }
   return trimmed
     .split(',')
-    .map(value => value.trim())
+    .map((value) => value.trim())
     .filter(Boolean)
     .map(parseScalar)
 }
@@ -560,21 +522,17 @@ function matrixRowInvalid(row: MatrixRow, names: string[], i: number): boolean {
 }
 
 function entriesFrom(value: unknown): Row[][] {
-  return Array.isArray(value) ? value.map(entry => rowsFrom(entry)) : []
+  return Array.isArray(value) ? value.map((entry) => rowsFrom(entry)) : []
 }
 
 function entriesTo(entries: Row[][]): Json[] | undefined {
-  return entries.length > 0
-    ? entries.map(rows => rowsTo(rows, parseScalar) ?? {})
-    : undefined
+  return entries.length > 0 ? entries.map((rows) => rowsTo(rows, parseScalar) ?? {}) : undefined
 }
 
 function entriesError(entries: Row[][], t: Strings): string | undefined {
   for (const rows of entries) {
     const error =
-      rows.length === 0
-        ? t.invalidMatrixEntry
-        : rowsError(rows, MATRIX_KEY, t.invalidKey, t)
+      rows.length === 0 ? t.invalidMatrixEntry : rowsError(rows, MATRIX_KEY, t.invalidKey, t)
     if (error) {
       return error
     }
@@ -605,7 +563,7 @@ function MatrixEntries({
 }) {
   const { graphEditor: t } = useStrings()
   return (
-    <div className='flex flex-col gap-2'>
+    <div className="flex flex-col gap-2">
       <FieldLabel
         label={label}
         yamlKey={yamlKey}
@@ -613,7 +571,7 @@ function MatrixEntries({
         actions={
           <ExpressionToggle
             active={text !== undefined}
-            onChange={on => onText(on ? '' : undefined)}
+            onChange={(on) => onText(on ? '' : undefined)}
           />
         }
       />
@@ -623,24 +581,24 @@ function MatrixEntries({
           aria-label={label}
           value={text}
           error={error}
-          onChange={e => onText(e.target.value)}
+          onChange={(e) => onText(e.target.value)}
         />
       ) : (
         <>
           {entries.map((rows, i) => (
-            <div key={i} className='flex items-start gap-2'>
-              <div className='flex-1 rounded-md border theme-border p-2'>
+            <div key={i} className="flex items-start gap-2">
+              <div className="flex-1 rounded-md border theme-border p-2">
                 <KeyValueEditor
                   rows={rows}
-                  onChange={next => onChange(updateAt(entries, i, next))}
+                  onChange={(next) => onChange(updateAt(entries, i, next))}
                   error={undefined}
                 />
               </div>
               <IconButton
-                icon={<CloseIcon className='h-4 w-4' />}
+                icon={<CloseIcon className="h-4 w-4" />}
                 label={t.removeEntry}
-                variant='ghost'
-                size='sm'
+                variant="ghost"
+                size="sm"
                 onClick={() => onChange(removeAt(entries, i))}
               />
             </div>
@@ -673,27 +631,27 @@ function MatrixVariable({
   const [fromInput, setFromInput] = useState(ref !== null)
   const { create } = source
   return (
-    <div className='flex items-start gap-2'>
-      <div className='flex flex-1 flex-col gap-2 rounded-md border theme-border p-2'>
-        <div className='flex items-center gap-2'>
-          <div className='w-1/3'>
+    <div className="flex items-start gap-2">
+      <div className="flex flex-1 flex-col gap-2 rounded-md border theme-border p-2">
+        <div className="flex items-center gap-2">
+          <div className="w-1/3">
             <Input
               mono
               aria-label={t.matrixVariable}
               placeholder={t.matrixVariable}
               value={row.name}
-              onChange={e => onChange({ ...row, name: e.target.value })}
+              onChange={(e) => onChange({ ...row, name: e.target.value })}
             />
           </div>
-          <div className='flex-1'>
+          <div className="flex-1">
             <ChoiceButtons
-              size='xs'
+              size="xs"
               options={[
                 { value: 'values', label: t.matrixValuesListed },
                 { value: 'input', label: t.modeFromInput },
               ]}
               value={fromInput ? 'input' : 'values'}
-              onChange={mode => {
+              onChange={(mode) => {
                 setFromInput(mode === 'input')
                 onChange({ ...row, values: '', nested: false })
               }}
@@ -706,12 +664,12 @@ function MatrixVariable({
             types={['multi-dropdown', 'checkbox-group']}
             value={ref}
             label={t.matrixValues}
-            onChange={path => onChange({ ...row, values: refExpression(path) })}
+            onChange={(path) => onChange({ ...row, values: refExpression(path) })}
             {...(create
               ? {
                   onNew: () =>
-                    create('multi-dropdown', path =>
-                      onChange({ ...row, values: refExpression(path) })
+                    create('multi-dropdown', (path) =>
+                      onChange({ ...row, values: refExpression(path) }),
                     ),
                   newLabel: t.newInput,
                 }
@@ -724,15 +682,15 @@ function MatrixVariable({
             placeholder={t.matrixValues}
             value={row.values}
             title={row.nested ? t.jsonValue : undefined}
-            onChange={e => onChange({ ...row, values: e.target.value })}
+            onChange={(e) => onChange({ ...row, values: e.target.value })}
           />
         )}
       </div>
       <IconButton
-        icon={<CloseIcon className='h-4 w-4' />}
+        icon={<CloseIcon className="h-4 w-4" />}
         label={t.removeVariable}
-        variant='ghost'
-        size='sm'
+        variant="ghost"
+        size="sm"
         onClick={onRemove}
       />
     </div>
@@ -766,9 +724,7 @@ function JobForm({
 
   const [name, setName] = useState(job)
   const [needs, setNeeds] = useState<string[]>(() =>
-    Array.isArray(rawNeeds)
-      ? rawNeeds.filter((n): n is string => typeof n === 'string')
-      : []
+    Array.isArray(rawNeeds) ? rawNeeds.filter((n): n is string => typeof n === 'string') : [],
   )
   const [needsText, setNeedsText] = useState(needsExpression ?? '')
   const [needsTyped, setNeedsTyped] = useState(needsExpression !== undefined)
@@ -777,94 +733,62 @@ function JobForm({
   const rawRunsOn = original['runs-on']
   const [runsOn, setRunsOn] = useState(() => runsOnFrom(rawRunsOn))
   const [runsOnTyped, setRunsOnTyped] = useState(typeof rawRunsOn === 'string')
-  const [runsOnText, setRunsOnText] = useState(
-    typeof rawRunsOn === 'string' ? rawRunsOn : ''
-  )
-  const [workingDirectory, setWorkingDirectory] = useState(
-    text(original['working-directory'])
-  )
+  const [runsOnText, setRunsOnText] = useState(typeof rawRunsOn === 'string' ? rawRunsOn : '')
+  const [workingDirectory, setWorkingDirectory] = useState(text(original['working-directory']))
   const [timeout, setTimeoutText] = useState(text(original['timeout']))
   const [env, setEnv] = useState(() => rowsFrom(original['env'], false))
-  const [outputs, setOutputs] = useState(() =>
-    outputRowsFrom(original['outputs'], job)
-  )
-  const stepIds = (
-    Array.isArray(original['steps']) ? original['steps'] : []
-  ).flatMap(step => {
+  const [outputs, setOutputs] = useState(() => outputRowsFrom(original['outputs'], job))
+  const stepIds = (Array.isArray(original['steps']) ? original['steps'] : []).flatMap((step) => {
     const id = asRecord(step)['id']
     return typeof id === 'string' && id ? [id] : []
   })
   const [matrixOn, setMatrixOn] = useState(rawMatrix !== undefined)
   const [matrixMode, setMatrixMode] = useState<'variables' | 'expression'>(
-    typeof rawMatrix === 'string' ? 'expression' : 'variables'
+    typeof rawMatrix === 'string' ? 'expression' : 'variables',
   )
-  const [matrixText, setMatrixText] = useState(
-    typeof rawMatrix === 'string' ? rawMatrix : ''
-  )
+  const [matrixText, setMatrixText] = useState(typeof rawMatrix === 'string' ? rawMatrix : '')
   const [matrixRows, setMatrixRows] = useState(() => matrixRowsFrom(rawMatrix))
-  const [include, setInclude] = useState(() =>
-    entriesFrom(matrixRecord['include'])
-  )
-  const [exclude, setExclude] = useState(() =>
-    entriesFrom(matrixRecord['exclude'])
-  )
+  const [include, setInclude] = useState(() => entriesFrom(matrixRecord['include']))
+  const [exclude, setExclude] = useState(() => entriesFrom(matrixRecord['exclude']))
   // The schema also takes an expression for include or exclude, kept as written.
   const [includeText, setIncludeText] = useState(() =>
-    typeof matrixRecord['include'] === 'string'
-      ? matrixRecord['include']
-      : undefined
+    typeof matrixRecord['include'] === 'string' ? matrixRecord['include'] : undefined,
   )
   const [excludeText, setExcludeText] = useState(() =>
-    typeof matrixRecord['exclude'] === 'string'
-      ? matrixRecord['exclude']
-      : undefined
+    typeof matrixRecord['exclude'] === 'string' ? matrixRecord['exclude'] : undefined,
   )
-  const [failFast, setFailFast] = useState<Flag>(() =>
-    flagOf(strategy['fail-fast'])
-  )
+  const [failFast, setFailFast] = useState<Flag>(() => flagOf(strategy['fail-fast']))
   const [maxParallel, setMaxParallel] = useState(text(strategy['max-parallel']))
 
   const needsId = useId()
   const needsLint = useFieldProblems('needs', needsId)
-    .map(problem => problem.message)
+    .map((problem) => problem.message)
     .join(' ')
-  const others = Object.keys(jobs).filter(other => other !== job)
-  const missing = needs
-    .map(needTarget)
-    .filter(target => !Object.hasOwn(jobs, target))
+  const others = Object.keys(jobs).filter((other) => other !== job)
+  const missing = needs.map(needTarget).filter((target) => !Object.hasOwn(jobs, target))
   const allNeeds = jobNeeds(jobs)
   const isMatrixJob = (other: string) =>
     asRecord(asRecord(jobs[other])['strategy'])['matrix'] !== undefined
 
   const toggleNeed = (other: string, on: boolean) =>
-    setNeeds(current =>
-      on
-        ? [...current, other]
-        : current.filter(need => needTarget(need) !== other)
+    setNeeds((current) =>
+      on ? [...current, other] : current.filter((need) => needTarget(need) !== other),
     )
   const toggleAny = (other: string, any: boolean) =>
-    setNeeds(current =>
-      current.map(need =>
-        needTarget(need) === other ? (any ? `${other}:any` : other) : need
-      )
+    setNeeds((current) =>
+      current.map((need) => (needTarget(need) === other ? (any ? `${other}:any` : other) : need)),
     )
 
   const trimmedName = name.trim()
-  const matrixNames = matrixRows.map(row => row.name.trim())
+  const matrixNames = matrixRows.map((row) => row.name.trim())
   const matrixError = (): string | undefined => {
     if (!matrixOn) {
       return undefined
     }
     if (matrixMode === 'expression') {
-      return matrixText.trim()
-        ? expressionError(matrixText, t)
-        : t.invalidExpressionValue
+      return matrixText.trim() ? expressionError(matrixText, t) : t.invalidExpressionValue
     }
-    if (
-      matrixRows.length === 0 &&
-      include.length === 0 &&
-      includeText === undefined
-    ) {
+    if (matrixRows.length === 0 && include.length === 0 && includeText === undefined) {
       return t.matrixNeedsVariable
     }
     return matrixRows.some((row, i) => matrixRowInvalid(row, matrixNames, i))
@@ -909,18 +833,14 @@ function JobForm({
     if (!matrixOn) {
       return undefined
     }
-    const includeList =
-      includeText !== undefined ? orUndefined(includeText) : entriesTo(include)
-    const excludeList =
-      excludeText !== undefined ? orUndefined(excludeText) : entriesTo(exclude)
+    const includeList = includeText !== undefined ? orUndefined(includeText) : entriesTo(include)
+    const excludeList = excludeText !== undefined ? orUndefined(excludeText) : entriesTo(exclude)
     const next: Json = {
       matrix:
         matrixMode === 'expression'
           ? matrixText.trim()
           : {
-              ...Object.fromEntries(
-                matrixRows.map(row => [row.name.trim(), matrixValues(row)])
-              ),
+              ...Object.fromEntries(matrixRows.map((row) => [row.name.trim(), matrixValues(row)])),
               ...(includeList ? { include: includeList } : {}),
               ...(excludeList ? { exclude: excludeList } : {}),
             },
@@ -936,17 +856,13 @@ function JobForm({
   }
 
   const patch = diffPatch(original, {
-    needs: needsTyped
-      ? orUndefined(needsText)
-      : needs.length > 0
-        ? needs
-        : undefined,
+    needs: needsTyped ? orUndefined(needsText) : needs.length > 0 ? needs : undefined,
     if: parseCondition(condition),
     ssh: sshTo(ssh),
     'runs-on': runsOnTyped ? orUndefined(runsOnText) : runsOnTo(runsOn),
     'working-directory': orUndefined(workingDirectory),
     timeout: orUndefined(timeout),
-    env: rowsTo(env, value => value),
+    env: rowsTo(env, (value) => value),
     outputs: outputsTo(outputs, trimmedName),
     strategy: nextStrategy(),
   } satisfies Record<(typeof JOB_FIELDS)[number], unknown>)
@@ -954,9 +870,7 @@ function JobForm({
   const dirty = renamed || !isEmptyPatch(patch)
   const invalid = Object.values(errors).some(Boolean)
   const addVariableRow = () =>
-    setMatrixRows(rows =>
-      rows.length === 0 ? [{ name: 'value', values: '1, 2' }] : rows
-    )
+    setMatrixRows((rows) => (rows.length === 0 ? [{ name: 'value', values: '1, 2' }] : rows))
 
   const saveEdit = newInputs.save(
     dirty
@@ -966,7 +880,7 @@ function JobForm({
           ...(renamed ? { name: trimmedName } : {}),
           ...patch,
         }
-      : null
+      : null,
   )
   onDraft?.(saveEdit)
   const children = (
@@ -979,16 +893,14 @@ function JobForm({
         description={t.help.jobName}
         value={name}
         error={errors.name}
-        onChange={e => setName(e.target.value)}
+        onChange={(e) => setName(e.target.value)}
       />
       <Section title={t.sectionDependencies} open>
         <FieldLabel
           label={t.fields.needs}
-          yamlKey='needs'
+          yamlKey="needs"
           description={needsTyped ? t.help.needsExpression : t.help.needs}
-          actions={
-            <ExpressionToggle active={needsTyped} onChange={setNeedsTyped} />
-          }
+          actions={<ExpressionToggle active={needsTyped} onChange={setNeedsTyped} />}
         />
         {needsTyped ? (
           <Input
@@ -997,46 +909,44 @@ function JobForm({
             aria-label={t.fields.needs}
             value={needsText}
             error={errors.needs ?? (needsLint || undefined)}
-            onChange={e => setNeedsText(e.target.value)}
+            onChange={(e) => setNeedsText(e.target.value)}
           />
         ) : others.length === 0 ? (
-          <div className='text-xs theme-muted-text'>{t.noOtherJobs}</div>
+          <div className="text-xs theme-muted-text">{t.noOtherJobs}</div>
         ) : (
-          <div id={needsId} tabIndex={-1} className='flex flex-col gap-1.5'>
-            {[...others, ...missing].map(other => {
-              const entry = needs.find(need => needTarget(need) === other)
+          <div id={needsId} tabIndex={-1} className="flex flex-col gap-1.5">
+            {[...others, ...missing].map((other) => {
+              const entry = needs.find((need) => needTarget(need) === other)
               const cycle = !entry && dependsOn(allNeeds, other, job)
               return (
-                <div key={other} className='flex items-center gap-2 text-sm'>
+                <div key={other} className="flex items-center gap-2 text-sm">
                   <label
                     className={cx(
                       'flex flex-1 items-center gap-2',
-                      cycle ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                      cycle ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
                     )}
                     title={cycle ? t.dependsOnThisJob : undefined}
                   >
                     <input
-                      type='checkbox'
+                      type="checkbox"
                       checked={!!entry}
                       disabled={cycle}
-                      onChange={e => toggleNeed(other, e.target.checked)}
+                      onChange={(e) => toggleNeed(other, e.target.checked)}
                     />
-                    <span className='font-mono'>{other}</span>
+                    <span className="font-mono">{other}</span>
                     {!Object.hasOwn(jobs, other) && (
-                      <span className='text-xs text-(--theme-error)'>
-                        {t.missingJob}
-                      </span>
+                      <span className="text-xs text-(--theme-error)">{t.missingJob}</span>
                     )}
                   </label>
                   {entry && isMatrixJob(other) && (
                     <label
-                      className='flex cursor-pointer items-center gap-1.5 text-xs theme-muted-text'
+                      className="flex cursor-pointer items-center gap-1.5 text-xs theme-muted-text"
                       title={t.help.waitForAny}
                     >
                       <input
-                        type='checkbox'
+                        type="checkbox"
                         checked={entry.endsWith(':any')}
-                        onChange={e => toggleAny(other, e.target.checked)}
+                        onChange={(e) => toggleAny(other, e.target.checked)}
                       />
                       {t.waitForAny}
                     </label>
@@ -1048,9 +958,9 @@ function JobForm({
           </div>
         )}
         <ConditionField
-          scope='job'
+          scope="job"
           label={t.fields.condition}
-          yamlKey='if'
+          yamlKey="if"
           description={t.help.jobIf}
           value={condition}
           onChange={setCondition}
@@ -1063,12 +973,7 @@ function JobForm({
         open={!!sshTo(ssh)}
         alert={!!errors.ssh}
       >
-        <SshEditor
-          fields={ssh}
-          onChange={setSsh}
-          error={errors.ssh}
-          source={source}
-        />
+        <SshEditor fields={ssh} onChange={setSsh} error={errors.ssh} source={source} />
       </Section>
       <Section
         title={t.sectionComputeEnvironment}
@@ -1076,17 +981,12 @@ function JobForm({
         open={runsOnTyped ? !!runsOnText.trim() : !!runsOnTo(runsOn)}
         alert={!!errors.runsOn}
       >
-        <LintScope at='runs-on'>
+        <LintScope at="runs-on">
           <FieldLabel
             label={t.fields.runsOn}
-            yamlKey='runs-on'
+            yamlKey="runs-on"
             description={t.help.runsOn}
-            actions={
-              <ExpressionToggle
-                active={runsOnTyped}
-                onChange={setRunsOnTyped}
-              />
-            }
+            actions={<ExpressionToggle active={runsOnTyped} onChange={setRunsOnTyped} />}
           />
           {runsOnTyped ? (
             <Input
@@ -1094,7 +994,7 @@ function JobForm({
               aria-label={t.fields.runsOn}
               value={runsOnText}
               error={errors.runsOn}
-              onChange={e => setRunsOnText(e.target.value)}
+              onChange={(e) => setRunsOnText(e.target.value)}
             />
           ) : (
             <>
@@ -1103,25 +1003,23 @@ function JobForm({
                 {...labelled(t.fields.environmentCluster, 'cluster')}
                 description={t.help.environmentCluster}
                 value={runsOn.cluster}
-                onChange={e =>
-                  setRunsOn({ ...runsOn, cluster: e.target.value })
-                }
+                onChange={(e) => setRunsOn({ ...runsOn, cluster: e.target.value })}
               />
               <Input
                 mono
                 {...labelled(t.fields.environmentName, 'name')}
                 description={t.help.environmentName}
                 value={runsOn.name}
-                onChange={e => setRunsOn({ ...runsOn, name: e.target.value })}
+                onChange={(e) => setRunsOn({ ...runsOn, name: e.target.value })}
               />
               <LabelledField
                 label={t.fields.schedulingParams}
-                yamlKey='params'
+                yamlKey="params"
                 description={t.help.schedulingParams}
               >
                 <KeyValueEditor
                   rows={runsOn.params}
-                  onChange={params => setRunsOn({ ...runsOn, params })}
+                  onChange={(params) => setRunsOn({ ...runsOn, params })}
                   error={undefined}
                 />
               </LabelledField>
@@ -1145,10 +1043,10 @@ function JobForm({
       >
         <ToggleField
           label={t.fields.matrix}
-          yamlKey='strategy.matrix'
+          yamlKey="strategy.matrix"
           description={t.matrixOn}
           checked={matrixOn}
-          onChange={on => {
+          onChange={(on) => {
             setMatrixOn(on)
             if (on && matrixMode === 'variables') {
               addVariableRow()
@@ -1160,17 +1058,14 @@ function JobForm({
             {/* The schema takes only variables; an expression matrix can be turned into them. */}
             {typeof rawMatrix === 'string' && (
               <>
-                <FieldLabel
-                  label={t.fields.matrixSource}
-                  description={t.help.matrixMode}
-                />
+                <FieldLabel label={t.fields.matrixSource} description={t.help.matrixMode} />
                 <ChoiceButtons
                   options={[
                     { value: 'variables', label: t.matrixFromVariables },
                     { value: 'expression', label: t.matrixFromExpression },
                   ]}
                   value={matrixMode}
-                  onChange={mode => {
+                  onChange={(mode) => {
                     setMatrixMode(mode)
                     if (mode === 'variables') {
                       addVariableRow()
@@ -1186,34 +1081,28 @@ function JobForm({
                 description={t.help.matrixExpression}
                 value={matrixText}
                 error={errors.matrix}
-                onChange={e => setMatrixText(e.target.value)}
+                onChange={(e) => setMatrixText(e.target.value)}
               />
             ) : (
               <>
-                <div className='text-xs theme-muted-text'>
-                  {t.help.matrixVariables}
-                </div>
+                <div className="text-xs theme-muted-text">{t.help.matrixVariables}</div>
                 {matrixRows.map((row, i) => (
                   <MatrixVariable
                     key={i}
                     row={row}
                     source={source}
-                    onChange={next =>
-                      setMatrixRows(rows => updateAt(rows, i, next))
-                    }
-                    onRemove={() => setMatrixRows(rows => removeAt(rows, i))}
+                    onChange={(next) => setMatrixRows((rows) => updateAt(rows, i, next))}
+                    onRemove={() => setMatrixRows((rows) => removeAt(rows, i))}
                   />
                 ))}
                 <FieldError message={errors.matrix} />
                 <AddRowButton
                   label={t.addVariable}
-                  onClick={() =>
-                    setMatrixRows(rows => [...rows, { name: '', values: '' }])
-                  }
+                  onClick={() => setMatrixRows((rows) => [...rows, { name: '', values: '' }])}
                 />
                 <MatrixEntries
                   label={t.fields.include}
-                  yamlKey='include'
+                  yamlKey="include"
                   description={t.help.include}
                   entries={include}
                   onChange={setInclude}
@@ -1223,7 +1112,7 @@ function JobForm({
                 />
                 <MatrixEntries
                   label={t.fields.exclude}
-                  yamlKey='exclude'
+                  yamlKey="exclude"
                   description={t.help.exclude}
                   entries={exclude}
                   onChange={setExclude}
@@ -1235,7 +1124,7 @@ function JobForm({
             )}
             <FlagField
               label={t.fields.failFast}
-              yamlKey='fail-fast'
+              yamlKey="fail-fast"
               description={t.help.failFast}
               value={failFast}
               original={strategy['fail-fast']}
@@ -1249,7 +1138,7 @@ function JobForm({
               description={t.help.maxParallel}
               value={maxParallel}
               error={errors.maxParallel}
-              onChange={e => setMaxParallel(e.target.value)}
+              onChange={(e) => setMaxParallel(e.target.value)}
             />
           </>
         )}
@@ -1284,7 +1173,7 @@ function JobForm({
           {...labelled(t.fields.workingDirectory, 'working-directory')}
           description={t.help.jobWorkingDirectory}
           value={workingDirectory}
-          onChange={e => setWorkingDirectory(e.target.value)}
+          onChange={(e) => setWorkingDirectory(e.target.value)}
         />
         <Input
           mono
@@ -1292,7 +1181,7 @@ function JobForm({
           description={t.help.jobTimeout}
           value={timeout}
           error={errors.timeout}
-          onChange={e => setTimeoutText(e.target.value)}
+          onChange={(e) => setTimeoutText(e.target.value)}
         />
       </Section>
     </>
@@ -1342,49 +1231,34 @@ function StepForm({
   const retry = asRecord(rawRetry)
 
   const [name, setName] = useState(text(original['name']))
-  const [kind, setKind] = useState<'run' | 'uses'>(
-    original['uses'] !== undefined ? 'uses' : 'run'
-  )
+  const [kind, setKind] = useState<'run' | 'uses'>(original['uses'] !== undefined ? 'uses' : 'run')
   const [run, setRun] = useState(text(original['run']))
   const [shell, setShell] = useState(text(original['shell']))
   const [uses, setUses] = useState(text(original['uses']))
   const [initialWith] = useState(() => withDraftFrom(original['with']))
   const [withDraft, setWithDraft] = useState(initialWith)
   const [condition, setCondition] = useState(conditionText(original['if']))
-  const [workingDirectory, setWorkingDirectory] = useState(
-    text(original['working-directory'])
-  )
+  const [workingDirectory, setWorkingDirectory] = useState(text(original['working-directory']))
   const [id, setId] = useState(text(original['id']))
   const [timeout, setTimeoutText] = useState(text(original['timeout']))
-  const [ignoreErrors, setIgnoreErrors] = useState<Flag>(() =>
-    flagOf(original['ignore-errors'])
-  )
-  const [earlyCancel, setEarlyCancel] = useState(
-    original['early-cancel'] === 'any-job-failed'
-  )
+  const [ignoreErrors, setIgnoreErrors] = useState<Flag>(() => flagOf(original['ignore-errors']))
+  const [earlyCancel, setEarlyCancel] = useState(original['early-cancel'] === 'any-job-failed')
   const [cleanup, setCleanup] = useState(text(original['cleanup']))
   const [retryOn, setRetryOn] = useState(rawRetry !== undefined)
   const [maxRetries, setMaxRetries] = useState(text(retry['max-retries']))
   const [interval, setIntervalText] = useState(text(retry['interval']))
   const [retryTimeout, setRetryTimeout] = useState(text(retry['timeout']))
-  const [cleanOnRetry, setCleanOnRetry] = useState<Flag>(() =>
-    flagOf(retry['clean-on-retry'])
-  )
+  const [cleanOnRetry, setCleanOnRetry] = useState<Flag>(() => flagOf(retry['clean-on-retry']))
   const [env, setEnv] = useState(() => rowsFrom(original['env'], false))
   const [sshMode, setSshMode] = useState<SshMode>(
-    original['ssh'] === null
-      ? 'none'
-      : original['ssh'] !== undefined
-        ? 'custom'
-        : 'inherit'
+    original['ssh'] === null ? 'none' : original['ssh'] !== undefined ? 'custom' : 'inherit',
   )
   const [ssh, setSsh] = useState(() => sshFrom(original['ssh']))
 
   const trimmedUses = uses.trim()
   const errors = {
     run: kind === 'run' && !run.trim() ? t.required : undefined,
-    shell:
-      kind === 'run' && !SHELL.test(shell.trim()) ? t.invalidShell : undefined,
+    shell: kind === 'run' && !SHELL.test(shell.trim()) ? t.invalidShell : undefined,
     uses:
       kind !== 'uses'
         ? undefined
@@ -1393,10 +1267,7 @@ function StepForm({
           : usesKind(trimmedUses) === 'other'
             ? t.invalidUses
             : undefined,
-    with:
-      kind === 'uses'
-        ? withError(trimmedUses, withDraft, original['with'], t)
-        : undefined,
+    with: kind === 'uses' ? withError(trimmedUses, withDraft, original['with'], t) : undefined,
     id: id.trim() && !isValidJobName(id.trim()) ? t.invalidJobName : undefined,
     timeout: durationError(timeout, t),
     ignoreErrors: flagError(ignoreErrors, t),
@@ -1436,13 +1307,7 @@ function StepForm({
     uses: kind === 'uses' ? trimmedUses : undefined,
     with:
       kind === 'uses'
-        ? withValue(
-            trimmedUses,
-            withDraft,
-            initialWith,
-            text(original['uses']),
-            original['with']
-          )
+        ? withValue(trimmedUses, withDraft, initialWith, text(original['uses']), original['with'])
         : undefined,
     if: parseCondition(condition),
     'working-directory':
@@ -1455,13 +1320,8 @@ function StepForm({
     'early-cancel': earlyCancel ? 'any-job-failed' : undefined,
     cleanup: cleanup.trim() ? cleanup : undefined,
     retry: nextRetry(),
-    env: rowsTo(env, value => value),
-    ssh:
-      sshMode === 'inherit'
-        ? undefined
-        : sshMode === 'none'
-          ? null
-          : sshTo(ssh),
+    env: rowsTo(env, (value) => value),
+    ssh: sshMode === 'inherit' ? undefined : sshMode === 'none' ? null : sshTo(ssh),
   } satisfies Record<(typeof STEP_FIELDS)[number], unknown>)
   const dirty = !isEmptyPatch(patch)
   const invalid = Object.values(errors).some(Boolean)
@@ -1470,9 +1330,7 @@ function StepForm({
     onClose()
   }
 
-  const saveEdit = newInputs.save(
-    dirty ? { type: 'updateStep', job, index, ...patch } : null
-  )
+  const saveEdit = newInputs.save(dirty ? { type: 'updateStep', job, index, ...patch } : null)
   onDraft?.(saveEdit)
   const children = (
     <>
@@ -1482,9 +1340,9 @@ function StepForm({
         {...labelled(t.stepName, 'name')}
         description={t.help.stepName}
         value={name}
-        onChange={e => setName(e.target.value)}
+        onChange={(e) => setName(e.target.value)}
       />
-      <div className='text-xs theme-muted-text'>{t.help.stepKind}</div>
+      <div className="text-xs theme-muted-text">{t.help.stepKind}</div>
       <ChoiceButtons
         options={[
           { value: 'run', label: t.stepRun },
@@ -1496,7 +1354,7 @@ function StepForm({
       {kind === 'run' ? (
         <ScriptField
           label={t.fields.run}
-          yamlKey='run'
+          yamlKey="run"
           description={t.help.run}
           rows={8}
           value={run}
@@ -1528,7 +1386,7 @@ function StepForm({
       <Section title={t.sectionCleanup} open={!!cleanup.trim()}>
         <ScriptField
           label={t.fields.cleanup}
-          yamlKey='cleanup'
+          yamlKey="cleanup"
           description={t.help.cleanup}
           value={cleanup}
           onChange={setCleanup}
@@ -1537,15 +1395,13 @@ function StepForm({
       </Section>
       <Section
         title={t.sectionBehavior}
-        open={
-          !!condition || !!timeout || ignoreErrors !== undefined || earlyCancel
-        }
+        open={!!condition || !!timeout || ignoreErrors !== undefined || earlyCancel}
         alert={!!(errors.timeout || errors.ignoreErrors)}
       >
         <ConditionField
-          scope='step'
+          scope="step"
           label={t.fields.condition}
-          yamlKey='if'
+          yamlKey="if"
           description={t.help.stepIf}
           value={condition}
           onChange={setCondition}
@@ -1557,11 +1413,11 @@ function StepForm({
           description={t.help.stepTimeout}
           value={timeout}
           error={errors.timeout}
-          onChange={e => setTimeoutText(e.target.value)}
+          onChange={(e) => setTimeoutText(e.target.value)}
         />
         <FlagField
           label={t.fields.ignoreErrors}
-          yamlKey='ignore-errors'
+          yamlKey="ignore-errors"
           description={t.help.ignoreErrors}
           value={ignoreErrors}
           original={original['ignore-errors']}
@@ -1570,7 +1426,7 @@ function StepForm({
         />
         <ToggleField
           label={t.fields.earlyCancel}
-          yamlKey='early-cancel'
+          yamlKey="early-cancel"
           description={t.help.earlyCancel}
           checked={earlyCancel}
           onChange={setEarlyCancel}
@@ -1580,17 +1436,12 @@ function StepForm({
         title={t.sectionRetry}
         open={retryOn}
         alert={
-          !!(
-            errors.maxRetries ||
-            errors.interval ||
-            errors.retryTimeout ||
-            errors.cleanOnRetry
-          )
+          !!(errors.maxRetries || errors.interval || errors.retryTimeout || errors.cleanOnRetry)
         }
       >
         <ToggleField
           label={t.fields.retry}
-          yamlKey='retry'
+          yamlKey="retry"
           description={t.help.retry}
           checked={retryOn}
           onChange={setRetryOn}
@@ -1603,8 +1454,8 @@ function StepForm({
               description={t.help.maxRetries}
               value={maxRetries}
               error={errors.maxRetries}
-              placeholder='10'
-              onChange={e => setMaxRetries(e.target.value)}
+              placeholder="10"
+              onChange={(e) => setMaxRetries(e.target.value)}
             />
             <Input
               mono
@@ -1612,8 +1463,8 @@ function StepForm({
               description={t.help.retryInterval}
               value={interval}
               error={errors.interval}
-              placeholder='5s'
-              onChange={e => setIntervalText(e.target.value)}
+              placeholder="5s"
+              onChange={(e) => setIntervalText(e.target.value)}
             />
             <Input
               mono
@@ -1621,12 +1472,12 @@ function StepForm({
               description={t.help.retryTimeout}
               value={retryTimeout}
               error={errors.retryTimeout}
-              placeholder='30s'
-              onChange={e => setRetryTimeout(e.target.value)}
+              placeholder="30s"
+              onChange={(e) => setRetryTimeout(e.target.value)}
             />
             <FlagField
               label={t.fields.cleanOnRetry}
-              yamlKey='clean-on-retry'
+              yamlKey="clean-on-retry"
               description={t.help.cleanOnRetry}
               value={cleanOnRetry}
               original={retry['clean-on-retry']}
@@ -1644,7 +1495,7 @@ function StepForm({
         alert={!!errors.ssh}
       >
         <ChoiceButtons
-          size='xs'
+          size="xs"
           options={[
             { value: 'inherit', label: t.sshInherit },
             { value: 'custom', label: t.sshCustom },
@@ -1654,12 +1505,7 @@ function StepForm({
           onChange={setSshMode}
         />
         {sshMode === 'custom' && (
-          <SshEditor
-            fields={ssh}
-            onChange={setSsh}
-            error={errors.ssh}
-            source={source}
-          />
+          <SshEditor fields={ssh} onChange={setSsh} error={errors.ssh} source={source} />
         )}
       </Section>
       <EnvSection
@@ -1679,7 +1525,7 @@ function StepForm({
           {...labelled(t.fields.workingDirectory, 'working-directory')}
           description={t.help.stepWorkingDirectory}
           value={workingDirectory}
-          onChange={e => setWorkingDirectory(e.target.value)}
+          onChange={(e) => setWorkingDirectory(e.target.value)}
         />
         <Input
           mono
@@ -1687,7 +1533,7 @@ function StepForm({
           description={t.help.stepId}
           value={id}
           error={errors.id}
-          onChange={e => setId(e.target.value)}
+          onChange={(e) => setId(e.target.value)}
         />
         {kind === 'run' && (
           <Input
@@ -1696,8 +1542,8 @@ function StepForm({
             description={t.help.shell}
             value={shell}
             error={errors.shell}
-            placeholder='bash -e {0}'
-            onChange={e => setShell(e.target.value)}
+            placeholder="bash -e {0}"
+            onChange={(e) => setShell(e.target.value)}
           />
         )}
       </Section>
@@ -1718,33 +1564,27 @@ function StepForm({
     footerStart: (
       <>
         <IconButton
-          icon={<TrashIcon className='h-4 w-4' />}
+          icon={<TrashIcon className="h-4 w-4" />}
           label={t.deleteStep}
-          variant='ghost'
-          size='sm'
-          onClick={() =>
-            adding ? onClose() : edit({ type: 'deleteStep', job, index })
-          }
+          variant="ghost"
+          size="sm"
+          onClick={() => (adding ? onClose() : edit({ type: 'deleteStep', job, index }))}
         />
         <IconButton
-          icon={<ArrowUpIcon className='h-4 w-4' />}
+          icon={<ArrowUpIcon className="h-4 w-4" />}
           label={t.moveUp}
-          variant='ghost'
-          size='sm'
+          variant="ghost"
+          size="sm"
           disabled={dirty || pending || index === 0}
-          onClick={() =>
-            edit({ type: 'moveStep', job, from: index, to: index - 1 })
-          }
+          onClick={() => edit({ type: 'moveStep', job, from: index, to: index - 1 })}
         />
         <IconButton
-          icon={<ArrowDownIcon className='h-4 w-4' />}
+          icon={<ArrowDownIcon className="h-4 w-4" />}
           label={t.moveDown}
-          variant='ghost'
-          size='sm'
+          variant="ghost"
+          size="sm"
           disabled={dirty || pending || index >= steps.length - 1}
-          onClick={() =>
-            edit({ type: 'moveStep', job, from: index, to: index + 2 })
-          }
+          onClick={() => edit({ type: 'moveStep', job, from: index, to: index + 2 })}
         />
       </>
     ),
@@ -1772,7 +1612,7 @@ interface ViewProps {
 function openingYaml(
   view: SettingsView | undefined,
   source: string | undefined,
-  read: (source: string) => string
+  read: (source: string) => string,
 ): string | null {
   if (view === 'form' || source === undefined) {
     return null
@@ -1816,10 +1656,7 @@ export interface SettingsFormHooks {
 }
 
 function applyAll(text: string, edits: GraphEdit[]): string {
-  return edits.reduce(
-    (yml, edit) => applyGraphEdit({ yml, layout: undefined }, edit).yml,
-    text
-  )
+  return edits.reduce((yml, edit) => applyGraphEdit({ yml, layout: undefined }, edit).yml, text)
 }
 
 function renamedJob(edit: GraphEdit | null): string | undefined {
@@ -1840,7 +1677,7 @@ function useScopedProblems(
   whole: string | undefined,
   prefix: string[],
   fragment: string | null,
-  exclude: string[] = []
+  exclude: string[] = [],
 ): ScopedProblems {
   const ready = useLintReady()
   const context = useLintContext(whole)
@@ -1851,32 +1688,27 @@ function useScopedProblems(
     if (!ready || whole === undefined) {
       return NO_SCOPED
     }
-    const problems = lintWorkflow(whole, context).flatMap(
-      (problem): ScopedProblem[] => {
-        const path = problem.path.split('.')
-        if (
-          !prefix.every((segment, i) => path[i] === segment) ||
-          exclude.includes(path[prefix.length] ?? '')
-        ) {
-          return []
-        }
-        const at = path
-          .slice(prefix.length)
-          .map(segment => (/^\d+$/.test(segment) ? Number(segment) : segment))
-        return [{ at, message: problem.message, fix: problem.fix }]
+    const problems = lintWorkflow(whole, context).flatMap((problem): ScopedProblem[] => {
+      const path = problem.path.split('.')
+      if (
+        !prefix.every((segment, i) => path[i] === segment) ||
+        exclude.includes(path[prefix.length] ?? '')
+      ) {
+        return []
       }
-    )
+      const at = path
+        .slice(prefix.length)
+        .map((segment) => (/^\d+$/.test(segment) ? Number(segment) : segment))
+      return [{ at, message: problem.message, fix: problem.fix }]
+    })
     return {
       problems,
       markers:
         fragment === null
           ? []
-          : problems.map(problem => ({
+          : problems.map((problem) => ({
               message: problem.message,
-              line:
-                (problem.at.length > 0
-                  ? linesAt(fragment, problem.at)?.start
-                  : undefined) ?? 1,
+              line: (problem.at.length > 0 ? linesAt(fragment, problem.at)?.start : undefined) ?? 1,
             })),
     }
   }, [ready, whole, contextKey, scope, fragment, exclude.join()])
@@ -1899,14 +1731,12 @@ function useAddedGroups(start: string | undefined, committed: GraphEdit[]) {
       const on = asRecord(asRecord(text === undefined ? {} : loadYaml(text))['on'])
       return {
         ...asRecord(asRecord(on['execute'])['inputs']),
-        ...Object.fromEntries(
-          added.map(group => [group.name, group.definition])
-        ),
+        ...Object.fromEntries(added.map((group) => [group.name, group.definition])),
       }
     },
     addInputs: (name, definition) =>
-      setAdded(current => [
-        ...current.filter(group => group.name !== name),
+      setAdded((current) => [
+        ...current.filter((group) => group.name !== name),
         { name, definition },
       ]),
   }
@@ -1925,10 +1755,7 @@ function useAddedGroups(start: string | undefined, committed: GraphEdit[]) {
 }
 
 // Applies the dialog's edits, or nothing when they no longer apply, such as to half-typed YAML.
-function editedWorkflow(
-  start: string | undefined,
-  edits: GraphEdit[]
-): string | undefined {
+function editedWorkflow(start: string | undefined, edits: GraphEdit[]): string | undefined {
   if (start === undefined) {
     return undefined
   }
@@ -1962,18 +1789,14 @@ interface SettingsViewsOptions extends ViewProps {
   }
 }
 
-type FormHost = Required<
-  Pick<SettingsFormHooks, 'renderShell' | 'onDraft' | 'pending'>
->
+type FormHost = Required<Pick<SettingsFormHooks, 'renderShell' | 'onDraft' | 'pending'>>
 
 /** A dialog's settings in a form or as YAML, with the edits carried across a switch. */
 export function useSettingsViews(o: SettingsViewsOptions) {
   const { graphEditor: t } = useStrings()
   const sections = useSectionMemory()
   const [start] = useState(o.source)
-  const [opening] = useState(() =>
-    openingYaml(o.view, o.source, text => o.read(text, o.name))
-  )
+  const [opening] = useState(() => openingYaml(o.view, o.source, (text) => o.read(text, o.name)))
   const [committed, setCommitted] = useState<GraphEdit[]>([])
   const [name, setName] = useState(o.name)
   const [yamlName, setYamlName] = useState(o.name)
@@ -1991,24 +1814,19 @@ export function useSettingsViews(o: SettingsViewsOptions) {
     const seen = JSON.stringify(edit)
     if (seen !== lastDraft.current) {
       lastDraft.current = seen
-      window.setTimeout(() => setDrafts(n => n + 1), 0)
+      window.setTimeout(() => setDrafts((n) => n + 1), 0)
     }
   }
   const groups = useAddedGroups(start, committed)
-  const drafted = () =>
-    draft.current ? [...committed, draft.current] : committed
+  const drafted = () => (draft.current ? [...committed, draft.current] : committed)
   const withYaml = (text: string): GraphEdit[] =>
-    text === yamlAtStart
-      ? committed
-      : [...committed, ...groups.edits(text), o.write(name, text)]
+    text === yamlAtStart ? committed : [...committed, ...groups.edits(text), o.write(name, text)]
   const problemOf = (text: string) =>
     o.optional && !text.trim() ? undefined : yamlProblem(text, t)
   const nextName = yamlName.trim()
   const nameError = o.rename?.error(nextName, name)
   const withRename = (edits: GraphEdit[]): GraphEdit[] =>
-    o.rename && nextName !== name
-      ? [...edits, o.rename.edit(name, nextName)]
-      : edits
+    o.rename && nextName !== name ? [...edits, o.rename.edit(name, nextName)] : edits
   const edits = yaml !== null ? withYaml(yaml) : drafted()
   const editsKey = JSON.stringify(edits)
   // biome-ignore lint/correctness/useExhaustiveDependencies: the edits are compared by their content.
@@ -2021,7 +1839,7 @@ export function useSettingsViews(o: SettingsViewsOptions) {
       start !== undefined && committed.length > 0
         ? asRecord(loadYaml(applyAll(start, committed)))
         : null,
-    [start, committed]
+    [start, committed],
   )
   const save = (edits: GraphEdit[]) => {
     const edit = batchOf(o.addition ? [o.addition, ...edits] : edits)
@@ -2062,12 +1880,10 @@ export function useSettingsViews(o: SettingsViewsOptions) {
     setName(nextName)
     groups.clear()
     setYaml(null)
-    setVersion(current => current + 1)
+    setVersion((current) => current + 1)
     o.onViewChange?.('form')
   }
-  const switcher = (
-    <ViewSwitch yaml={yaml !== null} onForm={toForm} onYaml={toYaml} />
-  )
+  const switcher = <ViewSwitch yaml={yaml !== null} onForm={toForm} onYaml={toYaml} />
   const yamlDialog = (title: string, path: string, text: string) => (
     <DialogShell
       title={title}
@@ -2085,7 +1901,7 @@ export function useSettingsViews(o: SettingsViewsOptions) {
           description={o.rename.description}
           value={yamlName}
           error={nameError}
-          onChange={e => setYamlName(e.target.value)}
+          onChange={(e) => setYamlName(e.target.value)}
         />
       )}
       <YamlPane
@@ -2093,7 +1909,7 @@ export function useSettingsViews(o: SettingsViewsOptions) {
         completions={o.completions}
         nested={groups.nested}
         value={text}
-        onChange={next => {
+        onChange={(next) => {
           setYaml(next)
           setProblem(undefined)
         }}
@@ -2108,7 +1924,7 @@ export function useSettingsViews(o: SettingsViewsOptions) {
         {render({
           pending: committed.length > 0 || o.addition !== undefined,
           onDraft: trackDraft,
-          renderShell: shellProps => (
+          renderShell: (shellProps) => (
             <DialogShell
               {...shellProps}
               headerEnd={switcher}
@@ -2135,7 +1951,7 @@ export function JobDialog(props: JobDialogProps & ViewProps) {
     name: props.job,
     read: jobYaml,
     write: (job, yaml) => ({ type: 'setJobYaml', job, yaml }),
-    scope: job => ['jobs', job],
+    scope: (job) => ['jobs', job],
     rename: {
       label: t.jobName,
       description: t.help.jobName,
@@ -2156,7 +1972,7 @@ export function JobDialog(props: JobDialogProps & ViewProps) {
     return views.yamlDialog(t.editJob, JOB_YAML_PATH, views.yaml)
   }
   const { current } = views
-  return views.formDialog(host => (
+  return views.formDialog((host) => (
     <JobForm
       key={views.version}
       {...props}
@@ -2175,7 +1991,7 @@ export function StepDialog(props: StepDialogProps & ViewProps) {
   const views = useSettingsViews({
     ...props,
     name: job,
-    read: text => stepYaml(text, job, index),
+    read: (text) => stepYaml(text, job, index),
     write: (_, yaml) => ({ type: 'setStepYaml', job, index, yaml }),
     scope: () => ['jobs', job, 'steps', String(index)],
   })
@@ -2186,7 +2002,7 @@ export function StepDialog(props: StepDialogProps & ViewProps) {
     return views.yamlDialog(t.editStep, STEP_YAML_PATH, views.yaml)
   }
   const steps = asRecord(asRecord(views.current?.['jobs'])[job])['steps']
-  return views.formDialog(host => (
+  return views.formDialog((host) => (
     <StepForm
       key={views.version}
       {...props}

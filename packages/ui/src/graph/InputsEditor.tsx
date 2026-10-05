@@ -1,14 +1,15 @@
-import cx from 'classnames'
 import {
   type GraphEdit,
-  inputChildrenKey,
   type InputPath,
+  inputChildrenKey,
+  loadYaml,
   newInputName,
 } from '@parallelworks/workflow-parser'
+import cx from 'classnames'
 import {
   createContext,
-  type PointerEvent as ReactPointerEvent,
   type ReactNode,
+  type PointerEvent as ReactPointerEvent,
   useContext,
   useEffect,
   useMemo,
@@ -30,11 +31,7 @@ import {
   MoreIcon,
   TrashIcon,
 } from '../icons'
-import {
-  type MenuSearch,
-  type RowMenuItem,
-  useRowMenu,
-} from '../list/RowContextMenu'
+import { type MenuSearch, type RowMenuItem, useRowMenu } from '../list/RowContextMenu'
 import {
   AddChip,
   BarDivider,
@@ -42,30 +39,24 @@ import {
   createStore,
   DragLabel,
   EditorBar,
-  MarqueeBox,
   type Store as EditorStore,
+  MarqueeBox,
   trackDrag,
   useStore,
 } from './editorChrome'
 import { asRecord, type Json, openOnAddOf, text } from './editorFields'
-import { loadYaml } from '@parallelworks/workflow-parser'
-import {
-  type DependencyGraphEditor,
-  type EditorProblem,
-  overlaps,
-  typing,
-} from './GraphEditor'
-import { MOD_KEY, type ShortcutGroup } from './ShortcutsButton'
+import { type DependencyGraphEditor, type EditorProblem, overlaps, typing } from './GraphEditor'
 import {
   allNames,
   INPUT_TYPE_GROUPS,
-  type InputHome,
   InputDialog,
+  type InputHome,
   newInputDefinition,
   type PendingInput,
   TypeBadge,
   withCreatedInputs,
 } from './InputDialog'
+import { MOD_KEY, type ShortcutGroup } from './ShortcutsButton'
 
 type Dialog =
   | { kind: 'edit'; path: InputPath }
@@ -120,11 +111,7 @@ interface InputsEditorApi {
   remove: (path: InputPath) => void
   openMenu: (x: number, y: number, path: InputPath) => void
   openTypeMenu: (x: number, y: number, parent: InputPath, index: number) => void
-  startDrag: (
-    e: ReactPointerEvent,
-    path: InputPath | null,
-    label: string
-  ) => void
+  startDrag: (e: ReactPointerEvent, path: InputPath | null, label: string) => void
   /** Shows a line of the YAML, when the YAML editor is beside the form. */
   reveal: (line: number) => void
   /** Deletes the selected inputs, reporting whether any were. */
@@ -153,7 +140,7 @@ function containerAt(inputs: Json | undefined, parent: InputPath): Json {
 }
 
 function namesIn(container: Json): string[] {
-  return Object.keys(container).filter(name => name !== '$meta')
+  return Object.keys(container).filter((name) => name !== '$meta')
 }
 
 const key = (path: InputPath) => JSON.stringify(path)
@@ -163,10 +150,7 @@ function samePath(a: InputPath, b: InputPath): boolean {
 }
 
 function isInside(path: InputPath, ancestor: InputPath): boolean {
-  return (
-    path.length >= ancestor.length &&
-    ancestor.every((name, i) => path[i] === name)
-  )
+  return path.length >= ancestor.length && ancestor.every((name, i) => path[i] === name)
 }
 
 const below = (path: InputPath, ancestor: InputPath) =>
@@ -176,7 +160,7 @@ const pathOf = (rowKey: string) => JSON.parse(rowKey) as InputPath
 
 // An input inside another one listed goes wherever that one does.
 function outermost(paths: InputPath[]): InputPath[] {
-  return paths.filter(path => !paths.some(other => below(path, other)))
+  return paths.filter((path) => !paths.some((other) => below(path, other)))
 }
 
 function contains(rect: DOMRect, box: Box): boolean {
@@ -189,16 +173,13 @@ function contains(rect: DOMRect, box: Box): boolean {
 }
 
 // Presses on these keep their own meaning; elsewhere in the form shift selects.
-const CHROME =
-  '[data-input-chrome], [data-input-add], [role="menu"], [role="dialog"]'
+const CHROME = '[data-input-chrome], [data-input-add], [role="menu"], [role="dialog"]'
 
 function rowsIn(root: HTMLElement) {
-  return [...root.querySelectorAll<HTMLElement>('[data-input-path]')].map(
-    el => ({
-      path: pathOf(el.dataset['inputPath'] ?? '[]'),
-      rect: el.getBoundingClientRect(),
-    })
-  )
+  return [...root.querySelectorAll<HTMLElement>('[data-input-path]')].map((el) => ({
+    path: pathOf(el.dataset['inputPath'] ?? '[]'),
+    rect: el.getBoundingClientRect(),
+  }))
 }
 
 /**
@@ -209,17 +190,13 @@ function inputsInBox(root: HTMLElement, box: Box): InputPath[] {
   const touched = rowsIn(root).filter(({ rect }) => overlaps(rect, box))
   const holder = touched
     .filter(
-      ({ path, rect }) =>
-        contains(rect, box) && touched.some(other => below(other.path, path))
+      ({ path, rect }) => contains(rect, box) && touched.some((other) => below(other.path, path)),
     )
     .reduce<InputPath | null>(
-      (deepest, { path }) =>
-        deepest && deepest.length >= path.length ? deepest : path,
-      null
+      (deepest, { path }) => (deepest && deepest.length >= path.length ? deepest : path),
+      null,
     )
-  const level = holder
-    ? touched.filter(({ path }) => below(path, holder))
-    : touched
+  const level = holder ? touched.filter(({ path }) => below(path, holder)) : touched
   return outermost(level.map(({ path }) => path))
 }
 
@@ -234,12 +211,12 @@ function ChromeButton({
 }) {
   return (
     <button
-      type='button'
+      type="button"
       aria-label={label}
       data-tooltip-id={TOOLTIP_ID}
       data-tooltip-content={label}
-      className='flex h-5 w-5 cursor-pointer items-center justify-center rounded hover:bg-(--theme-muted-panel-bg) hover:text-(--theme-app)'
-      onClick={e => {
+      className="flex h-5 w-5 cursor-pointer items-center justify-center rounded hover:bg-(--theme-muted-panel-bg) hover:text-(--theme-app)"
+      onClick={(e) => {
         e.stopPropagation()
         onClick(e)
       }}
@@ -264,16 +241,14 @@ function InputRow({
   const rowKey = key(path)
   const active = useUi(
     api?.store ?? EMPTY_STORE,
-    state => state.hovered === rowKey && !state.drag
+    (state) => state.hovered === rowKey && !state.drag,
   )
-  const selected = useUi(api?.store ?? EMPTY_STORE, state =>
-    state.selection.includes(rowKey)
-  )
-  const problems = useUi(api?.store ?? EMPTY_STORE, state =>
+  const selected = useUi(api?.store ?? EMPTY_STORE, (state) => state.selection.includes(rowKey))
+  const problems = useUi(api?.store ?? EMPTY_STORE, (state) =>
     state.problems
-      .filter(problem => problem.input && key(problem.input) === rowKey)
-      .map(problem => `${problem.line}\n${problem.message}`)
-      .join('\n\n')
+      .filter((problem) => problem.input && key(problem.input) === rowKey)
+      .map((problem) => `${problem.line}\n${problem.message}`)
+      .join('\n\n'),
   )
   if (!api) {
     return children
@@ -285,60 +260,55 @@ function InputRow({
   // A hidden group or page draws nothing, so its fields are listed here instead.
   const childKey = hidden ? inputChildrenKey(definition['type']) : undefined
   const outline =
-    childKey && childKey !== 'template'
-      ? namesIn(asRecord(definition[childKey]))
-      : null
-  const flagged =
-    hidden &&
-    definition['hidden'] !== undefined &&
-    definition['hidden'] !== false
+    childKey && childKey !== 'template' ? namesIn(asRecord(definition[childKey])) : null
+  const flagged = hidden && definition['hidden'] !== undefined && definition['hidden'] !== false
   const actions = (
     <>
       <button
-        type='button'
+        type="button"
         aria-label={t.inputActions}
         data-drag-handle
-        className='flex h-5 w-5 cursor-grab items-center justify-center rounded hover:bg-(--theme-muted-panel-bg)'
-        onPointerDown={e => api.startDrag(e, path, name)}
-        onClick={e => {
+        className="flex h-5 w-5 cursor-grab items-center justify-center rounded hover:bg-(--theme-muted-panel-bg)"
+        onPointerDown={(e) => api.startDrag(e, path, name)}
+        onClick={(e) => {
           const r = e.currentTarget.getBoundingClientRect()
           api.openMenu(r.left, r.bottom, path)
         }}
       >
-        <DragHandleIcon className='h-3.5 w-3.5' />
+        <DragHandleIcon className="h-3.5 w-3.5" />
       </button>
       <span data-tooltip-id={TOOLTIP_ID} data-tooltip-content={name}>
         <TypeBadge type={text(definition['type'])} />
       </span>
       <ChromeButton label={t.editInput} onClick={() => api.edit(path)}>
-        <EditIcon className='h-3 w-3' />
+        <EditIcon className="h-3 w-3" />
       </ChromeButton>
       <ChromeButton
         label={t.addInputBelow}
-        onClick={e => {
+        onClick={(e) => {
           const r = e.currentTarget.getBoundingClientRect()
           api.openTypeMenu(r.right, r.bottom, parent, api.indexOf(path) + 1)
         }}
       >
-        <AddIcon className='h-3 w-3' />
+        <AddIcon className="h-3 w-3" />
       </ChromeButton>
       <ChromeButton label={t.deleteInput} onClick={() => api.remove(path)}>
-        <MinusIcon className='h-3 w-3' />
+        <MinusIcon className="h-3 w-3" />
       </ChromeButton>
       <ChromeButton
         label={t.inputActions}
-        onClick={e => {
+        onClick={(e) => {
           const r = e.currentTarget.getBoundingClientRect()
           api.openMenu(r.right, r.bottom, path)
         }}
       >
-        <MoreIcon className='h-3 w-3' />
+        <MoreIcon className="h-3 w-3" />
       </ChromeButton>
     </>
   )
   return (
     <div
-      role='none'
+      role="none"
       data-input-path={rowKey}
       data-input-index={api.indexOf(path)}
       {...(selected ? { 'data-selected': '' } : {})}
@@ -348,15 +318,15 @@ function InputRow({
         found.length > 0 && 'rounded-md ring-2 ring-(--theme-error)',
         // Drawn behind the row and past its edges, so the label and field keep clear of it.
         selected &&
-          "isolate before:pointer-events-none before:absolute before:-inset-x-2 before:-inset-y-1 before:-z-10 before:rounded-lg before:bg-(--theme-element)/15 before:ring-2 before:ring-(--theme-element) before:content-['']"
+          "isolate before:pointer-events-none before:absolute before:-inset-x-2 before:-inset-y-1 before:-z-10 before:rounded-lg before:bg-(--theme-element)/15 before:ring-2 before:ring-(--theme-element) before:content-['']",
       )}
-      onPointerOver={e => {
+      onPointerOver={(e) => {
         e.stopPropagation()
         if (api.store.get().hovered !== rowKey) {
           api.store.set({ hovered: rowKey })
         }
       }}
-      onContextMenu={e => {
+      onContextMenu={(e) => {
         e.preventDefault()
         e.stopPropagation()
         api.openMenu(e.clientX, e.clientY, path)
@@ -364,10 +334,10 @@ function InputRow({
     >
       {hidden ? (
         // A hidden input draws no field to hover, so its line stays in view.
-        <div className='flex items-center gap-1.5 text-[11px] leading-4 theme-muted-text'>
-          <span className='font-mono'>{name}</span>
-          {flagged && <span className='italic'>{t.hidden}</span>}
-          <div data-input-chrome className='ml-auto flex items-center gap-0.5'>
+        <div className="flex items-center gap-1.5 text-[11px] leading-4 theme-muted-text">
+          <span className="font-mono">{name}</span>
+          {flagged && <span className="italic">{t.hidden}</span>}
+          <div data-input-chrome className="ml-auto flex items-center gap-0.5">
             {actions}
           </div>
         </div>
@@ -376,12 +346,12 @@ function InputRow({
         <div
           className={cx(
             'flex justify-end overflow-hidden transition-[height] duration-150 focus-within:h-7',
-            active ? 'h-7' : 'h-0'
+            active ? 'h-7' : 'h-0',
           )}
         >
           <div
             data-input-chrome
-            className='flex h-6 items-center gap-0.5 rounded-md border theme-border bg-(--theme-panel-bg) px-1 py-0.5 text-[11px] leading-4 theme-muted-text shadow-sm'
+            className="flex h-6 items-center gap-0.5 rounded-md border theme-border bg-(--theme-panel-bg) px-1 py-0.5 text-[11px] leading-4 theme-muted-text shadow-sm"
           >
             {actions}
           </div>
@@ -389,23 +359,23 @@ function InputRow({
       )}
       {found.length > 0 && (
         <button
-          type='button'
+          type="button"
           data-input-chrome
           aria-label={g.problemCount(found.length)}
           data-tooltip-id={TOOLTIP_ID}
           data-tooltip-content={found
-            .map(problem => problem.slice(problem.indexOf('\n') + 1))
+            .map((problem) => problem.slice(problem.indexOf('\n') + 1))
             .join('\n')}
-          className='absolute -left-2 -top-2 z-10 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full bg-(--theme-panel-bg) text-(--theme-error) shadow-sm'
+          className="absolute -left-2 -top-2 z-10 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full bg-(--theme-panel-bg) text-(--theme-error) shadow-sm"
           onClick={() => api.reveal(Number.parseInt(found[0] ?? '0', 10))}
         >
-          <AlertIcon className='h-3.5 w-3.5' />
+          <AlertIcon className="h-3.5 w-3.5" />
         </button>
       )}
       {children}
       {outline && (
-        <div className='ml-2 border-l theme-border pl-3'>
-          {outline.map(child => (
+        <div className="ml-2 border-l theme-border pl-3">
+          {outline.map((child) => (
             <InputRow key={child} path={[...path, child]} hidden />
           ))}
           <AddInput parent={path} />
@@ -424,15 +394,15 @@ function AddInput({ parent }: { parent: InputPath }) {
   }
   return (
     <button
-      type='button'
+      type="button"
       data-input-add={key(parent)}
-      className='mb-[15px] flex cursor-pointer items-center gap-1.5 text-[13px] theme-muted-text hover:text-(--theme-link)'
-      onClick={e => {
+      className="mb-[15px] flex cursor-pointer items-center gap-1.5 text-[13px] theme-muted-text hover:text-(--theme-link)"
+      onClick={(e) => {
         const r = e.currentTarget.getBoundingClientRect()
         api.openTypeMenu(r.left, r.bottom, parent, Number.MAX_SAFE_INTEGER)
       }}
     >
-      <AddIcon className='h-3 w-3' />
+      <AddIcon className="h-3 w-3" />
       {parent.length === 0 ? t.addInputHere : t.addField}
     </button>
   )
@@ -440,16 +410,14 @@ function AddInput({ parent }: { parent: InputPath }) {
 
 const EDITING: FormEditing = { parent: [], Row: InputRow, Add: AddInput }
 
-function typeSearch(
-  labels: ReturnType<typeof useStrings>['inputsEditor']
-): MenuSearch {
+function typeSearch(labels: ReturnType<typeof useStrings>['inputsEditor']): MenuSearch {
   return { placeholder: labels.searchTypes, empty: labels.noMatchingTypes }
 }
 
 function typeMenu(
   labels: ReturnType<typeof useStrings>['inputsEditor'],
   allowStep: boolean,
-  pick: (type: string) => void
+  pick: (type: string) => void,
 ): RowMenuItem[] {
   const types = labels.types as Record<string, string>
   const allowed = (type: string) => allowStep || type !== 'step'
@@ -465,17 +433,14 @@ function typeMenu(
         kind: 'submenu',
         label: labels.typeGroups[group],
         items: list.filter(allowed).map(item),
-      })
+      }),
     ),
   ]
 }
 
 function gapsIn(root: HTMLElement): Gap[] {
   const gaps: Gap[] = []
-  const last = new Map<
-    string,
-    { parent: InputPath; index: number; rect: DOMRect }
-  >()
+  const last = new Map<string, { parent: InputPath; index: number; rect: DOMRect }>()
   for (const el of root.querySelectorAll<HTMLElement>('[data-input-path]')) {
     const path = JSON.parse(el.dataset['inputPath'] ?? '[]') as InputPath
     const parent = path.slice(0, -1)
@@ -505,16 +470,11 @@ function gapsIn(root: HTMLElement): Gap[] {
   return gaps
 }
 
-function nearestGap(
-  gaps: Gap[],
-  x: number,
-  y: number,
-  moving: InputPath[] | null
-): Gap | null {
+function nearestGap(gaps: Gap[], x: number, y: number, moving: InputPath[] | null): Gap | null {
   let best: Gap | null = null
   let bestDistance = Number.POSITIVE_INFINITY
   for (const gap of gaps) {
-    if (moving?.some(path => isInside(gap.parent, path))) {
+    if (moving?.some((path) => isInside(gap.parent, path))) {
       continue
     }
     if (x < gap.left - 24 || x > gap.right + 24) {
@@ -524,9 +484,7 @@ function nearestGap(
     // Ties go to the innermost list, so a group's own gaps win over the form's.
     if (
       distance < bestDistance ||
-      (distance === bestDistance &&
-        best !== null &&
-        gap.parent.length > best.parent.length)
+      (distance === bestDistance && best !== null && gap.parent.length > best.parent.length)
     ) {
       best = gap
       bestDistance = distance
@@ -548,9 +506,7 @@ function undoKeys(e: KeyboardEvent, editor: DependencyGraphEditor) {
   }
 }
 
-function formShortcuts(
-  g: ReturnType<typeof useStrings>['graphEditor']
-): ShortcutGroup[] {
+function formShortcuts(g: ReturnType<typeof useStrings>['graphEditor']): ShortcutGroup[] {
   const key = g.shortcutKeys
   const does = g.shortcutDoes
   return [
@@ -608,15 +564,9 @@ export function InputsFormEditor({
     const definition = (path: InputPath): Json =>
       path.length === 0
         ? asRecord(latest.current.inputs)
-        : asRecord(
-            containerAt(latest.current.inputs, path.slice(0, -1))[
-              path.at(-1) ?? ''
-            ]
-          )
+        : asRecord(containerAt(latest.current.inputs, path.slice(0, -1))[path.at(-1) ?? ''])
     const indexOf = (path: InputPath) =>
-      namesIn(containerAt(latest.current.inputs, path.slice(0, -1))).indexOf(
-        path.at(-1) ?? ''
-      )
+      namesIn(containerAt(latest.current.inputs, path.slice(0, -1))).indexOf(path.at(-1) ?? '')
     const create = (parent: InputPath, index: number, type: string) => {
       const { editor, inputs } = latest.current
       if (editor.openOnAdd === false) {
@@ -631,59 +581,45 @@ export function InputsFormEditor({
       }
       store.set({ dialog: { kind: 'create', parent, index, type } })
     }
-    const openTypeMenu = (
-      x: number,
-      y: number,
-      parent: InputPath,
-      index: number
-    ) =>
+    const openTypeMenu = (x: number, y: number, parent: InputPath, index: number) =>
       openMenu(
         x,
         y,
-        typeMenu(t, parent.length === 0, type => create(parent, index, type)),
+        typeMenu(t, parent.length === 0, (type) => create(parent, index, type)),
         undefined,
-        typeSearch(t)
+        typeSearch(t),
       )
-    const edit = (path: InputPath) =>
-      store.set({ dialog: { kind: 'edit', path } })
+    const edit = (path: InputPath) => store.set({ dialog: { kind: 'edit', path } })
     const remove = (path: InputPath) => send({ type: 'deleteInput', path })
 
     const inFormOrder = (paths: InputPath[]) => {
-      const order = rowsIn(containerRef.current ?? document.body).map(row =>
-        key(row.path)
-      )
-      return [...paths].sort(
-        (a, b) => order.indexOf(key(a)) - order.indexOf(key(b))
-      )
+      const order = rowsIn(containerRef.current ?? document.body).map((row) => key(row.path))
+      return [...paths].sort((a, b) => order.indexOf(key(a)) - order.indexOf(key(b)))
     }
     // Dropping a run of neighbours back among themselves changes nothing.
     const staysPut = (paths: InputPath[], gap: Gap) => {
-      if (!paths.every(path => samePath(path.slice(0, -1), gap.parent))) {
+      if (!paths.every((path) => samePath(path.slice(0, -1), gap.parent))) {
         return false
       }
       const at = paths.map(indexOf).sort((a, b) => a - b)
       const first = at[0] ?? 0
       const last = at.at(-1) ?? 0
       return (
-        at.every((index, i) => index === first + i) &&
-        gap.index >= first &&
-        gap.index <= last + 1
+        at.every((index, i) => index === first + i) && gap.index >= first && gap.index <= last + 1
       )
     }
     // Moved inputs, and the selected ones inside them, stay selected at their new paths.
     const followSelection = (moved: InputPath[], parent: InputPath) =>
       store.set({
-        selection: store.get().selection.map(rowKey => {
+        selection: store.get().selection.map((rowKey) => {
           const path = pathOf(rowKey)
-          const from = moved.find(other => isInside(path, other))
-          return from
-            ? key([...parent, ...path.slice(from.length - 1)])
-            : rowKey
+          const from = moved.find((other) => isInside(path, other))
+          return from ? key([...parent, ...path.slice(from.length - 1)]) : rowKey
         }),
       })
     const removeSelection = () => {
       const paths = inFormOrder(outermost(store.get().selection.map(pathOf)))
-      const edits: GraphEdit[] = paths.map(path => ({
+      const edits: GraphEdit[] = paths.map((path) => ({
         type: 'deleteInput',
         path,
       }))
@@ -705,7 +641,7 @@ export function InputsFormEditor({
         return false
       }
       const parent = first.slice(0, -1)
-      if (!paths.every(path => samePath(path.slice(0, -1), parent))) {
+      if (!paths.every((path) => samePath(path.slice(0, -1), parent))) {
         return false
       }
       const at = paths.map(indexOf).sort((a, b) => a - b)
@@ -719,11 +655,7 @@ export function InputsFormEditor({
       return true
     }
 
-    const startDrag = (
-      e: ReactPointerEvent,
-      path: InputPath | null,
-      label: string
-    ) => {
+    const startDrag = (e: ReactPointerEvent, path: InputPath | null, label: string) => {
       if (e.button !== 0) {
         return
       }
@@ -731,14 +663,12 @@ export function InputsFormEditor({
       const selected = store.get().selection.map(pathOf)
       // A drag from one of several selected inputs takes them all along.
       const paths = path
-        ? selected.length > 1 && selected.some(other => samePath(other, path))
+        ? selected.length > 1 && selected.some((other) => samePath(other, path))
           ? inFormOrder(outermost(selected))
           : [path]
         : null
       const shown =
-        paths && paths.length > 1
-          ? paths.map(other => other.at(-1)).join(', ')
-          : label
+        paths && paths.length > 1 ? paths.map((other) => other.at(-1)).join(', ') : label
       const onEnd = (client: { x: number; y: number }, dragged: boolean) => {
         const gap = store.get().drag?.gap ?? null
         store.set({ drag: null })
@@ -770,16 +700,14 @@ export function InputsFormEditor({
         {
           escape: true,
           swallowClick: 'drag',
-          onMove: client => {
+          onMove: (client) => {
             const root = containerRef.current
-            const gap = root
-              ? nearestGap(gapsIn(root), client.x, client.y, paths)
-              : null
+            const gap = root ? nearestGap(gapsIn(root), client.x, client.y, paths) : null
             store.set({ drag: { paths, label: shown, client, gap } })
           },
           onEnd,
           onCancel: () => store.set({ drag: null }),
-        }
+        },
       )
     }
 
@@ -798,9 +726,7 @@ export function InputsFormEditor({
           kind: 'submenu',
           label: t.addInputBelow,
           icon: <AddIcon />,
-          items: typeMenu(t, parent.length === 0, type =>
-            create(parent, index + 1, type)
-          ),
+          items: typeMenu(t, parent.length === 0, (type) => create(parent, index + 1, type)),
           search: typeSearch(t),
         },
         {
@@ -855,7 +781,7 @@ export function InputsFormEditor({
       openMenu: (x, y, path) => openMenu(x, y, menuFor(path)),
       openTypeMenu,
       startDrag,
-      reveal: line => latest.current.editor.onReveal?.({ line }),
+      reveal: (line) => latest.current.editor.onReveal?.({ line }),
       removeSelection,
       moveSelection,
       editSelection: () => {
@@ -877,12 +803,9 @@ export function InputsFormEditor({
   // A selected input that's gone, by an undo or a change typed in the YAML, drops out.
   useEffect(() => {
     const { selection } = store.get()
-    const kept = selection.filter(rowKey => {
+    const kept = selection.filter((rowKey) => {
       const path = pathOf(rowKey)
-      return Object.hasOwn(
-        containerAt(inputs, path.slice(0, -1)),
-        path.at(-1) ?? ''
-      )
+      return Object.hasOwn(containerAt(inputs, path.slice(0, -1)), path.at(-1) ?? '')
     })
     if (kept.length !== selection.length) {
       store.set({ selection: kept })
@@ -895,11 +818,7 @@ export function InputsFormEditor({
       return
     }
     const onDown = (e: PointerEvent) => {
-      if (
-        e.button !== 0 ||
-        !(e.target instanceof Element) ||
-        e.target.closest(CHROME)
-      ) {
+      if (e.button !== 0 || !(e.target instanceof Element) || e.target.closest(CHROME)) {
         return
       }
       const row = e.target.closest<HTMLElement>('[data-input-path]')
@@ -933,7 +852,7 @@ export function InputsFormEditor({
       trackDrag(start, {
         holdText: 'press',
         swallowClick: 'always',
-        onMove: client => {
+        onMove: (client) => {
           const box = {
             left: Math.min(start.x, client.x),
             right: Math.max(start.x, client.x),
@@ -941,9 +860,7 @@ export function InputsFormEditor({
             bottom: Math.max(start.y, client.y),
           }
           store.set({
-            selection: [
-              ...new Set([...base, ...inputsInBox(container, box).map(key)]),
-            ],
+            selection: [...new Set([...base, ...inputsInBox(container, box).map(key)])],
             marquee: box,
           })
         },
@@ -953,7 +870,7 @@ export function InputsFormEditor({
           if (!dragged && rowKey) {
             store.set({
               selection: base.includes(rowKey)
-                ? base.filter(other => other !== rowKey)
+                ? base.filter((other) => other !== rowKey)
                 : [...base, rowKey],
             })
           }
@@ -978,11 +895,7 @@ export function InputsFormEditor({
         undoKeys(e, latest.current.editor)
       } else if (DELETE_KEYS.has(e.key) && !e.altKey && api.removeSelection()) {
         e.preventDefault()
-      } else if (
-        e.key.toLowerCase() === 'e' &&
-        !e.altKey &&
-        api.editSelection()
-      ) {
+      } else if (e.key.toLowerCase() === 'e' && !e.altKey && api.editSelection()) {
         e.preventDefault()
       } else if (
         (e.key === 'ArrowUp' || e.key === 'ArrowDown') &&
@@ -1003,13 +916,11 @@ export function InputsFormEditor({
     if (!registerShow) {
       return
     }
-    return registerShow(problem => {
+    return registerShow((problem) => {
       const key = problem.input ? JSON.stringify(problem.input) : null
       const row = [
-        ...(containerRef.current?.querySelectorAll<HTMLElement>(
-          '[data-input-path]'
-        ) ?? []),
-      ].find(el => el.dataset['inputPath'] === key)
+        ...(containerRef.current?.querySelectorAll<HTMLElement>('[data-input-path]') ?? []),
+      ].find((el) => el.dataset['inputPath'] === key)
       if (!row) {
         return false
       }
@@ -1024,12 +935,11 @@ export function InputsFormEditor({
         row.animate?.(
           [
             {
-              boxShadow:
-                '0 0 0 4px color-mix(in srgb, var(--theme-element) 45%, transparent)',
+              boxShadow: '0 0 0 4px color-mix(in srgb, var(--theme-element) 45%, transparent)',
             },
             { boxShadow: '0 0 0 0 transparent' },
           ],
-          { duration: 1200, easing: 'ease-out' }
+          { duration: 1200, easing: 'ease-out' },
         )
       }
       if (problem.input) {
@@ -1047,33 +957,23 @@ export function InputsFormEditor({
           ref={containerRef}
           // biome-ignore lint/a11y/noNoninteractiveTabindex: focusable so the undo shortcuts reach the form instead of the YAML editor.
           tabIndex={0}
-          className='relative outline-none'
+          className="relative outline-none"
           onPointerLeave={() => store.set({ hovered: null })}
         >
-          {empty && (
-            <div className='mb-3 text-sm theme-muted-text'>{t.noInputs}</div>
-          )}
+          {empty && <div className="mb-3 text-sm theme-muted-text">{t.noInputs}</div>}
           {children}
           <DropIndicator store={store} container={containerRef} />
           <Marquee store={store} container={containerRef} />
-          <div
-            data-input-chrome
-            className='sticky bottom-2 z-10 mt-2 flex justify-end'
-          >
+          <div data-input-chrome className="sticky bottom-2 z-10 mt-2 flex justify-end">
             <EditorBar editor={editor} groups={formShortcuts(g)}>
               <AddChip
-                icon={<AddIcon className='h-3 w-3' />}
+                icon={<AddIcon className="h-3 w-3" />}
                 label={t.addInput}
                 hint={t.addInputHint}
-                onPointerDown={e => api.startDrag(e, null, t.addInput)}
-                onClick={e => {
+                onPointerDown={(e) => api.startDrag(e, null, t.addInput)}
+                onClick={(e) => {
                   const r = e.currentTarget.getBoundingClientRect()
-                  api.openTypeMenu(
-                    r.left,
-                    r.bottom,
-                    [],
-                    Number.MAX_SAFE_INTEGER
-                  )
+                  api.openTypeMenu(r.left, r.bottom, [], Number.MAX_SAFE_INTEGER)
                 }}
               />
               {editor.onOpenSettings && <BarDivider />}
@@ -1094,7 +994,7 @@ function DropIndicator({
   store: Store
   container: React.RefObject<HTMLDivElement | null>
 }) {
-  const drag = useUi(store, state => state.drag)
+  const drag = useUi(store, (state) => state.drag)
   const root = container.current
   if (!drag || !root) {
     return null
@@ -1104,7 +1004,7 @@ function DropIndicator({
     <>
       {drag.gap && (
         <div
-          className='pointer-events-none absolute z-20 h-1 rounded-full bg-(--theme-element)'
+          className="pointer-events-none absolute z-20 h-1 rounded-full bg-(--theme-element)"
           style={{
             left: drag.gap.left - rect.left,
             top: drag.gap.y - rect.top - 2,
@@ -1127,7 +1027,7 @@ function Marquee({
   store: Store
   container: React.RefObject<HTMLDivElement | null>
 }) {
-  const box = useUi(store, state => state.marquee)
+  const box = useUi(store, (state) => state.marquee)
   const root = container.current
   if (!box || !root) {
     return null
@@ -1135,7 +1035,7 @@ function Marquee({
   const rect = root.getBoundingClientRect()
   return (
     <MarqueeBox
-      className='pointer-events-none z-20'
+      className="pointer-events-none z-20"
       box={{
         left: box.left - rect.left,
         top: box.top - rect.top,
@@ -1155,7 +1055,7 @@ function Dialogs({
   inputs: Json | undefined
   editor: DependencyGraphEditor
 }) {
-  const dialog = useUi(api.store, state => state.dialog)
+  const dialog = useUi(api.store, (state) => state.dialog)
   const close = () => api.store.set({ dialog: null })
   if (!dialog) {
     return null
@@ -1210,14 +1110,12 @@ function Dialogs({
             {
               type: 'addInput',
               parent: dialog.parent,
-              index: samePath(home.parent, dialog.parent)
-                ? index + created.length
-                : index,
+              index: samePath(home.parent, dialog.parent) ? index + created.length : index,
               name,
               definition,
             },
             created,
-            home
+            home,
           )
         }
       />
@@ -1229,18 +1127,14 @@ function Dialogs({
   if (!Object.hasOwn(container, name)) {
     return null
   }
-  const home = homeFor(
-    inputs,
-    path.slice(0, -1),
-    namesIn(container).indexOf(name)
-  )
+  const home = homeFor(inputs, path.slice(0, -1), namesIn(container).indexOf(name))
   return (
     <InputDialog
       key={`edit:${key(path)}`}
       name={name}
       definition={asRecord(container[name])}
       isNew={false}
-      siblings={namesIn(container).filter(other => other !== name)}
+      siblings={namesIn(container).filter((other) => other !== name)}
       allowStep={path.length === 1}
       inputs={inputs}
       home={home}
@@ -1263,7 +1157,7 @@ function Dialogs({
                     { type: 'updateInput', path, name: next },
                     { type: 'setInputYaml', path: at, yaml: text },
                   ],
-                }
+                },
           )
         },
       }}
@@ -1276,7 +1170,7 @@ function Dialogs({
             ...patch,
           },
           created,
-          home
+          home,
         )
       }
     />
@@ -1285,11 +1179,7 @@ function Dialogs({
 
 // Created inputs go just before the top-level input, or wizard step field, holding the
 // edited one, so the form asks for them first.
-function homeFor(
-  inputs: Json | undefined,
-  container: InputPath,
-  index: number
-): InputHome {
+function homeFor(inputs: Json | undefined, container: InputPath, index: number): InputHome {
   const [top, next] = container
   if (top === undefined) {
     return { parent: [], index }

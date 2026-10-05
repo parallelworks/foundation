@@ -1,39 +1,30 @@
-import cx from 'classnames'
 import {
   batchOf,
-  type FieldPatch,
-  type GraphEdit,
   convertToDynamicForm,
   dumpYaml,
+  type FieldPatch,
   freeName,
+  type GraphEdit,
   type InputPath,
   inputChildrenKey,
   inputYaml,
   isValidInputName,
+  loadYaml,
   newInputName,
   nextName,
   wizardFlattens,
 } from '@parallelworks/workflow-parser'
-import { loadYaml } from '@parallelworks/workflow-parser'
+import cx from 'classnames'
 import { type ReactNode, useId, useMemo, useRef, useState } from 'react'
 import Dropdown from '../components/Dropdown'
 import { IconButton } from '../components/IconButton'
 import { Input, Textarea } from '../components/Input'
 import { useStrings } from '../components/Provider'
+import { INPUT_YAML_PATH } from '../editor/settingsYaml'
 import { DynamicForm } from '../form/Form'
 import { FormEditingContext } from '../form/formEditing'
-import { INPUT_YAML_PATH } from '../editor/settingsYaml'
-import {
-  formatSecondsAsSlurmDuration,
-  parseSlurmDuration,
-} from '../form/utils/slurmDuration'
-import {
-  ArrowDownIcon,
-  ArrowUpIcon,
-  CloseIcon,
-  EditIcon,
-  TrashIcon,
-} from '../icons'
+import { formatSecondsAsSlurmDuration, parseSlurmDuration } from '../form/utils/slurmDuration'
+import { ArrowDownIcon, ArrowUpIcon, CloseIcon, EditIcon, TrashIcon } from '../icons'
 import {
   AddRowButton,
   asRecord,
@@ -41,8 +32,8 @@ import {
   DialogShell,
   diffPatch,
   EXPRESSION,
-  expressionError,
   ExpressionToggle,
+  expressionError,
   FieldError,
   type Flag,
   flagError,
@@ -51,33 +42,28 @@ import {
   isScalar,
   type Json,
   KeyHint,
-  labelled,
   LabelledField,
+  labelled,
   type OpenOnAdd,
   parseJson,
   parseScalar,
   pressedClasses,
-  sameValue,
   Section,
   SectionMemory,
   StringListEditor,
   SuggestedInput,
-  text,
+  sameValue,
   ToggleField,
+  text,
   unchangedValue,
   useSectionMemory,
   withoutUndefined,
 } from './editorFields'
 import type { InputsEditorStrings } from './editorStrings'
 import type { SettingsView } from './GraphEditorDialogs'
-import { NO_SCOPED, ViewSwitch, YamlPane, yamlProblem } from './settingsViews'
-import {
-  FlagField,
-  type InputSource,
-  inputRefs,
-  ValueOrInputField,
-} from './inputRefs'
+import { FlagField, type InputSource, inputRefs, ValueOrInputField } from './inputRefs'
 import { FIELD_TEXT_BOX } from './SuggestionInput'
+import { NO_SCOPED, ViewSwitch, YamlPane, yamlProblem } from './settingsViews'
 
 type Help = keyof InputsEditorStrings['help']
 type Kind =
@@ -121,29 +107,12 @@ interface Prop {
 }
 
 /** Input types by menu group, in the order the add menu lists them. */
-export const INPUT_TYPE_GROUPS: [
-  keyof InputsEditorStrings['typeGroups'],
-  string[],
-][] = [
-  [
-    'basic',
-    [
-      'string',
-      'number',
-      'duration',
-      'boolean',
-      'password',
-      'editor',
-      'color-picker',
-    ],
-  ],
+export const INPUT_TYPE_GROUPS: [keyof InputsEditorStrings['typeGroups'], string[]][] = [
+  ['basic', ['string', 'number', 'duration', 'boolean', 'password', 'editor', 'color-picker']],
   ['choices', ['dropdown', 'multi-dropdown', 'radio', 'checkbox-group']],
   ['layout', ['group', 'list', 'header', 'step']],
   ['compute', ['compute-clusters', 'compute-resources', 'bucket']],
-  [
-    'schedulers',
-    ['slurm-accounts', 'slurm-partitions', 'slurm-qos', 'pbs-queues'],
-  ],
+  ['schedulers', ['slurm-accounts', 'slurm-partitions', 'slurm-qos', 'pbs-queues']],
   ['cloud', ['region', 'zone', 'instance-type']],
   [
     'kubernetes',
@@ -330,11 +299,7 @@ const TYPE_PROPS: Record<string, Prop[]> = {
       choices: ['left', 'top'],
     },
   ],
-  'checkbox-group': [
-    OPTIONS,
-    DEFAULT_LIST,
-    { key: 'implies', kind: 'implies', help: 'implies' },
-  ],
+  'checkbox-group': [OPTIONS, DEFAULT_LIST, { key: 'implies', kind: 'implies', help: 'implies' }],
   duration: [
     { key: 'default', kind: 'duration', help: 'durationDefault' },
     PLACEHOLDER,
@@ -343,10 +308,7 @@ const TYPE_PROPS: Record<string, Prop[]> = {
     DISABLE_LABEL,
     DISABLE_VALUE,
   ],
-  group: [
-    { key: 'collapsed', kind: 'flag', help: 'collapsed', conditional: true },
-    FLATTEN,
-  ],
+  group: [{ key: 'collapsed', kind: 'flag', help: 'collapsed', conditional: true }, FLATTEN],
   list: [
     TEMPLATE,
     { key: 'default', kind: 'rows', help: 'listDefault' },
@@ -434,7 +396,7 @@ const ALL_COMMON: CommonKey[] = [...TEXT_FIELDS, ...FLAG_FIELDS]
 const KNOWN_KEYS = new Set<string>([
   'type',
   ...ALL_COMMON,
-  ...Object.values(TYPE_PROPS).flatMap(props => props.map(prop => prop.key)),
+  ...Object.values(TYPE_PROPS).flatMap((props) => props.map((prop) => prop.key)),
   'items',
   'template',
   'options',
@@ -456,7 +418,7 @@ export function offeredInputKeys(type: string): string[] {
   return [
     'type',
     ...commonKeys(type),
-    ...(TYPE_PROPS[type] ?? []).map(prop => prop.key),
+    ...(TYPE_PROPS[type] ?? []).map((prop) => prop.key),
     ...(children ? [children] : []),
   ]
 }
@@ -521,10 +483,7 @@ function optionsDraft(value: unknown): OptionsDraft {
         })
       } else if (typeof item === 'object' && item !== null) {
         const { value: optionValue, label, ...rest } = item as Json
-        if (
-          !isScalar(optionValue) ||
-          (label !== undefined && !isScalar(label))
-        ) {
+        if (!isScalar(optionValue) || (label !== undefined && !isScalar(label))) {
           return {
             mode: 'json',
             rows: [],
@@ -554,7 +513,7 @@ function optionsValue(draft: OptionsDraft, labelled: boolean): unknown {
   if (draft.mode === 'byKey' || draft.mode === 'json') {
     return draft.text.trim() ? parseJson(draft.text).value : undefined
   }
-  return draft.rows.map(row => {
+  return draft.rows.map((row) => {
     const value = unchangedValue(row.value, row.original)
       ? row.original
       : parseScalar(row.value.trim())
@@ -574,7 +533,7 @@ function optionsValue(draft: OptionsDraft, labelled: boolean): unknown {
 function optionsError(
   draft: OptionsDraft,
   t: InputsEditorStrings,
-  g: ReturnType<typeof useStrings>['graphEditor']
+  g: ReturnType<typeof useStrings>['graphEditor'],
 ): string | undefined {
   if (draft.mode === 'expression') {
     return draft.text.trim() ? expressionError(draft.text, g) : g.required
@@ -594,7 +553,7 @@ function optionsError(
       ? undefined
       : t.optionsByKeyShape
   }
-  return draft.rows.length === 0 || draft.rows.some(row => !row.value.trim())
+  return draft.rows.length === 0 || draft.rows.some((row) => !row.value.trim())
     ? t.needsOptions
     : undefined
 }
@@ -624,74 +583,67 @@ function OptionsEditor({
   const modes = [
     { value: 'list' as const, label: t.optionsList },
     ...(keyed ? [{ value: 'byKey' as const, label: t.optionsByKey }] : []),
-    ...(draft.mode === 'json'
-      ? [{ value: 'json' as const, label: t.optionsJson }]
-      : []),
+    ...(draft.mode === 'json' ? [{ value: 'json' as const, label: t.optionsJson }] : []),
   ]
   return (
-    <div className='flex flex-col gap-2'>
+    <div className="flex flex-col gap-2">
       {draft.mode !== 'expression' && modes.length > 1 && (
         <ChoiceButtons
-          size='xs'
+          size="xs"
           options={modes}
           value={draft.mode}
-          onChange={mode => onChange({ ...draft, mode })}
+          onChange={(mode) => onChange({ ...draft, mode })}
         />
       )}
       {draft.mode === 'list' ? (
         <>
           {draft.rows.length > 0 && (
-            <div
-              aria-hidden='true'
-              className='flex items-center gap-2 text-xs theme-muted-text'
-            >
-              <div className='w-2/5'>{t.optionValue}</div>
-              <div className='flex-1'>{t.optionLabel}</div>
-              {described && <div className='flex-1'>{t.optionDescription}</div>}
-              <div className='w-7 shrink-0' />
+            <div aria-hidden="true" className="flex items-center gap-2 text-xs theme-muted-text">
+              <div className="w-2/5">{t.optionValue}</div>
+              <div className="flex-1">{t.optionLabel}</div>
+              {described && <div className="flex-1">{t.optionDescription}</div>}
+              <div className="w-7 shrink-0" />
             </div>
           )}
           {draft.rows.map((row, i) => (
-            <div key={i} className='flex items-center gap-2'>
-              <div className='w-2/5'>
+            <div key={i} className="flex items-center gap-2">
+              <div className="w-2/5">
                 <Input
                   mono
                   aria-label={t.optionValue}
                   placeholder={t.optionValue}
                   value={row.value}
-                  onChange={e => update(i, { value: e.target.value })}
+                  onChange={(e) => update(i, { value: e.target.value })}
                 />
               </div>
-              <div className='flex-1'>
+              <div className="flex-1">
                 <Input
                   aria-label={t.optionLabel}
                   placeholder={t.optionLabel}
                   value={row.label}
-                  onChange={e => update(i, { label: e.target.value })}
+                  onChange={(e) => update(i, { label: e.target.value })}
                 />
               </div>
               {described && (
-                <div className='flex-1'>
+                <div className="flex-1">
                   <Input
                     aria-label={t.optionDescription}
                     placeholder={t.optionDescription}
                     value={text(row.rest?.['description'])}
-                    onChange={e => {
+                    onChange={(e) => {
                       const { description: _old, ...rest } = row.rest ?? {}
                       update(i, {
-                        rest: e.target.value
-                          ? { ...rest, description: e.target.value }
-                          : rest,
+                        rest: e.target.value ? { ...rest, description: e.target.value } : rest,
                       })
                     }}
                   />
                 </div>
               )}
               <IconButton
-                icon={<CloseIcon className='h-4 w-4' />}
+                icon={<CloseIcon className="h-4 w-4" />}
                 label={t.removeOption}
-                variant='ghost'
-                size='sm'
+                variant="ghost"
+                size="sm"
                 onClick={() =>
                   onChange({
                     ...draft,
@@ -716,11 +668,11 @@ function OptionsEditor({
           mono
           aria-label={t.fields.options}
           value={draft.text}
-          onChange={e => onChange({ ...draft, text: e.target.value })}
+          onChange={(e) => onChange({ ...draft, text: e.target.value })}
         />
       ) : (
         <>
-          <div className='text-xs theme-muted-text'>
+          <div className="text-xs theme-muted-text">
             {draft.mode === 'byKey' ? t.optionsByKeyHelp : t.optionsJsonHelp}
           </div>
           <Textarea
@@ -733,7 +685,7 @@ function OptionsEditor({
                 ? '{\n  "aws": ["us-east-1", "us-west-2"],\n  "google": ["us-central1"]\n}'
                 : undefined
             }
-            onChange={e => onChange({ ...draft, text: e.target.value })}
+            onChange={(e) => onChange({ ...draft, text: e.target.value })}
           />
         </>
       )}
@@ -749,8 +701,8 @@ function impliesDraft(value: unknown): ImpliesDraft {
   return Object.fromEntries(
     Object.entries(asRecord(value)).map(([key, list]) => [
       key,
-      Array.isArray(list) ? list.map(item => String(item)) : [],
-    ])
+      Array.isArray(list) ? list.map((item) => String(item)) : [],
+    ]),
   )
 }
 
@@ -765,43 +717,37 @@ function ImpliesEditor({
   onChange: (draft: ImpliesDraft) => void
 }) {
   const { inputsEditor: t } = useStrings()
-  const listed = options.filter(option => option.value.trim())
+  const listed = options.filter((option) => option.value.trim())
   if (listed.length < 2) {
-    return (
-      <div className='text-xs theme-muted-text'>{t.impliesNeedsOptions}</div>
-    )
+    return <div className="text-xs theme-muted-text">{t.impliesNeedsOptions}</div>
   }
   const nameOf = (value: string) =>
-    listed.find(option => option.value === value)?.label.trim() || value
+    listed.find((option) => option.value === value)?.label.trim() || value
   const toggle = (from: string, to: string) => {
     const current = draft[from] ?? []
     onChange({
       ...draft,
-      [from]: current.includes(to)
-        ? current.filter(value => value !== to)
-        : [...current, to],
+      [from]: current.includes(to) ? current.filter((value) => value !== to) : [...current, to],
     })
   }
   return (
-    <div className='flex flex-col gap-2'>
-      {listed.map(option => (
-        <div key={option.value} className='flex flex-wrap items-center gap-1.5'>
-          <span className='mr-1 text-sm font-medium'>
-            {t.impliesWhen(nameOf(option.value))}
-          </span>
+    <div className="flex flex-col gap-2">
+      {listed.map((option) => (
+        <div key={option.value} className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-sm font-medium">{t.impliesWhen(nameOf(option.value))}</span>
           {listed
-            .filter(other => other.value !== option.value)
-            .map(other => {
+            .filter((other) => other.value !== option.value)
+            .map((other) => {
               const on = (draft[option.value] ?? []).includes(other.value)
               return (
                 <button
                   key={other.value}
-                  type='button'
+                  type="button"
                   aria-pressed={on}
                   onClick={() => toggle(option.value, other.value)}
                   className={cx(
                     'cursor-pointer rounded-md border px-2 py-1 text-xs transition-colors',
-                    pressedClasses(on)
+                    pressedClasses(on),
                   )}
                 >
                   {nameOf(other.value)}
@@ -831,12 +777,12 @@ function OptOutCheckbox({
   const { inputsEditor: t } = useStrings()
   const [on, setOn] = useState(label.trim() !== '' || value.trim() !== '')
   return (
-    <div className='flex flex-col gap-3'>
+    <div className="flex flex-col gap-3">
       <ToggleField
         label={t.fields.optOut}
         description={t.help.optOut}
         checked={on}
-        onChange={next => {
+        onChange={(next) => {
           setOn(next)
           if (!next) {
             onLabel('')
@@ -845,14 +791,14 @@ function OptOutCheckbox({
         }}
       />
       {on && (
-        <div className='flex flex-col gap-3 border-l theme-border pl-4'>
+        <div className="flex flex-col gap-3 border-l theme-border pl-4">
           <Input
             {...labelled(t.fields.disableLabel, 'disableLabel')}
             description={t.help.disableLabel}
             value={label}
             error={errors.label}
-            placeholder='Unlimited'
-            onChange={e => onLabel(e.target.value)}
+            placeholder="Unlimited"
+            onChange={(e) => onLabel(e.target.value)}
           />
           <Input
             mono
@@ -860,8 +806,8 @@ function OptOutCheckbox({
             description={t.help.disableValue}
             value={value}
             error={errors.value}
-            placeholder='-1'
-            onChange={e => onValue(e.target.value)}
+            placeholder="-1"
+            onChange={(e) => onValue(e.target.value)}
           />
         </div>
       )}
@@ -886,15 +832,12 @@ function TypeSelect({
   const help = t.typeHelp as Record<string, string>
   const known = inputTypes().includes(value)
   return (
-    <div className='flex flex-col gap-1.5'>
-      <div className='flex flex-wrap items-baseline gap-x-1.5'>
-        <label
-          htmlFor={id}
-          className='text-[0.8125rem] font-medium text-(--theme-app)'
-        >
+    <div className="flex flex-col gap-1.5">
+      <div className="flex flex-wrap items-baseline gap-x-1.5">
+        <label htmlFor={id} className="text-[0.8125rem] font-medium text-(--theme-app)">
           {t.inputType}
         </label>
-        <KeyHint label={t.inputType} yamlKey='type' />
+        <KeyHint label={t.inputType} yamlKey="type" />
       </div>
       <Dropdown
         id={id}
@@ -906,19 +849,17 @@ function TypeSelect({
           ...INPUT_TYPE_GROUPS.map(([group, list]) => ({
             category: t.typeGroups[group],
             options: list
-              .filter(type => allowStep || type !== 'step' || value === 'step')
-              .map(type => ({ label: types[type] ?? type, value: type })),
+              .filter((type) => allowStep || type !== 'step' || value === 'step')
+              .map((type) => ({ label: types[type] ?? type, value: type })),
           })),
         ]}
-        onChange={next => {
+        onChange={(next) => {
           if (typeof next === 'string' && next) {
             onChange(next)
           }
         }}
       />
-      <span className='text-xs text-(--theme-muted-text-color)'>
-        {help[value] ?? t.help.type}
-      </span>
+      <span className="text-xs text-(--theme-muted-text-color)">{help[value] ?? t.help.type}</span>
     </div>
   )
 }
@@ -963,9 +904,7 @@ function listItemText(item: unknown): string {
 function draftOf(kind: Kind, value: unknown): unknown {
   switch (kind) {
     case 'flag':
-      return typeof value === 'boolean' || typeof value === 'string'
-        ? value
-        : undefined
+      return typeof value === 'boolean' || typeof value === 'string' ? value : undefined
     case 'bool':
       return typeof value === 'boolean' ? value : undefined
     case 'json':
@@ -986,32 +925,22 @@ function draftOf(kind: Kind, value: unknown): unknown {
             rows: Array.isArray(value) ? value.map(asRecord) : [],
           }
     case 'duration':
-      return typeof value === 'number'
-        ? formatSecondsAsSlurmDuration(value)
-        : text(value)
+      return typeof value === 'number' ? formatSecondsAsSlurmDuration(value) : text(value)
     case 'values':
       return typeof value === 'string' && EXPRESSION.test(value.trim())
         ? { expression: value, values: [] }
         : {
             expression: undefined,
-            values: (Array.isArray(value)
-              ? value
-              : value === undefined
-                ? []
-                : [value]
-            ).map(listItemText),
+            values: (Array.isArray(value) ? value : value === undefined ? [] : [value]).map(
+              listItemText,
+            ),
           }
     default:
       // Only a wrong-shaped value lands here; it shows as JSON text rather than [object Object].
-      if (
-        Array.isArray(value) &&
-        value.every(item => typeof item === 'string')
-      ) {
+      if (Array.isArray(value) && value.every((item) => typeof item === 'string')) {
         return value.join('\n')
       }
-      return value !== null && typeof value === 'object'
-        ? JSON.stringify(value)
-        : text(value)
+      return value !== null && typeof value === 'object' ? JSON.stringify(value) : text(value)
   }
 }
 
@@ -1020,11 +949,7 @@ interface ValueContext {
   labelled?: boolean
 }
 
-function valueOf(
-  kind: Kind,
-  draft: unknown,
-  { labelled = false }: ValueContext = {}
-): unknown {
+function valueOf(kind: Kind, draft: unknown, { labelled = false }: ValueContext = {}): unknown {
   switch (kind) {
     case 'flag':
     case 'bool':
@@ -1040,7 +965,7 @@ function valueOf(
       if (list.expression !== undefined) {
         return list.expression.trim() || undefined
       }
-      const values = list.values.map(value => value.trim()).filter(Boolean)
+      const values = list.values.map((value) => value.trim()).filter(Boolean)
       return values.length > 0 ? values.map(parseScalar) : undefined
     }
     case 'rows': {
@@ -1049,12 +974,12 @@ function valueOf(
         return list.expression.trim() || undefined
       }
       // A field left empty in a default row is unset, not an empty string.
-      const rows = list.rows.map(row =>
+      const rows = list.rows.map((row) =>
         Object.fromEntries(
           Object.entries(row).filter(
-            ([, value]) => value !== '' && value !== undefined && value !== null
-          )
-        )
+            ([, value]) => value !== '' && value !== undefined && value !== null,
+          ),
+        ),
       )
       return rows.length > 0 ? rows : undefined
     }
@@ -1077,7 +1002,7 @@ function valueOf(
     }
     case 'implies': {
       const entries = Object.entries(draft as ImpliesDraft).filter(
-        ([, values]) => values.length > 0
+        ([, values]) => values.length > 0,
       )
       return entries.length > 0 ? Object.fromEntries(entries) : undefined
     }
@@ -1090,7 +1015,7 @@ function valueOf(
         ? raw
         : raw
             .split(',')
-            .map(item => item.trim())
+            .map((item) => item.trim())
             .filter(Boolean)
     }
     case 'template':
@@ -1109,7 +1034,7 @@ function valueError(
   kind: Kind,
   draft: unknown,
   t: InputsEditorStrings,
-  g: ReturnType<typeof useStrings>['graphEditor']
+  g: ReturnType<typeof useStrings>['graphEditor'],
 ): string | undefined {
   const value = valueOf(kind, draft)
   if (prop.required && (value === undefined || value === '')) {
@@ -1135,15 +1060,11 @@ function valueError(
     }
     case 'values': {
       const list = draft as ValuesDraft
-      return list.expression !== undefined
-        ? expressionError(list.expression, g)
-        : undefined
+      return list.expression !== undefined ? expressionError(list.expression, g) : undefined
     }
     case 'rows': {
       const list = draft as RowsDraft
-      return list.expression !== undefined
-        ? expressionError(list.expression, g)
-        : undefined
+      return list.expression !== undefined ? expressionError(list.expression, g) : undefined
     }
     case 'duration': {
       const raw = String(draft ?? '').trim()
@@ -1170,9 +1091,7 @@ function valueError(
       if (prop.literal === false) {
         return g.invalidExpressionValue
       }
-      return prop.choices && !prop.choices.includes(raw)
-        ? g.invalidChoice(prop.key)
-        : undefined
+      return prop.choices && !prop.choices.includes(raw) ? g.invalidChoice(prop.key) : undefined
     }
     case 'choice': {
       const raw = String(draft ?? '').trim()
@@ -1184,13 +1103,9 @@ function valueError(
       if (typeof draft === 'string') {
         return draft.trim() ? expressionError(draft, g) : g.required
       }
-      return Object.keys(asRecord(draft)).length === 0
-        ? t.needsFields
-        : undefined
+      return Object.keys(asRecord(draft)).length === 0 ? t.needsFields : undefined
     default:
-      return prop.choices &&
-        typeof value === 'string' &&
-        !prop.choices.includes(value)
+      return prop.choices && typeof value === 'string' && !prop.choices.includes(value)
         ? g.invalidChoice(prop.key)
         : undefined
   }
@@ -1213,10 +1128,8 @@ function TemplateFields({
   home: InputHome
 }) {
   const { inputsEditor: t } = useStrings()
-  const [editing, setEditing] = useState<
-    { name: string } | { create: true } | null
-  >(null)
-  const names = Object.keys(fields).filter(name => name !== '$meta')
+  const [editing, setEditing] = useState<{ name: string } | { create: true } | null>(null)
+  const names = Object.keys(fields).filter((name) => name !== '$meta')
   const types = t.types as Record<string, string>
   const move = (from: number, to: number) => {
     const entries = Object.entries(fields)
@@ -1227,78 +1140,65 @@ function TemplateFields({
     }
   }
   return (
-    <div className='flex flex-col gap-1.5'>
-      {names.length === 0 && (
-        <div className='text-xs theme-muted-text'>{t.noFields}</div>
-      )}
+    <div className="flex flex-col gap-1.5">
+      {names.length === 0 && <div className="text-xs theme-muted-text">{t.noFields}</div>}
       {names.map((name, i) => {
         const type = text(asRecord(fields[name])['type'])
         return (
           <div
             key={name}
-            className='flex items-center gap-2 rounded-md border theme-border px-2 py-1 text-sm'
+            className="flex items-center gap-2 rounded-md border theme-border px-2 py-1 text-sm"
           >
-            <span className='font-mono'>{name}</span>
-            <span className='rounded border theme-border px-1 text-xs theme-muted-text'>
+            <span className="font-mono">{name}</span>
+            <span className="rounded border theme-border px-1 text-xs theme-muted-text">
               {types[type] ?? type}
             </span>
-            <div className='flex-1' />
+            <div className="flex-1" />
             <IconButton
-              icon={<EditIcon className='h-3.5 w-3.5' />}
+              icon={<EditIcon className="h-3.5 w-3.5" />}
               label={t.editInput}
-              variant='ghost'
-              size='sm'
+              variant="ghost"
+              size="sm"
               onClick={() => setEditing({ name })}
             />
             <IconButton
-              icon={<ArrowUpIcon className='h-3.5 w-3.5' />}
+              icon={<ArrowUpIcon className="h-3.5 w-3.5" />}
               label={t.moveUp}
-              variant='ghost'
-              size='sm'
+              variant="ghost"
+              size="sm"
               disabled={i === 0}
               onClick={() => move(i, i - 1)}
             />
             <IconButton
-              icon={<ArrowDownIcon className='h-3.5 w-3.5' />}
+              icon={<ArrowDownIcon className="h-3.5 w-3.5" />}
               label={t.moveDown}
-              variant='ghost'
-              size='sm'
+              variant="ghost"
+              size="sm"
               disabled={i === names.length - 1}
               onClick={() => move(i, i + 1)}
             />
             <IconButton
-              icon={<TrashIcon className='h-3.5 w-3.5' />}
+              icon={<TrashIcon className="h-3.5 w-3.5" />}
               label={t.deleteInput}
-              variant='ghost'
-              size='sm'
+              variant="ghost"
+              size="sm"
               onClick={() =>
-                onChange(
-                  Object.fromEntries(
-                    Object.entries(fields).filter(([key]) => key !== name)
-                  )
-                )
+                onChange(Object.fromEntries(Object.entries(fields).filter(([key]) => key !== name)))
               }
             />
           </div>
         )
       })}
       <FieldError message={error} />
-      <AddRowButton
-        label={t.addField}
-        onClick={() => setEditing({ create: true })}
-      />
+      <AddRowButton label={t.addField} onClick={() => setEditing({ create: true })} />
       {editing && (
         <InputDialog
           name={'name' in editing ? editing.name : nextFieldName(names)}
           definition={
-            'name' in editing
-              ? asRecord(fields[editing.name])
-              : newInputDefinition('string')
+            'name' in editing ? asRecord(fields[editing.name]) : newInputDefinition('string')
           }
           isNew={!('name' in editing)}
-          siblings={names.filter(
-            name => !('name' in editing) || name !== editing.name
-          )}
+          siblings={names.filter((name) => !('name' in editing) || name !== editing.name)}
           allowStep={false}
           inputs={inputs}
           home={home}
@@ -1310,9 +1210,9 @@ function TemplateFields({
               onChange(
                 Object.fromEntries(
                   entries.map(([key, value]) =>
-                    key === editing.name ? [name, definition] : [key, value]
-                  )
-                )
+                    key === editing.name ? [name, definition] : [key, value],
+                  ),
+                ),
               )
             } else {
               onChange({ ...fields, [name]: definition })
@@ -1325,7 +1225,7 @@ function TemplateFields({
 }
 
 function nextFieldName(names: string[]): string {
-  return freeName(names, n => `field_${n}`)
+  return freeName(names, (n) => `field_${n}`)
 }
 
 function ValuesField({
@@ -1346,7 +1246,7 @@ function ValuesField({
     return (
       <StringListEditor
         values={draft.values}
-        onChange={values => onChange({ ...draft, values })}
+        onChange={(values) => onChange({ ...draft, values })}
         addLabel={t.addValue}
         suggestions={suggestions}
         error={error}
@@ -1359,7 +1259,7 @@ function ValuesField({
       aria-label={label}
       value={draft.expression}
       error={error}
-      onChange={e => onChange({ ...draft, expression: e.target.value })}
+      onChange={(e) => onChange({ ...draft, expression: e.target.value })}
     />
   )
 }
@@ -1380,7 +1280,7 @@ function RowsField({
 }) {
   const formJSONs = useMemo(
     () => convertToDynamicForm({ rows: { type: 'list', label, template } }),
-    [label, template]
+    [label, template],
   )
   // The list fills in row fields as it mounts; only what the user does counts as an edit.
   const touched = useRef(false)
@@ -1394,13 +1294,13 @@ function RowsField({
         aria-label={label}
         value={draft.expression}
         error={error}
-        onChange={e => onChange({ ...draft, expression: e.target.value })}
+        onChange={(e) => onChange({ ...draft, expression: e.target.value })}
       />
     )
   }
   return (
     <div
-      className='flex flex-col gap-2 rounded-md border theme-border p-2'
+      className="flex flex-col gap-2 rounded-md border theme-border p-2"
       onClickCapture={touch}
       onInputCapture={touch}
       onKeyDownCapture={touch}
@@ -1411,9 +1311,9 @@ function RowsField({
           key={JSON.stringify(template)}
           formJSONs={formJSONs}
           initialValues={{ rows: draft.rows }}
-          labelPosition='top'
+          labelPosition="top"
           workflowForm
-          setValues={values => {
+          setValues={(values) => {
             if (touched.current) {
               const rows = values['rows']
               onChange({
@@ -1465,8 +1365,7 @@ function PropField({
 }) {
   const { inputsEditor: t } = useStrings()
   const description = t.help[prop.help]
-  const name =
-    (t.fields as Record<string, string | undefined>)[prop.key] ?? prop.key
+  const name = (t.fields as Record<string, string | undefined>)[prop.key] ?? prop.key
   const field = { label: name, yamlKey: prop.key, description }
   switch (kind) {
     case 'flag':
@@ -1497,13 +1396,11 @@ function PropField({
     case 'bool': {
       const fallback = prop.fallback ?? false
       return (
-        <div className='flex flex-col gap-1.5'>
+        <div className="flex flex-col gap-1.5">
           <ToggleField
             {...field}
             checked={typeof draft === 'boolean' ? draft : fallback}
-            onChange={on =>
-              onChange(on !== fallback ? on : original === on ? on : undefined)
-            }
+            onChange={(on) => onChange(on !== fallback ? on : original === on ? on : undefined)}
           />
           <FieldError message={error} />
         </div>
@@ -1517,7 +1414,7 @@ function PropField({
           actions={
             <ExpressionToggle
               active={options.mode === 'expression'}
-              onChange={on =>
+              onChange={(on) =>
                 onChange({
                   ...options,
                   mode: on ? 'expression' : 'list',
@@ -1544,9 +1441,7 @@ function PropField({
           actions={
             <ExpressionToggle
               active={(draft as ValuesDraft).expression !== undefined}
-              onChange={on =>
-                onChange({ expression: on ? '' : undefined, values: [] })
-              }
+              onChange={(on) => onChange({ expression: on ? '' : undefined, values: [] })}
             />
           }
         >
@@ -1555,7 +1450,7 @@ function PropField({
             draft={draft as ValuesDraft}
             suggestions={
               inputType === 'multi-dropdown' || inputType === 'checkbox-group'
-                ? optionRows.map(row => row.value.trim()).filter(Boolean)
+                ? optionRows.map((row) => row.value.trim()).filter(Boolean)
                 : []
             }
             onChange={onChange}
@@ -1570,9 +1465,7 @@ function PropField({
           actions={
             <ExpressionToggle
               active={(draft as RowsDraft).expression !== undefined}
-              onChange={on =>
-                onChange({ expression: on ? '' : undefined, rows: [] })
-              }
+              onChange={(on) => onChange({ expression: on ? '' : undefined, rows: [] })}
             />
           }
         >
@@ -1592,9 +1485,9 @@ function PropField({
           {...labelled(name, prop.key)}
           description={description}
           value={String(draft ?? '')}
-          placeholder='HH:MM:SS'
+          placeholder="HH:MM:SS"
           error={error}
-          onChange={e => onChange(e.target.value)}
+          onChange={(e) => onChange(e.target.value)}
         />
       )
     case 'template':
@@ -1604,7 +1497,7 @@ function PropField({
           actions={
             <ExpressionToggle
               active={typeof draft === 'string'}
-              onChange={on => onChange(on ? '' : {})}
+              onChange={(on) => onChange(on ? '' : {})}
             />
           }
         >
@@ -1614,7 +1507,7 @@ function PropField({
               aria-label={name}
               value={draft}
               error={error}
-              onChange={e => onChange(e.target.value)}
+              onChange={(e) => onChange(e.target.value)}
             />
           ) : (
             <TemplateFields
@@ -1631,22 +1524,18 @@ function PropField({
     case 'implies':
       return (
         <LabelledField {...field}>
-          <ImpliesEditor
-            draft={draft as ImpliesDraft}
-            options={optionRows}
-            onChange={onChange}
-          />
+          <ImpliesEditor draft={draft as ImpliesDraft} options={optionRows} onChange={onChange} />
         </LabelledField>
       )
     case 'choice': {
-      const choiceLabels = (
-        t.choices as Record<string, Record<string, string> | undefined>
-      )[prop.key]
+      const choiceLabels = (t.choices as Record<string, Record<string, string> | undefined>)[
+        prop.key
+      ]
       return (
         <LabelledField {...field}>
           <ChoiceButtons
-            size='xs'
-            options={(prop.choices ?? []).map(choice => ({
+            size="xs"
+            options={(prop.choices ?? []).map((choice) => ({
               value: choice,
               label: choiceLabels?.[choice] ?? choice,
             }))}
@@ -1666,7 +1555,7 @@ function PropField({
           description={description}
           value={String(draft ?? '')}
           {...(error ? { error } : {})}
-          onChange={e => onChange(e.target.value)}
+          onChange={(e) => onChange(e.target.value)}
         />
       ) : (
         <Textarea
@@ -1676,7 +1565,7 @@ function PropField({
           rows={kind === 'json' ? 4 : 6}
           value={String(draft ?? '')}
           {...(error ? { error } : {})}
-          onChange={e => onChange(e.target.value)}
+          onChange={(e) => onChange(e.target.value)}
         />
       )
     default:
@@ -1685,9 +1574,7 @@ function PropField({
           {...field}
           value={String(draft ?? '')}
           onChange={onChange}
-          suggestions={
-            prop.choices ?? (kind === 'language' ? LANGUAGES : suggestions)
-          }
+          suggestions={prop.choices ?? (kind === 'language' ? LANGUAGES : suggestions)}
           error={error}
         />
       )
@@ -1708,7 +1595,7 @@ function commonProp(key: CommonKey): Prop {
 const COMMON_PROPS = ALL_COMMON.map(commonProp)
 
 function isCommon(prop: Prop): boolean {
-  return COMMON_PROPS.some(common => draftKey(common) === draftKey(prop))
+  return COMMON_PROPS.some((common) => draftKey(common) === draftKey(prop))
 }
 
 // Types may read the same key differently, such as a number or a text default.
@@ -1718,10 +1605,7 @@ function draftKey(prop: Prop): string {
 
 const ALL_PROPS: Prop[] = [
   ...new Map(
-    [...COMMON_PROPS, ...Object.values(TYPE_PROPS).flat()].map(prop => [
-      draftKey(prop),
-      prop,
-    ])
+    [...COMMON_PROPS, ...Object.values(TYPE_PROPS).flat()].map((prop) => [draftKey(prop), prop]),
   ).values(),
 ]
 
@@ -1773,12 +1657,10 @@ export interface InputHome {
 function defaultHome(inputs: Json): InputHome {
   const wizard = asRecord(asRecord(inputs['$meta'])['wizard'])
   const steps = Object.entries(inputs).filter(
-    ([name, value]) => name !== '$meta' && asRecord(value)['type'] === 'step'
+    ([name, value]) => name !== '$meta' && asRecord(value)['type'] === 'step',
   )
   const last = steps.at(-1)?.[0]
-  return wizard['mode'] === 'wizard' && last
-    ? { parent: [last] }
-    : { parent: [] }
+  return wizard['mode'] === 'wizard' && last ? { parent: [last] } : { parent: [] }
 }
 
 function homeContainer(inputs: Json, home: InputHome): Json {
@@ -1790,14 +1672,8 @@ function homeContainer(inputs: Json, home: InputHome): Json {
   return key ? asRecord(asRecord(inputs[step])[key]) : {}
 }
 
-function withPending(
-  inputs: Json,
-  home: InputHome,
-  pending: PendingInput[]
-): Json {
-  const added = Object.fromEntries(
-    pending.map(input => [input.name, input.definition])
-  )
+function withPending(inputs: Json, home: InputHome, pending: PendingInput[]): Json {
+  const added = Object.fromEntries(pending.map((input) => [input.name, input.definition]))
   const [step] = home.parent
   if (!step) {
     return { ...inputs, ...added }
@@ -1817,7 +1693,7 @@ function withPending(
 export function withCreatedInputs(
   created: PendingInput[],
   home: InputHome,
-  edit: GraphEdit | null
+  edit: GraphEdit | null,
 ): GraphEdit | null {
   return batchOf([
     ...created.map(
@@ -1827,7 +1703,7 @@ export function withCreatedInputs(
         ...(home.index !== undefined ? { index: home.index + i } : {}),
         name: input.name,
         definition: input.definition,
-      })
+      }),
     ),
     ...(edit ? [edit] : []),
   ])
@@ -1836,7 +1712,7 @@ export function withCreatedInputs(
 /** Inputs a dialog's fields can read, plus the ones it creates on save. */
 export function useNewInputs(
   inputs: Json | undefined,
-  home?: InputHome
+  home?: InputHome,
 ): {
   source: InputSource
   all: Json
@@ -1859,12 +1735,9 @@ export function useNewInputs(
     refs: inputRefs(all),
     create: (type, onCreated) => setCreating({ type, onCreated }),
   }
-  const adopt = (created: PendingInput[]) =>
-    setPending(current => [...current, ...created])
+  const adopt = (created: PendingInput[]) => setPending((current) => [...current, ...created])
   const pathOf = (name: string) =>
-    place.parent.length > 0 && !wizardFlattens(root)
-      ? [...place.parent, name]
-      : [name]
+    place.parent.length > 0 && !wizardFlattens(root) ? [...place.parent, name] : [name]
   const dialog = creating ? (
     <InputDialog
       name={suggestedName(creating.type, all)}
@@ -1889,7 +1762,7 @@ export function useNewInputs(
     pending,
     adopt,
     dialog,
-    save: edit => withCreatedInputs(pending, place, edit),
+    save: (edit) => withCreatedInputs(pending, place, edit),
   }
 }
 
@@ -1912,7 +1785,7 @@ interface InputDialogProps {
     name: string,
     definition: Json,
     patch: Required<FieldPatch>,
-    created: PendingInput[]
+    created: PendingInput[],
   ) => void
   onDelete?: () => void
   onClose: () => void
@@ -1938,12 +1811,7 @@ export function InputDialog({
   onViewChange?: ((view: SettingsView) => void) | undefined
 }) {
   return yaml ? (
-    <InputViews
-      {...props}
-      textual={yaml}
-      view={view}
-      onViewChange={onViewChange}
-    />
+    <InputViews {...props} textual={yaml} view={view} onViewChange={onViewChange} />
   ) : (
     <InputForm {...props} />
   )
@@ -1977,9 +1845,7 @@ function InputViews({
   // The YAML as last shown, and the settings the form starts from.
   const [shown, setShown] = useState(opening)
   const [base, setBase] = useState<Json>(props.definition)
-  const [yaml, setYaml] = useState<string | null>(
-    view === 'form' ? null : opening
-  )
+  const [yaml, setYaml] = useState<string | null>(view === 'form' ? null : opening)
   const [name, setName] = useState(props.name)
   const [version, setVersion] = useState(0)
   const [problem, setProblem] = useState<string | undefined>()
@@ -1991,9 +1857,7 @@ function InputViews({
     }
     // The form's settings are written out again only when it changed them, so the text keeps its comments.
     const text =
-      !current || isEmptyPatch(diffPatch(base, current.written))
-        ? shown
-        : dumpYaml(current.written)
+      !current || isEmptyPatch(diffPatch(base, current.written)) ? shown : dumpYaml(current.written)
     setShown(text)
     setYaml(text)
     setProblem(undefined)
@@ -2011,12 +1875,10 @@ function InputViews({
     setShown(yaml)
     setBase(asRecord(loadYaml(yaml)))
     setYaml(null)
-    setVersion(current => current + 1)
+    setVersion((current) => current + 1)
     onViewChange?.('form')
   }
-  const switcher = (
-    <ViewSwitch yaml={yaml !== null} onForm={toForm} onYaml={toYaml} />
-  )
+  const switcher = <ViewSwitch yaml={yaml !== null} onForm={toForm} onYaml={toYaml} />
   if (yaml === null) {
     return (
       <SectionMemory.Provider value={sections}>
@@ -2046,9 +1908,7 @@ function InputViews({
       title={t.editInput}
       onClose={props.onClose}
       dirty={dirty}
-      saveDisabled={
-        yamlProblem(yaml, g) !== undefined || nameError !== undefined
-      }
+      saveDisabled={yamlProblem(yaml, g) !== undefined || nameError !== undefined}
       onSubmit={() => {
         if (dirty) {
           textual.onSave(nextName, yaml)
@@ -2066,12 +1926,12 @@ function InputViews({
         description={t.help.name}
         value={name}
         error={nameError}
-        onChange={e => setName(e.target.value)}
+        onChange={(e) => setName(e.target.value)}
       />
       <YamlPane
         path={INPUT_YAML_PATH}
         value={yaml}
-        onChange={text => {
+        onChange={(text) => {
           setYaml(text)
           setProblem(undefined)
         }}
@@ -2084,14 +1944,14 @@ function InputViews({
 
 function deleteButton(
   t: InputsEditorStrings,
-  { onDelete, onClose }: Pick<InputDialogProps, 'onDelete' | 'onClose'>
+  { onDelete, onClose }: Pick<InputDialogProps, 'onDelete' | 'onClose'>,
 ): ReactNode {
   return (
     <IconButton
-      icon={<TrashIcon className='h-4 w-4' />}
+      icon={<TrashIcon className="h-4 w-4" />}
       label={t.deleteInput}
-      variant='ghost'
-      size='sm'
+      variant="ghost"
+      size="sm"
       onClick={() => {
         onDelete?.()
         onClose()
@@ -2131,18 +1991,14 @@ function InputForm({
   const [initial] = useState(() => {
     const out: Drafts = {}
     for (const prop of ALL_PROPS) {
-      out[draftKey(prop)] = draftOf(
-        effectiveKind(prop, definition[prop.key]),
-        definition[prop.key]
-      )
+      out[draftKey(prop)] = draftOf(effectiveKind(prop, definition[prop.key]), definition[prop.key])
     }
     return out
   })
   const [drafts, setDrafts] = useState<Drafts>(initial)
   const originalType = text(definition['type'])
   const optionsDraftNow = drafts[draftKey(OPTIONS)] as OptionsDraft | undefined
-  const optionRows =
-    optionsDraftNow?.mode === 'list' ? optionsDraftNow.rows : []
+  const optionRows = optionsDraftNow?.mode === 'list' ? optionsDraftNow.rows : []
   // The schema has two dropdowns: a list with placeholder and autoselect, or options keyed by option-key.
   const keyedDropdown =
     type === 'dropdown' &&
@@ -2160,8 +2016,7 @@ function InputForm({
           ? true
           : keyedDropdown
             ? prop.key !== 'placeholder' && prop.key !== 'autoselect'
-            : prop.key !== 'option-key' ||
-              optionsDraftNow?.mode === 'expression'
+            : prop.key !== 'option-key' || optionsDraftNow?.mode === 'expression'
   const settingProps = (TYPE_PROPS[type] ?? []).filter(shown)
   const props = [...commonKeys(type).map(commonProp), ...settingProps]
   const kindOf = (prop: Prop) => effectiveKind(prop, definition[prop.key])
@@ -2179,9 +2034,7 @@ function InputForm({
       : valueOf(kindOf(prop), drafts[key], context)
   }
   const optionValues =
-    type === 'dropdown' || type === 'radio'
-      ? optionRows.map(row => row.value)
-      : []
+    type === 'dropdown' || type === 'radio' ? optionRows.map((row) => row.value) : []
   const slider = type === 'number' && valueFor(SLIDER) === true
 
   const trimmedName = draftName.trim()
@@ -2189,7 +2042,7 @@ function InputForm({
     name: !isValidInputName(trimmedName)
       ? t.invalidInputName
       : siblings.includes(trimmedName) ||
-          newInputs.pending.some(input => input.name === trimmedName)
+          newInputs.pending.some((input) => input.name === trimmedName)
         ? t.inputExists
         : undefined,
   }
@@ -2197,9 +2050,7 @@ function InputForm({
     const key = draftKey(prop)
     const required =
       prop.required ||
-      (keyedDropdown &&
-        optionsDraftNow?.mode === 'byKey' &&
-        prop === OPTION_KEY) ||
+      (keyedDropdown && optionsDraftNow?.mode === 'byKey' && prop === OPTION_KEY) ||
       (slider && ['min', 'max', 'step'].includes(prop.key))
     errors[key] =
       sameValue(drafts[key], initial[key]) && !required
@@ -2209,9 +2060,7 @@ function InputForm({
   // A flattened group's fields sit beside it, so they can't share a name with its neighbours.
   const clash =
     type === 'group' && drafts[draftKey(FLATTEN)] === true
-      ? Object.keys(asRecord(definition['items'])).find(child =>
-          siblings.includes(child)
-        )
+      ? Object.keys(asRecord(definition['items'])).find((child) => siblings.includes(child))
       : undefined
   if (clash) {
     errors[draftKey(FLATTEN)] = t.flattenClash(clash)
@@ -2219,8 +2068,7 @@ function InputForm({
   if (type === 'duration') {
     const hasLabel = valueFor(DISABLE_LABEL) !== undefined
     if (hasLabel !== (valueFor(DISABLE_VALUE) !== undefined)) {
-      errors[draftKey(hasLabel ? DISABLE_VALUE : DISABLE_LABEL)] =
-        t.disableNeedsBoth
+      errors[draftKey(hasLabel ? DISABLE_VALUE : DISABLE_LABEL)] = t.disableNeedsBoth
     }
   }
 
@@ -2233,13 +2081,11 @@ function InputForm({
     const previousKey = inputChildrenKey(originalType)
     if (childKey && childKey !== 'template') {
       next[childKey] =
-        (previousKey ? definition[previousKey] : undefined) ??
-        definition[childKey] ??
-        {}
+        (previousKey ? definition[previousKey] : undefined) ?? definition[childKey] ?? {}
     }
     // The schema takes one dropdown variant, so the other one's settings go.
     for (const prop of TYPE_PROPS[type] ?? []) {
-      if (!settingProps.some(other => other.key === prop.key)) {
+      if (!settingProps.some((other) => other.key === prop.key)) {
         next[prop.key] = undefined
       }
     }
@@ -2260,7 +2106,7 @@ function InputForm({
   const dirty = isNew || renamed || !isEmptyPatch(patch)
   const invalid = Object.values(errors).some(Boolean)
   const setDraft = (key: string, value: unknown) =>
-    setDrafts(current => ({ ...current, [key]: value }))
+    setDrafts((current) => ({ ...current, [key]: value }))
   const changeType = (next: string) => {
     setType(next)
     if (!isNew) {
@@ -2270,10 +2116,7 @@ function InputForm({
     const seeded = newInputDefinition(next)
     for (const prop of TYPE_PROPS[next] ?? []) {
       const key = draftKey(prop)
-      if (
-        seeded[prop.key] !== undefined &&
-        sameValue(drafts[key], initial[key])
-      ) {
+      if (seeded[prop.key] !== undefined && sameValue(drafts[key], initial[key])) {
         setDraft(key, draftOf(prop.kind, seeded[prop.key]))
       }
     }
@@ -2286,7 +2129,7 @@ function InputForm({
       draft={drafts[draftKey(prop)]}
       original={definition[prop.key]}
       error={errors[draftKey(prop)]}
-      onChange={value => setDraft(draftKey(prop), value)}
+      onChange={(value) => setDraft(draftKey(prop), value)}
       suggestions={prop.key === 'default' ? optionValues : []}
       inputType={type}
       optionRows={optionRows}
@@ -2295,25 +2138,20 @@ function InputForm({
       allInputs={newInputs.all}
       home={newInputs.home}
       template={asRecord(drafts[draftKey(TEMPLATE)])}
-      inputLabel={
-        String(drafts[draftKey(commonProp('label'))] ?? '').trim() ||
-        trimmedName
-      }
+      inputLabel={String(drafts[draftKey(commonProp('label'))] ?? '').trim() || trimmedName}
     />
   )
   const textProps = props.filter(
-    prop =>
-      (TEXT_FIELDS as readonly string[]).includes(prop.key) && isCommon(prop)
+    (prop) => (TEXT_FIELDS as readonly string[]).includes(prop.key) && isCommon(prop),
   )
   const behaviorProps = props.filter(
-    prop =>
-      (FLAG_FIELDS as readonly string[]).includes(prop.key) && isCommon(prop)
+    (prop) => (FLAG_FIELDS as readonly string[]).includes(prop.key) && isCommon(prop),
   )
   // As in the job and step dialogs, a section starts open only when it holds something.
   const holds = (prop: Prop) => original[prop.key] !== undefined
   const erred = (prop: Prop) => errors[draftKey(prop)] !== undefined
   const fieldOpen = isNew || textProps.some(holds)
-  const settingsOpen = settingProps.some(prop => prop.required || holds(prop))
+  const settingsOpen = settingProps.some((prop) => prop.required || holds(prop))
 
   const written = withoutUndefined(next)
   onDraft?.(trimmedName, written)
@@ -2333,9 +2171,7 @@ function InputForm({
       }}
       headerEnd={headerEnd}
       openOnAdd={openOnAdd}
-      {...(onDelete
-        ? { footerStart: deleteButton(t, { onDelete, onClose }) }
-        : {})}
+      {...(onDelete ? { footerStart: deleteButton(t, { onDelete, onClose }) } : {})}
     >
       <Input
         autoFocus
@@ -2344,40 +2180,27 @@ function InputForm({
         description={t.help.name}
         value={draftName}
         error={errors['name']}
-        onChange={e => setDraftName(e.target.value)}
+        onChange={(e) => setDraftName(e.target.value)}
       />
-      <TypeSelect
-        value={type}
-        onChange={changeType}
-        allowStep={allowStep}
-        disabled={lockedType}
-      />
+      <TypeSelect value={type} onChange={changeType} allowStep={allowStep} disabled={lockedType} />
       {!isNew && originalType && type !== originalType && (
-        <div className='text-xs theme-muted-text'>{t.typeChangeNote}</div>
+        <div className="text-xs theme-muted-text">{t.typeChangeNote}</div>
       )}
       {textProps.length > 0 && (
-        <Section
-          title={t.sectionField}
-          open={fieldOpen}
-          alert={textProps.some(erred)}
-        >
+        <Section title={t.sectionField} open={fieldOpen} alert={textProps.some(erred)}>
           {textProps.map(renderProp)}
         </Section>
       )}
       {settingProps.length > 0 && (
-        <Section
-          title={t.sectionSettings}
-          open={settingsOpen}
-          alert={settingProps.some(erred)}
-        >
-          {settingProps.map(prop =>
+        <Section title={t.sectionSettings} open={settingsOpen} alert={settingProps.some(erred)}>
+          {settingProps.map((prop) =>
             prop === DISABLE_VALUE ? null : prop === DISABLE_LABEL ? (
               <OptOutCheckbox
-                key='opt-out'
+                key="opt-out"
                 label={String(drafts[draftKey(DISABLE_LABEL)] ?? '')}
                 value={String(drafts[draftKey(DISABLE_VALUE)] ?? '')}
-                onLabel={next => setDraft(draftKey(DISABLE_LABEL), next)}
-                onValue={next => setDraft(draftKey(DISABLE_VALUE), next)}
+                onLabel={(next) => setDraft(draftKey(DISABLE_LABEL), next)}
+                onValue={(next) => setDraft(draftKey(DISABLE_VALUE), next)}
                 errors={{
                   label: errors[draftKey(DISABLE_LABEL)],
                   value: errors[draftKey(DISABLE_VALUE)],
@@ -2385,7 +2208,7 @@ function InputForm({
               />
             ) : (
               renderProp(prop)
-            )
+            ),
           )}
         </Section>
       )}
@@ -2408,11 +2231,7 @@ export function TypeBadge({ type }: { type: string }) {
   const { inputsEditor: t } = useStrings()
   const types = t.types as Record<string, string>
   return (
-    <span
-      className={cx(
-        'rounded border theme-border px-1 text-[11px] leading-4 theme-muted-text'
-      )}
-    >
+    <span className={cx('rounded border theme-border px-1 text-[11px] leading-4 theme-muted-text')}>
       {types[type] ?? (type || '?')}
     </span>
   )

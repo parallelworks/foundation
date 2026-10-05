@@ -1,5 +1,4 @@
-import { workflowInputsSchema } from '@parallelworks/workflow-parser'
-import { loadYaml } from '@parallelworks/workflow-parser'
+import { loadYaml, workflowInputsSchema } from '@parallelworks/workflow-parser'
 import type { UIData, WorkflowJsonRef } from '../components/Provider'
 import { asRecord, type Json } from './editorFields'
 
@@ -22,7 +21,7 @@ export function splitAtRef(value: string): [string, string] {
 async function loadTarget(
   uses: string,
   where: { yamlPath: string; host: string },
-  { resolve, repos }: UsesSources
+  { resolve, repos }: UsesSources,
 ): Promise<unknown> {
   if (/^(marketplace|workflow)\//.test(uses) && resolve) {
     const rest = uses.slice(uses.indexOf('/') + 1)
@@ -30,9 +29,7 @@ async function loadTarget(
       return resolve({ kind: 'workflow', name: rest })
     }
     // The engine reads marketplace/SLUG/VERSION, or SLUG@VERSION when there's no slash.
-    const [slug = '', version = ''] = rest.includes('/')
-      ? rest.split('/', 2)
-      : rest.split('@', 2)
+    const [slug = '', version = ''] = rest.includes('/') ? rest.split('/', 2) : rest.split('@', 2)
     return resolve({ kind: 'marketplace', slug, version: version || 'latest' })
   }
   const github = uses.startsWith('github/')
@@ -52,7 +49,7 @@ async function loadTarget(
 export async function loadUsesInputs(
   uses: string,
   where: { yamlPath: string; host: string },
-  sources: UsesSources
+  sources: UsesSources,
 ): Promise<Json | null> {
   const doc = await loadTarget(uses, where, sources)
   return doc ? asRecord(workflowInputsSchema(asRecord(doc))) : null
