@@ -273,7 +273,7 @@ function RowContextMenu({
     const opener = document.activeElement
     const target =
       menu.querySelector<HTMLElement>(':scope > div > input[type="search"]') ??
-      (focusVisible(opener) ? menu.querySelector<HTMLElement>(MENU_ITEMS) : null)
+      menu.querySelector<HTMLElement>(MENU_ITEMS)
     if (!target) {
       return
     }
@@ -380,14 +380,6 @@ function RowContextMenu({
 
 // What arrow keys move between, open submenus included, in the order they read.
 const MENU_ITEMS = 'button:not([disabled]), a[href]'
-
-function focusVisible(element: Element | null): boolean {
-  try {
-    return !!element?.matches(':focus-visible')
-  } catch {
-    return false
-  }
-}
 
 const MENU_ITEM_CLASSES =
   'flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[13px] hover:bg-(--theme-muted-panel-bg) transition-colors cursor-pointer [&>svg]:h-4 [&>svg]:w-4 [&>svg]:shrink-0'

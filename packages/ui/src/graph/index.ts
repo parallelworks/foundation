@@ -10,11 +10,25 @@ export type {
   EditorProblem,
   RevealTarget,
 } from './GraphEditor'
-export type { SettingsView } from './GraphEditorDialogs'
+export {
+  JOB_FIELDS,
+  RETRY_FIELDS,
+  RUNS_ON_FIELDS,
+  type SettingsView,
+  SSH_KEYS,
+  STEP_FIELDS,
+  STRATEGY_FIELDS,
+} from './GraphEditorDialogs'
+export { inputTypes, offeredInputKeys } from './InputDialog'
 export { InputsFormEditor } from './InputsEditor'
 export { type ListedProblem, ProblemsButton } from './ProblemsButton'
+export { ACTION_INPUTS, withFields } from './stepWith'
 export type { RunLink } from './types'
 export {
+  INPUT_FORM_FIELDS,
+  LINK_FIELDS,
+  NEEDS_FIELDS,
+  SESSION_FIELDS,
   WORKFLOW_FIELDS,
   WorkflowSettingsDialog,
 } from './WorkflowSettingsDialog'

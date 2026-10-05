@@ -9,6 +9,7 @@ export type {
   ISchemaError,
 } from './Monaco'
 export { revealLines } from './reveal'
+export { type JsonSchema, settingsSchemas } from './settingsYaml'
 export { defineEditorThemes, getThemeName } from './themes'
 export { setupMonacoWorkers } from './workers'
 export { configureEditorYaml } from './yaml'

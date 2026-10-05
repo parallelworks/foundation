@@ -340,6 +340,7 @@ function DropdownHelper({
     modifiers: popperModifiers,
   })
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
+  const typedRef = useRef('')
   const buttonRef = useRef<HTMLButtonElement>(null)
 
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
@@ -383,6 +384,7 @@ function DropdownHelper({
     setQuery(val)
 
     if (allowCustomValue) {
+      typedRef.current = val
       // Debounce the onChange callback (same pattern as FormikCustomInput)
       if (debounceRef.current) {
         clearTimeout(debounceRef.current)
@@ -401,7 +403,7 @@ function DropdownHelper({
     if (allowCustomValue && debounceRef.current) {
       clearTimeout(debounceRef.current)
       debounceRef.current = null
-      flushCustomValue(query)
+      flushCustomValue(typedRef.current)
     }
     setQuery('')
   }

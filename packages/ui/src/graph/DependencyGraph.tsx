@@ -1791,12 +1791,10 @@ export default function DependencyGraph({
   // Paging needs a path naming a job and step. A subworkflow's general log is its
   // parent step's log so it qualifies; a run's own logs.out has no step_ to read.
   const sublogIsStep = jobAndStep.length > 1
+  const logJob = jobAndStep[0] ?? ''
   const logName =
     jobAndStep.length > 1
-      ? 'Job: ' +
-        (jobAndStep[0]?.[0]?.toUpperCase() + jobAndStep[0]?.slice(1)).replace(/_/g, ' ') +
-        ' \nStep: ' +
-        (jobs[jobAndStep[0]!]?.steps[Number(jobAndStep[1])]?.name || `Step ${jobAndStep[1]}`)
+      ? `Job: ${(logJob.charAt(0).toUpperCase() + logJob.slice(1)).replace(/_/g, ' ')} \nStep: ${jobs[logJob]?.steps[Number(jobAndStep[1])]?.name || `Step ${jobAndStep[1]}`}`
       : ''
   const sublogIsSubworkflow =
     jobAndStep.length > 1 && jobs[jobAndStep[0]!]?.steps[Number(jobAndStep[1])]?.subworkflow
@@ -2085,7 +2083,7 @@ export default function DependencyGraph({
     (backward: boolean) => {
       const sublogSplit = sublogOpen.split('/')
       let job = sublogSplit[sublogSplit.length - 3] ?? ''
-      let step = parseInt(sublogSplit[sublogSplit.length - 2]?.slice(5), 10)
+      let step = parseInt(sublogSplit[sublogSplit.length - 2]?.slice(5) ?? '', 10)
       const jobArr = Object.keys(jobs)
       let idx = jobArr.indexOf(job)
       if (backward) {
