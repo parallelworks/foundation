@@ -4,10 +4,13 @@ import { useState } from 'react'
 import { FieldWrapper } from '../FieldWrapper'
 import type { FieldComponentProps } from '../types/fieldComponentTypes'
 import type { BaseField } from '../types/fieldTypes'
+import { fieldOption } from './fieldOption'
 
 export interface ICheckboxGroupField extends BaseField {
   type: 'checkbox-group'
-  options?: Array<{ label: string; value: string; description?: string }>
+  options?: Array<
+    string | { label?: string; value: string; description?: string }
+  >
   /**
    * Maps a value to the values it forces on. While the key is selected, each
    * listed value is checked and locked (disabled) to show the implication.
@@ -17,7 +20,10 @@ export interface ICheckboxGroupField extends BaseField {
   implies?: Record<string, string[]>
 }
 
-function impliedFrom(values: string[], implies: Record<string, string[]> = {}): Set<string> {
+function impliedFrom(
+  values: string[],
+  implies: Record<string, string[]> = {}
+): Set<string> {
   const result = new Set<string>()
   for (const value of values) {
     for (const target of implies[value] ?? []) {
@@ -28,7 +34,7 @@ function impliedFrom(values: string[], implies: Record<string, string[]> = {}): 
 }
 
 function union(manual: string[], forced: Set<string>): string[] {
-  return [...manual, ...[...forced].filter((v) => !manual.includes(v))]
+  return [...manual, ...[...forced].filter(v => !manual.includes(v))]
 }
 
 export default function CheckboxGroupField({
@@ -52,9 +58,9 @@ export default function CheckboxGroupField({
   // This lets us drop an implied value when its trigger is unchecked, while
   // keeping it if the user had also picked it directly.
   const [manual, setManual] = useState<string[]>(() => {
-    const saved = fieldState.value || []
+    const saved = (fieldState.value || []).map(String)
     const impliedBySaved = impliedFrom(saved, implies)
-    return saved.filter((v) => !impliedBySaved.has(v))
+    return saved.filter(v => !impliedBySaved.has(v))
   })
 
   const forced = impliedFrom(manual, implies)
@@ -64,7 +70,7 @@ export default function CheckboxGroupField({
       return
     }
     const nextManual = manual.includes(value)
-      ? manual.filter((v) => v !== value)
+      ? manual.filter(v => v !== value)
       : [...manual, value]
     const next = union(nextManual, impliedFrom(nextManual, implies))
     setManual(nextManual)
@@ -86,9 +92,10 @@ export default function CheckboxGroupField({
         <fieldset
           aria-labelledby={labelId}
           aria-describedby={describedBy}
-          className="flex min-w-0 max-w-lg flex-col gap-1"
+          className='flex min-w-0 max-w-lg flex-col gap-1'
         >
-          {field.options?.map((option) => {
+          {field.options?.map(raw => {
+            const option = fieldOption(raw)
             const locked = forced.has(option.value)
             const optionDisabled = disabled || locked
             return (
@@ -100,24 +107,27 @@ export default function CheckboxGroupField({
                   '-mx-2 flex items-start gap-2.5 rounded-md px-2 py-1.5 transition-colors',
                   optionDisabled
                     ? 'cursor-not-allowed opacity-60'
-                    : 'cursor-pointer hover:bg-(--theme-hover) has-[:focus-visible]:bg-(--theme-hover)',
+                    : 'cursor-pointer hover:bg-(--theme-hover) has-[:focus-visible]:bg-(--theme-hover)'
                 )}
               >
                 <input
-                  type="checkbox"
+                  type='checkbox'
                   checked={manual.includes(option.value) || locked}
                   disabled={optionDisabled}
                   onChange={() => handleToggle(option.value)}
                   className={cx(
-                    'mt-px h-4 w-4 rounded accent-(--theme-link)',
+                    // min-h-0: the base input rule's 20px minimum would sit the box below the label's line.
+                    'h-4 min-h-0 w-4 rounded accent-(--theme-link)',
                     optionDisabled ? 'cursor-not-allowed' : 'cursor-pointer',
-                    missing && 'invalid',
+                    missing && 'invalid'
                   )}
                 />
-                <div className="flex min-w-0 flex-col">
-                  <span className="font-medium leading-tight theme-text">{option.label}</span>
+                <div className='flex min-w-0 flex-col'>
+                  <span className='font-medium leading-tight theme-text'>
+                    {option.label}
+                  </span>
                   {option.description && (
-                    <span className="mt-0.5 text-xs leading-snug theme-muted-text">
+                    <span className='mt-0.5 text-xs leading-snug theme-muted-text'>
                       {option.description}
                     </span>
                   )}

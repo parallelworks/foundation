@@ -1,9 +1,21 @@
+import {
+  createContext,
+  use,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+} from 'react'
 import type { Dispatch, ReactNode, SetStateAction } from 'react'
-import { createContext, use, useCallback, useContext, useEffect, useMemo } from 'react'
 import { useLocalStorage } from 'usehooks-ts'
 import type { WorkflowEngine } from '../engine'
 import type { RunLink } from '../graph/types'
-import { safeUrl } from '../safeUrl'
+import {
+  GRAPH_EDITOR_STRINGS,
+  type GraphEditorStrings,
+  INPUTS_EDITOR_STRINGS,
+  type InputsEditorStrings,
+} from '../graph/editorStrings'
 
 export type UIToastId = string | number
 
@@ -108,6 +120,13 @@ export interface UIStrings {
     submitted: string
     expandAll: string
     collapseAll: string
+    zoomIn: string
+    zoomOut: string
+    resetView: string
+    previousGraph: string
+    nextGraph: string
+    matrixOf: (name: string) => string
+    jobCount: (count: number) => string
     loadingLogs: string
     noLogFound: string
     logLoadFailed: string
@@ -119,6 +138,8 @@ export interface UIStrings {
     openOriginalWorkflow: string
     openInNewGraph: string
   }
+  graphEditor: GraphEditorStrings
+  inputsEditor: InputsEditorStrings
   fileExplorer: {
     preview: {
       shareFile: string
@@ -253,7 +274,6 @@ export interface UIStrings {
       collapse: string
       upload: string
       download: string
-      downloadFromBrowser: string
       access: string
       manageAccess: string
       delete: string
@@ -328,6 +348,10 @@ export interface UIStrings {
     invalidDuration: string
     durationOutOfRange: (min: string, max: string) => string
     durationBelowMin: (min: string) => string
+    readOnly: string
+    readWrite: string
+    readOnlyDescription: string
+    readOnlyForced: string
   }
   time: {
     now: string
@@ -373,18 +397,29 @@ export interface UIStrings {
     perPage: string
     paginationPrevious: string
     paginationNext: string
-    paginationShowing: (name: string, start: number | string, end: number | string) => ReactNode
-    paginationShowingTimeRange: (name: string, startTime: string, endTime: string) => ReactNode
+    paginationShowing: (
+      name: string,
+      start: number | string,
+      end: number | string
+    ) => ReactNode
+    paginationShowingTimeRange: (
+      name: string,
+      startTime: string,
+      endTime: string
+    ) => ReactNode
   }
 }
 
 export interface UINavigation {
   goTo: (to: string) => void
-  /** Opens the source of a step that runs another workflow, named by its `uses`;
-   * `sourceUrl` is a page the server resolved for it, when there is one. */
-  openStepSource: (uses: string, sourceUrl?: string) => void
+  toWorkflow: (name: string) => void
+  toMarketItem: (name: string) => void
   openExternal: (href: string) => void
 }
+
+export type WorkflowJsonRef =
+  | { kind: 'marketplace'; slug: string; version: string }
+  | { kind: 'workflow'; name: string }
 
 export interface RunFileResult {
   data: string | undefined
@@ -394,7 +429,7 @@ export interface RunFileResult {
 
 export type PersistedStateHook = <T>(
   key: string,
-  defaultValue: T,
+  defaultValue: T
 ) => [T, Dispatch<SetStateAction<T>>]
 
 export interface UIData {
@@ -406,8 +441,18 @@ export interface UIData {
   useRunFile: (
     slug: string,
     path: string | null,
-    options?: { refreshInterval?: number },
+    options?: { refreshInterval?: number }
   ) => RunFileResult
+  /**
+   * Resolves a workflow reference to its parsed JSON definition, for the YAML
+   * editor's input completion. Absent, that completion silently no-ops.
+   */
+  resolveWorkflowJson?: (ref: WorkflowJsonRef) => Promise<unknown>
+  /**
+   * The names of the user's secret variables, which a workflow only receives by asking.
+   * Absent, the editor doesn't check for secrets read without being asked for.
+   */
+  resolveSecretVariables?: () => Promise<string[]>
   /**
    * Provisions browser-access CORS rules on a storage. Absent, the storage
    * explorer hides its "add CORS rules" affordance.
@@ -419,6 +464,57 @@ export interface UIData {
     storageName: string
   }) => Promise<{ error?: string }>
   usePersistedState: PersistedStateHook
+  /**
+   * Repository completions for `uses:`, bound by the host because the credential
+   * lives on the platform. Absent, those completions no-op.
+   */
+  repoSuggestions?: {
+    refs: (repo: string) => Promise<RepoRef[]>
+    files: (repo: string, ref: string, path: string) => Promise<RepoEntry[]>
+    file: (repo: string, ref: string, path: string) => Promise<string>
+    repos: (owner: string) => Promise<RepoSummary[]>
+    gitlabProjects: (search: string, host?: string) => Promise<GitlabProject[]>
+    owners: (
+      provider: 'github' | 'gitlab',
+      search: string,
+      host?: string
+    ) => Promise<RepoOwner[]>
+  }
+}
+
+/** One branch, tag or commit a `uses:` reference can name. */
+export interface RepoRef {
+  name: string
+  kind: string
+  detail: string
+}
+
+/** One repository in an owner listing. */
+export interface RepoSummary {
+  name: string
+  description: string
+  private: boolean
+}
+
+/** One account, organization or group a repository can live under. */
+export interface RepoOwner {
+  name: string
+  kind: string
+  host?: string | undefined
+}
+
+/** One GitLab project, with the server a $host must name to reach it. */
+export interface GitlabProject {
+  path: string
+  host: string
+  description: string
+  private: boolean
+}
+
+/** One entry in a repository directory listing. */
+export interface RepoEntry {
+  path: string
+  type: 'blob' | 'tree'
 }
 
 import type { FieldComponent } from '../form/fieldRegistry'
@@ -436,8 +532,14 @@ export type UILinkComponent = React.ComponentType<{
   [dataAttr: `data-${string}`]: string | undefined
 }>
 
-const DefaultLink: UILinkComponent = ({ to, onClick, className, children, ...rest }) => (
-  <a href={safeUrl(to)} onClick={onClick} className={className} {...rest}>
+const DefaultLink: UILinkComponent = ({
+  to,
+  onClick,
+  className,
+  children,
+  ...rest
+}) => (
+  <a href={to} onClick={onClick} className={className} {...rest}>
     {children}
   </a>
 )
@@ -499,9 +601,11 @@ export interface UISlots {
 }
 
 /** An engine, or a loader so the host can keep the engine out of its first-load bundle. */
-export type WorkflowEngineSource = WorkflowEngine | (() => Promise<WorkflowEngine>)
+export type WorkflowEngineSource =
+  | WorkflowEngine
+  | (() => Promise<WorkflowEngine>)
 
-interface UIProviderValue {
+export interface UIProviderValue {
   notify: UINotify
   strings: UIStrings
   navigation: UINavigation
@@ -518,7 +622,7 @@ const defaultUseRunFile = (): RunFileResult => ({
 
 function useLocalStoragePersistedState<T>(
   key: string,
-  defaultValue: T,
+  defaultValue: T
 ): [T, Dispatch<SetStateAction<T>>] {
   const [value, setValue] = useLocalStorage(key, defaultValue)
   return [value, setValue]
@@ -565,7 +669,7 @@ const DEFAULTS: UIProviderValue = {
       userAvatar: 'User avatar',
     },
     dropdown: {
-      select: (type) => `Select ${type}`,
+      select: type => `Select ${type}`,
       noOptionsFound: 'No options found',
       showOptions: 'Show options',
     },
@@ -575,7 +679,7 @@ const DEFAULTS: UIProviderValue = {
       notice: 'Notice:',
       top: 'Top',
       clearSelection: 'Clear selection',
-      copyLines: (count) => (count === 1 ? 'Copy 1 line' : `Copy ${count} lines`),
+      copyLines: count => (count === 1 ? 'Copy 1 line' : `Copy ${count} lines`),
       copyAll: 'Copy All',
       hideDebug: 'Hide Debug',
       showDebug: 'Show Debug',
@@ -605,12 +709,19 @@ const DEFAULTS: UIProviderValue = {
       status: 'Status',
       runtime: 'Runtime',
       submitted: 'Submitted',
-      expandAll: 'Expand all',
-      collapseAll: 'Collapse all',
+      expandAll: 'Expand All',
+      collapseAll: 'Collapse All',
+      zoomIn: 'Zoom in',
+      zoomOut: 'Zoom out',
+      resetView: 'Reset View',
+      previousGraph: 'Back to the previous graph',
+      nextGraph: 'Forward to the next graph',
+      matrixOf: name => `Matrix: ${name}`,
+      jobCount: count => (count === 1 ? '1 job' : `${count} jobs`),
       loadingLogs: 'Loading logs',
       noLogFound: 'No log found',
       logLoadFailed: 'Log could not be loaded',
-      statusLabel: (status) => status,
+      statusLabel: status => status,
       statusReason: () => undefined,
     },
     jobActions: {
@@ -618,6 +729,8 @@ const DEFAULTS: UIProviderValue = {
       openOriginalWorkflow: 'Open original workflow',
       openInNewGraph: 'Open in new graph',
     },
+    graphEditor: GRAPH_EDITOR_STRINGS,
+    inputsEditor: INPUTS_EDITOR_STRINGS,
     fileExplorer: {
       preview: {
         shareFile: 'Share file',
@@ -656,7 +769,8 @@ const DEFAULTS: UIProviderValue = {
         zoomOut: 'Zoom out',
         previousFile: 'Previous file',
         nextFile: 'Next file',
-        csvRows: (count: number, columns: number) => `${count} rows · ${columns} columns`,
+        csvRows: (count: number, columns: number) =>
+          `${count} rows · ${columns} columns`,
         csvFirstRows: (count: number, columns: number) =>
           `First ${count} rows · ${columns} columns`,
         head: 'Head',
@@ -688,7 +802,8 @@ const DEFAULTS: UIProviderValue = {
           title: 'CORS Configuration Required',
           description:
             'This storage location cannot be accessed from the browser because it is missing Cross-Origin Resource Sharing (CORS) rules.',
-          action: 'You can automatically configure these rules to allow access from this domain.',
+          action:
+            'You can automatically configure these rules to allow access from this domain.',
           note: 'Note: Changes may take up to 30 seconds to propagate.',
         },
         actions: {
@@ -721,7 +836,8 @@ const DEFAULTS: UIProviderValue = {
         retry: 'Try again',
       },
       treeMoreCount: (count: number) => `${count.toLocaleString()} more`,
-      treeMoreCountPartial: (count: number) => `${count.toLocaleString()}+ more`,
+      treeMoreCountPartial: (count: number) =>
+        `${count.toLocaleString()}+ more`,
       messages: {
         noWriteAccess: 'You do not have write access to this storage.',
         uploadsUnsupported: 'Uploads are not supported for this storage.',
@@ -732,7 +848,8 @@ const DEFAULTS: UIProviderValue = {
         noUri: 'No URI available for this file.',
         uriCopied: 'URI copied to clipboard',
         uriCopyFailed: 'Failed to copy URI',
-        storageUnavailable: 'This storage is not available at the moment. Please try again later.',
+        storageUnavailable:
+          'This storage is not available at the moment. Please try again later.',
         waitForCurrentUpload:
           'Please wait for the current upload to finish before starting a new one.',
         waitForUpload: 'Please wait for the upload to finish.',
@@ -746,19 +863,23 @@ const DEFAULTS: UIProviderValue = {
           'Upload is not supported for this storage at the moment. Please check back later.',
         noItemsForDeletion: 'No items selected for deletion.',
         deleting: 'Deleting item(s) from storage...',
-        deleteSomeFailed: 'Failed to delete one or more items. Please try again.',
+        deleteSomeFailed:
+          'Failed to delete one or more items. Please try again.',
         deleteSuccess: 'Deleted item(s) from storage successfully!',
-        deleteFailed: (message: string) => `Failed to delete item(s): ${message}`,
+        deleteFailed: (message: string) =>
+          `Failed to delete item(s): ${message}`,
         noFilesToUpload: 'No files to upload or target path not selected.',
         invalidUploadTarget: 'This target path is not valid for upload.',
-        uploadInitFailed: 'Failed to initialize upload session. Please try again.',
+        uploadInitFailed:
+          'Failed to initialize upload session. Please try again.',
         uploadQueuedInfo:
           'Another upload is in progress. This upload will be added to the queue and handled once the previous upload finishes.',
         connectFailed:
           'Failed to connect to storage provider. Please check your storage settings and try again.',
         corsNoStorage: 'No storage selected',
         corsAdded: 'CORS rules added successfully',
-        corsPropagating: 'CORS rules were added, but are still propagating. Try again in a moment.',
+        corsPropagating:
+          'CORS rules were added, but are still propagating. Try again in a moment.',
       },
       chrome: {
         explorer: 'Explorer',
@@ -766,7 +887,6 @@ const DEFAULTS: UIProviderValue = {
         collapse: 'Collapse',
         upload: 'Upload',
         download: 'Download',
-        downloadFromBrowser: 'From browser',
         access: 'Access',
         manageAccess: 'Manage Access',
         delete: 'Delete',
@@ -790,7 +910,8 @@ const DEFAULTS: UIProviderValue = {
         sizeLimitTitle: 'Upload Size Limit Exceeded',
         sizeLimitBody: (total: string, max: string) =>
           `The total upload size (${total}) exceeds the maximum allowed limit of ${max}.`,
-        sizeLimitHint: 'Please reduce the number of files or upload them in smaller batches.',
+        sizeLimitHint:
+          'Please reduce the number of files or upload them in smaller batches.',
       },
       confirmDelete: {
         title: 'Confirm Delete',
@@ -799,7 +920,8 @@ const DEFAULTS: UIProviderValue = {
       },
       empty: {
         nothingSelected: 'Nothing selected',
-        nothingSelectedHint: 'Pick a folder or file from the tree to see its contents.',
+        nothingSelectedHint:
+          'Pick a folder or file from the tree to see its contents.',
         folderEmpty: 'This folder is empty',
         dropHint: 'Drag files or a folder here to upload.',
         readOnlyHint: 'You have read-only access to this storage.',
@@ -808,8 +930,10 @@ const DEFAULTS: UIProviderValue = {
         shareThisFile: 'Share this file',
       },
       upload: {
-        inQueue: (position: number, total: number) => `In Queue (#${position} of ${total})`,
-        queuedShort: (position: number, total: number) => `Queued #${position} / ${total}`,
+        inQueue: (position: number, total: number) =>
+          `In Queue (#${position} of ${total})`,
+        queuedShort: (position: number, total: number) =>
+          `Queued #${position} / ${total}`,
         destination: 'Destination:',
         eta: 'ETA:',
         uploading: 'Uploading...',
@@ -829,8 +953,10 @@ const DEFAULTS: UIProviderValue = {
         minimizeDetails: 'Minimize details',
         sessionNotQueued: (id: string, status: string) =>
           `Upload session with ID ${id} is not queued, current status is ${status}`,
-        allCancelled: (count: number) => `All ${count} file(s) were cancelled by user.`,
-        someUploaded: (count: number) => `${count} file(s) uploaded successfully!`,
+        allCancelled: (count: number) =>
+          `All ${count} file(s) were cancelled by user.`,
+        someUploaded: (count: number) =>
+          `${count} file(s) uploaded successfully!`,
         someCancelled: (count: number) => `${count} file(s) cancelled by user.`,
         allUploaded: 'Upload file(s) successfully!',
         failedSummary: (failed: number, total: number) =>
@@ -846,20 +972,26 @@ const DEFAULTS: UIProviderValue = {
     form: {
       invalidDuration: 'Enter a duration as DD-HH:MM:SS or HH:MM:SS.',
       durationOutOfRange: (min, max) => `Must be between ${min} and ${max}.`,
-      durationBelowMin: (min) => `Must be at least ${min}.`,
+      durationBelowMin: min => `Must be at least ${min}.`,
+      readOnly: 'Read-only',
+      readWrite: 'Read-write',
+      readOnlyDescription:
+        'Read-only mounts can list and download objects, but cannot upload, modify, or delete them.',
+      readOnlyForced:
+        'Your access to this storage is read-only, so this mount cannot be writable.',
     },
     time: {
       now: 'now',
-      minutes: (n) => `${n}m`,
-      hours: (n) => `${n}h`,
-      days: (n) => `${n}d`,
-      years: (n) => `${n}y`,
+      minutes: n => `${n}m`,
+      hours: n => `${n}h`,
+      days: n => `${n}d`,
+      years: n => `${n}y`,
     },
     list: {
       copyMenu: 'Copy',
-      copy: (label) => `Copy ${label}`,
-      copied: (label) => `Copied ${label}`,
-      couldntCopy: (label) => `Couldn't copy ${label}`,
+      copy: label => `Copy ${label}`,
+      copied: label => `Copied ${label}`,
+      couldntCopy: label => `Couldn't copy ${label}`,
       moreActions: 'More actions',
       labelName: 'name',
       labelEmail: 'email',
@@ -867,7 +999,7 @@ const DEFAULTS: UIProviderValue = {
       labelUid: 'UID',
       labelId: 'ID',
       labelUrl: 'URL',
-      couldNotLoad: (noun) => `Couldn't load ${noun}`,
+      couldNotLoad: noun => `Couldn't load ${noun}`,
       displayOptions: 'Display options',
       grouping: 'Grouping',
       ordering: 'Ordering',
@@ -895,37 +1027,23 @@ const DEFAULTS: UIProviderValue = {
       paginationNext: 'Next',
       paginationShowing: (name, start, end) => (
         <>
-          Showing {name} <span className="font-medium">{start}</span> to{' '}
-          <span className="font-medium">{end}</span>
+          Showing {name} <span className='font-medium'>{start}</span> to{' '}
+          <span className='font-medium'>{end}</span>
         </>
       ),
       paginationShowingTimeRange: (name, startTime, endTime) => (
         <>
-          Showing {name} from <span className="font-medium">{startTime}</span> to{' '}
-          <span className="font-medium">{endTime}</span>
+          Showing {name} from <span className='font-medium'>{startTime}</span>{' '}
+          to <span className='font-medium'>{endTime}</span>
         </>
       ),
     },
   },
   navigation: {
-    goTo: (to) => {
-      const url = safeUrl(to)
-      if (url) {
-        window.location.assign(url)
-      }
-    },
-    openStepSource: (_uses, sourceUrl) => {
-      const url = safeUrl(sourceUrl)
-      if (url) {
-        window.open(url, '_blank')
-      }
-    },
-    openExternal: (href) => {
-      const url = safeUrl(href)
-      if (url) {
-        window.open(url, '_blank')
-      }
-    },
+    goTo: to => window.location.assign(to),
+    toWorkflow: () => {},
+    toMarketItem: () => {},
+    openExternal: href => window.open(href, '_blank'),
   },
   data: {
     useRunFile: defaultUseRunFile,
@@ -963,7 +1081,7 @@ function loadEngine(load: () => Promise<WorkflowEngine>): LoadedEngine {
   let entry = loadedEngines.get(load)
   if (!entry) {
     const created: LoadedEngine = { promise: load() }
-    created.promise.then((engine) => {
+    created.promise.then(engine => {
       created.engine = engine
     })
     loadedEngines.set(load, created)
@@ -981,7 +1099,9 @@ function resolveEngine(source: WorkflowEngineSource): WorkflowEngine {
 }
 
 /** The engine when one is provided and `enabled`; suspends while a loader resolves. */
-export function useOptionalWorkflowEngine(enabled = true): WorkflowEngine | undefined {
+export function useOptionalWorkflowEngine(
+  enabled = true
+): WorkflowEngine | undefined {
   const source = useContext(UIContext).engine
   if (!enabled || !source) {
     return undefined
@@ -992,13 +1112,17 @@ export function useOptionalWorkflowEngine(enabled = true): WorkflowEngine | unde
 export function useWorkflowEngine(): WorkflowEngine {
   const source = useContext(UIContext).engine
   if (!source) {
-    throw new Error('Workflow forms and graphs need a UIProvider with an engine.')
+    throw new Error(
+      'Workflow forms and graphs need a UIProvider with an engine.'
+    )
   }
   return resolveEngine(source)
 }
 
 /** Resolves the engine without suspending, for async callers such as editor completions. */
-export function useWorkflowEngineLoader(): () => Promise<WorkflowEngine | undefined> {
+export function useWorkflowEngineLoader(): () => Promise<
+  WorkflowEngine | undefined
+> {
   const source = useContext(UIContext).engine
   return useCallback(async () => {
     if (!source) {
@@ -1008,14 +1132,28 @@ export function useWorkflowEngineLoader(): () => Promise<WorkflowEngine | undefi
   }, [source])
 }
 
+export function useWorkflowJsonResolver():
+  | ((ref: WorkflowJsonRef) => Promise<unknown>)
+  | undefined {
+  return useContext(UIContext).data.resolveWorkflowJson
+}
+
 export function useProvisionCorsRules(): UIData['provisionCorsRules'] {
   return useContext(UIContext).data.provisionCorsRules
+}
+
+export function useRepoSuggestions(): UIData['repoSuggestions'] {
+  return useContext(UIContext).data.repoSuggestions
+}
+
+export function useSecretVariablesResolver(): UIData['resolveSecretVariables'] {
+  return useContext(UIContext).data.resolveSecretVariables
 }
 
 export function useRunFile(
   slug: string,
   path: string | null,
-  options?: { refreshInterval?: number },
+  options?: { refreshInterval?: number }
 ): RunFileResult {
   const { useRunFile: boundUseRunFile } = useContext(UIContext).data
   return boundUseRunFile(slug, path, options)
@@ -1023,9 +1161,10 @@ export function useRunFile(
 
 export function usePersistedState<T>(
   key: string,
-  defaultValue: T,
+  defaultValue: T
 ): [T, Dispatch<SetStateAction<T>>] {
-  const { usePersistedState: boundUsePersistedState } = useContext(UIContext).data
+  const { usePersistedState: boundUsePersistedState } =
+    useContext(UIContext).data
   return boundUsePersistedState(key, defaultValue)
 }
 
@@ -1040,7 +1179,9 @@ export function UIProvider({
 }: {
   notify?: Partial<UINotify>
   strings?: {
-    [G in keyof UIStrings]?: UIStrings[G] extends object ? Partial<UIStrings[G]> : UIStrings[G]
+    [G in keyof UIStrings]?: UIStrings[G] extends object
+      ? Partial<UIStrings[G]>
+      : UIStrings[G]
   }
   navigation?: Partial<UINavigation>
   data?: Partial<UIData>
@@ -1069,6 +1210,14 @@ export function UIProvider({
           ...DEFAULTS.strings.jobActions,
           ...strings?.jobActions,
         },
+        graphEditor: {
+          ...DEFAULTS.strings.graphEditor,
+          ...strings?.graphEditor,
+        },
+        inputsEditor: {
+          ...DEFAULTS.strings.inputsEditor,
+          ...strings?.inputsEditor,
+        },
         fileExplorer: {
           ...DEFAULTS.strings.fileExplorer,
           ...strings?.fileExplorer,
@@ -1082,7 +1231,7 @@ export function UIProvider({
       slots: slots ?? DEFAULTS.slots,
       engine,
     }),
-    [notify, strings, navigation, data, slots, engine],
+    [notify, strings, navigation, data, slots, engine]
   )
   return <UIContext.Provider value={value}>{children}</UIContext.Provider>
 }
