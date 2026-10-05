@@ -142,7 +142,7 @@
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
-    "@parallelworks/workflow-parser": "^0.7.0",
+    "@parallelworks/workflow-parser": "^0.6.0",
     "@storybook/addon-a11y": "10.6.1",
     "@storybook/addon-docs": "10.6.1",
     "@storybook/react-vite": "10.6.1",
