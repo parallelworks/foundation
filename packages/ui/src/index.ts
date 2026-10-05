@@ -105,6 +105,7 @@ export {
   useWorkflowEngine,
   useWorkflowEngineLoader,
   type WorkflowEngineSource,
+  type WorkflowJsonRef,
 } from './components/Provider'
 export { RequiredMark } from './components/RequiredMark'
 export { useRelativeTime } from './components/relativeTime'

@@ -135,7 +135,7 @@ export function impureSetValueFromPath(
 export function initializeValues(
   options: unknown,
   srcData: object = {},
-  ignoreDefaultStrings = false
+  blankDefault: boolean | ((field: { type?: string; default?: unknown }) => boolean) = false
 ): Record<string, unknown> | undefined {
   if (!options || typeof options !== 'object') {
     return undefined
@@ -294,19 +294,15 @@ export function initializeValues(
     if (fieldSchema.default !== undefined) {
       const dflt = fieldSchema.default
       const isPwResource = typeof dflt === 'string' && dflt.startsWith('pw://')
-      acc[field] =
-        // String types handle defaults separately (in StringField.tsx)
-        fieldSchema.type === 'string' ||
-        (ignoreDefaultStrings &&
-          !isPwResource &&
-          (fieldSchema.type === 'textarea' ||
-            // FIXME: now that apps are removed is this still needed?
-            // Doing this to stop `${{ app.target }}` from showing on form
-            // need to refactor front end for proper fix....
-            fieldSchema.type === 'compute-clusters' ||
-            fieldSchema.type === 'compute-resources'))
-          ? ''
-          : dflt
+      const leaveBlank =
+        typeof blankDefault === 'function'
+          ? blankDefault(fieldSchema)
+          : blankDefault &&
+            !isPwResource &&
+            (fieldSchema.type === 'textarea' ||
+              fieldSchema.type === 'compute-clusters' ||
+              fieldSchema.type === 'compute-resources')
+      acc[field] = fieldSchema.type === 'string' || leaveBlank ? '' : dflt
     }
     if (fieldSchema.prefillDefault && fieldSchema.default !== undefined) {
       acc[field] = fieldSchema.default

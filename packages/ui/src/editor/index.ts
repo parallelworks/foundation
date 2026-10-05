@@ -10,4 +10,5 @@ export type {
 export { LINT_OWNER } from './lintContext'
 export { revealLines } from './reveal'
 export { defineEditorThemes, getThemeName } from './themes'
+export { configureEditorYaml } from './yaml'
 export { setupMonacoWorkers } from './workers'
