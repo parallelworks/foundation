@@ -1,16 +1,9 @@
 import { Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/react'
 import cx from 'classnames'
-import {
-  createContext,
-  Fragment,
-  useContext,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react'
-import { MenuIcon } from '../icons'
+import { createContext, Fragment, useContext, useLayoutEffect, useRef, useState } from 'react'
 import { useLink, useStrings } from '../components/Provider'
 import { TOOLTIP_ID } from '../components/Tooltip'
+import { MenuIcon } from '../icons'
 
 // True inside the `…` menu, so pre-rendered element items whose buttons
 // normally render as chips restyle themselves as menu rows.
@@ -36,8 +29,6 @@ export interface ToolbarAction {
   enabledTooltip?: string
   disabledTooltip?: string | undefined
   hidden?: boolean
-  /** Makes the action a toggle: filled while on, outlined while off. */
-  active?: boolean | undefined
 }
 
 /** A pre-rendered element (e.g. a button component that owns its modal). */
@@ -62,28 +53,21 @@ export function ToolbarButton({ action }: { action: ToolbarAction }) {
   if (inOverflowMenu) {
     return <OverflowRow item={action} />
   }
-  const off = action.active === false
   const className = cx(
     'inline-flex items-center gap-x-0.5 h-9 px-2 rounded-md text-[13.5px] uppercase font-semibold transition-colors whitespace-nowrap',
-    off
-      ? 'border theme-border theme-muted-text'
-      : 'bg-(--theme-element) text-(--theme-element-text)',
+    'bg-(--theme-element) text-(--theme-element-text)',
     action.disabled
       ? 'opacity-50 cursor-not-allowed'
-      : off
-        ? 'cursor-pointer hover:theme-hover'
-        : 'cursor-pointer hover:bg-(--theme-element-hover)'
+      : 'cursor-pointer hover:bg-(--theme-element-hover)',
   )
-  const pressed =
-    action.active === undefined ? {} : { 'aria-pressed': action.active }
   const tooltipProps = tipProps(
     action.disabled ? action.disabledTooltip : action.enabledTooltip,
-    'bottom'
+    'bottom',
   )
   const Icon = action.icon
   const content = (
     <>
-      <div className='h-6 flex items-center'>
+      <div className="h-6 flex items-center">
         <Icon className={cx('w-auto', action.iconClassName)} />
       </div>
       {action.label}
@@ -100,21 +84,15 @@ export function ToolbarButton({ action }: { action: ToolbarAction }) {
     // A disabled <button> fires no hover events, so react-tooltip never shows
     // the "why is this disabled" copy; anchor it on a wrapping span instead.
     return (
-      <span className='inline-flex' {...tooltipProps}>
-        <button type='button' disabled className={className}>
+      <span className="inline-flex" {...tooltipProps}>
+        <button type="button" disabled className={className}>
           {content}
         </button>
       </span>
     )
   }
   return (
-    <button
-      type='button'
-      onClick={action.onClick}
-      className={className}
-      {...pressed}
-      {...tooltipProps}
-    >
+    <button type="button" onClick={action.onClick} className={className} {...tooltipProps}>
       {content}
     </button>
   )
@@ -126,16 +104,13 @@ function OverflowRow({ item }: { item: ToolbarAction }) {
   const Icon = item.icon
   const className = cx(
     'flex w-full items-center gap-x-1 px-4 py-2 text-[13px] uppercase font-semibold link hover:theme-hover',
-    item.disabled && 'opacity-50 cursor-not-allowed'
+    item.disabled && 'opacity-50 cursor-not-allowed',
   )
   // Opens left, away from the menu panel, so the tooltip never covers other rows.
-  const tooltipProps = tipProps(
-    item.disabled ? item.disabledTooltip : item.enabledTooltip,
-    'left'
-  )
+  const tooltipProps = tipProps(item.disabled ? item.disabledTooltip : item.enabledTooltip, 'left')
   const content = (
     <>
-      <div className='w-5 h-6 flex items-center'>
+      <div className="w-5 h-6 flex items-center">
         <Icon className={cx(item.iconClassName)} />
       </div>
       {item.label}
@@ -146,20 +121,15 @@ function OverflowRow({ item }: { item: ToolbarAction }) {
   // activation, menuitem role — land on the DOM node.
   if (item.href && !item.disabled) {
     return (
-      <MenuItem
-        as={Link}
-        to={item.href}
-        className={className}
-        {...tooltipProps}
-      >
+      <MenuItem as={Link} to={item.href} className={className} {...tooltipProps}>
         {content}
       </MenuItem>
     )
   }
   return (
     <MenuItem
-      as='button'
-      type='button'
+      as="button"
+      type="button"
       onClick={item.onClick}
       disabled={item.disabled ?? false}
       className={className}
@@ -173,13 +143,13 @@ function OverflowRow({ item }: { item: ToolbarAction }) {
 function OverflowMenu({ items }: { items: ToolbarItem[] }) {
   const { list: t } = useStrings()
   return (
-    <Menu as='div' className='relative inline-block text-left'>
+    <Menu as="div" className="relative inline-block text-left">
       <MenuButton
         aria-label={t.moreActions}
-        className='inline-flex items-center justify-center h-9 w-9 rounded-md border theme-border link hover:theme-hover transition-colors'
+        className="inline-flex items-center justify-center h-9 w-9 rounded-md border theme-border link hover:theme-hover transition-colors"
         data-tooltip-id={TOOLTIP_ID}
         data-tooltip-content={t.moreActions}
-        data-testid='action-toolbar-menu-button'
+        data-testid="action-toolbar-menu-button"
       >
         <MenuIcon />
       </MenuButton>
@@ -189,15 +159,15 @@ function OverflowMenu({ items }: { items: ToolbarItem[] }) {
       <MenuItems
         unmount={false}
         anchor={{ to: 'bottom end', gap: 4 }}
-        className='z-50 min-w-56 rounded-md border theme-border bg-(--theme-app-bg) shadow-lg py-1 focus:outline-none'
+        className="z-50 min-w-56 rounded-md border theme-border bg-(--theme-app-bg) shadow-lg py-1 focus:outline-none"
       >
         <OverflowMenuContext.Provider value={true}>
-          {items.map(item =>
+          {items.map((item) =>
             'element' in item ? (
               <Fragment key={item.key}>{item.element}</Fragment>
             ) : (
               <OverflowRow key={item.key} item={item} />
-            )
+            ),
           )}
         </OverflowMenuContext.Provider>
       </MenuItems>
@@ -210,17 +180,11 @@ const MENU_BUTTON_WIDTH = 44
 // gap-1 between toolbar chips.
 const ITEM_GAP = 4
 
-function fitCount(
-  widths: number[],
-  available: number,
-  gap: number,
-  menuWidth: number
-) {
+function fitCount(widths: number[], available: number, gap: number, menuWidth: number) {
   if (widths.length === 0) {
     return 0
   }
-  const totalAll =
-    widths.reduce((sum, w) => sum + w, 0) + gap * (widths.length - 1)
+  const totalAll = widths.reduce((sum, w) => sum + w, 0) + gap * (widths.length - 1)
   if (totalAll <= available) {
     return widths.length
   }
@@ -268,26 +232,23 @@ function CollapsibleRight({ items }: { items: ToolbarItem[] }) {
         widthCache.current[key] = el.offsetWidth
       }
     }
-    const widths = items.map(item => widthCache.current[item.key] ?? 0)
+    const widths = items.map((item) => widthCache.current[item.key] ?? 0)
     const next = fitCount(widths, available, ITEM_GAP, MENU_BUTTON_WIDTH)
-    setCount(prev => (prev === next ? prev : next))
+    setCount((prev) => (prev === next ? prev : next))
   })
 
   const visible = items.slice(0, count)
   const overflow = items.slice(count)
 
   return (
-    <div
-      ref={wrapRef}
-      className='flex-1 min-w-0 flex items-center justify-end gap-1'
-    >
-      {visible.map(item => (
+    <div ref={wrapRef} className="flex-1 min-w-0 flex items-center justify-end gap-1">
+      {visible.map((item) => (
         <span
           key={item.key}
-          ref={el => {
+          ref={(el) => {
             itemRefs.current[item.key] = el
           }}
-          className='inline-flex shrink-0'
+          className="inline-flex shrink-0"
         >
           <ToolbarItemView item={item} />
         </span>
@@ -304,8 +265,7 @@ export const stickyToolbarClasses = 'sticky top-10 z-10 bg-(--theme-app-bg)'
 export const stickyTabsClasses = 'sticky top-22 z-10 bg-(--theme-app-bg)'
 
 /** Pins a detail-page tabs row directly under the breadcrumb strip when the page has no pinned toolbar (top-10 = the strip's height). */
-export const stickyTabsUnderHeaderClasses =
-  'sticky top-10 z-10 bg-(--theme-app-bg)'
+export const stickyTabsUnderHeaderClasses = 'sticky top-10 z-10 bg-(--theme-app-bg)'
 
 /** Action groups left, secondary actions right (collapsing into a `…` menu). */
 export function ActionToolbar({
@@ -319,23 +279,18 @@ export function ActionToolbar({
   sticky?: boolean
 }) {
   const visibleGroups = groups
-    .map(group => group.filter(a => !a.hidden))
-    .filter(group => group.length > 0)
-  const visibleRight = right.filter(a => !a.hidden)
+    .map((group) => group.filter((a) => !a.hidden))
+    .filter((group) => group.length > 0)
+  const visibleRight = right.filter((a) => !a.hidden)
   return (
-    <div
-      className={cx(
-        'flex items-center gap-2.5',
-        sticky && cx(stickyToolbarClasses, 'py-1.5')
-      )}
-    >
+    <div className={cx('flex items-center gap-2.5', sticky && cx(stickyToolbarClasses, 'py-1.5'))}>
       {visibleGroups.length > 0 && (
-        <div className='flex items-center gap-2.5 shrink-0'>
+        <div className="flex items-center gap-2.5 shrink-0">
           {visibleGroups.map((group, i) => (
             <Fragment key={group[0]?.key ?? i}>
-              {i > 0 && <div className='w-px h-5 bg-(--theme-border)' />}
-              <div className='flex items-center gap-1'>
-                {group.map(item => (
+              {i > 0 && <div className="w-px h-5 bg-(--theme-border)" />}
+              <div className="flex items-center gap-1">
+                {group.map((item) => (
                   <ToolbarItemView key={item.key} item={item} />
                 ))}
               </div>

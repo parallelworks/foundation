@@ -1,16 +1,4 @@
-import { TOOLTIP_ID, TooltipInfo } from '../components/Tooltip'
-import { useStrings, useWorkflowEngine } from '../components/Provider'
-import Loader from '../components/Loader'
-import { Table } from '../components/Table'
-import { getValueUsingPath } from './utils/getValueUsingPath'
-import { getParentValue } from './utils/getParentValue'
 import cx from 'classnames'
-import CustomListbox from '../components/Listbox'
-import { UncontrolledCollapsiblePanel } from '../components/CollapsiblePanel'
-
-import SectionHeader from '../components/SectionHeader'
-
-import { AngleRightIcon, SuccessCheckmark, TrashIcon } from '../icons'
 import deepEqual from 'fast-deep-equal'
 import {
   Form,
@@ -20,10 +8,6 @@ import {
   useField,
   useFormikContext,
 } from 'formik'
-import { useParsedOpts } from './useParsedOpts'
-import { usePrevious } from './usePrevious'
-import type { WorkflowVariables } from '../engine'
-
 import React, {
   type SetStateAction,
   useCallback,
@@ -32,16 +16,24 @@ import React, {
   useRef,
   useState,
 } from 'react'
-import { WizardContainer } from './Wizard/WizardContainer'
-import { parseWizardConfig } from './Wizard/utils'
-import {
-  type FieldComponent,
-  FieldRegistryContext,
-  Registry,
-} from './fieldRegistry'
-import { resolvedFlag } from './lib'
+import { UncontrolledCollapsiblePanel } from '../components/CollapsiblePanel'
+import CustomListbox from '../components/Listbox'
+import Loader from '../components/Loader'
+import { useStrings, useWorkflowEngine } from '../components/Provider'
+import SectionHeader from '../components/SectionHeader'
+import { Table } from '../components/Table'
+import { TooltipInfo } from '../components/Tooltip'
+import type { WorkflowVariables } from '../engine'
+import { AngleRightIcon, TrashIcon } from '../icons'
 import { useFieldControlProps, useFieldRequired } from './fieldContext'
-import { EditingScope, useFormEditing } from './formEditing'
+import { type FieldComponent, FieldRegistryContext, Registry } from './fieldRegistry'
+import { resolvedFlag } from './lib'
+import { useParsedOpts } from './useParsedOpts'
+import { usePrevious } from './usePrevious'
+import { getParentValue } from './utils/getParentValue'
+import { getValueUsingPath } from './utils/getValueUsingPath'
+import { parseWizardConfig } from './Wizard/utils'
+import { WizardContainer } from './Wizard/WizardContainer'
 
 interface FormMeta {
   labelPosition?: 'left' | 'top' | undefined
@@ -87,20 +79,15 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {}
 }
 
-function flagValue(
-  value: unknown,
-  fallback: string | boolean
-): string | boolean {
-  return value && (typeof value === 'string' || typeof value === 'boolean')
-    ? value
-    : fallback
+function flagValue(value: unknown, fallback: string | boolean): string | boolean {
+  return value && (typeof value === 'string' || typeof value === 'boolean') ? value : fallback
 }
 
 /** Applies `$meta` overrides for `labelPosition` / `spaceCompact`. */
 export function resolveMetaOverrides(
   options: { $meta?: FormMeta } | Record<string, unknown> | undefined,
   labelPosition: 'left' | 'top' | undefined,
-  spaceCompact: boolean
+  spaceCompact: boolean,
 ) {
   const meta = options?.['$meta'] as FormMeta | undefined
   return {
@@ -113,7 +100,7 @@ export function resolveMetaOverrides(
 export function listLengthsSignature(
   options: Record<string, unknown>,
   values: Record<string, unknown> = {},
-  prefix = ''
+  prefix = '',
 ): string {
   if (!options || typeof options !== 'object') {
     return ''
@@ -132,13 +119,7 @@ export function listLengthsSignature(
       const template = field.template || field.options
       if (template && Array.isArray(items)) {
         for (let i = 0; i < items.length; i++) {
-          parts.push(
-            listLengthsSignature(
-              template,
-              asRecord(items[i]),
-              `${fullName}[${i}].`
-            )
-          )
+          parts.push(listLengthsSignature(template, asRecord(items[i]), `${fullName}[${i}].`))
         }
       }
     } else if (field.type === 'group') {
@@ -154,9 +135,7 @@ export function listLengthsSignature(
       const groupItems = field.items || field.options
       if (groupItems) {
         const nestedValues = asRecord(values?.[fieldName])
-        parts.push(
-          listLengthsSignature(groupItems, nestedValues, `${fullName}.`)
-        )
+        parts.push(listLengthsSignature(groupItems, nestedValues, `${fullName}.`))
       }
     }
   }
@@ -167,7 +146,7 @@ export function listLengthsSignature(
 export function collectFieldsWithDefaults(
   options: Record<string, unknown>,
   values: Record<string, unknown> = {},
-  prefix = ''
+  prefix = '',
 ): Array<{ name: string; defaultValue: unknown; hasSecondary?: boolean }> {
   const result: Array<{
     name: string
@@ -181,10 +160,7 @@ export function collectFieldsWithDefaults(
 
   for (const [fieldName, rawField] of Object.entries(options)) {
     const field = asSchemaField(rawField)
-    if (!field) {
-      continue
-    }
-    if (fieldName === '$meta') {
+    if (fieldName === '$meta' || !field) {
       continue
     }
 
@@ -206,9 +182,7 @@ export function collectFieldsWithDefaults(
       const groupItems = field.items || field.options
       if (groupItems) {
         const nestedValues = asRecord(values?.[fieldName])
-        result.push(
-          ...collectFieldsWithDefaults(groupItems, nestedValues, `${fullName}.`)
-        )
+        result.push(...collectFieldsWithDefaults(groupItems, nestedValues, `${fullName}.`))
       }
       continue
     }
@@ -219,13 +193,7 @@ export function collectFieldsWithDefaults(
       if (listTemplate && Array.isArray(listValues)) {
         for (let i = 0; i < listValues.length; i++) {
           const itemValues = asRecord(listValues[i])
-          result.push(
-            ...collectFieldsWithDefaults(
-              listTemplate,
-              itemValues,
-              `${fullName}[${i}].`
-            )
-          )
+          result.push(...collectFieldsWithDefaults(listTemplate, itemValues, `${fullName}[${i}].`))
         }
       }
       continue
@@ -257,10 +225,7 @@ export function collectFieldsWithDefaults(
 }
 
 // The lookahead stops `inputs.region` from matching `inputs.region_name` or `inputs.region.zone`.
-export function defaultReferencesField(
-  defaultValue: unknown,
-  fieldPath: string
-): boolean {
+export function defaultReferencesField(defaultValue: unknown, fieldPath: string): boolean {
   if (typeof defaultValue !== 'string' || !defaultValue.includes('${{')) {
     return false
   }
@@ -270,12 +235,10 @@ export function defaultReferencesField(
 
 export function findSelfReferencingFieldNames(
   schema: Record<string, unknown>,
-  values: Record<string, unknown> = {}
+  values: Record<string, unknown> = {},
 ): string[] {
   return collectFieldsWithDefaults(schema, values)
-    .filter(({ name, defaultValue }) =>
-      defaultReferencesField(defaultValue, name)
-    )
+    .filter(({ name, defaultValue }) => defaultReferencesField(defaultValue, name))
     .map(({ name }) => name)
 }
 
@@ -295,19 +258,14 @@ export function useDynamicDefaultsSync({
   const engine = useWorkflowEngine()
   // Gate `collectFieldsWithDefaults` on list-lengths only — a scalar
   // keystroke changes `values` but not the signature, so we skip the walk.
-  const listSig = useMemo(
-    () => listLengthsSignature(options, values),
-    [options, values]
-  )
+  const listSig = useMemo(() => listLengthsSignature(options, values), [options, values])
+  // biome-ignore lint/correctness/useExhaustiveDependencies: listSig captures the only value-derived input we care about here.
   const fieldsWithDefaults = useMemo(
     () =>
       // The options tree is parsed without a row context, so a list default's `[index]` is still a
       // raw template here; resolve it per row or the sync compares against, and writes, the template.
-      collectFieldsWithDefaults(options, values).map(f => {
-        if (
-          typeof f.defaultValue !== 'string' ||
-          !f.defaultValue.includes('${{')
-        ) {
+      collectFieldsWithDefaults(options, values).map((f) => {
+        if (typeof f.defaultValue !== 'string' || !f.defaultValue.includes('${{')) {
           return f
         }
         const rowIndexes = [...f.name.matchAll(/\[(\d+)\]/g)]
@@ -326,9 +284,7 @@ export function useDynamicDefaultsSync({
             : f.defaultValue
         return { ...f, defaultValue: resolved }
       }),
-    // biome-ignore lint/correctness/useExhaustiveDependencies: listSig
-    // captures the only value-derived input we care about here.
-    [options, listSig]
+    [options, listSig],
   )
 
   const prevDefaultsRef = useRef<Map<string, string>>(new Map())
@@ -341,7 +297,7 @@ export function useDynamicDefaultsSync({
     fieldsWithDefaultsRef.current = fieldsWithDefaults
     // Drop refs for removed list-item paths so a re-added item at the same
     // index starts fresh instead of inheriting the previous occupant's state.
-    const currentNames = new Set(fieldsWithDefaults.map(f => f.name))
+    const currentNames = new Set(fieldsWithDefaults.map((f) => f.name))
     for (const name of prevDefaultsRef.current.keys()) {
       if (!currentNames.has(name)) {
         prevDefaultsRef.current.delete(name)
@@ -409,16 +365,11 @@ export function useDynamicDefaultsSync({
         // that as an artefact and overwrote it with the schema default. initializeValues copies a
         // template default verbatim, so the artefact is always the entire value.
         const trimmedValue = typeof rawValue === 'string' ? rawValue.trim() : ''
-        const unresolvedValue =
-          trimmedValue.startsWith('${{') && trimmedValue.endsWith('}}')
+        const unresolvedValue = trimmedValue.startsWith('${{') && trimmedValue.endsWith('}}')
         // Saved value diverges from the default → user curated it; lock so
         // future default changes don't overwrite. Skip when there's no saved
         // value (currVal === undefined) — let the next default flow through.
-        if (
-          !unresolvedValue &&
-          currVal !== undefined &&
-          currVal !== serializedDefault
-        ) {
+        if (!unresolvedValue && currVal !== undefined && currVal !== serializedDefault) {
           synthTouchedRef.current.add(name)
           continue
         }
@@ -442,18 +393,13 @@ export function useDynamicDefaultsSync({
   }
 }
 
-export function DynamicDefaultsSync({
-  options,
-}: {
-  options: Record<string, unknown>
-}) {
-  const { setFieldValue, getFieldMeta, values } =
-    useFormikContext<Record<string, unknown>>()
+export function DynamicDefaultsSync({ options }: { options: Record<string, unknown> }) {
+  const { setFieldValue, getFieldMeta, values } = useFormikContext<Record<string, unknown>>()
   useDynamicDefaultsSync({
     options,
     values,
     setValue: setFieldValue,
-    isTouched: name => getFieldMeta(name).touched,
+    isTouched: (name) => getFieldMeta(name).touched,
   })
   return null
 }
@@ -470,20 +416,15 @@ export function GroupHeader({
   title: React.ReactNode
 }) {
   return (
-    <SectionHeader className='flex items-center justify-between pb-1 mb-2 border-b'>
+    <SectionHeader className="flex items-center justify-between pb-1 mb-2 border-b">
       <button
-        type='button'
+        type="button"
         aria-expanded={open}
-        className={cx(
-          'w-full flex items-center text-left transform ease-in transition cursor-pointer'
-        )}
-        onClick={() => setOpen(open => !open)}
+        className="w-full flex items-center text-left transform ease-in transition cursor-pointer"
+        onClick={() => setOpen((open) => !open)}
       >
         <AngleRightIcon
-          className={cx(
-            open && 'transform rotate-90 ',
-            'px-1 text-[1.25rem]  transition ease-in '
-          )}
+          className={cx(open && 'transform rotate-90 ', 'px-1 text-[1.25rem]  transition ease-in ')}
         />
         <span>{title}</span>
       </button>
@@ -515,11 +456,7 @@ function deleteFieldByPath(obj: Record<string, unknown>, path: string): void {
     return {} // In case of an invalid path, return an empty object to avoid runtime errors
   }, obj)
 
-  if (
-    parent &&
-    typeof parent === 'object' &&
-    Object.prototype.hasOwnProperty.call(parent, fieldToRemove)
-  ) {
+  if (parent && typeof parent === 'object' && Object.hasOwn(parent, fieldToRemove)) {
     delete (parent as Record<string, unknown>)[fieldToRemove] // Delete the field
   }
 }
@@ -531,64 +468,17 @@ function getClosestParentIndex(parentPath: string) {
       while (j >= 0 && parentPath[j] !== '[') {
         j--
       }
-      return parseInt(parentPath.slice(j + 1, i))
+      return parseInt(parentPath.slice(j + 1, i), 10)
     }
   }
   return undefined
 }
 
-export interface IInstanceTypeOption {
-  value: string
+interface MultiSelectOption {
   label: string
-  secondaryValue: unknown[]
-}
-
-interface IInstanceTypeForForm {
-  vcpus?: number
-  memoryGb?: number
-  arch?: string
-  acceleratedNetworking?: boolean
-  localDiskSizeGb?: number
-  isFlex?: boolean
-}
-
-export function getInstanceTypesForForm(
-  instances: Record<string, IInstanceTypeForForm>
-): IInstanceTypeOption[] {
-  return Object.entries(instances).map(([name, instance]) => {
-    const flexLabel = instance.isFlex ? ', Flex' : ''
-    const localDisk = instance.localDiskSizeGb
-      ? ` , ${instance.localDiskSizeGb} GB Local Disk`
-      : ''
-    return {
-      value: name,
-      label: `${name} (${instance.vcpus} vCPUs, ${instance.memoryGb} GB Memory, ${instance.arch}${localDisk}${flexLabel})`,
-      secondaryValue: [
-        instance.arch,
-        !!instance.acceleratedNetworking,
-        !!instance.acceleratedNetworking,
-        !!instance.localDiskSizeGb,
-        !!instance.isFlex,
-      ],
-    }
-  })
-}
-
-export function StatusBlock({ status }: { status: boolean }) {
-  return (
-    <div>
-      <div
-        data-tooltip-id={TOOLTIP_ID}
-        data-tooltip-content={
-          status
-            ? 'Storage has been attached.'
-            : 'Attaching the storage to cluster...'
-        }
-      >
-        {status ? <SuccessCheckmark /> : <Loader size={13} full={false} />}
-      </div>
-    </div>
-  )
+  secondaryLabel?: string
+  value: string | boolean | number
+  selected?: boolean
 }
 
 export function MultiSelectionDropdown({
@@ -603,57 +493,40 @@ export function MultiSelectionDropdown({
   name: string
   label: string
   invalid?: boolean
-  options?: {
-    label: string
-    secondaryLabel?: string
-    value: string
-    selected: boolean
-  }[]
+  // A bare string is an option whose label is its value.
+  options?: (string | MultiSelectOption)[]
   setFormDirty: TSetFormDirty
   onChange?: ((val: unknown) => void) | undefined
   parentValue?: unknown
-  className?: string
-  secondaryField?: string | undefined
 }) {
   const [field] = useField<unknown[]>(name)
   const required = useFieldRequired()
   const controlProps = useFieldControlProps()
   const { setFieldValue } = useFormikContext<string[]>()
 
-  const options = useMemo(() => {
-    return initialOptions.map(option => {
-      const op =
-        typeof option === 'string'
-          ? { label: option, value: option, selected: false }
-          : { ...option } // Clone the option object to avoid in-place mutation
-      if (field.value?.includes(op.value)) {
-        op.selected = true
-      }
-      return op
-    })
-  }, [initialOptions, field.value])
+  const options = useMemo(
+    () =>
+      initialOptions.map((option) => {
+        const op = typeof option === 'string' ? { label: option, value: option } : option
+        return { ...op, selected: !!field.value?.includes(op.value) || !!op.selected }
+      }),
+    [initialOptions, field.value],
+  )
 
   const handleOptionSelected = (selectedValue: unknown) => {
-    let selected: unknown[] = []
-    if (field.value) {
-      selected = [...field.value]
-    }
-    selected.push(selectedValue)
-    setFieldValue(name, selected)
-    if (onChange) {
-      onChange(options)
-    }
+    setFieldValue(name, [...(field.value ?? []), selectedValue])
+    onChange?.(options)
     setFormDirty(true)
   }
 
   const t = useStrings().common
 
   const handleRemoveOption = (key: unknown) => {
-    const selected = [...field.value.filter(item => item !== key)]
-    setFieldValue(name, selected)
-    if (onChange) {
-      onChange(options)
-    }
+    setFieldValue(
+      name,
+      field.value.filter((item) => item !== key),
+    )
+    onChange?.(options)
     setFormDirty(true)
   }
 
@@ -662,7 +535,7 @@ export function MultiSelectionDropdown({
     if (prevParent && parentValue && prevParent !== parentValue) {
       setFieldValue(name, [])
     }
-  }, [parentValue])
+  }, [parentValue, prevParent, name, setFieldValue])
   return (
     <>
       <CustomListbox
@@ -671,26 +544,26 @@ export function MultiSelectionDropdown({
         required={required}
         type={label.toLowerCase()}
         handleOptionSelected={handleOptionSelected}
-        className='mb-3'
+        className="mb-3"
         invalid={invalid}
         closeOnSelect={false}
       />
       <Table>
         {field.value && field.value.length > 0 ? (
           options
-            .filter(option => option.selected)
-            .map((option, index) => {
+            .filter((option) => option.selected)
+            .map((option) => {
               return (
-                <tr key={index}>
-                  <Table.Item className='w-full'>{option?.label}</Table.Item>
+                <tr key={String(option.value)}>
+                  <Table.Item className="w-full">{option.label}</Table.Item>
                   <Table.Item>
                     <button
-                      type='button'
+                      type="button"
                       aria-label={t.remove}
-                      className='inline-flex bg-transparent p-0 cursor-pointer'
+                      className="inline-flex bg-transparent p-0 cursor-pointer"
                       onClick={() => handleRemoveOption(option.value)}
                     >
-                      <TrashIcon className='link mr-4' />
+                      <TrashIcon className="link mr-4" />
                     </button>
                   </Table.Item>
                 </tr>
@@ -698,9 +571,7 @@ export function MultiSelectionDropdown({
             })
         ) : (
           <tr>
-            <Table.Item>
-              No {label !== '' ? label.toLowerCase() : 'options'} selected
-            </Table.Item>
+            <Table.Item>No {label !== '' ? label.toLowerCase() : 'options'} selected</Table.Item>
           </tr>
         )}
       </Table>
@@ -735,26 +606,18 @@ const InputField = React.memo(
     computeOn?: boolean | undefined
     spaceCompact?: boolean
     workflowForm?: boolean
-    setFieldValue: (
-      field: string,
-      value: unknown,
-      shouldValidate?: boolean
-    ) => void
-    setFieldTouched: (
-      field: string,
-      touched?: boolean,
-      shouldValidate?: boolean
-    ) => void
+    setFieldValue: (field: string, value: unknown, shouldValidate?: boolean) => void
+    setFieldTouched: (field: string, touched?: boolean, shouldValidate?: boolean) => void
     values: Record<string, unknown>
     currentValue: unknown
   }) {
+    // A deep-equal field keeps its first identity, so the field components below can memoize on it.
     const prevField = useRef(field)
     const fieldObj = useMemo(() => {
-      if (deepEqual(prevField.current, field)) {
-        return prevField.current
+      if (!deepEqual(prevField.current, field)) {
+        prevField.current = field
       }
-      prevField.current = field
-      return { ...field }
+      return prevField.current
     }, [field])
 
     const tooltipComponent = useMemo(() => {
@@ -763,8 +626,8 @@ const InputField = React.memo(
       }
       return (
         <TooltipInfo
-          className='pr-2'
-          place='top'
+          className="pr-2"
+          place="top"
           text={
             typeof fieldObj.tooltip === 'string'
               ? fieldObj.tooltip.replace(/\r/g, '')
@@ -816,24 +679,16 @@ const InputField = React.memo(
       }
     }
     return true
-  }
+  },
 )
 
-function FormikStateBridge({
-  onChange,
-}: {
-  onChange: (state: Record<string, unknown>) => void
-}) {
+function FormikStateBridge({ onChange }: { onChange: (state: Record<string, unknown>) => void }) {
   const { values } = useFormikContext<Record<string, unknown>>()
   const prevEmitted = useRef<Record<string, unknown> | null>(null)
 
   useEffect(() => {
     const { editorKeyPostfix: _, ...next } = values
-    if (
-      prevEmitted.current !== null &&
-      prevEmitted.current !== undefined &&
-      deepEqual(prevEmitted.current, next)
-    ) {
+    if (prevEmitted.current !== null && deepEqual(prevEmitted.current, next)) {
       return
     }
     prevEmitted.current = next
@@ -867,7 +722,7 @@ interface ParseFieldCache {
 function useFieldParse(
   optionsField: unknown,
   values: Record<string, unknown>,
-  arrayIndex: number | undefined
+  arrayIndex: number | undefined,
 ): unknown {
   const engine = useWorkflowEngine()
   const cache = useRef<ParseFieldCache>({
@@ -884,9 +739,7 @@ function useFieldParse(
   if (optionsField !== c.lastOptField) {
     c.lastOptField = optionsField
     c.convertedField = engine.convertInputs(asRecord(optionsField))
-    const { inputDeps, hasExpressions } = engine.inputDependencies(
-      c.convertedField
-    )
+    const { inputDeps, hasExpressions } = engine.inputDependencies(c.convertedField)
     c.inputDeps = inputDeps
     c.hasExpressions = hasExpressions
     c.result = null
@@ -897,25 +750,13 @@ function useFieldParse(
     return optionsField
   }
 
-  // Has expressions but no input deps (org vars, relative paths) — parse once and cache
-  if (c.inputDeps.size === 0) {
-    if (c.result !== null) {
-      return c.result
-    }
-    // Fall through to parse
-  }
-
   if (c.result !== null) {
-    let changed = arrayIndex !== c.lastIndex
-    if (!changed) {
-      for (const key of c.inputDeps) {
-        if (!deepEqual(values[key], c.lastRelevant[key])) {
-          changed = true
-          break
-        }
-      }
-    }
-    if (!changed) {
+    // Expressions with no input deps (org vars, relative paths) parse once.
+    const unchanged =
+      c.inputDeps.size === 0 ||
+      (arrayIndex === c.lastIndex &&
+        [...c.inputDeps].every((key) => deepEqual(values[key], c.lastRelevant[key])))
+    if (unchanged) {
       return c.result
     }
   }
@@ -936,7 +777,6 @@ function useFieldParse(
 
 const FormField = React.memo(
   function FormField({
-    id,
     optionsField,
     fieldName,
     values,
@@ -949,21 +789,12 @@ const FormField = React.memo(
     spaceCompact = false,
     workflowForm = false,
   }: {
-    id: string | number
     fieldName: string
     optionsField: unknown
     values: Record<string, unknown>
     setFormDirty: TSetFormDirty
-    setFieldValue: (
-      field: string,
-      value: unknown,
-      shouldValidate?: boolean
-    ) => void
-    setFieldTouched: (
-      field: string,
-      touched?: boolean,
-      shouldValidate?: boolean
-    ) => void
+    setFieldValue: (field: string, value: unknown, shouldValidate?: boolean) => void
+    setFieldTouched: (field: string, touched?: boolean, shouldValidate?: boolean) => void
     /** If fields are part of other field, this is the info needed*/
     parentInfo?:
       | {
@@ -976,7 +807,7 @@ const FormField = React.memo(
             index: number,
             changeOtherValuesTo?: string | boolean,
             keepOneValueOf?: string | boolean,
-            currentValue?: string | boolean
+            currentValue?: string | boolean,
           ) => void
         }
       | undefined
@@ -986,13 +817,7 @@ const FormField = React.memo(
     /** Prevents deletion of hidden+ignored field values (workflow forms filter at submit time) */
     workflowForm?: boolean
   }) {
-    const parsedField = useFieldParse(
-      optionsField,
-      values,
-      parentInfo?.arrayIndex
-    )
-    const editing = useFormEditing()
-    const path = editing ? [...editing.parent, fieldName] : null
+    const parsedField = useFieldParse(optionsField, values, parentInfo?.arrayIndex)
     const field = asSchemaField(parentInfo ? parsedField : optionsField)
     if (field === null) {
       return null
@@ -1000,14 +825,13 @@ const FormField = React.memo(
     const fieldNamePrefix = parentInfo?.fieldNamePrefix || ''
     const fieldObj = {
       ...field,
-      label:
-        field.label || fieldName.charAt(0).toUpperCase() + fieldName.slice(1),
+      label: field.label || fieldName.charAt(0).toUpperCase() + fieldName.slice(1),
       name: fieldNamePrefix + fieldName,
       // explicit field.optional first, implicit field.default second
       optional: resolvedFlag(field.optional) ?? field.default !== undefined,
     }
 
-    if (!fieldObj['name'] || fieldName === 'v3') {
+    if (!fieldObj.name || fieldName === 'v3') {
       return null
     }
 
@@ -1015,78 +839,51 @@ const FormField = React.memo(
       // If the field is hidden, and field is set to be ignored, remove it from values.
       // Only delete if NOT a workflow form (workflow forms filter at submit time)
       if (resolvedFlag(field.ignore) && !workflowForm) {
-        deleteFieldByPath(values, fieldObj['name'])
+        deleteFieldByPath(values, fieldObj.name)
       }
       // If it is not set, default to no show only without deleting field from values
-      return editing && path && fieldName !== '$meta' ? (
-        <editing.Row path={path} hidden />
-      ) : null
-    }
-    if (!field.type && field.options) {
-      fieldObj['type'] = 'dropdown'
+      return null
     }
     let onChange: ((val: unknown) => void) | undefined
     if (field.one_must_be_true && parentInfo?.onChange) {
       // only used in pool partition_config at the moment
       const parentOnChange = parentInfo.onChange
       const parentArrayIndex = parentInfo.arrayIndex ?? 0
-      const fieldOptions = fieldObj['options']
-      onChange = val =>
+      const fieldOptions = fieldObj.options
+      onChange = (val) =>
         parentOnChange(
           fieldName,
           parentArrayIndex,
           flagValue(fieldOptions?.['offOption'], false),
           flagValue(fieldOptions?.['onOption'], true),
-          val as string | boolean
+          val as string | boolean,
         )
     }
     //handles both show_if and show_if_not
     if (field.show_if !== undefined || field.show_if_not !== undefined) {
-      let index: number | undefined
-      if (parentInfo) {
-        if (!parentInfo?.arrayIndex) {
-          index = getClosestParentIndex(parentInfo.fieldNamePrefix)
-        } else {
-          index = parentInfo.arrayIndex
-        }
-      }
+      const index = parentInfo
+        ? parentInfo.arrayIndex || getClosestParentIndex(parentInfo.fieldNamePrefix)
+        : undefined
       let shouldShowField = true
       if (field.show_if !== undefined) {
-        const parentValue = getParentValue(
-          index,
-          field.show_if,
-          values,
-          '',
-          field
-        )
+        const parentValue = getParentValue(index, field.show_if, values, field)
         shouldShowField = !!parentValue
       }
       if (shouldShowField && field.show_if_not !== undefined) {
-        const parentValue = getParentValue(
-          index,
-          field.show_if_not,
-          values,
-          '',
-          field
-        )
+        const parentValue = getParentValue(index, field.show_if_not, values, field)
         shouldShowField = !parentValue
       }
       if (!shouldShowField) {
         // Workflow forms filter at submit time; don't destroy state across hide/unhide
         // cycles or drop config-loaded values whose field is currently hidden.
         if (!workflowForm) {
-          deleteFieldByPath(values, fieldObj['name'])
+          deleteFieldByPath(values, fieldObj.name)
         }
-        return editing && path ? <editing.Row path={path} hidden /> : null
+        return null
       }
     }
-    if (field.depends_on) {
-      if (parentInfo?.arrayIndex !== undefined) {
-        fieldObj['depends_on'] = field.depends_on.replace(
-          '[index]',
-          `[${parentInfo.arrayIndex}]`
-        )
-      }
+    if (field.depends_on && parentInfo?.arrayIndex !== undefined) {
+      fieldObj.depends_on = field.depends_on.replace('[index]', `[${parentInfo.arrayIndex}]`)
     }
     //enable_if should work when its not disabled
     if (field.enable_if && field.disabled === false) {
@@ -1094,68 +891,47 @@ const FormField = React.memo(
       if (typeof field.enable_if === 'string') {
         let path = field.enable_if
         if (parentInfo?.arrayIndex !== undefined) {
-          path = field.enable_if.replace(
-            '[index]',
-            `[${parentInfo.arrayIndex}]`
-          )
+          path = field.enable_if.replace('[index]', `[${parentInfo.arrayIndex}]`)
         }
         const parentValue = getValueUsingPath(values, path)
         //if value is false, means we are going to disabled the field, otherwise disabled will be decided by its original factor
         if (parentValue === false) {
           //set the value to false
-          fieldObj['disabled'] = true
+          fieldObj.disabled = true
         }
       }
     }
     if (field.type === 'group') {
       const hideHeader = field.noCollapse
-      const HeaderElement = hideHeader
-        ? React.Fragment
-        : UncontrolledCollapsiblePanel
-      const meta = resolveMetaOverrides(
-        field.options,
-        labelPosition,
-        spaceCompact
-      )
+      const HeaderElement = hideHeader ? React.Fragment : UncontrolledCollapsiblePanel
+      const meta = resolveMetaOverrides(field.options, labelPosition, spaceCompact)
 
-      const group = (
-        <div key={fieldObj['name']} className='flex flex-col w-full'>
+      return (
+        <div className="flex flex-col w-full">
           <HeaderElement
             {...(!hideHeader && {
               title: (open, setOpen) => (
-                <GroupHeader
-                  open={open}
-                  setOpen={setOpen}
-                  title={field.label}
-                />
+                <GroupHeader open={open} setOpen={setOpen} title={field.label} />
               ),
-              initialState:
-                field.collapsed !== undefined ? !field.collapsed : true,
+              initialState: field.collapsed !== undefined ? !field.collapsed : true,
             })}
           >
-            <div className='w-full'>
-              <EditingScope editing={editing} path={path}>
-                <FieldsFromOptions
-                  options={field.options ?? {}}
-                  setFormDirty={setFormDirty}
-                  setFieldValue={setFieldValue}
-                  setFieldTouched={setFieldTouched}
-                  values={values}
-                  parentInfo={parentInfo}
-                  workflowForm={workflowForm}
-                  labelPosition={meta.labelPosition}
-                  spaceCompact={meta.spaceCompact}
-                  missingFields={missingFields}
-                />
-              </EditingScope>
+            <div className="w-full">
+              <FieldsFromOptions
+                options={field.options ?? {}}
+                setFormDirty={setFormDirty}
+                setFieldValue={setFieldValue}
+                setFieldTouched={setFieldTouched}
+                values={values}
+                parentInfo={parentInfo}
+                workflowForm={workflowForm}
+                labelPosition={meta.labelPosition}
+                spaceCompact={meta.spaceCompact}
+                missingFields={missingFields}
+              />
             </div>
           </HeaderElement>
         </div>
-      )
-      return editing && path ? (
-        <editing.Row path={path}>{group}</editing.Row>
-      ) : (
-        group
       )
     }
     if (typeof field.type === 'object' && field.depends_on) {
@@ -1164,53 +940,47 @@ const FormField = React.memo(
       if (!resolvedType) {
         return null
       }
-      fieldObj['type'] = resolvedType
+      fieldObj.type = resolvedType
     }
     if (field.type === 'range' && field.depends_on) {
       const parentValue = getValueUsingPath(values, field.depends_on)
       const { min, max } = field
       if (typeof min === 'object' && typeof max === 'object') {
-        fieldObj['min'] = min[String(parentValue)]
-        fieldObj['max'] = max[String(parentValue)]
+        fieldObj.min = min[String(parentValue)]
+        fieldObj.max = max[String(parentValue)]
       }
     }
     if (field.resetOnChange) {
       const parentValue = getValueUsingPath(values, field.resetOnChange)
       const prevParentValue = field.prevParentValue
       if (prevParentValue !== undefined && prevParentValue !== parentValue) {
-        deleteFieldByPath(values, fieldObj['name'])
+        deleteFieldByPath(values, fieldObj.name)
       }
       field.prevParentValue = parentValue
     }
     if (field.secondaryField) {
       if (Array.isArray(field.secondaryField)) {
-        fieldObj['secondaryField'] = field.secondaryField.map(
-          (secondaryField: string) => fieldNamePrefix + secondaryField
+        fieldObj.secondaryField = field.secondaryField.map(
+          (secondaryField: string) => fieldNamePrefix + secondaryField,
         )
       } else {
-        fieldObj['secondaryField'] = fieldNamePrefix + field.secondaryField
+        fieldObj.secondaryField = fieldNamePrefix + field.secondaryField
       }
     }
 
-    const input = (
-      <div
-        className={cx(
-          'flex w-full',
-          labelPosition === 'left' ? 'mb-[15px]' : 'mb-[5px]'
-        )}
-        key={`field-${id}`}
-      >
+    return (
+      <div className={cx('flex w-full', labelPosition === 'left' ? 'mb-[15px]' : 'mb-[5px]')}>
         <InputField
           field={fieldObj}
-          label={fieldObj['label']}
+          label={fieldObj.label}
           setFormDirty={setFormDirty}
           setFieldValue={setFieldValue}
           setFieldTouched={setFieldTouched}
           values={values}
-          currentValue={getValueUsingPath(values, fieldObj['name'])}
+          currentValue={getValueUsingPath(values, fieldObj.name)}
           onChange={onChange}
-          disabled={Boolean(fieldObj['disabled'])}
-          computeOn={parentInfo?.computeOn || fieldObj['computeOn']}
+          disabled={Boolean(fieldObj.disabled)}
+          computeOn={parentInfo?.computeOn || fieldObj.computeOn}
           labelPosition={labelPosition}
           missingFields={missingFields}
           spaceCompact={spaceCompact}
@@ -1218,26 +988,8 @@ const FormField = React.memo(
         />
       </div>
     )
-    if (!editing || !path) {
-      return input
-    }
-    // Only an object's own fields are editable in place; list rows repeat a template.
-    return (
-      <editing.Row path={path}>
-        <EditingScope
-          editing={editing}
-          path={fieldObj['type'] === 'object' ? path : null}
-        >
-          {input}
-        </EditingScope>
-      </editing.Row>
-    )
   },
   (prev, next) => {
-    // Two inputs with the same definition can trade places, and only the name tells them apart.
-    if (prev.fieldName !== next.fieldName) {
-      return false
-    }
     if (!deepEqual(prev.optionsField, next.optionsField)) {
       return false
     }
@@ -1260,7 +1012,7 @@ const FormField = React.memo(
       return false
     }
     return true
-  }
+  },
 )
 
 export function FieldsFromOptions({
@@ -1278,16 +1030,8 @@ export function FieldsFromOptions({
   options: Record<string, unknown>
   values: Record<string, unknown>
   setFormDirty: TSetFormDirty
-  setFieldValue: (
-    field: string,
-    value: unknown,
-    shouldValidate?: boolean
-  ) => void
-  setFieldTouched: (
-    field: string,
-    touched?: boolean,
-    shouldValidate?: boolean
-  ) => void
+  setFieldValue: (field: string, value: unknown, shouldValidate?: boolean) => void
+  setFieldTouched: (field: string, touched?: boolean, shouldValidate?: boolean) => void
   /** If fields are part of other field, this is the info needed*/
   parentInfo?:
     | {
@@ -1300,7 +1044,7 @@ export function FieldsFromOptions({
           index: number,
           changeOtherValuesTo?: string | boolean,
           keepOneValueOf?: string | boolean,
-          currentValue?: string | boolean
+          currentValue?: string | boolean,
         ) => void
       }
     | undefined
@@ -1310,11 +1054,9 @@ export function FieldsFromOptions({
   /** Prevents deletion of hidden+ignored field values (workflow forms filter at submit time) */
   workflowForm?: boolean | undefined
 }) {
-  const editing = useFormEditing()
-  const fields = Object.keys(options).map((fieldName, idx) => (
+  return Object.keys(options).map((fieldName) => (
     <FormField
-      key={idx}
-      id={idx}
+      key={fieldName}
       optionsField={options[fieldName]}
       fieldName={fieldName}
       values={values}
@@ -1328,15 +1070,6 @@ export function FieldsFromOptions({
       workflowForm={workflowForm}
     />
   ))
-  if (!editing) {
-    return fields
-  }
-  return (
-    <>
-      {fields}
-      <editing.Add parent={editing.parent} />
-    </>
-  )
 }
 
 const noop = () => {}
@@ -1384,34 +1117,30 @@ function DynamicFormContent({
     organizationVariables,
     undefined,
     undefined,
-    remoteVars
+    remoteVars,
   )
 
   const handleChange = useCallback(
-    (state: Record<string, unknown>) => {
-      if (setValues) {
-        setValues(state)
-      }
-    },
-    [setValues]
+    (state: Record<string, unknown>) => setValues?.(state),
+    [setValues],
   )
 
   const wizardConfig = parseWizardConfig(opts)
-  const isWizard = wizardConfig !== null
+  const meta = resolveMetaOverrides(options, labelPosition, spaceCompact)
 
   return (
     <>
       <DirtyStateBridge setFormDirty={setFormDirty} />
       <FormikStateBridge onChange={handleChange} />
       <DynamicDefaultsSync key={contextKey ?? ''} options={opts} />
-      {isWizard && wizardConfig ? (
+      {wizardConfig ? (
         <WizardContainer
           wizardConfig={wizardConfig}
           values={values}
           onChange={handleChange}
           onSubmit={onSubmit}
-          className='w-full'
-          {...resolveMetaOverrides(options, labelPosition, spaceCompact)}
+          className="w-full"
+          {...meta}
           missingFields={missingFields}
           workflowForm={workflowForm}
           setFieldValue={setFieldValue}
@@ -1420,7 +1149,7 @@ function DynamicFormContent({
       ) : (
         <>
           <FieldsFromOptions
-            {...resolveMetaOverrides(options, labelPosition, spaceCompact)}
+            {...meta}
             options={opts}
             values={values}
             setFormDirty={setFormDirty}
@@ -1430,12 +1159,8 @@ function DynamicFormContent({
             workflowForm={workflowForm}
           />
           {onSubmit !== undefined && !workflowForm && (
-            <div className='mt-4'>
-              <input
-                type='submit'
-                className='btn btn-info'
-                value={submitLabel}
-              />
+            <div className="mt-4">
+              <input type="submit" className="btn btn-info" value={submitLabel} />
             </div>
           )}
         </>
@@ -1488,7 +1213,7 @@ export function DynamicForm({
   organizationVariables,
   remoteVars,
   needsOrganizationVariables = false,
-  onSubmit = undefined,
+  onSubmit,
   submitLabel = 'Submit',
   className = 'w-full',
   workflowForm = false,
@@ -1517,38 +1242,37 @@ export function DynamicForm({
   return (
     <FieldRegistryContext.Provider value={fields}>
       <div className={className}>
-        {(!needsOrganizationVariables || organizationVariables) &&
-          initialValues && (
-            <Formik
-              enableReinitialize={reinitialize}
-              initialValues={parsedInitVals}
-              onSubmit={onSubmit ?? (() => {})}
-              onReset={() => {
-                setFormDirty(false)
-              }}
-              {...(formikRef ? { innerRef: formikRef } : {})}
-            >
-              {({ values }) => (
-                <Form className='w-full text-[13px]'>
-                  <DynamicFormContent
-                    values={values}
-                    options={options}
-                    setValues={setValues}
-                    setFormDirty={setFormDirty}
-                    labelPosition={labelPosition}
-                    missingFields={missingFields}
-                    spaceCompact={spaceCompact}
-                    organizationVariables={organizationVariables}
-                    remoteVars={remoteVars}
-                    workflowForm={workflowForm}
-                    onSubmit={onSubmit}
-                    submitLabel={submitLabel}
-                    contextKey={contextKey}
-                  />
-                </Form>
-              )}
-            </Formik>
-          )}
+        {(!needsOrganizationVariables || organizationVariables) && initialValues && (
+          <Formik
+            enableReinitialize={reinitialize}
+            initialValues={parsedInitVals}
+            onSubmit={onSubmit ?? (() => {})}
+            onReset={() => {
+              setFormDirty(false)
+            }}
+            {...(formikRef ? { innerRef: formikRef } : {})}
+          >
+            {({ values }) => (
+              <Form className="w-full text-[13px]">
+                <DynamicFormContent
+                  values={values}
+                  options={options}
+                  setValues={setValues}
+                  setFormDirty={setFormDirty}
+                  labelPosition={labelPosition}
+                  missingFields={missingFields}
+                  spaceCompact={spaceCompact}
+                  organizationVariables={organizationVariables}
+                  remoteVars={remoteVars}
+                  workflowForm={workflowForm}
+                  onSubmit={onSubmit}
+                  submitLabel={submitLabel}
+                  contextKey={contextKey}
+                />
+              </Form>
+            )}
+          </Formik>
+        )}
       </div>
     </FieldRegistryContext.Provider>
   )
