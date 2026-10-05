@@ -1418,7 +1418,7 @@ function SidebarWell({
   children: ReactNode
 }) {
   return (
-    <Collapse expanded={expanded} releaseOverflow={false}>
+    <Collapse expanded={expanded}>
       {children}
     </Collapse>
   )
@@ -1626,7 +1626,6 @@ function walkJobPath(
 export default function DependencyGraph({
   run,
   preview = false,
-  initialScale = 1,
   removeBorder,
   viewMode = 'dag',
   setViewMode,

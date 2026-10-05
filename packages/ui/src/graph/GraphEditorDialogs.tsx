@@ -12,7 +12,7 @@ import {
   needTarget,
   stepYaml,
 } from '@parallelworks/workflow-parser'
-import { load } from 'js-yaml'
+import { loadYaml } from '@parallelworks/workflow-parser'
 import { type ReactNode, useId, useMemo, useRef, useState } from 'react'
 import type { NestedWorkflowText, UsesCompletions } from '../editor/Monaco'
 import { useLintContext, useLintReady } from '../editor/lintContext'
@@ -1896,7 +1896,7 @@ function useAddedGroups(start: string | undefined, committed: GraphEdit[]) {
   const nested: NestedWorkflowText = {
     inputs: () => {
       const text = editedWorkflow(start, committed)
-      const on = asRecord(asRecord(text === undefined ? {} : load(text))['on'])
+      const on = asRecord(asRecord(text === undefined ? {} : loadYaml(text))['on'])
       return {
         ...asRecord(asRecord(on['execute'])['inputs']),
         ...Object.fromEntries(
@@ -2019,7 +2019,7 @@ export function useSettingsViews(o: SettingsViewsOptions) {
   const current = useMemo(
     () =>
       start !== undefined && committed.length > 0
-        ? asRecord(load(applyAll(start, committed)))
+        ? asRecord(loadYaml(applyAll(start, committed)))
         : null,
     [start, committed]
   )

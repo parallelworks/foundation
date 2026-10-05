@@ -53,7 +53,7 @@ import {
 } from '../icons'
 import type { UsesCompletions } from '../editor/Monaco'
 import { type RowMenuItem, useRowMenu } from '../list/RowContextMenu'
-import { load } from 'js-yaml'
+import { loadYaml } from '@parallelworks/workflow-parser'
 import {
   AddChip,
   BarDivider,
@@ -2891,7 +2891,7 @@ function EditorDialogs({
     return null
   }
   // A job or step being added only exists in the dialog's copy of the workflow.
-  const copy = dialog.addition ? asRecord(load(dialog.addition.yml)) : null
+  const copy = dialog.addition ? asRecord(loadYaml(dialog.addition.yml)) : null
   const here = copy ? asRecord(copy['jobs']) : jobs
   const source = dialog.addition?.yml ?? editor.readSource?.()
   if (dialog.kind === 'job') {

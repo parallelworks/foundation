@@ -237,8 +237,6 @@ function StepRow({
   index,
   isExpanded,
   onToggle,
-  workflowName,
-  runNumber,
   slug,
   jobName,
   expandedJobs,

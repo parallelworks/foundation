@@ -1,5 +1,5 @@
 import { workflowInputsSchema } from '@parallelworks/workflow-parser'
-import yaml from 'js-yaml'
+import { loadYaml } from '@parallelworks/workflow-parser'
 import type { UIData, WorkflowJsonRef } from '../components/Provider'
 import { asRecord, type Json } from './editorFields'
 
@@ -43,7 +43,7 @@ async function loadTarget(
     }
     const repo = github ? path : `https://${where.host}/${path}`
     const text = await repos.file(repo, ref, where.yamlPath)
-    return text ? yaml.load(text) : undefined
+    return text ? loadYaml(text) : undefined
   }
   return undefined
 }

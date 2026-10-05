@@ -29,23 +29,7 @@ function UsesIcon({
   if (!uses || !slots.workflowIcon) {
     return null
   }
-  const open = () => {
-    if (uses.startsWith('workflow/')) {
-      navigation.toWorkflow(uses.split('/')[1] ?? '')
-    } else if (subworkflow.sourceUrl) {
-      // A uses value may name a repository by URL, which carries no owner/repo to
-      // rebuild a link from, so the server resolves the page for us.
-      navigation.openExternal(subworkflow.sourceUrl)
-    } else if (uses.startsWith('github/')) {
-      const trimmed = uses.replace('github/', '')
-      const [ownerRepo, ref] = trimmed.split('@')
-      navigation.openExternal(
-        'https://github.com/' + ownerRepo + '/tree/' + ref
-      )
-    } else {
-      navigation.toMarketItem(uses.split('/')[1] ?? '')
-    }
-  }
+  const open = () => navigation.openStepSource(uses, subworkflow.sourceUrl)
   return (
     <button
       type='button'

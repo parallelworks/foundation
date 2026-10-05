@@ -14,7 +14,7 @@ import {
   nextName,
   wizardFlattens,
 } from '@parallelworks/workflow-parser'
-import { load } from 'js-yaml'
+import { loadYaml } from '@parallelworks/workflow-parser'
 import { type ReactNode, useId, useMemo, useRef, useState } from 'react'
 import Dropdown from '../components/Dropdown'
 import { IconButton } from '../components/IconButton'
@@ -2009,7 +2009,7 @@ function InputViews({
       return
     }
     setShown(yaml)
-    setBase(asRecord(load(yaml)))
+    setBase(asRecord(loadYaml(yaml)))
     setYaml(null)
     setVersion(current => current + 1)
     onViewChange?.('form')

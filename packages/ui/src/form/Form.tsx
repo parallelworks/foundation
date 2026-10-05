@@ -603,12 +603,15 @@ export function MultiSelectionDropdown({
   name: string
   label: string
   invalid?: boolean
-  options?: {
-    label: string
-    secondaryLabel?: string
-    value: string
-    selected: boolean
-  }[]
+  options?: Array<
+    | string
+    | {
+        label: string
+        secondaryLabel?: string
+        value: string | boolean | number
+        selected?: boolean
+      }
+  >
   setFormDirty: TSetFormDirty
   onChange?: ((val: unknown) => void) | undefined
   parentValue?: unknown
@@ -625,7 +628,7 @@ export function MultiSelectionDropdown({
       const op =
         typeof option === 'string'
           ? { label: option, value: option, selected: false }
-          : { ...option } // Clone the option object to avoid in-place mutation
+          : { ...option, selected: option.selected ?? false }
       if (field.value?.includes(op.value)) {
         op.selected = true
       }
@@ -1056,7 +1059,6 @@ const FormField = React.memo(
           index,
           field.show_if,
           values,
-          '',
           field
         )
         shouldShowField = !!parentValue
@@ -1066,7 +1068,6 @@ const FormField = React.memo(
           index,
           field.show_if_not,
           values,
-          '',
           field
         )
         shouldShowField = !parentValue

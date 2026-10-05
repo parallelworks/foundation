@@ -212,9 +212,7 @@ export function WizardContainer({
 
       {/* Navigation */}
       <WizardNavigation
-        currentStep={currentStep}
-        stepOrder={stepOrder}
-        canGoToNext={!isLastStep}
+        isLastStep={isLastStep}
         canGoBack={canGoBack}
         isCurrentStepValid={!invalidSteps.has(currentStep)}
         nextLabel={currentStepConfig?.nextLabel}

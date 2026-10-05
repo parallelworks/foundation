@@ -48,7 +48,7 @@ import {
   useStore,
 } from './editorChrome'
 import { asRecord, type Json, openOnAddOf, text } from './editorFields'
-import { load } from 'js-yaml'
+import { loadYaml } from '@parallelworks/workflow-parser'
 import {
   type DependencyGraphEditor,
   type EditorProblem,
@@ -1194,7 +1194,7 @@ function Dialogs({
                   parent: dialog.parent,
                   index,
                   name,
-                  definition: asRecord(load(text)),
+                  definition: asRecord(loadYaml(text)),
                 },
                 // The text as written, comments included.
                 {

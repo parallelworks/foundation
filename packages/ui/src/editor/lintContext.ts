@@ -2,9 +2,9 @@ import {
   callWhenParserInitialized,
   initializeParseStringsOfObj,
   lintReady,
+  loadYaml,
   type WorkflowLintContext,
 } from '@parallelworks/workflow-parser'
-import yaml from 'js-yaml'
 import { useEffect, useMemo, useState } from 'react'
 import {
   useRepoSuggestions,
@@ -47,7 +47,7 @@ export function lintContext(
 ): WorkflowLintContext {
   let doc: unknown
   try {
-    doc = yaml.load(source)
+    doc = loadYaml(source)
   } catch {
     doc = undefined
   }
