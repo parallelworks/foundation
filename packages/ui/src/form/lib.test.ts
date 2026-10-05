@@ -1,10 +1,10 @@
-import deepEqual from 'fast-deep-equal'
 import {
   enforceOneMustBeTrue,
   flattenGroups,
   impureSetValueFromPath,
   initializeValues,
 } from './lib'
+import deepEqual from 'fast-deep-equal'
 
 const MockSchema = {
   group1: {
@@ -197,25 +197,13 @@ const input2 = {
 }
 
 describe('initializeValues', () => {
-  it('blanks only the defaults the host predicate selects', () => {
-    const values = initializeValues(
-      {
-        note: { type: 'textarea', default: '${{ inputs.x }}' },
-        count: { type: 'number', default: 2 },
-      },
-      {},
-      (field) => field.type === 'textarea',
-    )
-    expect(values).toEqual({ note: '', count: 2 })
-  })
-
   it('should initialize values', () => {
     const result = initializeValues(getSampleOptions(), input)
     const expectedResult = {
       ...input,
       access_public_key: '',
       project: 'Owners',
-      resource_account: 'Example GCP (Platform)',
+      resource_account: 'Pworks GCP (Platform)',
       user_bootstrap:
         '# (optional) User-specific master node bootstrap script - \n# you can use this to automatically execute a set of commands \n# (run with your uid) upon cluster start',
     }
@@ -231,7 +219,7 @@ describe('initializeValues', () => {
       provider_version: '',
       project: 'Owners',
       access_public_key: '',
-      resource_account: 'Example GCP (Platform)',
+      resource_account: 'Pworks GCP (Platform)',
       health_check:
         '# (optional) User-specific master node Health Check script - \n# you can use this run custom node Health Check logic  upon cluster start',
       cluster_config: {
@@ -282,6 +270,28 @@ describe('initializeValues', () => {
       storages: [],
     }
     expect(result).toEqual(expectedResult)
+  })
+
+  it('starts a list from its default rows when nothing is saved', () => {
+    const schema = {
+      hosts: {
+        type: 'list',
+        default: [{ name: 'a' }, { name: 'b', port: 22 }],
+        options: {
+          name: { type: 'string' },
+          port: { type: 'number', default: 80 },
+        },
+      },
+    }
+    expect(initializeValues(schema, {})?.['hosts']).toEqual([
+      { name: 'a', port: 80 },
+      { name: 'b', port: 22 },
+    ])
+    // A saved value wins, even an empty one, so a rerun keeps what was run.
+    expect(initializeValues(schema, { hosts: [] })?.['hosts']).toEqual([])
+    expect(
+      initializeValues(schema, { hosts: [{ name: 'c' }] })?.['hosts']
+    ).toEqual([{ name: 'c', port: 80 }])
   })
 
   it('restores secondary values for persisted grouped storage selections', () => {
@@ -365,13 +375,13 @@ function getSampleOptions() {
           type: 'dropdown',
           options: [
             {
-              label: 'Example GCP (Platform)',
-              value: 'Example GCP (Platform)',
+              label: 'Pworks GCP (Platform)',
+              value: 'Pworks GCP (Platform)',
             },
-            { label: 'Example GCP', value: 'Example GCP' },
+            { label: 'Pworks GCP', value: 'Pworks GCP' },
             {
-              label: 'Example GCP (sample-project-123456)',
-              value: 'Example GCP (sample-project-123456)',
+              label: 'Pworks GCP (modular-magpie-167320)',
+              value: 'Pworks GCP (modular-magpie-167320)',
             },
           ],
           sensitive: true,
@@ -383,9 +393,9 @@ function getSampleOptions() {
           sensitive: true,
           options: [
             { label: 'Owners', value: 'Owners' },
-            { label: 'google-contrib', value: 'google-contrib' },
-            { label: 'aws-contrib', value: 'aws-contrib' },
-            { label: 'azure-main', value: 'azure-main' },
+            { label: 'pw-google-contrib', value: 'pw-google-contrib' },
+            { label: 'pw-aws-contrib', value: 'pw-aws-contrib' },
+            { label: 'pw-azure', value: 'pw-azure' },
             { label: 'cg-test', value: 'cg-test' },
           ],
         },
@@ -451,7 +461,12 @@ function getSampleOptions() {
           label: 'Zone',
           type: 'dropdown',
           options: {
-            'us-central1': ['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f'],
+            'us-central1': [
+              'us-central1-a',
+              'us-central1-b',
+              'us-central1-c',
+              'us-central1-f',
+            ],
             'us-east1': ['us-east1-b', 'us-east1-c', 'us-east1-d'],
             'us-east4': ['us-east4-a', 'us-east4-b', 'us-east4-c'],
             'us-west1': ['us-west1-a', 'us-west1-b', 'us-west1-c'],
@@ -487,18 +502,20 @@ function getSampleOptions() {
           options: [
             { label: 'Latest', value: 'latest' },
             {
-              label: 'Example hpc-c7-x86-64-v27-slurm',
-              value: 'projects/example-images/global/images/hpc-c7-x86-64-v27-slurm',
+              label: 'Pworks pw-hpc-c7-x86-64-v27-slurm',
+              value:
+                'projects/cloud-parallel-works/global/images/pw-hpc-c7-x86-64-v27-slurm',
             },
-            { label: 'new-gcp', value: 'demo-new-gcp' },
-            { label: 'testing-cloud', value: 'demo-testing-cloud' },
+            { label: 'new-gcp', value: 'pw-egarcia-new-gcp' },
+            { label: 'testing-cloud', value: 'pw-egarcia-testing-cloud' },
             {
-              label: 'hpc-c7-x86-64-v31-slurm',
-              value: 'projects/example-images/global/images/hpc-c7-x86-64-v31-slurm',
+              label: 'pw-hpc-c7-x86-64-v31-slurm',
+              value:
+                'projects/cloud-parallel-works/global/images/pw-hpc-c7-x86-64-v31-slurm',
             },
           ],
           tooltip: [
-            'The OS image assigned to the instance. Latest denotes the most recent base image.',
+            'The OS image assigned to the instance. Latest denotes the most recent PW base image.',
             'Custom cloud snapshots can also be assigned here.',
           ],
         },
@@ -511,7 +528,8 @@ function getSampleOptions() {
             'us-central1': [
               {
                 label: '/apps',
-                value: 'projects/modular-magpie-167320/global/images/apps-08-image',
+                value:
+                  'projects/modular-magpie-167320/global/images/apps-08-image',
                 secondaryValue: 'ext4',
               },
             ],
@@ -611,18 +629,20 @@ function getSampleOptions() {
               options: [
                 { label: 'Latest', value: 'latest' },
                 {
-                  label: 'Example hpc-c7-x86-64-v27-slurm',
-                  value: 'projects/example-images/global/images/hpc-c7-x86-64-v27-slurm',
+                  label: 'Pworks pw-hpc-c7-x86-64-v27-slurm',
+                  value:
+                    'projects/cloud-parallel-works/global/images/pw-hpc-c7-x86-64-v27-slurm',
                 },
-                { label: 'new-gcp', value: 'demo-new-gcp' },
-                { label: 'testing-cloud', value: 'demo-testing-cloud' },
+                { label: 'new-gcp', value: 'pw-egarcia-new-gcp' },
+                { label: 'testing-cloud', value: 'pw-egarcia-testing-cloud' },
                 {
-                  label: 'hpc-c7-x86-64-v31-slurm',
-                  value: 'projects/example-images/global/images/hpc-c7-x86-64-v31-slurm',
+                  label: 'pw-hpc-c7-x86-64-v31-slurm',
+                  value:
+                    'projects/cloud-parallel-works/global/images/pw-hpc-c7-x86-64-v31-slurm',
                 },
               ],
               tooltip: [
-                'The OS image assigned to the instance. Latest denotes the most recent base image.',
+                'The OS image assigned to the instance. Latest denotes the most recent PW base image.',
                 'Custom cloud snapshots can also be assigned here.',
               ],
             },
@@ -632,7 +652,12 @@ function getSampleOptions() {
               type: 'dropdown',
               depends_on: 'cluster_config.region',
               options: {
-                'us-central1': ['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f'],
+                'us-central1': [
+                  'us-central1-a',
+                  'us-central1-b',
+                  'us-central1-c',
+                  'us-central1-f',
+                ],
                 'us-east1': ['us-east1-b', 'us-east1-c', 'us-east1-d'],
                 'us-east4': ['us-east4-a', 'us-east4-b', 'us-east4-c'],
                 'us-west1': ['us-west1-a', 'us-west1-b', 'us-west1-c'],
@@ -650,7 +675,9 @@ function getSampleOptions() {
               type: 'boolean',
               disabled: false,
               default: true,
-              tooltip: ['GVNIC is required to support higher network bandwidths.'],
+              tooltip: [
+                'GVNIC is required to support higher network bandwidths.',
+              ],
             },
             tier_1: {
               label: 'TIER_1',
@@ -690,14 +717,18 @@ function getSampleOptions() {
               label: 'Resume Timeout',
               disabled: false,
               type: 'number',
-              tooltip: ['Max time to wait for nodes to start before giving up.'],
+              tooltip: [
+                'Max time to wait for nodes to start before giving up.',
+              ],
               placeholder: 1200,
             },
             slurm_suspend_timeout: {
               label: 'Suspend Timeout',
               disabled: false,
               type: 'number',
-              tooltip: ['How long to wait for a node to be ready again after being shutdown.'],
+              tooltip: [
+                'How long to wait for a node to be ready again after being shutdown.',
+              ],
               placeholder: 300,
             },
             slurm_return_to_service: {

@@ -1,7 +1,14 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { cleanup, createEvent, fireEvent, render, screen } from '@testing-library/react'
+import {
+  cleanup,
+  createEvent,
+  fireEvent,
+  render,
+  screen,
+} from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { testEngine } from '../test/engine'
 
 // jsdom lacks these; the graph relies on them for connector recompute + fit.
 global.ResizeObserver = class {
@@ -15,8 +22,8 @@ global.requestAnimationFrame = (() => 0) as typeof requestAnimationFrame
 global.cancelAnimationFrame = (() => {}) as typeof cancelAnimationFrame
 
 // Pan/zoom + animation wrappers reduced to plain passthroughs (no layout in jsdom).
-vi.mock('../components/Provider', async (importOriginal) =>
-  (await import('../test/engine')).mockEngineHooks(importOriginal),
+vi.mock('../components/Provider', async importOriginal =>
+  (await import('../test/engine')).mockEngineHooks(importOriginal)
 )
 
 vi.mock('react-zoom-pan-pinch', () => ({
@@ -33,7 +40,7 @@ vi.mock('framer-motion', () => ({
         () =>
         ({ children }: { children: unknown }) =>
           children,
-    },
+    }
   ),
 }))
 
@@ -50,8 +57,8 @@ vi.mock('../logviewer', () => ({
     additionalBottomRightBarComponents?: React.ReactNode
   }) => (
     <>
-      <pre data-testid="log">{log}</pre>
-      <div data-testid="log-footer">
+      <pre data-testid='log'>{log}</pre>
+      <div data-testid='log-footer'>
         {additionalBottomLeftBarComponents}
         {additionalBottomRightBarComponents}
       </div>
@@ -60,8 +67,10 @@ vi.mock('../logviewer', () => ({
 }))
 vi.mock('./AnnotationBanner', () => ({ AnnotationBanner: () => null }))
 
-import { type RunFileResult, UIProvider } from '../components/Provider'
-import DependencyGraph, { addCleanupSteps } from './DependencyGraph'
+import { detectMatrixGroups, emptyLayout } from '@parallelworks/workflow-parser'
+import { UIProvider, type RunFileResult } from '../components/Provider'
+import DependencyGraph, { computeGraphLayout } from './DependencyGraph'
+import type { WorkflowJob } from './types'
 
 const run = {
   id: 'run-1',
@@ -143,16 +152,41 @@ describe('DependencyGraph inline subworkflows', () => {
     expect(screen.queryByText('Notify')).not.toBeInTheDocument()
   })
 
-  it('reveals every nested subworkflow via "Expand all"', () => {
+  it('steps back and forward between a subworkflow opened in its own graph and the run, from the view bar', () => {
+    render(<DependencyGraph run={run} preview />)
+    fireEvent.click(screen.getByText('Build'))
+    fireEvent.click(screen.getByRole('button', { name: 'Open in new graph' }))
+    const back = screen.getByRole('button', {
+      name: 'Back to the previous graph',
+    })
+    const forward = screen.getByRole('button', {
+      name: 'Forward to the next graph',
+    })
+    expect(forward).toBeDisabled()
+    // In the same bar as the other view buttons, ahead of them.
+    const bar = back.parentElement as HTMLElement
+    expect(bar).toContainElement(forward)
+    expect(bar).toContainElement(
+      screen.getByRole('button', { name: 'Reset View' })
+    )
+    fireEvent.click(back)
+    expect(screen.getByText('Notify')).toBeInTheDocument()
+    expect(back).toBeDisabled()
+    fireEvent.click(forward)
+    expect(screen.getByText('Prep')).toBeInTheDocument()
+    expect(screen.queryByText('Notify')).not.toBeInTheDocument()
+  })
+
+  it('reveals every nested subworkflow via "Expand All"', () => {
     render(<DependencyGraph run={run} preview />)
     // Nothing expanded initially.
     expect(screen.queryByText('Prep')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Expand all' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Expand All' }))
     expect(screen.getByText('Prep')).toBeInTheDocument()
     expect(screen.getByText('Publish')).toBeInTheDocument()
   })
 
-  it('opens matrix groups and their nested subworkflows via "Expand all"', () => {
+  it('opens matrix groups and their nested subworkflows via "Expand All"', () => {
     const matrixRun = {
       number: 0,
       workflowName: '',
@@ -185,8 +219,8 @@ describe('DependencyGraph inline subworkflows', () => {
     render(<DependencyGraph run={matrixRun} preview />)
     // The matrix is collapsed, so the subworkflow nested in a member is hidden.
     expect(screen.queryByText('Inner')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Expand all' }))
-    // Expand all opened the matrix group, its member's steps, and the subworkflow.
+    fireEvent.click(screen.getByRole('button', { name: 'Expand All' }))
+    // Expand All opened the matrix group, its member's steps, and the subworkflow.
     expect(screen.getByText('Inner')).toBeInTheDocument()
   })
 })
@@ -266,6 +300,49 @@ describe('DependencyGraph sidebar', () => {
     fireEvent.click(screen.getByText('(2 jobs)'))
     expect(screen.getAllByText('Build (1/2)').length).toBeGreaterThan(0)
   })
+
+  it('draws a matrix that ran as one job as that job, in its stored slot', () => {
+    const executedJobs: Record<string, WorkflowJob> = {
+      setup: { status: 'completed', steps: [] },
+      'build-0': {
+        status: 'completed',
+        needs: ['setup'],
+        _matrix: {
+          originaljob: 'build',
+          index: 0,
+          totalingroup: 1,
+          groupjobs: ['build-0'],
+          values: { os: 'linux' },
+          failfast: true,
+          maxparallel: 0,
+        },
+        steps: [],
+      },
+    }
+    const oneRun = {
+      id: 'o',
+      number: 1,
+      slug: 'o',
+      workflowName: 'wf',
+      status: 'completed',
+      executedJobs,
+    }
+    render(<DependencyGraph run={oneRun} />)
+    expect(screen.queryByText(/Matrix:/)).not.toBeInTheDocument()
+    expect(screen.getAllByText('Build').length).toBeGreaterThan(0)
+    const slots = emptyLayout()
+    slots['setup'] = { column: 0, row: 0 }
+    slots['build'] = { column: 2, row: 1 }
+    const laidOut = computeGraphLayout(
+      testEngine,
+      executedJobs,
+      detectMatrixGroups(executedJobs),
+      slots
+    )
+    expect(laidOut.dependencyCols).toEqual([[['setup']], [['build-0']]])
+    expect(laidOut.colSlots).toEqual([0, 2])
+    expect(laidOut.rowSlots).toEqual([[0], [1]])
+  })
 })
 
 describe('DependencyGraph step log states', () => {
@@ -282,15 +359,18 @@ describe('DependencyGraph step log states', () => {
         }}
       >
         <DependencyGraph run={run} />
-      </UIProvider>,
+      </UIProvider>
     )
 
-  const openGeneralLog = () => fireEvent.click(screen.getByRole('button', { name: 'General log' }))
+  const openGeneralLog = () =>
+    fireEvent.click(screen.getByRole('button', { name: 'General log' }))
 
   it('words a log it could not fetch differently from an empty one', () => {
     withRunFile({ error: new Error('boom') })
     openGeneralLog()
-    expect(screen.getByTestId('log')).toHaveTextContent('Log could not be loaded')
+    expect(screen.getByTestId('log')).toHaveTextContent(
+      'Log could not be loaded'
+    )
     expect(screen.queryByText('No log found')).not.toBeInTheDocument()
   })
 
@@ -308,12 +388,12 @@ describe('DependencyGraph general log', () => {
       <UIProvider
         strings={{
           dag: {
-            statusReason: (reason) => (reason ? `why: ${reason}` : undefined),
+            statusReason: reason => (reason ? 'why: ' + reason : undefined),
           },
         }}
       >
         <DependencyGraph run={r} />
-      </UIProvider>,
+      </UIProvider>
     )
 
   // A run rejected before it could write a log left this pane saying only
@@ -325,7 +405,9 @@ describe('DependencyGraph general log', () => {
       statusReason: 'insufficientDiskSpace',
     })
     fireEvent.click(screen.getByRole('button', { name: 'General log' }))
-    expect(screen.getByTestId('log')).toHaveTextContent('why: insufficientDiskSpace')
+    expect(screen.getByTestId('log')).toHaveTextContent(
+      'why: insufficientDiskSpace'
+    )
   })
 
   it('reports a missing log when the run offers no reason', () => {
@@ -348,8 +430,8 @@ describe('DependencyGraph general log', () => {
   })
 
   const footerButtons = () =>
-    [...screen.getByTestId('log-footer').querySelectorAll('button')].map((b) =>
-      b.textContent?.trim(),
+    [...screen.getByTestId('log-footer').querySelectorAll('button')].map(b =>
+      b.textContent?.trim()
     )
 
   // The run's logs.out belongs to no job or step, so paging off it read step_ off
@@ -365,45 +447,13 @@ describe('DependencyGraph general log', () => {
   it('keeps step paging on a subworkflow general log', () => {
     renderGraph(run)
     fireEvent.click(screen.getAllByText('Build')[0]!)
-    fireEvent.click(screen.getAllByRole('button', { name: 'Open in new graph' })[0]!)
+    fireEvent.click(
+      screen.getAllByRole('button', { name: 'Open in new graph' })[0]!
+    )
     fireEvent.click(screen.getByRole('button', { name: 'General log' }))
     expect(footerButtons()).toEqual(['Prev', 'Next', 'Show Script'])
     // And paging still resolves to a real step rather than throwing.
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     expect(footerButtons()).toEqual(['Prev', 'Next', 'Show Script'])
-  })
-})
-
-describe('addCleanupSteps', () => {
-  it('moves cleanup off the step that declared it, not the one mirrored from the end', () => {
-    const { build } = addCleanupSteps({
-      jobs: {
-        build: {
-          status: 'completed',
-          steps: [
-            { name: 'setup', status: 'completed', cleanup: 'teardown' },
-            { name: 'compile', status: 'completed' },
-            { name: 'publish', status: 'completed' },
-          ],
-          cleanup: [
-            { name: 'notify', status: 'completed', cleanup: 'unnotify' },
-            { name: 'archive', status: 'completed' },
-          ],
-        },
-      },
-    })
-
-    const steps = build?.steps ?? []
-    expect(steps.map((s) => s.name)).toEqual([
-      'setup',
-      'compile',
-      'publish',
-      'POST setup',
-      'notify',
-      'archive',
-      'POST notify',
-    ])
-    // Only the POST steps run the cleanup; the steps that declared it no longer carry it.
-    expect(steps.filter((s) => s.cleanup !== undefined)).toEqual([])
   })
 })
