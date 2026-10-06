@@ -1,15 +1,25 @@
 # dev
 
-`go tool dev` runs an app's whole development setup in one terminal: Postgres
-18 and an S3-compatible server natively, with data kept between runs; its Go
-servers, rebuilt and restarted when their sources change; and processes beside
-them, such as Vite. Add it to the tools module (not the service's module: the
-S3 emulator's MD5 ETags fail under `fips140=only`), and describe the app in
-`dev.json` at the repository root:
+`dev` runs an app's whole development setup in one terminal: Postgres 18 and
+an S3-compatible server natively, with data kept between runs; its Go servers,
+rebuilt and restarted when their sources change; and processes beside them,
+such as Vite.
+
+It belongs in the app's tools module, not the service's: built under the
+service module's `godebug fips140=only`, the S3 emulator's MD5 ETags would
+panic. So from the repository root it runs as `go -C tools tool dev`, not
+`go tool dev`, which only finds the root module's tools. Apps usually wrap it,
+as `make dev` or `pnpm dev`; every example below works the same way with
+`go -C tools tool` in front.
 
 ```sh
 go -C tools get -tool github.com/parallelworks/foundation/dev/cmd/dev
+go -C tools tool dev            # everything
+go -C tools tool dev web        # only the web service
+go -C tools tool dev logs api   # another terminal: the api service's output
 ```
+
+Describe the app in `dev.json` at the repository root:
 
 ```json
 {
@@ -44,8 +54,8 @@ go -C tools get -tool github.com/parallelworks/foundation/dev/cmd/dev
 | `dev reset` | Delete the stack's data |
 
 Data and each service's latest log live in `.devstack/` beside `dev.json`, or
-`--dir`. The command finds `dev.json` from the working directory up, so
-`go -C tools tool dev` works too. A Postgres left running by a stack that was
+`--dir`. The command finds `dev.json` from the working directory up, which is
+how `go -C tools tool dev` finds it from `tools/`. A Postgres left running by a stack that was
 killed is stopped on the next start.
 
 ## Services
@@ -67,7 +77,7 @@ the Vite under `pnpm`. Unix only.
 Every command gets, from lowest to highest precedence: `env` in `dev.json`; the
 service's own `env`; `envFile` (default `.env` beside `dev.json`, skipped when
 missing); the service's `envFile`, relative to its `dir`; and the real
-environment, so `SHOP_LOG_LEVEL=info go tool dev` overrides everything. Values
+environment, so `SHOP_LOG_LEVEL=info make dev` overrides everything. Values
 in `env` may name the stack: `{postgres}` and `{postgres_test}` are database
 URLs, and `{s3}` is the S3 endpoint. Keep `.env` for secrets and personal
 settings.
