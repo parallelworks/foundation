@@ -78,10 +78,14 @@ func NewRootCmd(cfg Config) *cobra.Command {
 
 	var timeout time.Duration
 	wait := &cobra.Command{
-		Use:   "wait",
-		Short: "Wait until a running stack accepts connections",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
+		Use:   "wait [service...]",
+		Short: "Wait until a running stack accepts connections, or until services are up",
+		Long: "With no services, wait until the stack accepts connections. With services, wait until each " +
+			"is ready (or running, without a health URL), and fail as soon as one fails, exits or turns unhealthy.",
+		RunE: func(cmd *cobra.Command, names []string) error {
+			if len(names) > 0 {
+				return waitServices(cmd.Context(), cfg, names, timeout)
+			}
 			return WaitStack(cmd.Context(), cfg, timeout)
 		},
 	}
@@ -250,6 +254,6 @@ func printStatuses(w io.Writer, services []status) {
 		if s.State == stateStopped && s.Manual {
 			detail = "manual"
 		}
-		fmt.Fprintf(w, "%-*s  %-8s  %s  %s\n", width, s.Name, s.State, strings.TrimSpace(since(s.Since)), detail)
+		fmt.Fprintf(w, "%-*s  %-9s  %s  %s\n", width, s.Name, s.State, strings.TrimSpace(since(s.Since)), detail)
 	}
 }

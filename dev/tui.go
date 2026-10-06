@@ -195,14 +195,18 @@ var (
 	dimStyle   = lipgloss.NewStyle().Faint(true)
 	cursorBar  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12"))
 	stateStyle = map[state]lipgloss.Style{
-		stateRunning:  lipgloss.NewStyle().Foreground(lipgloss.Color("2")),
-		stateBuilding: lipgloss.NewStyle().Foreground(lipgloss.Color("3")),
-		stateFailed:   lipgloss.NewStyle().Foreground(lipgloss.Color("1")),
-		stateExited:   lipgloss.NewStyle().Foreground(lipgloss.Color("1")),
-		stateStopped:  lipgloss.NewStyle().Faint(true),
+		stateRunning:   lipgloss.NewStyle().Foreground(lipgloss.Color("2")),
+		stateBuilding:  lipgloss.NewStyle().Foreground(lipgloss.Color("3")),
+		stateFailed:    lipgloss.NewStyle().Foreground(lipgloss.Color("1")),
+		stateExited:    lipgloss.NewStyle().Foreground(lipgloss.Color("1")),
+		stateStopped:   lipgloss.NewStyle().Faint(true),
+		stateStarting:  lipgloss.NewStyle().Foreground(lipgloss.Color("3")),
+		stateReady:     lipgloss.NewStyle().Foreground(lipgloss.Color("2")),
+		stateUnhealthy: lipgloss.NewStyle().Foreground(lipgloss.Color("1")),
 	}
 	stateMark = map[state]string{
 		stateRunning: "●", stateBuilding: "◐", stateFailed: "✗", stateExited: "✗", stateStopped: "○",
+		stateStarting: "◐", stateReady: "●", stateUnhealthy: "✗",
 	}
 )
 
@@ -251,7 +255,7 @@ func (m *model) home(b *strings.Builder) {
 			detail = "manual"
 		}
 		fmt.Fprintf(b, "%s%s %-*s  %s  %s  %s\n", bar, st.Render(stateMark[s.State]), width, s.Name,
-			st.Render(fmt.Sprintf("%-8s", s.State)), dimStyle.Render(since(s.Since)), dimStyle.Render(detail))
+			st.Render(fmt.Sprintf("%-9s", s.State)), dimStyle.Render(since(s.Since)), dimStyle.Render(detail))
 	}
 	if len(services) == 0 {
 		b.WriteString(dimStyle.Render("  no services in dev.json") + "\n")

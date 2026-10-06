@@ -175,13 +175,22 @@ func (s *supervisor) start(ctx context.Context, name string) error {
 	r.cancel, r.done = cancel, make(chan struct{})
 	set := func(st state, detail string) { s.setState(r, st, detail) }
 	logger := s.logger.With("service", name)
-	go func() {
-		defer close(r.done)
+	// done waits for the prober too, so that stop leaves nothing behind.
+	var wg sync.WaitGroup
+	if r.svc.Health != "" {
+		wg.Go(func() { s.probe(ctx, r) })
+	}
+	wg.Go(func() {
 		if len(r.svc.Build) > 0 {
 			runServer(ctx, s.cfg, r.svc, env, s.builds, r.out, logger, set)
 		} else {
 			runProcess(ctx, r.svc, env, r.out, logger, set)
 		}
+	})
+	done := r.done
+	go func() {
+		wg.Wait()
+		close(done)
 	}()
 	return nil
 }
@@ -235,6 +244,9 @@ func (s *supervisor) setState(r *runner, st state, detail string) {
 	if r.cancel == nil && st != stateStopped {
 		s.mu.Unlock()
 		return
+	}
+	if st == stateRunning && r.svc.Health != "" {
+		st = stateStarting
 	}
 	r.status.State, r.status.Detail, r.status.Since = st, detail, time.Now()
 	s.mu.Unlock()

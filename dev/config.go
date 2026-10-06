@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -85,6 +86,10 @@ type Service struct {
 	// EnvFile is a dotenv file for this service, relative to Dir, over the
 	// config's EnvFile.
 	EnvFile string `json:"envFile,omitempty"`
+	// Health is a URL that answers 2xx once the service can do its job, such
+	// as http://localhost:8080/readyz. With it, the service reads starting,
+	// then ready, or unhealthy if it stops answering.
+	Health string `json:"health,omitempty"`
 	// Manual services start only when named: `dev web worker`.
 	Manual bool `json:"manual,omitempty"`
 }
@@ -176,6 +181,11 @@ func (c Config) withDefaults() (Config, error) {
 			return c, fmt.Errorf("service %q would be shadowed by the dev %s command", svc.Name, svc.Name)
 		}
 		seen[svc.Name] = true
+		if svc.Health != "" {
+			if u, err := url.Parse(svc.Health); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+				return c, fmt.Errorf("service %q: health must be an http(s) URL, got %q", svc.Name, svc.Health)
+			}
+		}
 		svc.Dir = c.path(svc.Dir)
 		if svc.EnvFile != "" && !filepath.IsAbs(svc.EnvFile) {
 			svc.EnvFile = filepath.Join(svc.Dir, svc.EnvFile)
