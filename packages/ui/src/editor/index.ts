@@ -1,7 +1,7 @@
 export { default as Editor } from './Editor'
 export { default as EditorField, type IEditorField } from './EditorField'
 export { default as FormCodePanel } from './FormCodePanel'
-export { LINT_OWNER } from './lintContext'
+export { LINT_OWNER } from './lintOwner'
 export type { IEditorProps, ISchemaError } from './Monaco'
 export { type NestedWorkflowText, nestedWorkflowText } from './nestedText'
 export { revealLines } from './reveal'

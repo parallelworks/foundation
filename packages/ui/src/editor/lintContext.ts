@@ -19,8 +19,7 @@ import {
   type UsesSources,
 } from '../graph/usesInputs'
 
-// Lint markers carry their own owner, so they can be told apart from the schema's.
-export const LINT_OWNER = 'workflowlint'
+export { LINT_OWNER } from './lintOwner'
 
 export interface LintSources extends UsesSources {
   secrets?: (() => Promise<string[]>) | undefined

@@ -69,6 +69,7 @@ import {
 import { asRecord, openOnAddOf } from './editorFields'
 import { JobDialog, type SettingsView, StepDialog } from './GraphEditorDialogs'
 import type { ListedProblem } from './ProblemsButton'
+import { refusalText } from './refusalText'
 import { MOD_KEY, type ShortcutGroup } from './ShortcutsButton'
 import type { WorkflowJob } from './types'
 import { jobLabel } from './util'
@@ -863,7 +864,7 @@ export function useGraphEditorState({
         let problem: string | undefined
         try {
           const reason = yml === undefined ? undefined : stepMoveProblem(yml, refs, job)
-          problem = reason && t.refusal(reason)
+          problem = reason && refusalText(t, reason)
         } catch {
           problem = undefined
         }

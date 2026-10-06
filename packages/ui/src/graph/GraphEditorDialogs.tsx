@@ -65,7 +65,6 @@ import {
   updateAt,
   useSectionMemory,
 } from './editorFields'
-import { editErrorText } from './editorStrings'
 import { expressionRefs } from './expressionRefs'
 import {
   FieldProblems,
@@ -86,6 +85,7 @@ import {
   ScriptField,
   ValueOrInputField,
 } from './inputRefs'
+import { editErrorText } from './refusalText'
 import { NO_SCOPED, type ScopedProblems, ViewSwitch, YamlPane, yamlProblem } from './settingsViews'
 import { UsesPicker, usesKind, WithEditor, withDraftFrom, withError, withValue } from './stepWith'
 

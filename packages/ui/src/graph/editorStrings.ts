@@ -1,6 +1,6 @@
 // English defaults for the workflow editor; the web app supplies translations.
 
-import { EditRefusal, refusalMessage } from '@parallelworks/workflow-parser'
+import type { EditRefusalReason } from '@parallelworks/workflow-parser'
 
 export const GRAPH_EDITOR_STRINGS = {
   undo: 'Undo',
@@ -37,7 +37,8 @@ export const GRAPH_EDITOR_STRINGS = {
   dependencyInUse: "An expression in the job reads this dependency's outputs",
   dependency: 'Dependency',
   dependencyOf: (from: string, to: string) => `${to} depends on ${from}`,
-  refusal: refusalMessage,
+  // Left to refusalText, which gives the parser's English; importing it here would bring the parser into every app.
+  refusal: (_reason: EditRefusalReason): string => '',
   menuDependsOn: 'Depends on',
   menuNeededBy: 'Needed by',
   shortcuts: 'Shortcuts',
@@ -761,11 +762,3 @@ export const INPUTS_EDITOR_STRINGS = {
 }
 
 export type InputsEditorStrings = typeof INPUTS_EDITOR_STRINGS
-
-/** What to tell the person when an edit throws: why it was refused, or the error itself. */
-export function editErrorText(t: GraphEditorStrings, error: unknown): string {
-  if (error instanceof EditRefusal) {
-    return t.refusal(error.reason)
-  }
-  return error instanceof Error ? error.message : String(error)
-}
