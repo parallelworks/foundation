@@ -267,6 +267,25 @@ func TestNoBuildNeedsDevServer(t *testing.T) {
 	}
 }
 
+// A build left from an earlier `vite build` must not take Vite's place.
+func TestDevServerWinsOverABuild(t *testing.T) {
+	vite := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = io.WriteString(w, "<html><body>from vite</body></html>")
+	}))
+	defer vite.Close()
+
+	h, err := spa.Handler(build(), spa.Options{DevServer: vite.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody))
+	if !strings.Contains(rec.Body.String(), "from vite") {
+		t.Errorf("GET / = %q, want Vite's page", rec.Body)
+	}
+}
+
 func TestProxiesToDevServer(t *testing.T) {
 	var gotHost, gotForwarded string
 	vite := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

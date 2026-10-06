@@ -47,7 +47,9 @@ type Options struct {
 	// route, sent with a 200.
 	NotFound func(r *http.Request) bool
 	// DevServer is the Vite dev server's URL, such as "http://localhost:5173".
-	// When dist holds no build, Handler proxies to it.
+	// When set, Handler proxies to it whatever dist holds, so a build left
+	// from an earlier `vite build` is never served in its place. Set it only
+	// in development.
 	DevServer string
 }
 
@@ -59,20 +61,20 @@ type Options struct {
 // else carries an ETag to revalidate with, and index.html is gzipped for
 // clients that accept it.
 //
-// When dist holds no build, as when the Go module is built before the web
-// app, Handler proxies every request to opts.DevServer, including Vite's HMR
-// WebSocket. It returns an error if there is neither a build nor a dev server.
+// With opts.DevServer set, Handler instead proxies every request to it,
+// including Vite's HMR WebSocket. Without one, it returns an error if dist
+// holds no build.
 func Handler(dist fs.FS, opts Options) (http.Handler, error) {
-	index, err := fs.ReadFile(dist, "index.html")
-	if !built(index, err) {
-		if opts.DevServer == "" {
-			return nil, fmt.Errorf("spa: no build in dist and no DevServer: %w", errors.Join(err, errNoBuild))
-		}
+	if opts.DevServer != "" {
 		target, err := url.Parse(opts.DevServer)
 		if err != nil || target.Host == "" {
 			return nil, fmt.Errorf("spa: invalid DevServer %q", opts.DevServer)
 		}
 		return devProxy(target, opts), nil
+	}
+	index, err := fs.ReadFile(dist, "index.html")
+	if !built(index, err) {
+		return nil, fmt.Errorf("spa: no build in dist and no DevServer: %w", errors.Join(err, errNoBuild))
 	}
 	return &handler{dist: dist, index: index, opts: opts, rewrite: opts.rewrite(), etags: map[string]string{}, gzipped: map[string][]byte{}}, nil
 }
@@ -80,9 +82,10 @@ func Handler(dist fs.FS, opts Options) (http.Handler, error) {
 var errNoBuild = errors.New("index.html is missing or a placeholder")
 
 // Built reports whether dist holds a Vite build rather than the placeholder
-// that lets the Go module build before the web app has: whether Handler serves
-// it or proxies to the dev server. Use it for anything else that differs in
-// development, such as where generated files are read from.
+// that lets the Go module build before the web app has. Whether Handler
+// serves it or proxies depends on Options.DevServer instead, so decide
+// anything else that differs in development, such as where generated files
+// are read from, by that too.
 func Built(dist fs.FS) bool {
 	return built(fs.ReadFile(dist, "index.html"))
 }

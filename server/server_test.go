@@ -142,14 +142,15 @@ func TestSecurityHeaders(t *testing.T) {
 }
 
 // While the app is proxied from Vite, the CSP accepts the nonce Vite puts on
-// what it injects; with a build it does not.
+// what it injects; serving the build, it does not.
 func TestDevServerCSP(t *testing.T) {
 	vite := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
 		_, _ = io.WriteString(w, `<html><head><script type="module" nonce="`+spa.DevNonce+`"></script></head></html>`)
 	}))
 	defer vite.Close()
-	dev := newHandler(t, server.Options{Web: fstest.MapFS{".gitkeep": {}}, DevServer: vite.URL})
+	// A build left in Web from an earlier `vite build` must not take Vite's place.
+	dev := newHandler(t, server.Options{DevServer: vite.URL})
 	rec := do(t, dev, http.MethodGet, "/issues")
 	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `<base href="/">`) {
 		t.Fatalf("GET /issues = %d %q, want Vite's page with a base href", rec.Code, rec.Body)
@@ -157,7 +158,7 @@ func TestDevServerCSP(t *testing.T) {
 	if csp := rec.Header().Get("Content-Security-Policy"); !strings.Contains(csp, "script-src 'self' 'nonce-"+spa.DevNonce+"'") {
 		t.Errorf("dev CSP = %q", csp)
 	}
-	built := newHandler(t, server.Options{DevServer: vite.URL})
+	built := newHandler(t, server.Options{})
 	if csp := do(t, built, http.MethodGet, "/").Header().Get("Content-Security-Policy"); strings.Contains(csp, "nonce") {
 		t.Errorf("CSP with a build = %q, want no nonce", csp)
 	}
