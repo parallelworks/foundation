@@ -158,3 +158,25 @@ export const LongNames: StoryObj = {
     }
   },
 }
+
+/** The card offers to copy its username, named "email" when it is one. The
+ * button appears while the username is hovered, without moving anything. */
+export const CopyEmail: StoryObj = {
+  render: () => (
+    <UserHoverCard
+      {...PLACEMENT}
+      username="ada.lovelace@example.com"
+      name="Ada Lovelace"
+      avatarSrc={PHOTO}
+      badge="Admin"
+      href="/users/alovelace"
+    >
+      <HoverCardRow icon={<ClockIcon />}>9:41 AM local time</HoverCardRow>
+    </UserHoverCard>
+  ),
+  play: async () => {
+    const button = await screen.findByRole('button', { name: 'Copy email' })
+    await userEvent.hover(screen.getByText('ada.lovelace@example.com'))
+    await expect(button).toBeInTheDocument()
+  },
+}
