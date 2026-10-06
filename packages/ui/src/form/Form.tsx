@@ -421,6 +421,7 @@ export function GroupHeader({
       <button
         type="button"
         aria-expanded={open}
+        data-field-label
         className="w-full flex items-center text-left transform ease-in transition cursor-pointer"
         onClick={() => setOpen((open) => !open)}
       >

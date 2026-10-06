@@ -9,7 +9,6 @@ import cx from 'classnames'
 import {
   createContext,
   type ReactNode,
-  type PointerEvent as ReactPointerEvent,
   useContext,
   useEffect,
   useMemo,
@@ -103,6 +102,18 @@ const createFormStore = () =>
 
 type Store = EditorStore<UiState>
 
+/** The pointer press a drag starts from, a React or a DOM event. */
+type Press = Pick<PointerEvent, 'button' | 'clientX' | 'clientY' | 'stopPropagation'>
+
+interface DragHow {
+  /** The click after the release: swallowed always, or only after a drag. */
+  swallowClick?: 'always' | 'drag'
+  /** Keeps the page's text from selecting once the press is a drag. */
+  holdText?: 'drag'
+  /** A release that never became a drag. */
+  onClick?: () => void
+}
+
 interface InputsEditorApi {
   store: Store
   definition: (path: InputPath) => Json
@@ -111,7 +122,7 @@ interface InputsEditorApi {
   remove: (path: InputPath) => void
   openMenu: (x: number, y: number, path: InputPath) => void
   openTypeMenu: (x: number, y: number, parent: InputPath, index: number) => void
-  startDrag: (e: ReactPointerEvent, path: InputPath | null, label: string) => void
+  startDrag: (e: Press, path: InputPath | null, label: string, how?: DragHow) => void
   /** Shows a line of the YAML, when the YAML editor is beside the form. */
   reveal: (line: number) => void
   /** Deletes the selected inputs, reporting whether any were. */
@@ -659,7 +670,7 @@ export function InputsFormEditor({
       return true
     }
 
-    const startDrag = (e: ReactPointerEvent, path: InputPath | null, label: string) => {
+    const startDrag = (e: Press, path: InputPath | null, label: string, how: DragHow = {}) => {
       if (e.button !== 0) {
         return
       }
@@ -676,7 +687,11 @@ export function InputsFormEditor({
       const onEnd = (client: { x: number; y: number }, dragged: boolean) => {
         const gap = store.get().drag?.gap ?? null
         store.set({ drag: null })
-        if (!dragged || !gap) {
+        if (!dragged) {
+          how.onClick?.()
+          return
+        }
+        if (!gap) {
           return
         }
         if (!paths) {
@@ -703,7 +718,8 @@ export function InputsFormEditor({
         { x: e.clientX, y: e.clientY },
         {
           escape: true,
-          swallowClick: 'drag',
+          swallowClick: how.swallowClick ?? 'drag',
+          ...(how.holdText ? { holdText: how.holdText } : {}),
           onMove: (client) => {
             const root = containerRef.current
             const gap = root ? nearestGap(gapsIn(root), client.x, client.y, paths) : null
@@ -828,12 +844,29 @@ export function InputsFormEditor({
       const row = e.target.closest<HTMLElement>('[data-input-path]')
       const start = { x: e.clientX, y: e.clientY }
       if (!e.shiftKey) {
-        // Clicking a field's label highlights its input; the field itself still takes the click.
         const rowKey = row?.dataset['inputPath']
-        if (rowKey && e.target.closest('label')) {
+        // A field's own label, or a group's title, carries its input in a drag; the field itself still
+        // takes the click, but the label never passes the click on to it.
+        const title = e.target.closest<HTMLElement>('[data-field-label]')
+        if (rowKey && title && title.closest('[data-input-path]') === row) {
+          const path = pathOf(rowKey)
+          const name = path.at(-1) ?? ''
+          // A group's title still folds the group on a click.
+          if (title.tagName !== 'LABEL') {
+            api.startDrag(e, path, name, { holdText: 'drag' })
+            return
+          }
           e.preventDefault()
           container.focus({ preventScroll: true })
-          store.set({ selection: [rowKey] })
+          // Pressing one of several selected inputs keeps them all, so a drag takes them along.
+          if (!store.get().selection.includes(rowKey)) {
+            store.set({ selection: [rowKey] })
+          }
+          api.startDrag(e, path, name, {
+            swallowClick: 'always',
+            holdText: 'drag',
+            onClick: () => store.set({ selection: [rowKey] }),
+          })
           return
         }
         // A plain click between the fields clears the selection.
@@ -884,7 +917,7 @@ export function InputsFormEditor({
     }
     container.addEventListener('pointerdown', onDown, true)
     return () => container.removeEventListener('pointerdown', onDown, true)
-  }, [store])
+  }, [api, store])
 
   useEffect(() => {
     const container = containerRef.current

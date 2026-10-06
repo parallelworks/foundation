@@ -1045,6 +1045,7 @@ describe('selecting inputs', () => {
       .sort()
   const form = () => row(['name']).closest('[tabindex="0"]') as HTMLElement
 
+  // Each release is followed by the click a browser sends after it.
   function shiftClick(path: string[], at: [number, number]) {
     fireEvent.pointerDown(row(path), {
       button: 0,
@@ -1055,6 +1056,7 @@ describe('selecting inputs', () => {
     act(() => {
       fireEvent.pointerUp(window, { clientX: at[0], clientY: at[1] })
     })
+    fireEvent.click(row(path), { shiftKey: true })
   }
   function box(from: [number, number], to: [number, number]) {
     fireEvent.pointerDown(form(), {
@@ -1069,6 +1071,17 @@ describe('selecting inputs', () => {
     act(() => {
       fireEvent.pointerUp(window, { clientX: to[0], clientY: to[1] })
     })
+    fireEvent.click(form(), { shiftKey: true })
+  }
+  function drag(handle: HTMLElement, from: [number, number], to: [number, number]) {
+    fireEvent.pointerDown(handle, { button: 0, clientX: from[0], clientY: from[1] })
+    act(() => {
+      fireEvent.pointerMove(window, { clientX: to[0], clientY: to[1] })
+    })
+    act(() => {
+      fireEvent.pointerUp(window, { clientX: to[0], clientY: to[1] })
+    })
+    fireEvent.click(handle)
   }
 
   it('toggles an input with shift-click, and clears on Escape or a click between fields', () => {
@@ -1106,13 +1119,7 @@ describe('selecting inputs', () => {
     shiftClick(['secret'], [5, 55])
     shiftClick(['name'], [5, 5])
     const handle = row(['name']).querySelector('[data-drag-handle]') as HTMLElement
-    fireEvent.pointerDown(handle, { button: 0, clientX: 5, clientY: 5 })
-    act(() => {
-      fireEvent.pointerMove(window, { clientX: 5, clientY: 112 })
-    })
-    act(() => {
-      fireEvent.pointerUp(window, { clientX: 5, clientY: 112 })
-    })
+    drag(handle, [5, 5], [5, 112])
     expect(e.onEdit).toHaveBeenCalledWith({
       type: 'moveInputs',
       paths: [['name'], ['secret']],
@@ -1159,18 +1166,83 @@ describe('selecting inputs', () => {
     expect(selected()).toEqual([])
   })
 
-  const clickLabel = (path: string[]) => {
-    const label = row(path).querySelector('label')
-    if (!(label instanceof HTMLElement)) {
+  // A field's own label, or a group's title.
+  const titleOf = (path: string[]) => {
+    const title = row(path).querySelector('[data-field-label]')
+    if (!(title instanceof HTMLElement)) {
       throw new Error(`no label for ${path.join('.')}`)
     }
-    fireEvent.pointerDown(label, { button: 0 })
+    return title
+  }
+  // Whether the click after the press went on, which on a label hands it to the label's field.
+  const clickLabel = (path: string[]) => {
+    const label = titleOf(path)
+    fireEvent.pointerDown(label, { button: 0, clientX: 5, clientY: 5 })
+    act(() => {
+      fireEvent.pointerUp(window, { clientX: 5, clientY: 5 })
+    })
+    return fireEvent.click(label)
   }
 
-  it('highlights an input when its label is clicked', () => {
+  it('highlights an input when its label is clicked, leaving its field alone', () => {
     renderForm(editor())
+    const field = row(['settings', 'size']).querySelector('input') as HTMLInputElement
+    expect(clickLabel(['settings', 'size'])).toBe(false)
+    expect(selected()).toEqual([JSON.stringify(['settings', 'size'])])
+    expect(field).not.toHaveFocus()
+    expect(form()).toHaveFocus()
+  })
+
+  it('moves an input dragged by its label', () => {
+    const e = editor()
+    renderForm(e)
+    layOut()
+    drag(titleOf(['name']), [5, 5], [5, 112])
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'moveInputs',
+      paths: [['name']],
+      parent: ['settings'],
+      index: 0,
+    })
+  })
+
+  it('drags every selected input from one of their labels, and a click on it selects just that one', () => {
+    const e = editor()
+    renderForm(e)
+    layOut()
+    shiftClick(['secret'], [5, 55])
+    shiftClick(['name'], [5, 5])
     clickLabel(['name'])
     expect(selected()).toEqual([JSON.stringify(['name'])])
+    shiftClick(['secret'], [5, 55])
+    drag(titleOf(['name']), [5, 5], [5, 112])
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'moveInputs',
+      paths: [['name'], ['secret']],
+      parent: ['settings'],
+      index: 0,
+    })
+  })
+
+  it('folds a group from its title on a click, and moves it from its title in a drag', () => {
+    const e = editor()
+    renderForm(e)
+    layOut()
+    const title = titleOf(['settings'])
+    const open = title.getAttribute('aria-expanded')
+    expect(clickLabel(['settings'])).toBe(true)
+    expect(title).toHaveAttribute('aria-expanded', open === 'true' ? 'false' : 'true')
+    drag(titleOf(['settings']), [5, 85], [5, 45])
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'moveInputs',
+      paths: [['settings']],
+      parent: [],
+      index: 1,
+    })
+    expect(titleOf(['settings'])).toHaveAttribute(
+      'aria-expanded',
+      open === 'true' ? 'false' : 'true',
+    )
   })
 
   it('moves the highlighted input down with the arrow keys', () => {
