@@ -158,3 +158,27 @@ export const LongNames: StoryObj = {
     }
   },
 }
+
+/** A host whose username is an email address lets people copy it from the card. */
+export const CopyEmail: StoryObj<{ copy: 'email' | 'username' | undefined }> = {
+  args: { copy: 'email' },
+  argTypes: {
+    copy: { control: 'inline-radio', options: ['email', 'username', undefined] },
+  },
+  render: ({ copy }) => (
+    <UserHoverCard
+      {...PLACEMENT}
+      username="ada.lovelace@example.com"
+      name="Ada Lovelace"
+      avatarSrc={PHOTO}
+      badge="Admin"
+      href="/users/alovelace"
+      copy={copy}
+    >
+      <HoverCardRow icon={<ClockIcon />}>9:41 AM local time</HoverCardRow>
+    </UserHoverCard>
+  ),
+  play: async () => {
+    await expect(await screen.findByRole('button', { name: 'Copy email' })).toBeVisible()
+  },
+}

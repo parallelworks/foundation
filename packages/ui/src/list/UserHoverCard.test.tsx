@@ -114,3 +114,29 @@ describe('HoverCardTrigger', () => {
     expect(screen.queryByText('card body')).not.toBeInTheDocument()
   })
 })
+
+describe('UserHoverCard copy', () => {
+  it('copies the username when asked to, naming what it copies', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.assign(navigator, { clipboard: { writeText } })
+    const success = vi.fn()
+    render(
+      <UIProvider notify={{ success }}>
+        <UserHoverCard {...placement} username="ada@example.com" href="/users/a" copy="email" />
+      </UIProvider>,
+    )
+    const button = screen.getByRole('button', { name: 'Copy email' })
+    // Beside the linked header, never inside it.
+    expect(screen.getByRole('link')).not.toContainElement(button)
+    await act(async () => fireEvent.click(button))
+    expect(writeText).toHaveBeenCalledWith('ada@example.com')
+    expect(success).toHaveBeenCalledWith('Copied email')
+  })
+
+  it('has no copy button unless asked, or without a username', () => {
+    const { rerender } = render(<UserHoverCard {...placement} username="alovelace" />)
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    rerender(<UserHoverCard {...placement} username="" copy="username" />)
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+})

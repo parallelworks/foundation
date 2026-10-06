@@ -1,7 +1,9 @@
 import cx from 'classnames'
 import type { ReactNode } from 'react'
 import { Avatar } from '../components/Avatar'
-import { type UILinkComponent, useLink, useStrings } from '../components/Provider'
+import { type UILinkComponent, useLink, useNotify, useStrings } from '../components/Provider'
+import { TOOLTIP_ID } from '../components/Tooltip'
+import { CopyIcon } from '../icons'
 import { HoverCardSurface, useHoverCard } from './HoverCard'
 
 /** Where an open hover card sits, and the handlers that keep it open. */
@@ -60,6 +62,9 @@ export interface UserHoverCardProps extends HoverCardPlacement {
   linkComponent?: UILinkComponent | undefined
   /** Shows placeholder detail lines while the profile loads. */
   loading?: boolean | undefined
+  /** Adds a copy button beside the username, naming what it copies; the
+   * username is often a handle, so copying is opt-in. */
+  copy?: 'email' | 'username' | undefined
   /** Re-measures the card's position when this changes. */
   relayoutKey?: unknown
   /** Detail lines, usually `HoverCardRow`s, below the header. */
@@ -78,10 +83,12 @@ export function UserHoverCard({
   href,
   linkComponent,
   loading = false,
+  copy,
   relayoutKey,
   children,
 }: UserHoverCardProps) {
   const strings = useStrings()
+  const notify = useNotify()
   const SlotLink = useLink()
   const Link = linkComponent ?? SlotLink
   const displayName = name || username
@@ -91,7 +98,9 @@ export function UserHoverCard({
       {/* The card is narrow, so the name wraps (even mid-word) rather than truncating:
           a person's name stays readable in their own card. The badge sits beside the
           name when it fits and wraps below it when it doesn't. */}
-      <div className="min-w-0 flex-1">
+      {/* With a copy button, the username sits at the bottom of a column at least as
+          tall as the avatar, so the button beside the header lines up with it. */}
+      <div className={cx('min-w-0 flex-1', copy && 'flex min-h-10 flex-col justify-between')}>
         <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
           <span className="min-w-0 text-sm font-semibold leading-5 wrap-anywhere text-(--theme-app)">
             {displayName}
@@ -107,6 +116,14 @@ export function UserHoverCard({
     </>
   )
 
+  const t = strings.list
+  const copyLabel = copy === 'email' ? t.labelEmail : t.labelUsername
+  const onCopy = () =>
+    navigator.clipboard?.writeText(username).then(
+      () => notify.success(t.copied(copyLabel)),
+      () => notify.error(t.couldntCopy(copyLabel)),
+    )
+
   return (
     <HoverCardSurface
       x={x}
@@ -116,13 +133,32 @@ export function UserHoverCard({
       onKeepOpen={onKeepOpen}
       onLeave={onLeave}
     >
-      {href ? (
-        <Link to={href} className="flex items-start gap-3 transition-opacity hover:opacity-80">
-          {header}
-        </Link>
-      ) : (
-        <div className="flex items-start gap-3">{header}</div>
-      )}
+      {/* The copy button sits beside the header, not in it: a linked header
+          can't hold a button. */}
+      <div className="flex items-end gap-1">
+        {href ? (
+          <Link
+            to={href}
+            className="flex min-w-0 flex-1 items-start gap-3 transition-opacity hover:opacity-80"
+          >
+            {header}
+          </Link>
+        ) : (
+          <div className="flex min-w-0 flex-1 items-start gap-3">{header}</div>
+        )}
+        {copy && username && (
+          <button
+            type="button"
+            aria-label={t.copy(copyLabel)}
+            data-tooltip-id={TOOLTIP_ID}
+            data-tooltip-content={t.copy(copyLabel)}
+            onClick={onCopy}
+            className="shrink-0 cursor-pointer rounded p-0.5 text-(--theme-muted-text-color) transition-colors hover:bg-(--theme-muted-panel-bg) hover:text-(--theme-app) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--theme-link) [&>svg]:h-3.5 [&>svg]:w-3.5"
+          >
+            <CopyIcon aria-hidden="true" />
+          </button>
+        )}
+      </div>
       {loading ? (
         <div
           role="status"
