@@ -21,7 +21,7 @@ export default meta
 
 const SETTINGS_WORKFLOW = `env:
   LOG_LEVEL: info
-timeout: '04:00:00'
+timeout: 4h
 permissions:
   - '*'
 sessions:
