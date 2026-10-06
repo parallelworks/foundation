@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { keyedByContent } from '../components/keys'
 import { TOOLTIP_ID } from '../components/Tooltip'
 import { AlertIcon } from '../icons'
 import type { EditorProblem } from './editorApi'
@@ -38,33 +39,35 @@ export function ProblemsButton({ problems }: { problems: ListedProblem[] }) {
         <ToolbarPopover anchor={button} label={label} onClose={() => setOpen(false)}>
           <div className="mb-2 text-[0.8125rem] font-semibold">{label}</div>
           <ul className="flex flex-col gap-0.5">
-            {problems.map((problem, i) => {
-              const { pick } = problem
-              const text = (
-                <>
-                  <span className="mr-1.5 theme-muted-text">{t.problemLine(problem.line)}</span>
-                  <span className="text-(--theme-error)">{problem.message}</span>
-                </>
-              )
-              return (
-                <li key={`${problem.line}:${i}`}>
-                  {pick ? (
-                    <button
-                      type="button"
-                      className="w-full cursor-pointer rounded px-1.5 py-1 text-left theme-hover"
-                      onClick={() => {
-                        setOpen(false)
-                        pick()
-                      }}
-                    >
-                      {text}
-                    </button>
-                  ) : (
-                    <div className="px-1.5 py-1">{text}</div>
-                  )}
-                </li>
-              )
-            })}
+            {keyedByContent(problems, (problem) => `${problem.line}:${problem.message}`).map(
+              ({ key, item: problem }) => {
+                const { pick } = problem
+                const text = (
+                  <>
+                    <span className="mr-1.5 theme-muted-text">{t.problemLine(problem.line)}</span>
+                    <span className="text-(--theme-error)">{problem.message}</span>
+                  </>
+                )
+                return (
+                  <li key={key}>
+                    {pick ? (
+                      <button
+                        type="button"
+                        className="w-full cursor-pointer rounded px-1.5 py-1 text-left theme-hover"
+                        onClick={() => {
+                          setOpen(false)
+                          pick()
+                        }}
+                      >
+                        {text}
+                      </button>
+                    ) : (
+                      <div className="px-1.5 py-1">{text}</div>
+                    )}
+                  </li>
+                )
+              },
+            )}
           </ul>
         </ToolbarPopover>
       )}

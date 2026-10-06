@@ -1027,16 +1027,16 @@ function Subgraph({
 
         // A need draws from the box its job sits in, and a box formed by hand draws all its members' needs.
         const headOf = new Map<string, string>()
-        for (const box of dependencyCols.flat()) {
-          for (const job of box) {
-            headOf.set(job, box[0]!)
+        for (const [head = '', ...rest] of dependencyCols.flat()) {
+          for (const job of [head, ...rest]) {
+            headOf.set(job, head)
           }
         }
         const boxDeps = new Map(
           dependencyCols
             .flat()
             .map((box) => [
-              box[0]!,
+              box[0] ?? '',
               [
                 ...new Set(
                   box.flatMap((job) => directDeps[job] ?? []).map((dep) => headOf.get(dep) ?? dep),
@@ -1098,15 +1098,15 @@ function Subgraph({
         // The editor's connector circles on both sides of every node; where a
         // connector below already draws the dot, the circle leaves it showing.
         const ports = (jobNames: string[]) => {
-          const head = jobNames[0]!
-          const el = gid(head)
-          if (!el) {
+          const [head] = jobNames
+          const el = head === undefined ? null : gid(head)
+          if (head === undefined || !el) {
             return null
           }
           const y = nodeConnectorY(el)
           const wiredIn = depsOf(head).some((dep) => gid(dep))
           const wiredOut = dependencyCols.some((c) =>
-            c.some((box) => depsOf(box[0]!).includes(head) && !!gid(box[0]!)),
+            c.some(([other = '']) => depsOf(other).includes(head) && !!gid(other)),
           )
           return (
             <NodePorts

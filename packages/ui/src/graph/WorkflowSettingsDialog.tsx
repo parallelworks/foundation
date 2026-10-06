@@ -1,6 +1,7 @@
 import { type ReactNode, useState } from 'react'
 import { IconButton } from '../components/IconButton'
 import { Input } from '../components/Input'
+import { withPositionKeys } from '../components/keys'
 import { useWorkflowEditing } from '../components/Provider'
 import type { GraphEdit } from '../editing'
 import { SETTINGS_YAML_PATH } from '../editor/settingsYaml'
@@ -496,9 +497,9 @@ function SettingsForm({
         open={sessions.length > 0}
         alert={!!(errors.sessions || errors.redirect)}
       >
-        {sessions.map((session, i) => (
+        {withPositionKeys(sessions).map(({ key, item: session }, i) => (
           <Card
-            key={i}
+            key={key}
             removeLabel={t.removeRow}
             onRemove={() => setSessions(sessions.filter((_, j) => j !== i))}
           >
@@ -599,9 +600,9 @@ function SettingsForm({
         open={links.length > 0}
         alert={!!(errors.links || errors.redirect)}
       >
-        {links.map((link, i) => (
+        {withPositionKeys(links).map(({ key, item: link }, i) => (
           <Card
-            key={i}
+            key={key}
             removeLabel={t.removeRow}
             onRemove={() => setLinks(links.filter((_, j) => j !== i))}
           >

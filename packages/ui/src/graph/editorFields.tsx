@@ -15,6 +15,7 @@ import { Button } from '../components/Button'
 import { ghostButtonClasses, primaryButtonClasses } from '../components/ghostButton'
 import { IconButton } from '../components/IconButton'
 import { Input, Textarea } from '../components/Input'
+import { withPositionKeys } from '../components/keys'
 import { Toggle } from '../components/Toggle'
 import { TOOLTIP_ID } from '../components/Tooltip'
 import type { FieldPatch } from '../editing'
@@ -509,9 +510,9 @@ export function KeyValueEditor({
   const t = useGraphEditorStrings()
   return (
     <div className="flex flex-col gap-2">
-      {rows.map((row, i) => (
+      {withPositionKeys(rows).map(({ key, item: row }, i) => (
         <KeyValueRow
-          key={i}
+          key={key}
           row={row}
           onChange={(next) => onChange(updateAt(rows, i, next))}
           onRemove={() => onChange(removeAt(rows, i))}
@@ -619,8 +620,8 @@ export function StringListEditor({
   const t = useGraphEditorStrings()
   return (
     <div className="flex flex-col gap-2">
-      {values.map((value, i) => (
-        <div key={i} className="flex items-center gap-2">
+      {withPositionKeys(values).map(({ key, item: value }, i) => (
+        <div key={key} className="flex items-center gap-2">
           <div className="flex-1">
             <SuggestionInput
               ariaLabel={addLabel}

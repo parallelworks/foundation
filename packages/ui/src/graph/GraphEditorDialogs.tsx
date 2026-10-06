@@ -2,6 +2,7 @@ import cx from 'classnames'
 import { type ReactNode, useId, useMemo, useRef, useState } from 'react'
 import { IconButton } from '../components/IconButton'
 import { fieldBoxClasses, Input } from '../components/Input'
+import { withPositionKeys } from '../components/keys'
 import { useWorkflowActions, useWorkflowEditing } from '../components/Provider'
 import type { GraphEdit, WorkflowEditing } from '../editing'
 import { useLintContext, useLintEditing } from '../editor/lintContext'
@@ -424,8 +425,8 @@ function OutputsEditor({
   return (
     <div className="flex flex-col gap-2">
       {stepIds.length === 0 && <div className="text-xs theme-muted-text">{t.noStepIds}</div>}
-      {rows.map((row, i) => (
-        <div key={i} className="flex items-center gap-2">
+      {withPositionKeys(rows).map(({ key, item: row }, i) => (
+        <div key={key} className="flex items-center gap-2">
           <div className="w-1/3">
             <Input
               mono
@@ -507,6 +508,8 @@ function OutputsEditor({
 }
 
 interface MatrixRow {
+  /** Who the row is while rows above it come and go, since its field keeps state of its own. */
+  key: number
   name: string
   values: string
   nested?: boolean
@@ -515,12 +518,15 @@ interface MatrixRow {
   initial?: string
 }
 
+let matrixRowKeys = 0
+const matrixRow = (row: Omit<MatrixRow, 'key'>): MatrixRow => ({ ...row, key: ++matrixRowKeys })
+
 function matrixRowsFrom(matrix: unknown): MatrixRow[] {
   return Object.entries(asRecord(matrix))
     .filter(([name]) => name !== 'include' && name !== 'exclude')
     .map(([name, values]): MatrixRow => {
       if (typeof values === 'string') {
-        return { name, values, original: values, initial: values }
+        return matrixRow({ name, values, original: values, initial: values })
       }
       if (
         Array.isArray(values) &&
@@ -529,16 +535,16 @@ function matrixRowsFrom(matrix: unknown): MatrixRow[] {
         )
       ) {
         const joined = values.join(', ')
-        return { name, values: joined, original: values, initial: joined }
+        return matrixRow({ name, values: joined, original: values, initial: joined })
       }
       const json = JSON.stringify(values)
-      return {
+      return matrixRow({
         name,
         values: json,
         nested: true,
         original: values,
         initial: json,
-      }
+      })
     })
 }
 
@@ -637,8 +643,8 @@ function MatrixEntries({
         />
       ) : (
         <>
-          {entries.map((rows, i) => (
-            <div key={i} className="flex items-start gap-2">
+          {withPositionKeys(entries).map(({ key, item: rows }, i) => (
+            <div key={key} className="flex items-start gap-2">
               <div className="flex-1 rounded-md border theme-border p-2">
                 <KeyValueEditor
                   rows={rows}
@@ -924,7 +930,9 @@ function JobForm({
   const dirty = renamed || !isEmptyPatch(patch)
   const invalid = Object.values(errors).some(Boolean)
   const addVariableRow = () =>
-    setMatrixRows((rows) => (rows.length === 0 ? [{ name: 'value', values: '1, 2' }] : rows))
+    setMatrixRows((rows) =>
+      rows.length === 0 ? [matrixRow({ name: 'value', values: '1, 2' })] : rows,
+    )
 
   const saveEdit = newInputs.save(
     dirty
@@ -1211,7 +1219,7 @@ function JobForm({
                 <div className="text-xs theme-muted-text">{t.help.matrixVariables}</div>
                 {matrixRows.map((row, i) => (
                   <MatrixVariable
-                    key={i}
+                    key={row.key}
                     row={row}
                     source={source}
                     onChange={(next) => setMatrixRows((rows) => updateAt(rows, i, next))}
@@ -1221,7 +1229,9 @@ function JobForm({
                 <FieldError message={errors.matrix} />
                 <AddRowButton
                   label={t.addVariable}
-                  onClick={() => setMatrixRows((rows) => [...rows, { name: '', values: '' }])}
+                  onClick={() =>
+                    setMatrixRows((rows) => [...rows, matrixRow({ name: '', values: '' })])
+                  }
                 />
                 <MatrixEntries
                   label={t.fields.include}

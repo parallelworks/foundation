@@ -62,7 +62,7 @@ export function ToolbarPopover({
       }
     }
     // Ahead of the graph's own Escape, which would clear its selection instead.
-    const escape = (e: KeyboardEvent) => {
+    const onEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation()
         close.current()
@@ -70,10 +70,10 @@ export function ToolbarPopover({
       }
     }
     window.addEventListener('pointerdown', away, true)
-    window.addEventListener('keydown', escape, true)
+    window.addEventListener('keydown', onEscape, true)
     return () => {
       window.removeEventListener('pointerdown', away, true)
-      window.removeEventListener('keydown', escape, true)
+      window.removeEventListener('keydown', onEscape, true)
     }
   }, [anchor])
 

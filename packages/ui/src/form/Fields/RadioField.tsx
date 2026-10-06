@@ -29,7 +29,7 @@ export default function RadioField(props: FieldComponentProps<IRadioField>) {
   const fieldName = field.name ?? ''
 
   const uid = useId()
-  const [fieldState] = useField(field.name!)
+  const [fieldState] = useField(fieldName)
   const { setFieldValue, setFieldTouched } = useFormikContext()
 
   const handleChange = (val: string) => {

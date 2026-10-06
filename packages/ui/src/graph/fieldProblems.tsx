@@ -7,6 +7,7 @@ import {
   useMemo,
   useState,
 } from 'react'
+import { keyedByContent } from '../components/keys'
 import { useWorkflowEditing } from '../components/Provider'
 import type { LintFix } from '../editing'
 import { AlertIcon } from '../icons'
@@ -147,25 +148,27 @@ export function ProblemList({ problems }: { problems: ScopedProblem[] }) {
       .sort(([a], [b]) => b.length - a.length)[0]?.[1]
   return (
     <ul className="flex flex-col gap-1 text-sm text-(--theme-error)">
-      {problems.map((problem, i) => {
-        const field = fieldOf(problem)
-        return (
-          <li key={i} className="flex gap-1.5">
-            <AlertIcon className="mt-0.5 h-4 w-4 shrink-0" />
-            {field ? (
-              <button
-                type="button"
-                className="cursor-pointer text-left hover:underline"
-                onClick={() => reveal(field)}
-              >
-                {problem.message}
-              </button>
-            ) : (
-              problem.message
-            )}
-          </li>
-        )
-      })}
+      {keyedByContent(problems, (problem) => `${problem.at.join('.')}:${problem.message}`).map(
+        ({ key, item: problem }) => {
+          const field = fieldOf(problem)
+          return (
+            <li key={key} className="flex gap-1.5">
+              <AlertIcon className="mt-0.5 h-4 w-4 shrink-0" />
+              {field ? (
+                <button
+                  type="button"
+                  className="cursor-pointer text-left hover:underline"
+                  onClick={() => reveal(field)}
+                >
+                  {problem.message}
+                </button>
+              ) : (
+                problem.message
+              )}
+            </li>
+          )
+        },
+      )}
     </ul>
   )
 }

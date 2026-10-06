@@ -3,6 +3,7 @@ import { type ReactNode, useId, useMemo, useRef, useState } from 'react'
 import Dropdown from '../components/Dropdown'
 import { IconButton } from '../components/IconButton'
 import { Input, Textarea } from '../components/Input'
+import { withPositionKeys } from '../components/keys'
 import { useWorkflowEditing, useWorkflowEngine } from '../components/Provider'
 import type { FieldPatch, GraphEdit, InputPath, WorkflowEditing } from '../editing'
 import { INPUT_YAML_PATH } from '../editor/settingsYaml'
@@ -595,8 +596,8 @@ function OptionsEditor({
               <div className="w-7 shrink-0" />
             </div>
           )}
-          {draft.rows.map((row, i) => (
-            <div key={i} className="flex items-center gap-2">
+          {withPositionKeys(draft.rows).map(({ key, item: row }, i) => (
+            <div key={key} className="flex items-center gap-2">
               <div className="w-2/5">
                 <Input
                   mono
@@ -939,7 +940,11 @@ interface ValueContext {
   labelled?: boolean
 }
 
-function valueOf(kind: Kind, draft: unknown, { labelled = false }: ValueContext = {}): unknown {
+function writtenValue(
+  kind: Kind,
+  draft: unknown,
+  { labelled = false }: ValueContext = {},
+): unknown {
   switch (kind) {
     case 'flag':
     case 'bool':
@@ -1026,7 +1031,7 @@ function valueError(
   t: InputsEditorStrings,
   g: GraphEditorStrings,
 ): string | undefined {
-  const value = valueOf(kind, draft)
+  const value = writtenValue(kind, draft)
   if (prop.required && (value === undefined || value === '')) {
     return g.required
   }
@@ -2036,7 +2041,7 @@ function InputForm({
       !(typeof kept === 'string' && EXPRESSION.test(kept.trim()))
     return sameValue(drafts[key], initial[key]) && !becameList
       ? kept
-      : valueOf(kindOf(prop), drafts[key], context)
+      : writtenValue(kindOf(prop), drafts[key], context)
   }
   const optionValues =
     type === 'dropdown' || type === 'radio' ? optionRows.map((row) => row.value) : []

@@ -71,7 +71,14 @@ interface DragOptions {
 /** Follows a press from `start` until it's released or cancelled. */
 export function trackDrag(
   start: Point,
-  { onMove, onEnd, onCancel, escape = false, holdText, swallowClick = 'never' }: DragOptions,
+  {
+    onMove,
+    onEnd,
+    onCancel,
+    escape: cancelOnEscape = false,
+    holdText,
+    swallowClick = 'never',
+  }: DragOptions,
 ) {
   let dragged = false
   const cleanup = () => {
@@ -120,7 +127,7 @@ export function trackDrag(
   window.addEventListener('pointermove', move)
   window.addEventListener('pointerup', up)
   window.addEventListener('pointercancel', cancel)
-  if (escape) {
+  if (cancelOnEscape) {
     window.addEventListener('keydown', key, true)
   }
 }

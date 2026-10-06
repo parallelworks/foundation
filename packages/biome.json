@@ -44,22 +44,6 @@
           }
         }
       }
-    },
-    {
-      "includes": ["ui/src/graph/**", "ui/src/form/**", "ui/src/list/RowContextMenu.tsx"],
-      "linter": {
-        "rules": {
-          "style": {
-            "noNonNullAssertion": "off"
-          },
-          "suspicious": {
-            "noArrayIndexKey": "off",
-            "noAssignInExpressions": "off",
-            "noShadowRestrictedNames": "off",
-            "useIterableCallbackReturn": "off"
-          }
-        }
-      }
     }
   ],
   "assist": {

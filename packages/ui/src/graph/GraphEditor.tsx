@@ -822,7 +822,7 @@ function useGraphEditorState({
       }
       const moving =
         payload.kind === 'jobs'
-          ? { jobs: payload.jobs, anchor: payload.anchor ?? payload.jobs[0]! }
+          ? { jobs: payload.jobs, anchor: payload.anchor ?? payload.jobs[0] ?? '' }
           : null
       // Over another node, the dragged jobs join it rather than take a row.
       const on = nodeAt(hit, grid)
@@ -906,7 +906,7 @@ function useGraphEditorState({
           if (target?.kind === 'steps' && !target.problem) {
             const kept =
               payload.steps.length > 1 ||
-              selectedSteps().some((ref) => sameStep(ref, payload.steps[0]!))
+              selectedSteps().some((ref) => payload.steps.some((step) => sameStep(ref, step)))
             const result = edit({
               type: 'moveSteps',
               steps: payload.steps,
