@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.0](https://github.com/parallelworks/foundation/compare/dev/v0.3.0...dev/v0.4.0) (2026-10-06)
+
+
+### ⚠ BREAKING CHANGES
+
+* **dev:** services, an env that names the stack, and a log per service ([#118](https://github.com/parallelworks/foundation/issues/118))
+
+### Features
+
+* **dev:** services, an env that names the stack, and a log per service ([#118](https://github.com/parallelworks/foundation/issues/118)) ([238cc08](https://github.com/parallelworks/foundation/commit/238cc0814e9ea4593c08bd85d0377bb961110930))
+
 ## [0.3.0](https://github.com/parallelworks/foundation/compare/dev/v0.2.0...dev/v0.3.0) (2026-10-06)
 
 
