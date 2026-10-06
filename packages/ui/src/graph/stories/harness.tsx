@@ -95,6 +95,14 @@ jobs:
         run: make build TARGET=\${{ inputs.target }}
       - name: test
         run: make test
+  lint:
+    needs: [checkout]
+    steps:
+      - run: make lint
+  docs:
+    needs: [checkout]
+    steps:
+      - run: make docs
   train:
     needs: [build]
     strategy:
@@ -104,7 +112,7 @@ jobs:
       - name: train shard
         run: python train.py --shard \${{ matrix.shard }}
   deploy:
-    needs: [train]
+    needs: [train, lint, docs]
     if: \${{ inputs.deploy }}
     steps:
       - name: upload

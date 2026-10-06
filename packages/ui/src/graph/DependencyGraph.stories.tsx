@@ -135,7 +135,7 @@ export const StoredLayout: StoryObj<typeof DependencyGraphPreview> = {
 function EditableGraph({
   source,
   layout,
-  height = '520px',
+  height = '420px',
   problems,
 }: {
   source: string
@@ -183,7 +183,7 @@ export const EditableWithProblems: StoryObj<typeof DependencyGraphPreview> = {
           job: 'build',
           step: 0,
         },
-        { message: 'deploy reads needs.build, which it does not list.', line: 43, job: 'deploy' },
+        { message: 'deploy reads needs.build, which it does not list.', line: 51, job: 'deploy' },
       ]}
     />
   ),

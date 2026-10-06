@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useMemo } from 'react'
 import { useWorkflowEditing, useWorkflowEngine } from '../components/Provider'
 import { DynamicForm } from '../form/Form'
+import { initializeValues } from '../form/lib'
 import type { EditorProblem } from './editorApi'
 import { InputsFormEditor } from './InputsEditor'
 import { useStoryWorkflow } from './stories/harness'
@@ -68,8 +69,13 @@ function EditableForm({ source, problems }: { source: string; problems?: EditorP
   const story = useStoryWorkflow(source)
   const editing = useWorkflowEditing()
   const engine = useWorkflowEngine()
-  const inputs = editing.workflowInputsSchema(story.workflow)
+  const inputs = useMemo(
+    () => editing.workflowInputsSchema(story.workflow),
+    [editing, story.workflow],
+  )
   const formJSONs = useMemo(() => engine.convertInputs(inputs ?? {}), [engine, inputs])
+  // The form starts from the inputs' defaults, as a host's run form does.
+  const initialValues = useMemo(() => initializeValues(formJSONs) ?? {}, [formJSONs])
   return (
     <div className="max-w-2xl p-4">
       <InputsFormEditor
@@ -83,7 +89,13 @@ function EditableForm({ source, problems }: { source: string; problems?: EditorP
         )}
         inputs={inputs}
       >
-        <DynamicForm formJSONs={formJSONs} initialValues={{}} workflowForm />
+        <DynamicForm
+          formJSONs={formJSONs}
+          initialValues={initialValues}
+          reinitialize
+          workflowForm
+          skipValueParse
+        />
       </InputsFormEditor>
     </div>
   )
