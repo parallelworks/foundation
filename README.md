@@ -235,6 +235,11 @@ handler := server.New(server.Options{
 return server.Serve(ctx, server.Listen{Addr: ":8080", ShutdownTimeout: 20 * time.Second}, handler, logger)
 ```
 
+`Serve` binds before it logs, so a taken port is an error rather than a
+"listening" line, and it logs the address it got with a `url` to reach it
+there (`http://localhost:8080`, or `https` with TLS), which [`dev`](dev) shows
+as a link.
+
 Besides the application's routes it serves `/healthz`, `/readyz` (the `Ready`
 pingers), `/problems/`, a 404 problem for unknown paths under `/api/`, and the
 single-page app. Every response gets security headers with a strict CSP, and a
