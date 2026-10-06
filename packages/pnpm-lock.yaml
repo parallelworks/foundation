@@ -92,9 +92,6 @@ importers:
       '@headlessui/react':
         specifier: ^2.2.10
         version: 2.2.10(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
-      '@parallelworks/workflow-parser':
-        specifier: ^0.7.0
-        version: 0.7.0
       '@streamdown/code':
         specifier: ^2.0.0
         version: 2.0.0(react@19.3.0)
@@ -165,6 +162,9 @@ importers:
       '@arethetypeswrong/cli':
         specifier: ^0.18.5
         version: 0.18.5
+      '@parallelworks/workflow-parser':
+        specifier: ^0.7.0
+        version: 0.7.0
       '@storybook/addon-a11y':
         specifier: 10.6.1
         version: 10.6.1(storybook@10.6.1(@types/react@19.3.0)(prettier@3.9.9)(react@19.3.0))

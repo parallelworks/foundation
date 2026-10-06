@@ -110,6 +110,7 @@
     "build-storybook": "pnpm build:css && storybook build"
   },
   "peerDependencies": {
+    "@parallelworks/workflow-parser": "^0.7.0",
     "formik": "^2.4.9",
     "monaco-editor": "^0.57.0",
     "react": "^19.0.0",
@@ -117,7 +118,6 @@
   },
   "dependencies": {
     "@headlessui/react": "^2.2.10",
-    "@parallelworks/workflow-parser": "^0.7.0",
     "@streamdown/code": "^2.0.0",
     "@streamdown/math": "^1.0.3",
     "@streamdown/mermaid": "^1.0.3",
@@ -143,6 +143,7 @@
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
+    "@parallelworks/workflow-parser": "^0.7.0",
     "@storybook/addon-a11y": "10.6.1",
     "@storybook/addon-docs": "10.6.1",
     "@storybook/react-vite": "10.6.1",
