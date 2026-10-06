@@ -247,7 +247,7 @@ func (m *model) home(b *strings.Builder) {
 	for i, s := range services {
 		bar := "  "
 		if i == m.cursor {
-			bar = cursorBar.Render("▌ ")
+			bar = cursorBar.Render("> ")
 		}
 		st := stateStyle[s.State]
 		detail := s.Detail
