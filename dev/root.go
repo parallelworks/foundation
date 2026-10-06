@@ -254,6 +254,7 @@ func printStatuses(w io.Writer, services []status) {
 		if s.State == stateStopped && s.Manual {
 			detail = "manual"
 		}
-		fmt.Fprintf(w, "%-*s  %-9s  %s  %s\n", width, s.Name, s.State, strings.TrimSpace(since(s.Since)), detail)
+		fmt.Fprintf(w, "%-*s  %-9s  %4s  %s\n", width, s.Name, s.State, strings.TrimSpace(since(s.Since)),
+			strings.TrimSpace(strings.Join([]string{s.URL, detail}, "  ")))
 	}
 }

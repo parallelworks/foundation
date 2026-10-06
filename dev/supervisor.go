@@ -28,6 +28,7 @@ type status struct {
 	Detail string    `json:"detail,omitempty"`
 	Since  time.Time `json:"since"`
 	Manual bool      `json:"manual,omitempty"`
+	URL    string    `json:"url,omitempty"`
 }
 
 // supervisor runs the stack and the services, and lets each service be
@@ -79,7 +80,7 @@ func newSupervisor(cfg Config, logger *slog.Logger, out io.Writer) (*supervisor,
 		s.services[svc.Name] = &runner{
 			svc:    svc,
 			out:    o.writer(svc.Name),
-			status: status{Name: svc.Name, State: stateStopped, Since: time.Now(), Manual: svc.Manual},
+			status: status{Name: svc.Name, State: stateStopped, Since: time.Now(), Manual: svc.Manual, URL: svc.URL},
 		}
 	}
 	return s, nil
@@ -248,9 +249,19 @@ func (s *supervisor) setState(r *runner, st state, detail string) {
 	if st == stateRunning && r.svc.Health != "" {
 		st = stateStarting
 	}
+	wasUp := r.status.State.up()
 	r.status.State, r.status.Detail, r.status.Since = st, detail, time.Now()
 	s.mu.Unlock()
+	s.announce(r, wasUp, st)
 	s.notify()
+}
+
+// announce logs where to open a service as it comes up, which most
+// terminals let you click.
+func (s *supervisor) announce(r *runner, wasUp bool, now state) {
+	if r.svc.URL != "" && !wasUp && now.up() {
+		s.logger.Info("up", "service", r.svc.Name, "url", r.svc.URL)
+	}
 }
 
 func (s *supervisor) setStack(what string) {

@@ -39,7 +39,7 @@ func testServices(root string) Config {
 		return []string{"sh", "-c", "echo $$ > " + name + ".pid; echo " + name + " up; exec sleep 300"}
 	}
 	return Config{Root: root, Services: []Service{
-		{Name: "api", Build: []string{"true"}, Run: write("api"), Watch: []string{"."}},
+		{Name: "api", Build: []string{"true"}, Run: write("api"), Watch: []string{"."}, URL: "http://localhost:8080"},
 		{Name: "web", Run: write("web")},
 		{Name: "worker", Run: write("worker"), Manual: true},
 	}}
@@ -155,6 +155,14 @@ func TestTUIKeysDriveServices(t *testing.T) {
 		if !strings.Contains(home, want) {
 			t.Errorf("home view lacks %q:\n%s", want, home)
 		}
+	}
+	// An OSC 8 hyperlink, which terminals open on cmd-click.
+	if !strings.Contains(home, "\x1b]8;;http://localhost:8080") {
+		t.Errorf("api's URL is not a link:\n%q", home)
+	}
+	lines := strings.Split(home, "\n")
+	if len(lines) != 20 || !strings.Contains(lines[19], "q quit") {
+		t.Errorf("help is not on the last of 20 lines: %d lines, last %q", len(lines), lines[len(lines)-1])
 	}
 
 	press("down") // web

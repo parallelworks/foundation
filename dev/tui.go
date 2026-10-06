@@ -254,14 +254,18 @@ func (m *model) home(b *strings.Builder) {
 		if s.State == stateStopped && s.Manual {
 			detail = "manual"
 		}
-		fmt.Fprintf(b, "%s%s %-*s  %s  %s  %s\n", bar, st.Render(stateMark[s.State]), width, s.Name,
-			st.Render(fmt.Sprintf("%-9s", s.State)), dimStyle.Render(since(s.Since)), dimStyle.Render(detail))
+		fmt.Fprintf(b, "%s%s %-*s  %s  %s  %s%s\n", bar, st.Render(stateMark[s.State]), width, s.Name,
+			st.Render(fmt.Sprintf("%-9s", s.State)), dimStyle.Render(since(s.Since)), link(s.URL, s.State.up()), dimStyle.Render(detail))
 	}
 	if len(services) == 0 {
 		b.WriteString(dimStyle.Render("  no services in dev.json") + "\n")
 	}
 
-	b.WriteString("\n")
+	// The status and help lines stay at the bottom of the screen, as in the
+	// log views.
+	for range m.height - 2 - strings.Count(b.String(), "\n") {
+		b.WriteString("\n")
+	}
 	if m.notice != "" {
 		b.WriteString(m.notice + "\n")
 	} else if devLines := m.sup.lines("dev"); len(devLines) > 0 {
@@ -285,7 +289,7 @@ func (m *model) stackLine() string {
 		parts = append(parts, fmt.Sprintf("postgres :%d", m.sup.cfg.Postgres.Port))
 	}
 	if m.sup.cfg.S3 != nil {
-		parts = append(parts, "s3 "+m.sup.cfg.S3.Addr)
+		parts = append(parts, "s3 "+link("http://"+m.sup.cfg.S3.Addr, true))
 	}
 	return strings.Join(parts, " · ")
 }
@@ -311,6 +315,19 @@ func (m *model) log(b *strings.Builder, title string, lines []string, help strin
 		help = m.notice
 	}
 	b.WriteString(dimStyle.Render(help))
+}
+
+// link renders a URL the terminal opens on cmd-click (OSC 8), dimmed while
+// nothing answers there.
+func link(url string, up bool) string {
+	if url == "" {
+		return ""
+	}
+	style := lipgloss.NewStyle().Underline(true).Hyperlink(url)
+	if !up {
+		style = style.Faint(true)
+	}
+	return style.Render(url) + "  "
 }
 
 func since(t time.Time) string {

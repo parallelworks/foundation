@@ -86,6 +86,9 @@ type Service struct {
 	// EnvFile is a dotenv file for this service, relative to Dir, over the
 	// config's EnvFile.
 	EnvFile string `json:"envFile,omitempty"`
+	// URL is where to open the service, such as http://localhost:8080. The
+	// interactive view links to it, and dev logs it once the service is up.
+	URL string `json:"url,omitempty"`
 	// Health is a URL that answers 2xx once the service can do its job, such
 	// as http://localhost:8080/readyz. With it, the service reads starting,
 	// then ready, or unhealthy if it stops answering.
@@ -181,9 +184,9 @@ func (c Config) withDefaults() (Config, error) {
 			return c, fmt.Errorf("service %q would be shadowed by the dev %s command", svc.Name, svc.Name)
 		}
 		seen[svc.Name] = true
-		if svc.Health != "" {
-			if u, err := url.Parse(svc.Health); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-				return c, fmt.Errorf("service %q: health must be an http(s) URL, got %q", svc.Name, svc.Health)
+		for field, v := range map[string]string{"url": svc.URL, "health": svc.Health} {
+			if u, err := url.Parse(v); v != "" && (err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "") {
+				return c, fmt.Errorf("service %q: %s must be an http(s) URL, got %q", svc.Name, field, v)
 			}
 		}
 		svc.Dir = c.path(svc.Dir)

@@ -40,6 +40,7 @@ Describe the app in `dev.json` at the repository root:
       "run": ["tmp/shop", "serve"],
       "exclude": ["tmp", "web", "tools"],
       "extensions": [".go", ".sql"],
+      "url": "http://localhost:8080",
       "health": "http://localhost:8080/readyz"
     },
     { "name": "web", "run": ["pnpm", "--filter", "web", "dev"] }
@@ -97,6 +98,10 @@ when the URL answers 2xx, and *unhealthy* if it stops answering, or never
 answers within a minute. Without one, a service reads *running* as soon as its
 process is up. `dev wait api web` waits for exactly that, for scripts, CI and
 tools that need the app answering before they go on.
+
+A service's `url` is where to open it: the view shows it as a link the
+terminal opens on cmd-click, `dev status` prints it, and `dev` logs it when the
+service comes up.
 
 Each service runs in its `dir`, relative to `dev.json`. Each command runs in
 its own process group, and stopping one ends everything it started, such as
