@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.23.0](https://github.com/parallelworks/foundation/compare/ui-v0.22.0...ui-v0.23.0) (2026-10-06)
+
+
+### Features
+
+* **ui:** a user hover card offers to copy its username or email ([#120](https://github.com/parallelworks/foundation/issues/120)) ([263ec7c](https://github.com/parallelworks/foundation/commit/263ec7c9564e313db83215acc278154acab37837))
+* **ui:** file explorer accepts host row actions and header content ([#110](https://github.com/parallelworks/foundation/issues/110)) ([4da78fe](https://github.com/parallelworks/foundation/commit/4da78fe4f53aa637cc83e75de9e10e195b28e024))
+* **ui:** the chat composer turns a large paste into a card, and hosts choose which queued messages can be taken back ([#93](https://github.com/parallelworks/foundation/issues/93)) ([2870ccd](https://github.com/parallelworks/foundation/commit/2870ccd263ba4b33c88d5ecfcf2bd8d92565682a))
+* **ui:** the chat flags AI connections whose API key is rejected or endpoint is unreachable ([#109](https://github.com/parallelworks/foundation/issues/109)) ([577d800](https://github.com/parallelworks/foundation/commit/577d80002424fb1002ce567d409938ff1d69e4ad))
+
 ## [0.22.0](https://github.com/parallelworks/foundation/compare/ui-v0.21.2...ui-v0.22.0) (2026-10-06)
 
 
