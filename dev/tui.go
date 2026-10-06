@@ -235,7 +235,7 @@ func (m *model) home(b *strings.Builder) {
 	}
 	b.WriteString(titleStyle.Render(title))
 	if stack := m.stackLine(); stack != "" {
-		b.WriteString(dimStyle.Render("   " + stack))
+		b.WriteString("   " + stack)
 	}
 	b.WriteString("\n\n")
 
@@ -254,8 +254,9 @@ func (m *model) home(b *strings.Builder) {
 		if s.State == stateStopped && s.Manual {
 			detail = "manual"
 		}
-		fmt.Fprintf(b, "%s%s %-*s  %s  %s  %s%s\n", bar, st.Render(stateMark[s.State]), width, s.Name,
-			st.Render(fmt.Sprintf("%-9s", s.State)), dimStyle.Render(since(s.Since)), link(s.URL, s.State.up()), dimStyle.Render(detail))
+		fmt.Fprintf(b, "%s%s %-*s  %s  %s  %s\n", bar, st.Render(stateMark[s.State]), width, s.Name,
+			st.Render(fmt.Sprintf("%-9s", s.State)), dimStyle.Render(since(s.Since)),
+			strings.TrimSpace(link(s.URL, s.State.up())+"  "+dimStyle.Render(detail)))
 	}
 	if len(services) == 0 {
 		b.WriteString(dimStyle.Render("  no services in dev.json") + "\n")
@@ -280,18 +281,20 @@ func (m *model) home(b *strings.Builder) {
 	}
 }
 
+// stackLine describes the stack, each part styled on its own: styling a
+// string that already holds a link would cut into the link's own styling.
 func (m *model) stackLine() string {
 	if what := m.sup.stackState(); what != "" {
-		return what + "…"
+		return dimStyle.Render(what + "…")
 	}
 	var parts []string
 	if m.sup.cfg.Postgres != nil {
-		parts = append(parts, fmt.Sprintf("postgres :%d", m.sup.cfg.Postgres.Port))
+		parts = append(parts, dimStyle.Render(fmt.Sprintf("postgres :%d", m.sup.cfg.Postgres.Port)))
 	}
 	if m.sup.cfg.S3 != nil {
-		parts = append(parts, "s3 "+link("http://"+m.sup.cfg.S3.Addr, true))
+		parts = append(parts, dimStyle.Render("s3 ")+link("http://"+m.sup.cfg.S3.Addr, true))
 	}
-	return strings.Join(parts, " · ")
+	return strings.Join(parts, dimStyle.Render(" · "))
 }
 
 func (m *model) log(b *strings.Builder, title string, lines []string, help string) {
@@ -317,17 +320,17 @@ func (m *model) log(b *strings.Builder, title string, lines []string, help strin
 	b.WriteString(dimStyle.Render(help))
 }
 
-// link renders a URL the terminal opens on cmd-click (OSC 8), dimmed while
-// nothing answers there.
+// link renders a URL the terminal opens on cmd-click (OSC 8), in link blue,
+// dimmed while nothing answers there.
 func link(url string, up bool) string {
 	if url == "" {
 		return ""
 	}
-	style := lipgloss.NewStyle().Underline(true).Hyperlink(url)
+	style := lipgloss.NewStyle().Foreground(lipgloss.Color("12")).Underline(true).Hyperlink(url)
 	if !up {
 		style = style.Faint(true)
 	}
-	return style.Render(url) + "  "
+	return style.Render(url)
 }
 
 func since(t time.Time) string {

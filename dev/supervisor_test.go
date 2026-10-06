@@ -202,3 +202,46 @@ func TestSocketsLiveInRuntimeState(t *testing.T) {
 		t.Errorf("without: %q, %v", dir, err)
 	}
 }
+
+func TestServicesLearnWhereToOpenThem(t *testing.T) {
+	root := t.TempDir()
+	cfg := Config{Root: root, S3: &S3{Addr: "127.0.0.1:" + strconv.Itoa(freePort(t))}, Services: []Service{
+		// As Vite prints it, colors and all.
+		{Name: "web", Run: []string{"sh", "-c", `printf '  \033[32m➜\033[0m  Local:   \033[36mhttp://localhost:5173/\033[0m\n'; exec sleep 300`}},
+		{Name: "api", Run: []string{"sleep", "300"}, Health: "http://localhost:8080/readyz"},
+		{Name: "set", Run: []string{"sh", "-c", "echo http://localhost:9999; exec sleep 300"}, URL: "http://localhost:3000"},
+	}}
+	s, err := newSupervisor(cfg, slog.New(slog.DiscardHandler), io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() { done <- s.run(ctx) }()
+	t.Cleanup(func() { cancel(); <-done })
+
+	urlOf := func(name string) string {
+		for _, st := range s.statuses() {
+			if st.Name == name {
+				return st.URL
+			}
+		}
+		return ""
+	}
+	eventually(t, "web's printed address", func() bool { return urlOf("web") == "http://localhost:5173/" })
+	if got := urlOf("api"); got != "http://localhost:8080" {
+		t.Errorf("api = %q, want its health URL's origin", got)
+	}
+	eventually(t, "set's output", func() bool { return len(s.lines("set")) > 0 })
+	if got := urlOf("set"); got != "http://localhost:3000" {
+		t.Errorf("set = %q, want the url dev.json gives over what it prints", got)
+	}
+
+	// Rendered inside another style, a link loses its styling from the first
+	// character on; it must reach the screen exactly as link renders it.
+	m := &model{sup: s, ctx: ctx, cancel: cancel}
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 10})
+	if s3 := link("http://"+cfg.S3.Addr, true); !strings.Contains(m.View().Content, s3) {
+		t.Errorf("the S3 link was restyled:\n%q", m.View().Content)
+	}
+}

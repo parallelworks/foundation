@@ -101,7 +101,9 @@ tools that need the app answering before they go on.
 
 A service's `url` is where to open it: the view shows it as a link the
 terminal opens on cmd-click, `dev status` prints it, and `dev` logs it when the
-service comes up.
+service comes up. Without one, a service with a `health` URL links to that
+URL's origin, and any other takes the first local address it prints, as Vite
+and Storybook do when they start.
 
 Each service runs in its `dir`, relative to `dev.json`. Each command runs in
 its own process group, and stopping one ends everything it started, such as
