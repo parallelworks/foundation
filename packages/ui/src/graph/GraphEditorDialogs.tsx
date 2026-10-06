@@ -18,7 +18,7 @@ import { IconButton } from '../components/IconButton'
 import { fieldBoxClasses, Input } from '../components/Input'
 import { useStrings } from '../components/Provider'
 import { useLintContext, useLintReady } from '../editor/lintContext'
-import type { NestedWorkflowText, UsesCompletions } from '../editor/Monaco'
+import type { NestedWorkflowText } from '../editor/nestedText'
 import { JOB_YAML_PATH, STEP_YAML_PATH } from '../editor/settingsYaml'
 import { ArrowDownIcon, ArrowUpIcon, CloseIcon, TrashIcon } from '../icons'
 import {
@@ -1604,8 +1604,6 @@ interface ViewProps {
   view?: SettingsView | undefined
   onViewChange?: ((view: SettingsView) => void) | undefined
   openOnAdd?: OpenOnAdd | undefined
-  /** What the YAML view completes `uses:` with. */
-  completions?: UsesCompletions | undefined
 }
 
 // The YAML a dialog opens with, or null to open the form.
@@ -1906,7 +1904,6 @@ export function useSettingsViews(o: SettingsViewsOptions) {
       )}
       <YamlPane
         path={path}
-        completions={o.completions}
         nested={groups.nested}
         value={text}
         onChange={(next) => {

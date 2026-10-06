@@ -3,7 +3,8 @@ import { lazy, Suspense } from 'react'
 import Loader from '../components/Loader'
 import { useStrings } from '../components/Provider'
 import { TOOLTIP_ID } from '../components/Tooltip'
-import type { EditorMarker, NestedWorkflowText, UsesCompletions } from '../editor/Monaco'
+import type { EditorMarker } from '../editor/Monaco'
+import type { NestedWorkflowText } from '../editor/nestedText'
 import { ChoiceButtons, FieldError, type Strings } from './editorFields'
 import { ProblemList, type ScopedProblem } from './fieldProblems'
 
@@ -56,7 +57,6 @@ export function YamlPane({
   onChange,
   problem,
   scoped,
-  completions,
   nested,
 }: {
   path: string
@@ -64,8 +64,6 @@ export function YamlPane({
   onChange: (value: string) => void
   problem: string | undefined
   scoped: ScopedProblems
-  /** What `uses:` completes with, as in the workflow editor. */
-  completions?: UsesCompletions | undefined
   nested?: NestedWorkflowText | undefined
 }) {
   // Schema problems show as squiggles and, as in the workflow editor, don't block saving.
@@ -82,7 +80,6 @@ export function YamlPane({
             scrollBeyondLastLine={false}
             onChange={onChange}
             markers={scoped.markers}
-            {...completions}
             {...(nested ? { nested } : {})}
           />
         </Suspense>

@@ -3,8 +3,8 @@ import '@testing-library/jest-dom/vitest'
 import { dumpYaml, type GraphLayout, layoutFromCols } from '@parallelworks/workflow-parser'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { NestedWorkflowText } from '../editor/Monaco'
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
+import type { NestedWorkflowText } from '../editor/nestedText'
 import { testEngine } from '../test/engine'
 
 // The components call useWorkflowEngine(), which throws outside a UIProvider carrying one.
@@ -47,29 +47,20 @@ vi.mock('framer-motion', () => ({
 vi.mock('../logviewer', () => ({ LogViewer: () => null }))
 // Monaco can't run in jsdom; a textarea stands in, labelled by the model path.
 // What the last YAML editor was handed, for the completions that reach past its own text.
-const editorProps = vi.hoisted(
-  () =>
-    ({}) as {
-      nested?: NestedWorkflowText | undefined
-      workflows?: unknown[] | undefined
-    },
-)
+const editorProps = vi.hoisted(() => ({}) as { nested?: NestedWorkflowText | undefined })
 vi.mock('../editor/Monaco', () => ({
   default: ({
     value,
     onChange,
     path,
     nested,
-    workflows,
   }: {
     value?: string
     onChange?: (value: string) => void
     path?: string
     nested?: NestedWorkflowText
-    workflows?: unknown[]
   }) => {
     editorProps.nested = nested
-    editorProps.workflows = workflows
     return <textarea aria-label={path} value={value} onChange={(e) => onChange?.(e.target.value)} />
   },
 }))
@@ -974,15 +965,11 @@ describe('DependencyGraphPreview editor', () => {
   })
 
   it('saves the inputs a with: completion adds along with the step that reads them', async () => {
-    const e = editor({
-      readSource: () => YML_TEXT,
-      completions: { marketplaceItems: [], workflows: [{ name: 'other' }] },
-    })
+    const e = editor({ readSource: () => YML_TEXT })
     render(<DependencyGraphPreview yml={yml} editor={e} />)
     fireEvent.click(within(jobRow('build')).getByRole('button', { name: 'Build' }))
     fireEvent.click(screen.getByTestId('compile'))
     const text = await screen.findByLabelText('file:///workflow-step.yaml')
-    expect(editorProps.workflows).toEqual([{ name: 'other' }])
     const group = {
       label: 'other inputs',
       type: 'group',
@@ -1675,6 +1662,15 @@ describe('moves and removals an expression depends on', () => {
     const more = within(jobRow('a')).getByRole('button', {
       name: 'Job actions',
     })
+    // jsdom's :focus-visible follows the event in flight, so the opener is stated to show keyboard focus.
+    const matches = Element.prototype.matches
+    const spy = vi.spyOn(Element.prototype, 'matches').mockImplementation(function (
+      this: Element,
+      selector: string,
+    ) {
+      return selector === ':focus-visible' ? this === more : matches.call(this, selector)
+    })
+    onTestFinished(() => spy.mockRestore())
     more.focus()
     fireEvent.click(more)
     const items = within(screen.getByRole('menu')).getAllByRole('button')
