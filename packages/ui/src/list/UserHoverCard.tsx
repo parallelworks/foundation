@@ -62,9 +62,6 @@ export interface UserHoverCardProps extends HoverCardPlacement {
   linkComponent?: UILinkComponent | undefined
   /** Shows placeholder detail lines while the profile loads. */
   loading?: boolean | undefined
-  /** Adds a copy button beside the username, naming what it copies; the
-   * username is often a handle, so copying is opt-in. */
-  copy?: 'email' | 'username' | undefined
   /** Re-measures the card's position when this changes. */
   relayoutKey?: unknown
   /** Detail lines, usually `HoverCardRow`s, below the header. */
@@ -83,7 +80,6 @@ export function UserHoverCard({
   href,
   linkComponent,
   loading = false,
-  copy,
   relayoutKey,
   children,
 }: UserHoverCardProps) {
@@ -98,9 +94,9 @@ export function UserHoverCard({
       {/* The card is narrow, so the name wraps (even mid-word) rather than truncating:
           a person's name stays readable in their own card. The badge sits beside the
           name when it fits and wraps below it when it doesn't. */}
-      {/* With a copy button, the username sits at the bottom of a column at least as
-          tall as the avatar, so the button beside the header lines up with it. */}
-      <div className={cx('min-w-0 flex-1', copy && 'flex min-h-10 flex-col justify-between')}>
+      {/* The username sits at the bottom of a column at least as tall as the avatar, so
+          the copy button beside the header lines up with it. */}
+      <div className="flex min-h-10 min-w-0 flex-1 flex-col justify-between">
         <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
           <span className="min-w-0 text-sm font-semibold leading-5 wrap-anywhere text-(--theme-app)">
             {displayName}
@@ -111,13 +107,16 @@ export function UserHoverCard({
             </span>
           )}
         </div>
-        <div className="truncate text-xs text-(--theme-muted-text-color)">{username}</div>
+        <div data-copy-value className="truncate text-xs text-(--theme-muted-text-color)">
+          {username}
+        </div>
       </div>
     </>
   )
 
   const t = strings.list
-  const copyLabel = copy === 'email' ? t.labelEmail : t.labelUsername
+  // Hosts pass a handle or an email address as the username; name what is copied.
+  const copyLabel = EMAIL.test(username) ? t.labelEmail : t.labelUsername
   const onCopy = () =>
     navigator.clipboard?.writeText(username).then(
       () => notify.success(t.copied(copyLabel)),
@@ -133,9 +132,9 @@ export function UserHoverCard({
       onKeepOpen={onKeepOpen}
       onLeave={onLeave}
     >
-      {/* The copy button sits beside the header, not in it: a linked header
-          can't hold a button. */}
-      <div className="flex items-end gap-1">
+      {/* The copy button sits beside the header, not in it: a linked header can't
+          hold a button. Its slot is always there, so showing it on hover moves nothing. */}
+      <div className="group/copy flex items-end gap-1">
         {href ? (
           <Link
             to={href}
@@ -146,14 +145,19 @@ export function UserHoverCard({
         ) : (
           <div className="flex min-w-0 flex-1 items-start gap-3">{header}</div>
         )}
-        {copy && username && (
+        {username && (
           <button
             type="button"
             aria-label={t.copy(copyLabel)}
             data-tooltip-id={TOOLTIP_ID}
             data-tooltip-content={t.copy(copyLabel)}
             onClick={onCopy}
-            className="shrink-0 cursor-pointer rounded p-0.5 text-(--theme-muted-text-color) transition-colors hover:bg-(--theme-muted-panel-bg) hover:text-(--theme-app) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--theme-link) [&>svg]:h-3.5 [&>svg]:w-3.5"
+            className={cx(
+              'shrink-0 cursor-pointer rounded p-0.5 text-(--theme-muted-text-color) opacity-0 transition hover:bg-(--theme-muted-panel-bg) hover:text-(--theme-app) [&>svg]:h-3.5 [&>svg]:w-3.5',
+              // Shown while the value or the button is under the pointer, on keyboard
+              // focus, and always where there is no hover to reveal it.
+              'hover:opacity-100 group-has-[[data-copy-value]:hover]/copy:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--theme-link) pointer-coarse:opacity-100',
+            )}
           >
             <CopyIcon aria-hidden="true" />
           </button>
@@ -177,6 +181,8 @@ export function UserHoverCard({
     </HoverCardSurface>
   )
 }
+
+const EMAIL = /^[^\s@]+@[^\s@]+$/
 
 const rowClasses = 'flex gap-2 text-(--theme-muted-text-color)'
 

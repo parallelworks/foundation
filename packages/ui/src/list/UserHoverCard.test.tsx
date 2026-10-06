@@ -116,13 +116,13 @@ describe('HoverCardTrigger', () => {
 })
 
 describe('UserHoverCard copy', () => {
-  it('copies the username when asked to, naming what it copies', async () => {
+  it('copies an email address, naming it, from beside the linked header', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.assign(navigator, { clipboard: { writeText } })
     const success = vi.fn()
     render(
       <UIProvider notify={{ success }}>
-        <UserHoverCard {...placement} username="ada@example.com" href="/users/a" copy="email" />
+        <UserHoverCard {...placement} username="ada@example.com" href="/users/a" />
       </UIProvider>,
     )
     const button = screen.getByRole('button', { name: 'Copy email' })
@@ -133,10 +133,17 @@ describe('UserHoverCard copy', () => {
     expect(success).toHaveBeenCalledWith('Copied email')
   })
 
-  it('has no copy button unless asked, or without a username', () => {
-    const { rerender } = render(<UserHoverCard {...placement} username="alovelace" />)
-    expect(screen.queryByRole('button')).not.toBeInTheDocument()
-    rerender(<UserHoverCard {...placement} username="" copy="username" />)
+  it('names a handle a username, and stays reachable from the keyboard', () => {
+    render(<UserHoverCard {...placement} username="alovelace" />)
+    const button = screen.getByRole('button', { name: 'Copy username' })
+    // Hidden until hover by opacity alone, so it keeps its place and its focus.
+    expect(button).toHaveClass('opacity-0', 'focus-visible:opacity-100')
+    button.focus()
+    expect(button).toHaveFocus()
+  })
+
+  it('has no copy button without a username', () => {
+    render(<UserHoverCard {...placement} username="" name="Ada" />)
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 })
