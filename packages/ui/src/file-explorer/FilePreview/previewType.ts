@@ -100,6 +100,8 @@ const LANGUAGE_BY_EXT: Record<string, string> = {
   tex: 'plaintext',
   txt: 'plaintext',
   log: 'plaintext',
+  out: 'plaintext',
+  err: 'plaintext',
   gitignore: 'plaintext',
 }
 
