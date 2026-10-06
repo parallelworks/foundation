@@ -1,9 +1,8 @@
-import type { ReactNode } from 'react'
 import { Indicator } from '../components/Indicator'
 import { useStrings, useWorkflowEngine } from '../components/Provider'
 import type { MatrixGroup, RunStatus } from '../engine'
 import { EditableJobRow, emptyRowsStyle, ProblemOutline } from './GraphEditor'
-import { Joblist } from './JobSummary'
+import { type JobHandlers, Joblist } from './JobSummary'
 import { Reveal } from './Reveal'
 import type { WorkflowJob } from './types'
 
@@ -14,13 +13,7 @@ export function MatrixGroupSummaryItem({
   isExpanded,
   onToggle,
   jobs,
-  isStepsOpen,
-  onJobClick,
-  onStepClick,
-  onStepLogClick,
-  onSubworkflowIcon,
-  isSubworkflowExpanded,
-  renderSubworkflow,
+  handlers,
   preview,
 }: {
   matrixGroup: MatrixGroup
@@ -28,18 +21,12 @@ export function MatrixGroupSummaryItem({
   isExpanded: boolean
   onToggle: () => void
   jobs: Record<string, WorkflowJob>
-  isStepsOpen: (j: string) => boolean
-  onJobClick: (j: string) => void
-  onStepClick: (j: string, s: string | number) => void
-  onStepLogClick: (j: string, s: number) => void
-  onSubworkflowIcon: (j: string, s: number) => void
-  isSubworkflowExpanded: (j: string, s: number) => boolean
-  renderSubworkflow: (j: string, s: number) => ReactNode
+  handlers: JobHandlers
   preview: boolean
 }) {
   const { dag: t } = useStrings()
   return (
-    <div key={`matrix-${matrixGroup.originaljob}`} className="py-1.5">
+    <div className="py-1.5">
       <button
         type="button"
         aria-expanded={isExpanded}
@@ -56,18 +43,7 @@ export function MatrixGroupSummaryItem({
       </button>
       <Reveal open={isExpanded}>
         <div className="ml-3 mt-0.5">
-          <Joblist
-            jobs={jobs}
-            jobNames={matrixGroup.members}
-            onJobClick={onJobClick}
-            isStepsOpen={isStepsOpen}
-            onStepClick={onStepClick}
-            onStepLogClick={onStepLogClick}
-            onSubworkflowIcon={onSubworkflowIcon}
-            isSubworkflowExpanded={isSubworkflowExpanded}
-            renderSubworkflow={renderSubworkflow}
-            preview={preview}
-          />
+          <Joblist jobs={jobs} jobNames={matrixGroup.members} {...handlers} preview={preview} />
         </div>
       </Reveal>
     </div>
@@ -88,13 +64,7 @@ export function MatrixGroupNode({
   hoveredRelated,
   animT,
   zBase,
-  isStepsOpen,
-  onJobClick,
-  onStepClick,
-  onStepLogClick,
-  onSubworkflowIcon,
-  isSubworkflowExpanded,
-  renderSubworkflow,
+  handlers,
   preview,
   editable = false,
   rowsAbove = 0,
@@ -111,13 +81,7 @@ export function MatrixGroupNode({
   hoveredRelated: Set<string> | null
   animT: number
   zBase: number
-  isStepsOpen: (j: string) => boolean
-  onJobClick: (j: string) => void
-  onStepClick: (j: string, s: string | number) => void
-  onStepLogClick: (j: string, s: number) => void
-  onSubworkflowIcon: (j: string, s: number) => void
-  isSubworkflowExpanded: (j: string, s: number) => boolean
-  renderSubworkflow: (j: string, s: number) => ReactNode
+  handlers: JobHandlers
   preview: boolean
   editable?: boolean
   /** Empty rows of its column above this node. */
@@ -125,6 +89,7 @@ export function MatrixGroupNode({
 }) {
   const { dag: t } = useStrings()
   const matrixName = matrixGroup.originaljob
+  const first = jobNames[0] ?? ''
   const matrixMembers = matrixGroup.members
   const { aggStatus, statusLabel } = useWorkflowEngine().matrixStatus(
     matrixMembers.map((m) => jobs[m]?.status),
@@ -150,12 +115,11 @@ export function MatrixGroupNode({
 
   return (
     <div
-      key={`node_${jobNames[0]}`}
-      id={`node_${idPrefix}${jobNames[0]}`}
+      id={`node_${idPrefix}${first}`}
       role="none"
       className="relative m-24"
       style={{
-        zIndex: (activeDists?.has(jobNames[0]!) ? 25 : 1) + zBase,
+        zIndex: (activeDists?.has(first) ? 25 : 1) + zBase,
         ...emptyRowsStyle(rowsAbove),
       }}
       onMouseEnter={onMouseEnter}
@@ -167,7 +131,7 @@ export function MatrixGroupNode({
       <div
         className="relative border-solid shadow py-4 px-8 rounded-xl border-4 whitespace-nowrap bg-(--theme-panel-bg) text-2xl"
         style={{
-          opacity: hoveredRelated && !hoveredRelated.has(jobNames[0]!) ? 0.5 : 1,
+          opacity: hoveredRelated && !hoveredRelated.has(first) ? 0.5 : 1,
           transition: `opacity ${animT}s`,
         }}
       >
@@ -184,13 +148,7 @@ export function MatrixGroupNode({
             <Joblist
               jobs={jobs}
               jobNames={matrixMembers}
-              onJobClick={onJobClick}
-              isStepsOpen={isStepsOpen}
-              onStepClick={onStepClick}
-              onStepLogClick={onStepLogClick}
-              onSubworkflowIcon={onSubworkflowIcon}
-              isSubworkflowExpanded={isSubworkflowExpanded}
-              renderSubworkflow={renderSubworkflow}
+              {...handlers}
               growWidth={true}
               preview={preview}
               editableSteps={editable}

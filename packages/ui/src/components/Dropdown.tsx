@@ -50,6 +50,7 @@ export interface IProps {
   portalEl?: HTMLElement
   /** Smaller option rows and text, for dense toolbars. */
   compact?: boolean | undefined
+  /** False hides the caret, for a field that has nothing to pick from yet. */
   showCaret?: boolean | undefined
 }
 
@@ -286,9 +287,8 @@ function DropdownHelper({
       setBoundaryEl(null)
       return
     }
-    // Walk from reference up to dialog, use nearest scrollable ancestor as
-    // popper's boundary so flip/preventOverflow can see the modal panel's
-    // bottom edge instead of the viewport's.
+    // The nearest scrolling ancestor inside the dialog bounds flip and preventOverflow,
+    // so they see the modal panel's bottom edge rather than the viewport's.
     let node: HTMLElement | null = ref.parentElement
     while (node) {
       const style = getComputedStyle(node)
@@ -340,6 +340,7 @@ function DropdownHelper({
     modifiers: popperModifiers,
   })
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
+  // Closing the list clears the query, and Tab closes it before the blur that flushes.
   const typedRef = useRef('')
   const buttonRef = useRef<HTMLButtonElement>(null)
 

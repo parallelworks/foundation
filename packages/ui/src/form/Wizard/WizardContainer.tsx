@@ -53,13 +53,7 @@ export function WizardContainer({
 
       // Mark fields as touched to show errors
       if (hasStepErrors) {
-        const touchedFields = stepFieldNames.reduce(
-          (acc, fieldName) => {
-            acc[fieldName] = true
-            return acc
-          },
-          {} as Record<string, boolean>,
-        )
+        const touchedFields = Object.fromEntries(stepFieldNames.map((name) => [name, true]))
         if (shouldFlatten) {
           setTouched({ ...touched, ...touchedFields }, false)
         } else {
@@ -69,7 +63,7 @@ export function WizardContainer({
 
       return !hasStepErrors
     },
-    [steps, validateForm, setTouched, touched, config.flatten],
+    [steps, config, validateForm, setTouched, touched],
   )
 
   const {
@@ -88,7 +82,7 @@ export function WizardContainer({
   })
 
   const currentStepConfig = steps[currentStep]
-  const config_ = config.navigation || {}
+  const navigation = config.navigation ?? {}
 
   const handleGoToNext = useCallback(async () => {
     const success = await goToNext()
@@ -97,16 +91,6 @@ export function WizardContainer({
     }
     return success
   }, [goToNext, values, onChange])
-
-  const handleJumpToStep = useCallback(
-    (stepKey: string) => {
-      if (!config_.allowJump || !visitedSteps.has(stepKey)) {
-        return false
-      }
-      return jumpToStep(stepKey)
-    },
-    [jumpToStep, config_.allowJump, visitedSteps],
-  )
 
   const handleSubmit = useCallback(async () => {
     if (!isLastStep) {
@@ -117,14 +101,7 @@ export function WizardContainer({
     const errors = await validateForm()
     if (Object.keys(errors).length > 0) {
       // Mark all fields as touched to show errors
-      const allFieldNames = Object.keys(values)
-      const touchedFields = allFieldNames.reduce(
-        (acc, fieldName) => {
-          acc[fieldName] = true
-          return acc
-        },
-        {} as Record<string, boolean>,
-      )
+      const touchedFields = Object.fromEntries(Object.keys(values).map((name) => [name, true]))
       setTouched({ ...touched, ...touchedFields }, false)
       throw new Error('Please fix errors before submitting')
     }
@@ -145,7 +122,6 @@ export function WizardContainer({
               stepConfig={stepConfig}
               flatten={config.flatten}
               values={values}
-              onValuesChange={onChange}
               labelPosition={labelPosition}
               missingFields={missingFields}
               spaceCompact={spaceCompact}
@@ -163,16 +139,16 @@ export function WizardContainer({
   return (
     <div className={className}>
       {/* Step indicator */}
-      {config_.showSteps !== false && (
+      {navigation.showSteps !== false && (
         <WizardStepIndicator
           stepOrder={stepOrder}
           currentStep={currentStep}
           steps={steps}
           visitedSteps={visitedSteps}
           invalidSteps={invalidSteps}
-          onStepClick={handleJumpToStep}
-          allowJump={config_.allowJump}
-          hideStepNumbers={config_.hideStepNumbers}
+          onStepClick={jumpToStep}
+          allowJump={navigation.allowJump}
+          hideStepNumbers={navigation.hideStepNumbers}
         />
       )}
 
@@ -184,7 +160,6 @@ export function WizardContainer({
             stepConfig={currentStepConfig}
             flatten={config.flatten}
             values={values}
-            onValuesChange={onChange}
             labelPosition={labelPosition}
             missingFields={missingFields}
             spaceCompact={spaceCompact}

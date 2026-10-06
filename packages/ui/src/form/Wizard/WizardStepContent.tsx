@@ -8,7 +8,6 @@ export function WizardStepContent({
   stepConfig,
   flatten = true,
   values,
-  onValuesChange,
   setFormDirty,
   setFieldValue,
   setFieldTouched,
@@ -20,7 +19,7 @@ export function WizardStepContent({
   flatten?: boolean | undefined
 }) {
   const editing = useFormEditing()
-  if (!stepConfig?.options) {
+  if (!stepConfig.options) {
     return null
   }
   const path = editing ? [...editing.parent, currentStep] : null

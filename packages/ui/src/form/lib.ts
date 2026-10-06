@@ -60,8 +60,9 @@ export function enforceOneMustBeTrue(
         ? opts.onOption || true
         : true
     const hasTrue = items.some((item) => item[fieldKey] === trueOption)
-    if (!hasTrue) {
-      items[clampedIndex]![fieldKey] = trueOption
+    const promoted = items[clampedIndex]
+    if (!hasTrue && promoted) {
+      promoted[fieldKey] = trueOption
     }
   }
   return items
@@ -71,46 +72,41 @@ export function flattenGroups(schema: unknown): Record<string, unknown> {
   if (!schema || typeof schema !== 'object') {
     return {}
   }
-  const fields = schema as Record<string, SchemaEntry | undefined>
-  let flattenedFields: Record<string, unknown> = {}
-  Object.keys(fields).forEach((key) => {
-    const entry = fields[key]
+  const flattened: Record<string, unknown> = {}
+  for (const [key, entry] of Object.entries(schema as Record<string, SchemaEntry | undefined>)) {
     if (entry?.type === 'group') {
-      const flattenedGroup = flattenGroups(entry.options)
-      flattenedFields = { ...flattenedFields, ...flattenedGroup }
+      Object.assign(flattened, flattenGroups(entry.options))
     } else if (entry?.type === 'object') {
-      const flattenedGroup = flattenGroups(entry.options)
-      flattenedFields = { ...flattenedFields, [key]: flattenedGroup }
+      flattened[key] = flattenGroups(entry.options)
     } else {
-      flattenedFields[key] = entry
+      flattened[key] = entry
     }
-  })
-  return flattenedFields
+  }
+  return flattened
 }
 
 /**Not a pure function. Edits 'obj' passed into function */
 export function impureSetValueFromPath(obj: Record<string, unknown>, path: string, value: unknown) {
-  const pathArray = path.split('.')
-  if (pathArray.length === 1) {
-    obj[pathArray[0]!] = value
-    return
-  }
+  const parents = path.split('.')
+  // split always yields at least one segment
+  const leaf = parents.pop() ?? ''
 
   let current = obj
-  for (let i = 0; i < pathArray.length - 1; i++) {
-    const segment = pathArray[i]!
+  for (const segment of parents) {
     const arrayMatch = segment.match(/^(.+)\[(\d+)\]$/)
     if (arrayMatch) {
-      const key = arrayMatch[1]!
-      const index = Number(arrayMatch[2])
+      const [, key = '', indexText] = arrayMatch
+      const index = Number(indexText)
       if (!current[key]) {
         current[key] = []
       }
       const list = current[key] as Record<string, unknown>[]
-      if (!list[index]) {
-        list[index] = {}
+      let item = list[index]
+      if (!item) {
+        item = {}
+        list[index] = item
       }
-      current = list[index]!
+      current = item
     } else {
       if (!current[segment]) {
         current[segment] = {}
@@ -118,13 +114,14 @@ export function impureSetValueFromPath(obj: Record<string, unknown>, path: strin
       current = current[segment] as Record<string, unknown>
     }
   }
-  current[pathArray[pathArray.length - 1]!] = value
+  current[leaf] = value
 }
 
 export function initializeValues(
   options: unknown,
   srcData: object = {},
-  blankDefault: boolean | ((field: { type?: string; default?: unknown }) => boolean) = false,
+  /** Fields whose schema default the host wants left blank. */
+  blankDefault?: (field: { type?: string; default?: unknown }) => boolean,
 ): Record<string, unknown> | undefined {
   if (!options || typeof options !== 'object') {
     return undefined
@@ -140,34 +137,17 @@ export function initializeValues(
         return acc
       }
       const fieldSchema = schema[field] ?? EMPTY_ENTRY
-      if (fieldSchema.type === 'group') {
+      // A group's fields, and a wizard step's unless the wizard keeps steps nested,
+      // live at the level that holds the group.
+      const flattenStep = fieldSchema.type === 'step' && schema['$meta']?.wizard?.flatten !== false
+      if (fieldSchema.type === 'group' || flattenStep) {
         const values = initializeValues(fieldSchema.options, data)
-        if (!values) {
-          return acc
-        }
-        Object.keys(values).forEach((key) => {
-          acc[key] = data[key] ?? values[key]
-        })
-        return acc
-      }
-      if (fieldSchema.type === 'step') {
-        const flatten = schema['$meta']?.wizard?.flatten !== false
-        if (flatten) {
-          // Handle wizard step fields - initialize fields within the step
-          const values = initializeValues(fieldSchema.options, data)
-          if (!values) {
-            return acc
-          }
-          Object.keys(values).forEach((key) => {
-            acc[key] = data[key] ?? values[key]
-          })
-        } else {
-          // Preserve step key as nested object
-          acc[field] = initializeValues(fieldSchema.options, asRecord(data[field]))
+        for (const key of Object.keys(values ?? {})) {
+          acc[key] = data[key] ?? values?.[key]
         }
         return acc
       }
-      if (fieldSchema.type === 'object') {
+      if (fieldSchema.type === 'step' || fieldSchema.type === 'object') {
         acc[field] = initializeValues(fieldSchema.options, asRecord(data[field]))
         return acc
       }
@@ -180,13 +160,9 @@ export function initializeValues(
           acc[field] = Array.isArray(listData) ? [...listData] : []
           return acc
         }
-        const arr: (Record<string, unknown> | undefined)[] = []
-        if (Array.isArray(listData)) {
-          for (let i = 0; i < listData.length; i++) {
-            arr.push(initializeValues(fieldSchema.options, asRecord(listData[i])))
-          }
-        }
-        acc[field] = arr
+        acc[field] = Array.isArray(listData)
+          ? listData.map((item) => initializeValues(fieldSchema.options, asRecord(item)))
+          : []
         return acc
       }
       if (data[field] !== undefined) {
@@ -194,7 +170,6 @@ export function initializeValues(
         if (
           (fieldSchema.type === 'dropdown' || fieldSchema.type === 'storage') &&
           fieldSchema.secondaryField &&
-          fieldSchema.options &&
           Array.isArray(fieldSchema.options)
         ) {
           const option = findSecondaryOption(fieldSchema.options, data[field])
@@ -235,20 +210,11 @@ export function initializeValues(
         }
       }
       if (fieldSchema.type === 'dropdown') {
-        if (
-          fieldSchema.options &&
-          Array.isArray(fieldSchema.options) &&
-          fieldSchema.options.length > 0
-        ) {
+        if (Array.isArray(fieldSchema.options) && fieldSchema.options.length > 0) {
           acc[field] = fieldSchema.options[0].value
         }
 
-        if (
-          fieldSchema.type === 'dropdown' &&
-          fieldSchema.secondaryField &&
-          fieldSchema.options &&
-          Array.isArray(fieldSchema.options)
-        ) {
+        if (fieldSchema.secondaryField && Array.isArray(fieldSchema.options)) {
           // Setting value if it's a dropdown with a secondary field
           const option = fieldSchema.options.find(
             (option: { value?: unknown; secondaryValue?: unknown }) => option.value === data[field],
@@ -272,17 +238,9 @@ export function initializeValues(
       }
 
       if (fieldSchema.default !== undefined) {
-        const dflt = fieldSchema.default
-        const isPwResource = typeof dflt === 'string' && dflt.startsWith('pw://')
-        const leaveBlank =
-          typeof blankDefault === 'function'
-            ? blankDefault(fieldSchema)
-            : blankDefault &&
-              !isPwResource &&
-              (fieldSchema.type === 'textarea' ||
-                fieldSchema.type === 'compute-clusters' ||
-                fieldSchema.type === 'compute-resources')
-        acc[field] = fieldSchema.type === 'string' || leaveBlank ? '' : dflt
+        acc[field] =
+          // String types handle defaults separately (in StringField.tsx)
+          fieldSchema.type === 'string' || blankDefault?.(fieldSchema) ? '' : fieldSchema.default
       }
       if (fieldSchema.prefillDefault && fieldSchema.default !== undefined) {
         acc[field] = fieldSchema.default

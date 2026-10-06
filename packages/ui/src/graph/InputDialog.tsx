@@ -23,7 +23,7 @@ import { useStrings } from '../components/Provider'
 import { INPUT_YAML_PATH } from '../editor/settingsYaml'
 import { DynamicForm } from '../form/Form'
 import { FormEditingContext } from '../form/formEditing'
-import { formatSecondsAsSlurmDuration, parseSlurmDuration } from '../form/utils/slurmDuration'
+import { formatDuration, parseDuration } from '../form/utils/duration'
 import { ArrowDownIcon, ArrowUpIcon, CloseIcon, EditIcon, TrashIcon } from '../icons'
 import {
   AddRowButton,
@@ -925,7 +925,7 @@ function draftOf(kind: Kind, value: unknown): unknown {
             rows: Array.isArray(value) ? value.map(asRecord) : [],
           }
     case 'duration':
-      return typeof value === 'number' ? formatSecondsAsSlurmDuration(value) : text(value)
+      return typeof value === 'number' ? formatDuration(value) : text(value)
     case 'values':
       return typeof value === 'string' && EXPRESSION.test(value.trim())
         ? { expression: value, values: [] }
@@ -988,7 +988,7 @@ function valueOf(kind: Kind, draft: unknown, { labelled = false }: ValueContext 
       if (!raw) {
         return undefined
       }
-      return EXPRESSION.test(raw) ? raw : (parseSlurmDuration(raw) ?? raw)
+      return EXPRESSION.test(raw) ? raw : (parseDuration(raw) ?? raw)
     }
     case 'ref':
     case 'choice':
@@ -1068,7 +1068,7 @@ function valueError(
     }
     case 'duration': {
       const raw = String(draft ?? '').trim()
-      return raw && !EXPRESSION.test(raw) && parseSlurmDuration(raw) === null
+      return raw && !EXPRESSION.test(raw) && parseDuration(raw) === null
         ? t.invalidDurationText
         : undefined
     }

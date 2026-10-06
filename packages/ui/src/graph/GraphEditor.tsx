@@ -39,7 +39,6 @@ import {
 import { IconButton } from '../components/IconButton'
 import { useStrings } from '../components/Provider'
 import { TOOLTIP_ID } from '../components/Tooltip'
-import type { UsesCompletions } from '../editor/Monaco'
 import {
   AddIcon,
   AlertIcon,
@@ -69,10 +68,10 @@ import {
 } from './editorChrome'
 import { asRecord, openOnAddOf } from './editorFields'
 import { JobDialog, type SettingsView, StepDialog } from './GraphEditorDialogs'
-import { formatJobLabel } from './jobLabel'
 import type { ListedProblem } from './ProblemsButton'
 import { MOD_KEY, type ShortcutGroup } from './ShortcutsButton'
 import type { WorkflowJob } from './types'
+import { jobLabel } from './util'
 
 /** A problem in the workflow, placed on the job, step or input its line is in. */
 export interface EditorProblem {
@@ -97,8 +96,6 @@ export interface DependencyGraphEditor {
   onRedo: () => void
   /** `uses` values offered in the step editor, such as the user's own workflows. */
   usesSuggestions?: string[]
-  /** What the job and step YAML views complete `uses:` with, as the workflow editor does. */
-  completions?: UsesCompletions
   /** Opens the workflow-level settings: env, permissions, sessions and more. */
   onOpenSettings?: () => void
   /** The YAML the edits apply to, for editing a job or step as text. */
@@ -186,7 +183,7 @@ type Dialog =
   | { kind: 'job'; job: string; addition?: Addition }
   | { kind: 'step'; job: string; index: number; addition?: Addition }
 
-const labelsOf = (jobs: string[]) => jobs.map((job) => formatJobLabel(job)).join(', ')
+const labelsOf = (jobs: string[]) => jobs.map((job) => jobLabel(job)).join(', ')
 
 /** A drawn connector, named by the head jobs of the boxes it joins. */
 export interface EdgeSelection {
@@ -1259,7 +1256,7 @@ export function useGraphEditorState({
           ? [
               {
                 kind: 'action',
-                label: formatJobLabel(other),
+                label: jobLabel(other),
                 onSelect: () => connectWith(edits, { from: [job], side }),
               },
             ]
@@ -2728,7 +2725,6 @@ function EditorDialogs({
         view={editor.settingsView}
         onViewChange={editor.onSettingsViewChange}
         openOnAdd={openOnAdd}
-        completions={editor.completions}
         onEdit={onEdit}
         onClose={close}
       />
@@ -2748,7 +2744,6 @@ function EditorDialogs({
       view={editor.settingsView}
       onViewChange={editor.onSettingsViewChange}
       openOnAdd={openOnAdd}
-      completions={editor.completions}
       usesSuggestions={editor.usesSuggestions ?? []}
       onEdit={onEdit}
       onClose={close}

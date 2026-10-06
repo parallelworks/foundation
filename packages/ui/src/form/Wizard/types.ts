@@ -132,7 +132,6 @@ export interface WizardStepContentProps {
   stepConfig: StepFieldConfig
   /** Form values */
   values: Record<string, unknown>
-  onValuesChange?: ((values: Record<string, unknown>) => void) | undefined
   /** Label position for fields */
   labelPosition?: LabelPosition | undefined
   /** Missing fields list */

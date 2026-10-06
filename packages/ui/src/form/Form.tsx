@@ -22,9 +22,9 @@ import Loader from '../components/Loader'
 import { useStrings, useWorkflowEngine } from '../components/Provider'
 import SectionHeader from '../components/SectionHeader'
 import { Table } from '../components/Table'
-import { TOOLTIP_ID, TooltipInfo } from '../components/Tooltip'
+import { TooltipInfo } from '../components/Tooltip'
 import type { WorkflowVariables } from '../engine'
-import { AngleRightIcon, SuccessCheckmark, TrashIcon } from '../icons'
+import { AngleRightIcon, TrashIcon } from '../icons'
 import { useFieldControlProps, useFieldRequired } from './fieldContext'
 import { type FieldComponent, FieldRegistryContext, Registry } from './fieldRegistry'
 import { EditingScope, useFormEditing } from './formEditing'
@@ -161,10 +161,7 @@ export function collectFieldsWithDefaults(
 
   for (const [fieldName, rawField] of Object.entries(options)) {
     const field = asSchemaField(rawField)
-    if (!field) {
-      continue
-    }
-    if (fieldName === '$meta') {
+    if (fieldName === '$meta' || !field) {
       continue
     }
 
@@ -263,6 +260,7 @@ export function useDynamicDefaultsSync({
   // Gate `collectFieldsWithDefaults` on list-lengths only — a scalar
   // keystroke changes `values` but not the signature, so we skip the walk.
   const listSig = useMemo(() => listLengthsSignature(options, values), [options, values])
+  // biome-ignore lint/correctness/useExhaustiveDependencies: listSig captures the only value-derived input we care about here.
   const fieldsWithDefaults = useMemo(
     () =>
       // The options tree is parsed without a row context, so a list default's `[index]` is still a
@@ -287,7 +285,7 @@ export function useDynamicDefaultsSync({
             : f.defaultValue
         return { ...f, defaultValue: resolved }
       }),
-    [options, values, engine.evaluate],
+    [options, listSig],
   )
 
   const prevDefaultsRef = useRef<Map<string, string>>(new Map())
@@ -423,9 +421,7 @@ export function GroupHeader({
       <button
         type="button"
         aria-expanded={open}
-        className={cx(
-          'w-full flex items-center text-left transform ease-in transition cursor-pointer',
-        )}
+        className="w-full flex items-center text-left transform ease-in transition cursor-pointer"
         onClick={() => setOpen((open) => !open)}
       >
         <AngleRightIcon
@@ -479,54 +475,11 @@ function getClosestParentIndex(parentPath: string) {
   return undefined
 }
 
-export interface IInstanceTypeOption {
-  value: string
+interface MultiSelectOption {
   label: string
-  secondaryValue: unknown[]
-}
-
-interface IInstanceTypeForForm {
-  vcpus?: number
-  memoryGb?: number
-  arch?: string
-  acceleratedNetworking?: boolean
-  localDiskSizeGb?: number
-  isFlex?: boolean
-}
-
-export function getInstanceTypesForForm(
-  instances: Record<string, IInstanceTypeForForm>,
-): IInstanceTypeOption[] {
-  return Object.entries(instances).map(([name, instance]) => {
-    const flexLabel = instance.isFlex ? ', Flex' : ''
-    const localDisk = instance.localDiskSizeGb ? ` , ${instance.localDiskSizeGb} GB Local Disk` : ''
-    return {
-      value: name,
-      label: `${name} (${instance.vcpus} vCPUs, ${instance.memoryGb} GB Memory, ${instance.arch}${localDisk}${flexLabel})`,
-      secondaryValue: [
-        instance.arch,
-        !!instance.acceleratedNetworking,
-        !!instance.acceleratedNetworking,
-        !!instance.localDiskSizeGb,
-        !!instance.isFlex,
-      ],
-    }
-  })
-}
-
-export function StatusBlock({ status }: { status: boolean }) {
-  return (
-    <div>
-      <div
-        data-tooltip-id={TOOLTIP_ID}
-        data-tooltip-content={
-          status ? 'Storage has been attached.' : 'Attaching the storage to cluster...'
-        }
-      >
-        {status ? <SuccessCheckmark /> : <Loader size={13} full={false} />}
-      </div>
-    </div>
-  )
+  secondaryLabel?: string
+  value: string | boolean | number
+  selected?: boolean
 }
 
 export function MultiSelectionDropdown({
@@ -541,60 +494,40 @@ export function MultiSelectionDropdown({
   name: string
   label: string
   invalid?: boolean
-  options?: Array<
-    | string
-    | {
-        label: string
-        secondaryLabel?: string
-        value: string | boolean | number
-        selected?: boolean
-      }
-  >
+  // A bare string is an option whose label is its value.
+  options?: (string | MultiSelectOption)[]
   setFormDirty: TSetFormDirty
   onChange?: ((val: unknown) => void) | undefined
   parentValue?: unknown
-  className?: string
-  secondaryField?: string | undefined
 }) {
   const [field] = useField<unknown[]>(name)
   const required = useFieldRequired()
   const controlProps = useFieldControlProps()
   const { setFieldValue } = useFormikContext<string[]>()
 
-  const options = useMemo(() => {
-    return initialOptions.map((option) => {
-      const op =
-        typeof option === 'string'
-          ? { label: option, value: option, selected: false }
-          : { ...option, selected: option.selected ?? false }
-      if (field.value?.includes(op.value)) {
-        op.selected = true
-      }
-      return op
-    })
-  }, [initialOptions, field.value])
+  const options = useMemo(
+    () =>
+      initialOptions.map((option) => {
+        const op = typeof option === 'string' ? { label: option, value: option } : option
+        return { ...op, selected: !!field.value?.includes(op.value) || !!op.selected }
+      }),
+    [initialOptions, field.value],
+  )
 
   const handleOptionSelected = (selectedValue: unknown) => {
-    let selected: unknown[] = []
-    if (field.value) {
-      selected = [...field.value]
-    }
-    selected.push(selectedValue)
-    setFieldValue(name, selected)
-    if (onChange) {
-      onChange(options)
-    }
+    setFieldValue(name, [...(field.value ?? []), selectedValue])
+    onChange?.(options)
     setFormDirty(true)
   }
 
   const t = useStrings().common
 
   const handleRemoveOption = (key: unknown) => {
-    const selected = [...field.value.filter((item) => item !== key)]
-    setFieldValue(name, selected)
-    if (onChange) {
-      onChange(options)
-    }
+    setFieldValue(
+      name,
+      field.value.filter((item) => item !== key),
+    )
+    onChange?.(options)
     setFormDirty(true)
   }
 
@@ -603,7 +536,7 @@ export function MultiSelectionDropdown({
     if (prevParent && parentValue && prevParent !== parentValue) {
       setFieldValue(name, [])
     }
-  }, [parentValue, name, setFieldValue, prevParent])
+  }, [parentValue, prevParent, name, setFieldValue])
   return (
     <>
       <CustomListbox
@@ -620,10 +553,10 @@ export function MultiSelectionDropdown({
         {field.value && field.value.length > 0 ? (
           options
             .filter((option) => option.selected)
-            .map((option, index) => {
+            .map((option) => {
               return (
-                <tr key={index}>
-                  <Table.Item className="w-full">{option?.label}</Table.Item>
+                <tr key={String(option.value)}>
+                  <Table.Item className="w-full">{option.label}</Table.Item>
                   <Table.Item>
                     <button
                       type="button"
@@ -679,13 +612,13 @@ const InputField = React.memo(
     values: Record<string, unknown>
     currentValue: unknown
   }) {
+    // A deep-equal field keeps its first identity, so the field components below can memoize on it.
     const prevField = useRef(field)
     const fieldObj = useMemo(() => {
-      if (deepEqual(prevField.current, field)) {
-        return prevField.current
+      if (!deepEqual(prevField.current, field)) {
+        prevField.current = field
       }
-      prevField.current = field
-      return { ...field }
+      return prevField.current
     }, [field])
 
     const tooltipComponent = useMemo(() => {
@@ -756,11 +689,7 @@ function FormikStateBridge({ onChange }: { onChange: (state: Record<string, unkn
 
   useEffect(() => {
     const { editorKeyPostfix: _, ...next } = values
-    if (
-      prevEmitted.current !== null &&
-      prevEmitted.current !== undefined &&
-      deepEqual(prevEmitted.current, next)
-    ) {
+    if (prevEmitted.current !== null && deepEqual(prevEmitted.current, next)) {
       return
     }
     prevEmitted.current = next
@@ -822,25 +751,13 @@ function useFieldParse(
     return optionsField
   }
 
-  // Has expressions but no input deps (org vars, relative paths) — parse once and cache
-  if (c.inputDeps.size === 0) {
-    if (c.result !== null) {
-      return c.result
-    }
-    // Fall through to parse
-  }
-
   if (c.result !== null) {
-    let changed = arrayIndex !== c.lastIndex
-    if (!changed) {
-      for (const key of c.inputDeps) {
-        if (!deepEqual(values[key], c.lastRelevant[key])) {
-          changed = true
-          break
-        }
-      }
-    }
-    if (!changed) {
+    // Expressions with no input deps (org vars, relative paths) parse once.
+    const unchanged =
+      c.inputDeps.size === 0 ||
+      (arrayIndex === c.lastIndex &&
+        [...c.inputDeps].every((key) => deepEqual(values[key], c.lastRelevant[key])))
+    if (unchanged) {
       return c.result
     }
   }
@@ -861,7 +778,6 @@ function useFieldParse(
 
 const FormField = React.memo(
   function FormField({
-    id,
     optionsField,
     fieldName,
     values,
@@ -874,7 +790,6 @@ const FormField = React.memo(
     spaceCompact = false,
     workflowForm = false,
   }: {
-    id: string | number
     fieldName: string
     optionsField: unknown
     values: Record<string, unknown>
@@ -919,7 +834,7 @@ const FormField = React.memo(
       optional: resolvedFlag(field.optional) ?? field.default !== undefined,
     }
 
-    if (!fieldObj['name'] || fieldName === 'v3') {
+    if (!fieldObj.name || fieldName === 'v3') {
       return null
     }
 
@@ -927,20 +842,17 @@ const FormField = React.memo(
       // If the field is hidden, and field is set to be ignored, remove it from values.
       // Only delete if NOT a workflow form (workflow forms filter at submit time)
       if (resolvedFlag(field.ignore) && !workflowForm) {
-        deleteFieldByPath(values, fieldObj['name'])
+        deleteFieldByPath(values, fieldObj.name)
       }
       // If it is not set, default to no show only without deleting field from values
       return editing && path && fieldName !== '$meta' ? <editing.Row path={path} hidden /> : null
-    }
-    if (!field.type && field.options) {
-      fieldObj['type'] = 'dropdown'
     }
     let onChange: ((val: unknown) => void) | undefined
     if (field.one_must_be_true && parentInfo?.onChange) {
       // only used in pool partition_config at the moment
       const parentOnChange = parentInfo.onChange
       const parentArrayIndex = parentInfo.arrayIndex ?? 0
-      const fieldOptions = fieldObj['options']
+      const fieldOptions = fieldObj.options
       onChange = (val) =>
         parentOnChange(
           fieldName,
@@ -952,14 +864,9 @@ const FormField = React.memo(
     }
     //handles both show_if and show_if_not
     if (field.show_if !== undefined || field.show_if_not !== undefined) {
-      let index: number | undefined
-      if (parentInfo) {
-        if (!parentInfo?.arrayIndex) {
-          index = getClosestParentIndex(parentInfo.fieldNamePrefix)
-        } else {
-          index = parentInfo.arrayIndex
-        }
-      }
+      const index = parentInfo
+        ? parentInfo.arrayIndex || getClosestParentIndex(parentInfo.fieldNamePrefix)
+        : undefined
       let shouldShowField = true
       if (field.show_if !== undefined) {
         const parentValue = getParentValue(index, field.show_if, values, field)
@@ -973,15 +880,13 @@ const FormField = React.memo(
         // Workflow forms filter at submit time; don't destroy state across hide/unhide
         // cycles or drop config-loaded values whose field is currently hidden.
         if (!workflowForm) {
-          deleteFieldByPath(values, fieldObj['name'])
+          deleteFieldByPath(values, fieldObj.name)
         }
         return editing && path ? <editing.Row path={path} hidden /> : null
       }
     }
-    if (field.depends_on) {
-      if (parentInfo?.arrayIndex !== undefined) {
-        fieldObj['depends_on'] = field.depends_on.replace('[index]', `[${parentInfo.arrayIndex}]`)
-      }
+    if (field.depends_on && parentInfo?.arrayIndex !== undefined) {
+      fieldObj.depends_on = field.depends_on.replace('[index]', `[${parentInfo.arrayIndex}]`)
     }
     //enable_if should work when its not disabled
     if (field.enable_if && field.disabled === false) {
@@ -995,7 +900,7 @@ const FormField = React.memo(
         //if value is false, means we are going to disabled the field, otherwise disabled will be decided by its original factor
         if (parentValue === false) {
           //set the value to false
-          fieldObj['disabled'] = true
+          fieldObj.disabled = true
         }
       }
     }
@@ -1005,7 +910,7 @@ const FormField = React.memo(
       const meta = resolveMetaOverrides(field.options, labelPosition, spaceCompact)
 
       const group = (
-        <div key={fieldObj['name']} className="flex flex-col w-full">
+        <div className="flex flex-col w-full">
           <HeaderElement
             {...(!hideHeader && {
               title: (open, setOpen) => (
@@ -1041,50 +946,47 @@ const FormField = React.memo(
       if (!resolvedType) {
         return null
       }
-      fieldObj['type'] = resolvedType
+      fieldObj.type = resolvedType
     }
     if (field.type === 'range' && field.depends_on) {
       const parentValue = getValueUsingPath(values, field.depends_on)
       const { min, max } = field
       if (typeof min === 'object' && typeof max === 'object') {
-        fieldObj['min'] = min[String(parentValue)]
-        fieldObj['max'] = max[String(parentValue)]
+        fieldObj.min = min[String(parentValue)]
+        fieldObj.max = max[String(parentValue)]
       }
     }
     if (field.resetOnChange) {
       const parentValue = getValueUsingPath(values, field.resetOnChange)
       const prevParentValue = field.prevParentValue
       if (prevParentValue !== undefined && prevParentValue !== parentValue) {
-        deleteFieldByPath(values, fieldObj['name'])
+        deleteFieldByPath(values, fieldObj.name)
       }
       field.prevParentValue = parentValue
     }
     if (field.secondaryField) {
       if (Array.isArray(field.secondaryField)) {
-        fieldObj['secondaryField'] = field.secondaryField.map(
+        fieldObj.secondaryField = field.secondaryField.map(
           (secondaryField: string) => fieldNamePrefix + secondaryField,
         )
       } else {
-        fieldObj['secondaryField'] = fieldNamePrefix + field.secondaryField
+        fieldObj.secondaryField = fieldNamePrefix + field.secondaryField
       }
     }
 
     const input = (
-      <div
-        className={cx('flex w-full', labelPosition === 'left' ? 'mb-[15px]' : 'mb-[5px]')}
-        key={`field-${id}`}
-      >
+      <div className={cx('flex w-full', labelPosition === 'left' ? 'mb-[15px]' : 'mb-[5px]')}>
         <InputField
           field={fieldObj}
-          label={fieldObj['label']}
+          label={fieldObj.label}
           setFormDirty={setFormDirty}
           setFieldValue={setFieldValue}
           setFieldTouched={setFieldTouched}
           values={values}
-          currentValue={getValueUsingPath(values, fieldObj['name'])}
+          currentValue={getValueUsingPath(values, fieldObj.name)}
           onChange={onChange}
-          disabled={Boolean(fieldObj['disabled'])}
-          computeOn={parentInfo?.computeOn || fieldObj['computeOn']}
+          disabled={Boolean(fieldObj.disabled)}
+          computeOn={parentInfo?.computeOn || fieldObj.computeOn}
           labelPosition={labelPosition}
           missingFields={missingFields}
           spaceCompact={spaceCompact}
@@ -1098,17 +1000,13 @@ const FormField = React.memo(
     // Only an object's own fields are editable in place; list rows repeat a template.
     return (
       <editing.Row path={path}>
-        <EditingScope editing={editing} path={fieldObj['type'] === 'object' ? path : null}>
+        <EditingScope editing={editing} path={fieldObj.type === 'object' ? path : null}>
           {input}
         </EditingScope>
       </editing.Row>
     )
   },
   (prev, next) => {
-    // Two inputs with the same definition can trade places, and only the name tells them apart.
-    if (prev.fieldName !== next.fieldName) {
-      return false
-    }
     if (!deepEqual(prev.optionsField, next.optionsField)) {
       return false
     }
@@ -1174,10 +1072,9 @@ export function FieldsFromOptions({
   workflowForm?: boolean | undefined
 }) {
   const editing = useFormEditing()
-  const fields = Object.keys(options).map((fieldName, idx) => (
+  const fields = Object.keys(options).map((fieldName) => (
     <FormField
-      key={idx}
-      id={idx}
+      key={fieldName}
       optionsField={options[fieldName]}
       fieldName={fieldName}
       values={values}
@@ -1251,30 +1148,26 @@ function DynamicFormContent({
   )
 
   const handleChange = useCallback(
-    (state: Record<string, unknown>) => {
-      if (setValues) {
-        setValues(state)
-      }
-    },
+    (state: Record<string, unknown>) => setValues?.(state),
     [setValues],
   )
 
   const wizardConfig = parseWizardConfig(opts)
-  const isWizard = wizardConfig !== null
+  const meta = resolveMetaOverrides(options, labelPosition, spaceCompact)
 
   return (
     <>
       <DirtyStateBridge setFormDirty={setFormDirty} />
       <FormikStateBridge onChange={handleChange} />
       <DynamicDefaultsSync key={contextKey ?? ''} options={opts} />
-      {isWizard && wizardConfig ? (
+      {wizardConfig ? (
         <WizardContainer
           wizardConfig={wizardConfig}
           values={values}
           onChange={handleChange}
           onSubmit={onSubmit}
           className="w-full"
-          {...resolveMetaOverrides(options, labelPosition, spaceCompact)}
+          {...meta}
           missingFields={missingFields}
           workflowForm={workflowForm}
           setFieldValue={setFieldValue}
@@ -1283,7 +1176,7 @@ function DynamicFormContent({
       ) : (
         <>
           <FieldsFromOptions
-            {...resolveMetaOverrides(options, labelPosition, spaceCompact)}
+            {...meta}
             options={opts}
             values={values}
             setFormDirty={setFormDirty}
@@ -1347,7 +1240,7 @@ export function DynamicForm({
   organizationVariables,
   remoteVars,
   needsOrganizationVariables = false,
-  onSubmit = undefined,
+  onSubmit,
   submitLabel = 'Submit',
   className = 'w-full',
   workflowForm = false,

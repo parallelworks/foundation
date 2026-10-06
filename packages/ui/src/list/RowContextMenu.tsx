@@ -2,6 +2,7 @@ import cx from 'classnames'
 import type { ComponentType, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { keyedByContent } from '../components/keys'
 import { useLink, useNotify, useStrings } from '../components/Provider'
 import { TOOLTIP_ID } from '../components/Tooltip'
 import {
@@ -16,6 +17,7 @@ import {
   MoreIcon,
   UserIcon,
 } from '../icons'
+import { safeUrl } from '../safeUrl'
 
 export type RowMenuItem =
   | {
@@ -105,7 +107,7 @@ export function toRowMenuItem(action: RowAction): RowMenuItem {
     kind: 'action',
     label: action.label,
     icon: action.icon,
-    onSelect: action.onSelect ?? (() => {}),
+    onSelect: action.onSelect,
     disabled: action.disabled,
     destructive: action.destructive,
     tooltip: action.tooltip,
@@ -273,7 +275,7 @@ function RowContextMenu({
     const opener = document.activeElement
     const target =
       menu.querySelector<HTMLElement>(':scope > div > input[type="search"]') ??
-      menu.querySelector<HTMLElement>(MENU_ITEMS)
+      (focusVisible(opener) ? menu.querySelector<HTMLElement>(MENU_ITEMS) : null)
     if (!target) {
       return
     }
@@ -381,6 +383,14 @@ function RowContextMenu({
 // What arrow keys move between, open submenus included, in the order they read.
 const MENU_ITEMS = 'button:not([disabled]), a[href]'
 
+function focusVisible(element: Element | null): boolean {
+  try {
+    return !!element?.matches(':focus-visible')
+  } catch {
+    return false
+  }
+}
+
 const MENU_ITEM_CLASSES =
   'flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[13px] hover:bg-(--theme-muted-panel-bg) transition-colors cursor-pointer [&>svg]:h-4 [&>svg]:w-4 [&>svg]:shrink-0'
 
@@ -467,12 +477,13 @@ function MenuItemList({
       {search && (
         <MenuSearchField search={search} query={query} onQuery={setQuery} onEnter={pickFirst} />
       )}
-      {shown.map((item, i) =>
-        item.kind === 'divider' ? (
-          <div key={`divider-${i}`} aria-hidden="true" className="my-1 h-px bg-(--theme-border)" />
-        ) : (
-          <MenuRow key={`${item.label}-${i}`} item={item} onClose={onClose} side={side} />
-        ),
+      {keyedByContent(shown, (it) => (it.kind === 'divider' ? 'divider' : it.label)).map(
+        ({ key, item }) =>
+          item.kind === 'divider' ? (
+            <div key={key} aria-hidden="true" className="my-1 h-px bg-(--theme-border)" />
+          ) : (
+            <MenuRow key={key} item={item} onClose={onClose} side={side} />
+          ),
       )}
       {search && needle && shown.length === 0 && (
         <div className="px-3 py-1.5 text-[13px] text-(--theme-muted-text-color)">
@@ -550,7 +561,7 @@ function MenuRow({
     )
     if (item.reloadDocument) {
       return (
-        <a href={item.to} onClick={onClose} className={className}>
+        <a href={safeUrl(item.to)} onClick={onClose} className={className}>
           {item.icon}
           {item.label}
         </a>
@@ -644,14 +655,9 @@ export function useCopySubmenu(): CopySubmenu {
           icon: e.icon ?? <CopyIcon />,
         })),
       ]
-      const items: RowMenuItem[] = fields
-        .filter((f) => f.value)
-        .map((f) => ({
-          kind: 'action',
-          label: t.copy(f.label),
-          icon: f.icon,
-          copy: { text: f.value as string, label: f.label },
-        }))
+      const items = fields.flatMap(({ label, value, icon }): RowMenuItem[] =>
+        value ? [{ kind: 'action', label: t.copy(label), icon, copy: { text: value, label } }] : [],
+      )
       return {
         kind: 'submenu',
         label: t.copyMenu,

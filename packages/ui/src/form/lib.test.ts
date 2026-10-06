@@ -197,13 +197,25 @@ const input2 = {
 }
 
 describe('initializeValues', () => {
+  it('blanks only the defaults the host predicate selects', () => {
+    const values = initializeValues(
+      {
+        note: { type: 'textarea', default: '${{ inputs.x }}' },
+        count: { type: 'number', default: 2 },
+      },
+      {},
+      (field) => field.type === 'textarea',
+    )
+    expect(values).toEqual({ note: '', count: 2 })
+  })
+
   it('should initialize values', () => {
     const result = initializeValues(getSampleOptions(), input)
     const expectedResult = {
       ...input,
       access_public_key: '',
       project: 'Owners',
-      resource_account: 'Pworks GCP (Platform)',
+      resource_account: 'Example GCP (Platform)',
       user_bootstrap:
         '# (optional) User-specific master node bootstrap script - \n# you can use this to automatically execute a set of commands \n# (run with your uid) upon cluster start',
     }
@@ -219,7 +231,7 @@ describe('initializeValues', () => {
       provider_version: '',
       project: 'Owners',
       access_public_key: '',
-      resource_account: 'Pworks GCP (Platform)',
+      resource_account: 'Example GCP (Platform)',
       health_check:
         '# (optional) User-specific master node Health Check script - \n# you can use this run custom node Health Check logic  upon cluster start',
       cluster_config: {
@@ -375,13 +387,13 @@ function getSampleOptions() {
           type: 'dropdown',
           options: [
             {
-              label: 'Pworks GCP (Platform)',
-              value: 'Pworks GCP (Platform)',
+              label: 'Example GCP (Platform)',
+              value: 'Example GCP (Platform)',
             },
-            { label: 'Pworks GCP', value: 'Pworks GCP' },
+            { label: 'Example GCP', value: 'Example GCP' },
             {
-              label: 'Pworks GCP (modular-magpie-167320)',
-              value: 'Pworks GCP (modular-magpie-167320)',
+              label: 'Example GCP (sample-project-123456)',
+              value: 'Example GCP (sample-project-123456)',
             },
           ],
           sensitive: true,
@@ -393,9 +405,9 @@ function getSampleOptions() {
           sensitive: true,
           options: [
             { label: 'Owners', value: 'Owners' },
-            { label: 'pw-google-contrib', value: 'pw-google-contrib' },
-            { label: 'pw-aws-contrib', value: 'pw-aws-contrib' },
-            { label: 'pw-azure', value: 'pw-azure' },
+            { label: 'google-contrib', value: 'google-contrib' },
+            { label: 'aws-contrib', value: 'aws-contrib' },
+            { label: 'azure-main', value: 'azure-main' },
             { label: 'cg-test', value: 'cg-test' },
           ],
         },
@@ -497,18 +509,18 @@ function getSampleOptions() {
           options: [
             { label: 'Latest', value: 'latest' },
             {
-              label: 'Pworks pw-hpc-c7-x86-64-v27-slurm',
-              value: 'projects/cloud-parallel-works/global/images/pw-hpc-c7-x86-64-v27-slurm',
+              label: 'Example hpc-c7-x86-64-v27-slurm',
+              value: 'projects/example-images/global/images/hpc-c7-x86-64-v27-slurm',
             },
-            { label: 'new-gcp', value: 'pw-egarcia-new-gcp' },
-            { label: 'testing-cloud', value: 'pw-egarcia-testing-cloud' },
+            { label: 'new-gcp', value: 'demo-new-gcp' },
+            { label: 'testing-cloud', value: 'demo-testing-cloud' },
             {
-              label: 'pw-hpc-c7-x86-64-v31-slurm',
-              value: 'projects/cloud-parallel-works/global/images/pw-hpc-c7-x86-64-v31-slurm',
+              label: 'hpc-c7-x86-64-v31-slurm',
+              value: 'projects/example-images/global/images/hpc-c7-x86-64-v31-slurm',
             },
           ],
           tooltip: [
-            'The OS image assigned to the instance. Latest denotes the most recent PW base image.',
+            'The OS image assigned to the instance. Latest denotes the most recent base image.',
             'Custom cloud snapshots can also be assigned here.',
           ],
         },
@@ -621,18 +633,18 @@ function getSampleOptions() {
               options: [
                 { label: 'Latest', value: 'latest' },
                 {
-                  label: 'Pworks pw-hpc-c7-x86-64-v27-slurm',
-                  value: 'projects/cloud-parallel-works/global/images/pw-hpc-c7-x86-64-v27-slurm',
+                  label: 'Example hpc-c7-x86-64-v27-slurm',
+                  value: 'projects/example-images/global/images/hpc-c7-x86-64-v27-slurm',
                 },
-                { label: 'new-gcp', value: 'pw-egarcia-new-gcp' },
-                { label: 'testing-cloud', value: 'pw-egarcia-testing-cloud' },
+                { label: 'new-gcp', value: 'demo-new-gcp' },
+                { label: 'testing-cloud', value: 'demo-testing-cloud' },
                 {
-                  label: 'pw-hpc-c7-x86-64-v31-slurm',
-                  value: 'projects/cloud-parallel-works/global/images/pw-hpc-c7-x86-64-v31-slurm',
+                  label: 'hpc-c7-x86-64-v31-slurm',
+                  value: 'projects/example-images/global/images/hpc-c7-x86-64-v31-slurm',
                 },
               ],
               tooltip: [
-                'The OS image assigned to the instance. Latest denotes the most recent PW base image.',
+                'The OS image assigned to the instance. Latest denotes the most recent base image.',
                 'Custom cloud snapshots can also be assigned here.',
               ],
             },

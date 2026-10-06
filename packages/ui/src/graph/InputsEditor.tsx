@@ -123,6 +123,8 @@ interface InputsEditorApi {
 }
 
 const ApiContext = createContext<InputsEditorApi | null>(null)
+// By context, so a reorder re-renders each row even where the field above it skips rendering.
+const InputsContext = createContext<Json | undefined>(undefined)
 const EMPTY_STORE = createFormStore()
 
 function useUi<T>(store: Store, select: (state: UiState) => T): T {
@@ -237,6 +239,7 @@ function InputRow({
   children?: ReactNode
 }) {
   const api = useContext(ApiContext)
+  const inputs = useContext(InputsContext)
   const { inputsEditor: t, graphEditor: g } = useStrings()
   const rowKey = key(path)
   const active = useUi(
@@ -257,6 +260,7 @@ function InputRow({
   const definition = api.definition(path)
   const name = path.at(-1) ?? ''
   const parent = path.slice(0, -1)
+  const index = namesIn(containerAt(inputs, parent)).indexOf(name)
   // A hidden group or page draws nothing, so its fields are listed here instead.
   const childKey = hidden ? inputChildrenKey(definition['type']) : undefined
   const outline =
@@ -287,7 +291,7 @@ function InputRow({
         label={t.addInputBelow}
         onClick={(e) => {
           const r = e.currentTarget.getBoundingClientRect()
-          api.openTypeMenu(r.right, r.bottom, parent, api.indexOf(path) + 1)
+          api.openTypeMenu(r.right, r.bottom, parent, index + 1)
         }}
       >
         <AddIcon className="h-3 w-3" />
@@ -310,7 +314,7 @@ function InputRow({
     <div
       role="none"
       data-input-path={rowKey}
-      data-input-index={api.indexOf(path)}
+      data-input-index={index}
       {...(selected ? { 'data-selected': '' } : {})}
       className={cx(
         'relative w-full',
@@ -952,37 +956,39 @@ export function InputsFormEditor({
   const empty = namesIn(asRecord(inputs)).length === 0
   return (
     <ApiContext.Provider value={api}>
-      <FormEditingContext.Provider value={EDITING}>
-        <div
-          ref={containerRef}
-          // biome-ignore lint/a11y/noNoninteractiveTabindex: focusable so the undo shortcuts reach the form instead of the YAML editor.
-          tabIndex={0}
-          className="relative outline-none"
-          onPointerLeave={() => store.set({ hovered: null })}
-        >
-          {empty && <div className="mb-3 text-sm theme-muted-text">{t.noInputs}</div>}
-          {children}
-          <DropIndicator store={store} container={containerRef} />
-          <Marquee store={store} container={containerRef} />
-          <div data-input-chrome className="sticky bottom-2 z-10 mt-2 flex justify-end">
-            <EditorBar editor={editor} groups={formShortcuts(g)}>
-              <AddChip
-                icon={<AddIcon className="h-3 w-3" />}
-                label={t.addInput}
-                hint={t.addInputHint}
-                onPointerDown={(e) => api.startDrag(e, null, t.addInput)}
-                onClick={(e) => {
-                  const r = e.currentTarget.getBoundingClientRect()
-                  api.openTypeMenu(r.left, r.bottom, [], Number.MAX_SAFE_INTEGER)
-                }}
-              />
-              {editor.onOpenSettings && <BarDivider />}
-            </EditorBar>
+      <InputsContext.Provider value={inputs}>
+        <FormEditingContext.Provider value={EDITING}>
+          <div
+            ref={containerRef}
+            // biome-ignore lint/a11y/noNoninteractiveTabindex: focusable so the undo shortcuts reach the form instead of the YAML editor.
+            tabIndex={0}
+            className="relative outline-none"
+            onPointerLeave={() => store.set({ hovered: null })}
+          >
+            {empty && <div className="mb-3 text-sm theme-muted-text">{t.noInputs}</div>}
+            {children}
+            <DropIndicator store={store} container={containerRef} />
+            <Marquee store={store} container={containerRef} />
+            <div data-input-chrome className="sticky bottom-2 z-10 mt-2 flex justify-end">
+              <EditorBar editor={editor} groups={formShortcuts(g)}>
+                <AddChip
+                  icon={<AddIcon className="h-3 w-3" />}
+                  label={t.addInput}
+                  hint={t.addInputHint}
+                  onPointerDown={(e) => api.startDrag(e, null, t.addInput)}
+                  onClick={(e) => {
+                    const r = e.currentTarget.getBoundingClientRect()
+                    api.openTypeMenu(r.left, r.bottom, [], Number.MAX_SAFE_INTEGER)
+                  }}
+                />
+                {editor.onOpenSettings && <BarDivider />}
+              </EditorBar>
+            </div>
           </div>
-        </div>
-        <Dialogs api={api} inputs={inputs} editor={editor} />
-        {contextMenu}
-      </FormEditingContext.Provider>
+          <Dialogs api={api} inputs={inputs} editor={editor} />
+          {contextMenu}
+        </FormEditingContext.Provider>
+      </InputsContext.Provider>
     </ApiContext.Provider>
   )
 }

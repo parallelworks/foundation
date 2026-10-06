@@ -53,11 +53,12 @@ import {
   useGraphEditorState,
   useSelectedEdges,
 } from './GraphEditor'
-import { Joblist } from './JobSummary'
+import { type JobHandlers, Joblist } from './JobSummary'
 import { MatrixGroupNode, MatrixGroupSummaryItem } from './MatrixGroup'
 import { Reveal } from './Reveal'
 import TreeView from './TreeView'
 import { isJobRecord, type RunLink, type WorkflowJob, type WorkflowStep } from './types'
+import { jobLabel, toggled } from './util'
 
 export type ViewMode = 'dag' | 'tree'
 
@@ -167,8 +168,9 @@ function GraphViewControls({
   )
 }
 
-// Copied from js workflow start endpoint, which will be removed
-const addCleanupSteps = ({ jobs }: { jobs: Record<string, WorkflowJob> }) => {
+// A preview has no run to list cleanup steps, so it appends each one as the
+// POST step a run would show.
+export const addCleanupSteps = ({ jobs }: { jobs: Record<string, WorkflowJob> }) => {
   const clonedJobs = structuredClone(jobs)
 
   for (const job in jobs) {
@@ -194,7 +196,8 @@ const addCleanupSteps = ({ jobs }: { jobs: Record<string, WorkflowJob> }) => {
             linkedStep: `${sourceSteps.length - index - 1}`,
           }
           delete newStep.cleanup
-          const clonedStep = cloned.steps[index]
+          // index counts from the end, because the loop runs over the reversed steps.
+          const clonedStep = cloned.steps[sourceSteps.length - index - 1]
           if (clonedStep) {
             delete clonedStep.cleanup
           }
@@ -219,7 +222,7 @@ const addCleanupSteps = ({ jobs }: { jobs: Record<string, WorkflowJob> }) => {
             linkedStep: `${sourceCleanup.length - index - 1 + cloned.steps.length}`,
           }
           delete newStep.cleanup
-          const clonedStep = clonedCleanup[index]
+          const clonedStep = clonedCleanup[sourceCleanup.length - index - 1]
           if (clonedStep) {
             delete clonedStep.cleanup
           }
@@ -236,9 +239,6 @@ const addCleanupSteps = ({ jobs }: { jobs: Record<string, WorkflowJob> }) => {
   return clonedJobs
 }
 
-// Position of `el` relative to `ancestor`, summed over the offsetParent chain.
-// Lets each Subgraph level measure its nodes against its own container so nested
-// graphs stay self-contained regardless of depth.
 const PREVIEW_PADDING = 24
 
 interface PreviewView {
@@ -272,6 +272,9 @@ function measurePreviewHeight(
   return Math.ceil(bottom * scale + offsetY + PREVIEW_PADDING)
 }
 
+// Position of `el` relative to `ancestor`, summed over the offsetParent chain.
+// Lets each Subgraph level measure its nodes against its own container so nested
+// graphs stay self-contained regardless of depth.
 function offsetWithin(el: HTMLElement, ancestor: HTMLElement | null) {
   let x = 0
   let y = 0
@@ -320,16 +323,15 @@ function withLoneMatrixSlots(
   return next
 }
 
-// Topologically level `jobs` into columns and precompute hop distances. Lifted
-// from the old in-component effect so each Subgraph can lay itself out.
-export function computeGraphLayout(
+// The jobs a level shows: those an `if` doesn't rule out, with each matrix
+// collapsed into one synthetic job.
+function displayJobsOf(
   engine: WorkflowEngine,
   jobs: Record<string, WorkflowJob>,
   matrixGroups: Record<string, MatrixGroup>,
-  layout?: GraphLayout,
 ) {
   const visibleJobs = structuredClone(jobs)
-  for (const jobName of Object.keys(jobs ?? {})) {
+  for (const jobName of Object.keys(jobs)) {
     // Note that this will also evaluate hidden properly for some jobs with expressions in if property
     // for example will work as expected for expressons dependent on inputs, will NEVER hide jobs with if expressions dependent on job outputs
     if (jobs[jobName]?.if === false) {
@@ -340,6 +342,18 @@ export function computeGraphLayout(
   // Collapse matrix groups into single synthetic nodes in the layout.
   // Expand/collapse is purely a rendering concern inside the node.
   engine.collapseMatrixGroups(matrixGroups, visibleJobs)
+  return visibleJobs
+}
+
+// Topologically level `jobs` into columns and precompute hop distances, so each
+// Subgraph can lay itself out.
+export function computeGraphLayout(
+  engine: WorkflowEngine,
+  jobs: Record<string, WorkflowJob>,
+  matrixGroups: Record<string, MatrixGroup>,
+  layout?: GraphLayout,
+) {
+  const visibleJobs = displayJobsOf(engine, jobs, matrixGroups)
 
   const allDeps: Record<string, Set<string>> = {}
   for (const jobName of Object.keys(visibleJobs)) {
@@ -364,49 +378,42 @@ export function computeGraphLayout(
   }
 
   const depended_on: Record<string, string[]> = {}
-  Object.keys(visibleJobs).map((jobName) => {
-    if (filteredDeps[jobName] && Array.isArray(filteredDeps[jobName])) {
-      filteredDeps[jobName].forEach((dep) => {
-        if (depended_on[dep]) {
-          depended_on[dep].push(jobName)
-        } else {
-          depended_on[dep] = [jobName]
-        }
-      })
+  for (const jobName of Object.keys(visibleJobs)) {
+    for (const dep of filteredDeps[jobName] ?? []) {
+      depended_on[dep] ??= []
+      depended_on[dep].push(jobName)
     }
-  })
+  }
+  for (const dependents of Object.values(depended_on)) {
+    dependents.sort()
+  }
 
-  Object.keys(visibleJobs).map((jobName) => {
-    if (depended_on[jobName]) {
-      depended_on[jobName].sort()
-    }
-  })
-
-  const unfinished = structuredClone(visibleJobs)
+  const unfinished = new Set(Object.keys(visibleJobs))
   const rootLevel: string[] = []
   const deps: string[][] = [rootLevel]
-  Object.keys(visibleJobs).map((jobName) => {
+  for (const jobName of unfinished) {
     if (filteredDeps[jobName]?.length === 0) {
       rootLevel.push(jobName)
-      delete unfinished[jobName]
+      unfinished.delete(jobName)
     }
-  })
+  }
 
   let prevLen: number
   do {
     const toAppend: string[] = []
-    const unfinishedArr = Object.keys(unfinished)
-    prevLen = unfinishedArr.length
-    unfinishedArr.map((jobName) => {
-      if ((filteredDeps[jobName] ?? []).every((dep) => !unfinishedArr.includes(dep))) {
+    // Each pass levels against the jobs left at its start.
+    const pending = new Set(unfinished)
+    prevLen = pending.size
+    for (const jobName of pending) {
+      if ((filteredDeps[jobName] ?? []).every((dep) => !pending.has(dep))) {
         toAppend.push(jobName)
-        delete unfinished[jobName]
+        unfinished.delete(jobName)
       }
-    })
+    }
     if (toAppend.length > 0) {
       deps.push(toAppend)
     }
-  } while (prevLen !== Object.keys(unfinished).length)
+  } while (prevLen !== unfinished.size)
 
   // Jobs share a box when they need, and are needed by, the same jobs.
   const together = (head: string, jobName: string): boolean => {
@@ -434,7 +441,7 @@ export function computeGraphLayout(
       : null
   const finalDeps: string[][][] = laidOut ? laidOut.map((col) => col.boxes) : []
   if (!laidOut) {
-    deps.map((col) => {
+    deps.forEach((col) => {
       const toAppend: string[][] = []
       while (col.length > 0) {
         const head = col[0]
@@ -443,7 +450,7 @@ export function computeGraphLayout(
         }
         const grouped = [head]
         const toRm = [0]
-        col.slice(1).map((jobName, j) => {
+        col.slice(1).forEach((jobName, j) => {
           // Never group matrix nodes with other jobs
           if (!alone(head) && !alone(jobName) && together(head, jobName)) {
             grouped.push(jobName)
@@ -457,21 +464,11 @@ export function computeGraphLayout(
     })
   }
 
-  while (finalDeps.length > 0) {
-    const first = finalDeps[0]
-    if (!first) {
-      break
-    }
-    if (first.length === 0) {
-      finalDeps.splice(0, 1)
-      continue
-    }
-    if (first[0]?.length !== 0) {
-      break
-    }
-    while (first.length > 0 && first[0]?.length === 0) {
-      first.splice(0, 1)
-    }
+  // Only the root column can be empty: when every job needs another (its needs
+  // may name hidden jobs), the first pass above levels them instead.
+  if (finalDeps[0]?.length === 0) {
+    finalDeps.shift()
+    laidOut?.shift()
   }
 
   // BFS from each node to compute hop distances to ancestors and descendants
@@ -492,8 +489,8 @@ export function computeGraphLayout(
     // BFS upstream (ancestors)
     const aDist = new Map<string, number>()
     const q1: [string, number][] = [[start, 0]]
-    while (q1.length > 0) {
-      const [job, d] = q1.shift()!
+    for (let next = q1.shift(); next; next = q1.shift()) {
+      const [job, d] = next
       for (const dep of filteredDeps[job] ?? []) {
         if (!aDist.has(dep)) {
           aDist.set(dep, d + 1)
@@ -505,8 +502,8 @@ export function computeGraphLayout(
     // BFS downstream (descendants)
     const dDist = new Map<string, number>()
     const q2: [string, number][] = [[start, 0]]
-    while (q2.length > 0) {
-      const [job, d] = q2.shift()!
+    for (let next = q2.shift(); next; next = q2.shift()) {
+      const [job, d] = next
       for (const child of reverseDeps[job] ?? []) {
         if (!dDist.has(child)) {
           dDist.set(child, d + 1)
@@ -529,6 +526,84 @@ export function computeGraphLayout(
     displayJobs: visibleJobs,
     ancestorDists,
     descendantDists,
+  }
+}
+
+// One level's job list handlers. The graph and the summary sidebar share them and
+// differ only in how they show an expanded subworkflow (renderWell).
+function jobHandlers({
+  engine,
+  jobs,
+  displayJobs,
+  pathPrefix,
+  stepsOpen,
+  toggleSteps,
+  expandedSubworkflows,
+  toggleSubworkflow,
+  openInNewGraph,
+  setSublogOpen,
+  renderWell,
+  editStep,
+}: {
+  engine: WorkflowEngine
+  jobs: Record<string, WorkflowJob>
+  displayJobs: Record<string, WorkflowJob>
+  pathPrefix: string
+  stepsOpen: Set<string>
+  toggleSteps: (key: string) => void
+  expandedSubworkflows: Set<string>
+  toggleSubworkflow: (key: string) => void
+  openInNewGraph: (prefix: string, job: string, step: number) => void
+  setSublogOpen: (path: string) => void
+  renderWell: (
+    subJobs: Record<string, WorkflowJob>,
+    subPrefix: string,
+    expanded: boolean,
+  ) => ReactNode
+  /** On an editable graph, a step opens for editing instead of its log. */
+  editStep?: ((job: string, step: number) => void) | undefined
+}): JobHandlers {
+  const isStepsOpen = (j: string) => stepsOpen.has(pathPrefix + j)
+  const subworkflowKey = (j: string, s: number) => `${pathPrefix}${j}:${s}`
+  const openLog = (j: string, s: number) => setSublogOpen(engine.stepLogPath(pathPrefix, j, s))
+  return {
+    isStepsOpen,
+    onJobClick: (j) => {
+      const status = jobs[j]?.status ?? displayJobs[j]?.status
+      if (!isStepsOpen(j) && (status === 'skipped' || status === 'skipped-failed')) {
+        return
+      }
+      toggleSteps(pathPrefix + j)
+    },
+    onStepClick: (j, s) => {
+      const step = jobs[j]?.steps?.[s]
+      if (step?.status === 'skipped' || step?.status === 'skipped-failed') {
+        return
+      }
+      // Cleanup steps the preview appends as POST steps aren't YAML steps.
+      if (editStep && !step?.linkedStep) {
+        editStep(jobs[j]?._matrix?.originaljob ?? j, s)
+        return
+      }
+      if (step?.subworkflow) {
+        toggleSubworkflow(subworkflowKey(j, s))
+      } else {
+        openLog(j, s)
+      }
+    },
+    onStepLogClick: openLog,
+    onSubworkflowIcon: (j, s) => openInNewGraph(pathPrefix, j, s),
+    renderSubworkflow: (j, s) => {
+      const subJobs = jobs[j]?.steps?.[s]?.subworkflow?.jobs
+      if (!subJobs) {
+        return null
+      }
+      return renderWell(
+        subJobs,
+        `${pathPrefix}subworkflows/${j}/step_${s}/`,
+        expandedSubworkflows.has(subworkflowKey(j, s)),
+      )
+    },
   }
 }
 
@@ -563,6 +638,8 @@ function SubworkflowWell({
 // node's background instead of its base lines disappearing behind it. Large
 // enough to clear one level's full z range; accumulates with depth.
 const SUBGRAPH_Z_STEP = 100
+const CONNECTOR_COLOR = 'var(--theme-border)'
+const HIGHLIGHT_COLOR = 'var(--theme-element)'
 const FIT_ANIMATION_MS = 300
 
 // The least shift that brings [start, end] inside [low, high], keeping the start in view when it can't all fit.
@@ -716,13 +793,14 @@ function Subgraph({
   // Nodes are measured from the live DOM during render, so force one repaint once
   // this level's layout is committed and whenever its size changes (data load,
   // inline expansion). invalidateConnectors re-renders every level top-down.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: dependencyCols is the layout change that re-measures connectors.
   useEffect(() => {
     const raf = requestAnimationFrame(() => {
       invalidateConnectors()
       onReady?.()
     })
     return () => cancelAnimationFrame(raf)
-  }, [invalidateConnectors, onReady])
+  }, [dependencyCols, invalidateConnectors, onReady])
   useEffect(() => {
     const el = wrapperRef.current
     if (!el) {
@@ -740,6 +818,7 @@ function Subgraph({
   // the box layer is memoized so this only re-renders the connector SVGs; while a
   // subworkflow is expanded its live nested graph re-renders too.
   const didRevealMountRef = useRef(false)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the reveal state is the trigger to re-measure, not an input.
   useEffect(() => {
     if (!didRevealMountRef.current) {
       didRevealMountRef.current = true
@@ -758,7 +837,7 @@ function Subgraph({
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [invalidateConnectors])
+  }, [stepsOpen, matrixOpen, expandedSubworkflows, invalidateConnectors])
 
   // The box layer (node boxes + their steps) doesn't change when connectors are
   // invalidated — only positions move, which CSS handles — so build it in a
@@ -766,56 +845,31 @@ function Subgraph({
   // re-renders. When a subworkflow is expanded in this subtree the boxes contain
   // a live nested graph that must keep animating, so fall back to a fresh build
   // for those frames.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: Subgraph closes over this render's graph state.
   const buildBoxLayer = useCallback(() => {
-    const isStepsOpen = (j: string) => stepsOpen.has(pathPrefix + j)
-    const onJobClick = (j: string) => {
-      const status = jobs[j]?.status ?? displayJobs[j]?.status
-      if (!isStepsOpen(j) && (status === 'skipped' || status === 'skipped-failed')) {
-        return
-      }
-      toggleSteps(pathPrefix + j)
-    }
-    const expandInline = (j: string, s: number) => {
-      toggleSubworkflow(`${pathPrefix}${j}:${s}`)
-      requestAnimationFrame(invalidateConnectors)
-    }
-    const openNew = (j: string, s: number) => openInNewGraph(pathPrefix, j, s)
-    const onStepClick = (j: string, s: string | number) => {
-      const stepStatus = jobs[j]?.steps?.[+s]?.status
-      if (stepStatus === 'skipped' || stepStatus === 'skipped-failed') {
-        return
-      }
-      // Cleanup steps the preview appends as POST steps aren't YAML steps.
-      if (editable && editorApi && !jobs[j]?.steps?.[+s]?.linkedStep) {
-        editorApi.editStep(jobs[j]?._matrix?.originaljob ?? j, +s)
-        return
-      }
-      if (jobs[j]?.steps[+s]?.subworkflow) {
-        expandInline(j, +s)
-      } else {
-        setSublogOpen(engine.stepLogPath(pathPrefix, j, s))
-      }
-    }
-    const onStepLogClick = (j: string, s: number) =>
-      setSublogOpen(engine.stepLogPath(pathPrefix, j, s))
-    const onSubworkflowIcon = (j: string, s: number) => openNew(j, s)
-    const isSubworkflowExpanded = (j: string, s: number) =>
-      expandedSubworkflows.has(`${pathPrefix}${j}:${s}`)
-    const renderSubworkflow = (j: string, s: number): ReactNode => {
-      const subJobs = jobs[j]?.steps?.[s]?.subworkflow?.jobs
-      if (!subJobs) {
-        return null
-      }
-      return (
+    const handlers = jobHandlers({
+      engine,
+      jobs,
+      displayJobs,
+      pathPrefix,
+      stepsOpen,
+      toggleSteps,
+      expandedSubworkflows,
+      toggleSubworkflow: (key) => {
+        toggleSubworkflow(key)
+        requestAnimationFrame(invalidateConnectors)
+      },
+      openInNewGraph,
+      setSublogOpen,
+      editStep: editable && editorApi ? (j, s) => editorApi.editStep(j, s) : undefined,
+      renderWell: (subJobs, subPrefix, expanded) => (
         <SubworkflowWell
-          expanded={isSubworkflowExpanded(j, s)}
+          expanded={expanded}
           onSettled={requestFit}
           className="my-2 rounded-lg border-4 border-(--theme-border)"
         >
-          <Subgraph
+          <NestedSubgraph
             jobs={subJobs}
-            pathPrefix={`${pathPrefix}subworkflows/${j}/step_${s}/`}
+            pathPrefix={subPrefix}
             depth={depth + 1}
             preview={preview}
             animT={animT}
@@ -831,8 +885,8 @@ function Subgraph({
             toggleMatrix={toggleMatrix}
           />
         </SubworkflowWell>
-      )
-    }
+      ),
+    })
     return (
       <div className="flex relative">
         {dependencyCols.map((col, c) => {
@@ -844,14 +898,18 @@ function Subgraph({
               )}
             >
               {col.map((jobNames, i) => {
-                const matrixGroup = displayJobs[jobNames[0]!]?._matrixGroup
+                const first = jobNames[0]
+                if (first === undefined) {
+                  return null
+                }
+                const matrixGroup = displayJobs[first]?._matrixGroup
                 const rowsAbove =
                   (rowSlots[c]?.[i] ?? i) - (i === 0 ? 0 : (rowSlots[c]?.[i - 1] ?? i - 1) + 1)
 
                 if (matrixGroup) {
                   return (
                     <MatrixGroupNode
-                      key={`node_${jobNames[0]}`}
+                      key={`node_${first}`}
                       matrixGroup={matrixGroup}
                       jobNames={jobNames}
                       idPrefix={pathPrefix}
@@ -859,18 +917,12 @@ function Subgraph({
                       onToggle={() => toggleMatrix(pathPrefix + matrixGroup.originaljob)}
                       jobs={jobs}
                       activeDists={activeDists}
-                      onMouseEnter={() => setHoveredJob(jobNames[0]!)}
+                      onMouseEnter={() => setHoveredJob(first)}
                       onMouseLeave={() => setHoveredJob(null)}
                       hoveredRelated={hoveredRelated}
                       animT={animT}
                       zBase={zBase}
-                      isStepsOpen={isStepsOpen}
-                      onJobClick={onJobClick}
-                      onStepClick={onStepClick}
-                      onStepLogClick={onStepLogClick}
-                      onSubworkflowIcon={onSubworkflowIcon}
-                      isSubworkflowExpanded={isSubworkflowExpanded}
-                      renderSubworkflow={renderSubworkflow}
+                      handlers={handlers}
                       preview={preview}
                       editable={editable}
                       rowsAbove={rowsAbove}
@@ -879,24 +931,24 @@ function Subgraph({
                 }
                 return (
                   <div
-                    key={`node_${jobNames[0]}`}
-                    id={`node_${pathPrefix}${jobNames[0]}`}
+                    key={`node_${first}`}
+                    id={`node_${pathPrefix}${first}`}
                     role="none"
                     className="relative m-24"
                     style={{
-                      zIndex: (activeDists?.has(jobNames[0]!) ? 25 : 1) + zBase,
+                      zIndex: (activeDists?.has(first) ? 25 : 1) + zBase,
                       ...emptyRowsStyle(rowsAbove),
                     }}
-                    onMouseEnter={() => setHoveredJob(jobNames[0]!)}
+                    onMouseEnter={() => setHoveredJob(first)}
                     onMouseLeave={() => setHoveredJob(null)}
-                    onFocus={() => setHoveredJob(jobNames[0]!)}
+                    onFocus={() => setHoveredJob(first)}
                     onBlur={() => setHoveredJob(null)}
                   >
                     <div className="absolute inset-0 rounded-2xl bg-(--theme-panel-bg)" />
                     <div
                       className="relative border-solid shadow py-4 px-8 rounded-xl border-4 whitespace-nowrap bg-(--theme-panel-bg) text-2xl"
                       style={{
-                        opacity: hoveredRelated && !hoveredRelated.has(jobNames[0]!) ? 0.5 : 1,
+                        opacity: hoveredRelated && !hoveredRelated.has(first) ? 0.5 : 1,
                         transition: `opacity ${animT}s`,
                       }}
                     >
@@ -905,13 +957,7 @@ function Subgraph({
                       <Joblist
                         jobs={displayJobs}
                         jobNames={jobNames}
-                        onJobClick={onJobClick}
-                        isStepsOpen={isStepsOpen}
-                        onStepClick={onStepClick}
-                        onStepLogClick={onStepLogClick}
-                        onSubworkflowIcon={onSubworkflowIcon}
-                        isSubworkflowExpanded={isSubworkflowExpanded}
-                        renderSubworkflow={renderSubworkflow}
+                        {...handlers}
                         growWidth={true}
                         preview={preview}
                         editable={editable}
@@ -946,25 +992,18 @@ function Subgraph({
     toggleMatrix,
     openInNewGraph,
     setSublogOpen,
+    engine,
     invalidateConnectors,
     requestFit,
     editable,
     editorApi,
-    engine.stepLogPath,
   ])
   const memoizedBoxLayer = useMemo(() => buildBoxLayer(), [buildBoxLayer])
   // A live nested graph exists in this subtree only if an expanded subworkflow
   // key falls under this level's path prefix.
   const hasLiveNestedGraph = Array.from(expandedSubworkflows).some((k) => k.startsWith(pathPrefix))
 
-  if (
-    !Array.isArray(dependencyCols) ||
-    dependencyCols.length === 0 ||
-    !Array.isArray(dependencyCols[0]) ||
-    dependencyCols[0].length === 0 ||
-    !Array.isArray(dependencyCols[0][0]) ||
-    dependencyCols[0][0].length === 0
-  ) {
+  if (!dependencyCols[0]?.length) {
     return null
   }
 
@@ -1023,9 +1062,13 @@ function Subgraph({
         let minAdy = Number.POSITIVE_INFINITY
         for (const col of dependencyCols) {
           for (const jobNames of col) {
-            for (const dep of depsOf(jobNames[0]!)) {
+            const first = jobNames[0]
+            if (first === undefined) {
+              continue
+            }
+            for (const dep of depsOf(first)) {
               const s = gid(dep)
-              const e = gid(jobNames[0]!)
+              const e = gid(first)
               if (!s || !e) {
                 continue
               }
@@ -1072,241 +1115,241 @@ function Subgraph({
         const hits: ReactNode[] = []
         const connectors = dependencyCols.map((col) => (
           <React.Fragment key={col[0]?.[0]}>
-            {col.map((jobNames) => (
-              <React.Fragment key={jobNames[0]}>
-                {editable && ports(jobNames)}
-                {depsOf(jobNames[0]!).map((dep) => {
-                  const isHighlighted =
-                    hoveredRelated?.has(jobNames[0]!) && hoveredRelated?.has(dep)
-                  const baseColor = 'var(--theme-border)'
-                  // Compute animation delay for this connector
-                  const depDist = activeDists?.get(dep) ?? 0
-                  const targetDist = activeDists?.get(jobNames[0]!) ?? 0
-                  const hopDelay = animT
-                  const closerDist = Math.min(depDist, targetDist)
-                  const connectorDelay = closerDist * hopDelay
-                  const retractDelay = (maxHoveredDistRef.current - closerDist) * hopDelay
-                  const drawRightToLeft = targetDist < depDist
-                  const start = gid(dep)
-                  const end = gid(jobNames[0]!)
-                  if (!start || !end) {
-                    return null
-                  }
-                  const x1 = ox(start) + start.offsetWidth - 2
-                  const y1 = nodeConnectorY(start)
-                  const x2 = ox(end) + 2
-                  const y2 = nodeConnectorY(end)
-                  const selected = selectedEdges.some(
-                    (edge) => edge.from === dep && edge.to === jobNames[0],
-                  )
-                  const dy = y2 - y1
-                  const ady = Math.abs(dy)
+            {col.map((jobNames) => {
+              const first = jobNames[0]
+              if (first === undefined) {
+                return null
+              }
+              return (
+                <React.Fragment key={first}>
+                  {editable && ports(jobNames)}
+                  {depsOf(first).map((dep) => {
+                    const isHighlighted = hoveredRelated?.has(first) && hoveredRelated?.has(dep)
+                    // Each hop from the hovered node delays the animation by animT
+                    const depDist = activeDists?.get(dep) ?? 0
+                    const targetDist = activeDists?.get(first) ?? 0
+                    const closerDist = Math.min(depDist, targetDist)
+                    const connectorDelay = closerDist * animT
+                    const retractDelay = (maxHoveredDistRef.current - closerDist) * animT
+                    const drawRightToLeft = targetDist < depDist
+                    const start = gid(dep)
+                    const end = gid(first)
+                    if (!start || !end) {
+                      return null
+                    }
+                    const x1 = ox(start) + start.offsetWidth - 2
+                    const y1 = nodeConnectorY(start)
+                    const x2 = ox(end) + 2
+                    const y2 = nodeConnectorY(end)
+                    const selected = selectedEdges.some(
+                      (edge) => edge.from === dep && edge.to === first,
+                    )
+                    const dy = y2 - y1
+                    const ady = Math.abs(dy)
 
-                  let pathD: string
-                  let pathLen: number
-                  let pathDReversed: string
-                  const r = arcR
-                  if (ady === 0) {
-                    // Straight horizontal line
-                    pathD = `M ${x1} ${y1} L ${x2} ${y2}`
-                    pathDReversed = `M ${x2} ${y2} L ${x1} ${y1}`
-                    pathLen = x2 - x1
-                  } else {
-                    // 5 components: horizontal + arc + vertical + arc + horizontal
-                    const s = dy > 0 ? 1 : -1
-                    // Trailing horizontal is fixed (colGap/2 - r from target)
-                    // Leading horizontal absorbs extra distance for multi-column spans
-                    const hTrail = colGap / 2 - r
-                    const ax2end = x2 - hTrail // where arc 2 ends
-                    const ax = ax2end - 2 * r // where arc 1 starts
-                    const sw1 = dy > 0 ? 1 : 0
-                    const sw2 = dy > 0 ? 0 : 1
-                    pathD = [
-                      `M ${x1} ${y1}`,
-                      `L ${ax} ${y1}`,
-                      `A ${r} ${r} 0 0 ${sw1} ${ax + r} ${y1 + s * r}`,
-                      `L ${ax + r} ${y2 - s * r}`,
-                      `A ${r} ${r} 0 0 ${sw2} ${ax2end} ${y2}`,
-                      `L ${x2} ${y2}`,
-                    ].join(' ')
-                    // Reversed: same points in reverse order, sweep flags flipped
-                    pathDReversed = [
-                      `M ${x2} ${y2}`,
-                      `L ${ax2end} ${y2}`,
-                      `A ${r} ${r} 0 0 ${sw1} ${ax + r} ${y2 - s * r}`,
-                      `L ${ax + r} ${y1 + s * r}`,
-                      `A ${r} ${r} 0 0 ${sw2} ${ax} ${y1}`,
-                      `L ${x1} ${y1}`,
-                    ].join(' ')
-                    const arcLen = (Math.PI * r) / 2
-                    const vSeg = Math.max(0, ady - 2 * r)
-                    pathLen = ax - x1 + arcLen + vSeg + arcLen + (x2 - ax2end)
-                  }
+                    let pathD: string
+                    let pathLen: number
+                    let pathDReversed: string
+                    const r = arcR
+                    if (ady === 0) {
+                      // Straight horizontal line
+                      pathD = `M ${x1} ${y1} L ${x2} ${y2}`
+                      pathDReversed = `M ${x2} ${y2} L ${x1} ${y1}`
+                      pathLen = x2 - x1
+                    } else {
+                      // 5 components: horizontal + arc + vertical + arc + horizontal
+                      const s = dy > 0 ? 1 : -1
+                      // Trailing horizontal is fixed (colGap/2 - r from target)
+                      // Leading horizontal absorbs extra distance for multi-column spans
+                      const hTrail = colGap / 2 - r
+                      const ax2end = x2 - hTrail // where arc 2 ends
+                      const ax = ax2end - 2 * r // where arc 1 starts
+                      const sw1 = dy > 0 ? 1 : 0
+                      const sw2 = dy > 0 ? 0 : 1
+                      pathD = [
+                        `M ${x1} ${y1}`,
+                        `L ${ax} ${y1}`,
+                        `A ${r} ${r} 0 0 ${sw1} ${ax + r} ${y1 + s * r}`,
+                        `L ${ax + r} ${y2 - s * r}`,
+                        `A ${r} ${r} 0 0 ${sw2} ${ax2end} ${y2}`,
+                        `L ${x2} ${y2}`,
+                      ].join(' ')
+                      // Reversed: same points in reverse order, sweep flags flipped
+                      pathDReversed = [
+                        `M ${x2} ${y2}`,
+                        `L ${ax2end} ${y2}`,
+                        `A ${r} ${r} 0 0 ${sw1} ${ax + r} ${y2 - s * r}`,
+                        `L ${ax + r} ${y1 + s * r}`,
+                        `A ${r} ${r} 0 0 ${sw2} ${ax} ${y1}`,
+                        `L ${x1} ${y1}`,
+                      ].join(' ')
+                      const arcLen = (Math.PI * r) / 2
+                      const vSeg = Math.max(0, ady - 2 * r)
+                      pathLen = ax - x1 + arcLen + vSeg + arcLen + (x2 - ax2end)
+                    }
 
-                  if (editable) {
-                    hits.push(
-                      <React.Fragment key={`${dep}→${jobNames[0]}`}>
-                        {selected && (
+                    if (editable) {
+                      hits.push(
+                        <React.Fragment key={`${dep}→${first}`}>
+                          {selected && (
+                            <path
+                              d={pathD}
+                              stroke="var(--theme-element)"
+                              strokeWidth="10"
+                              fill="transparent"
+                            />
+                          )}
+                          <EdgeHitPath d={pathD} edge={{ from: dep, to: first }} />
+                        </React.Fragment>,
+                      )
+                    }
+                    return (
+                      <React.Fragment key={dep}>
+                        {/* Dots: background square + inner dot — above nodes */}
+                        <svg
+                          aria-hidden="true"
+                          overflow="visible"
+                          className="absolute pointer-events-none"
+                          style={{
+                            zIndex:
+                              (isHighlighted || (activeDists?.has(dep) && activeDists?.has(first))
+                                ? 30
+                                : 10) + zBase,
+                          }}
+                        >
+                          {/* Background square (panel color) — creates gap between inner dot and node edge */}
+                          <rect
+                            x={x1 - 16}
+                            y={y1 - 16}
+                            width={32}
+                            height={32}
+                            fill="var(--theme-panel-bg)"
+                          />
+                          <rect
+                            x={x2 - 16}
+                            y={y2 - 16}
+                            width={32}
+                            height={32}
+                            fill="var(--theme-panel-bg)"
+                          />
+                          {/* Inner filled dot — start */}
+                          <circle
+                            cx={x1}
+                            cy={y1}
+                            r="8"
+                            fill={isHighlighted ? HIGHLIGHT_COLOR : CONNECTOR_COLOR}
+                            style={{
+                              opacity: hoveredRelated && !isHighlighted ? 0.3 : 1,
+                              transition: isHighlighted
+                                ? `fill ${animT}s ${depDist * animT}s, opacity 0s`
+                                : `fill ${animT}s ${(maxHoveredDistRef.current - depDist) * animT}s, opacity 0s`,
+                            }}
+                          />
+                          {/* Inner filled dot — end */}
+                          <circle
+                            cx={x2}
+                            cy={y2}
+                            r="8"
+                            fill={isHighlighted ? HIGHLIGHT_COLOR : CONNECTOR_COLOR}
+                            style={{
+                              opacity: hoveredRelated && !isHighlighted ? 0.3 : 1,
+                              transition: isHighlighted
+                                ? `fill ${animT}s ${targetDist * animT}s, opacity 0s`
+                                : `fill ${animT}s ${(maxHoveredDistRef.current - targetDist) * animT}s, opacity 0s`,
+                            }}
+                          />
+                        </svg>
+                        <svg
+                          aria-hidden="true"
+                          overflow="visible"
+                          className="absolute pointer-events-none"
+                          style={{ zIndex: (isHighlighted ? 20 : -1) + zBase }}
+                        >
+                          {/* Background mask — always full opacity, clears overlapping lines behind */}
                           <path
                             d={pathD}
-                            stroke="var(--theme-element)"
-                            strokeWidth="10"
+                            stroke="var(--theme-panel-bg)"
+                            strokeWidth="6"
                             fill="transparent"
                           />
+                          {/* Base colored path */}
+                          <path
+                            d={pathD}
+                            stroke={CONNECTOR_COLOR}
+                            strokeWidth="6"
+                            fill="transparent"
+                            style={{
+                              opacity: hoveredRelated && !isHighlighted ? 0.3 : 1,
+                              transition: `opacity 0s`,
+                            }}
+                          />
+                        </svg>
+                        {/* Blue overlay — draws in via dashoffset, above nodes */}
+                        <svg
+                          aria-hidden="true"
+                          overflow="visible"
+                          className="absolute pointer-events-none"
+                          style={{ zIndex: 20 + zBase }}
+                        >
+                          {/* Draw-in: always mounted so transition can animate from hidden to visible */}
+                          <path
+                            d={drawRightToLeft ? pathDReversed : pathD}
+                            fill="transparent"
+                            style={{
+                              stroke: HIGHLIGHT_COLOR,
+                              strokeWidth: 6,
+                              strokeDasharray: `${pathLen} ${pathLen}`,
+                              strokeDashoffset: isHighlighted ? 0 : pathLen,
+                              opacity: isHighlighted ? 1 : 0,
+                              transition: isHighlighted
+                                ? `stroke-dashoffset ${animT}s ease ${connectorDelay}s, opacity 0s ease ${connectorDelay}s`
+                                : 'stroke-dashoffset 0s, opacity 0s',
+                            }}
+                          />
+                          {/* Draw-out: only rendered during highlight or active retract */}
+                          {(() => {
+                            const connKey = `${dep}→${first}`
+                            if (isHighlighted) {
+                              retractPathLensRef.current.set(connKey, pathLen)
+                            }
+                            const isRetracting =
+                              !isHighlighted && !!activeDists?.has(dep) && !!activeDists?.has(first)
+                            if (!isHighlighted && !isRetracting) {
+                              return null
+                            }
+                            const frozenLen = retractPathLensRef.current.get(connKey) ?? pathLen
+                            return (
+                              <path
+                                d={drawRightToLeft ? pathDReversed : pathD}
+                                fill="transparent"
+                                style={{
+                                  stroke: HIGHLIGHT_COLOR,
+                                  strokeWidth: 6,
+                                  strokeDasharray: `${frozenLen} ${frozenLen}`,
+                                  strokeDashoffset: isHighlighted ? 0 : frozenLen,
+                                  opacity: isHighlighted ? 0 : 1,
+                                  transition: isHighlighted
+                                    ? 'stroke-dashoffset 0s, opacity 0s'
+                                    : `stroke-dashoffset ${animT}s ease ${retractDelay}s, opacity 0s`,
+                                }}
+                              />
+                            )
+                          })()}
+                        </svg>
+                        {editable && selected && (
+                          <EdgeEnds
+                            edge={{ from: dep, to: first }}
+                            start={{ x: x1, y: y1 }}
+                            end={{ x: x2, y: y2 }}
+                            zIndex={45 + zBase}
+                          />
                         )}
-                        <EdgeHitPath d={pathD} edge={{ from: dep, to: jobNames[0]! }} />
-                      </React.Fragment>,
+                      </React.Fragment>
                     )
-                  }
-                  return (
-                    <React.Fragment key={dep}>
-                      {/* Dots: background square + inner dot — above nodes */}
-                      <svg
-                        aria-hidden="true"
-                        overflow="visible"
-                        className="absolute pointer-events-none"
-                        style={{
-                          zIndex:
-                            (isHighlighted ||
-                            (activeDists?.has(dep) && activeDists?.has(jobNames[0]!))
-                              ? 30
-                              : 10) + zBase,
-                        }}
-                      >
-                        {/* Background square (panel color) — creates gap between inner dot and node edge */}
-                        <rect
-                          x={x1 - 16}
-                          y={y1 - 16}
-                          width={32}
-                          height={32}
-                          fill="var(--theme-panel-bg)"
-                        />
-                        <rect
-                          x={x2 - 16}
-                          y={y2 - 16}
-                          width={32}
-                          height={32}
-                          fill="var(--theme-panel-bg)"
-                        />
-                        {/* Inner filled dot — start */}
-                        <circle
-                          cx={x1}
-                          cy={y1}
-                          r="8"
-                          fill={isHighlighted ? 'var(--theme-element)' : baseColor}
-                          style={{
-                            opacity: hoveredRelated && !isHighlighted ? 0.3 : 1,
-                            transition: isHighlighted
-                              ? `fill ${animT}s ${depDist * hopDelay}s, opacity 0s`
-                              : `fill ${animT}s ${(maxHoveredDistRef.current - depDist) * hopDelay}s, opacity 0s`,
-                          }}
-                        />
-                        {/* Inner filled dot — end */}
-                        <circle
-                          cx={x2}
-                          cy={y2}
-                          r="8"
-                          fill={isHighlighted ? 'var(--theme-element)' : baseColor}
-                          style={{
-                            opacity: hoveredRelated && !isHighlighted ? 0.3 : 1,
-                            transition: isHighlighted
-                              ? `fill ${animT}s ${targetDist * hopDelay}s, opacity 0s`
-                              : `fill ${animT}s ${(maxHoveredDistRef.current - targetDist) * hopDelay}s, opacity 0s`,
-                          }}
-                        />
-                      </svg>
-                      <svg
-                        aria-hidden="true"
-                        overflow="visible"
-                        className="absolute pointer-events-none"
-                        style={{ zIndex: (isHighlighted ? 20 : -1) + zBase }}
-                      >
-                        {/* Background mask — always full opacity, clears overlapping lines behind */}
-                        <path
-                          d={pathD}
-                          stroke="var(--theme-panel-bg)"
-                          strokeWidth="6"
-                          fill="transparent"
-                        />
-                        {/* Base colored path */}
-                        <path
-                          d={pathD}
-                          stroke={baseColor}
-                          strokeWidth="6"
-                          fill="transparent"
-                          style={{
-                            opacity: hoveredRelated && !isHighlighted ? 0.3 : 1,
-                            transition: `opacity 0s`,
-                          }}
-                        />
-                      </svg>
-                      {/* Blue overlay — draws in via dashoffset, above nodes */}
-                      <svg
-                        aria-hidden="true"
-                        overflow="visible"
-                        className="absolute pointer-events-none"
-                        style={{ zIndex: 20 + zBase }}
-                      >
-                        {/* Draw-in: always mounted so transition can animate from hidden to visible */}
-                        <path
-                          d={drawRightToLeft ? pathDReversed : pathD}
-                          fill="transparent"
-                          style={{
-                            stroke: 'var(--theme-element)',
-                            strokeWidth: 6,
-                            strokeDasharray: `${pathLen} ${pathLen}`,
-                            strokeDashoffset: isHighlighted ? 0 : pathLen,
-                            opacity: isHighlighted ? 1 : 0,
-                            transition: isHighlighted
-                              ? `stroke-dashoffset ${animT}s ease ${connectorDelay}s, opacity 0s ease ${connectorDelay}s`
-                              : 'stroke-dashoffset 0s, opacity 0s',
-                          }}
-                        />
-                        {/* Draw-out: only rendered during highlight or active retract */}
-                        {(() => {
-                          const connKey = `${dep}→${jobNames[0]}`
-                          if (isHighlighted) {
-                            retractPathLensRef.current.set(connKey, pathLen)
-                          }
-                          const isRetracting =
-                            !isHighlighted &&
-                            !!activeDists?.has(dep) &&
-                            !!activeDists?.has(jobNames[0]!)
-                          if (!isHighlighted && !isRetracting) {
-                            return null
-                          }
-                          const frozenLen = retractPathLensRef.current.get(connKey) ?? pathLen
-                          return (
-                            <path
-                              d={drawRightToLeft ? pathDReversed : pathD}
-                              fill="transparent"
-                              style={{
-                                stroke: 'var(--theme-element)',
-                                strokeWidth: 6,
-                                strokeDasharray: `${frozenLen} ${frozenLen}`,
-                                strokeDashoffset: isHighlighted ? 0 : frozenLen,
-                                opacity: isHighlighted ? 0 : 1,
-                                transition: isHighlighted
-                                  ? 'stroke-dashoffset 0s, opacity 0s'
-                                  : `stroke-dashoffset ${animT}s ease ${retractDelay}s, opacity 0s`,
-                              }}
-                            />
-                          )
-                        })()}
-                      </svg>
-                      {editable && selected && (
-                        <EdgeEnds
-                          edge={{ from: dep, to: jobNames[0]! }}
-                          start={{ x: x1, y: y1 }}
-                          end={{ x: x2, y: y2 }}
-                          zIndex={45 + zBase}
-                        />
-                      )}
-                    </React.Fragment>
-                  )
-                })}
-              </React.Fragment>
-            ))}
+                  })}
+                </React.Fragment>
+              )
+            })}
           </React.Fragment>
         ))
         return (
@@ -1334,11 +1377,8 @@ function Subgraph({
   )
 }
 
-// Animated indented container for an inline-expanded subworkflow in the summary
-// sidebar (no graph/connectors — just a nested job list).
-function SidebarWell({ expanded, children }: { expanded: boolean; children: ReactNode }) {
-  return <Collapse expanded={expanded}>{children}</Collapse>
-}
+// A level renders its nested levels through this module binding, which hooks see as stable.
+const NestedSubgraph = Subgraph
 
 // Recursive summary-sidebar list: renders each job (or matrix group) and, for an
 // expanded subworkflow step, an indented title + nested SidebarJobs. Mirrors the
@@ -1371,50 +1411,28 @@ function SidebarJobs({
   setSublogOpen: (path: string) => void
 }) {
   const engine = useWorkflowEngine()
-  const matrixGroups = useMemo(() => engine.matrixGroups(jobs), [engine, jobs])
-  const { displayJobs } = useMemo(
-    () => computeGraphLayout(engine, jobs, matrixGroups),
-    [engine, jobs, matrixGroups],
+  const displayJobs = useMemo(
+    () => displayJobsOf(engine, jobs, engine.matrixGroups(jobs)),
+    [engine, jobs],
   )
-
-  const isStepsOpen = (j: string) => stepsOpen.has(pathPrefix + j)
-  const onJobClick = (j: string) => {
-    const status = jobs[j]?.status ?? displayJobs[j]?.status
-    if (!isStepsOpen(j) && (status === 'skipped' || status === 'skipped-failed')) {
-      return
-    }
-    toggleSteps(pathPrefix + j)
-  }
-  const expandInline = (j: string, s: number) => toggleSubworkflow(`${pathPrefix}${j}:${s}`)
-  const openNew = (j: string, s: number) => openInNewGraph(pathPrefix, j, s)
-  const onStepClick = (j: string, s: string | number) => {
-    const stepStatus = jobs[j]?.steps?.[+s]?.status
-    if (stepStatus === 'skipped' || stepStatus === 'skipped-failed') {
-      return
-    }
-    if (jobs[j]?.steps[+s]?.subworkflow) {
-      expandInline(j, +s)
-    } else {
-      setSublogOpen(engine.stepLogPath(pathPrefix, j, s))
-    }
-  }
-  const onStepLogClick = (j: string, s: number) =>
-    setSublogOpen(engine.stepLogPath(pathPrefix, j, s))
-  const onSubworkflowIcon = (j: string, s: number) => openNew(j, s)
-  const isSubworkflowExpanded = (j: string, s: number) =>
-    expandedSubworkflows.has(`${pathPrefix}${j}:${s}`)
-
-  const renderSubworkflow = (j: string, s: number): ReactNode => {
-    const subJobs = jobs[j]?.steps?.[s]?.subworkflow?.jobs
-    if (!subJobs) {
-      return null
-    }
-    return (
-      <SidebarWell expanded={isSubworkflowExpanded(j, s)}>
+  const handlers = jobHandlers({
+    engine,
+    jobs,
+    displayJobs,
+    pathPrefix,
+    stepsOpen,
+    toggleSteps,
+    expandedSubworkflows,
+    toggleSubworkflow,
+    openInNewGraph,
+    setSublogOpen,
+    // No graph or connectors here, just the nested job list, indented.
+    renderWell: (subJobs, subPrefix, expanded) => (
+      <Collapse expanded={expanded}>
         <div className="ml-6 mt-0.5 border-l border-(--theme-border) pl-4">
           <SidebarJobs
             jobs={subJobs}
-            pathPrefix={`${pathPrefix}subworkflows/${j}/step_${s}/`}
+            pathPrefix={subPrefix}
             preview={preview}
             stepsOpen={stepsOpen}
             toggleSteps={toggleSteps}
@@ -1426,9 +1444,9 @@ function SidebarJobs({
             setSublogOpen={setSublogOpen}
           />
         </div>
-      </SidebarWell>
-    )
-  }
+      </Collapse>
+    ),
+  })
 
   // Matrix members are keyed `originaljob-N`, but the collapsed group node is keyed
   // by the bare originaljob; fold members onto their group key so each matrix
@@ -1459,13 +1477,7 @@ function SidebarJobs({
               isExpanded={matrixOpen.has(pathPrefix + mg.originaljob)}
               onToggle={() => toggleMatrix(pathPrefix + mg.originaljob)}
               jobs={jobs}
-              isStepsOpen={isStepsOpen}
-              onJobClick={onJobClick}
-              onStepClick={onStepClick}
-              onStepLogClick={onStepLogClick}
-              onSubworkflowIcon={onSubworkflowIcon}
-              isSubworkflowExpanded={isSubworkflowExpanded}
-              renderSubworkflow={renderSubworkflow}
+              handlers={handlers}
               preview={preview}
             />
           )
@@ -1475,13 +1487,7 @@ function SidebarJobs({
             key={`job-${pathPrefix}${jobName}`}
             jobs={jobs}
             jobNames={[jobName]}
-            onJobClick={onJobClick}
-            isStepsOpen={isStepsOpen}
-            onStepClick={onStepClick}
-            onStepLogClick={onStepLogClick}
-            onSubworkflowIcon={onSubworkflowIcon}
-            isSubworkflowExpanded={isSubworkflowExpanded}
-            renderSubworkflow={renderSubworkflow}
+            {...handlers}
             preview={preview}
           />
         )
@@ -1550,7 +1556,6 @@ export default function DependencyGraph({
 }: {
   run: GraphRun
   preview?: boolean
-  initialScale?: number
   removeBorder?: boolean | undefined
   viewMode?: ViewMode
   setViewMode?: (mode: ViewMode) => void
@@ -1634,7 +1639,7 @@ export default function DependencyGraph({
   )
   const containerHeight = topOffset !== null ? Math.max(windowSize.h - topOffset - 16, 160) : null
 
-  // A preview has no viewport to fill (marketplace previews, docs examples), so
+  // A preview has no viewport to fill (embedded previews, docs examples), so
   // its panel is only as tall as the graph. The transform library mounts its
   // content after the first commit, so the observer watches the panel and the
   // measurement retries until the graph is up.
@@ -1693,7 +1698,8 @@ export default function DependencyGraph({
     const timer = setInterval(() => setNow(DateTime.now()), 1000)
     return () => clearInterval(timer)
   }, [isRunFinished])
-  const jobs = walkJobPath(rootJobs, executedJobsPath[executedJobsPathIdx] ?? [])
+  const currentPath = executedJobsPath[executedJobsPathIdx] ?? []
+  const jobs = walkJobPath(rootJobs, currentPath)
   const editorState = useGraphEditorState({
     editor,
     jobs,
@@ -1724,28 +1730,12 @@ export default function DependencyGraph({
   )
 
   const toggleSubworkflow = useCallback((key: string) => {
-    setExpandedSubworkflows((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) {
-        next.delete(key)
-      } else {
-        next.add(key)
-      }
-      return next
-    })
+    setExpandedSubworkflows((prev) => toggled(prev, key))
   }, [])
 
   const toggleSteps = useCallback(
     (key: string) => {
-      setStepsOpen((prev) => {
-        const next = new Set(prev)
-        if (next.has(key)) {
-          next.delete(key)
-        } else {
-          next.add(key)
-        }
-        return next
-      })
+      setStepsOpen((prev) => toggled(prev, key))
       requestAnimationFrame(invalidateConnectors)
     },
     [invalidateConnectors],
@@ -1753,15 +1743,7 @@ export default function DependencyGraph({
 
   const toggleMatrix = useCallback(
     (key: string) => {
-      setMatrixOpen((prev) => {
-        const next = new Set(prev)
-        if (next.has(key)) {
-          next.delete(key)
-        } else {
-          next.add(key)
-        }
-        return next
-      })
+      setMatrixOpen((prev) => toggled(prev, key))
       requestAnimationFrame(invalidateConnectors)
     },
     [invalidateConnectors],
@@ -1784,20 +1766,19 @@ export default function DependencyGraph({
     }
   }, [sublogOpen, sublogs, sublogsError, sublogsLoading])
 
-  const jobAndStep = sublogOpen.split('/').slice(-3, -1)
-  if (jobAndStep.length > 1) {
-    jobAndStep[1] = jobAndStep[1]?.split('_')[1] ?? ''
-  }
+  const [sublogJob = '', sublogStepDir] = sublogOpen.split('/').slice(-3, -1)
+  const sublogStep = sublogStepDir === undefined ? undefined : (sublogStepDir.split('_')[1] ?? '')
   // Paging needs a path naming a job and step. A subworkflow's general log is its
   // parent step's log so it qualifies; a run's own logs.out has no step_ to read.
-  const sublogIsStep = jobAndStep.length > 1
-  const logJob = jobAndStep[0] ?? ''
-  const logName =
-    jobAndStep.length > 1
-      ? `Job: ${(logJob.charAt(0).toUpperCase() + logJob.slice(1)).replace(/_/g, ' ')} \nStep: ${jobs[logJob]?.steps[Number(jobAndStep[1])]?.name || `Step ${jobAndStep[1]}`}`
-      : ''
-  const sublogIsSubworkflow =
-    jobAndStep.length > 1 && jobs[jobAndStep[0]!]?.steps[Number(jobAndStep[1])]?.subworkflow
+  const sublogIsStep = sublogStep !== undefined
+  const sublogStepData = sublogIsStep ? jobs[sublogJob]?.steps[Number(sublogStep)] : undefined
+  const logName = sublogIsStep
+    ? `Job: ${jobLabel(sublogJob)} \nStep: ${sublogStepData?.name || `Step ${sublogStep}`}`
+    : ''
+  const sublogIsSubworkflow = !!sublogStepData?.subworkflow
+  // The step's log and its script sit side by side; the toggle swaps one for the other.
+  const sublogFileStart = sublogOpen.lastIndexOf('/') + 1
+  const sublogShowsLog = sublogOpen.slice(sublogFileStart) === 'logs.out'
 
   const matrixGroups = useMemo(() => engine.matrixGroups(jobs), [engine, jobs])
   const { dependencyCols } = useMemo(
@@ -1995,31 +1976,28 @@ export default function DependencyGraph({
     )
   }, [])
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a resized window or a re-rooted graph re-fits the view.
   useEffect(() => {
     if (preview) {
       return
     }
     const raf = requestAnimationFrame(() => fitGraph())
     return () => cancelAnimationFrame(raf)
-  }, [preview, fitGraph])
+  }, [preview, fitGraph, windowSize, executedJobsPathIdx])
 
-  const currentPath = executedJobsPath[executedJobsPathIdx] ?? []
   const nestingDepth = currentPath.length / 5
-  let pathAppend = ''
+  const levelPrefixes: string[] = []
   for (let i = 0; i < nestingDepth; i++) {
-    pathAppend += `subworkflows/${currentPath[5 * i]}/step_${currentPath[5 * i + 2]?.toString()}/`
+    levelPrefixes.push(`subworkflows/${currentPath[5 * i]}/step_${currentPath[5 * i + 2]}/`)
   }
+  const pathAppend = levelPrefixes.join('')
   // For subworkflows, the "general log" is the parent step's log file
   // (the new executor doesn't create a logs.out at the subworkflow root)
   let generalLogPath = 'logs.out'
   if (nestingDepth > 0) {
-    let parentPrefix = ''
-    for (let i = 0; i < nestingDepth - 1; i++) {
-      parentPrefix += `subworkflows/${currentPath[5 * i]}/step_${currentPath[5 * i + 2]?.toString()}/`
-    }
     const lastJob = String(currentPath[5 * (nestingDepth - 1)] ?? '')
     const lastStep = currentPath[5 * (nestingDepth - 1) + 2] ?? ''
-    generalLogPath = engine.stepLogPath(parentPrefix, lastJob, lastStep)
+    generalLogPath = engine.stepLogPath(levelPrefixes.slice(0, -1).join(''), lastJob, lastStep)
   }
 
   // A failed fetch, an end reason, and a truly empty log need distinct wording.
@@ -2034,7 +2012,7 @@ export default function DependencyGraph({
     sublogOpen === ''
       ? ''
       : preview
-        ? engine.toYaml(jobs[jobAndStep[0]!]?.steps[Number(jobAndStep[1])])
+        ? engine.toYaml(sublogStepData)
         : sublogsError || !sublogs
           ? missingLogText
           : sublogs
@@ -2051,7 +2029,7 @@ export default function DependencyGraph({
     expansionKeys.subworkflowKeys.every((k) => expandedSubworkflows.has(k)) &&
     expansionKeys.matrixKeys.every((k) => matrixOpen.has(k))
   const resetView = () => {
-    if ((executedJobsPath[executedJobsPathIdx]?.length ?? 0) > 0) {
+    if (currentPath.length > 0) {
       resetGraph()
       setExecutedJobsPath([[], ...executedJobsPath.slice(executedJobsPathIdx, 10)])
       setExecutedJobsPathIdx(0)
@@ -2083,7 +2061,7 @@ export default function DependencyGraph({
     (backward: boolean) => {
       const sublogSplit = sublogOpen.split('/')
       let job = sublogSplit[sublogSplit.length - 3] ?? ''
-      let step = parseInt(sublogSplit[sublogSplit.length - 2]?.slice(5) ?? '', 10)
+      let step = parseInt((sublogSplit[sublogSplit.length - 2] ?? '').slice(5), 10)
       const jobArr = Object.keys(jobs)
       let idx = jobArr.indexOf(job)
       if (backward) {
@@ -2166,14 +2144,7 @@ export default function DependencyGraph({
     ],
   )
 
-  if (
-    !Array.isArray(dependencyCols) ||
-    dependencyCols.length === 0 ||
-    !Array.isArray(dependencyCols[0]) ||
-    dependencyCols[0].length === 0 ||
-    !Array.isArray(dependencyCols[0][0]) ||
-    dependencyCols[0][0].length === 0
-  ) {
+  if (!dependencyCols[0]?.length) {
     return editorState ? (
       <GraphEditorProvider value={editorState.api}>
         <EmptyGraphEditor overlays={editorState.overlays} height={fixedHeight ?? '240px'} />
@@ -2200,29 +2171,24 @@ export default function DependencyGraph({
   ) : undefined
 
   const additionalBottomRightBarComponents =
-    (!preview || sublogIsSubworkflow) && sublogOpen && sublogIsStep ? (
+    (!preview || sublogIsSubworkflow) && sublogIsStep ? (
       <button
         type="button"
         className="btn btn-neutral"
         onClick={() => {
           if (sublogIsSubworkflow) {
-            openInNewGraph(pathAppend, jobAndStep[0]!, parseInt(jobAndStep[1]!, 10))
+            openInNewGraph(pathAppend, sublogJob, parseInt(sublogStep ?? '', 10))
             setSublogOpen('')
           } else {
             setSublogOpen(
-              sublogOpen.split('/').slice(-1)[0] === 'logs.out'
-                ? [...sublogOpen.split('/').slice(0, -1), 'script-unstable-redacted.sh'].join('/')
-                : [...sublogOpen.split('/').slice(0, -1), 'logs.out'].join('/'),
+              sublogOpen.slice(0, sublogFileStart) +
+                (sublogShowsLog ? 'script-unstable-redacted.sh' : 'logs.out'),
             )
           }
         }}
       >
         <span>
-          {sublogIsSubworkflow
-            ? 'Open Subworkflow'
-            : sublogOpen.split('/').slice(-1)[0] === 'logs.out'
-              ? 'Show Script'
-              : 'Show Logs'}
+          {sublogIsSubworkflow ? 'Open Subworkflow' : sublogShowsLog ? 'Show Script' : 'Show Logs'}
         </span>
       </button>
     ) : undefined
@@ -2287,7 +2253,7 @@ export default function DependencyGraph({
             <div className="flex flex-col">
               <div className="text-xs">{dagStrings.submitted}</div>
               <div className="text-sm font-semibold flex items-center gap-x-1">
-                {startDt ? startDt.toLocaleString(DateTime.DATETIME_SHORT) : ''}
+                {startDt.toLocaleString(DateTime.DATETIME_SHORT)}
               </div>
             </div>
             {/* Spacer */}
@@ -2301,7 +2267,7 @@ export default function DependencyGraph({
                     setStepsOpen(new Set())
                     requestAnimationFrame(fitGraph)
                   }
-                  setViewMode?.(mode)
+                  setViewMode(mode)
                 }}
               />
             )}
@@ -2312,8 +2278,6 @@ export default function DependencyGraph({
           <div className="panel w-full border">
             <TreeView
               jobs={jobs}
-              workflowName={workflowName}
-              runNumber={runNumber}
               slug={runSlug}
               expandedJobs={expandedJobs}
               setExpandedJobs={setExpandedJobs}
@@ -2323,12 +2287,11 @@ export default function DependencyGraph({
           <div
             ref={setContainerElement}
             tabIndex={editorState ? -1 : undefined}
-            className={
-              'panel w-full ' +
-              (removeBorder ? 'border-none' : 'border') +
-              ' overflow-hidden relative' +
-              (editorState ? ' outline-none' : '')
-            }
+            className={cx(
+              'panel w-full overflow-hidden relative',
+              removeBorder ? 'border-none' : 'border',
+              editorState && 'outline-none',
+            )}
             style={{
               height:
                 fixedHeight ??
@@ -2465,7 +2428,7 @@ export default function DependencyGraph({
             </div>
           ) : (
             <LogViewer
-              log={currentSublog?.length > 1000 ? currentSublog.slice(-100000) : currentSublog}
+              log={currentSublog.slice(-100000)}
               height={windowSize.h / 1.2}
               width={windowSize.w / 1.2}
               hideExpand={true}
@@ -2483,7 +2446,6 @@ export default function DependencyGraph({
 
 export function DependencyGraphPreview(inputs: {
   yml?: Record<string, unknown>
-  initialScale?: number
   removeBorder?: boolean
   layout?: GraphLayout | undefined
   editor?: DependencyGraphEditor | undefined
@@ -2505,7 +2467,6 @@ export function DependencyGraphPreview(inputs: {
         workflowName: '',
       }}
       preview={true}
-      initialScale={inputs.initialScale || 1}
       removeBorder={inputs.removeBorder}
       layout={inputs.layout}
       editor={inputs.editor}
