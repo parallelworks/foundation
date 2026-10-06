@@ -14,9 +14,10 @@ as `make dev` or `pnpm dev`; every example below works the same way with
 
 ```sh
 go -C tools get -tool github.com/parallelworks/foundation/dev/cmd/dev
-go -C tools tool dev            # everything
-go -C tools tool dev web        # only the web service
-go -C tools tool dev logs api   # another terminal: the api service's output
+go -C tools tool dev                # everything
+go -C tools tool dev web            # only the web service
+go -C tools tool dev restart api    # another terminal: rebuild and restart api
+go -C tools tool dev logs api web   # another terminal: their output
 ```
 
 Describe the app in `dev.json` at the repository root:
@@ -47,8 +48,10 @@ Describe the app in `dev.json` at the repository root:
 
 | Command | |
 | --- | --- |
-| `dev [service...]` | Run the stack and the services named, or every service not marked `manual`, until interrupted. Each line is prefixed with its source |
-| `dev logs service [-f]` | Print a service's output from the latest run, and with `-f` keep following it |
+| `dev [service...]` | Run the stack and the services named, or every service not marked `manual`, until interrupted. In a terminal it shows the interactive view; piped, in CI or with `--plain` it prints each line prefixed with its source |
+| `dev status` | Show the running dev's services and their states |
+| `dev start`, `stop`, `restart` *service* | Drive one service of the running dev; `restart` rebuilds a server |
+| `dev logs [service...] [-f]` | Print services' output from the latest run (all of them when none is named), and with `-f` keep following it |
 | `dev stack` | Run Postgres on `:5432` and S3 on `127.0.0.1:8333` until interrupted. User, password and database are `name` (required with Postgres); tests get `name_test` |
 | `dev wait` | Block until a stack started elsewhere accepts connections |
 | `dev reset` | Delete the stack's data |
@@ -57,6 +60,24 @@ Data and each service's latest log live in `.devstack/` beside `dev.json`, or
 `--dir`. The command finds `dev.json` from the working directory up, which is
 how `go -C tools tool dev` finds it from `tools/`. A Postgres left running by a stack that was
 killed is stopped on the next start.
+
+## The interactive view
+
+In a terminal, `dev` takes over the screen with its services, their states
+(building, running, failed, exited, stopped) and the stack's addresses:
+
+| Key | |
+| --- | --- |
+| `↑` `↓` | Select a service |
+| `enter` | Its output; `esc` goes back, `↑` `↓` `pgup` `pgdn` scroll, `end` follows |
+| `a` | Every service's output, interleaved |
+| `r` | Restart the service, rebuilding a server |
+| `s` | Start or stop it, including a `manual` one |
+| `q` | Stop everything and quit |
+
+`dev status`, `start`, `stop` and `restart` reach a running dev through a Unix
+socket in a directory only you can enter, so a second terminal or a tool can
+drive it while the view runs. Only one dev runs per checkout.
 
 ## Services
 

@@ -21,57 +21,11 @@ const stopGrace = 10 * time.Second
 // service not marked Manual. Each service's output is prefixed with its name
 // and also written to its log under cfg.Dir.
 func Up(ctx context.Context, cfg Config, logger *slog.Logger, out io.Writer, names ...string) error {
-	cfg, err := cfg.withDefaults()
+	s, err := newSupervisor(cfg, logger, out)
 	if err != nil {
 		return err
 	}
-	services, err := cfg.selectServices(names)
-	if err != nil {
-		return err
-	}
-	env, err := cfg.environ(nil)
-	if err != nil {
-		return err
-	}
-	o, err := newOutputs(out, cfg, services)
-	if err != nil {
-		return err
-	}
-	defer o.close()
-	if err := runBefore(ctx, cfg, env, o.writer("before")); err != nil || ctx.Err() != nil {
-		return err
-	}
-
-	if cfg.Postgres != nil || cfg.S3 != nil {
-		stack, err := StartStack(ctx, cfg, logger)
-		if err != nil {
-			return err
-		}
-		defer func() {
-			if err := stack.Stop(context.WithoutCancel(ctx)); err != nil {
-				logger.ErrorContext(ctx, "stop stack", "error", err)
-			}
-		}()
-	}
-
-	// Compiling every server at once exhausts a laptop's memory.
-	builds := make(chan struct{}, 1)
-	var wg sync.WaitGroup
-	for _, svc := range services {
-		env, err := cfg.environ(&svc)
-		if err != nil {
-			return fmt.Errorf("%s: %w", svc.Name, err)
-		}
-		w := o.writer(svc.Name)
-		log := logger.With("service", svc.Name)
-		if len(svc.Build) > 0 {
-			wg.Go(func() { runServer(ctx, cfg, svc, env, builds, w, log) })
-		} else {
-			wg.Go(func() { runProcess(ctx, svc, env, w, log) })
-		}
-	}
-	wg.Wait()
-	return nil
+	return s.run(ctx, names...)
 }
 
 func (c Config) selectServices(names []string) ([]Service, error) {
@@ -116,23 +70,26 @@ func runBefore(ctx context.Context, cfg Config, env []string, out *lineWriter) e
 	return nil
 }
 
-func runProcess(ctx context.Context, svc Service, env []string, out *lineWriter, logger *slog.Logger) {
+func runProcess(ctx context.Context, svc Service, env []string, out *lineWriter, logger *slog.Logger, set func(state, string)) {
 	defer out.flush()
 	proc, err := startProc(svc.Run, svc.Dir, env, out)
 	if err != nil {
 		logger.ErrorContext(ctx, "start", "error", err)
+		set(stateExited, err.Error())
 		return
 	}
+	set(stateRunning, "")
 	select {
 	case <-ctx.Done():
 		proc.stop()
 	case <-proc.done:
 		proc.drain()
 		logger.WarnContext(ctx, "exited", "status", exitStatus(proc.err))
+		set(stateExited, exitStatus(proc.err))
 	}
 }
 
-func runServer(ctx context.Context, cfg Config, svc Service, env []string, builds chan struct{}, out *lineWriter, logger *slog.Logger) {
+func runServer(ctx context.Context, cfg Config, svc Service, env []string, builds chan struct{}, out *lineWriter, logger *slog.Logger, set func(state, string)) {
 	defer out.flush()
 	// The stack's own data and logs change constantly and are never source.
 	w, err := newWatcher(svc.Watch, append([]string{cfg.Dir}, svc.Exclude...), svc.Extensions, logger)
@@ -150,6 +107,7 @@ func runServer(ctx context.Context, cfg Config, svc Service, env []string, build
 		}
 	}()
 	for {
+		set(stateBuilding, "")
 		start := time.Now()
 		built := build(ctx, svc, env, builds, out)
 		if ctx.Err() != nil {
@@ -163,9 +121,13 @@ func runServer(ctx context.Context, cfg Config, svc Service, env []string, build
 			logger.InfoContext(ctx, "built", "in", time.Since(start).Round(time.Millisecond))
 			if server, err = startProc(svc.Run, svc.Dir, env, out); err != nil {
 				logger.ErrorContext(ctx, "start", "error", err)
+				set(stateExited, err.Error())
+			} else {
+				set(stateRunning, "")
 			}
 		} else {
 			logger.ErrorContext(ctx, "build failed; waiting for a change")
+			set(stateFailed, "build failed")
 		}
 
 		var exited <-chan struct{}
@@ -178,6 +140,7 @@ func runServer(ctx context.Context, cfg Config, svc Service, env []string, build
 		case <-changed:
 		case <-exited:
 			logger.WarnContext(ctx, "exited; waiting for a change", "status", exitStatus(server.err))
+			set(stateExited, exitStatus(server.err))
 			server = nil
 			select {
 			case <-ctx.Done():
@@ -219,6 +182,8 @@ type outputs struct {
 	width int
 	color bool
 	next  int
+	rings map[string]*ring
+	all   *ring // every source's lines, prefixed
 }
 
 func newOutputs(out io.Writer, cfg Config, services []Service) (*outputs, error) {
@@ -226,7 +191,7 @@ func newOutputs(out io.Writer, cfg Config, services []Service) (*outputs, error)
 	if err := os.MkdirAll(logs, 0o750); err != nil {
 		return nil, err
 	}
-	o := &outputs{out: out, logs: logs, width: len("before"), color: colorEnabled(out)}
+	o := &outputs{out: out, logs: logs, width: len("before"), color: colorEnabled(out), rings: map[string]*ring{}, all: newRing(allLines)}
 	for _, svc := range services {
 		o.width = max(o.width, len(svc.Name))
 	}
@@ -242,7 +207,13 @@ func (o *outputs) writer(name string) *lineWriter {
 		prefix = "\x1b[" + palette[o.next%len(palette)] + "m" + prefix + "\x1b[0m"
 		o.next++
 	}
-	w := &lineWriter{mu: &o.mu, out: o.out, prefix: prefix}
+	r := newRing(serviceLines)
+	o.rings[name] = r
+	plain := fmt.Sprintf("%-*s │ ", o.width, name)
+	w := &lineWriter{mu: &o.mu, out: o.out, prefix: prefix, sink: func(line string) {
+		r.add(line)
+		o.all.add(plain + line)
+	}}
 	// Each run starts its logs afresh; a log that cannot be opened only
 	// costs the copy, never the terminal output.
 	if f, err := os.Create(LogPath(o.logs, name)); err == nil {
@@ -250,6 +221,50 @@ func (o *outputs) writer(name string) *lineWriter {
 		w.log = f
 	}
 	return w
+}
+
+// recent returns a source's recent lines, or every source's when name is
+// empty.
+func (o *outputs) recent(name string) []string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if name == "" {
+		return o.all.lines()
+	}
+	if r := o.rings[name]; r != nil {
+		return r.lines()
+	}
+	return nil
+}
+
+// How much output the TUI can scroll back through.
+const (
+	serviceLines = 2000
+	allLines     = 5000
+)
+
+// ring keeps the last lines written to it. Its owner's mutex guards it.
+type ring struct {
+	buf  []string
+	next int
+	full bool
+}
+
+func newRing(n int) *ring { return &ring{buf: make([]string, n)} }
+
+func (r *ring) add(line string) {
+	r.buf[r.next] = line
+	r.next = (r.next + 1) % len(r.buf)
+	if r.next == 0 {
+		r.full = true
+	}
+}
+
+func (r *ring) lines() []string {
+	if !r.full {
+		return slices.Clone(r.buf[:r.next])
+	}
+	return append(slices.Clone(r.buf[r.next:]), r.buf[:r.next]...)
 }
 
 func (o *outputs) close() {

@@ -97,7 +97,10 @@ type S3 struct {
 
 // reserved are the dev command's own subcommands, which a service name would
 // be unreachable behind.
-var reserved = map[string]bool{"stack": true, "wait": true, "reset": true, "logs": true, "help": true, "completion": true}
+var reserved = map[string]bool{
+	"stack": true, "wait": true, "reset": true, "logs": true, "status": true,
+	"start": true, "stop": true, "restart": true, "help": true, "completion": true,
+}
 
 // The name lands in connection URLs and is the default for credentials, so
 // keep it to characters that need no escaping anywhere.

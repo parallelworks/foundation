@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -84,7 +85,8 @@ type lineWriter struct {
 	mu     *sync.Mutex
 	out    io.Writer
 	prefix string
-	log    io.Writer // unprefixed copy, or nil
+	log    io.Writer         // unprefixed copy, or nil
+	sink   func(line string) // called with each line, under mu; or nil
 	buf    []byte
 }
 
@@ -100,6 +102,9 @@ func (w *lineWriter) Write(p []byte) (int, error) {
 		line := string(w.buf[:i+1])
 		if w.log != nil {
 			_, _ = io.WriteString(w.log, line)
+		}
+		if w.sink != nil {
+			w.sink(strings.TrimRight(line, "\r\n"))
 		}
 		if _, err := io.WriteString(w.out, w.prefix+line); err != nil {
 			return len(p), err
@@ -117,6 +122,9 @@ func (w *lineWriter) flush() {
 		line := string(w.buf) + "\n"
 		if w.log != nil {
 			_, _ = io.WriteString(w.log, line)
+		}
+		if w.sink != nil {
+			w.sink(string(w.buf))
 		}
 		_, _ = io.WriteString(w.out, w.prefix+line)
 		w.buf = nil
