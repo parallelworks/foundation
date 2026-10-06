@@ -118,6 +118,10 @@ export const GRAPH_EDITOR_STRINGS = {
   sectionComputeEnvironment: 'Compute environment',
   runsOnHint: 'Run this job as a scheduler job on a compute environment, without your workspace.',
   runsOnNeedsEnvironment: 'Fill in both the cluster and the environment name.',
+  runsOnByName: 'Environment by name',
+  runsOnByTarget: 'Compute target',
+  runsOnNeedsMode: 'Choose where the job runs: a login node, an environment or a worker.',
+  targetModes: { login: 'Login node', environment: 'Environment', worker: 'Worker' },
   runsOnWithSsh:
     'A job runs on a compute environment or on a remote host, not both. Clear one of them.',
   matrixOn: 'Run once for every combination of values.',
@@ -249,6 +253,11 @@ export const GRAPH_EDITOR_STRINGS = {
     environmentCluster: 'Cluster',
     environmentName: 'Environment name',
     schedulingParams: 'Scheduling parameters',
+    targetMode: 'Runs on',
+    targetId: 'Target',
+    environmentId: 'Environment ID',
+    newWorker: 'New worker',
+    workerId: 'Worker ID',
     matrix: 'Run as a matrix',
     matrixSource: 'Matrix source',
     matrixExpression: 'Matrix expression',
@@ -318,6 +327,13 @@ export const GRAPH_EDITOR_STRINGS = {
     environmentName: 'The environment’s name on that cluster.',
     schedulingParams:
       'Settings for the scheduler, such as walltime. They’re checked against the environment’s own, after its defaults.',
+    targetMode:
+      'A cluster’s login node, one of its environments, or one of its connected workers. A compute target input fills these in when the workflow is launched.',
+    targetId: 'The cluster’s ID, or user-workspace for your workspace.',
+    environmentId: 'For an environment: the ID of the environment to run in.',
+    newWorker:
+      'For an environment: start a new worker for this job instead of using one that’s running.',
+    workerId: 'For a worker: the ID of the connected worker to run on.',
     matrixMode:
       'Type the values of each variable, or work the whole matrix out with an expression.',
     matrixVariables:
@@ -573,6 +589,7 @@ export const INPUTS_EDITOR_STRINGS = {
     step: 'Wizard step',
     'compute-clusters': 'Cluster',
     'compute-resources': 'Cluster or Kubernetes cluster',
+    'compute-target': 'Compute target',
     bucket: 'Storage bucket',
     'slurm-accounts': 'Slurm account',
     'slurm-partitions': 'Slurm partition',
@@ -614,6 +631,8 @@ export const INPUTS_EDITOR_STRINGS = {
     step: 'One page of fields when the form is shown as a wizard.',
     'compute-clusters': 'Pick one of the user’s clusters.',
     'compute-resources': 'Pick one of the user’s clusters or Kubernetes clusters.',
+    'compute-target':
+      'Pick where a job runs: the user’s workspace, a cluster’s login node, or one of its environments. A job runs there when its compute environment reads this input.',
     bucket: 'Pick one of the user’s storage buckets.',
     'slurm-accounts': 'Pick a Slurm account on a cluster.',
     'slurm-partitions': 'Pick a Slurm partition on a cluster.',

@@ -111,7 +111,7 @@ export const INPUT_TYPE_GROUPS: [keyof InputsEditorStrings['typeGroups'], string
   ['basic', ['string', 'number', 'duration', 'boolean', 'password', 'editor', 'color-picker']],
   ['choices', ['dropdown', 'multi-dropdown', 'radio', 'checkbox-group']],
   ['layout', ['group', 'list', 'header', 'step']],
-  ['compute', ['compute-clusters', 'compute-resources', 'bucket']],
+  ['compute', ['compute-clusters', 'compute-resources', 'compute-target', 'bucket']],
   ['schedulers', ['slurm-accounts', 'slurm-partitions', 'slurm-qos', 'pbs-queues']],
   ['cloud', ['region', 'zone', 'instance-type']],
   [

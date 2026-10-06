@@ -610,6 +610,57 @@ describe('DependencyGraphPreview editor', () => {
     })
   })
 
+  it('runs a job on a compute target, and asks where on it', () => {
+    const e = editor()
+    render(<DependencyGraphPreview yml={withInputs} editor={e} />)
+    fireEvent.contextMenu(jobRow('mac'), { clientX: 5, clientY: 5 })
+    fireEvent.click(screen.getByText('Edit job'))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Compute target' }))
+    fireEvent.change(within(dialog).getByLabelText('Target'), { target: { value: 'c1' } })
+    expect(within(dialog).getByText(GRAPH_EDITOR_STRINGS.runsOnNeedsMode)).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Save' })).toBeDisabled()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Login node' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'updateJob',
+      job: 'mac',
+      set: { 'runs-on': { mode: 'login', targetId: 'c1' } },
+      unset: [],
+    })
+  })
+
+  it('keeps the compute target a job runs on when its dialog changes something else', () => {
+    const target = {
+      mode: 'environment',
+      targetId: 'c1',
+      environmentId: 'env-1',
+      schedulingParams: { walltime: '01:00:00' },
+      newWorker: false,
+    }
+    const e = editor()
+    render(
+      <DependencyGraphPreview
+        yml={{ jobs: { build: { 'runs-on': target, steps: [{ run: 'make' }] } } }}
+        editor={e}
+      />,
+    )
+    fireEvent.contextMenu(jobRow('build'), { clientX: 5, clientY: 5 })
+    fireEvent.click(screen.getByText('Edit job'))
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByLabelText('Environment ID')).toHaveValue('env-1')
+    fireEvent.change(within(field('When to run')).getByLabelText('When to run'), {
+      target: { value: 'always' },
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'updateJob',
+      job: 'build',
+      set: { if: 'always' },
+      unset: [],
+    })
+  })
+
   it('runs a job on any condition typed in, offering the form’s choices', () => {
     const e = editor()
     render(<DependencyGraphPreview yml={withInputs} editor={e} />)

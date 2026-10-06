@@ -116,6 +116,12 @@ export const RUNS_ON_FIELDS = [
   'environment.cluster',
   'environment.name',
   'params',
+  'mode',
+  'targetId',
+  'environmentId',
+  'schedulingParams',
+  'newWorker',
+  'workerId',
 ] as const
 export const STRATEGY_FIELDS = [
   'matrix',
@@ -167,24 +173,75 @@ function sshError(fields: SshFields, t: Strings): string | undefined {
   return used && !fields.remoteHost.trim() ? t.remoteHostRequired : undefined
 }
 
-/** A job's compute environment, named by cluster and name, with the scheduler's parameters. */
+const TARGET_MODES = ['login', 'environment', 'worker'] as const
+type TargetMode = (typeof TARGET_MODES)[number]
+const TARGET_KEYS = [
+  'mode',
+  'targetId',
+  'environmentId',
+  'schedulingParams',
+  'newWorker',
+  'workerId',
+]
+
+/** Where a job runs: an environment named by cluster and name, or a compute target as its input writes it. */
 interface RunsOnFields {
+  kind: 'name' | 'target'
   cluster: string
   name: string
   params: Row[]
+  mode: string
+  targetId: string
+  environmentId: string
+  schedulingParams: Row[]
+  newWorker: boolean | undefined
+  workerId: string
 }
 
 function runsOnFrom(value: unknown): RunsOnFields {
   const record = asRecord(value)
   const environment = asRecord(record['environment'])
+  const newWorker = record['newWorker']
   return {
+    kind: TARGET_KEYS.some((key) => key in record) ? 'target' : 'name',
     cluster: text(environment['cluster']),
     name: text(environment['name']),
     params: rowsFrom(record['params'], false),
+    mode: text(record['mode']),
+    targetId: text(record['targetId']),
+    environmentId: text(record['environmentId']),
+    schedulingParams: rowsFrom(record['schedulingParams'], false),
+    newWorker: typeof newWorker === 'boolean' ? newWorker : undefined,
+    workerId: text(record['workerId']),
   }
 }
 
 function runsOnTo(fields: RunsOnFields): Json | undefined {
+  if (fields.kind === 'target') {
+    const mode = fields.mode.trim()
+    const targetId = fields.targetId.trim()
+    const environmentId = fields.environmentId.trim()
+    const schedulingParams = rowsTo(fields.schedulingParams, parseScalar)
+    const workerId = fields.workerId.trim()
+    if (
+      !mode &&
+      !targetId &&
+      !environmentId &&
+      !schedulingParams &&
+      fields.newWorker === undefined &&
+      !workerId
+    ) {
+      return undefined
+    }
+    return {
+      mode,
+      ...(targetId ? { targetId } : {}),
+      ...(environmentId ? { environmentId } : {}),
+      ...(schedulingParams ? { schedulingParams } : {}),
+      ...(fields.newWorker === undefined ? {} : { newWorker: fields.newWorker }),
+      ...(workerId ? { workerId } : {}),
+    }
+  }
   const cluster = fields.cluster.trim()
   const name = fields.name.trim()
   const params = rowsTo(fields.params, parseScalar)
@@ -196,13 +253,20 @@ function runsOnTo(fields: RunsOnFields): Json | undefined {
 
 const PARAM_KEY = /^[A-Za-z0-9_-]+$/
 
-// The engine refuses a job that sets both, and a compute environment needs both of its names.
+// The engine refuses a job that sets both, a compute environment needs both of its names,
+// and a compute target needs its mode.
 function runsOnError(fields: RunsOnFields, sshUsed: boolean, t: Strings): string | undefined {
   if (!runsOnTo(fields)) {
     return undefined
   }
   if (sshUsed) {
     return t.runsOnWithSsh
+  }
+  if (fields.kind === 'target') {
+    if (!TARGET_MODES.includes(fields.mode.trim() as TargetMode)) {
+      return t.runsOnNeedsMode
+    }
+    return rowsError(fields.schedulingParams, PARAM_KEY, t.invalidKey, t)
   }
   if (!fields.cluster.trim() || !fields.name.trim()) {
     return t.runsOnNeedsEnvironment
@@ -998,31 +1062,100 @@ function JobForm({
             />
           ) : (
             <>
-              <Input
-                mono
-                {...labelled(t.fields.environmentCluster, 'cluster')}
-                description={t.help.environmentCluster}
-                value={runsOn.cluster}
-                onChange={(e) => setRunsOn({ ...runsOn, cluster: e.target.value })}
+              <ChoiceButtons
+                options={[
+                  { value: 'name' as const, label: t.runsOnByName },
+                  { value: 'target' as const, label: t.runsOnByTarget },
+                ]}
+                value={runsOn.kind}
+                onChange={(kind) => setRunsOn({ ...runsOn, kind })}
               />
-              <Input
-                mono
-                {...labelled(t.fields.environmentName, 'name')}
-                description={t.help.environmentName}
-                value={runsOn.name}
-                onChange={(e) => setRunsOn({ ...runsOn, name: e.target.value })}
-              />
-              <LabelledField
-                label={t.fields.schedulingParams}
-                yamlKey="params"
-                description={t.help.schedulingParams}
-              >
-                <KeyValueEditor
-                  rows={runsOn.params}
-                  onChange={(params) => setRunsOn({ ...runsOn, params })}
-                  error={undefined}
-                />
-              </LabelledField>
+              {runsOn.kind === 'name' ? (
+                <>
+                  <Input
+                    mono
+                    {...labelled(t.fields.environmentCluster, 'cluster')}
+                    description={t.help.environmentCluster}
+                    value={runsOn.cluster}
+                    onChange={(e) => setRunsOn({ ...runsOn, cluster: e.target.value })}
+                  />
+                  <Input
+                    mono
+                    {...labelled(t.fields.environmentName, 'name')}
+                    description={t.help.environmentName}
+                    value={runsOn.name}
+                    onChange={(e) => setRunsOn({ ...runsOn, name: e.target.value })}
+                  />
+                  <LabelledField
+                    label={t.fields.schedulingParams}
+                    yamlKey="params"
+                    description={t.help.schedulingParams}
+                  >
+                    <KeyValueEditor
+                      rows={runsOn.params}
+                      onChange={(params) => setRunsOn({ ...runsOn, params })}
+                      error={undefined}
+                    />
+                  </LabelledField>
+                </>
+              ) : (
+                <>
+                  <LabelledField
+                    label={t.fields.targetMode}
+                    yamlKey="mode"
+                    description={t.help.targetMode}
+                  >
+                    <ChoiceButtons
+                      size="xs"
+                      options={TARGET_MODES.map((mode) => ({
+                        value: mode,
+                        label: t.targetModes[mode],
+                      }))}
+                      value={runsOn.mode as TargetMode}
+                      onChange={(mode) => setRunsOn({ ...runsOn, mode })}
+                    />
+                  </LabelledField>
+                  <Input
+                    mono
+                    {...labelled(t.fields.targetId, 'targetId')}
+                    description={t.help.targetId}
+                    value={runsOn.targetId}
+                    onChange={(e) => setRunsOn({ ...runsOn, targetId: e.target.value })}
+                  />
+                  <Input
+                    mono
+                    {...labelled(t.fields.environmentId, 'environmentId')}
+                    description={t.help.environmentId}
+                    value={runsOn.environmentId}
+                    onChange={(e) => setRunsOn({ ...runsOn, environmentId: e.target.value })}
+                  />
+                  <LabelledField
+                    label={t.fields.schedulingParams}
+                    yamlKey="schedulingParams"
+                    description={t.help.schedulingParams}
+                  >
+                    <KeyValueEditor
+                      rows={runsOn.schedulingParams}
+                      onChange={(schedulingParams) => setRunsOn({ ...runsOn, schedulingParams })}
+                      error={undefined}
+                    />
+                  </LabelledField>
+                  <ToggleField
+                    label={t.fields.newWorker}
+                    yamlKey="newWorker"
+                    description={t.help.newWorker}
+                    checked={runsOn.newWorker === true}
+                    onChange={(newWorker) => setRunsOn({ ...runsOn, newWorker })}
+                  />
+                  <Input
+                    mono
+                    {...labelled(t.fields.workerId, 'workerId')}
+                    description={t.help.workerId}
+                    value={runsOn.workerId}
+                    onChange={(e) => setRunsOn({ ...runsOn, workerId: e.target.value })}
+                  />
+                </>
+              )}
               <FieldError message={errors.runsOn} />
             </>
           )}
