@@ -1,6 +1,15 @@
 import cx from 'classnames'
 import { DateTime } from 'luxon'
-import React, { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, {
+  lazy,
+  type ReactNode,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { flushSync } from 'react-dom'
 import {
   type ReactZoomPanPinchContentRef,
@@ -29,22 +38,24 @@ import { LogViewer } from '../logviewer'
 import { AnnotationBanner } from './AnnotationBanner'
 import { Collapse } from './Collapse'
 import {
-  BoxGrip,
   type DependencyGraphEditor,
   EDITOR_HANDLE_CLASS,
+  emptyColumnsStyle,
+  emptyRowsStyle,
+  type GraphEditorApi,
+  GraphEditorProvider,
+  useGraphEditor,
+  useSelectedEdges,
+} from './editorApi'
+import {
+  BoxGrip,
   EdgeEnds,
   EdgeHitPath,
   EmptyGraphEditor,
-  emptyColumnsStyle,
-  emptyRowsStyle,
   GraphEditorCanvas,
-  GraphEditorProvider,
   NodePorts,
   ProblemOutline,
-  useGraphEditor,
-  useGraphEditorState,
-  useSelectedEdges,
-} from './GraphEditor'
+} from './editorRows'
 import { type JobHandlers, Joblist } from './JobSummary'
 import { MatrixGroupNode, MatrixGroupSummaryItem } from './MatrixGroup'
 import { Reveal } from './Reveal'
@@ -634,6 +645,8 @@ function SubworkflowWell({
 // node's background instead of its base lines disappearing behind it. Large
 // enough to clear one level's full z range; accumulates with depth.
 const SUBGRAPH_Z_STEP = 100
+// The editor loads only where a graph is edited, so runs and previews don't carry it.
+const GraphEditorOverlays = lazy(() => import('./GraphEditor'))
 const CONNECTOR_COLOR = 'var(--theme-border)'
 const HIGHLIGHT_COLOR = 'var(--theme-element)'
 const FIT_ANIMATION_MS = 300
@@ -1696,15 +1709,21 @@ export default function DependencyGraph({
   }, [isRunFinished])
   const currentPath = executedJobsPath[executedJobsPathIdx] ?? []
   const jobs = walkJobPath(rootJobs, currentPath)
-  const editorState = useGraphEditorState({
-    editor,
-    jobs,
-    yamlJobs,
-    inputs,
-    workflow,
-    layout,
-    container: containerEl,
-  })
+  const [editorApi, setEditorApi] = useState<GraphEditorApi | null>(null)
+  const editorOverlays = editor ? (
+    <Suspense fallback={null}>
+      <GraphEditorOverlays
+        editor={editor}
+        jobs={jobs}
+        yamlJobs={yamlJobs}
+        inputs={inputs}
+        workflow={workflow}
+        layout={layout}
+        container={containerEl}
+        onApi={setEditorApi}
+      />
+    </Suspense>
+  ) : null
 
   const resetGraph = useCallback(() => {
     setSublogOpen('')
@@ -1918,7 +1937,6 @@ export default function DependencyGraph({
 
   // A problem picked from any pane's list brings its job, or step, into view selected.
   const registerShow = editor?.registerShow
-  const editorApi = editorState?.api
   useEffect(() => {
     if (!editorApi) {
       return
@@ -2141,9 +2159,9 @@ export default function DependencyGraph({
   )
 
   if (!dependencyCols[0]?.length) {
-    return editorState ? (
-      <GraphEditorProvider value={editorState.api}>
-        <EmptyGraphEditor overlays={editorState.overlays} height={fixedHeight ?? '240px'} />
+    return editor ? (
+      <GraphEditorProvider value={editorApi}>
+        <EmptyGraphEditor overlays={editorOverlays} height={fixedHeight ?? '240px'} />
       </GraphEditorProvider>
     ) : undefined
   }
@@ -2282,11 +2300,11 @@ export default function DependencyGraph({
         ) : (
           <div
             ref={setContainerElement}
-            tabIndex={editorState ? -1 : undefined}
+            tabIndex={editor ? -1 : undefined}
             className={cx(
               'panel w-full overflow-hidden relative',
               removeBorder ? 'border-none' : 'border',
-              editorState && 'outline-none',
+              editor && 'outline-none',
             )}
             style={{
               height:
@@ -2304,7 +2322,7 @@ export default function DependencyGraph({
               minScale={minScale}
               maxScale={maxScale}
               initialScale={maxScale}
-              {...(editorState ? { panning: { excluded: [EDITOR_HANDLE_CLASS] } } : {})}
+              {...(editor ? { panning: { excluded: [EDITOR_HANDLE_CLASS] } } : {})}
               doubleClick={{ disabled: true }}
               limitToBounds={false}
               onInit={() => {
@@ -2377,14 +2395,14 @@ export default function DependencyGraph({
                         toggleMatrix={toggleMatrix}
                         onReady={fitGraph}
                         layout={currentPath.length === 0 ? layout : undefined}
-                        editable={!!editorState && currentPath.length === 0}
+                        editable={!!editorApi && currentPath.length === 0}
                       />
                     </div>
                   </TransformComponent>
                 </>
               )}
             </TransformWrapper>
-            {editorState?.overlays}
+            {editorOverlays}
           </div>
         )}
       </div>
@@ -2437,7 +2455,7 @@ export default function DependencyGraph({
       </BareModal>
     </div>
   )
-  return <GraphEditorProvider value={editorState?.api ?? null}>{graph}</GraphEditorProvider>
+  return <GraphEditorProvider value={editorApi}>{graph}</GraphEditorProvider>
 }
 
 export function DependencyGraphPreview(inputs: {

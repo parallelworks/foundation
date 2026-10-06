@@ -25,26 +25,23 @@ import {
   TrashIcon,
 } from '../icons'
 import { type MenuSearch, type RowMenuItem, useRowMenu } from '../list/RowContextMenu'
+import { type DependencyGraphEditor, type EditorProblem, overlaps, typing } from './editorApi'
+import { AddChip, BarDivider, DragLabel, EditorBar } from './editorChrome'
+import { asRecord, type Json, openOnAddOf, text } from './editorFields'
 import {
-  AddChip,
-  BarDivider,
   type Box,
   createStore,
-  DragLabel,
-  EditorBar,
   type Store as EditorStore,
   MarqueeBox,
   trackDrag,
   useStore,
-} from './editorChrome'
-import { asRecord, type Json, openOnAddOf, text } from './editorFields'
+} from './editorPrimitives'
 import {
   type GraphEditorStrings,
   type InputsEditorStrings,
   useGraphEditorStrings,
   useInputsEditorStrings,
 } from './editorStrings'
-import { type DependencyGraphEditor, type EditorProblem, overlaps, typing } from './GraphEditor'
 import {
   allNames,
   INPUT_TYPE_GROUPS,

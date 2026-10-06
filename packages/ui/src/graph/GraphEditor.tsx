@@ -1,20 +1,15 @@
 import cx from 'classnames'
 import {
-  type CSSProperties,
-  createContext,
   type ReactNode,
   type PointerEvent as ReactPointerEvent,
   type RefObject,
-  useContext,
   useEffect,
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
 } from 'react'
 import { IconButton } from '../components/IconButton'
 import { useWorkflowEditing } from '../components/Provider'
-import { TOOLTIP_ID } from '../components/Tooltip'
 import type {
   GraphEdit,
   GraphEditResult,
@@ -27,181 +22,56 @@ import type {
 } from '../editing'
 import {
   AddIcon,
-  AlertIcon,
   CloseIcon,
-  DragHandleIcon,
   DuplicateIcon,
   EditIcon,
   GridIcon,
   LinkIcon,
-  MoreIcon,
   RefreshIcon,
   TrashIcon,
 } from '../icons'
 import { type RowMenuItem, useRowMenu } from '../list/RowContextMenu'
 import {
-  AddChip,
-  BarDivider,
-  type Box,
-  createStore,
-  DragLabel,
-  EditorBar,
-  MarqueeBox,
-  type Point,
-  place,
-  type Store,
-  trackDrag,
-} from './editorChrome'
+  COLUMN_PITCH,
+  type ConnectPayload,
+  contentBox,
+  type DependencyGraphEditor,
+  type DragPayload,
+  type DropTarget,
+  EDITOR_HANDLE_CLASS,
+  type EdgeSelection,
+  type GraphEditorApi,
+  type GraphGrid,
+  type GraphView,
+  labelsOf,
+  NO_EDGES,
+  NO_PROBLEMS,
+  NO_SELECTION,
+  NO_STEPS,
+  overlaps,
+  type PortSide,
+  SLOT_PITCH,
+  sameEdge,
+  sameStep,
+  selectionBounds,
+  toContent,
+  typing,
+  type UiState,
+  useUi,
+} from './editorApi'
+import { AddChip, BarDivider, DragLabel, EditorBar } from './editorChrome'
 import { asRecord, openOnAddOf } from './editorFields'
+import { type Box, createStore, type Point, trackDrag } from './editorPrimitives'
 import { type GraphEditorStrings, useGraphEditorStrings } from './editorStrings'
-import { JobDialog, type SettingsView, StepDialog } from './GraphEditorDialogs'
-import type { ListedProblem } from './ProblemsButton'
+import { JobDialog, StepDialog } from './GraphEditorDialogs'
 import { refusalText } from './refusalText'
 import { MOD_KEY, type ShortcutGroup } from './ShortcutsButton'
 import type { WorkflowJob } from './types'
 import { jobLabel } from './util'
 
-/** A problem in the workflow, placed on the job, step or input its line is in. */
-export interface EditorProblem {
-  message: string
-  line: number
-  job?: string
-  step?: number
-  input?: string[]
-  /** In a workflow-level setting the settings dialog edits. */
-  setting?: boolean
-}
-
-/** What to show in the YAML beside the graph: a job, one of its steps, or a line. */
-export type RevealTarget = { job: string; step?: number } | { line: number }
-
-/** Build-page callbacks that turn the dependency graph into an editor. */
-export interface DependencyGraphEditor {
-  onEdit: (edit: GraphEdit) => GraphEditResult | undefined
-  canUndo: boolean
-  canRedo: boolean
-  onUndo: () => void
-  onRedo: () => void
-  /** `uses` values offered in the step editor, such as the user's own workflows. */
-  usesSuggestions?: string[]
-  /** Opens the workflow-level settings: env, permissions, sessions and more. */
-  onOpenSettings?: () => void
-  /** The YAML the edits apply to, for editing a job or step as text. */
-  readSource?: () => string
-  /** The view the job, step and input dialogs open in; YAML when not given. */
-  settingsView?: SettingsView
-  onSettingsViewChange?: (view: SettingsView) => void
-  /** False adds a new job, step or input with its defaults, without opening its dialog. */
-  openOnAdd?: boolean
-  onOpenOnAddChange?: (open: boolean) => void
-  /** Problems in the workflow, marked on the jobs, steps and inputs they're in. */
-  problems?: EditorProblem[]
-  /** The problems this pane's toolbar counts and lists. */
-  listedProblems?: ListedProblem[]
-  /** Hands the page this pane's way to bring a problem into view, false where it can't; returns its undo. */
-  registerShow?: (show: (problem: EditorProblem) => boolean) => () => void
-  /** Shows a job's, step's or line's YAML, when the YAML editor is beside the graph. */
-  onReveal?: (target: RevealTarget) => void
-}
-
-/** Pointer-downs on this class drag editor items instead of panning the graph. */
-export const EDITOR_HANDLE_CLASS = 'dag-editor-handle'
-
 // Content px past the outermost boxes that opens a new first or last column.
 const EDGE_ZONE = 48
 const INDICATOR = 6
-
-export type { Box }
-
-/** A node's left circle takes dependencies; its right circle gives them. */
-type PortSide = 'in' | 'out'
-
-type ConnectPayload = {
-  kind: 'connect'
-  from: string[]
-  side: PortSide
-  label: string
-  /** The circle dragged from: `node:<head job>`, or `selection`. */
-  port: string
-  /** An end of a connector being moved: its needs go on the drop, and the line starts at its other end. */
-  replaces?: NeedRef[]
-  origin?: Point
-}
-
-type DragPayload =
-  /** `anchor` lands where the drag drops; the other jobs keep their offsets from it. */
-  | { kind: 'jobs'; jobs: string[]; label: string; anchor?: string }
-  | { kind: 'new'; matrix: boolean; label: string }
-  | ConnectPayload
-  | { kind: 'steps'; steps: StepRef[]; label: string }
-
-type DropTarget =
-  /** `blocked` when the move would cut a need an expression of a moved job reads. */
-  | { kind: 'slot'; slot: GraphSlot; indicator: Box; blocked?: boolean }
-  | { kind: 'trash' }
-  /** `edits` is null when the drop can't connect. */
-  | { kind: 'connect'; edits: GraphEdit[] | null; box: Box }
-  /** Dragged jobs join `into`'s node, taking its needs; `valid` is false when that would loop. */
-  | { kind: 'merge'; into: string; jobs: string[]; valid: boolean; box: Box }
-  /** Steps land at `index` of `job`; `around` outlines a job whose steps aren't shown, `problem` refuses the drop. */
-  | {
-      kind: 'steps'
-      job: string
-      index: number
-      indicator: Box
-      around?: boolean
-      problem?: string
-    }
-
-interface DragView {
-  payload: DragPayload
-  client: Point
-  content: Point | null
-  origin: Point | null
-  target: DropTarget | null
-}
-
-/** A job or step being added: `yml` is the workflow as if `edit` were applied, which the dialog's first save does. */
-interface Addition {
-  edit: GraphEdit
-  yml: string
-}
-
-type Dialog =
-  | { kind: 'job'; job: string; addition?: Addition }
-  | { kind: 'step'; job: string; index: number; addition?: Addition }
-
-const labelsOf = (jobs: string[]) => jobs.map((job) => jobLabel(job)).join(', ')
-
-/** A drawn connector, named by the head jobs of the boxes it joins. */
-export interface EdgeSelection {
-  from: string
-  to: string
-}
-
-interface UiState {
-  drag: DragView | null
-  /** Selected connectors. Jobs, steps and connectors are never selected together. */
-  edges: EdgeSelection[]
-  dialog: Dialog | null
-  selection: string[]
-  /** Selected steps. */
-  steps: StepRef[]
-  problems: EditorProblem[]
-  /** The box being dragged out on empty space, in content coordinates. */
-  marquee: Box | null
-}
-
-const NO_SELECTION: string[] = []
-const NO_STEPS: StepRef[] = []
-const NO_EDGES: EdgeSelection[] = []
-const NO_PROBLEMS: EditorProblem[] = []
-
-// The problems in a job itself, or in one of its steps.
-const problemsIn = (problems: EditorProblem[], job: string, step?: number) =>
-  problems.filter((problem) => problem.job === job && problem.step === step)
-
-const sameStep = (a: StepRef, b: StepRef) => a.job === b.job && a.index === b.index
 
 // What this page copied last, so pasting it back keeps the jobs' arrangement.
 let copied: {
@@ -221,107 +91,7 @@ const createUiStore = () =>
     problems: NO_PROBLEMS,
     marquee: null,
   })
-
-type UiStore = Store<UiState>
-
-/** The drawn grid of the level being edited; `rows` holds each box's row, `columns` each column's number. */
-export interface GraphGrid {
-  wrapper: HTMLDivElement
-  cols: string[][][]
-  rows: number[][]
-  columns: number[]
-}
-
-// One row of a column in the graph's own pixels: a one-job node (80px) plus the 6rem between nodes.
-export const SLOT_PITCH = 176
 const ROW_GAP = 96
-
-/** Top margin for a node that sits below `rows` empty rows of its column. */
-export function emptyRowsStyle(rows: number): CSSProperties {
-  return rows > 0 ? { marginTop: `calc(6rem + ${rows * SLOT_PITCH}px)` } : {}
-}
-
-// One empty column in the graph's own pixels: a short-named node (189px) plus its 6rem margins.
-export const COLUMN_PITCH = 381
-
-/** Left margin for a column that follows `columns` empty ones. */
-export function emptyColumnsStyle(columns: number): CSSProperties {
-  return columns > 0 ? { marginLeft: columns * COLUMN_PITCH } : {}
-}
-
-/** What the editor asks of the graph's view. */
-export interface GraphView {
-  /** Keeps `job` where it is on screen through the next layout change, rather than refitting. */
-  hold: (job: string) => void
-}
-
-export interface GraphEditorApi {
-  store: UiStore
-  isMatrixJob: (job: string) => boolean
-  startDrag: (e: ReactPointerEvent, payload: DragPayload) => void
-  openJobMenu: (x: number, y: number, job: string) => void
-  openStepMenu: (x: number, y: number, job: string, index: number) => void
-  openEdgeMenu: (x: number, y: number, edge: EdgeSelection) => void
-  /** Selects a connector alone, or adds it to the selection or takes it out when `add`. */
-  selectEdge: (edge: EdgeSelection, add: boolean) => void
-  /** Whether an expression reads one of a connector's needs, so it can't be removed or moved. */
-  edgeInUse: (edge: EdgeSelection) => boolean
-  /** Starts moving one end of a connector; `fixed` is its other end, in the graph's own pixels. */
-  startEdgeEnd: (
-    e: ReactPointerEvent,
-    edge: EdgeSelection,
-    end: 'from' | 'to',
-    fixed: Point,
-  ) => void
-  /** Removes the selected jobs, steps and connectors; false when nothing is selected. */
-  deleteSelection: () => boolean
-  /** Opens the dialog of the one selected job or step, reporting whether there was one. */
-  editSelection: () => boolean
-  addJob: (matrix: boolean) => void
-  addStep: (job: string) => void
-  editJob: (job: string) => void
-  editStep: (job: string, index: number) => void
-  registerGrid: (grid: GraphGrid | null) => void
-  grid: () => GraphGrid | null
-  registerView: (view: GraphView | null) => void
-  /** The selected jobs that still exist. */
-  selected: () => string[]
-  toggleSelected: (job: string) => void
-  /** The selected steps that still exist. */
-  selectedSteps: () => StepRef[]
-  toggleStep: (step: StepRef) => void
-  /** Puts the selected jobs or steps on the clipboard, as YAML; null when nothing is selected. */
-  copySelection: () => string | null
-  /** Adds the jobs or steps in `text` near `pointer`; false when `text` holds neither. */
-  paste: (text: string, pointer: Point | null) => boolean
-  /** Moves the selected jobs one slot; false when no jobs are selected. */
-  nudge: (direction: NudgeDirection) => boolean
-  reveal: (target: RevealTarget) => void
-  /** Selects a job, or one of its steps, alone. */
-  focus: (target: { job: string; step?: number }) => void
-}
-
-const EditorContext = createContext<GraphEditorApi | null>(null)
-
-export const GraphEditorProvider = EditorContext.Provider
-
-export function useGraphEditor(): GraphEditorApi | null {
-  return useContext(EditorContext)
-}
-
-const noopSubscribe = () => () => {}
-
-function useUi<T>(api: GraphEditorApi | null, select: (state: UiState) => T, fallback: T): T {
-  return useSyncExternalStore(api ? api.store.subscribe : noopSubscribe, () =>
-    api ? select(api.store.get()) : fallback,
-  )
-}
-
-export function useSelectedEdges(api: GraphEditorApi | null): EdgeSelection[] {
-  return useUi(api, (state) => state.edges, NO_EDGES)
-}
-
-const sameEdge = (a: EdgeSelection, b: EdgeSelection) => a.from === b.from && a.to === b.to
 
 // Needs as they'd be without `refs`.
 function withoutRefs(needs: Record<string, string[]>, refs: NeedRef[]): Record<string, string[]> {
@@ -358,49 +128,6 @@ function isMatrix(job: unknown): boolean {
 function stepsOf(job: unknown): unknown[] {
   const steps = (job as { steps?: unknown } | undefined)?.steps
   return Array.isArray(steps) ? steps : []
-}
-
-function toContent(wrapper: HTMLElement, client: Point): Point {
-  const rect = wrapper.getBoundingClientRect()
-  const scale = wrapper.offsetWidth > 0 ? rect.width / wrapper.offsetWidth : 1
-  return { x: (client.x - rect.left) / scale, y: (client.y - rect.top) / scale }
-}
-
-function contentBox(wrapper: HTMLElement, el: Element): Box {
-  const rect = wrapper.getBoundingClientRect()
-  const scale = wrapper.offsetWidth > 0 ? rect.width / wrapper.offsetWidth : 1
-  const r = el.getBoundingClientRect()
-  return {
-    left: (r.left - rect.left) / scale,
-    top: (r.top - rect.top) / scale,
-    right: (r.right - rect.left) / scale,
-    bottom: (r.bottom - rect.top) / scale,
-  }
-}
-
-const SELECTION_PAD = 12
-// Past a node's edge by more than a circle's width, so the two sets of circles never touch.
-const SELECTION_SIDE_PAD = 36
-
-/**
- * The outline around the selected jobs, in content coordinates: as tall as their rows and
- * as wide as their nodes, so its circles sit clear of the nodes' own.
- */
-function selectionBounds(wrapper: HTMLElement, jobs: string[]): Box | null {
-  const found = jobs.flatMap((job) => {
-    const row = wrapper.querySelector(`[data-dag-job="${CSS.escape(job)}"]`)
-    const node = row?.closest('[id^="node_"]')
-    return row && node ? [{ row: contentBox(wrapper, row), node: contentBox(wrapper, node) }] : []
-  })
-  if (found.length === 0) {
-    return null
-  }
-  return {
-    left: Math.min(...found.map((f) => f.node.left)) - SELECTION_SIDE_PAD,
-    top: Math.min(...found.map((f) => f.row.top)) - SELECTION_PAD,
-    right: Math.max(...found.map((f) => f.node.right)) + SELECTION_SIDE_PAD,
-    bottom: Math.max(...found.map((f) => f.row.bottom)) + SELECTION_PAD,
-  }
 }
 
 function boxOf(cols: string[][][], job: string): string[] {
@@ -669,25 +396,12 @@ function stepDropAt(
 
 // Pointer-downs on these keep their own meaning; elsewhere shift + drag draws a selection box.
 const NOT_EMPTY = `.${EDITOR_HANDLE_CLASS}, button, a, input, textarea, select, label, [role="menu"], [role="dialog"]`
-const TEXT_INPUT = 'input, textarea, select, [contenteditable="true"]'
-
-export const typing = (target: EventTarget | null) =>
-  target instanceof Element && !!target.closest(TEXT_INPUT)
 
 const ARROWS: Record<string, NudgeDirection | undefined> = {
   ArrowUp: 'up',
   ArrowDown: 'down',
   ArrowLeft: 'left',
   ArrowRight: 'right',
-}
-
-export function overlaps(rect: DOMRect, box: Box): boolean {
-  return (
-    rect.left <= box.right &&
-    rect.right >= box.left &&
-    rect.top <= box.bottom &&
-    rect.bottom >= box.top
-  )
 }
 
 // Liang–Barsky clipping: whether any part of the segment from a to b is in the box.
@@ -794,7 +508,7 @@ function nodeAt(
  * Editor state, handlers and overlays for a DependencyGraph given `editor`.
  * `yamlJobs` are the jobs as written, before previews expand matrices.
  */
-export function useGraphEditorState({
+function useGraphEditorState({
   editor,
   jobs,
   yamlJobs,
@@ -803,14 +517,14 @@ export function useGraphEditorState({
   layout,
   container,
 }: {
-  editor: DependencyGraphEditor | undefined
+  editor: DependencyGraphEditor
   jobs: Record<string, WorkflowJob>
   yamlJobs: Record<string, unknown> | undefined
   inputs: Record<string, unknown> | undefined
   workflow: Record<string, unknown> | undefined
   layout: GraphLayout | undefined
   container: HTMLDivElement | null
-}): { api: GraphEditorApi; overlays: ReactNode } | null {
+}): { api: GraphEditorApi; overlays: ReactNode } {
   const t = useGraphEditorStrings()
   const [store] = useState(createUiStore)
   const gridRef = useRef<GraphGrid | null>(null)
@@ -1573,6 +1287,7 @@ export function useGraphEditorState({
 
     return {
       store,
+      t,
       isMatrixJob: (job) => isMatrix(latest.current.source[job]),
       startDrag,
       openJobMenu,
@@ -1849,9 +1564,6 @@ export function useGraphEditorState({
     }
   }, [container, editor, api])
 
-  if (!editor) {
-    return null
-  }
   return {
     api,
     overlays: (
@@ -2012,688 +1724,6 @@ function DragOverlays({
   )
 }
 
-/** Drop indicators, the connection line and the selection, drawn in the graph's own coordinates. */
-export function GraphEditorCanvas() {
-  const api = useGraphEditor()
-  const drag = useUi(api, (state) => state.drag, null)
-  const selection = useUi(api, (state) => state.selection, NO_SELECTION)
-  const marquee = useUi(api, (state) => state.marquee, null)
-  if (!api || (!drag && !marquee && selection.length === 0)) {
-    return null
-  }
-  const target = drag?.target ?? null
-  const indicator =
-    target?.kind === 'slot' || (target?.kind === 'steps' && !target.around)
-      ? target.indicator
-      : null
-  const outline = target?.kind === 'steps' && target.around ? target.indicator : null
-  const refused =
-    (target?.kind === 'slot' && target.blocked) || (target?.kind === 'steps' && !!target.problem)
-  return (
-    <div className="pointer-events-none absolute inset-0" style={{ zIndex: 60 }}>
-      {marquee && <MarqueeBox box={marquee} />}
-      {!marquee && drag?.payload.kind !== 'jobs' && <SelectionBox api={api} />}
-      {indicator && (
-        <div
-          className={cx(
-            'absolute rounded-full',
-            refused ? 'bg-(--theme-error)' : 'bg-(--theme-element)',
-          )}
-          style={place(indicator)}
-        />
-      )}
-      {outline && (
-        <div
-          className={cx(
-            'absolute rounded-md border-4',
-            refused ? 'border-(--theme-error)' : 'border-(--theme-element)',
-          )}
-          style={{
-            left: outline.left - 8,
-            top: outline.top - 4,
-            width: outline.right - outline.left + 16,
-            height: outline.bottom - outline.top + 8,
-          }}
-        />
-      )}
-      {(target?.kind === 'connect' || target?.kind === 'merge') && (
-        <div
-          className={cx(
-            'absolute rounded-md border-4',
-            (target.kind === 'connect' ? target.edits : target.valid)
-              ? 'border-(--theme-element)'
-              : 'border-(--theme-error)',
-          )}
-          style={{
-            left: target.box.left - 8,
-            top: target.box.top - 4,
-            width: target.box.right - target.box.left + 16,
-            height: target.box.bottom - target.box.top + 8,
-          }}
-        />
-      )}
-      {drag?.payload.kind === 'connect' && drag.origin && drag.content && (
-        <svg aria-hidden="true" overflow="visible" className="absolute left-0 top-0">
-          <line
-            x1={drag.origin.x}
-            y1={drag.origin.y}
-            x2={drag.content.x}
-            y2={drag.content.y}
-            stroke={
-              target?.kind === 'connect' && !target.edits
-                ? 'var(--theme-error)'
-                : 'var(--theme-element)'
-            }
-            strokeWidth={6}
-            strokeDasharray="16 10"
-          />
-        </svg>
-      )}
-    </div>
-  )
-}
-
-// Selected jobs that sit together in one column with no unselected job between, top-left first.
-function selectionRuns(cols: string[][][], selected: string[]): string[][] {
-  return cols.flatMap((col) => {
-    const runs: string[][] = [[]]
-    for (const job of col.flat()) {
-      if (selected.includes(job)) {
-        runs.at(-1)?.push(job)
-      } else if (runs.at(-1)?.length) {
-        runs.push([])
-      }
-    }
-    return runs.filter((run) => run.length > 0)
-  })
-}
-
-/** The selected jobs' outlines, the first with a grip to move them all and circles to connect them. */
-function SelectionBox({ api }: { api: GraphEditorApi }) {
-  const t = useGraphEditorStrings()
-  const grid = api.grid()
-  const jobs = api.selected()
-  const runs = grid
-    ? selectionRuns(grid.cols, jobs).flatMap((run) => {
-        const box = selectionBounds(grid.wrapper, run)
-        return box ? [{ run, box }] : []
-      })
-    : []
-  const [first] = runs
-  if (!first) {
-    return null
-  }
-  const bounds = first.box
-  // Dragging the grip moves the selection as if by its top-left job.
-  const anchor = first.run[0]
-  const y = (bounds.top + bounds.bottom) / 2
-  return (
-    <>
-      {runs.map(({ run, box }) => (
-        <div
-          key={run.join()}
-          className="absolute rounded-xl border-2 border-dashed border-(--theme-element)"
-          style={place(box)}
-        />
-      ))}
-      <button
-        type="button"
-        aria-label={t.moveSelectionHint}
-        data-tooltip-id={TOOLTIP_ID}
-        data-tooltip-content={t.moveSelectionHint}
-        className={cx(
-          EDITOR_HANDLE_CLASS,
-          'pointer-events-auto absolute flex h-8 w-8 cursor-grab items-center justify-center rounded-full border-4 border-(--theme-element) bg-(--theme-panel-bg)',
-        )}
-        style={{ left: bounds.left - 16, top: bounds.top - 16 }}
-        onPointerDown={(e) =>
-          api.startDrag(e, {
-            kind: 'jobs',
-            jobs,
-            label: labelsOf(jobs),
-            ...(anchor ? { anchor } : {}),
-          })
-        }
-      >
-        <DragHandleIcon className="h-5 w-5" />
-      </button>
-      <PortCircle
-        side="in"
-        at={{ x: bounds.left, y }}
-        draw
-        jobs={jobs}
-        port="selection"
-        hint={t.selectionInHint}
-      />
-      <PortCircle
-        side="out"
-        at={{ x: bounds.right, y }}
-        draw
-        jobs={jobs}
-        port="selection"
-        hint={t.selectionOutHint}
-      />
-    </>
-  )
-}
-
-/** A multi-job box's handle for moving all its jobs at once. */
-export function BoxGrip({ jobs }: { jobs: string[] }) {
-  const api = useGraphEditor()
-  const t = useGraphEditorStrings()
-  if (!api) {
-    return null
-  }
-  return (
-    <button
-      type="button"
-      aria-label={t.moveBoxHint}
-      data-tooltip-id={TOOLTIP_ID}
-      data-tooltip-content={t.moveBoxHint}
-      className={cx(
-        EDITOR_HANDLE_CLASS,
-        // Centered on the border line, straight above the node's left circle.
-        'absolute -left-[18px] -top-[18px] flex h-8 w-8 cursor-grab items-center justify-center rounded-full border-4 theme-border bg-(--theme-panel-bg)',
-      )}
-      onPointerDown={(e) => api.startDrag(e, { kind: 'jobs', jobs, label: labelsOf(jobs) })}
-    >
-      <DragHandleIcon className="h-5 w-5" />
-    </button>
-  )
-}
-
-const onBadge = (target: EventTarget) =>
-  target instanceof Element && !!target.closest('[data-problem-badge]')
-
-/** A step's problems, or a job's with its steps', listed on hover; a click shows the first one's line. */
-function ProblemBadge({ api, job, step }: { api: GraphEditorApi; job: string; step?: number }) {
-  const t = useGraphEditorStrings()
-  // A job's badge also lists its steps' problems, which stay in view while its steps are closed.
-  const mine = (problems: EditorProblem[]) =>
-    step === undefined
-      ? problems.filter((problem) => problem.job === job)
-      : problemsIn(problems, job, step)
-  const messages = useUi(
-    api,
-    (state) =>
-      mine(state.problems)
-        .map((problem) => problem.message)
-        .join('\n'),
-    '',
-  )
-  const line = useUi(api, (state) => mine(state.problems)[0]?.line ?? 0, 0)
-  if (!messages) {
-    return null
-  }
-  return (
-    <button
-      type="button"
-      data-problem-badge=""
-      aria-label={t.problemCount(messages.split('\n').length)}
-      data-tooltip-id={TOOLTIP_ID}
-      data-tooltip-content={messages}
-      className="cursor-pointer rounded p-0.5 text-(--theme-error) hover:bg-(--theme-muted-panel-bg)"
-      onPointerDown={(e) => e.stopPropagation()}
-      onClick={(e) => {
-        e.stopPropagation()
-        api.reveal({ line })
-      }}
-    >
-      <AlertIcon className="h-[0.9em] w-[0.9em]" />
-    </button>
-  )
-}
-
-/** A red border over a node whose jobs, or their steps, have problems. */
-export function ProblemOutline({ jobs }: { jobs: string[] }) {
-  const api = useGraphEditor()
-  const flagged = useUi(
-    api,
-    (state) =>
-      state.problems.some((problem) => problem.job !== undefined && jobs.includes(problem.job)),
-    false,
-  )
-  return flagged ? (
-    <div className="pointer-events-none absolute -inset-1 rounded-xl border-4 border-(--theme-error)" />
-  ) : null
-}
-
-/** What a job or step row does in the editor: drag, shift-click to select, a menu, its problems. */
-function EditableRow({
-  api,
-  selected,
-  flagged,
-  data,
-  className,
-  drag,
-  toggle,
-  reveal,
-  openMenu,
-  menuLabel,
-  menuClassName,
-  iconClassName,
-  badges,
-  children,
-}: {
-  api: GraphEditorApi
-  selected: boolean
-  flagged: boolean
-  data: Record<string, string | number>
-  className: string
-  drag: () => DragPayload
-  /** Toggles the row in the selection, and says whether it is selected after. */
-  toggle: () => boolean
-  reveal: () => void
-  openMenu: (x: number, y: number) => void
-  menuLabel: string
-  menuClassName: string
-  iconClassName: string
-  badges: ReactNode
-  children: ReactNode
-}) {
-  return (
-    <div
-      role="none"
-      {...data}
-      {...(selected ? { 'data-selected': '' } : {})}
-      className={cx(
-        EDITOR_HANDLE_CLASS,
-        className,
-        selected && 'bg-(--theme-element)/15',
-        flagged ? 'ring-2 ring-(--theme-error)' : selected && 'ring-2 ring-(--theme-element)',
-      )}
-      onPointerDown={(e) => {
-        if (e.shiftKey) {
-          // Keeps shift-click from extending a text selection.
-          e.preventDefault()
-        }
-        api.startDrag(e, drag())
-      }}
-      onClickCapture={(e) => {
-        if (onBadge(e.target)) {
-          return
-        }
-        if (e.shiftKey) {
-          e.preventDefault()
-          e.stopPropagation()
-          if (!toggle()) {
-            return
-          }
-        }
-        reveal()
-      }}
-      onContextMenu={(e) => {
-        e.preventDefault()
-        e.stopPropagation()
-        openMenu(e.clientX, e.clientY)
-      }}
-    >
-      {children}
-      {badges}
-      <button
-        type="button"
-        aria-label={menuLabel}
-        className={cx(
-          'cursor-pointer rounded theme-muted-text opacity-0 transition-opacity hover:bg-(--theme-muted-panel-bg) focus-visible:opacity-100',
-          menuClassName,
-        )}
-        onPointerDown={(e) => e.stopPropagation()}
-        onClick={(e) => {
-          e.stopPropagation()
-          const r = e.currentTarget.getBoundingClientRect()
-          openMenu(r.right, r.bottom)
-        }}
-      >
-        <MoreIcon className={iconClassName} />
-      </button>
-    </div>
-  )
-}
-
-/** A job row made draggable, with its menu and matrix badge; shift-click selects it. */
-export function EditableJobRow({
-  job,
-  label,
-  badge = true,
-  children,
-}: {
-  job: string
-  label: string
-  badge?: boolean
-  children: ReactNode
-}) {
-  const api = useGraphEditor()
-  const t = useGraphEditorStrings()
-  const selected = useUi(api, (state) => state.selection.includes(job), false)
-  const flagged = useUi(api, (state) => problemsIn(state.problems, job).length > 0, false)
-  if (!api) {
-    return children
-  }
-  return (
-    <EditableRow
-      api={api}
-      selected={selected}
-      flagged={flagged}
-      data={{ 'data-dag-job': job }}
-      className="group/row relative flex cursor-grab items-center gap-x-2 rounded-md [&>button:first-child]:w-auto [&>button:first-child]:flex-1"
-      drag={() => {
-        const selection = api.selected()
-        return selection.length > 1 && selection.includes(job)
-          ? {
-              kind: 'jobs',
-              jobs: selection,
-              anchor: job,
-              label: labelsOf(selection),
-            }
-          : { kind: 'jobs', jobs: [job], label }
-      }}
-      toggle={() => {
-        api.toggleSelected(job)
-        return api.store.get().selection.includes(job)
-      }}
-      reveal={() => api.reveal({ job })}
-      openMenu={(x, y) => api.openJobMenu(x, y, job)}
-      menuLabel={t.jobActions}
-      menuClassName="p-1 group-hover/row:opacity-100"
-      iconClassName="h-[1em] w-[1em]"
-      badges={
-        <>
-          <ProblemBadge api={api} job={job} />
-          {badge && api.isMatrixJob(job) && (
-            <span className="rounded-full border-2 theme-border px-2 text-[1rem] theme-muted-text">
-              {t.matrixBadge}
-            </span>
-          )}
-        </>
-      }
-    >
-      {children}
-    </EditableRow>
-  )
-}
-
-/** One connector circle: dragging it connects `jobs`, dropping on it connects to them. */
-function PortCircle({
-  side,
-  at,
-  draw,
-  jobs,
-  port,
-  hint,
-  zIndex,
-}: {
-  side: PortSide
-  at: Point
-  /** False where a connector already draws the dot, so only the hover shows. */
-  draw: boolean
-  jobs: string[]
-  port: string
-  hint: string
-  zIndex?: number
-}) {
-  const api = useGraphEditor()
-  const drag = useUi(api, (state) => state.drag, null)
-  if (!api) {
-    return null
-  }
-  const dragging =
-    drag?.payload.kind === 'connect' && drag.payload.port === port && drag.payload.side === side
-  return (
-    <span
-      role="none"
-      data-dag-port={side}
-      {...(port === 'selection' ? { 'data-dag-selection': '' } : { 'data-dag-node': jobs[0] })}
-      // A hint popping up over the drop target mid-drag would hide the graph.
-      {...(drag ? {} : { 'data-tooltip-id': TOOLTIP_ID })}
-      data-tooltip-content={hint}
-      className={cx(
-        EDITOR_HANDLE_CLASS,
-        'group/port pointer-events-auto absolute flex h-8 w-8 cursor-crosshair items-center justify-center',
-      )}
-      style={{
-        left: at.x - 16,
-        top: at.y - 16,
-        ...(zIndex === undefined ? {} : { zIndex }),
-      }}
-      onPointerDown={(e) =>
-        api.startDrag(e, {
-          kind: 'connect',
-          from: jobs,
-          side,
-          label: labelsOf(jobs),
-          port,
-        })
-      }
-    >
-      {draw && <span className="absolute inset-0 bg-(--theme-panel-bg)" />}
-      <span
-        className={cx(
-          'relative h-4 w-4 rounded-full group-hover/port:bg-(--theme-element)',
-          dragging ? 'bg-(--theme-element)' : draw && 'bg-(--theme-border)',
-        )}
-      />
-    </span>
-  )
-}
-
-/**
- * A node's connector circles, where the graph draws its connector dots. Drag from the
- * right one to add jobs that depend on the node, from the left one to add what it needs.
- */
-export function NodePorts({
-  jobs,
-  left,
-  right,
-  drawLeft,
-  drawRight,
-  zIndex,
-}: {
-  jobs: string[]
-  left: Point
-  right: Point
-  drawLeft: boolean
-  drawRight: boolean
-  zIndex: number
-}) {
-  const t = useGraphEditorStrings()
-  const port = `node:${jobs[0]}`
-  return (
-    <>
-      <PortCircle
-        side="in"
-        at={left}
-        draw={drawLeft}
-        jobs={jobs}
-        port={port}
-        hint={t.connectInHint}
-        zIndex={zIndex}
-      />
-      <PortCircle
-        side="out"
-        at={right}
-        draw={drawRight}
-        jobs={jobs}
-        port={port}
-        hint={t.connectOutHint}
-        zIndex={zIndex}
-      />
-    </>
-  )
-}
-
-/** A step row made draggable within its job, with its menu. */
-export function EditableStepRow({
-  job,
-  index,
-  label,
-  children,
-}: {
-  job: string
-  index: number
-  label: string
-  children: ReactNode
-}) {
-  const api = useGraphEditor()
-  const t = useGraphEditorStrings()
-  const selected = useUi(
-    api,
-    (state) => state.steps.some((ref) => ref.job === job && ref.index === index),
-    false,
-  )
-  const flagged = useUi(api, (state) => problemsIn(state.problems, job, index).length > 0, false)
-  if (!api) {
-    return children
-  }
-  return (
-    <EditableRow
-      api={api}
-      selected={selected}
-      flagged={flagged}
-      data={{ 'data-dag-step-job': job, 'data-dag-step': index }}
-      className="group/step flex cursor-grab items-center gap-x-1 rounded"
-      drag={() => {
-        const steps = api.selectedSteps()
-        return selected && steps.length > 1
-          ? { kind: 'steps', steps, label: t.stepCount(steps.length) }
-          : { kind: 'steps', steps: [{ job, index }], label }
-      }}
-      toggle={() => {
-        api.toggleStep({ job, index })
-        return api.store.get().steps.some((ref) => sameStep(ref, { job, index }))
-      }}
-      reveal={() => api.reveal({ job, step: index })}
-      openMenu={(x, y) => api.openStepMenu(x, y, job, index)}
-      menuLabel={t.stepActions}
-      menuClassName="p-0.5 group-hover/step:opacity-100"
-      iconClassName="h-[0.9em] w-[0.9em]"
-      badges={<ProblemBadge api={api} job={job} step={index} />}
-    >
-      {children}
-    </EditableRow>
-  )
-}
-
-export function AddStepButton({ job }: { job: string }) {
-  const api = useGraphEditor()
-  const t = useGraphEditorStrings()
-  if (!api) {
-    return null
-  }
-  return (
-    <button
-      type="button"
-      className="ml-1.5 flex cursor-pointer items-center gap-x-1.5 text-left theme-muted-text hover:text-(--theme-link)"
-      onPointerDown={(e) => e.stopPropagation()}
-      onClick={(e) => {
-        e.stopPropagation()
-        api.addStep(job)
-      }}
-    >
-      <AddIcon className="h-[0.8em] w-[0.8em]" />
-      {t.addStep}
-    </button>
-  )
-}
-
-/** Connector hit area: a click selects the dependency, shift adds it, a right-click opens its menu. */
-export function EdgeHitPath({ d, edge }: { d: string; edge: EdgeSelection }) {
-  const api = useGraphEditor()
-  const t = useGraphEditorStrings()
-  const selected = useSelectedEdges(api).some((other) => sameEdge(other, edge))
-  if (!api) {
-    return null
-  }
-  return (
-    // biome-ignore lint/a11y/useSemanticElements: an SVG connector can't be a <button>; it is the pointer target for its dependency.
-    <path
-      role="button"
-      tabIndex={0}
-      aria-label={t.dependencyOf(edge.from, edge.to)}
-      aria-pressed={selected}
-      data-dag-edge-from={edge.from}
-      data-dag-edge-to={edge.to}
-      d={d}
-      stroke="transparent"
-      strokeWidth={28}
-      fill="none"
-      className={cx(
-        EDITOR_HANDLE_CLASS,
-        'outline-none focus-visible:[stroke:color-mix(in_srgb,var(--theme-element)_35%,transparent)]',
-      )}
-      style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
-      onClick={(e) => api.selectEdge(edge, e.shiftKey)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          api.selectEdge(edge, e.shiftKey)
-        }
-      }}
-      onContextMenu={(e) => {
-        e.preventDefault()
-        api.openEdgeMenu(e.clientX, e.clientY, edge)
-      }}
-    />
-  )
-}
-
-/** A selected connector's two ends; dragging one onto another job or node moves that end there. */
-export function EdgeEnds({
-  edge,
-  start,
-  end,
-  zIndex,
-}: {
-  edge: EdgeSelection
-  start: Point
-  end: Point
-  zIndex: number
-}) {
-  const api = useGraphEditor()
-  const t = useGraphEditorStrings()
-  const drag = useUi(api, (state) => state.drag, null)
-  if (!api) {
-    return null
-  }
-  const inUse = api.edgeInUse(edge)
-  const handle = (side: 'from' | 'to', at: Point, fixed: Point) => (
-    <span
-      key={side}
-      role="none"
-      data-dag-edge-end={side}
-      {...(drag ? {} : { 'data-tooltip-id': TOOLTIP_ID })}
-      data-tooltip-content={inUse ? t.dependencyInUse : t.moveDependencyEnd}
-      className={cx(
-        EDITOR_HANDLE_CLASS,
-        'pointer-events-auto absolute flex h-8 w-8 items-center justify-center',
-        inUse ? 'cursor-not-allowed' : 'cursor-grab',
-      )}
-      style={{ left: at.x - 16, top: at.y - 16, zIndex }}
-      onPointerDown={(e) => {
-        if (!inUse) {
-          api.startEdgeEnd(e, edge, side, fixed)
-        }
-      }}
-    >
-      <span className="h-5 w-5 rounded-full border-4 border-(--theme-element) bg-(--theme-panel-bg)" />
-    </span>
-  )
-  return (
-    <>
-      {handle('from', start, end)}
-      {handle('to', end, start)}
-    </>
-  )
-}
-
-/** Shown in place of the graph when the workflow has no jobs yet. */
-export function EmptyGraphEditor({ overlays, height }: { overlays: ReactNode; height: string }) {
-  return (
-    <div className="panel relative w-full overflow-hidden border" style={{ height }}>
-      {overlays}
-    </div>
-  )
-}
-
 function EditorDialogs({
   api,
   editor,
@@ -2758,4 +1788,20 @@ function EditorDialogs({
       onClose={close}
     />
   ) : null
+}
+
+/** The editor's state and overlays for a DependencyGraph, loaded only where a graph is edited. */
+export default function GraphEditorOverlays({
+  onApi,
+  ...inputs
+}: Parameters<typeof useGraphEditorState>[0] & {
+  /** Hands the graph the editor's api once it's ready, and null when it goes. */
+  onApi: (api: GraphEditorApi | null) => void
+}) {
+  const { api, overlays } = useGraphEditorState(inputs)
+  useEffect(() => {
+    onApi(api)
+    return () => onApi(null)
+  }, [api, onApi])
+  return overlays
 }

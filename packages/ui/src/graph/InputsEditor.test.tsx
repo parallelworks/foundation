@@ -39,12 +39,12 @@ vi.mock('../editor/Monaco', () => ({
     path?: string
   }) => <textarea aria-label={path} value={value} onChange={(e) => onChange?.(e.target.value)} />,
 }))
-vi.mock('../components/Dropdown')
+vi.mock('../components/Dropdown', () => import('../test/DropdownStandIn'))
 
-import { suggestionsOf } from '../components/__mocks__/Dropdown'
 import { DynamicForm } from '../form/Form'
+import { suggestionsOf } from '../test/DropdownStandIn'
+import type { DependencyGraphEditor, EditorProblem } from './editorApi'
 import { GRAPH_EDITOR_STRINGS, INPUTS_EDITOR_STRINGS } from './editorStrings'
-import type { DependencyGraphEditor, EditorProblem } from './GraphEditor'
 import { INPUT_TYPE_GROUPS, InputDialog } from './InputDialog'
 import { InputsFormEditor } from './InputsEditor'
 

@@ -1,4 +1,4 @@
-import type { IProps } from '../Dropdown'
+import type { IProps } from '../components/Dropdown'
 
 // Dropdown's virtual list draws nothing in jsdom, so tests read this one's options through
 // aria-controls instead.

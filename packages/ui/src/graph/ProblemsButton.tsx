@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react'
 import { TOOLTIP_ID } from '../components/Tooltip'
 import { AlertIcon } from '../icons'
+import type { EditorProblem } from './editorApi'
 import { useGraphEditorStrings } from './editorStrings'
-import type { EditorProblem } from './GraphEditor'
 import { ToolbarPopover } from './ToolbarPopover'
 
 /** A problem as a pane lists it; `pick` shows where it is, when an open pane can. */

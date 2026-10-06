@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { dumpYaml, type GraphLayout, layoutFromCols } from '@parallelworks/workflow-parser'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, onTestFinished, vi } from 'vitest'
 import type { NestedWorkflowText } from '../editor/nestedText'
 import { TEST_ACTIONS } from '../test/actions'
 import { testEngine } from '../test/engine'
@@ -65,18 +65,18 @@ vi.mock('../editor/Monaco', () => ({
     return <textarea aria-label={path} value={value} onChange={(e) => onChange?.(e.target.value)} />
   },
 }))
-vi.mock('../components/Dropdown')
+vi.mock('../components/Dropdown', () => import('../test/DropdownStandIn'))
 vi.mock('./AnnotationBanner', () => ({ AnnotationBanner: () => null }))
 
-import { suggestionsOf } from '../components/__mocks__/Dropdown'
+import { suggestionsOf } from '../test/DropdownStandIn'
 import { computeGraphLayout, DependencyGraphPreview } from './DependencyGraph'
-import { GRAPH_EDITOR_STRINGS } from './editorStrings'
 import {
   COLUMN_PITCH,
   type DependencyGraphEditor,
   type EditorProblem,
   SLOT_PITCH,
-} from './GraphEditor'
+} from './editorApi'
+import { GRAPH_EDITOR_STRINGS } from './editorStrings'
 import type { WorkflowJob } from './types'
 
 afterEach(cleanup)
@@ -254,6 +254,14 @@ function field(label: string): HTMLElement {
 
 /** What a typed field offers from its list. */
 // The suggestions a field offers, as the dropdown stand-in lists them.
+// The editor loads lazily; once it has, every later graph draws it at once.
+beforeAll(async () => {
+  await import('./GraphEditor')
+  render(<DependencyGraphPreview yml={yml} editor={editor()} />)
+  await screen.findByRole('button', { name: GRAPH_EDITOR_STRINGS.resetLayout })
+  cleanup()
+})
+
 describe('DependencyGraphPreview editor', () => {
   it('renders no editor controls without an editor', () => {
     render(<DependencyGraphPreview yml={yml} />)
