@@ -54,6 +54,10 @@ export {
   type SlashMenuConfig,
   slashMatches,
 } from './components/SlashMenu'
+export type {
+  ComposerPastes,
+  PasteUploadResult,
+} from './components/usePasteCards'
 export {
   ChatProvider,
   type ChatProviderProps,
@@ -76,6 +80,7 @@ export { FOCUS_SIDEBAR_SEARCH_EVENT } from './core/events'
 export { getGreeting } from './core/greeting'
 export { KeyboardShortcutsProvider } from './core/KeyboardShortcutsProvider'
 export { applyPartDelta, finalizeParts } from './core/parts'
+export { pasteInlineMaxBytes } from './core/pastes'
 export { providerIssueFor } from './core/providerIssues'
 export { default as useDragDrop } from './core/useDragDrop'
 export { useKeyboardShortcuts } from './core/useKeyboardShortcuts'
