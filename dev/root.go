@@ -1,6 +1,7 @@
 package dev
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"os"
@@ -28,15 +29,15 @@ func NewRootCmd(cfg Config) *cobra.Command {
 	}
 
 	root := &cobra.Command{
-		Use:   "dev",
-		Short: "Run the stack, the server with hot reload, and the app's processes",
-		Long: "With no command, dev runs everything dev.json describes until interrupted: " +
-			"Postgres and S3, the server (rebuilt when its sources change) and the processes beside it.",
-		Args:          cobra.NoArgs,
+		Use:   "dev [service...]",
+		Short: "Run the stack and the app's services, rebuilding servers when their sources change",
+		Long: "With no command, dev runs what dev.json describes until interrupted: Postgres and S3, " +
+			"and the services named, or every service not marked manual.",
+		Args:          cobra.ArbitraryArgs,
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return Up(cmd.Context(), cfg, logger(), os.Stdout)
+		RunE: func(cmd *cobra.Command, names []string) error {
+			return Up(cmd.Context(), cfg, logger(), os.Stdout, names...)
 		},
 	}
 	root.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "log debug output")
@@ -79,6 +80,24 @@ func NewRootCmd(cfg Config) *cobra.Command {
 	wait.Flags().DurationVar(&timeout, "timeout", 2*time.Minute, "how long to wait")
 	root.AddCommand(wait)
 
+	var follow bool
+	logs := &cobra.Command{
+		Use:   "logs service",
+		Short: "Print a service's output from the latest run",
+		Long: "Print a service's output from the latest run, as dev wrote it to its log. " +
+			"Use it from another terminal, or from a tool, while dev runs.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			c, err := cfg.withDefaults()
+			if err != nil {
+				return err
+			}
+			return printLog(cmd.Context(), LogPath(filepath.Join(c.Dir, "logs"), args[0]), follow, cmd.OutOrStdout())
+		},
+	}
+	logs.Flags().BoolVarP(&follow, "follow", "f", false, "keep printing new output until interrupted")
+	root.AddCommand(logs)
+
 	root.AddCommand(&cobra.Command{
 		Use:   "reset",
 		Short: "Delete the stack's Postgres and S3 data",
@@ -99,4 +118,36 @@ func colorEnabled(w io.Writer) bool {
 	}
 	info, err := f.Stat()
 	return err == nil && info.Mode()&os.ModeCharDevice != 0
+}
+
+// printLog copies a log to out and, when following, keeps copying what is
+// appended. A new run truncates the log, which starts the copy over.
+func printLog(ctx context.Context, path string, follow bool, out io.Writer) error {
+	f, err := os.Open(path) //nolint:gosec // a log under the stack's directory
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	var offset int64
+	for {
+		n, err := io.Copy(out, f)
+		if err != nil {
+			return err
+		}
+		offset += n
+		if !follow {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-time.After(250 * time.Millisecond):
+		}
+		if info, err := f.Stat(); err == nil && info.Size() < offset {
+			if _, err := f.Seek(0, io.SeekStart); err != nil {
+				return err
+			}
+			offset = 0
+		}
+	}
 }

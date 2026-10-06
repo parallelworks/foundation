@@ -84,6 +84,7 @@ type lineWriter struct {
 	mu     *sync.Mutex
 	out    io.Writer
 	prefix string
+	log    io.Writer // unprefixed copy, or nil
 	buf    []byte
 }
 
@@ -96,7 +97,11 @@ func (w *lineWriter) Write(p []byte) (int, error) {
 		if i < 0 {
 			break
 		}
-		if _, err := io.WriteString(w.out, w.prefix+string(w.buf[:i+1])); err != nil {
+		line := string(w.buf[:i+1])
+		if w.log != nil {
+			_, _ = io.WriteString(w.log, line)
+		}
+		if _, err := io.WriteString(w.out, w.prefix+line); err != nil {
 			return len(p), err
 		}
 		w.buf = w.buf[i+1:]
@@ -109,7 +114,11 @@ func (w *lineWriter) flush() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if len(w.buf) > 0 {
-		_, _ = io.WriteString(w.out, w.prefix+string(w.buf)+"\n")
+		line := string(w.buf) + "\n"
+		if w.log != nil {
+			_, _ = io.WriteString(w.log, line)
+		}
+		_, _ = io.WriteString(w.out, w.prefix+line)
 		w.buf = nil
 	}
 }

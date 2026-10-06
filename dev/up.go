@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -14,19 +17,27 @@ import (
 // killed; servers drain requests on SIGTERM.
 const stopGrace = 10 * time.Second
 
-// Up runs the stack, the server and the processes until ctx ends. The server
-// is rebuilt and restarted when its sources change; a failed build stops it,
-// so that nothing is tested against stale code.
-func Up(ctx context.Context, cfg Config, logger *slog.Logger, out io.Writer) error {
+// Up runs the stack and the services until ctx ends: those named, or every
+// service not marked Manual. Each service's output is prefixed with its name
+// and also written to its log under cfg.Dir.
+func Up(ctx context.Context, cfg Config, logger *slog.Logger, out io.Writer, names ...string) error {
 	cfg, err := cfg.withDefaults()
 	if err != nil {
 		return err
 	}
-	env, err := environ(cfg.Env)
+	services, err := cfg.selectServices(names)
 	if err != nil {
 		return err
 	}
-	o := newOutputs(out, cfg)
+	env, err := cfg.environ(nil)
+	if err != nil {
+		return err
+	}
+	o, err := newOutputs(out, cfg, services)
+	if err != nil {
+		return err
+	}
+	defer o.close()
 	if err := runBefore(ctx, cfg, env, o.writer("before")); err != nil || ctx.Err() != nil {
 		return err
 	}
@@ -43,17 +54,45 @@ func Up(ctx context.Context, cfg Config, logger *slog.Logger, out io.Writer) err
 		}()
 	}
 
+	// Compiling every server at once exhausts a laptop's memory.
+	builds := make(chan struct{}, 1)
 	var wg sync.WaitGroup
-	for _, p := range cfg.Processes {
-		w := o.writer(p.Name)
-		wg.Go(func() { runProcess(ctx, p, cfg.path(p.Dir), env, w, logger) })
-	}
-	if cfg.Server != nil {
-		w := o.writer("server")
-		wg.Go(func() { runServer(ctx, cfg, env, w, logger) })
+	for _, svc := range services {
+		env, err := cfg.environ(&svc)
+		if err != nil {
+			return fmt.Errorf("%s: %w", svc.Name, err)
+		}
+		w := o.writer(svc.Name)
+		log := logger.With("service", svc.Name)
+		if len(svc.Build) > 0 {
+			wg.Go(func() { runServer(ctx, cfg, svc, env, builds, w, log) })
+		} else {
+			wg.Go(func() { runProcess(ctx, svc, env, w, log) })
+		}
 	}
 	wg.Wait()
 	return nil
+}
+
+func (c Config) selectServices(names []string) ([]Service, error) {
+	if len(names) == 0 {
+		var services []Service
+		for _, svc := range c.Services {
+			if !svc.Manual {
+				services = append(services, svc)
+			}
+		}
+		return services, nil
+	}
+	services := make([]Service, 0, len(names))
+	for _, name := range names {
+		i := slices.IndexFunc(c.Services, func(s Service) bool { return s.Name == name })
+		if i < 0 {
+			return nil, fmt.Errorf("no service named %q", name)
+		}
+		services = append(services, c.Services[i])
+	}
+	return services, nil
 }
 
 func runBefore(ctx context.Context, cfg Config, env []string, out *lineWriter) error {
@@ -77,11 +116,11 @@ func runBefore(ctx context.Context, cfg Config, env []string, out *lineWriter) e
 	return nil
 }
 
-func runProcess(ctx context.Context, p Process, dir string, env []string, out *lineWriter, logger *slog.Logger) {
+func runProcess(ctx context.Context, svc Service, env []string, out *lineWriter, logger *slog.Logger) {
 	defer out.flush()
-	proc, err := startProc(p.Run, dir, env, out)
+	proc, err := startProc(svc.Run, svc.Dir, env, out)
 	if err != nil {
-		logger.ErrorContext(ctx, "start", "process", p.Name, "error", err)
+		logger.ErrorContext(ctx, "start", "error", err)
 		return
 	}
 	select {
@@ -89,20 +128,14 @@ func runProcess(ctx context.Context, p Process, dir string, env []string, out *l
 		proc.stop()
 	case <-proc.done:
 		proc.drain()
-		// Left stopped: restarting a process that fails at startup would
-		// bury its error under repeats.
-		logger.WarnContext(ctx, "exited", "process", p.Name, "status", exitStatus(proc.err))
+		logger.WarnContext(ctx, "exited", "status", exitStatus(proc.err))
 	}
 }
 
-func runServer(ctx context.Context, cfg Config, env []string, out *lineWriter, logger *slog.Logger) {
+func runServer(ctx context.Context, cfg Config, svc Service, env []string, builds chan struct{}, out *lineWriter, logger *slog.Logger) {
 	defer out.flush()
-	dirs := make([]string, len(cfg.Server.Watch))
-	for i, d := range cfg.Server.Watch {
-		dirs[i] = cfg.path(d)
-	}
-	// The stack's own data changes constantly and is never source.
-	w, err := newWatcher(dirs, append([]string{cfg.Dir}, cfg.Server.Exclude...), cfg.Server.Extensions, logger)
+	// The stack's own data and logs change constantly and are never source.
+	w, err := newWatcher(svc.Watch, append([]string{cfg.Dir}, svc.Exclude...), svc.Extensions, logger)
 	if err != nil {
 		logger.ErrorContext(ctx, "watch", "error", err)
 		return
@@ -118,7 +151,7 @@ func runServer(ctx context.Context, cfg Config, env []string, out *lineWriter, l
 	}()
 	for {
 		start := time.Now()
-		built := build(ctx, cfg, env, out)
+		built := build(ctx, svc, env, builds, out)
 		if ctx.Err() != nil {
 			return
 		}
@@ -128,8 +161,8 @@ func runServer(ctx context.Context, cfg Config, env []string, out *lineWriter, l
 		}
 		if built {
 			logger.InfoContext(ctx, "built", "in", time.Since(start).Round(time.Millisecond))
-			if server, err = startProc(cfg.Server.Run, cfg.Root, env, out); err != nil {
-				logger.ErrorContext(ctx, "start server", "error", err)
+			if server, err = startProc(svc.Run, svc.Dir, env, out); err != nil {
+				logger.ErrorContext(ctx, "start", "error", err)
 			}
 		} else {
 			logger.ErrorContext(ctx, "build failed; waiting for a change")
@@ -144,7 +177,7 @@ func runServer(ctx context.Context, cfg Config, env []string, out *lineWriter, l
 			return
 		case <-changed:
 		case <-exited:
-			logger.WarnContext(ctx, "server exited; waiting for a change", "status", exitStatus(server.err))
+			logger.WarnContext(ctx, "exited; waiting for a change", "status", exitStatus(server.err))
 			server = nil
 			select {
 			case <-ctx.Done():
@@ -155,8 +188,14 @@ func runServer(ctx context.Context, cfg Config, env []string, out *lineWriter, l
 	}
 }
 
-func build(ctx context.Context, cfg Config, env []string, out io.Writer) bool {
-	p, err := startProc(cfg.Server.Build, cfg.Root, env, out)
+func build(ctx context.Context, svc Service, env []string, builds chan struct{}, out io.Writer) bool {
+	select {
+	case builds <- struct{}{}:
+		defer func() { <-builds }()
+	case <-ctx.Done():
+		return false
+	}
+	p, err := startProc(svc.Build, svc.Dir, env, out)
 	if err != nil {
 		fmt.Fprintln(out, err)
 		return false
@@ -170,21 +209,28 @@ func build(ctx context.Context, cfg Config, env []string, out io.Writer) bool {
 	}
 }
 
-// outputs prefixes each source's lines with its name, padded to align.
+// outputs prefixes each source's lines with its name, padded to align, and
+// writes them unprefixed to the source's log.
 type outputs struct {
 	mu    sync.Mutex
 	out   io.Writer
+	logs  string
+	files []*os.File
 	width int
 	color bool
 	next  int
 }
 
-func newOutputs(out io.Writer, cfg Config) *outputs {
-	o := &outputs{out: out, width: len("server"), color: colorEnabled(out)}
-	for _, p := range cfg.Processes {
-		o.width = max(o.width, len(p.Name))
+func newOutputs(out io.Writer, cfg Config, services []Service) (*outputs, error) {
+	logs := filepath.Join(cfg.Dir, "logs")
+	if err := os.MkdirAll(logs, 0o750); err != nil {
+		return nil, err
 	}
-	return o
+	o := &outputs{out: out, logs: logs, width: len("before"), color: colorEnabled(out)}
+	for _, svc := range services {
+		o.width = max(o.width, len(svc.Name))
+	}
+	return o, nil
 }
 
 // Distinct from tint's level colors, so a line's source and severity differ.
@@ -196,5 +242,24 @@ func (o *outputs) writer(name string) *lineWriter {
 		prefix = "\x1b[" + palette[o.next%len(palette)] + "m" + prefix + "\x1b[0m"
 		o.next++
 	}
-	return &lineWriter{mu: &o.mu, out: o.out, prefix: prefix}
+	w := &lineWriter{mu: &o.mu, out: o.out, prefix: prefix}
+	// Each run starts its logs afresh; a log that cannot be opened only
+	// costs the copy, never the terminal output.
+	if f, err := os.Create(LogPath(o.logs, name)); err == nil {
+		o.files = append(o.files, f)
+		w.log = f
+	}
+	return w
+}
+
+func (o *outputs) close() {
+	for _, f := range o.files {
+		_ = f.Close()
+	}
+}
+
+// LogPath is where a service's output from the latest run is kept, given the
+// directory of a stack's logs.
+func LogPath(logs, service string) string {
+	return filepath.Join(logs, service+".log")
 }

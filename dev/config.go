@@ -26,23 +26,26 @@ type Config struct {
 	// against. LoadConfig sets it to the config file's directory; otherwise
 	// it defaults to the working directory.
 	Root string `json:"-"`
-	// Dir keeps Postgres data and S3 objects between runs; defaults to
-	// .devstack.
+	// Dir keeps Postgres data, S3 objects and service logs between runs;
+	// defaults to .devstack.
 	Dir string `json:"dir,omitempty"`
-	// Env is a dotenv file loaded into the server and processes, where the
-	// real environment wins. Defaults to .env; a missing file is skipped.
-	Env string `json:"env,omitempty"`
+	// Env is set for every command. Values may name the stack:
+	// {postgres} and {postgres_test} are database URLs, {s3} the S3 endpoint.
+	Env map[string]string `json:"env,omitempty"`
+	// EnvFile is a dotenv file for personal settings and secrets, over Env
+	// and under the real environment. Defaults to .env; a missing file is
+	// skipped.
+	EnvFile string `json:"envFile,omitempty"`
 	// Postgres runs when set.
 	Postgres *Postgres `json:"postgres,omitempty"`
 	// S3 runs when set.
 	S3 *S3 `json:"s3,omitempty"`
-	// Server is built, run, and rebuilt when its sources change.
-	Server *Server `json:"server,omitempty"`
 	// Before lists commands run once, in order, before anything starts, such
-	// as generating files the server embeds. A failure stops dev.
+	// as generating files a server embeds. A failure stops dev.
 	Before [][]string `json:"before,omitempty"`
-	// Processes run alongside the server, such as a Vite dev server.
-	Processes []Process `json:"processes,omitempty"`
+	// Services run until dev stops: servers rebuilt when their sources
+	// change, and processes such as a Vite dev server.
+	Services []Service `json:"services,omitempty"`
 }
 
 // Postgres configures the local PostgreSQL server.
@@ -54,30 +57,36 @@ type Postgres struct {
 	Parameters map[string]string `json:"parameters,omitempty"`
 }
 
-// Server is the app's Go server.
-type Server struct {
-	// Build compiles the server, e.g. ["go", "build", "-o", "tmp/shop", "./cmd/shop"].
-	Build []string `json:"build"`
-	// Run starts what Build produced, e.g. ["tmp/shop", "serve"].
+// Service is a long-running command. With Build it is a server: built, run,
+// and rebuilt and restarted when its sources change; a failed build stops it
+// until the next change. Without, it runs once and is left stopped if it
+// exits, so a startup error is not buried under restarts.
+type Service struct {
+	// Name prefixes its output, names its log, and selects it on the
+	// command line.
+	Name string `json:"name"`
+	// Dir is where its commands run, relative to the root.
+	Dir string `json:"dir,omitempty"`
+	// Build compiles a server, e.g. ["go", "build", "-o", "tmp/shop", "./cmd/shop"].
+	Build []string `json:"build,omitempty"`
+	// Run starts it, e.g. ["tmp/shop", "serve"] or ["pnpm", "--filter", "web", "dev"].
 	Run []string `json:"run"`
-	// Watch lists the directories whose changes rebuild the server;
-	// defaults to the root. Hidden directories and node_modules are skipped.
+	// Watch lists the directories, relative to Dir, whose changes rebuild a
+	// server; defaults to Dir. Hidden directories and node_modules are skipped.
 	Watch []string `json:"watch,omitempty"`
 	// Exclude names further directories to skip wherever they appear, such
 	// as the frontend or the build output.
 	Exclude []string `json:"exclude,omitempty"`
-	// Extensions are the file types that trigger a rebuild; defaults to .go.
+	// Extensions are the file types that rebuild a server; defaults to .go.
 	Extensions []string `json:"extensions,omitempty"`
-}
-
-// Process is a long-running command beside the server.
-type Process struct {
-	// Name prefixes its output.
-	Name string `json:"name"`
-	// Run is the command, e.g. ["pnpm", "--filter", "web", "dev"].
-	Run []string `json:"run"`
-	// Dir is where it runs, relative to the root.
-	Dir string `json:"dir,omitempty"`
+	// Env is set for this service over the config's Env, with the same
+	// references to the stack.
+	Env map[string]string `json:"env,omitempty"`
+	// EnvFile is a dotenv file for this service, relative to Dir, over the
+	// config's EnvFile.
+	EnvFile string `json:"envFile,omitempty"`
+	// Manual services start only when named: `dev web worker`.
+	Manual bool `json:"manual,omitempty"`
 }
 
 // S3 configures the local S3-compatible server.
@@ -85,6 +94,10 @@ type S3 struct {
 	// Addr defaults to 127.0.0.1:8333.
 	Addr string `json:"addr,omitempty"`
 }
+
+// reserved are the dev command's own subcommands, which a service name would
+// be unreachable behind.
+var reserved = map[string]bool{"stack": true, "wait": true, "reset": true, "logs": true, "help": true, "completion": true}
 
 // The name lands in connection URLs and is the default for credentials, so
 // keep it to characters that need no escaping anywhere.
@@ -139,33 +152,50 @@ func (c Config) withDefaults() (Config, error) {
 		c.Dir = ".devstack"
 	}
 	c.Dir = c.path(c.Dir)
-	if c.Env == "" {
-		c.Env = ".env"
+	if c.EnvFile == "" {
+		c.EnvFile = ".env"
 	}
-	c.Env = c.path(c.Env)
-	if c.Server != nil {
-		srv := *c.Server
-		if len(srv.Build) == 0 || len(srv.Run) == 0 {
-			return c, errors.New("server needs both build and run")
-		}
-		if len(srv.Watch) == 0 {
-			srv.Watch = []string{"."}
-		}
-		if len(srv.Extensions) == 0 {
-			srv.Extensions = []string{".go"}
-		}
-		c.Server = &srv
-	}
+	c.EnvFile = c.path(c.EnvFile)
 	for i, cmd := range c.Before {
 		if len(cmd) == 0 {
 			return c, fmt.Errorf("before %d is empty", i)
 		}
 	}
-	for i, p := range c.Processes {
-		if p.Name == "" || len(p.Run) == 0 {
-			return c, fmt.Errorf("process %d needs a name and run", i)
+	services := make([]Service, len(c.Services))
+	seen := map[string]bool{}
+	for i, svc := range c.Services {
+		switch {
+		case svc.Name == "" || len(svc.Run) == 0:
+			return c, fmt.Errorf("service %d needs a name and run", i)
+		case seen[svc.Name]:
+			return c, fmt.Errorf("two services are named %q", svc.Name)
+		case reserved[svc.Name]:
+			return c, fmt.Errorf("service %q would be shadowed by the dev %s command", svc.Name, svc.Name)
 		}
+		seen[svc.Name] = true
+		svc.Dir = c.path(svc.Dir)
+		if svc.EnvFile != "" && !filepath.IsAbs(svc.EnvFile) {
+			svc.EnvFile = filepath.Join(svc.Dir, svc.EnvFile)
+		}
+		if len(svc.Build) > 0 {
+			if len(svc.Watch) == 0 {
+				svc.Watch = []string{"."}
+			}
+			watch := make([]string, len(svc.Watch))
+			for i, w := range svc.Watch {
+				watch[i] = w
+				if !filepath.IsAbs(w) {
+					watch[i] = filepath.Join(svc.Dir, w)
+				}
+			}
+			svc.Watch = watch
+			if len(svc.Extensions) == 0 {
+				svc.Extensions = []string{".go"}
+			}
+		}
+		services[i] = svc
 	}
+	c.Services = services
 	if c.Postgres != nil {
 		pg := *c.Postgres
 		if pg.Port == 0 {

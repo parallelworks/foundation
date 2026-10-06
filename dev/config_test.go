@@ -3,6 +3,7 @@ package dev
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -52,8 +53,8 @@ func TestLoadConfigResolvesPathsAgainstFile(t *testing.T) {
 	if want := filepath.Join(root, ".devstack"); cfg.Dir != want {
 		t.Errorf("Dir = %s, want %s", cfg.Dir, want)
 	}
-	if want := filepath.Join(root, ".env"); cfg.Env != want {
-		t.Errorf("Env = %s, want %s", cfg.Env, want)
+	if want := filepath.Join(root, ".env"); cfg.EnvFile != want {
+		t.Errorf("EnvFile = %s, want %s", cfg.EnvFile, want)
 	}
 	if cfg.Postgres == nil || cfg.S3 == nil || cfg.S3.Addr != "127.0.0.1:9000" {
 		t.Errorf("services = %+v, %+v", cfg.Postgres, cfg.S3)
@@ -68,12 +69,54 @@ func TestLoadConfigRejectsUnknownKeys(t *testing.T) {
 
 func TestConfigRequiresCommands(t *testing.T) {
 	for name, cfg := range map[string]Config{
-		"server without run":   {Name: "app", Server: &Server{Build: []string{"go", "build"}}},
-		"process without name": {Name: "app", Processes: []Process{{Run: []string{"vite"}}}},
+		"service without run":  {Services: []Service{{Name: "api", Build: []string{"go", "build"}}}},
+		"service without name": {Services: []Service{{Run: []string{"vite"}}}},
+		"two with one name":    {Services: []Service{{Name: "web", Run: []string{"a"}}, {Name: "web", Run: []string{"b"}}}},
+		"a subcommand's name":  {Services: []Service{{Name: "logs", Run: []string{"a"}}}},
 	} {
 		if _, err := cfg.withDefaults(); err == nil {
 			t.Errorf("%s accepted", name)
 		}
+	}
+}
+
+func TestServicePathsResolveAgainstTheirDir(t *testing.T) {
+	cfg, err := Config{Root: "/repo", Services: []Service{{
+		Name: "api", Dir: "cmd/api", Build: []string{"go", "build"}, Run: []string{"tmp/api"},
+		EnvFile: ".env", Watch: []string{".", "/shared"},
+	}}}.withDefaults()
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc := cfg.Services[0]
+	if svc.Dir != "/repo/cmd/api" || svc.EnvFile != "/repo/cmd/api/.env" {
+		t.Errorf("Dir, EnvFile = %s, %s", svc.Dir, svc.EnvFile)
+	}
+	if want := []string{"/repo/cmd/api", "/shared"}; !slices.Equal(svc.Watch, want) {
+		t.Errorf("Watch = %v, want %v", svc.Watch, want)
+	}
+	if want := []string{".go"}; !slices.Equal(svc.Extensions, want) {
+		t.Errorf("Extensions = %v, want %v", svc.Extensions, want)
+	}
+}
+
+func TestSelectServices(t *testing.T) {
+	cfg := Config{Services: []Service{{Name: "api"}, {Name: "web"}, {Name: "worker", Manual: true}}}
+	names := func(svcs []Service) []string {
+		var n []string
+		for _, s := range svcs {
+			n = append(n, s.Name)
+		}
+		return n
+	}
+	if got, _ := cfg.selectServices(nil); !slices.Equal(names(got), []string{"api", "web"}) {
+		t.Errorf("by default = %v, want every service not marked manual", names(got))
+	}
+	if got, _ := cfg.selectServices([]string{"worker", "api"}); !slices.Equal(names(got), []string{"worker", "api"}) {
+		t.Errorf("named = %v, want those named", names(got))
+	}
+	if _, err := cfg.selectServices([]string{"nope"}); err == nil {
+		t.Error("an unknown service was accepted")
 	}
 }
 

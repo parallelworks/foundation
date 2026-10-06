@@ -1,10 +1,10 @@
 # dev
 
 `go tool dev` runs an app's whole development setup in one terminal: Postgres
-18 and an S3-compatible server natively, with data kept between runs; the Go
-server, rebuilt and restarted when its sources change; and processes beside it,
-such as Vite. Add it to the tools module (not the service's module: the S3
-emulator's MD5 ETags fail under `fips140=only`), and describe the stack in
+18 and an S3-compatible server natively, with data kept between runs; its Go
+servers, rebuilt and restarted when their sources change; and processes beside
+them, such as Vite. Add it to the tools module (not the service's module: the
+S3 emulator's MD5 ETags fail under `fips140=only`), and describe the app in
 `dev.json` at the repository root:
 
 ```sh
@@ -16,14 +16,20 @@ go -C tools get -tool github.com/parallelworks/foundation/dev/cmd/dev
   "name": "shop",
   "postgres": { "parameters": { "max_connections": "300" } },
   "s3": {},
-  "before": [["sh", "-c", "find web/dist -mindepth 1 ! -name .gitkeep -delete"]],
-  "server": {
-    "build": ["go", "build", "-o", "tmp/shop", "./cmd/shop"],
-    "run": ["tmp/shop", "serve"],
-    "exclude": ["tmp", "web", "tools"],
-    "extensions": [".go", ".sql"]
+  "env": {
+    "SHOP_DATABASE_URL": "{postgres}",
+    "SHOP_TEST_DATABASE_URL": "{postgres_test}",
+    "SHOP_S3_ENDPOINT": "{s3}",
+    "SHOP_VITE_URL": "http://localhost:5173"
   },
-  "processes": [
+  "services": [
+    {
+      "name": "server",
+      "build": ["go", "build", "-o", "tmp/shop", "./cmd/shop"],
+      "run": ["tmp/shop", "serve"],
+      "exclude": ["tmp", "web", "tools"],
+      "extensions": [".go", ".sql"]
+    },
     { "name": "web", "run": ["pnpm", "--filter", "web", "dev"] }
   ]
 }
@@ -31,25 +37,45 @@ go -C tools get -tool github.com/parallelworks/foundation/dev/cmd/dev
 
 | Command | |
 | --- | --- |
-| `dev` | Run all of it until interrupted, each line prefixed with its source |
+| `dev [service...]` | Run the stack and the services named, or every service not marked `manual`, until interrupted. Each line is prefixed with its source |
+| `dev logs service [-f]` | Print a service's output from the latest run, and with `-f` keep following it |
 | `dev stack` | Run Postgres on `:5432` and S3 on `127.0.0.1:8333` until interrupted. User, password and database are `name` (required with Postgres); tests get `name_test` |
 | `dev wait` | Block until a stack started elsewhere accepts connections |
 | `dev reset` | Delete the stack's data |
 
-Data lives in `.devstack/` beside `dev.json`, or `--dir`. The command finds
-`dev.json` from the working directory up, so `go -C tools tool dev` works too.
-A Postgres left running by a stack that was killed is stopped on the next start.
+Data and each service's latest log live in `.devstack/` beside `dev.json`, or
+`--dir`. The command finds `dev.json` from the working directory up, so
+`go -C tools tool dev` works too. A Postgres left running by a stack that was
+killed is stopped on the next start.
 
-`before` commands run once, in order, before anything starts: generating
-files the server embeds, or clearing a stale build. If one fails, `dev` stops
-with its error.
+## Services
 
-The server, processes and `before` commands get `.env` beside `dev.json` (or
-`env`), under the real environment, so `SHOP_LOG_LEVEL=info go tool dev`
-overrides it. A build that fails stops the server until the next change, so
-nothing runs stale code. Each command runs in its own process group, and
-stopping one ends everything it started, such as the Vite under `pnpm`. Unix
-only.
+A service with `build` is a server: built, run, and rebuilt and restarted when
+a file with one of its `extensions` (default `.go`) changes under its `watch`
+directories (default its `dir`). A build that fails stops it until the next
+change, so nothing runs stale code, and only one service builds at a time, so
+several servers do not exhaust a laptop's memory. A service without `build`
+runs once; if it exits, it is left stopped so its error is not buried under
+restarts.
+
+Each service runs in its `dir`, relative to `dev.json`. Each command runs in
+its own process group, and stopping one ends everything it started, such as
+the Vite under `pnpm`. Unix only.
+
+## Environment
+
+Every command gets, from lowest to highest precedence: `env` in `dev.json`; the
+service's own `env`; `envFile` (default `.env` beside `dev.json`, skipped when
+missing); the service's `envFile`, relative to its `dir`; and the real
+environment, so `SHOP_LOG_LEVEL=info go tool dev` overrides everything. Values
+in `env` may name the stack: `{postgres}` and `{postgres_test}` are database
+URLs, and `{s3}` is the S3 endpoint. Keep `.env` for secrets and personal
+settings.
+
+`before` commands run once, in order, before anything starts, such as
+generating files a server embeds. If one fails, `dev` stops with its error.
+
+## Your own command
 
 An app with its own development tasks builds its command on the same base:
 
