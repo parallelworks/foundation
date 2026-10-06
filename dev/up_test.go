@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -88,12 +89,29 @@ func TestLineWriterPrefixesWholeLines(t *testing.T) {
 	}
 }
 
-func TestEnvironUnderTheRealEnvironment(t *testing.T) {
-	path := filepath.Join(t.TempDir(), ".env")
-	write(t, path, "# local\n\nDEV_TEST_A=from-file\nexport DEV_TEST_B=\"quoted value\"\nDEV_TEST_C='x=y'\n")
-	t.Setenv("DEV_TEST_A", "from-env")
+func TestEnvironLayers(t *testing.T) {
+	root := t.TempDir()
+	write(t, filepath.Join(root, ".env"), "# local\n\nDEV_TEST_FILE=from-file\nexport DEV_TEST_QUOTED=\"quoted value\"\nDEV_TEST_REAL=from-file\n")
+	write(t, filepath.Join(root, "api", ".env"), "DEV_TEST_SVC_FILE='x=y'\nDEV_TEST_FILE=from-service-file\n")
+	t.Setenv("DEV_TEST_REAL", "from-env")
+	cfg, err := Config{
+		Name:     "app",
+		Root:     root,
+		Postgres: &Postgres{Port: 5433},
+		S3:       &S3{},
+		Env: map[string]string{
+			"DEV_TEST_DB":   "{postgres}",
+			"DEV_TEST_BOTH": "{postgres_test} {s3}",
+			"DEV_TEST_SVC":  "from-config",
+			"DEV_TEST_FILE": "from-config",
+		},
+		Services: []Service{{Name: "api", Dir: "api", Run: []string{"api"}, EnvFile: ".env", Env: map[string]string{"DEV_TEST_SVC": "from-service"}}},
+	}.withDefaults()
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	env, err := environ(path)
+	env, err := cfg.environ(&cfg.Services[0])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,17 +120,42 @@ func TestEnvironUnderTheRealEnvironment(t *testing.T) {
 		k, v, _ := strings.Cut(kv, "=")
 		got[k] = v
 	}
-	for k, want := range map[string]string{"DEV_TEST_A": "from-env", "DEV_TEST_B": "quoted value", "DEV_TEST_C": "x=y"} {
+	for k, want := range map[string]string{
+		"DEV_TEST_DB":       "postgres://app:app@localhost:5433/app?sslmode=disable",
+		"DEV_TEST_BOTH":     "postgres://app:app@localhost:5433/app_test?sslmode=disable http://127.0.0.1:8333",
+		"DEV_TEST_SVC":      "from-service",
+		"DEV_TEST_FILE":     "from-service-file",
+		"DEV_TEST_QUOTED":   "quoted value",
+		"DEV_TEST_SVC_FILE": "x=y",
+		"DEV_TEST_REAL":     "from-env",
+	} {
 		if got[k] != want {
 			t.Errorf("%s = %q, want %q", k, got[k], want)
 		}
 	}
 
-	if _, err := environ(filepath.Join(t.TempDir(), "missing")); err != nil {
+	before, err := cfg.environ(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(before, "DEV_TEST_SVC=from-service") {
+		t.Error("a before command got a service's env")
+	}
+}
+
+func TestEnvironRejectsWhatIsNotThere(t *testing.T) {
+	root := t.TempDir()
+	cfg := Config{Root: root, Env: map[string]string{"DATABASE_URL": "{postgres}"}}
+	if _, err := cfg.environ(nil); err == nil || !strings.Contains(err.Error(), "{postgres} needs postgres") {
+		t.Errorf("{postgres} without Postgres: %v", err)
+	}
+	cfg.Env = nil
+	cfg.EnvFile = filepath.Join(root, "missing")
+	if _, err := cfg.environ(nil); err != nil {
 		t.Errorf("a missing env file should be skipped: %v", err)
 	}
-	write(t, path, "not an assignment\n")
-	if _, err := environ(path); err == nil {
+	write(t, cfg.EnvFile, "not an assignment\n")
+	if _, err := cfg.environ(nil); err == nil {
 		t.Error("a malformed line was accepted")
 	}
 }
@@ -170,14 +213,17 @@ func TestUpRebuildsTheServerAndRunsProcesses(t *testing.T) {
 	cfg := Config{
 		Name: "app",
 		Root: root,
-		Server: &Server{
-			// A stand-in for go build: fails when the source says so.
-			Build:   []string{"sh", "-c", `! grep -q broken src/msg.go && mkdir -p bin && cp src/msg.go bin/msg`},
-			Run:     []string{"sh", "-c", `echo "$GREETING $(cat bin/msg)"; echo $$ > bin/pid; exec sleep 300`},
-			Watch:   []string{"src"},
-			Exclude: []string{"bin"},
+		Services: []Service{
+			{
+				Name: "server",
+				// A stand-in for go build: fails when the source says so.
+				Build:   []string{"sh", "-c", `! grep -q broken src/msg.go && mkdir -p bin && cp src/msg.go bin/msg`},
+				Run:     []string{"sh", "-c", `echo "$GREETING $(cat bin/msg)"; echo $$ > bin/pid; exec sleep 300`},
+				Watch:   []string{"src"},
+				Exclude: []string{"bin"},
+			},
+			{Name: "web", Run: []string{"sh", "-c", `echo web up; exec sleep 300`}},
 		},
-		Processes: []Process{{Name: "web", Run: []string{"sh", "-c", `echo web up; exec sleep 300`}}},
 	}
 
 	var out syncBuffer
@@ -240,7 +286,7 @@ func TestUpRunsBeforeCommandsFirst(t *testing.T) {
 			{"sh", "-c", "echo first > order"},
 			{"sh", "-c", "echo second >> order; echo prepared"},
 		},
-		Processes: []Process{{Name: "web", Run: []string{"sh", "-c", `cat order; exec sleep 300`}}},
+		Services: []Service{{Name: "web", Run: []string{"sh", "-c", `cat order; exec sleep 300`}}},
 	}
 
 	var out syncBuffer
@@ -266,9 +312,9 @@ func TestUpRunsBeforeCommandsFirst(t *testing.T) {
 func TestUpStopsWhenABeforeCommandFails(t *testing.T) {
 	root := t.TempDir()
 	cfg := Config{
-		Root:      root,
-		Before:    [][]string{{"sh", "-c", "exit 3"}, {"touch", "ran"}},
-		Processes: []Process{{Name: "web", Run: []string{"touch", "started"}}},
+		Root:     root,
+		Before:   [][]string{{"sh", "-c", "exit 3"}, {"touch", "ran"}},
+		Services: []Service{{Name: "web", Run: []string{"touch", "started"}}},
 	}
 	err := Up(t.Context(), cfg, slog.New(slog.DiscardHandler), io.Discard)
 	if err == nil || !strings.Contains(err.Error(), "exit status 3") {
@@ -278,5 +324,85 @@ func TestUpStopsWhenABeforeCommandFails(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(root, f)); err == nil {
 			t.Errorf("%s ran after a before command failed", f)
 		}
+	}
+}
+
+func TestBuildsRunOneAtATime(t *testing.T) {
+	root := t.TempDir()
+	write(t, filepath.Join(root, "src", "a.go"), "package a")
+	// Each build holds a lock directory; a second build at the same time fails.
+	build := []string{"sh", "-c", "mkdir lock && sleep 0.3 && rmdir lock"}
+	svc := func(name string) Service {
+		return Service{Name: name, Build: build, Run: []string{"sleep", "300"}, Watch: []string{"src"}}
+	}
+	cfg := Config{Root: root, Services: []Service{svc("one"), svc("two"), svc("three")}}
+
+	var out syncBuffer
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		_ = Up(ctx, cfg, slog.New(slog.NewTextHandler(&out, nil)), &out)
+		close(done)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		<-done
+	})
+	eventually(t, "three builds", func() bool { return strings.Count(out.String(), "msg=built") == 3 })
+	if strings.Contains(out.String(), "build failed") {
+		t.Errorf("builds overlapped:\n%s", out.String())
+	}
+}
+
+func TestServiceLogsKeepUnprefixedOutput(t *testing.T) {
+	root := t.TempDir()
+	cfg := Config{Root: root, Services: []Service{{Name: "web", Run: []string{"sh", "-c", "echo first; echo second; exec sleep 300"}}}}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		_ = Up(ctx, cfg, slog.New(slog.DiscardHandler), io.Discard)
+		close(done)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		<-done
+	})
+
+	path := LogPath(filepath.Join(root, ".devstack", "logs"), "web")
+	eventually(t, "the log", func() bool {
+		b, _ := os.ReadFile(path)
+		return string(b) == "first\nsecond\n"
+	})
+}
+
+func TestPrintLogFollowsAcrossRuns(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "web.log")
+	write(t, path, "run one\n")
+	var out syncBuffer
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() { done <- printLog(ctx, path, true, &out) }()
+
+	eventually(t, "the first run", func() bool { return out.String() == "run one\n" })
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = f.WriteString("more\n")
+	_ = f.Close()
+	eventually(t, "appended output", func() bool { return strings.HasSuffix(out.String(), "more\n") })
+
+	// A new run truncates the log in place.
+	write(t, path, "run two\n")
+	eventually(t, "the next run", func() bool { return strings.HasSuffix(out.String(), "run two\n") })
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+
+	out = syncBuffer{}
+	if err := printLog(t.Context(), path, false, &out); err != nil || out.String() != "run two\n" {
+		t.Errorf("printLog = %q, %v", out.String(), err)
 	}
 }
