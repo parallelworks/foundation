@@ -48,7 +48,8 @@ type Options struct {
 	// Web is the built single-page app (see spa.Handler). Nil serves no app.
 	Web fs.FS
 	// DevServer is the Vite dev server, such as "http://localhost:5173".
-	// While Web holds no build, the app is proxied from it.
+	// When set, the app is proxied from it, even if Web holds a build. Set it
+	// only in development.
 	DevServer string
 	// BasePath is where a host mounts the application, such as "/tandem".
 	// The app's index.html gets a matching <base href>. Defaults to "/".
@@ -98,7 +99,7 @@ func New(opts Options) http.Handler {
 	if csp == "" {
 		csp = DefaultContentSecurityPolicy
 	}
-	if opts.Web != nil && opts.DevServer != "" && !spa.Built(opts.Web) {
+	if opts.Web != nil && opts.DevServer != "" {
 		csp += "; script-src 'self' 'nonce-" + spa.DevNonce + "'; style-src 'self' 'nonce-" + spa.DevNonce + "'"
 	}
 

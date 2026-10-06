@@ -228,7 +228,7 @@ handler := server.New(server.Options{
 	Problems:  []*problem.Registry{problems},
 	Ready:     map[string]server.Pinger{"database": pool},
 	Web:       web.FS(),
-	DevServer: cfg.ViteURL, // development: proxy the app from Vite until a build is embedded
+	DevServer: cfg.ViteURL, // development only: proxy the app from Vite
 	HSTS:      cfg.Production,
 	Wrap:      sessions.Middleware, // the application's own authentication
 })
@@ -272,9 +272,10 @@ mux.Handle("/", app) // after the API routes
 With a build embedded, it serves each file (preferring a `.br` or `.gz`
 sibling the client accepts), then a
 prerendered `<path>/index.html`, then `index.html` for client-side routes.
-When `dist` holds only a placeholder, as it does before `pnpm build`, it
-proxies everything to the Vite dev server, including the HMR WebSocket. Open
-the Go server's address in development, not Vite's.
+With `DevServer` set, it proxies everything to the Vite dev server instead,
+including the HMR WebSocket, even when `dist` holds a build from an earlier
+`pnpm build`. Set it only in development, and open the Go server's address
+there, not Vite's. Without `DevServer`, `dist` must hold a build.
 
 Put Vite's content-hashed output in `/_build/`, which `spa.Handler` caches as
 immutable; files copied from `public/` keep their names and stay revalidatable,
