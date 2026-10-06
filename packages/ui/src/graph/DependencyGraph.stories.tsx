@@ -1,9 +1,28 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import type { GraphLayout } from '../editing'
 import { DependencyGraphPreview } from './DependencyGraph'
+import type { EditorProblem } from './editorApi'
+import type { ListedProblem } from './ProblemsButton'
+import { SAMPLE_WORKFLOW, useStoryWorkflow } from './stories/harness'
 
 const meta: Meta<typeof DependencyGraphPreview> = {
   title: 'UI/Workflow/DependencyGraphPreview',
   component: DependencyGraphPreview,
+  argTypes: {
+    height: {
+      control: 'text',
+      description: 'A fixed panel height; without one the panel is only as tall as the graph.',
+    },
+    layout: {
+      control: 'object',
+      description:
+        'Where each job sits on the grid, as a host stores it; rows and columns left out stay empty.',
+    },
+    editor: {
+      control: false,
+      description: 'The callbacks that make the graph an editor; the Editable stories pass them.',
+    },
+  },
 }
 export default meta
 
@@ -58,4 +77,119 @@ export const WithSubworkflow: StoryObj<typeof DependencyGraphPreview> = {
 
 export const WithMatrixGroup: StoryObj<typeof DependencyGraphPreview> = {
   args: { yml: MATRIX_YML },
+}
+
+/** A matrix as written: the preview lists each combination, as a run would. */
+export const MatrixFromYaml: StoryObj<typeof DependencyGraphPreview> = {
+  args: {
+    yml: {
+      jobs: {
+        test: {
+          strategy: { matrix: { os: ['linux', 'mac'], python: ['3.12', '3.13'] } },
+          steps: [{ name: 'test', run: 'pytest' }],
+        },
+        report: { needs: ['test'], steps: [{ name: 'report', run: './report.sh' }] },
+      },
+    },
+  },
+}
+
+/** A run's matrix that made one job draws as that job, under the job's own name. */
+export const MatrixOfOne: StoryObj<typeof DependencyGraphPreview> = {
+  args: {
+    yml: {
+      jobs: {
+        build_0: {
+          _matrix: { originaljob: 'build', index: 0, totalingroup: 1 },
+          steps: [{ name: 'compile', run: 'make' }],
+        },
+        ship: { needs: ['build_0'], steps: [{ name: 'ship', run: './ship.sh' }] },
+      },
+    },
+  },
+}
+
+/** A stored layout keeps its empty column and row, and puts two jobs in one node. */
+export const StoredLayout: StoryObj<typeof DependencyGraphPreview> = {
+  args: {
+    yml: {
+      jobs: {
+        lint: { steps: [{ name: 'lint', run: 'make lint' }] },
+        build: { steps: [{ name: 'compile', run: 'make' }] },
+        docs: { steps: [{ name: 'docs', run: 'make docs' }] },
+        release: {
+          needs: ['lint', 'build', 'docs'],
+          steps: [{ name: 'publish', run: './release.sh' }],
+        },
+      },
+    },
+    layout: {
+      lint: { column: 0, row: 0 },
+      build: { column: 0, row: 0 },
+      docs: { column: 0, row: 2 },
+      release: { column: 2, row: 1 },
+    } satisfies GraphLayout,
+  },
+}
+
+function EditableGraph({
+  source,
+  layout,
+  height = '520px',
+  problems,
+}: {
+  source: string
+  layout?: GraphLayout | undefined
+  height?: string | undefined
+  problems?: EditorProblem[]
+}) {
+  const story = useStoryWorkflow(source, layout)
+  const listed: ListedProblem[] | undefined = problems?.map((problem) => ({
+    ...problem,
+    pick: () => {},
+  }))
+  return (
+    <DependencyGraphPreview
+      yml={story.workflow}
+      layout={story.layout}
+      height={height}
+      editor={story.editor({
+        ...(problems ? { problems } : {}),
+        ...(listed ? { listedProblems: listed } : {}),
+        usesSuggestions: ['workflow/deploy', 'marketplace/notify'],
+      })}
+    />
+  )
+}
+
+/**
+ * The graph as an editor: drag a job to move it or onto the trash, drag from a node's circles
+ * to connect jobs, shift-drag to select, and right-click for a job's menu. Edits undo.
+ */
+export const Editable: StoryObj<typeof DependencyGraphPreview> = {
+  render: (args) => <EditableGraph source={SAMPLE_WORKFLOW} height={args.height} />,
+}
+
+/** Problems mark their job or step, and the toolbar counts and lists them. */
+export const EditableWithProblems: StoryObj<typeof DependencyGraphPreview> = {
+  render: (args) => (
+    <EditableGraph
+      source={SAMPLE_WORKFLOW}
+      height={args.height}
+      problems={[
+        {
+          message: 'inputs.taget is read, but the workflow has no input called taget.',
+          line: 31,
+          job: 'build',
+          step: 0,
+        },
+        { message: 'deploy reads needs.build, which it does not list.', line: 43, job: 'deploy' },
+      ]}
+    />
+  ),
+}
+
+/** A workflow without jobs yet: the toolbar adds the first one. */
+export const EditableEmpty: StoryObj<typeof DependencyGraphPreview> = {
+  render: (args) => <EditableGraph source={'jobs: {}\n'} height={args.height ?? '240px'} />,
 }
