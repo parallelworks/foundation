@@ -1,16 +1,13 @@
-import {
-  callWhenParserInitialized,
-  initializeParseStringsOfObj,
-  lintReady,
-  loadYaml,
-  type WorkflowLintContext,
-} from '@parallelworks/workflow-parser'
 import { useEffect, useMemo, useState } from 'react'
 import {
+  useLoadedWorkflowEngine,
   useRepoSuggestions,
   useSecretVariablesResolver,
+  useWorkflowActions,
+  useWorkflowEditing,
   useWorkflowJsonResolver,
 } from '../components/Provider'
+import type { WorkflowEditing, WorkflowLintContext } from '../editing'
 import { asRecord } from '../graph/editorFields'
 import {
   DEFAULT_GITLAB_HOST,
@@ -23,6 +20,8 @@ export { LINT_OWNER } from './lintOwner'
 
 export interface LintSources extends UsesSources {
   secrets?: (() => Promise<string[]>) | undefined
+  /** `uses` values the host runs itself, which have no workflow to read inputs from. */
+  actions?: Record<string, unknown> | undefined
 }
 
 // Fetched once per page and kept, since the checks run on every edit; null marks a target
@@ -40,13 +39,14 @@ const text = (value: unknown, fallback: string) =>
  * of the user's variables are secret, as far as they have arrived. `onMore` runs when more does.
  */
 export function lintContext(
+  editing: WorkflowEditing,
   source: string,
   sources: LintSources,
   onMore: () => void,
 ): WorkflowLintContext {
   let doc: unknown
   try {
-    doc = loadYaml(source)
+    doc = editing.loadYaml(source)
   } catch {
     doc = undefined
   }
@@ -56,7 +56,11 @@ export function lintContext(
     const steps = asRecord(job)['steps']
     for (const step of Array.isArray(steps) ? steps : []) {
       const uses = asRecord(step)['uses']
-      if (typeof uses !== 'string' || uses.includes('${{') || uses.startsWith('parallelworks/')) {
+      if (
+        typeof uses !== 'string' ||
+        uses.includes('${{') ||
+        Object.hasOwn(sources.actions ?? {}, uses.trim())
+      ) {
         continue
       }
       const withBlock = asRecord(asRecord(step)['with'])
@@ -83,7 +87,7 @@ export function lintContext(
     }
     pending.add(key)
     const [, yamlPath = DEFAULT_REPO_YAML, host = DEFAULT_GITLAB_HOST] = key.split('\n')
-    loadUsesInputs(uses, { yamlPath, host }, sources)
+    loadUsesInputs(editing, uses, { yamlPath, host }, sources)
       .then((inputs) => {
         targets.set(key, inputs)
         onMore()
@@ -112,34 +116,46 @@ export function useLintSources(): LintSources {
   const resolve = useWorkflowJsonResolver()
   const repos = useRepoSuggestions()
   const secrets = useSecretVariablesResolver()
-  return useMemo(() => ({ resolve, repos, secrets }), [resolve, repos, secrets])
+  const actions = useWorkflowActions()
+  return useMemo(() => ({ resolve, repos, secrets, actions }), [resolve, repos, secrets, actions])
 }
 
 /** lintContext for a component, which renders again when more of it arrives. */
 export function useLintContext(source: string | undefined): WorkflowLintContext {
+  const editing = useWorkflowEditing()
   const sources = useLintSources()
   const [arrivals, setArrivals] = useState(0)
   // biome-ignore lint/correctness/useExhaustiveDependencies: each arrival reads the context again.
   return useMemo(
     () =>
-      source === undefined ? {} : lintContext(source, sources, () => setArrivals((n) => n + 1)),
-    [source, sources, arrivals],
+      source === undefined
+        ? {}
+        : lintContext(editing, source, sources, () => setArrivals((n) => n + 1)),
+    [editing, source, sources, arrivals],
   )
 }
 
-/** Whether the linter's wasm has loaded, rendering again once it has; `load` false never loads it. */
-export function useLintReady(load = true): boolean {
-  const [ready, setReady] = useState(lintReady)
+/**
+ * The engine's editing once its checks have loaded, rendering again when they have; undefined
+ * before then, without an engine that edits, or with `load` false.
+ */
+export function useLintEditing(load = true): WorkflowEditing | undefined {
+  const engine = useLoadedWorkflowEngine()
+  const [ready, setReady] = useState(() => !!engine?.isReady())
   useEffect(() => {
-    if (ready || !load) {
+    if (!load || !engine?.editing) {
       return
     }
-    initializeParseStringsOfObj().catch(() => {})
-    return callWhenParserInitialized((loaded) => {
+    if (engine.isReady()) {
+      setReady(true)
+      return
+    }
+    engine.init()
+    return engine.onReady((loaded) => {
       if (loaded) {
         setReady(true)
       }
     })
-  }, [ready, load])
-  return ready
+  }, [load, engine])
+  return load && ready ? engine?.editing : undefined
 }

@@ -5,6 +5,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import type { NestedWorkflowText } from '../editor/nestedText'
+import { TEST_ACTIONS } from '../test/actions'
 import { testEngine } from '../test/engine'
 
 // The components call useWorkflowEngine(), which throws outside a UIProvider carrying one.
@@ -468,7 +469,7 @@ describe('DependencyGraphPreview editor', () => {
           steps: [
             {
               name: 'get',
-              uses: 'parallelworks/checkout',
+              uses: 'example/checkout',
               with: { repo: 'r', branch: 'main', extra: 1 },
             },
           ],
@@ -479,7 +480,9 @@ describe('DependencyGraphPreview editor', () => {
     const row = document.querySelector('[data-dag-job="build"]') as HTMLElement
     fireEvent.click(within(row).getByRole('button', { name: 'Build' }))
     fireEvent.click(screen.getByTestId('get'))
-    expect(screen.getByText(GRAPH_EDITOR_STRINGS.actionHelp.checkoutSparse)).toBeInTheDocument()
+    expect(
+      screen.getByText(TEST_ACTIONS['example/checkout']!.inputs[2]!.description),
+    ).toBeInTheDocument()
     const save = screen.getByRole('button', { name: 'Save' })
     expect(screen.getAllByText(GRAPH_EDITOR_STRINGS.notActionInput).length).toBeGreaterThan(0)
     expect(save).toBeDisabled()
@@ -518,7 +521,7 @@ describe('DependencyGraphPreview editor', () => {
     fireEvent.click(screen.getByRole('button', { name: GRAPH_EDITOR_STRINGS.stepUses }))
     fireEvent.click(screen.getByRole('button', { name: 'Action' }))
     fireEvent.change(screen.getByLabelText('Workflow or action'), {
-      target: { value: 'parallelworks/checkout' },
+      target: { value: 'example/checkout' },
     })
     fireEvent.change(screen.getByLabelText('Repository'), {
       target: { value: 'https://github.com/o/r' },
@@ -532,7 +535,7 @@ describe('DependencyGraphPreview editor', () => {
       job: 'build',
       index: 0,
       set: {
-        uses: 'parallelworks/checkout',
+        uses: 'example/checkout',
         with: { repo: 'https://github.com/o/r', branch: 'main' },
       },
       unset: ['run'],
@@ -2316,7 +2319,7 @@ describe('problems and the YAML beside the graph', () => {
           steps: [
             {
               name: 'agent',
-              uses: 'parallelworks/scheduler-agent',
+              uses: 'example/scheduler-agent',
               with: { schedulerType: 'pbs' },
             },
           ],

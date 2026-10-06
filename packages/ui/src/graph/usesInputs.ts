@@ -1,5 +1,5 @@
-import { loadYaml, workflowInputsSchema } from '@parallelworks/workflow-parser'
 import type { UIData, WorkflowJsonRef } from '../components/Provider'
+import type { WorkflowEditing } from '../editing'
 import { asRecord, type Json } from './editorFields'
 
 /** The file a repository `uses` reads when its step names no `$yaml`. */
@@ -19,6 +19,7 @@ export function splitAtRef(value: string): [string, string] {
 }
 
 async function loadTarget(
+  editing: WorkflowEditing,
   uses: string,
   where: { yamlPath: string; host: string },
   { resolve, repos }: UsesSources,
@@ -40,17 +41,18 @@ async function loadTarget(
     }
     const repo = github ? path : `https://${where.host}/${path}`
     const text = await repos.file(repo, ref, where.yamlPath)
-    return text ? loadYaml(text) : undefined
+    return text ? editing.loadYaml(text) : undefined
   }
   return undefined
 }
 
 /** The inputs of the workflow a step's `uses` names; null when it can't be read. */
 export async function loadUsesInputs(
+  editing: WorkflowEditing,
   uses: string,
   where: { yamlPath: string; host: string },
   sources: UsesSources,
 ): Promise<Json | null> {
-  const doc = await loadTarget(uses, where, sources)
-  return doc ? asRecord(workflowInputsSchema(asRecord(doc))) : null
+  const doc = await loadTarget(editing, uses, where, sources)
+  return doc ? asRecord(editing.workflowInputsSchema(asRecord(doc))) : null
 }

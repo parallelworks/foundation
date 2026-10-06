@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { testEngine } from '../test/engine'
 import {
   equalsExpression,
   flagExpression,
@@ -11,7 +12,7 @@ import {
 
 describe('inputRefs', () => {
   it('lists inputs where a run reads them', () => {
-    const refs = inputRefs({
+    const refs = inputRefs(testEngine.editing, {
       cluster: { type: 'compute-clusters', label: 'Cluster' },
       title: { type: 'header', text: 'Settings' },
       settings: { type: 'group', items: { size: { type: 'number' } } },
@@ -36,9 +37,11 @@ describe('inputRefs', () => {
       title: 'One',
       options: { a: { type: 'string' } },
     }
-    expect(inputRefs({ one: step }).map((ref) => ref.path)).toEqual([['a']])
+    expect(inputRefs(testEngine.editing, { one: step }).map((ref) => ref.path)).toEqual([['a']])
     expect(
-      inputRefs({ $meta: { wizard: { flatten: false } }, one: step }).map((ref) => ref.path),
+      inputRefs(testEngine.editing, { $meta: { wizard: { flatten: false } }, one: step }).map(
+        (ref) => ref.path,
+      ),
     ).toEqual([['one', 'a']])
   })
 })

@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
-import { useStrings } from '../components/Provider'
 import { TOOLTIP_ID } from '../components/Tooltip'
 import { AlertIcon } from '../icons'
+import { useGraphEditorStrings } from './editorStrings'
 import type { EditorProblem } from './GraphEditor'
 import { ToolbarPopover } from './ToolbarPopover'
 
@@ -12,7 +12,7 @@ export interface ListedProblem extends EditorProblem {
 
 /** A toolbar's count of the problems it lists, which opens the list. */
 export function ProblemsButton({ problems }: { problems: ListedProblem[] }) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   const [open, setOpen] = useState(false)
   const button = useRef<HTMLButtonElement>(null)
   if (problems.length === 0) {

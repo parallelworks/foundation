@@ -1,4 +1,3 @@
-import { asRecord, type FieldPatch } from '@parallelworks/workflow-parser'
 import cx from 'classnames'
 import {
   type ComponentProps,
@@ -16,22 +15,28 @@ import { Button } from '../components/Button'
 import { ghostButtonClasses, primaryButtonClasses } from '../components/ghostButton'
 import { IconButton } from '../components/IconButton'
 import { Input, Textarea } from '../components/Input'
-import { useStrings } from '../components/Provider'
 import { Toggle } from '../components/Toggle'
 import { TOOLTIP_ID } from '../components/Tooltip'
+import type { FieldPatch } from '../editing'
 import { AddIcon, ChevronRightIcon, CloseIcon, ExpressionIcon } from '../icons'
+import { type GraphEditorStrings, useGraphEditorStrings } from './editorStrings'
 import { useFieldLint } from './fieldProblems'
 import { SuggestionInput } from './SuggestionInput'
 
 export type Json = Record<string, unknown>
-export type Strings = ReturnType<typeof useStrings>['graphEditor']
+export type Strings = GraphEditorStrings
 
 export const EXPRESSION = /^\$\{\{.*\}\}$/
 export const ENV_KEY = /^[a-zA-Z0-9_]+$/
 const EMPTY_EXPRESSION = /^\$\{\{\s*\}\}$/
 export const DURATION = /^(\d+)(d|h|m|s)?$/
 
-export { asRecord }
+/** `value` when it's a plain object, else an empty one, so its keys read without checks. */
+export function asRecord(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+}
 
 export function withoutUndefined(value: Json): Json {
   return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined))
@@ -381,7 +386,7 @@ export function ExpressionToggle({
   active: boolean
   onChange: (active: boolean) => void
 }) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   return (
     <IconButton
       icon={<ExpressionIcon className="h-4 w-4" />}
@@ -501,7 +506,7 @@ export function KeyValueEditor({
   /** Whether each row shows the problems at its key, inside the caller's LintScope. */
   lint?: boolean
 }) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   return (
     <div className="flex flex-col gap-2">
       {rows.map((row, i) => (
@@ -542,7 +547,7 @@ function KeyValueRow({
   valueSuggestions: string[]
   lint: boolean
 }) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   const id = useId()
   const lint = useFieldLint(
     linted ? row.key.trim() || undefined : undefined,
@@ -611,7 +616,7 @@ export function StringListEditor({
   /** Offered on each row; any other value can still be typed. */
   suggestions?: string[]
 }) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   return (
     <div className="flex flex-col gap-2">
       {values.map((value, i) => (
@@ -677,15 +682,16 @@ export function SuggestedInput({
 }
 
 /** A text area that starts one line tall and grows with its text. */
-export function useGrowingArea(_value: string) {
+export function useGrowingArea(value: string) {
   const ref = useRef<HTMLTextAreaElement>(null)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: each new value is measured again.
   useLayoutEffect(() => {
     const area = ref.current
     if (area) {
       area.style.height = 'auto'
       area.style.height = `${area.scrollHeight + area.offsetHeight - area.clientHeight}px`
     }
-  }, [])
+  }, [value])
   return ref
 }
 
@@ -730,7 +736,7 @@ export interface DialogShellProps {
 }
 
 function OpenOnAddSwitch({ open, onChange }: OpenOnAdd) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   return (
     <label
       className="flex cursor-pointer items-center gap-2 text-xs theme-muted-text"
@@ -760,7 +766,7 @@ export function DialogShell({
   openOnAdd,
   children,
 }: DialogShellProps) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   const submit = () => {
     if (!saveDisabled) {
       onSubmit()

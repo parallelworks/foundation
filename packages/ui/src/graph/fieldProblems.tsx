@@ -1,4 +1,3 @@
-import { type LintFix, replaceReference } from '@parallelworks/workflow-parser'
 import {
   createContext,
   type ReactNode,
@@ -8,8 +7,10 @@ import {
   useMemo,
   useState,
 } from 'react'
-import { useStrings } from '../components/Provider'
+import { useWorkflowEditing } from '../components/Provider'
+import type { LintFix } from '../editing'
 import { AlertIcon } from '../icons'
+import { useGraphEditorStrings } from './editorStrings'
 
 /** A linter problem inside what a dialog edits; `at` is its path from there, such as ['run']. */
 export interface ScopedProblem {
@@ -85,6 +86,7 @@ export function useFieldLint(
   value: string,
   onChange: (value: string) => void,
 ): { message: string | undefined; fixes: ReactNode } {
+  const { replaceReference } = useWorkflowEditing()
   const problems = useFieldProblems(key, id)
   const fixes = problems.flatMap(({ fix }) =>
     fix && !fix.key && replaceReference(value, fix.find, fix.replace) !== value ? [fix] : [],
@@ -101,7 +103,7 @@ export function useFieldLint(
 }
 
 export function FixButtons({ fixes, onFix }: { fixes: LintFix[]; onFix: (fix: LintFix) => void }) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   if (fixes.length === 0) {
     return null
   }

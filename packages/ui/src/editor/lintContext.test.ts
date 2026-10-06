@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { testEngine } from '../test/engine'
 import { lintContext } from './lintContext'
 
 describe('lintContext', () => {
@@ -7,7 +8,7 @@ describe('lintContext', () => {
   a:
     steps:
       - uses: workflow/child
-      - uses: parallelworks/checkout
+      - uses: example/checkout
       - uses: marketplace/other
       - uses: marketplace/other
         with:
@@ -18,14 +19,15 @@ describe('lintContext', () => {
     }))
     const secrets = vi.fn(async () => ['token'])
     const onMore = vi.fn()
-    expect(lintContext(source, { resolve, secrets }, onMore)).toEqual({
+    const actions = { 'example/checkout': {} }
+    expect(lintContext(testEngine.editing, source, { resolve, secrets, actions }, onMore)).toEqual({
       usesInputs: {},
     })
     await vi.waitFor(() => expect(onMore).toHaveBeenCalledTimes(2))
     // The target two steps read from different files isn't fetched at all.
     expect(resolve).toHaveBeenCalledTimes(1)
     expect(resolve).toHaveBeenCalledWith({ kind: 'workflow', name: 'child' })
-    expect(lintContext(source, { resolve, secrets }, onMore)).toEqual({
+    expect(lintContext(testEngine.editing, source, { resolve, secrets, actions }, onMore)).toEqual({
       usesInputs: { 'workflow/child': { color: { type: 'string' } } },
       secretVars: ['token'],
     })

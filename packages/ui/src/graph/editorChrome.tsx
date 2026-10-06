@@ -1,9 +1,9 @@
 import cx from 'classnames'
 import { type ReactNode, type PointerEvent as ReactPointerEvent, useSyncExternalStore } from 'react'
 import { IconButton } from '../components/IconButton'
-import { useStrings } from '../components/Provider'
 import { TOOLTIP_ID } from '../components/Tooltip'
 import { RedoIcon, SettingsIcon, UndoIcon } from '../icons'
+import { useGraphEditorStrings } from './editorStrings'
 import type { DependencyGraphEditor } from './GraphEditor'
 import { ProblemsButton } from './ProblemsButton'
 import { type ShortcutGroup, ShortcutsButton } from './ShortcutsButton'
@@ -227,7 +227,7 @@ export function EditorBar({
   className?: string
   children: ReactNode
 }) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   return (
     <div
       className={cx(

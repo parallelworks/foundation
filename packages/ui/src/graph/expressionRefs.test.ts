@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { testEngine } from '../test/engine'
 import { expressionRefs } from './expressionRefs'
 
 const WORKFLOW = {
@@ -27,7 +28,7 @@ const WORKFLOW = {
 
 describe('expressionRefs', () => {
   it('lists what an expression in a job can read', () => {
-    expect(expressionRefs(WORKFLOW, 'test').map((ref) => ref.label)).toEqual([
+    expect(expressionRefs(testEngine.editing, WORKFLOW, 'test').map((ref) => ref.label)).toEqual([
       'inputs.cluster',
       'needs.build.outputs.version',
       'matrix.os',
@@ -41,8 +42,10 @@ describe('expressionRefs', () => {
   })
 
   it('leaves out job-only names outside a job', () => {
-    expect(expressionRefs(WORKFLOW).map((ref) => ref.group)).not.toContain('outputs')
-    expect(expressionRefs(WORKFLOW, 'build')[1]).toEqual({
+    expect(expressionRefs(testEngine.editing, WORKFLOW).map((ref) => ref.group)).not.toContain(
+      'outputs',
+    )
+    expect(expressionRefs(testEngine.editing, WORKFLOW, 'build')[1]).toEqual({
       group: 'variables',
       label: 'org.LICENSE_SERVER',
       expression: '${{ org.LICENSE_SERVER }}',

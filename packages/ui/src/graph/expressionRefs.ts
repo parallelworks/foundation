@@ -1,4 +1,4 @@
-import { matrixNames, needTarget, workflowInputsSchema } from '@parallelworks/workflow-parser'
+import type { WorkflowEditing } from '../editing'
 import { asRecord, type Json } from './editorFields'
 import { inputRefs, refExpression } from './inputRefs'
 
@@ -26,27 +26,33 @@ function names(value: unknown): string[] {
 }
 
 /** Everything an expression in `job` can read; without a job, only what the whole workflow has. */
-export function expressionRefs(workflow: Json | undefined, job?: string): ExpressionRef[] {
+export function expressionRefs(
+  editing: WorkflowEditing,
+  workflow: Json | undefined,
+  job?: string,
+): ExpressionRef[] {
   const root = asRecord(workflow)
   const jobs = asRecord(root['jobs'])
   const own = job === undefined ? {} : asRecord(jobs[job])
-  const out: ExpressionRef[] = inputRefs(workflowInputsSchema(root)).map((input) => ({
-    group: 'inputs',
-    label: `inputs.${input.path.join('.')}`,
-    expression: refExpression(input.path),
-  }))
+  const out: ExpressionRef[] = inputRefs(editing, editing.workflowInputsSchema(root)).map(
+    (input) => ({
+      group: 'inputs',
+      label: `inputs.${input.path.join('.')}`,
+      expression: refExpression(input.path),
+    }),
+  )
   // The parser reads another job's outputs only through a job this one needs.
   const needs = Array.isArray(own['needs']) ? own['needs'] : []
   for (const need of needs) {
     if (typeof need !== 'string') {
       continue
     }
-    const target = needTarget(need)
+    const target = editing.needTarget(need)
     for (const output of Object.keys(asRecord(asRecord(jobs[target])['outputs']))) {
       out.push(ref('outputs', `needs.${target}.outputs.${output}`))
     }
   }
-  for (const variable of matrixNames(own) ?? []) {
+  for (const variable of editing.matrixNames(own) ?? []) {
     out.push(ref('matrix', `matrix.${variable}`))
   }
   const declared = asRecord(root['needs'])

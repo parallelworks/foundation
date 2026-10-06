@@ -22,7 +22,7 @@ export {
 export { inputTypes, offeredInputKeys } from './InputDialog'
 export { InputsFormEditor } from './InputsEditor'
 export { type ListedProblem, ProblemsButton } from './ProblemsButton'
-export { ACTION_INPUTS, withFields } from './stepWith'
+export { type WorkflowActions, withFields } from './stepWith'
 export type { RunLink } from './types'
 export {
   INPUT_FORM_FIELDS,

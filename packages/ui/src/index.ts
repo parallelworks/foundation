@@ -102,6 +102,8 @@ export {
   useRunFile,
   useSlots,
   useStrings,
+  useWorkflowActions,
+  useWorkflowEditing,
   useWorkflowEngine,
   useWorkflowEngineLoader,
   type WorkflowEngineSource,
@@ -133,6 +135,26 @@ export {
   truncationTooltipProps,
 } from './components/Tooltip'
 export { useCssIsDark } from './components/useCssIsDark'
+export type {
+  EditRefusalReason,
+  FieldPatch,
+  GraphEdit,
+  GraphEditResult,
+  GraphEditState,
+  GraphLayout,
+  GraphPosition,
+  GraphSlot,
+  InputEdit,
+  InputPath,
+  LintFix,
+  NeedRef,
+  StepRef,
+  WorkflowAction,
+  WorkflowActionInput,
+  WorkflowEditing,
+  WorkflowLintContext,
+  WorkflowLintProblem,
+} from './editing'
 export type {
   EngineJob,
   EngineStep,

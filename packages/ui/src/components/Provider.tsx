@@ -1,13 +1,9 @@
 import type { Dispatch, ReactNode, SetStateAction } from 'react'
-import { createContext, use, useCallback, useContext, useEffect, useMemo } from 'react'
+import { createContext, use, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { useLocalStorage } from 'usehooks-ts'
+import type { WorkflowAction, WorkflowEditing } from '../editing'
 import type { WorkflowEngine } from '../engine'
-import {
-  GRAPH_EDITOR_STRINGS,
-  type GraphEditorStrings,
-  INPUTS_EDITOR_STRINGS,
-  type InputsEditorStrings,
-} from '../graph/editorStrings'
+import type { GraphEditorStrings, InputsEditorStrings } from '../graph/editorStrings'
 import type { RunLink } from '../graph/types'
 import { safeUrl } from '../safeUrl'
 
@@ -132,8 +128,9 @@ export interface UIStrings {
     openOriginalWorkflow: string
     openInNewGraph: string
   }
-  graphEditor: GraphEditorStrings
-  inputsEditor: InputsEditorStrings
+  /** The visual editor's text a host translates; the editor fills in the rest in English. */
+  graphEditor: Partial<GraphEditorStrings>
+  inputsEditor: Partial<InputsEditorStrings>
   fileExplorer: {
     preview: {
       shareFile: string
@@ -428,6 +425,8 @@ export interface UIData {
     options?: { refreshInterval?: number },
   ) => RunFileResult
   resolveWorkflowJson?: (ref: WorkflowJsonRef) => Promise<unknown>
+  /** The built-in actions a workflow step can use, for the editor's step form. */
+  workflowActions?: Record<string, WorkflowAction>
   resolveSecretVariables?: () => Promise<string[]>
   repoSuggestions?: {
     refs: (repo: string) => Promise<RepoRef[]>
@@ -684,8 +683,8 @@ const DEFAULTS: UIProviderValue = {
       openOriginalWorkflow: 'Open original workflow',
       openInNewGraph: 'Open in new graph',
     },
-    graphEditor: GRAPH_EDITOR_STRINGS,
-    inputsEditor: INPUTS_EDITOR_STRINGS,
+    graphEditor: {},
+    inputsEditor: {},
     fileExplorer: {
       preview: {
         shareFile: 'Share file',
@@ -1024,6 +1023,12 @@ export function useRepoSuggestions(): UIData['repoSuggestions'] {
   return useContext(UIContext).data.repoSuggestions
 }
 
+const NO_ACTIONS: Record<string, WorkflowAction> = {}
+
+export function useWorkflowActions(): Record<string, WorkflowAction> {
+  return useContext(UIContext).data.workflowActions ?? NO_ACTIONS
+}
+
 export function useSecretVariablesResolver(): UIData['resolveSecretVariables'] {
   return useContext(UIContext).data.resolveSecretVariables
 }
@@ -1075,6 +1080,38 @@ export function useWorkflowEngine(): WorkflowEngine {
     throw new Error('Workflow forms and graphs need a UIProvider with an engine.')
   }
   return resolveEngine(source)
+}
+
+/** The engine once it has loaded, without suspending; renders again when a loader resolves. */
+export function useLoadedWorkflowEngine(): WorkflowEngine | undefined {
+  const source = useContext(UIContext).engine
+  const [, setLoaded] = useState(0)
+  const entry = typeof source === 'function' ? loadEngine(source) : undefined
+  const engine = typeof source === 'function' ? entry?.engine : source
+  useEffect(() => {
+    if (!entry || entry.engine) {
+      return
+    }
+    let live = true
+    entry.promise.then(() => {
+      if (live) {
+        setLoaded((n) => n + 1)
+      }
+    })
+    return () => {
+      live = false
+    }
+  }, [entry])
+  return engine
+}
+
+/** The engine's workflow editing, which the visual editor can't work without. */
+export function useWorkflowEditing(): WorkflowEditing {
+  const { editing } = useWorkflowEngine()
+  if (!editing) {
+    throw new Error('The workflow editor needs a UIProvider engine with editing.')
+  }
+  return editing
 }
 
 /** Resolves the engine without suspending, for async callers such as editor completions. */

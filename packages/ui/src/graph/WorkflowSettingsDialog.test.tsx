@@ -6,6 +6,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { GRAPH_EDITOR_STRINGS } from './editorStrings'
 import { WorkflowSettingsDialog } from './WorkflowSettingsDialog'
 
+vi.mock('../components/Provider', async (importOriginal) =>
+  (await import('../test/engine')).mockEngineHooks(importOriginal),
+)
+
 vi.mock('../editor/Monaco', () => ({
   default: ({
     value,

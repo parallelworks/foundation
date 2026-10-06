@@ -1,17 +1,21 @@
-import { settingsYamlProblem } from '@parallelworks/workflow-parser'
 import { lazy, Suspense } from 'react'
 import Loader from '../components/Loader'
-import { useStrings } from '../components/Provider'
 import { TOOLTIP_ID } from '../components/Tooltip'
+import type { WorkflowEditing } from '../editing'
 import type { EditorMarker } from '../editor/Monaco'
 import type { NestedWorkflowText } from '../editor/nestedText'
 import { ChoiceButtons, FieldError, type Strings } from './editorFields'
+import { useGraphEditorStrings } from './editorStrings'
 import { ProblemList, type ScopedProblem } from './fieldProblems'
 
 const MonacoEditor = lazy(() => import('../editor/Monaco'))
 
-export function yamlProblem(yaml: string, t: Strings): string | undefined {
-  const problem = settingsYamlProblem(yaml)
+export function yamlProblem(
+  yaml: string,
+  t: Strings,
+  editing: WorkflowEditing,
+): string | undefined {
+  const problem = editing.settingsYamlProblem(yaml)
   return !problem
     ? undefined
     : problem.kind === 'syntax'
@@ -28,7 +32,7 @@ export function ViewSwitch({
   onForm: () => void
   onYaml: () => void
 }) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   return (
     <div className="w-36" data-tooltip-id={TOOLTIP_ID} data-tooltip-content={t.help.view}>
       <ChoiceButtons

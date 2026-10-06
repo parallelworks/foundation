@@ -1,8 +1,13 @@
-import { type LintFix, WORKFLOW_FORMS } from '@parallelworks/workflow-parser'
 import { useEffect, useId, useState } from 'react'
 import { IconButton } from '../components/IconButton'
 import { Input, Textarea } from '../components/Input'
-import { useRepoSuggestions, useStrings, useWorkflowJsonResolver } from '../components/Provider'
+import {
+  useRepoSuggestions,
+  useWorkflowActions,
+  useWorkflowEditing,
+  useWorkflowJsonResolver,
+} from '../components/Provider'
+import type { LintFix, WorkflowAction, WorkflowActionInput } from '../editing'
 import { DynamicForm } from '../form/Form'
 import { CloseIcon } from '../icons'
 import {
@@ -27,138 +32,50 @@ import {
   sameValue,
   ToggleField,
 } from './editorFields'
-import type { GraphEditorStrings } from './editorStrings'
+import { useGraphEditorStrings, useInputsEditorStrings } from './editorStrings'
 import { FixButtons, LintScope, useFieldLint, useFieldProblems } from './fieldProblems'
 import { type InputSource, refSuggestions, ValueOrInputField } from './inputRefs'
 import { SuggestionInput } from './SuggestionInput'
 import { DEFAULT_GITLAB_HOST, DEFAULT_REPO_YAML, loadUsesInputs, splitAtRef } from './usesInputs'
 
-type ActionHelp = keyof GraphEditorStrings['actionHelp']
-/** An action input's help, which also keys its name. */
-type InputHelp = keyof GraphEditorStrings['actionFields']
-type WithKind =
-  | 'text'
-  | 'textarea'
-  | 'number'
-  | 'any'
-  | 'list'
-  | 'bool'
-  | 'choice'
-  | 'flags'
-  | 'target'
+type WithSpec = WorkflowActionInput
+/** The built-in actions a step can use, by `uses` value, as the host lists them. */
+export type WorkflowActions = Record<string, WorkflowAction>
 
-interface WithSpec {
-  key: string
-  kind: WithKind
-  help: InputHelp
-  required?: boolean
-  choices?: string[]
-  /** The schema also takes a `${{ }}` expression in place of a choice. */
-  expression?: boolean
-  /** Inputs whose value, or its `suffix` property, can fill this in. */
-  refTypes?: string[]
-  suffix?: string
-  fallback?: boolean
-}
-
-const SCHEDULERS = ['slurm', 'pbs']
-const SCHEDULER_REF = {
-  refTypes: ['compute-clusters', 'compute-resources'],
-  suffix: 'schedulerType',
-}
-
-/** The `with` inputs each built-in action takes, as the workflow schema lists them. */
-export const ACTION_INPUTS: Record<string, WithSpec[]> = {
-  'parallelworks/checkout': [
-    { key: 'repo', kind: 'text', help: 'checkoutRepo', required: true },
-    { key: 'branch', kind: 'text', help: 'checkoutBranch', required: true },
-    { key: 'sparse_checkout', kind: 'list', help: 'checkoutSparse' },
-    { key: 'path', kind: 'text', help: 'checkoutPath' },
-  ],
-  'parallelworks/scheduler-agent': [
-    {
-      key: 'scheduler-type',
-      kind: 'choice',
-      help: 'agentSchedulerType',
-      choices: SCHEDULERS,
-      expression: true,
-      ...SCHEDULER_REF,
-    },
-    { key: 'scheduler-flags', kind: 'flags', help: 'agentSchedulerFlags' },
-    { key: 'wait', kind: 'bool', help: 'agentWait', fallback: true },
-    { key: 'script-headers', kind: 'textarea', help: 'agentScriptHeaders' },
-    { key: 'debug', kind: 'bool', help: 'agentDebug' },
-  ],
-  'parallelworks/wait-for-agent': [
-    { key: 'agentId', kind: 'text', help: 'waitAgentId', required: true },
-    { key: 'schedulerJobId', kind: 'text', help: 'waitSchedulerJobId' },
-    {
-      key: 'scheduler-type',
-      kind: 'choice',
-      help: 'waitSchedulerType',
-      choices: SCHEDULERS,
-      expression: true,
-      ...SCHEDULER_REF,
-    },
-  ],
-  'parallelworks/cancel-jobs': [
-    { key: 'jobs', kind: 'list', help: 'cancelJobs' },
-    { key: 'workflow', kind: 'text', help: 'cancelWorkflow' },
-    { key: 'run', kind: 'number', help: 'cancelRun' },
-    { key: 'slug', kind: 'text', help: 'cancelSlug' },
-  ],
-  'parallelworks/update-session': [
-    { key: 'name', kind: 'any', help: 'updateName', required: true },
-    {
-      key: 'type',
-      kind: 'choice',
-      help: 'updateType',
-      choices: ['link', 'tunnel'],
-    },
-    { key: 'url', kind: 'text', help: 'updateUrl' },
-    { key: 'target', kind: 'text', help: 'updateTarget' },
-    { key: 'remotePort', kind: 'any', help: 'updateRemotePort' },
-    { key: 'remoteHost', kind: 'text', help: 'updateRemoteHost' },
-    { key: 'localPort', kind: 'any', help: 'updateLocalPort' },
-    { key: 'slug', kind: 'text', help: 'updateSlug' },
-    { key: 'status', kind: 'text', help: 'updateStatus' },
-    { key: 'openAI', kind: 'bool', help: 'updateOpenAI' },
-    { key: 'apiKey', kind: 'text', help: 'updateApiKey' },
-    { key: 'targetInfo', kind: 'target', help: 'updateTargetInfo' },
-  ],
-}
-
+// The repository form edits these, so they carry no label of their own.
 const REPO_INPUTS: WithSpec[] = [
-  { key: '$yaml', kind: 'text', help: 'repoYaml' },
-  { key: '$thumbnail', kind: 'text', help: 'repoThumbnail' },
+  { key: '$yaml', kind: 'text', label: '$yaml', description: '' },
+  { key: '$thumbnail', kind: 'text', label: '$thumbnail', description: '' },
 ]
-const GITLAB_INPUTS: WithSpec[] = [...REPO_INPUTS, { key: '$host', kind: 'text', help: 'repoHost' }]
+const GITLAB_INPUTS: WithSpec[] = [
+  ...REPO_INPUTS,
+  { key: '$host', kind: 'text', label: '$host', description: '' },
+]
 
-/** Every `with` key the step dialog writes, for the schema coverage test. */
-export function withFields(): string[] {
-  const specs = [...Object.values(ACTION_INPUTS).flat(), ...GITLAB_INPUTS]
+const allSpecs = (actions: WorkflowActions) => [
+  ...Object.values(actions).flatMap((action) => action.inputs),
+  ...GITLAB_INPUTS,
+]
+
+/** Every `with` key the step dialog writes for `actions`, for a schema coverage test. */
+export function withFields(actions: WorkflowActions): string[] {
   return [
-    ...new Set([
-      ...specs.map((spec) => spec.key),
-      ...TARGET_KEYS.map(([key]) => `targetInfo.${key}`),
-    ]),
+    ...new Set(
+      allSpecs(actions).flatMap((spec) => [
+        spec.key,
+        ...(spec.fields ?? []).map((field) => `${spec.key}.${field.key}`),
+      ]),
+    ),
   ]
 }
-
-const TARGET_KEYS: [string, InputHelp][] = [
-  ['name', 'targetName'],
-  ['namespace', 'targetNamespace'],
-  ['resourceType', 'targetResourceType'],
-  ['resourceName', 'targetResourceName'],
-]
 
 // Inputs a subworkflow takes; `$` keys belong to the repository forms only.
 const INPUT_KEY = /^[a-zA-Z0-9_-]+$/
 
 type UsesKind = 'action' | 'github' | 'gitlab' | 'subworkflow' | 'other'
 
-export function usesKind(uses: string): UsesKind {
-  if (Object.hasOwn(ACTION_INPUTS, uses)) {
+export function usesKind(uses: string, actions: WorkflowActions): UsesKind {
+  if (Object.hasOwn(actions, uses)) {
     return 'action'
   }
   if (uses.startsWith('github/')) {
@@ -171,10 +88,10 @@ export function usesKind(uses: string): UsesKind {
 }
 
 /** Named inputs for `uses`: an action's own, or a repository form's `$` keys. */
-function specsFor(uses: string): WithSpec[] {
-  const kind = usesKind(uses)
+function specsFor(uses: string, actions: WorkflowActions): WithSpec[] {
+  const kind = usesKind(uses, actions)
   return kind === 'action'
-    ? (ACTION_INPUTS[uses] ?? [])
+    ? (actions[uses]?.inputs ?? [])
     : kind === 'github'
       ? REPO_INPUTS
       : kind === 'gitlab'
@@ -205,19 +122,19 @@ function draftFor(spec: WithSpec, value: unknown): unknown {
       return rowsFrom(value)
     case 'target': {
       const target = asRecord(value)
-      return Object.fromEntries(TARGET_KEYS.map(([key]) => [key, textDraft(target[key])]))
+      return Object.fromEntries(
+        (spec.fields ?? []).map((field) => [field.key, textDraft(target[field.key])]),
+      )
     }
     default:
       return textDraft(value)
   }
 }
 
-const ALL_SPECS = [...Object.values(ACTION_INPUTS).flat(), ...GITLAB_INPUTS]
-
-export function withDraftFrom(value: unknown): WithDraft {
+export function withDraftFrom(value: unknown, actions: WorkflowActions): WithDraft {
   const original = asRecord(value)
   const values: Record<string, unknown> = {}
-  for (const spec of ALL_SPECS) {
+  for (const spec of allSpecs(actions)) {
     values[`${spec.kind}:${spec.key}`] = draftFor(spec, original[spec.key])
   }
   return {
@@ -262,12 +179,17 @@ function valueFor(spec: WithSpec, draft: unknown): unknown {
 }
 
 /** Keys the step already has that `uses` doesn't take: any for an action, `$` ones otherwise. */
-function extraKeys(uses: string, original: unknown, draft: WithDraft): string[] {
-  const kind = usesKind(uses)
+function extraKeys(
+  uses: string,
+  actions: WorkflowActions,
+  original: unknown,
+  draft: WithDraft,
+): string[] {
+  const kind = usesKind(uses, actions)
   if (kind === 'other') {
     return []
   }
-  const known = new Set(specsFor(uses).map((spec) => spec.key))
+  const known = new Set(specsFor(uses, actions).map((spec) => spec.key))
   return Object.keys(asRecord(original)).filter(
     (key) =>
       !known.has(key) && !draft.removed.includes(key) && (kind === 'action' || key.startsWith('$')),
@@ -277,6 +199,7 @@ function extraKeys(uses: string, original: unknown, draft: WithDraft): string[] 
 /** The step's `with` for `uses`, or its original when nothing changed. */
 export function withValue(
   uses: string,
+  actions: WorkflowActions,
   draft: WithDraft,
   initial: WithDraft,
   originalUses: string,
@@ -285,9 +208,9 @@ export function withValue(
   if (uses === originalUses && sameValue(draft, initial)) {
     return original
   }
-  const kind = usesKind(uses)
+  const kind = usesKind(uses, actions)
   const out: Json = {}
-  for (const spec of specsFor(uses)) {
+  for (const spec of specsFor(uses, actions)) {
     const value = valueFor(spec, draft.values[slot(spec)])
     if (value !== undefined) {
       out[spec.key] = value
@@ -297,7 +220,7 @@ export function withValue(
     Object.assign(out, rowsTo(draft.rows, parseScalar))
   }
   const kept = asRecord(original)
-  for (const key of extraKeys(uses, original, draft)) {
+  for (const key of extraKeys(uses, actions, original, draft)) {
     out[key] = kept[key]
   }
   return Object.keys(out).length > 0 ? out : undefined
@@ -305,15 +228,16 @@ export function withValue(
 
 export function withError(
   uses: string,
+  actions: WorkflowActions,
   draft: WithDraft,
   original: unknown,
   t: Strings,
 ): string | undefined {
-  const kind = usesKind(uses)
-  if (extraKeys(uses, original, draft).length > 0) {
+  const kind = usesKind(uses, actions)
+  if (extraKeys(uses, actions, original, draft).length > 0) {
     return t.notActionInput
   }
-  for (const spec of specsFor(uses)) {
+  for (const spec of specsFor(uses, actions)) {
     const value = valueFor(spec, draft.values[slot(spec)])
     if (spec.required && value === undefined) {
       return t.missingInput(spec.key)
@@ -354,9 +278,8 @@ function SpecField({
   references: string[]
   source: InputSource
 }) {
-  const { graphEditor: t } = useStrings()
-  const description = t.actionHelp[spec.help]
-  const label = t.actionFields[spec.help]
+  const t = useGraphEditorStrings()
+  const { description, label } = spec
   if (spec.refTypes) {
     return (
       <ValueOrInputField
@@ -405,14 +328,14 @@ function SpecField({
       return (
         <div className="flex flex-col gap-2">
           <FieldLabel label={label} yamlKey={spec.key} description={description} />
-          {TARGET_KEYS.map(([key, help]) => (
+          {(spec.fields ?? []).map((field) => (
             <Input
-              key={key}
+              key={field.key}
               mono
-              {...labelled(t.actionFields[help], key)}
-              description={t.actionHelp[help]}
-              value={target[key] ?? ''}
-              onChange={(e) => onChange({ ...target, [key]: e.target.value })}
+              {...labelled(field.label, field.key)}
+              description={field.description}
+              value={target[field.key] ?? ''}
+              onChange={(e) => onChange({ ...target, [field.key]: e.target.value })}
             />
           ))}
         </div>
@@ -445,12 +368,11 @@ function SpecField({
 
 /** Where a repository `uses` reads its workflow from, for the repository fields. */
 export function repositoryOf(uses: string, host: string): { repo: string; branch: string } {
-  const kind = usesKind(uses)
-  if (kind !== 'github' && kind !== 'gitlab') {
+  if (!uses.startsWith('github/') && !uses.startsWith('gitlab/')) {
     return { repo: '', branch: '' }
   }
   const [path, ref] = splitAtRef(uses.slice(uses.indexOf('/') + 1))
-  const server = kind === 'github' ? 'github.com' : host || 'gitlab.com'
+  const server = uses.startsWith('github/') ? 'github.com' : host || 'gitlab.com'
   return { repo: path ? `https://${server}/${path}` : '', branch: ref }
 }
 
@@ -478,8 +400,6 @@ export function usesOfRepository(
       }
 }
 
-const { readme: _readme, ...REPOSITORY_FIELDS } = WORKFLOW_FORMS.github
-
 /** The repository fields the workflow import form uses, so branches and files come from GitHub or GitLab. */
 function RepositoryForm({
   uses,
@@ -492,6 +412,7 @@ function RepositoryForm({
   onUses: (uses: string) => void
   onDraft: (draft: WithDraft) => void
 }) {
+  const { readme: _readme, ...fields } = useWorkflowEditing().WORKFLOW_FORMS.github
   const host = String(draft.values['text:$host'] ?? '')
   const [initial] = useState(() => ({
     ...repositoryOf(uses, host),
@@ -500,7 +421,7 @@ function RepositoryForm({
   }))
   return (
     <DynamicForm
-      formJSONs={REPOSITORY_FIELDS}
+      formJSONs={fields}
       initialValues={initial}
       labelPosition="top"
       workflowForm
@@ -525,8 +446,8 @@ function RepositoryForm({
 
 type UsesMode = 'action' | 'workflow' | 'marketplace' | 'repository'
 
-function usesMode(uses: string): UsesMode {
-  const kind = usesKind(uses)
+function usesMode(uses: string, actions: WorkflowActions): UsesMode {
+  const kind = usesKind(uses, actions)
   if (kind === 'action') {
     return 'action'
   }
@@ -534,14 +455,6 @@ function usesMode(uses: string): UsesMode {
     return 'repository'
   }
   return uses.startsWith('marketplace/') ? 'marketplace' : 'workflow'
-}
-
-const ACTION_ABOUT: Record<string, ActionHelp> = {
-  'parallelworks/checkout': 'aboutCheckout',
-  'parallelworks/scheduler-agent': 'aboutSchedulerAgent',
-  'parallelworks/wait-for-agent': 'aboutWaitForAgent',
-  'parallelworks/cancel-jobs': 'aboutCancelJobs',
-  'parallelworks/update-session': 'aboutUpdateSession',
 }
 
 /** What a step uses: a built-in action, a workflow of yours, one from the marketplace, or one in a repository. */
@@ -561,10 +474,11 @@ export function UsesPicker({
   onDraft: (draft: WithDraft) => void
   error: string | undefined
 }) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
+  const actions = useWorkflowActions()
   const id = useId()
   const lint = useFieldLint('uses', id, uses, onUses)
-  const [mode, setMode] = useState<UsesMode>(() => usesMode(uses))
+  const [mode, setMode] = useState<UsesMode>(() => usesMode(uses, actions))
   const options = (prefix: string) => choices.filter((choice) => choice.startsWith(prefix))
   // Typed, not only picked: a version pin or a workflow the lists don't show still works.
   const select = (
@@ -595,16 +509,13 @@ export function UsesPicker({
         value={mode}
         onChange={(next) => {
           setMode(next)
-          if (next !== usesMode(uses)) {
+          if (next !== usesMode(uses, actions)) {
             onUses('')
           }
         }}
       />
       {mode === 'action' ? (
-        select(Object.keys(ACTION_INPUTS), t.chooseAction, (value) => {
-          const about = ACTION_ABOUT[value]
-          return about ? t.actionHelp[about] : undefined
-        })
+        select(Object.keys(actions), t.chooseAction, (value) => actions[value]?.description)
       ) : mode === 'workflow' ? (
         select(options('workflow/'), t.chooseWorkflow)
       ) : mode === 'marketplace' ? (
@@ -619,6 +530,7 @@ export function UsesPicker({
 
 /** The inputs of the workflow a step uses, fetched the way the YAML editor's completions are. */
 function useSubworkflowInputs(uses: string, draft: WithDraft): Json | null {
+  const editing = useWorkflowEditing()
   const resolve = useWorkflowJsonResolver()
   const repos = useRepoSuggestions()
   const [inputs, setInputs] = useState<Json | null>(null)
@@ -627,7 +539,7 @@ function useSubworkflowInputs(uses: string, draft: WithDraft): Json | null {
   useEffect(() => {
     let live = true
     setInputs(null)
-    loadUsesInputs(uses, { yamlPath, host }, { resolve, repos })
+    loadUsesInputs(editing, uses, { yamlPath, host }, { resolve, repos })
       .then((loaded) => {
         if (live) {
           setInputs(loaded)
@@ -641,7 +553,7 @@ function useSubworkflowInputs(uses: string, draft: WithDraft): Json | null {
     return () => {
       live = false
     }
-  }, [uses, resolve, repos, yamlPath, host])
+  }, [editing, uses, resolve, repos, yamlPath, host])
   return inputs
 }
 
@@ -661,10 +573,12 @@ export function WithEditor({
   error: string | undefined
   source: InputSource
 }) {
-  const { graphEditor: t, inputsEditor } = useStrings()
+  const t = useGraphEditorStrings()
+  const inputsEditor = useInputsEditorStrings()
+  const actions = useWorkflowActions()
   const typeNames = inputsEditor.types as Record<string, string>
-  const kind = usesKind(uses)
-  const extras = extraKeys(uses, original, draft)
+  const kind = usesKind(uses, actions)
+  const extras = extraKeys(uses, actions, original, draft)
   const references = refSuggestions(source)
   const subworkflow = useSubworkflowInputs(uses, draft)
   const known = subworkflow ? Object.entries(subworkflow).filter(([key]) => key !== '$meta') : []
@@ -683,7 +597,7 @@ export function WithEditor({
       <div className="flex flex-col gap-3">
         <FieldLabel label={t.fields.with} yamlKey="with" description={t.help.with} />
         {kind === 'action' &&
-          specsFor(uses).map((spec) => (
+          specsFor(uses, actions).map((spec) => (
             <SpecField
               key={slot(spec)}
               spec={spec}
@@ -764,14 +678,15 @@ function ExtraKey({
   original: unknown
   onChange: (draft: WithDraft) => void
 }) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
+  const actions = useWorkflowActions()
   const id = useId()
   const fixes = useFieldProblems(name, id).flatMap(({ fix }) =>
     fix?.key && fix.find === name ? [fix] : [],
   )
   const remove = () => onChange({ ...draft, removed: [...draft.removed, name] })
   const rename = (fix: LintFix) => {
-    const spec = specsFor(uses).find((spec) => spec.key === fix.replace)
+    const spec = specsFor(uses, actions).find((spec) => spec.key === fix.replace)
     if (spec) {
       onChange({
         ...draft,

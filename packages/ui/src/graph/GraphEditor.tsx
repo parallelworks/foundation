@@ -1,27 +1,3 @@
-import {
-  applyGraphEdit,
-  dependsOn,
-  type GraphEdit,
-  type GraphEditResult,
-  type GraphLayout,
-  type GraphPosition,
-  type GraphSlot,
-  hasLayout,
-  jobNeeds,
-  jobsYaml,
-  layoutFromCols,
-  layoutPosition,
-  loadYaml,
-  moveJobs,
-  type NeedRef,
-  type NudgeDirection,
-  needInUse,
-  needTarget,
-  type StepRef,
-  snippetKind,
-  stepMoveProblem,
-  stepsYaml,
-} from '@parallelworks/workflow-parser'
 import cx from 'classnames'
 import {
   type CSSProperties,
@@ -37,8 +13,18 @@ import {
   useSyncExternalStore,
 } from 'react'
 import { IconButton } from '../components/IconButton'
-import { useStrings } from '../components/Provider'
+import { useWorkflowEditing } from '../components/Provider'
 import { TOOLTIP_ID } from '../components/Tooltip'
+import type {
+  GraphEdit,
+  GraphEditResult,
+  GraphLayout,
+  GraphPosition,
+  GraphSlot,
+  NeedRef,
+  NudgeDirection,
+  StepRef,
+} from '../editing'
 import {
   AddIcon,
   AlertIcon,
@@ -67,6 +53,7 @@ import {
   trackDrag,
 } from './editorChrome'
 import { asRecord, openOnAddOf } from './editorFields'
+import { type GraphEditorStrings, useGraphEditorStrings } from './editorStrings'
 import { JobDialog, type SettingsView, StepDialog } from './GraphEditorDialogs'
 import type { ListedProblem } from './ProblemsButton'
 import { refusalText } from './refusalText'
@@ -349,7 +336,11 @@ function withoutRefs(needs: Record<string, string[]>, refs: NeedRef[]): Record<s
 }
 
 // Whether connecting `edits` would only put back the needs `refs` names.
-function restores(edits: GraphEdit[], refs: NeedRef[]): boolean {
+function restores(
+  edits: GraphEdit[],
+  refs: NeedRef[],
+  needTarget: (need: string) => string,
+): boolean {
   const pairs = edits.flatMap((e) => (e.type === 'connect' ? [e] : []))
   return (
     pairs.length === refs.length &&
@@ -820,7 +811,7 @@ export function useGraphEditorState({
   layout: GraphLayout | undefined
   container: HTMLDivElement | null
 }): { api: GraphEditorApi; overlays: ReactNode } | null {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   const [store] = useState(createUiStore)
   const gridRef = useRef<GraphGrid | null>(null)
   const viewRef = useRef<GraphView | null>(null)
@@ -830,8 +821,23 @@ export function useGraphEditorState({
   // Set during render, so the api reads this render's jobs rather than the last one's.
   latest.current = { editor, source, layout }
   const { openMenu, contextMenu } = useRowMenu()
+  const editing = useWorkflowEditing()
 
   const api = useMemo<GraphEditorApi>(() => {
+    const {
+      applyGraphEdit,
+      dependsOn,
+      jobNeeds,
+      jobsYaml,
+      layoutFromCols,
+      layoutPosition,
+      moveJobs,
+      needInUse,
+      needTarget,
+      snippetKind,
+      stepMoveProblem,
+      stepsYaml,
+    } = editing
     // Other edits can renumber steps, so only step moves and pastes keep the step selection.
     const edit = (graphEdit: GraphEdit) => {
       const result = latest.current.editor?.onEdit(graphEdit)
@@ -864,7 +870,7 @@ export function useGraphEditorState({
         let problem: string | undefined
         try {
           const reason = yml === undefined ? undefined : stepMoveProblem(yml, refs, job)
-          problem = reason && refusalText(t, reason)
+          problem = reason && refusalText(t, editing, reason)
         } catch {
           problem = undefined
         }
@@ -1054,7 +1060,7 @@ export function useGraphEditorState({
         // A moved end dropped back where it was changes nothing, so it isn't a drop.
         const connecting = (jobs: string[], box: Box): DropTarget | null => {
           const edits = connectEdits(payload, jobs)
-          return payload.replaces && edits && restores(edits, payload.replaces)
+          return payload.replaces && edits && restores(edits, payload.replaces, needTarget)
             ? null
             : { kind: 'connect', edits, box }
         }
@@ -1627,16 +1633,16 @@ export function useGraphEditorState({
               },
         ),
     }
-  }, [store, openMenu, t])
+  }, [store, openMenu, t, editing])
 
   const problems = editor?.problems ?? NO_PROBLEMS
   useEffect(() => {
     store.set({ problems })
   }, [store, problems])
 
-  const editing = editor !== undefined
+  const active = editor !== undefined
   useEffect(() => {
-    if (!container || !editing) {
+    if (!container || !active) {
       return
     }
     const onDown = (e: PointerEvent) => {
@@ -1714,7 +1720,7 @@ export function useGraphEditorState({
       container.removeEventListener('pointerdown', onDown)
       container.removeEventListener('keydown', onEscape)
     }
-  }, [container, editing, store])
+  }, [container, active, store])
 
   useEffect(() => {
     if (!container || !editor) {
@@ -1865,7 +1871,7 @@ export function useGraphEditorState({
   }
 }
 
-function graphShortcuts(t: ReturnType<typeof useStrings>['graphEditor']): ShortcutGroup[] {
+function graphShortcuts(t: GraphEditorStrings): ShortcutGroup[] {
   const key = t.shortcutKeys
   const does = t.shortcutDoes
   return [
@@ -1926,7 +1932,8 @@ function EditorToolbar({
   editor: DependencyGraphEditor
   layout: GraphLayout | undefined
 }) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
+  const editing = useWorkflowEditing()
   const chip = (matrix: boolean) => {
     const label = matrix ? t.addMatrixJob : t.addJob
     return (
@@ -1954,7 +1961,7 @@ function EditorToolbar({
         label={t.resetLayout}
         size="sm"
         variant="ghost"
-        disabled={!hasLayout(layout)}
+        disabled={!editing.hasLayout(layout)}
         onClick={() => editor.onEdit({ type: 'resetLayout' })}
       />
     </EditorBar>
@@ -1970,7 +1977,7 @@ function DragOverlays({
   container: HTMLDivElement | null
   trashRef: RefObject<HTMLDivElement | null>
 }) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   const drag = useUi(api, (state) => state.drag, null)
   if (!drag || !container) {
     return null
@@ -2103,7 +2110,7 @@ function selectionRuns(cols: string[][][], selected: string[]): string[][] {
 
 /** The selected jobs' outlines, the first with a grip to move them all and circles to connect them. */
 function SelectionBox({ api }: { api: GraphEditorApi }) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   const grid = api.grid()
   const jobs = api.selected()
   const runs = grid
@@ -2173,7 +2180,7 @@ function SelectionBox({ api }: { api: GraphEditorApi }) {
 /** A multi-job box's handle for moving all its jobs at once. */
 export function BoxGrip({ jobs }: { jobs: string[] }) {
   const api = useGraphEditor()
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   if (!api) {
     return null
   }
@@ -2200,7 +2207,7 @@ const onBadge = (target: EventTarget) =>
 
 /** A step's problems, or a job's with its steps', listed on hover; a click shows the first one's line. */
 function ProblemBadge({ api, job, step }: { api: GraphEditorApi; job: string; step?: number }) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   // A job's badge also lists its steps' problems, which stay in view while its steps are closed.
   const mine = (problems: EditorProblem[]) =>
     step === undefined
@@ -2356,7 +2363,7 @@ export function EditableJobRow({
   children: ReactNode
 }) {
   const api = useGraphEditor()
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   const selected = useUi(api, (state) => state.selection.includes(job), false)
   const flagged = useUi(api, (state) => problemsIn(state.problems, job).length > 0, false)
   if (!api) {
@@ -2488,7 +2495,7 @@ export function NodePorts({
   drawRight: boolean
   zIndex: number
 }) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   const port = `node:${jobs[0]}`
   return (
     <>
@@ -2527,7 +2534,7 @@ export function EditableStepRow({
   children: ReactNode
 }) {
   const api = useGraphEditor()
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   const selected = useUi(
     api,
     (state) => state.steps.some((ref) => ref.job === job && ref.index === index),
@@ -2568,7 +2575,7 @@ export function EditableStepRow({
 
 export function AddStepButton({ job }: { job: string }) {
   const api = useGraphEditor()
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   if (!api) {
     return null
   }
@@ -2591,7 +2598,7 @@ export function AddStepButton({ job }: { job: string }) {
 /** Connector hit area: a click selects the dependency, shift adds it, a right-click opens its menu. */
 export function EdgeHitPath({ d, edge }: { d: string; edge: EdgeSelection }) {
   const api = useGraphEditor()
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   const selected = useSelectedEdges(api).some((other) => sameEdge(other, edge))
   if (!api) {
     return null
@@ -2642,7 +2649,7 @@ export function EdgeEnds({
   zIndex: number
 }) {
   const api = useGraphEditor()
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   const drag = useUi(api, (state) => state.drag, null)
   if (!api) {
     return null
@@ -2700,6 +2707,7 @@ function EditorDialogs({
   inputs: Record<string, unknown> | undefined
   workflow: Record<string, unknown> | undefined
 }) {
+  const editing = useWorkflowEditing()
   const dialog = useUi(api, (state) => state.dialog, null)
   const close = () => api.store.set({ dialog: null })
   const onEdit = (edit: GraphEdit) => {
@@ -2710,7 +2718,7 @@ function EditorDialogs({
     return null
   }
   // A job or step being added only exists in the dialog's copy of the workflow.
-  const copy = dialog.addition ? asRecord(loadYaml(dialog.addition.yml)) : null
+  const copy = dialog.addition ? asRecord(editing.loadYaml(dialog.addition.yml)) : null
   const here = copy ? asRecord(copy['jobs']) : jobs
   const source = dialog.addition?.yml ?? editor.readSource?.()
   if (dialog.kind === 'job') {

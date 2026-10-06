@@ -110,7 +110,6 @@
     "build-storybook": "pnpm build:css && storybook build"
   },
   "peerDependencies": {
-    "@parallelworks/workflow-parser": "^0.7.0",
     "formik": "^2.4.9",
     "monaco-editor": "^0.57.0",
     "react": "^19.0.0",

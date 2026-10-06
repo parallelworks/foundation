@@ -1,8 +1,8 @@
-import { type GraphEdit, settingsYaml, workflowInputsSchema } from '@parallelworks/workflow-parser'
 import { type ReactNode, useState } from 'react'
 import { IconButton } from '../components/IconButton'
 import { Input } from '../components/Input'
-import { useStrings } from '../components/Provider'
+import { useWorkflowEditing } from '../components/Provider'
+import type { GraphEdit } from '../editing'
 import { SETTINGS_YAML_PATH } from '../editor/settingsYaml'
 import { CloseIcon } from '../icons'
 import {
@@ -37,6 +37,7 @@ import {
   text,
   withoutUndefined,
 } from './editorFields'
+import { useGraphEditorStrings } from './editorStrings'
 import { expressionRefs } from './expressionRefs'
 import { type SettingsFormHooks, type SettingsView, useSettingsViews } from './GraphEditorDialogs'
 import { useNewInputs } from './InputDialog'
@@ -254,11 +255,12 @@ export function WorkflowSettingsDialog(
     onViewChange?: ((view: SettingsView) => void) | undefined
   },
 ) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
+  const editing = useWorkflowEditing()
   const views = useSettingsViews({
     ...props,
     name: '',
-    read: settingsYaml,
+    read: editing.settingsYaml,
     write: (_, yaml) => ({ type: 'setSettingsYaml', yaml }),
     scope: () => [],
     exclude: ['jobs', 'on'],
@@ -288,12 +290,13 @@ function SettingsForm({
   onDraft,
   pending = false,
 }: SettingsDialogProps & SettingsFormHooks) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   const [original] = useState(() => workflow)
-  const newInputs = useNewInputs(workflowInputsSchema(original))
-  const source = { ...newInputs.source, extras: expressionRefs(original) }
+  const editing = useWorkflowEditing()
+  const newInputs = useNewInputs(editing.workflowInputsSchema(original))
+  const source = { ...newInputs.source, extras: expressionRefs(editing, original) }
   const needs = asRecord(original['needs'])
-  const [meta] = useState(() => asRecord(asRecord(workflowInputsSchema(workflow))['$meta']))
+  const [meta] = useState(() => asRecord(asRecord(editing.workflowInputsSchema(workflow))['$meta']))
   const wizard = asRecord(meta['wizard'])
   const [touched, setTouched] = useState<Set<string>>(() => new Set())
   const touch = (section: string) =>

@@ -1,6 +1,8 @@
-// English defaults for the workflow editor; the web app supplies translations.
+// English defaults for the workflow editor; a host supplies translations through UIProvider.
 
-import type { EditRefusalReason } from '@parallelworks/workflow-parser'
+import { useMemo } from 'react'
+import { useStrings } from '../components/Provider'
+import type { EditRefusalReason } from '../editing'
 
 export const GRAPH_EDITOR_STRINGS = {
   undo: 'Undo',
@@ -37,7 +39,7 @@ export const GRAPH_EDITOR_STRINGS = {
   dependencyInUse: "An expression in the job reads this dependency's outputs",
   dependency: 'Dependency',
   dependencyOf: (from: string, to: string) => `${to} depends on ${from}`,
-  // Left to refusalText, which gives the parser's English; importing it here would bring the parser into every app.
+  // Left to refusalText, which falls back to the engine's English wording.
   refusal: (_reason: EditRefusalReason): string => '',
   menuDependsOn: 'Depends on',
   menuNeededBy: 'Needed by',
@@ -185,7 +187,7 @@ export const GRAPH_EDITOR_STRINGS = {
   invalidNumberInput: 'Use a number.',
   invalidChoice: (name: string) => `Use one of the listed values for ${name}.`,
   invalidUses:
-    'Use workflow/NAME, marketplace/NAME, a github/ or gitlab/ address, or a parallelworks action.',
+    'Use workflow/NAME, marketplace/NAME, a github/ or gitlab/ address, or a built-in action.',
   chooseInput: 'Choose an input',
   noMatchingInputs: 'No inputs of this kind yet',
   newInput: 'New input…',
@@ -421,89 +423,6 @@ export const GRAPH_EDITOR_STRINGS = {
     wizardFlatten:
       'On, the default: the workflow reads each field as inputs.FIELD. Off: as inputs.PAGE.FIELD, under its page’s name.',
   },
-  actionFields: {
-    checkoutRepo: 'Repository',
-    checkoutBranch: 'Branch',
-    checkoutSparse: 'Paths to check out',
-    checkoutPath: 'Destination',
-    agentSchedulerType: 'Scheduler',
-    agentSchedulerFlags: 'Scheduler flags',
-    agentWait: 'Wait for the agent',
-    agentScriptHeaders: 'Script headers',
-    agentDebug: 'Debug',
-    waitAgentId: 'Agent ID',
-    waitSchedulerJobId: 'Scheduler job ID',
-    waitSchedulerType: 'Scheduler',
-    cancelJobs: 'Jobs',
-    cancelWorkflow: 'Workflow',
-    cancelRun: 'Run number',
-    cancelSlug: 'Run slug',
-    updateName: 'Session',
-    updateType: 'Type',
-    updateUrl: 'Address',
-    updateTarget: 'Target',
-    updateRemotePort: 'Remote port',
-    updateRemoteHost: 'Remote host',
-    updateLocalPort: 'Local port',
-    updateSlug: 'Address path',
-    updateStatus: 'Status',
-    updateOpenAI: 'OpenAI-compatible API',
-    updateApiKey: 'API key',
-    updateTargetInfo: 'Kubernetes target',
-    targetName: 'Kubernetes cluster',
-    targetNamespace: 'Namespace',
-    targetResourceType: 'Resource type',
-    targetResourceName: 'Resource name',
-    repoYaml: 'Workflow file',
-    repoThumbnail: 'Thumbnail',
-    repoHost: 'GitLab server',
-  },
-  actionHelp: {
-    checkoutRepo: 'The address of the Git repository to copy, such as https://github.com/org/repo.',
-    checkoutBranch: 'The branch, tag or commit to check out.',
-    checkoutSparse: 'Check out only these folders or files instead of the whole repository.',
-    checkoutPath: 'The folder to put the repository in, inside the job’s folder.',
-    agentSchedulerType:
-      'The scheduler to send the agent job to: slurm or pbs. Pick a cluster input to use its scheduler.',
-    agentSchedulerFlags: 'Options passed to sbatch or qsub, such as a partition or a time limit.',
-    agentWait: 'Wait until the agent is running before the next step starts. On by default.',
-    agentScriptHeaders:
-      'Lines added to the top of the agent’s job script, such as scheduler options.',
-    agentDebug: 'Keep the scheduler job’s files and log more detail from the agent.',
-    waitAgentId: 'The agent ID a scheduler-agent step returned in its outputs.',
-    waitSchedulerJobId:
-      'The scheduler job ID a scheduler-agent step returned. The step fails if that job ends early.',
-    waitSchedulerType:
-      'The scheduler the agent runs on: slurm or pbs. Pick a cluster input to use its scheduler. The default is slurm.',
-    cancelJobs: 'The names of the jobs to cancel.',
-    cancelWorkflow: 'The workflow whose run to cancel.',
-    cancelRun: 'The number of the run to cancel.',
-    cancelSlug: 'The run’s ID from its page address, instead of a workflow and run number.',
-    updateName: 'The session to update, by the name it has under sessions.',
-    updateType: 'link opens an address; tunnel forwards a port.',
-    updateUrl: 'The address a link session opens.',
-    updateTarget: 'Where a tunnel connects, such as user-workspace.',
-    updateRemotePort: 'The port on the target to forward.',
-    updateRemoteHost: 'The host on the target to forward to.',
-    updateLocalPort: 'The local port of the tunnel.',
-    updateSlug: 'A path added to the end of the session’s address.',
-    updateStatus: 'The status to show for the session.',
-    updateOpenAI: 'The session serves an OpenAI-compatible API.',
-    updateApiKey: 'The API key for an OpenAI-compatible session.',
-    updateTargetInfo: 'A Kubernetes resource to forward to instead of a port on the workspace.',
-    targetName: 'The Kubernetes cluster.',
-    targetNamespace: 'The namespace the resource is in.',
-    targetResourceType: 'The kind of resource, such as services.',
-    targetResourceName: 'The name of the resource to forward to.',
-    repoYaml: 'Path to the workflow file in the repository. Defaults to workflow.yaml.',
-    repoThumbnail: 'Path to a thumbnail image for this subworkflow.',
-    repoHost: 'The registered GitLab server the project is on. Defaults to gitlab.com.',
-    aboutCheckout: 'Check out a Git repository',
-    aboutSchedulerAgent: 'Submit a Slurm or PBS job that runs an agent you can SSH into',
-    aboutWaitForAgent: 'Wait for the agent a scheduler-agent step started',
-    aboutCancelJobs: 'Cancel some or all jobs of a run',
-    aboutUpdateSession: 'Update a session with its connection details',
-  },
 }
 
 export type GraphEditorStrings = typeof GRAPH_EDITOR_STRINGS
@@ -712,9 +631,8 @@ export const INPUTS_EDITOR_STRINGS = {
     tooltip: 'Extra help shown when users hover over the field’s info icon.',
     default: 'The value the field starts with.',
     defaultList: 'The values picked when the form opens.',
-    defaultResource:
-      'What’s picked when the form opens, by its pw:// address, such as pw://user/name.',
-    defaultResources: 'What’s picked when the form opens, by pw:// address.',
+    defaultResource: 'What’s picked when the form opens, by its resource address.',
+    defaultResources: 'What’s picked when the form opens, by resource address.',
     defaultFromInput: 'Start with the value of this other input.',
     durationDefault: 'The time the field starts with, as HH:MM:SS or D-HH:MM:SS.',
     optional: 'Let users leave the field empty. Use an expression to decide when.',
@@ -781,3 +699,15 @@ export const INPUTS_EDITOR_STRINGS = {
 }
 
 export type InputsEditorStrings = typeof INPUTS_EDITOR_STRINGS
+
+/** The graph editor's strings: the host's translations over the English defaults. */
+export function useGraphEditorStrings(): GraphEditorStrings {
+  const overrides = useStrings().graphEditor
+  return useMemo(() => ({ ...GRAPH_EDITOR_STRINGS, ...overrides }), [overrides])
+}
+
+/** The input form editor's strings: the host's translations over the English defaults. */
+export function useInputsEditorStrings(): InputsEditorStrings {
+  const overrides = useStrings().inputsEditor
+  return useMemo(() => ({ ...INPUTS_EDITOR_STRINGS, ...overrides }), [overrides])
+}

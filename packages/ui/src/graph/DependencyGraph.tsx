@@ -1,12 +1,3 @@
-import {
-  boxesFromLayout,
-  expandMatrixJobs,
-  type GraphLayout,
-  hasLayout,
-  layoutPosition,
-  mapLayout,
-  needTarget,
-} from '@parallelworks/workflow-parser'
 import cx from 'classnames'
 import { DateTime } from 'luxon'
 import React, { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -23,6 +14,7 @@ import Loader from '../components/Loader'
 import { useRunFile, useSlots, useStrings, useWorkflowEngine } from '../components/Provider'
 import { TooltipInfo } from '../components/Tooltip'
 import { toAbsHumanDuration } from '../duration'
+import type { GraphLayout, WorkflowEditing } from '../editing'
 import type { MatrixGroup, RunStatus, WorkflowEngine } from '../engine'
 import {
   ArrowLeftIcon,
@@ -304,6 +296,7 @@ function parsePrefixToPath(prefix: string): (string | number)[] {
 
 // A matrix that ran as one job draws as that job, in the slot stored for its YAML job.
 function withLoneMatrixSlots(
+  { layoutPosition, mapLayout }: WorkflowEditing,
   layout: GraphLayout,
   jobs: Record<string, WorkflowJob>,
   matrixGroups: Record<string, MatrixGroup>,
@@ -364,7 +357,9 @@ export function computeGraphLayout(
   for (const jobName of Object.keys(visibleJobs)) {
     const needs = visibleJobs[jobName]?.needs
     const oldNeeds: string[] = Array.isArray(needs)
-      ? needs.map((need) => (typeof need === 'string' ? needTarget(need) : need))
+      ? needs.map((need) =>
+          typeof need === 'string' && engine.editing ? engine.editing.needTarget(need) : need,
+        )
       : []
     const filtered = oldNeeds.filter((dep) => {
       return !oldNeeds.some((other) => {
@@ -430,12 +425,13 @@ export function computeGraphLayout(
   }
   const alone = (job: string) => !!visibleJobs[job]?._matrixGroup
   // A stored layout groups jobs by the slot they were put in, and keeps each box's row.
+  const editing = engine.editing
   const laidOut =
-    layout && hasLayout(layout)
-      ? boxesFromLayout(
+    layout && editing?.hasLayout(layout)
+      ? editing.boxesFromLayout(
           Object.keys(visibleJobs),
           filteredDeps,
-          withLoneMatrixSlots(layout, visibleJobs, matrixGroups),
+          withLoneMatrixSlots(editing, layout, visibleJobs, matrixGroups),
           { together, alone },
         )
       : null
@@ -2452,8 +2448,10 @@ export function DependencyGraphPreview(inputs: {
   /** A fixed panel height; without one the panel is only as tall as the graph. */
   height?: string | undefined
 }) {
+  const { editing } = useWorkflowEngine()
   const ymlJobs = inputs.yml?.['jobs']
   const jobs = isJobRecord(ymlJobs) ? ymlJobs : {}
+  const withCleanup = addCleanupSteps({ jobs })
   const on = inputs.yml?.['on']
   const execute = isJobRecord(on) ? (on as Record<string, unknown>)['execute'] : undefined
   const workflowInputs = isJobRecord(execute)
@@ -2462,7 +2460,8 @@ export function DependencyGraphPreview(inputs: {
   return (
     <DependencyGraph
       run={{
-        executedJobs: expandMatrixJobs(addCleanupSteps({ jobs })),
+        // A run lists a matrix's runs as jobs of their own; without an engine that edits, it stays one.
+        executedJobs: editing ? editing.expandMatrixJobs(withCleanup) : withCleanup,
         number: 0,
         workflowName: '',
       }}

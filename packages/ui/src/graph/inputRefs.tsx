@@ -1,9 +1,8 @@
-import { inputChildrenKey, wizardFlattens } from '@parallelworks/workflow-parser'
 import { useId, useRef, useState } from 'react'
 import { IconButton } from '../components/IconButton'
 import { fieldBoxClasses, Textarea } from '../components/Input'
-import { useStrings } from '../components/Provider'
 import { Toggle } from '../components/Toggle'
+import type { WorkflowEditing } from '../editing'
 import { AddIcon } from '../icons'
 import {
   asRecord,
@@ -19,6 +18,11 @@ import {
   text,
   useGrowingArea,
 } from './editorFields'
+import {
+  type GraphEditorStrings,
+  useGraphEditorStrings,
+  useInputsEditorStrings,
+} from './editorStrings'
 import type { ExpressionRef, RefGroup } from './expressionRefs'
 import { useFieldLint } from './fieldProblems'
 import { type Suggestion, SuggestionInput } from './SuggestionInput'
@@ -32,9 +36,9 @@ export interface InputRef {
 }
 
 /** Every input with a value, where a run reads it: groups nest unless flattened, lists hide their rows. */
-export function inputRefs(inputs: Json | undefined): InputRef[] {
+export function inputRefs(editing: WorkflowEditing, inputs: Json | undefined): InputRef[] {
   const root = asRecord(inputs)
-  const flatSteps = wizardFlattens(root)
+  const flatSteps = editing.wizardFlattens(root)
   const out: InputRef[] = []
   const walk = (map: Json, prefix: string[]) => {
     for (const [name, raw] of Object.entries(map)) {
@@ -43,7 +47,7 @@ export function inputRefs(inputs: Json | undefined): InputRef[] {
       }
       const definition = asRecord(raw)
       const type = text(definition['type'])
-      const childKey = inputChildrenKey(type)
+      const childKey = editing.inputChildrenKey(type)
       if (type === 'group' || type === 'step') {
         const flat = type === 'step' ? flatSteps : definition['flatten'] === true
         walk(
@@ -148,7 +152,7 @@ export function InputRefSelect({
   newLabel?: string
   label: string
 }) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   const id = useId()
   const matching = refs.filter((ref) => types.includes(ref.type))
   const current = value ? pathKey(value) : ''
@@ -203,7 +207,8 @@ function NewInputButton({
   source: InputSource | undefined
   onCreated: (path: string[]) => void
 }) {
-  const { graphEditor: t, inputsEditor } = useStrings()
+  const t = useGraphEditorStrings()
+  const inputsEditor = useInputsEditorStrings()
   const create = source?.create
   if (!create) {
     return null
@@ -273,7 +278,7 @@ export function ExpressionInput({
 /** Conditions on the form's switches and choices, for fields that run on one. */
 function conditionSuggestions(
   source: InputSource | undefined,
-  t: ReturnType<typeof useStrings>['graphEditor'],
+  t: GraphEditorStrings,
 ): Suggestion[] {
   return (source?.refs ?? []).flatMap((ref): Suggestion[] => {
     if (ref.type === 'boolean') {
@@ -311,7 +316,7 @@ export function FlagField({
   onChange: (value: Flag) => void
   source?: InputSource | undefined
 }) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   const id = useId()
   const [typed, setTyped] = useState(typeof value === 'string')
   const checked = typeof value === 'boolean' ? value : fallback
@@ -389,7 +394,7 @@ export function ConditionField({
   /** A job's status checks read the jobs it needs; a step's, the steps before it. */
   scope: 'job' | 'step'
 }) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   const id = useId()
   const texts = scope === 'job' ? t.jobConditions : t.stepConditions
   const lint = useFieldLint(yamlKey, id, value, onChange)
@@ -473,7 +478,7 @@ export function ValueOrInputField({
   suggestions?: string[]
   placeholder?: string
 }) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   const id = useId()
   const lint = useFieldLint(yamlKey, id, value, onChange)
   const firstType = types[0] ?? 'string'
@@ -538,7 +543,7 @@ export function ScriptField({
   error?: string | undefined
   placeholder?: string
 }) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   const id = useId()
   const growing = useGrowingArea(value)
   const area = rows === undefined ? growing : null
@@ -588,7 +593,7 @@ function InsertRefSelect({
   label: string
   onInsert: (reference: string) => void
 }) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   const all = allRefs(source)
   // A select dressed as a button: the grouped list and keyboard handling come with it.
   return (

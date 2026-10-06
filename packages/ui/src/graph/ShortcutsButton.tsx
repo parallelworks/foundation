@@ -1,7 +1,7 @@
 import { Fragment, useRef, useState } from 'react'
 import { IconButton } from '../components/IconButton'
-import { useStrings } from '../components/Provider'
 import { KeyboardIcon } from '../icons'
+import { useGraphEditorStrings } from './editorStrings'
 import { ToolbarPopover } from './ToolbarPopover'
 
 /** What a gesture or key does; each combo is a set of keys, and a second combo does the same. */
@@ -21,7 +21,7 @@ export const MOD_KEY =
 
 /** A toolbar button that opens the list of gestures and keys a pane takes. */
 export function ShortcutsButton({ groups }: { groups: ShortcutGroup[] }) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   const [open, setOpen] = useState(false)
   const button = useRef<HTMLButtonElement>(null)
   return (

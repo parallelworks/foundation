@@ -1,14 +1,14 @@
-import { lintWorkflow } from '@parallelworks/workflow-parser'
 import cx from 'classnames'
 import * as monaco from 'monaco-editor'
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { useCssIsDark } from '../components/useCssIsDark'
+import type { WorkflowEditing } from '../editing'
 import { holdListeners, modelFor } from './editorModel'
 import {
   LINT_OWNER,
   type LintSources,
   lintContext,
-  useLintReady,
+  useLintEditing,
   useLintSources,
 } from './lintContext'
 import { type NestedWorkflowText, publishNestedText } from './nestedText'
@@ -120,13 +120,15 @@ export default function MonacoEditor({
   nestedRef.current = nested
   const isNested = nested !== undefined
 
-  // The linter runs in the wasm, which loads on demand; the text is checked again once it has.
-  const lintLoaded = useLintReady(lint)
+  // The checks load with the engine, on demand; the text is checked again once they have.
+  const lintEditing = useLintEditing(lint)
+  const lintEditingRef = useRef<WorkflowEditing | undefined>(lintEditing)
+  lintEditingRef.current = lintEditing
   useEffect(() => {
-    if (lint && lintLoaded) {
+    if (lint && lintEditing) {
       runLintRef.current?.()
     }
-  }, [lint, lintLoaded])
+  }, [lint, lintEditing])
 
   useEffect(() => {
     const model = monacoRef.current?.getModel()
@@ -234,7 +236,8 @@ export default function MonacoEditor({
           // The cross-reference checks read a shape they can only take for granted once the
           // schema is satisfied, so the schema's problems come first and alone.
           const runLint = () => {
-            if (!lint || model.isDisposed()) {
+            const editing = lintEditingRef.current
+            if (!lint || !editing || model.isDisposed()) {
               return
             }
             const schema = monaco.editor
@@ -248,9 +251,12 @@ export default function MonacoEditor({
               model,
               schema.length > 0
                 ? []
-                : lintWorkflow(source, lintContext(source, lintSourcesRef.current, runLint)).map(
-                    (problem) => lintMarker(model, problem),
-                  ),
+                : editing
+                    .lintWorkflow(
+                      source,
+                      lintContext(editing, source, lintSourcesRef.current, runLint),
+                    )
+                    .map((problem) => lintMarker(model, problem)),
             )
           }
           runLintRef.current = runLint

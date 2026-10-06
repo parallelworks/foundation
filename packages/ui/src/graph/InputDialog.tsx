@@ -1,25 +1,10 @@
-import {
-  batchOf,
-  convertToDynamicForm,
-  dumpYaml,
-  type FieldPatch,
-  freeName,
-  type GraphEdit,
-  type InputPath,
-  inputChildrenKey,
-  inputYaml,
-  isValidInputName,
-  loadYaml,
-  newInputName,
-  nextName,
-  wizardFlattens,
-} from '@parallelworks/workflow-parser'
 import cx from 'classnames'
 import { type ReactNode, useId, useMemo, useRef, useState } from 'react'
 import Dropdown from '../components/Dropdown'
 import { IconButton } from '../components/IconButton'
 import { Input, Textarea } from '../components/Input'
-import { useStrings } from '../components/Provider'
+import { useWorkflowEditing, useWorkflowEngine } from '../components/Provider'
+import type { FieldPatch, GraphEdit, InputPath, WorkflowEditing } from '../editing'
 import { INPUT_YAML_PATH } from '../editor/settingsYaml'
 import { DynamicForm } from '../form/Form'
 import { FormEditingContext } from '../form/formEditing'
@@ -59,7 +44,12 @@ import {
   useSectionMemory,
   withoutUndefined,
 } from './editorFields'
-import type { InputsEditorStrings } from './editorStrings'
+import {
+  type GraphEditorStrings,
+  type InputsEditorStrings,
+  useGraphEditorStrings,
+  useInputsEditorStrings,
+} from './editorStrings'
 import type { SettingsView } from './GraphEditorDialogs'
 import { FlagField, type InputSource, inputRefs, ValueOrInputField } from './inputRefs'
 import { FIELD_TEXT_BOX } from './SuggestionInput'
@@ -139,7 +129,7 @@ const DEFAULT_LIST: Prop = {
   kind: 'values',
   help: 'defaultList',
 }
-// A resource picker's default is one pw:// address, or a list of them with multi on.
+// A resource picker's default is one resource address, or a list of them with multi on.
 const RESOURCE_DEFAULT: Prop = {
   ...DEFAULT,
   help: 'defaultResource',
@@ -413,8 +403,8 @@ export function commonKeys(type: string): CommonKey[] {
 }
 
 /** Every key the dialog can write for an input of `type`. */
-export function offeredInputKeys(type: string): string[] {
-  const children = inputChildrenKey(type)
+export function offeredInputKeys(editing: WorkflowEditing, type: string): string[] {
+  const children = editing.inputChildrenKey(type)
   return [
     'type',
     ...commonKeys(type),
@@ -533,7 +523,7 @@ function optionsValue(draft: OptionsDraft, labelled: boolean): unknown {
 function optionsError(
   draft: OptionsDraft,
   t: InputsEditorStrings,
-  g: ReturnType<typeof useStrings>['graphEditor'],
+  g: GraphEditorStrings,
 ): string | undefined {
   if (draft.mode === 'expression') {
     return draft.text.trim() ? expressionError(draft.text, g) : g.required
@@ -573,7 +563,7 @@ function OptionsEditor({
   /** Each option also takes a description, as a checkbox shows one. */
   described: boolean
 }) {
-  const { inputsEditor: t } = useStrings()
+  const t = useInputsEditorStrings()
   const update = (i: number, patch: Partial<OptionRow>) =>
     onChange({
       ...draft,
@@ -716,7 +706,7 @@ function ImpliesEditor({
   options: OptionRow[]
   onChange: (draft: ImpliesDraft) => void
 }) {
-  const { inputsEditor: t } = useStrings()
+  const t = useInputsEditorStrings()
   const listed = options.filter((option) => option.value.trim())
   if (listed.length < 2) {
     return <div className="text-xs theme-muted-text">{t.impliesNeedsOptions}</div>
@@ -774,7 +764,7 @@ function OptOutCheckbox({
   onValue: (value: string) => void
   errors: { label: string | undefined; value: string | undefined }
 }) {
-  const { inputsEditor: t } = useStrings()
+  const t = useInputsEditorStrings()
   const [on, setOn] = useState(label.trim() !== '' || value.trim() !== '')
   return (
     <div className="flex flex-col gap-3">
@@ -826,7 +816,7 @@ function TypeSelect({
   allowStep: boolean
   disabled: boolean
 }) {
-  const { inputsEditor: t } = useStrings()
+  const t = useInputsEditorStrings()
   const id = useId()
   const types = t.types as Record<string, string>
   const help = t.typeHelp as Record<string, string>
@@ -1034,7 +1024,7 @@ function valueError(
   kind: Kind,
   draft: unknown,
   t: InputsEditorStrings,
-  g: ReturnType<typeof useStrings>['graphEditor'],
+  g: GraphEditorStrings,
 ): string | undefined {
   const value = valueOf(kind, draft)
   if (prop.required && (value === undefined || value === '')) {
@@ -1127,7 +1117,8 @@ function TemplateFields({
   adopt: (inputs: PendingInput[]) => void
   home: InputHome
 }) {
-  const { inputsEditor: t } = useStrings()
+  const t = useInputsEditorStrings()
+  const { freeName } = useWorkflowEditing()
   const [editing, setEditing] = useState<{ name: string } | { create: true } | null>(null)
   const names = Object.keys(fields).filter((name) => name !== '$meta')
   const types = t.types as Record<string, string>
@@ -1193,7 +1184,7 @@ function TemplateFields({
       <AddRowButton label={t.addField} onClick={() => setEditing({ create: true })} />
       {editing && (
         <InputDialog
-          name={'name' in editing ? editing.name : nextFieldName(names)}
+          name={'name' in editing ? editing.name : nextFieldName(freeName, names)}
           definition={
             'name' in editing ? asRecord(fields[editing.name]) : newInputDefinition('string')
           }
@@ -1224,7 +1215,7 @@ function TemplateFields({
   )
 }
 
-function nextFieldName(names: string[]): string {
+function nextFieldName(freeName: WorkflowEditing['freeName'], names: string[]): string {
   return freeName(names, (n) => `field_${n}`)
 }
 
@@ -1241,7 +1232,7 @@ function ValuesField({
   onChange: (draft: ValuesDraft) => void
   error: string | undefined
 }) {
-  const { inputsEditor: t } = useStrings()
+  const t = useInputsEditorStrings()
   if (draft.expression === undefined) {
     return (
       <StringListEditor
@@ -1278,9 +1269,10 @@ function RowsField({
   onChange: (draft: RowsDraft) => void
   error: string | undefined
 }) {
+  const { convertInputs } = useWorkflowEngine()
   const formJSONs = useMemo(
-    () => convertToDynamicForm({ rows: { type: 'list', label, template } }),
-    [label, template],
+    () => convertInputs({ rows: { type: 'list', label, template } }),
+    [convertInputs, label, template],
   )
   // The list fills in row fields as it mounts; only what the user does counts as an edit.
   const touched = useRef(false)
@@ -1363,7 +1355,7 @@ function PropField({
   template: Json
   inputLabel: string
 }) {
-  const { inputsEditor: t } = useStrings()
+  const t = useInputsEditorStrings()
   const description = t.help[prop.help]
   const name = (t.fields as Record<string, string | undefined>)[prop.key] ?? prop.key
   const field = { label: name, yamlKey: prop.key, description }
@@ -1629,22 +1621,22 @@ const SUGGESTED_NAMES: Record<string, string> = {
   string: 'text',
 }
 
-export function allNames(map: Json, out: Set<string>): Set<string> {
+export function allNames(editing: WorkflowEditing, map: Json, out: Set<string>): Set<string> {
   for (const [name, value] of Object.entries(map)) {
     out.add(name)
     const definition = asRecord(value)
-    const childKey = inputChildrenKey(definition['type'])
+    const childKey = editing.inputChildrenKey(definition['type'])
     if (childKey) {
-      allNames(asRecord(definition[childKey]), out)
+      allNames(editing, asRecord(definition[childKey]), out)
     }
   }
   return out
 }
 
-function suggestedName(type: string, inputs: Json): string {
-  const taken = allNames(inputs, new Set())
+function suggestedName(editing: WorkflowEditing, type: string, inputs: Json): string {
+  const taken = allNames(editing, inputs, new Set())
   const base = SUGGESTED_NAMES[type]
-  return base ? nextName(taken, base) : newInputName(taken)
+  return base ? editing.nextName(taken, base) : editing.newInputName(taken)
 }
 
 /** Where a dialog puts the inputs it creates: the top level, or one wizard step. */
@@ -1663,39 +1655,45 @@ function defaultHome(inputs: Json): InputHome {
   return wizard['mode'] === 'wizard' && last ? { parent: [last] } : { parent: [] }
 }
 
-function homeContainer(inputs: Json, home: InputHome): Json {
+function homeContainer(editing: WorkflowEditing, inputs: Json, home: InputHome): Json {
   const [step] = home.parent
   if (!step) {
     return inputs
   }
-  const key = inputChildrenKey(text(asRecord(inputs[step])['type']))
+  const key = editing.inputChildrenKey(text(asRecord(inputs[step])['type']))
   return key ? asRecord(asRecord(inputs[step])[key]) : {}
 }
 
-function withPending(inputs: Json, home: InputHome, pending: PendingInput[]): Json {
+function withPending(
+  editing: WorkflowEditing,
+  inputs: Json,
+  home: InputHome,
+  pending: PendingInput[],
+): Json {
   const added = Object.fromEntries(pending.map((input) => [input.name, input.definition]))
   const [step] = home.parent
   if (!step) {
     return { ...inputs, ...added }
   }
   const definition = asRecord(inputs[step])
-  const key = inputChildrenKey(text(definition['type'])) ?? 'options'
+  const key = editing.inputChildrenKey(text(definition['type'])) ?? 'options'
   return {
     ...inputs,
     [step]: {
       ...definition,
-      [key]: { ...homeContainer(inputs, home), ...added },
+      [key]: { ...homeContainer(editing, inputs, home), ...added },
     },
   }
 }
 
 /** `edit` after the edits that add `created` at `home`, as one undo step. */
 export function withCreatedInputs(
+  editing: WorkflowEditing,
   created: PendingInput[],
   home: InputHome,
   edit: GraphEdit | null,
 ): GraphEdit | null {
-  return batchOf([
+  return editing.batchOf([
     ...created.map(
       (input, i): GraphEdit => ({
         type: 'addInput',
@@ -1723,6 +1721,7 @@ export function useNewInputs(
   /** The form's edit with the inputs it made, or null when there's nothing to save. */
   save: (edit: GraphEdit | null) => GraphEdit | null
 } {
+  const editing = useWorkflowEditing()
   const root = asRecord(inputs)
   const place = home ?? defaultHome(root)
   const [pending, setPending] = useState<PendingInput[]>([])
@@ -1730,21 +1729,21 @@ export function useNewInputs(
     type: string
     onCreated: (path: string[]) => void
   } | null>(null)
-  const all = withPending(root, place, pending)
+  const all = withPending(editing, root, place, pending)
   const source: InputSource = {
-    refs: inputRefs(all),
+    refs: inputRefs(editing, all),
     create: (type, onCreated) => setCreating({ type, onCreated }),
   }
   const adopt = (created: PendingInput[]) => setPending((current) => [...current, ...created])
   const pathOf = (name: string) =>
-    place.parent.length > 0 && !wizardFlattens(root) ? [...place.parent, name] : [name]
+    place.parent.length > 0 && !editing.wizardFlattens(root) ? [...place.parent, name] : [name]
   const dialog = creating ? (
     <InputDialog
-      name={suggestedName(creating.type, all)}
+      name={suggestedName(editing, creating.type, all)}
       definition={newInputDefinition(creating.type)}
       isNew
       lockedType
-      siblings={[...allNames(all, new Set())]}
+      siblings={[...allNames(editing, all, new Set())]}
       allowStep={false}
       inputs={all}
       home={place}
@@ -1762,7 +1761,7 @@ export function useNewInputs(
     pending,
     adopt,
     dialog,
-    save: (edit) => withCreatedInputs(pending, place, edit),
+    save: (edit) => withCreatedInputs(editing, pending, place, edit),
   }
 }
 
@@ -1817,15 +1816,15 @@ export function InputDialog({
   )
 }
 
-function startingYaml(textual: InputYaml, definition: Json): string {
+function startingYaml(editing: WorkflowEditing, textual: InputYaml, definition: Json): string {
   if (textual.source !== undefined && textual.path) {
     try {
-      return inputYaml(textual.source, textual.path)
+      return editing.inputYaml(textual.source, textual.path)
     } catch {
       // A definition the text can't be found for is shown as it's read.
     }
   }
-  return dumpYaml(definition)
+  return editing.dumpYaml(definition)
 }
 
 function InputViews({
@@ -1838,10 +1837,12 @@ function InputViews({
   view?: SettingsView | undefined
   onViewChange?: ((view: SettingsView) => void) | undefined
 }) {
-  const { inputsEditor: t, graphEditor: g } = useStrings()
+  const t = useInputsEditorStrings()
+  const g = useGraphEditorStrings()
+  const editing = useWorkflowEditing()
   const sections = useSectionMemory()
   const [original] = useState(() => (props.isNew ? {} : props.definition))
-  const [opening] = useState(() => startingYaml(textual, props.definition))
+  const [opening] = useState(() => startingYaml(editing, textual, props.definition))
   // The YAML as last shown, and the settings the form starts from.
   const [shown, setShown] = useState(opening)
   const [base, setBase] = useState<Json>(props.definition)
@@ -1857,7 +1858,9 @@ function InputViews({
     }
     // The form's settings are written out again only when it changed them, so the text keeps its comments.
     const text =
-      !current || isEmptyPatch(diffPatch(base, current.written)) ? shown : dumpYaml(current.written)
+      !current || isEmptyPatch(diffPatch(base, current.written))
+        ? shown
+        : editing.dumpYaml(current.written)
     setShown(text)
     setYaml(text)
     setProblem(undefined)
@@ -1867,13 +1870,13 @@ function InputViews({
     if (yaml === null) {
       return
     }
-    const issue = yamlProblem(yaml, g)
+    const issue = yamlProblem(yaml, g, editing)
     if (issue) {
       setProblem(issue)
       return
     }
     setShown(yaml)
-    setBase(asRecord(loadYaml(yaml)))
+    setBase(asRecord(editing.loadYaml(yaml)))
     setYaml(null)
     setVersion((current) => current + 1)
     onViewChange?.('form')
@@ -1897,7 +1900,7 @@ function InputViews({
     )
   }
   const nextName = name.trim()
-  const nameError = !isValidInputName(nextName)
+  const nameError = !editing.isValidInputName(nextName)
     ? t.invalidInputName
     : nextName !== props.name && props.siblings.includes(nextName)
       ? t.inputExists
@@ -1908,7 +1911,7 @@ function InputViews({
       title={t.editInput}
       onClose={props.onClose}
       dirty={dirty}
-      saveDisabled={yamlProblem(yaml, g) !== undefined || nameError !== undefined}
+      saveDisabled={yamlProblem(yaml, g, editing) !== undefined || nameError !== undefined}
       onSubmit={() => {
         if (dirty) {
           textual.onSave(nextName, yaml)
@@ -1935,7 +1938,7 @@ function InputViews({
           setYaml(text)
           setProblem(undefined)
         }}
-        problem={problem ?? yamlProblem(yaml, g)}
+        problem={problem ?? yamlProblem(yaml, g, editing)}
         scoped={NO_SCOPED}
       />
     </DialogShell>
@@ -1983,7 +1986,9 @@ function InputForm({
   /** Called on each render with the name and settings Save would write. */
   onDraft?: ((name: string, written: Json) => void) | undefined
 }) {
-  const { inputsEditor: t, graphEditor: g } = useStrings()
+  const t = useInputsEditorStrings()
+  const g = useGraphEditorStrings()
+  const editing = useWorkflowEditing()
   const newInputs = useNewInputs(inputs, home)
   const [original] = useState(() => startOriginal ?? (isNew ? {} : definition))
   const [draftName, setDraftName] = useState(name)
@@ -2039,7 +2044,7 @@ function InputForm({
 
   const trimmedName = draftName.trim()
   const errors: Record<string, string | undefined> = {
-    name: !isValidInputName(trimmedName)
+    name: !editing.isValidInputName(trimmedName)
       ? t.invalidInputName
       : siblings.includes(trimmedName) ||
           newInputs.pending.some((input) => input.name === trimmedName)
@@ -2077,8 +2082,8 @@ function InputForm({
     for (const prop of props) {
       next[prop.key] = valueFor(prop)
     }
-    const childKey = inputChildrenKey(type)
-    const previousKey = inputChildrenKey(originalType)
+    const childKey = editing.inputChildrenKey(type)
+    const previousKey = editing.inputChildrenKey(originalType)
     if (childKey && childKey !== 'template') {
       next[childKey] =
         (previousKey ? definition[previousKey] : undefined) ?? definition[childKey] ?? {}
@@ -2228,7 +2233,7 @@ function InputForm({
 
 /** A compact type chip for rows that list inputs. */
 export function TypeBadge({ type }: { type: string }) {
-  const { inputsEditor: t } = useStrings()
+  const t = useInputsEditorStrings()
   const types = t.types as Record<string, string>
   return (
     <span className={cx('rounded border theme-border px-1 text-[11px] leading-4 theme-muted-text')}>

@@ -1,23 +1,10 @@
-import {
-  applyGraphEdit,
-  batchOf,
-  dependsOn,
-  type GraphEdit,
-  isValidJobName,
-  jobNeeds,
-  jobYaml,
-  linesAt,
-  lintWorkflow,
-  loadYaml,
-  needTarget,
-  stepYaml,
-} from '@parallelworks/workflow-parser'
 import cx from 'classnames'
 import { type ReactNode, useId, useMemo, useRef, useState } from 'react'
 import { IconButton } from '../components/IconButton'
 import { fieldBoxClasses, Input } from '../components/Input'
-import { useStrings } from '../components/Provider'
-import { useLintContext, useLintReady } from '../editor/lintContext'
+import { useWorkflowActions, useWorkflowEditing } from '../components/Provider'
+import type { GraphEdit, WorkflowEditing } from '../editing'
+import { useLintContext, useLintEditing } from '../editor/lintContext'
 import type { NestedWorkflowText } from '../editor/nestedText'
 import { JOB_YAML_PATH, STEP_YAML_PATH } from '../editor/settingsYaml'
 import { ArrowDownIcon, ArrowUpIcon, CloseIcon, TrashIcon } from '../icons'
@@ -65,6 +52,7 @@ import {
   updateAt,
   useSectionMemory,
 } from './editorFields'
+import { useGraphEditorStrings } from './editorStrings'
 import { expressionRefs } from './expressionRefs'
 import {
   FieldProblems,
@@ -293,7 +281,7 @@ function SshEditor({
   error: string | undefined
   source: InputSource
 }) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   const set = (key: (typeof SSH_KEYS)[number]) => (value: string) =>
     onChange({ ...fields, [key]: value })
   return (
@@ -347,7 +335,7 @@ function EnvSection({
   error: string | undefined
   source: InputSource
 }) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   return (
     <Section
       title={t.sectionEnvironment}
@@ -430,7 +418,7 @@ function OutputsEditor({
   stepIds: string[]
   error: string | undefined
 }) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   const update = (i: number, patch: Partial<OutputRow>) =>
     onChange(rows.map((row, j) => (i === j ? { ...row, ...patch } : row)))
   return (
@@ -625,7 +613,7 @@ function MatrixEntries({
   onText: (text: string | undefined) => void
   error: string | undefined
 }) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   return (
     <div className="flex flex-col gap-2">
       <FieldLabel
@@ -690,7 +678,7 @@ function MatrixVariable({
   onChange: (row: MatrixRow) => void
   onRemove: () => void
 }) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
   const ref = readRef(row.values.trim())
   const [fromInput, setFromInput] = useState(ref !== null)
   const { create } = source
@@ -773,11 +761,13 @@ function JobForm({
   onDraft,
   pending = false,
 }: JobDialogProps & SettingsFormHooks) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
+  const editing = useWorkflowEditing()
+  const { needTarget } = editing
   const newInputs = useNewInputs(inputs)
   const source = {
     ...newInputs.source,
-    extras: expressionRefs(workflow ?? { jobs }, job),
+    extras: expressionRefs(editing, workflow ?? { jobs }, job),
   }
   const [original] = useState(() => asRecord(jobs[job]))
   const rawNeeds = original['needs']
@@ -830,7 +820,7 @@ function JobForm({
     .join(' ')
   const others = Object.keys(jobs).filter((other) => other !== job)
   const missing = needs.map(needTarget).filter((target) => !Object.hasOwn(jobs, target))
-  const allNeeds = jobNeeds(jobs)
+  const allNeeds = editing.jobNeeds(jobs)
   const isMatrixJob = (other: string) =>
     asRecord(asRecord(jobs[other])['strategy'])['matrix'] !== undefined
 
@@ -861,7 +851,7 @@ function JobForm({
   }
   const variablesMode = matrixOn && matrixMode === 'variables'
   const errors = {
-    name: !isValidJobName(trimmedName)
+    name: !editing.isValidJobName(trimmedName)
       ? t.invalidJobName
       : trimmedName !== job && Object.hasOwn(jobs, trimmedName)
         ? t.jobExists
@@ -981,7 +971,7 @@ function JobForm({
           <div id={needsId} tabIndex={-1} className="flex flex-col gap-1.5">
             {[...others, ...missing].map((other) => {
               const entry = needs.find((need) => needTarget(need) === other)
-              const cycle = !entry && dependsOn(allNeeds, other, job)
+              const cycle = !entry && editing.dependsOn(allNeeds, other, job)
               return (
                 <div key={other} className="flex items-center gap-2 text-sm">
                   <label
@@ -1353,11 +1343,13 @@ function StepForm({
   pending = false,
   adding = false,
 }: StepDialogProps & SettingsFormHooks) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
+  const editing = useWorkflowEditing()
+  const actions = useWorkflowActions()
   const newInputs = useNewInputs(inputs)
   const source = {
     ...newInputs.source,
-    extras: expressionRefs(workflow, job),
+    extras: expressionRefs(editing, workflow, job),
   }
   const [original] = useState(() => asRecord(steps[index]))
   const rawRetry = original['retry']
@@ -1368,7 +1360,7 @@ function StepForm({
   const [run, setRun] = useState(text(original['run']))
   const [shell, setShell] = useState(text(original['shell']))
   const [uses, setUses] = useState(text(original['uses']))
-  const [initialWith] = useState(() => withDraftFrom(original['with']))
+  const [initialWith] = useState(() => withDraftFrom(original['with'], actions))
   const [withDraft, setWithDraft] = useState(initialWith)
   const [condition, setCondition] = useState(conditionText(original['if']))
   const [workingDirectory, setWorkingDirectory] = useState(text(original['working-directory']))
@@ -1397,11 +1389,12 @@ function StepForm({
         ? undefined
         : !trimmedUses
           ? t.required
-          : usesKind(trimmedUses) === 'other'
+          : usesKind(trimmedUses, actions) === 'other'
             ? t.invalidUses
             : undefined,
-    with: kind === 'uses' ? withError(trimmedUses, withDraft, original['with'], t) : undefined,
-    id: id.trim() && !isValidJobName(id.trim()) ? t.invalidJobName : undefined,
+    with:
+      kind === 'uses' ? withError(trimmedUses, actions, withDraft, original['with'], t) : undefined,
+    id: id.trim() && !editing.isValidJobName(id.trim()) ? t.invalidJobName : undefined,
     timeout: durationError(timeout, t),
     ignoreErrors: flagError(ignoreErrors, t),
     maxRetries: retryOn ? countError(maxRetries, 0, t.invalidCount) : undefined,
@@ -1440,7 +1433,14 @@ function StepForm({
     uses: kind === 'uses' ? trimmedUses : undefined,
     with:
       kind === 'uses'
-        ? withValue(trimmedUses, withDraft, initialWith, text(original['uses']), original['with'])
+        ? withValue(
+            trimmedUses,
+            actions,
+            withDraft,
+            initialWith,
+            text(original['uses']),
+            original['with'],
+          )
         : undefined,
     if: parseCondition(condition),
     'working-directory':
@@ -1786,8 +1786,11 @@ export interface SettingsFormHooks {
   adding?: boolean
 }
 
-function applyAll(text: string, edits: GraphEdit[]): string {
-  return edits.reduce((yml, edit) => applyGraphEdit({ yml, layout: undefined }, edit).yml, text)
+function applyAll(editing: WorkflowEditing, text: string, edits: GraphEdit[]): string {
+  return edits.reduce(
+    (yml, edit) => editing.applyGraphEdit({ yml, layout: undefined }, edit).yml,
+    text,
+  )
 }
 
 function renamedJob(edit: GraphEdit | null): string | undefined {
@@ -1810,7 +1813,7 @@ function useScopedProblems(
   fragment: string | null,
   exclude: string[] = [],
 ): ScopedProblems {
-  const ready = useLintReady()
+  const ready = useLintEditing()
   const context = useLintContext(whole)
   const contextKey = JSON.stringify(context)
   const scope = prefix.join('.')
@@ -1819,7 +1822,7 @@ function useScopedProblems(
     if (!ready || whole === undefined) {
       return NO_SCOPED
     }
-    const problems = lintWorkflow(whole, context).flatMap((problem): ScopedProblem[] => {
+    const problems = ready.lintWorkflow(whole, context).flatMap((problem): ScopedProblem[] => {
       const path = problem.path.split('.')
       if (
         !prefix.every((segment, i) => path[i] === segment) ||
@@ -1839,7 +1842,9 @@ function useScopedProblems(
           ? []
           : problems.map((problem) => ({
               message: problem.message,
-              line: (problem.at.length > 0 ? linesAt(fragment, problem.at)?.start : undefined) ?? 1,
+              line:
+                (problem.at.length > 0 ? ready.linesAt(fragment, problem.at)?.start : undefined) ??
+                1,
             })),
     }
   }, [ready, whole, contextKey, scope, fragment, exclude.join()])
@@ -1855,11 +1860,12 @@ interface AddedGroup {
  * dialog ahead of the text that reads them.
  */
 function useAddedGroups(start: string | undefined, committed: GraphEdit[]) {
+  const editing = useWorkflowEditing()
   const [added, setAdded] = useState<AddedGroup[]>([])
   const nested: NestedWorkflowText = {
     inputs: () => {
-      const text = editedWorkflow(start, committed)
-      const on = asRecord(asRecord(text === undefined ? {} : loadYaml(text))['on'])
+      const text = editedWorkflow(editing, start, committed)
+      const on = asRecord(asRecord(text === undefined ? {} : editing.loadYaml(text))['on'])
       return {
         ...asRecord(asRecord(on['execute'])['inputs']),
         ...Object.fromEntries(added.map((group) => [group.name, group.definition])),
@@ -1886,12 +1892,16 @@ function useAddedGroups(start: string | undefined, committed: GraphEdit[]) {
 }
 
 // Applies the dialog's edits, or nothing when they no longer apply, such as to half-typed YAML.
-function editedWorkflow(start: string | undefined, edits: GraphEdit[]): string | undefined {
+function editedWorkflow(
+  editing: WorkflowEditing,
+  start: string | undefined,
+  edits: GraphEdit[],
+): string | undefined {
   if (start === undefined) {
     return undefined
   }
   try {
-    return applyAll(start, edits)
+    return applyAll(editing, start, edits)
   } catch {
     return undefined
   }
@@ -1924,7 +1934,8 @@ type FormHost = Required<Pick<SettingsFormHooks, 'renderShell' | 'onDraft' | 'pe
 
 /** A dialog's settings in a form or as YAML, with the edits carried across a switch. */
 export function useSettingsViews(o: SettingsViewsOptions) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
+  const editing = useWorkflowEditing()
   const sections = useSectionMemory()
   const [start] = useState(o.source)
   const [opening] = useState(() => openingYaml(o.view, o.source, (text) => o.read(text, o.name)))
@@ -1953,7 +1964,7 @@ export function useSettingsViews(o: SettingsViewsOptions) {
   const withYaml = (text: string): GraphEdit[] =>
     text === yamlAtStart ? committed : [...committed, ...groups.edits(text), o.write(name, text)]
   const problemOf = (text: string) =>
-    o.optional && !text.trim() ? undefined : yamlProblem(text, t)
+    o.optional && !text.trim() ? undefined : yamlProblem(text, t, editing)
   const nextName = yamlName.trim()
   const nameError = o.rename?.error(nextName, name)
   const withRename = (edits: GraphEdit[]): GraphEdit[] =>
@@ -1961,19 +1972,19 @@ export function useSettingsViews(o: SettingsViewsOptions) {
   const edits = yaml !== null ? withYaml(yaml) : drafted()
   const editsKey = JSON.stringify(edits)
   // biome-ignore lint/correctness/useExhaustiveDependencies: the edits are compared by their content.
-  const whole = useMemo(() => editedWorkflow(start, edits), [start, editsKey])
-  const editing = yaml !== null ? name : (o.rename?.from(draft.current) ?? name)
-  const scoped = useScopedProblems(whole, o.scope(editing), yaml, o.exclude)
+  const whole = useMemo(() => editedWorkflow(editing, start, edits), [editing, start, editsKey])
+  const scopeName = yaml !== null ? name : (o.rename?.from(draft.current) ?? name)
+  const scoped = useScopedProblems(whole, o.scope(scopeName), yaml, o.exclude)
   // The workflow with what a switch to the form committed, for the form to start from.
   const current = useMemo(
     () =>
       start !== undefined && committed.length > 0
-        ? asRecord(loadYaml(applyAll(start, committed)))
+        ? asRecord(editing.loadYaml(applyAll(editing, start, committed)))
         : null,
-    [start, committed],
+    [editing, start, committed],
   )
   const save = (edits: GraphEdit[]) => {
-    const edit = batchOf(o.addition ? [o.addition, ...edits] : edits)
+    const edit = editing.batchOf(o.addition ? [o.addition, ...edits] : edits)
     if (edit) {
       o.onEdit(edit)
     }
@@ -1986,7 +1997,7 @@ export function useSettingsViews(o: SettingsViewsOptions) {
     const edits = drafted()
     const renamed = o.rename?.from(draft.current) ?? name
     try {
-      const text = o.read(applyAll(start, edits), renamed)
+      const text = o.read(applyAll(editing, start, edits), renamed)
       setCommitted(edits)
       setName(renamed)
       setYamlName(renamed)
@@ -1995,7 +2006,7 @@ export function useSettingsViews(o: SettingsViewsOptions) {
       setProblem(undefined)
       o.onViewChange?.('yaml')
     } catch (error) {
-      setProblem(editErrorText(t, error))
+      setProblem(editErrorText(t, editing, error))
     }
   }
   const toForm = () => {
@@ -2075,18 +2086,19 @@ export function useSettingsViews(o: SettingsViewsOptions) {
 
 /** A job's settings in a form, or as YAML; switching carries the edits across. */
 export function JobDialog(props: JobDialogProps & ViewProps) {
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
+  const editing = useWorkflowEditing()
   const views = useSettingsViews({
     ...props,
     name: props.job,
-    read: jobYaml,
+    read: editing.jobYaml,
     write: (job, yaml) => ({ type: 'setJobYaml', job, yaml }),
     scope: (job) => ['jobs', job],
     rename: {
       label: t.jobName,
       description: t.help.jobName,
       error: (next, current) =>
-        !isValidJobName(next)
+        !editing.isValidJobName(next)
           ? t.invalidJobName
           : next !== current && Object.hasOwn(props.jobs, next)
             ? t.jobExists
@@ -2117,11 +2129,12 @@ export function JobDialog(props: JobDialogProps & ViewProps) {
 /** A step's settings in a form, or as YAML; switching carries the edits across. */
 export function StepDialog(props: StepDialogProps & ViewProps) {
   const { job, index } = props
-  const { graphEditor: t } = useStrings()
+  const t = useGraphEditorStrings()
+  const editing = useWorkflowEditing()
   const views = useSettingsViews({
     ...props,
     name: job,
-    read: (text) => stepYaml(text, job, index),
+    read: (text) => editing.stepYaml(text, job, index),
     write: (_, yaml) => ({ type: 'setStepYaml', job, index, yaml }),
     scope: () => ['jobs', job, 'steps', String(index)],
   })

@@ -1,10 +1,3 @@
-import {
-  type GraphEdit,
-  type InputPath,
-  inputChildrenKey,
-  loadYaml,
-  newInputName,
-} from '@parallelworks/workflow-parser'
 import cx from 'classnames'
 import {
   createContext,
@@ -15,8 +8,9 @@ import {
   useRef,
   useState,
 } from 'react'
-import { useStrings } from '../components/Provider'
+import { useWorkflowEditing } from '../components/Provider'
 import { TOOLTIP_ID } from '../components/Tooltip'
+import type { GraphEdit, InputPath, WorkflowEditing } from '../editing'
 import { type FormEditing, FormEditingContext } from '../form/formEditing'
 import {
   AddIcon,
@@ -44,6 +38,12 @@ import {
   useStore,
 } from './editorChrome'
 import { asRecord, type Json, openOnAddOf, text } from './editorFields'
+import {
+  type GraphEditorStrings,
+  type InputsEditorStrings,
+  useGraphEditorStrings,
+  useInputsEditorStrings,
+} from './editorStrings'
 import { type DependencyGraphEditor, type EditorProblem, overlaps, typing } from './GraphEditor'
 import {
   allNames,
@@ -142,11 +142,11 @@ function useUi<T>(store: Store, select: (state: UiState) => T): T {
   return useStore(store, select)
 }
 
-function containerAt(inputs: Json | undefined, parent: InputPath): Json {
+function containerAt(editing: WorkflowEditing, inputs: Json | undefined, parent: InputPath): Json {
   let map = asRecord(inputs)
   for (const name of parent) {
     const definition = asRecord(map[name])
-    const key = inputChildrenKey(definition['type'])
+    const key = editing.inputChildrenKey(definition['type'])
     map = key ? asRecord(definition[key]) : {}
   }
   return map
@@ -251,7 +251,9 @@ function InputRow({
 }) {
   const api = useContext(ApiContext)
   const inputs = useContext(InputsContext)
-  const { inputsEditor: t, graphEditor: g } = useStrings()
+  const editing = useWorkflowEditing()
+  const t = useInputsEditorStrings()
+  const g = useGraphEditorStrings()
   const rowKey = key(path)
   const active = useUi(
     api?.store ?? EMPTY_STORE,
@@ -271,9 +273,9 @@ function InputRow({
   const definition = api.definition(path)
   const name = path.at(-1) ?? ''
   const parent = path.slice(0, -1)
-  const index = namesIn(containerAt(inputs, parent)).indexOf(name)
+  const index = namesIn(containerAt(editing, inputs, parent)).indexOf(name)
   // A hidden group or page draws nothing, so its fields are listed here instead.
-  const childKey = hidden ? inputChildrenKey(definition['type']) : undefined
+  const childKey = hidden ? editing.inputChildrenKey(definition['type']) : undefined
   const outline =
     childKey && childKey !== 'template' ? namesIn(asRecord(definition[childKey])) : null
   const flagged = hidden && definition['hidden'] !== undefined && definition['hidden'] !== false
@@ -403,7 +405,7 @@ function InputRow({
 /** The add button that ends each list of inputs. */
 function AddInput({ parent }: { parent: InputPath }) {
   const api = useContext(ApiContext)
-  const { inputsEditor: t } = useStrings()
+  const t = useInputsEditorStrings()
   if (!api) {
     return null
   }
@@ -425,12 +427,12 @@ function AddInput({ parent }: { parent: InputPath }) {
 
 const EDITING: FormEditing = { parent: [], Row: InputRow, Add: AddInput }
 
-function typeSearch(labels: ReturnType<typeof useStrings>['inputsEditor']): MenuSearch {
+function typeSearch(labels: InputsEditorStrings): MenuSearch {
   return { placeholder: labels.searchTypes, empty: labels.noMatchingTypes }
 }
 
 function typeMenu(
-  labels: ReturnType<typeof useStrings>['inputsEditor'],
+  labels: InputsEditorStrings,
   allowStep: boolean,
   pick: (type: string) => void,
 ): RowMenuItem[] {
@@ -521,7 +523,7 @@ function undoKeys(e: KeyboardEvent, editor: DependencyGraphEditor) {
   }
 }
 
-function formShortcuts(g: ReturnType<typeof useStrings>['graphEditor']): ShortcutGroup[] {
+function formShortcuts(g: GraphEditorStrings): ShortcutGroup[] {
   const key = g.shortcutKeys
   const does = g.shortcutDoes
   return [
@@ -566,7 +568,9 @@ export function InputsFormEditor({
   inputs: Json | undefined
   children: ReactNode
 }) {
-  const { inputsEditor: t, graphEditor: g } = useStrings()
+  const t = useInputsEditorStrings()
+  const g = useGraphEditorStrings()
+  const editing = useWorkflowEditing()
   const [store] = useState(createFormStore)
   const containerRef = useRef<HTMLDivElement>(null)
   const latest = useRef({ editor, inputs })
@@ -579,17 +583,21 @@ export function InputsFormEditor({
     const definition = (path: InputPath): Json =>
       path.length === 0
         ? asRecord(latest.current.inputs)
-        : asRecord(containerAt(latest.current.inputs, path.slice(0, -1))[path.at(-1) ?? ''])
+        : asRecord(
+            containerAt(editing, latest.current.inputs, path.slice(0, -1))[path.at(-1) ?? ''],
+          )
     const indexOf = (path: InputPath) =>
-      namesIn(containerAt(latest.current.inputs, path.slice(0, -1))).indexOf(path.at(-1) ?? '')
+      namesIn(containerAt(editing, latest.current.inputs, path.slice(0, -1))).indexOf(
+        path.at(-1) ?? '',
+      )
     const create = (parent: InputPath, index: number, type: string) => {
       const { editor, inputs } = latest.current
       if (editor.openOnAdd === false) {
         send({
           type: 'addInput',
           parent,
-          index: Math.min(index, namesIn(containerAt(inputs, parent)).length),
-          name: nextInputName(inputs),
+          index: Math.min(index, namesIn(containerAt(editing, inputs, parent)).length),
+          name: nextInputName(editing, inputs),
           definition: newInputDefinition(type),
         })
         return
@@ -660,7 +668,7 @@ export function InputsFormEditor({
         return false
       }
       const at = paths.map(indexOf).sort((a, b) => a - b)
-      const count = namesIn(containerAt(latest.current.inputs, parent)).length
+      const count = namesIn(containerAt(editing, latest.current.inputs, parent)).length
       // moveInputs inserts before `index` in the original list, so down clears the next sibling.
       const index = delta < 0 ? (at[0] ?? 0) - 1 : (at.at(-1) ?? 0) + 2
       if (index < 0 || index > count) {
@@ -734,7 +742,7 @@ export function InputsFormEditor({
     const menuFor = (path: InputPath): RowMenuItem[] => {
       const parent = path.slice(0, -1)
       const index = indexOf(path)
-      const count = namesIn(containerAt(latest.current.inputs, parent)).length
+      const count = namesIn(containerAt(editing, latest.current.inputs, parent)).length
       return [
         {
           kind: 'action',
@@ -813,7 +821,7 @@ export function InputsFormEditor({
         return true
       },
     }
-  }, [store, openMenu, t])
+  }, [store, openMenu, t, editing])
 
   const problems = editor.problems
   useEffect(() => {
@@ -825,12 +833,12 @@ export function InputsFormEditor({
     const { selection } = store.get()
     const kept = selection.filter((rowKey) => {
       const path = pathOf(rowKey)
-      return Object.hasOwn(containerAt(inputs, path.slice(0, -1)), path.at(-1) ?? '')
+      return Object.hasOwn(containerAt(editing, inputs, path.slice(0, -1)), path.at(-1) ?? '')
     })
     if (kept.length !== selection.length) {
       store.set({ selection: kept })
     }
-  }, [store, inputs])
+  }, [store, inputs, editing])
 
   useEffect(() => {
     const container = containerRef.current
@@ -1094,25 +1102,26 @@ function Dialogs({
   inputs: Json | undefined
   editor: DependencyGraphEditor
 }) {
+  const editing = useWorkflowEditing()
   const dialog = useUi(api.store, (state) => state.dialog)
   const close = () => api.store.set({ dialog: null })
   if (!dialog) {
     return null
   }
   const save = (edit: GraphEdit, created: PendingInput[], home: InputHome) => {
-    const merged = withCreatedInputs(created, home, edit)
+    const merged = withCreatedInputs(editing, created, home, edit)
     if (merged) {
       editor.onEdit(merged)
     }
   }
   if (dialog.kind === 'create') {
-    const siblings = namesIn(containerAt(inputs, dialog.parent))
+    const siblings = namesIn(containerAt(editing, inputs, dialog.parent))
     const index = Math.min(dialog.index, siblings.length)
-    const home = homeFor(inputs, dialog.parent, index)
+    const home = homeFor(editing, inputs, dialog.parent, index)
     return (
       <InputDialog
         key={`create:${key(dialog.parent)}:${dialog.index}`}
-        name={nextInputName(inputs)}
+        name={nextInputName(editing, inputs)}
         definition={newInputDefinition(dialog.type)}
         isNew
         siblings={siblings}
@@ -1133,7 +1142,7 @@ function Dialogs({
                   parent: dialog.parent,
                   index,
                   name,
-                  definition: asRecord(loadYaml(text)),
+                  definition: asRecord(editing.loadYaml(text)),
                 },
                 // The text as written, comments included.
                 {
@@ -1162,11 +1171,11 @@ function Dialogs({
   }
   const { path } = dialog
   const name = path.at(-1) ?? ''
-  const container = containerAt(inputs, path.slice(0, -1))
+  const container = containerAt(editing, inputs, path.slice(0, -1))
   if (!Object.hasOwn(container, name)) {
     return null
   }
-  const home = homeFor(inputs, path.slice(0, -1), namesIn(container).indexOf(name))
+  const home = homeFor(editing, inputs, path.slice(0, -1), namesIn(container).indexOf(name))
   return (
     <InputDialog
       key={`edit:${key(path)}`}
@@ -1218,13 +1227,18 @@ function Dialogs({
 
 // Created inputs go just before the top-level input, or wizard step field, holding the
 // edited one, so the form asks for them first.
-function homeFor(inputs: Json | undefined, container: InputPath, index: number): InputHome {
+function homeFor(
+  editing: WorkflowEditing,
+  inputs: Json | undefined,
+  container: InputPath,
+  index: number,
+): InputHome {
   const [top, next] = container
   if (top === undefined) {
     return { parent: [], index }
   }
   if (text(asRecord(asRecord(inputs)[top])['type']) === 'step') {
-    const fields = namesIn(containerAt(inputs, [top]))
+    const fields = namesIn(containerAt(editing, inputs, [top]))
     return {
       parent: [top],
       index: next === undefined ? index : fields.indexOf(next),
@@ -1233,6 +1247,6 @@ function homeFor(inputs: Json | undefined, container: InputPath, index: number):
   return { parent: [], index: namesIn(asRecord(inputs)).indexOf(top) }
 }
 
-function nextInputName(inputs: Json | undefined): string {
-  return newInputName(allNames(asRecord(inputs), new Set()))
+function nextInputName(editing: WorkflowEditing, inputs: Json | undefined): string {
+  return editing.newInputName(allNames(editing, asRecord(inputs), new Set()))
 }
