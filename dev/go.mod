@@ -17,6 +17,7 @@ require (
 	github.com/lmittmann/tint v1.2.1
 	github.com/spf13/afero v1.15.0
 	github.com/spf13/cobra v1.10.2
+	golang.org/x/sys v0.47.0
 )
 
 require (
@@ -41,7 +42,6 @@ require (
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	go.shabbyrobe.org/gocovmerge v0.0.0-20230507111327-fa4f82cfbf4d // indirect
 	golang.org/x/sync v0.23.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/tools v0.49.0 // indirect
 )

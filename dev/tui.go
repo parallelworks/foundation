@@ -21,14 +21,19 @@ func runTUI(ctx context.Context, cfg Config, names []string) error {
 	// dev's own log goes to its own pane; on the terminal it would tear the
 	// screen.
 	devLog := &tuiLog{}
-	logger := slog.New(tint.NewTextHandler(devLog, &tint.Options{TimeFormat: time.TimeOnly, NoColor: true}))
-	s, err := newSupervisor(cfg, logger, discard{})
+	probs := newProblems(tint.NewTextHandler(devLog, &tint.Options{TimeFormat: time.TimeOnly, NoColor: true}))
+	s, err := newSupervisor(cfg, slog.New(probs), discard{})
 	if err != nil {
 		return err
 	}
 	devLog.w = s.outputs.writer("dev")
+	restore, err := captureOutput(devLog)
+	if err != nil {
+		return err
+	}
+	defer restore()
 
-	m := &model{sup: s, ctx: ctx, cancel: cancel, name: s.cfg.Name}
+	m := &model{sup: s, ctx: ctx, cancel: cancel, name: s.cfg.Name, problems: probs}
 	p := tea.NewProgram(m, tea.WithContext(context.WithoutCancel(ctx)))
 	runErr := make(chan error, 1)
 	go func() {
@@ -77,9 +82,10 @@ type model struct {
 	sup *supervisor
 	// ctx is dev's own: services started from here run under it, and q
 	// cancels it.
-	ctx    context.Context
-	cancel context.CancelFunc
-	name   string
+	ctx      context.Context
+	cancel   context.CancelFunc
+	problems *problems // nil in tests that drive the model directly
+	name     string
 
 	view     view
 	cursor   int
@@ -191,10 +197,11 @@ func (m *model) restart(name string) error { return m.sup.restart(m.ctx, name) }
 func (m *model) pageSize() int { return max(m.height-4, 1) }
 
 var (
-	titleStyle = lipgloss.NewStyle().Bold(true)
-	dimStyle   = lipgloss.NewStyle().Faint(true)
-	cursorBar  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12"))
-	stateStyle = map[state]lipgloss.Style{
+	titleStyle   = lipgloss.NewStyle().Bold(true)
+	dimStyle     = lipgloss.NewStyle().Faint(true)
+	problemStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
+	cursorBar    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12"))
+	stateStyle   = map[state]lipgloss.Style{
 		stateRunning:   lipgloss.NewStyle().Foreground(lipgloss.Color("2")),
 		stateBuilding:  lipgloss.NewStyle().Foreground(lipgloss.Color("3")),
 		stateFailed:    lipgloss.NewStyle().Foreground(lipgloss.Color("1")),
@@ -267,11 +274,12 @@ func (m *model) home(b *strings.Builder) {
 	for range m.height - 2 - strings.Count(b.String(), "\n") {
 		b.WriteString("\n")
 	}
-	if m.notice != "" {
+	switch {
+	case m.notice != "":
 		b.WriteString(m.notice + "\n")
-	} else if devLines := m.sup.lines("dev"); len(devLines) > 0 {
-		b.WriteString(dimStyle.Render(truncate(devLines[len(devLines)-1], m.width)) + "\n")
-	} else {
+	case m.problems != nil && m.problems.recent() != "":
+		b.WriteString(problemStyle.Render(truncate(m.problems.recent(), m.width)) + "\n")
+	default:
 		b.WriteString("\n")
 	}
 	if m.quitting {
