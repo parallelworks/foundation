@@ -25,8 +25,10 @@ type controlResponse struct {
 	Services []status `json:"services,omitempty"`
 	// Starting says what dev is doing before its services start, such as
 	// starting the stack; until then every service reads stopped.
-	Starting string `json:"starting,omitempty"`
-	Error    string `json:"error,omitempty"`
+	Starting string            `json:"starting,omitempty"`
+	Info     *instance         `json:"info,omitempty"`
+	Env      map[string]string `json:"env,omitempty"`
+	Error    string            `json:"error,omitempty"`
 }
 
 // socketPath is the control socket of the dev whose stack lives in dir. It
@@ -111,8 +113,17 @@ func (s *supervisor) answer(ctx context.Context, conn net.Conn) {
 		return
 	}
 	var err error
+	resp := controlResponse{}
 	switch req.Command {
 	case "status":
+	case "info":
+		info := s.instance()
+		resp.Info = &info
+	case "env":
+		// dev's own variables, never this process's whole environment.
+		resp.Env, err = s.cfg.vars(nil)
+	case "shutdown":
+		s.shutdown()
 	case "start":
 		err = s.start(ctx, req.Service)
 	case "stop":
@@ -122,7 +133,7 @@ func (s *supervisor) answer(ctx context.Context, conn net.Conn) {
 	default:
 		err = fmt.Errorf("unknown command %q", req.Command)
 	}
-	resp := controlResponse{Services: s.statuses(), Starting: s.starting()}
+	resp.Services, resp.Starting = s.statuses(), s.starting()
 	if err != nil {
 		resp.Error = err.Error()
 	}
@@ -146,9 +157,18 @@ func controlFull(ctx context.Context, cfg Config, req controlRequest) (controlRe
 	if err != nil {
 		return controlResponse{}, err
 	}
+	resp, err := controlAt(ctx, path, req)
+	if errors.Is(err, errNotRunning) {
+		return resp, fmt.Errorf("%w in %s", errNotRunning, c.Root)
+	}
+	return resp, err
+}
+
+// controlAt sends a request to the dev answering on a socket.
+func controlAt(ctx context.Context, path string, req controlRequest) (controlResponse, error) {
 	conn, err := (&net.Dialer{Timeout: time.Second}).DialContext(ctx, "unix", path)
 	if err != nil {
-		return controlResponse{}, fmt.Errorf("%w in %s", errNotRunning, c.Root)
+		return controlResponse{}, errNotRunning
 	}
 	defer conn.Close()
 	if err := json.NewEncoder(conn).Encode(req); err != nil {

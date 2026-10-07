@@ -48,6 +48,8 @@ type supervisor struct {
 	running  bool // services can start: the stack is up
 	order    []string
 	services map[string]*runner
+	shutdown context.CancelFunc // set by run: stops dev, as `dev down` asks
+	started  time.Time
 	stack    string // what the stack is doing, for the TUI's header
 	since    time.Time
 	changed  chan struct{}
@@ -111,6 +113,10 @@ func newSupervisor(ctx context.Context, cfg Config, logger *slog.Logger, out io.
 // (or every one not marked Manual), and stops everything when ctx ends.
 func (s *supervisor) run(ctx context.Context, names ...string) error {
 	defer s.outputs.close()
+	ctx, stop := context.WithCancel(ctx)
+	defer stop()
+	s.shutdown, s.started = stop, time.Now()
+	go s.watchCheckout(ctx, stop)
 	selected, err := s.cfg.selectServices(names)
 	if err != nil {
 		return err

@@ -51,9 +51,13 @@ Describe the app in `dev.json` at the repository root:
 | Command | |
 | --- | --- |
 | `dev [service...]` | Run the stack and the services named, or every service not marked `manual`, until interrupted. In a terminal it shows the interactive view; piped, in CI or with `--plain` it prints each line prefixed with its source |
-| `dev status` | Show the running dev's services and their states |
+| `dev status [--json]` | Show the running dev's services, their states and URLs; `--json` adds its ports, pid and version |
 | `dev start`, `stop`, `restart` *service* | Drive one service of the running dev; `restart` rebuilds a server |
 | `dev logs [service...] [-f]` | Print services' output from the latest run (all of them when none is named), and with `-f` keep following it |
+| `dev up [service...]` | Start dev in the background, and return once its services are up (or with why not); `--for 2h` stops it later |
+| `dev down` | Stop the dev running here |
+| `dev ps` | List every dev running on this machine: checkout, pid, ports |
+| `dev exec -- command` | Run a command with the running dev's environment: allocated ports, `{postgres}`, `{s3}` |
 | `dev stack` | Run Postgres on `:5432` and S3 on `127.0.0.1:8333` until interrupted. User, password and database are `name` (required with Postgres); tests get `name_test` |
 | `dev wait [service...]` | Block until a stack started elsewhere accepts connections, or until the services named are up; fails as soon as one fails, exits or turns unhealthy |
 | `dev reset` | Delete the stack's data |
@@ -108,6 +112,15 @@ and Storybook do when they start.
 Each service runs in its `dir`, relative to `dev.json`. Each command runs in
 its own process group, and stopping one ends everything it started, such as
 the Vite under `pnpm`. Unix only.
+
+## Tools and agents
+
+A tool, or an agent working in its own worktree, can run the app without a
+terminal: `dev up` starts it in the background and returns once it is up (or
+with the services' errors), `dev status --json` gives its URLs and ports,
+`dev exec -- make test` runs tests against that checkout's stack, `dev logs`
+reads output, and `dev down` stops it. A detached dev also stops itself when
+its checkout is deleted, as a finished worktree is, and after `--for`.
 
 ## Ports
 
