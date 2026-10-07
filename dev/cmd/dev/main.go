@@ -32,13 +32,18 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
 	defer stop()
 
-	path, err := dev.FindConfig(".")
-	if err != nil {
-		return err
+	path, findErr := dev.FindConfig(".")
+	var cfg dev.Config
+	if findErr == nil {
+		var err error
+		if cfg, err = dev.LoadConfig(path); err != nil {
+			return err
+		}
 	}
-	cfg, err := dev.LoadConfig(path)
-	if err != nil {
-		return err
+	root := dev.NewRootCmd(cfg)
+	if findErr != nil {
+		// `dev ps` lists every dev on the machine, from anywhere.
+		dev.RequireConfig(root, findErr)
 	}
-	return dev.NewRootCmd(cfg).ExecuteContext(ctx)
+	return root.ExecuteContext(ctx)
 }

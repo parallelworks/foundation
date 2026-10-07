@@ -130,3 +130,22 @@ func TestDevStopsWhenItsCheckoutIsDeleted(t *testing.T) {
 		t.Fatal("dev kept running after its checkout was deleted")
 	}
 }
+
+func TestPSRunsWithoutADevJSON(t *testing.T) {
+	missing := errors.New("no dev.json here")
+	run := func(args ...string) error {
+		root := NewRootCmd(Config{})
+		RequireConfig(root, missing)
+		root.SetArgs(args)
+		root.SetOut(io.Discard)
+		return root.ExecuteContext(t.Context())
+	}
+	if err := run("ps"); err != nil {
+		t.Errorf("ps without a dev.json: %v", err)
+	}
+	for _, args := range [][]string{{"status"}, {"logs", "web"}, {}} {
+		if err := run(args...); !errors.Is(err, missing) {
+			t.Errorf("dev %v without a dev.json = %v, want the missing dev.json", args, err)
+		}
+	}
+}
