@@ -19,8 +19,19 @@ import (
 )
 
 // NewRootCmd returns the dev command with the standard subcommands. An app
-// with its own development tasks adds them with AddCommand.
-func NewRootCmd(cfg Config) *cobra.Command {
+// with its own development tasks adds them with AddCommand, and extends the
+// view and the MCP server with options.
+func NewRootCmd(cfg Config, opts ...Option) *cobra.Command {
+	var ext extension
+	for _, o := range opts {
+		o(&ext)
+	}
+	for _, k := range ext.keys {
+		if viewKeys[k.Key] {
+			// A programming error in the app's own dev, found on its first run.
+			panic(fmt.Sprintf("dev.WithKey: %q is one of the view's own keys", k.Key))
+		}
+	}
 	var verbose, plain bool
 	var profiles []string
 	var lifetime time.Duration
@@ -53,7 +64,7 @@ func NewRootCmd(cfg Config) *cobra.Command {
 				defer cancel()
 			}
 			if !plain && interactive() {
-				return runTUI(ctx, cfg, names)
+				return runTUI(ctx, cfg, names, ext)
 			}
 			return Up(ctx, cfg, logger(), os.Stdout, names...)
 		},
@@ -175,7 +186,7 @@ func NewRootCmd(cfg Config) *cobra.Command {
 			"URLs and ports (status), read output (logs), start, stop and restart services, wait for them, and stop dev (down).",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return serveMCP(cmd.Context(), cfg)
+			return serveMCP(cmd.Context(), cfg, ext)
 		},
 	})
 

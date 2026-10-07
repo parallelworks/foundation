@@ -297,3 +297,22 @@ lives in (`tool example.com/shop/cmd/dev` in `go.mod`), and name the command in
 `dev seed` reaches the app's command, and `dev --help` lists it beside `up`,
 `status` and the rest. `{root}` in `command` stands for the directory of
 `dev.json`. A command wins over a pinned tools module.
+
+Options to `NewRootCmd` extend the view and the MCP server with what the app
+runs beside its services:
+
+```go
+root := dev.NewRootCmd(cfg,
+	// Rows above the services, refreshed every second: say a tunnel's state.
+	dev.WithRows(func(ctx context.Context) []dev.Row {
+		return []dev.Row{{Name: "tunnel", State: "ok", Detail: ":27017"}}
+	}),
+	// A key on the main screen, listed in its help line.
+	dev.WithKey(dev.Key{Key: "e", Help: "refresh secrets", Do: refreshSecrets}),
+	// Tools beside dev's own on `dev mcp`.
+	dev.WithMCP(func(s *mcp.Server) { mcp.AddTool(s, queryTool, queryDB) }),
+)
+```
+
+A row's `State` is `ok`, `busy`, `error` or `off`, and its `URL` is shown as a
+link. An app's key may not be one of the view's own.

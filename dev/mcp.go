@@ -39,7 +39,7 @@ type (
 	}
 )
 
-func newMCPServer(cfg Config) *mcp.Server {
+func newMCPServer(cfg Config, ext extension) *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{Name: "dev", Version: version()}, nil)
 	text := func(s string) *mcp.CallToolResult {
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: s}}}
@@ -160,10 +160,13 @@ func newMCPServer(cfg Config) *mcp.Server {
 		}
 		return text("dev stopped"), mcpText{Text: "dev stopped"}, nil
 	})
+	for _, add := range ext.mcp {
+		add(server)
+	}
 	return server
 }
 
 // serveMCP answers MCP over stdin and stdout until the client leaves.
-func serveMCP(ctx context.Context, cfg Config) error {
-	return newMCPServer(cfg).Run(ctx, &mcp.StdioTransport{})
+func serveMCP(ctx context.Context, cfg Config, ext extension) error {
+	return newMCPServer(cfg, ext).Run(ctx, &mcp.StdioTransport{})
 }

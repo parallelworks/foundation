@@ -17,14 +17,14 @@ import (
 
 // runTUI runs the supervisor behind a full-screen view of its services: their
 // states, each one's output, and keys to start, stop and restart them.
-func runTUI(ctx context.Context, cfg Config, names []string) error {
+func runTUI(ctx context.Context, cfg Config, names []string, ext extension) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	// A dev already running here, such as one an agent started with dev up,
 	// gets this view instead of a second dev.
 	if _, err := control(ctx, cfg, controlRequest{Command: "status"}); err == nil {
-		return runAttached(ctx, cfg)
+		return runAttached(ctx, cfg, ext)
 	}
 
 	// dev's own log goes to its own pane; on the terminal it would tear the
@@ -43,7 +43,7 @@ func runTUI(ctx context.Context, cfg Config, names []string) error {
 	}
 	defer restore()
 
-	m := &model{sup: s, ctx: ctx, cancel: cancel, name: s.cfg.Name, problems: probs}
+	m := &model{sup: s, ctx: ctx, cancel: cancel, name: s.cfg.Name, problems: probs, ext: ext}
 	p := tea.NewProgram(m, tea.WithContext(context.WithoutCancel(ctx)))
 	runErr := make(chan error, 1)
 	go func() {
@@ -104,6 +104,7 @@ func (l *tuiLog) Write(p []byte) (int, error) {
 
 type (
 	swapMsg    struct{ sup backend }
+	rowsMsg    struct{ rows []Row }
 	tickMsg    struct{}
 	stoppedMsg struct{ err error }
 	actionMsg  struct{ err error }
@@ -133,7 +134,10 @@ type model struct {
 	view     view
 	cursor   int
 	pick     int // the highlighted profile in the picker
-	scroll   int // lines up from the bottom of a log
+	ext      extension
+	rows     []Row     // the app's own rows, as last fetched
+	rowsAt   time.Time // when they were fetched
+	scroll   int       // lines up from the bottom of a log
 	width    int
 	height   int
 	quitting bool
@@ -153,7 +157,14 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 	case tickMsg:
+		if m.ext.rows != nil && time.Since(m.rowsAt) > time.Second {
+			m.rowsAt = time.Now()
+			rows := m.ext.rows
+			return m, tea.Batch(tick(), func() tea.Msg { return rowsMsg{rows: rows(m.ctx)} })
+		}
 		return m, tick()
+	case rowsMsg:
+		m.rows = msg.rows
 	case swapMsg:
 		m.sup, m.notice = msg.sup, ""
 	case stoppedMsg:
@@ -218,6 +229,14 @@ func (m *model) key(k string) (tea.Model, tea.Cmd) {
 				return m, m.act(services, m.start)
 			}
 			return m, m.act(services, m.halt)
+		default:
+			for _, x := range m.ext.keys {
+				if x.Key == k {
+					m.notice = "…"
+					do := x.Do
+					return m, func() tea.Msg { return actionMsg{err: do(m.ctx)} }
+				}
+			}
 		}
 	case viewProfiles:
 		all, _ := m.sup.profileChoices()
@@ -288,6 +307,15 @@ func (m *model) act(services []status, do func(string) error) tea.Cmd {
 func (m *model) start(name string) error   { return m.sup.start(m.ctx, name) }
 func (m *model) restart(name string) error { return m.sup.restart(m.ctx, name) }
 func (m *model) halt(name string) error    { return m.sup.halt(m.ctx, name) }
+
+// extHelp is the app's own keys, for the help line.
+func (m *model) extHelp() string {
+	var b strings.Builder
+	for _, k := range m.ext.keys {
+		b.WriteString(k.Key + " " + k.Help + " · ")
+	}
+	return b.String()
+}
 
 // quitHelp is how to leave: stopping everything, or leaving it running.
 func (m *model) quitHelp() string {
@@ -364,6 +392,9 @@ func (m *model) home(b *strings.Builder) {
 		}
 	}
 	b.WriteString("\n")
+	if len(m.rows) > 0 {
+		m.extraRows(b)
+	}
 
 	services := m.sup.statuses()
 	width := 0
@@ -404,7 +435,7 @@ func (m *model) home(b *strings.Builder) {
 	if m.quitting {
 		b.WriteString(dimStyle.Render("stopping…"))
 	} else {
-		b.WriteString(dimStyle.Render("↑↓ select · enter output · a all output · r restart · s start/stop · p profiles · " + m.quitHelp()))
+		b.WriteString(dimStyle.Render("↑↓ select · enter output · a all output · r restart · s start/stop · p profiles · " + m.extHelp() + m.quitHelp()))
 	}
 }
 
@@ -428,6 +459,39 @@ func (m *model) profiles(b *strings.Builder) {
 		b.WriteString("\n")
 	}
 	b.WriteString(dimStyle.Render("↑↓ select · enter switch to it, restarting dev · esc back"))
+}
+
+// rowStyle colors an app's rows by their state.
+var rowStyle = map[string]lipgloss.Style{
+	"ok":    lipgloss.NewStyle().Foreground(lipgloss.Color("2")),
+	"busy":  lipgloss.NewStyle().Foreground(lipgloss.Color("3")),
+	"error": lipgloss.NewStyle().Foreground(lipgloss.Color("1")),
+	"off":   lipgloss.NewStyle().Faint(true),
+}
+
+var rowMark = map[string]string{"ok": "●", "busy": "◐", "error": "✗", "off": "○"}
+
+func (m *model) extraRows(b *strings.Builder) {
+	width := 0
+	for _, r := range m.rows {
+		width = max(width, len(r.Name))
+	}
+	for _, r := range m.rows {
+		st, ok := rowStyle[r.State]
+		if !ok {
+			st = dimStyle
+		}
+		mark := rowMark[r.State]
+		if mark == "" {
+			mark = "·"
+		}
+		line := fmt.Sprintf("  %s %-*s  %s", st.Render(mark), width, r.Name, dimStyle.Render(r.Detail))
+		if r.URL != "" {
+			line += "  " + link(r.URL, r.State == "ok")
+		}
+		b.WriteString(line + "\n")
+	}
+	b.WriteString("\n")
 }
 
 func (m *model) stackLine() string {
