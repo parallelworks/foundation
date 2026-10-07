@@ -20,9 +20,15 @@ const meta: Meta<typeof InputDialog> = {
     allowStep: false,
     onSave: () => {},
     onClose: () => {},
+    yaml: { onSave: () => {} },
+    view: 'form',
   },
   argTypes: {
     definition: { control: 'object' },
+    yaml: {
+      control: false,
+      description: 'How the host saves the input as YAML; without it the dialog is only a form.',
+    },
     view: { control: 'inline-radio', options: ['form', 'yaml'] },
   },
 }
