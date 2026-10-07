@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/parallelworks/foundation/compare/dev/v0.9.0...dev/v0.10.0) (2026-10-07)
+
+
+### Features
+
+* **dev:** dev.Instances lists running devs and their ports for an app's own tools ([#155](https://github.com/parallelworks/foundation/issues/155)) ([9386a1e](https://github.com/parallelworks/foundation/commit/9386a1e50c28cf43d5e4e619dc18ba173d94bf3d))
+
 ## [0.9.0](https://github.com/parallelworks/foundation/compare/dev/v0.8.0...dev/v0.9.0) (2026-10-07)
 
 
