@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/parallelworks/foundation/compare/dev/v0.5.0...dev/v0.5.1) (2026-10-07)
+
+
+### Bug Fixes
+
+* **dev:** startup is visible in the view, and dev wait waits through it ([#128](https://github.com/parallelworks/foundation/issues/128)) ([ec2c7a7](https://github.com/parallelworks/foundation/commit/ec2c7a7f9db3b5976037c56aebaf09ef391dec5e))
+
 ## [0.5.0](https://github.com/parallelworks/foundation/compare/dev/v0.4.0...dev/v0.5.0) (2026-10-07)
 
 
