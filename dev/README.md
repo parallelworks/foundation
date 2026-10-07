@@ -96,6 +96,8 @@ Describe the app in `dev.json` at the repository root:
 | `dev logs [service...] [-f]` | Print services' output from the latest run (all of them when none is named), and with `-f` keep following it |
 | `dev up [service...]` | Start dev in the background, and return once its services are up (or with why not); `--for 2h` stops it later |
 | `dev down` | Stop the dev running here |
+| `dev use profile[,profile]` | Switch this checkout's profiles, restarting the dev running here |
+| `dev profiles` | List the profiles `dev.json` defines, marking those in use |
 | `dev ps` | List every dev running on this machine: checkout, pid, ports |
 | `dev exec -- command` | Run a command with the running dev's environment: allocated ports, `{postgres}`, `{s3}` |
 | `dev mcp` | Answer MCP over stdio, so an agent drives this checkout's dev as tools |
@@ -121,6 +123,7 @@ the stack's addresses:
 | `a` | Every service's output, interleaved |
 | `r` | Restart the service, rebuilding a server |
 | `s` | Start or stop it, including a `manual` one |
+| `p` | Pick a profile to switch to, restarting dev on it |
 | `q` | Stop everything and quit; in an attached view, leave dev running |
 | `Q` | In an attached view, stop dev |
 
@@ -233,7 +236,10 @@ machine or a shared remote one. Each can set `env`, include other profiles
 
 `dev --profile remote` (or `remote-db,local-cache` to mix) chooses, and the
 checkout keeps the choice until it chooses again; `dev profiles` lists them,
-marking the ones in use. Chosen profiles set their env over the base, in the
+marking the ones in use. `dev use remote` switches a dev that is running: it
+stops its services and starts again with the new profiles, keeping its ports
+where they are free (with nothing running, it records the choice). In the
+view, `p` picks a profile the same way. Chosen profiles set their env over the base, in the
 order chosen. A service that names profiles runs only when one of them is
 chosen, and a service that depends on it no longer waits when it is not: the
 other setup provides it.

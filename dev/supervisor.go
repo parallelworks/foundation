@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"net/url"
 	"regexp"
 	"slices"
@@ -42,6 +43,7 @@ type status struct {
 // started, stopped and restarted on its own while the rest keep running.
 type supervisor struct {
 	cfg     Config
+	base    Config // as given, before defaults and profiles, to switch from
 	logger  *slog.Logger
 	outputs *outputs
 	// Compiling every server at once exhausts a laptop's memory.
@@ -52,6 +54,7 @@ type supervisor struct {
 	order    []string
 	services map[string]*runner
 	shutdown context.CancelFunc // set by run: stops dev, as `dev down` asks
+	switchTo []string           // profiles to start again with, once stopped
 	started  time.Time
 	stack    string // what the stack is doing, for the TUI's header
 	since    time.Time
@@ -69,6 +72,7 @@ type runner struct {
 // newSupervisor prepares cfg's services. Their output goes, prefixed, to
 // out, which is io.Discard when the TUI shows it instead.
 func newSupervisor(ctx context.Context, cfg Config, logger *slog.Logger, out io.Writer) (*supervisor, error) {
+	base := cfg
 	cfg, err := cfg.withDefaults()
 	if err != nil {
 		return nil, err
@@ -85,6 +89,7 @@ func newSupervisor(ctx context.Context, cfg Config, logger *slog.Logger, out io.
 	}
 	s := &supervisor{
 		cfg:      cfg,
+		base:     base,
 		logger:   logger,
 		outputs:  o,
 		builds:   make(chan struct{}, 1),
@@ -121,7 +126,9 @@ func (s *supervisor) run(ctx context.Context, names ...string) error {
 	defer watch.Wait()
 	ctx, stop := context.WithCancel(ctx)
 	defer stop()
+	s.mu.Lock()
 	s.shutdown, s.started = stop, time.Now()
+	s.mu.Unlock()
 	every := checkoutCheck
 	watch.Go(func() { s.watchCheckout(ctx, stop, every) })
 	selected, err := s.cfg.selectServices(names)
@@ -175,6 +182,12 @@ func (s *supervisor) run(ctx context.Context, names ...string) error {
 		wg.Go(func() { _ = s.stop(name) })
 	}
 	wg.Wait()
+	s.mu.Lock()
+	switching := s.switchTo != nil
+	s.mu.Unlock()
+	if switching {
+		return errSwitch
+	}
 	return nil
 }
 
@@ -410,4 +423,35 @@ func (s *supervisor) waitForDependencies(ctx context.Context, r *runner) bool {
 		case <-time.After(200 * time.Millisecond):
 		}
 	}
+}
+
+// errSwitch ends a run so that dev starts again with other profiles.
+var errSwitch = errors.New("switching profiles")
+
+// use switches the running dev to other profiles: it records the choice and
+// stops everything, and the caller starts dev again with them.
+func (s *supervisor) use(_ context.Context, names []string) error {
+	next := s.base
+	next.Active = names
+	c, err := next.withDefaults()
+	if err != nil {
+		return err
+	}
+	if err := c.chooseProfiles(names); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	s.switchTo = names
+	stop := s.shutdown
+	s.mu.Unlock()
+	if stop == nil {
+		return errors.New("dev is not running services yet")
+	}
+	stop()
+	return nil
+}
+
+// profileChoices is every profile dev.json defines, and those in use.
+func (s *supervisor) profileChoices() (all, active []string) {
+	return slices.Sorted(maps.Keys(s.cfg.Profiles)), s.cfg.active
 }

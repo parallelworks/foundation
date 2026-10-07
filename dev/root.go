@@ -216,6 +216,49 @@ func NewRootCmd(cfg Config) *cobra.Command {
 		},
 	})
 
+	root.AddCommand(&cobra.Command{
+		Use:   "use profile[,profile...]",
+		Short: "Switch this checkout to other profiles, restarting the dev running here",
+		Long: "Choose the profiles this checkout uses from now on, such as `dev use local` or " +
+			"`dev use local-db,remote-cache`. A dev running here stops its services and starts again with them, " +
+			"keeping its ports where they are free.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			names := strings.Split(args[0], ",")
+			next := cfg
+			next.Active = names
+			c, err := next.withDefaults()
+			if err != nil {
+				return err
+			}
+			if _, err := controlFull(cmd.Context(), cfg, controlRequest{Command: "use", Profiles: names}); err != nil {
+				if !errors.Is(err, errNotRunning) {
+					return err
+				}
+				if err := c.chooseProfiles(names); err != nil {
+					return err
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "this checkout uses %s from its next start\n", strings.Join(c.active, " + "))
+				return nil
+			}
+			// Wait for dev to come back on them.
+			ctx, cancel := context.WithTimeout(cmd.Context(), 5*time.Minute)
+			defer cancel()
+			for {
+				resp, err := controlFull(ctx, cfg, controlRequest{Command: "info"})
+				if err == nil && resp.Starting == "" && resp.Info != nil && slices.Equal(resp.Info.Profiles, c.active) {
+					fmt.Fprintf(cmd.OutOrStdout(), "dev runs with %s\n", strings.Join(c.active, " + "))
+					return nil
+				}
+				select {
+				case <-ctx.Done():
+					return errors.New("dev did not come back in time; see `dev status`")
+				case <-time.After(300 * time.Millisecond):
+				}
+			}
+		},
+	})
+
 	var psJSON bool
 	psCmd := &cobra.Command{
 		Use:         "ps",
