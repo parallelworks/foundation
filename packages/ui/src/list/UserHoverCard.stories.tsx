@@ -19,7 +19,7 @@ const PHOTO = `data:image/svg+xml,${encodeURIComponent(
   "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><rect width='40' height='40' fill='#06354f'/><circle cx='20' cy='15' r='7' fill='#8b5cf6'/><rect x='8' y='25' width='24' height='14' rx='7' fill='#06b6d4'/></svg>",
 )}`
 
-const SIZES: AvatarSize[] = ['sm', 'md', 'lg', 'xl', '2xl']
+const SIZES: AvatarSize[] = ['xs', 'sm', 'md', 'lg', 'xl', '2xl']
 
 export const Avatars: StoryObj = {
   render: () => (

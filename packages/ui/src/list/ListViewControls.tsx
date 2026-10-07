@@ -2,6 +2,7 @@ import cx from 'classnames'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { focusOnMount } from '../components/focus'
 import { useStrings } from '../components/Provider'
 import { TOOLTIP_ID, TooltipInfo } from '../components/Tooltip'
 import {
@@ -486,34 +487,79 @@ function FilterFacetRow<T>({
           <ChevronRightIcon className="h-3 w-3 opacity-60" />
         </span>
       </button>
-      {open && (
-        <div className={cx('absolute right-full top-0 z-10 max-h-[70vh] overflow-y-auto', FLYOUT)}>
-          {facet.options.map((option) => {
-            const checked = selected.includes(option.value)
-            return (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() =>
-                  view.setFacetValues(
-                    facet.key,
-                    checked
-                      ? selected.filter((v) => v !== option.value)
-                      : [...selected, option.value],
-                  )
-                }
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] text-(--theme-app) hover:bg-(--theme-muted-panel-bg)"
-              >
-                <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center text-(--theme-link)">
-                  {checked && <CheckIcon className="h-3 w-3" />}
-                </span>
-                {option.icon}
-                {option.label}
-              </button>
-            )
-          })}
+      {open && <FacetOptions view={view} facet={facet} selected={selected} />}
+    </div>
+  )
+}
+
+/** Mounted only while the flyout is open, so the search box resets on reopen. */
+function FacetOptions<T>({
+  view,
+  facet,
+  selected,
+}: {
+  view: ListView<T>
+  facet: FilterFacet<T>
+  selected: string[]
+}) {
+  const strings = useStrings()
+  const [query, setQuery] = useState('')
+  const needle = query.trim().toLowerCase()
+  const options = needle
+    ? facet.options.filter(
+        (option) => selected.includes(option.value) || option.label.toLowerCase().includes(needle),
+      )
+    : facet.options
+  return (
+    <div className={cx('absolute right-full top-0 z-10 flex max-h-[70vh] flex-col', FLYOUT)}>
+      {facet.searchable && (
+        <div className="border-b border-(--theme-border) px-3 pb-1.5 pt-0.5">
+          <input
+            ref={focusOnMount}
+            type="text"
+            autoComplete="off"
+            data-1p-ignore
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={strings.list.searchOptions}
+            aria-label={strings.list.searchOptions}
+            className="w-full bg-transparent text-[13px] text-(--theme-app) placeholder:text-(--theme-muted-text-color) focus:outline-none"
+          />
         </div>
       )}
+      <div className="min-h-0 overflow-y-auto">
+        {options.length === 0 && (
+          <div className="px-3 py-1.5 text-[13px] text-(--theme-muted-text-color)">
+            {strings.dropdown.noOptionsFound}
+          </div>
+        )}
+        {options.map((option) => {
+          const checked = selected.includes(option.value)
+          return (
+            <button
+              key={option.value}
+              type="button"
+              // Keep focus in the search box: blurring it bubbles a focusout that closes the flyout.
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() =>
+                view.setFacetValues(
+                  facet.key,
+                  checked
+                    ? selected.filter((v) => v !== option.value)
+                    : [...selected, option.value],
+                )
+              }
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] text-(--theme-app) hover:bg-(--theme-muted-panel-bg)"
+            >
+              <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center text-(--theme-link)">
+                {checked && <CheckIcon className="h-3 w-3" />}
+              </span>
+              {option.icon}
+              {option.label}
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }

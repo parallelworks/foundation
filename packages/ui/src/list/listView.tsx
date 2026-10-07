@@ -68,6 +68,7 @@ export interface FilterFacet<T> {
   options: { value: string; label: string; icon?: ReactNode }[]
   matches: (row: T, selected: string[]) => boolean
   shared?: boolean
+  searchable?: boolean
 }
 
 /** Picker metadata + default pinned state only — per-row icons and handlers live in the row component. */
