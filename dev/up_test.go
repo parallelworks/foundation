@@ -161,6 +161,39 @@ func TestEnvironRejectsWhatIsNotThere(t *testing.T) {
 	}
 }
 
+func TestEnvironReadsSecretsInto(t *testing.T) {
+	root := t.TempDir()
+	write(t, filepath.Join(root, ".env"), "DEV_TEST_PASS=s3cret\n")
+	t.Setenv("DEV_TEST_USER", "me")
+	cfg, err := Config{
+		Root:  root,
+		Ports: map[string]int{"db": 27017},
+		Env: map[string]string{
+			"DEV_TEST_URL":  "mongodb://${DEV_TEST_USER}:${DEV_TEST_PASS}@localhost:{port.db}/",
+			"DEV_TEST_KEPT": "costs $5 or {not-a-ref}",
+		},
+	}.withDefaults()
+	if err != nil {
+		t.Fatal(err)
+	}
+	vars, err := cfg.vars(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := vars["DEV_TEST_URL"], "mongodb://me:s3cret@localhost:27017/"; got != want {
+		t.Errorf("DEV_TEST_URL = %q, want %q", got, want)
+	}
+	if got, want := vars["DEV_TEST_KEPT"], "costs $5 or {not-a-ref}"; got != want {
+		t.Errorf("DEV_TEST_KEPT = %q, want %q", got, want)
+	}
+
+	cfg.Env = map[string]string{"DEV_TEST_URL": "x${DEV_TEST_NOWHERE}${DEV_TEST_ALSO}"}
+	_, err = cfg.vars(nil)
+	if err == nil || !strings.Contains(err.Error(), "DEV_TEST_URL: ${DEV_TEST_NOWHERE}, ${DEV_TEST_ALSO} is set in no env file") {
+		t.Errorf("an unset ${NAME}: %v", err)
+	}
+}
+
 func TestWatcherReportsSourceChangesOnly(t *testing.T) {
 	root := t.TempDir()
 	for _, dir := range []string{"pkg", "web", ".git", "node_modules"} {

@@ -257,6 +257,16 @@ characters, such as `shop-1a2b`, for anything shared between checkouts that
 must not collide, like a queue on a shared server. Keep `.env` for secrets and
 personal settings.
 
+`${NAME}` in a value in `env` is NAME as the env files or the real environment
+set it, so `dev.json` can compose a value around a secret it should not hold:
+
+```json
+"env": { "DB_URL": "mongodb://app:${DB_PASS}@localhost:{port.mongo}/" }
+```
+
+A `${NAME}` that neither sets is an error naming it. An env file's own values
+are taken as written.
+
 `before` commands run once, in order, before anything starts, such as
 generating files a server embeds. If one fails, `dev` stops with its error.
 
