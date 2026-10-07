@@ -505,7 +505,6 @@ function FacetOptions<T>({
   const strings = useStrings()
   const [query, setQuery] = useState('')
   const needle = query.trim().toLowerCase()
-  // Checked options stay listed so narrowing the box never hides an active filter.
   const options = needle
     ? facet.options.filter(
         (option) => selected.includes(option.value) || option.label.toLowerCase().includes(needle),

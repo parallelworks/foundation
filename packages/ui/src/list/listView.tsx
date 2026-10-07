@@ -68,7 +68,6 @@ export interface FilterFacet<T> {
   options: { value: string; label: string; icon?: ReactNode }[]
   matches: (row: T, selected: string[]) => boolean
   shared?: boolean
-  /** Adds a text box at the top of the flyout that narrows options by label; for long lists. */
   searchable?: boolean
 }
 

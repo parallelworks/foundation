@@ -97,7 +97,6 @@ export const Controls: StoryObj = {
   render: () => <ControlsDemo />,
 }
 
-/** A cursor list whose server caps the count: the label shows the cap as a floor and next stays enabled. */
 export const CappedPager: StoryObj = {
   render: () => (
     <div className="max-w-2xl">

@@ -30,7 +30,6 @@ export function ListPager({
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
   const start = page * pageSize + 1
   const pageEnd = (page + 1) * pageSize
-  // Past a capped count the server still reports more pages, so show the cap as a floor.
   const pastCap = hasNext === true && pageEnd >= total
   const end = pastCap ? pageEnd : Math.min(total, pageEnd)
   const smallest = Math.min(...pageSizes)

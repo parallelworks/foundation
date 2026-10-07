@@ -1,4 +1,3 @@
-/** In-memory Storage for jsdom tests, where localStorage is unavailable. */
 export function memoryStorage(): Storage {
   const store = new Map<string, string>()
   return {
