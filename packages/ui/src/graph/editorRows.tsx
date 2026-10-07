@@ -120,6 +120,23 @@ function SelectionBox({ api }: { api: GraphEditorApi }) {
         className="absolute rounded-xl border-2 border-dashed border-(--theme-element)"
         style={place(bounds)}
       />
+      <PortCircle
+        side="in"
+        at={{ x: bounds.left, y }}
+        draw
+        jobs={jobs}
+        port="selection"
+        hint={t.selectionInHint}
+      />
+      <PortCircle
+        side="out"
+        at={{ x: bounds.right, y }}
+        draw
+        jobs={jobs}
+        port="selection"
+        hint={t.selectionOutHint}
+      />
+      {/* After the circles, whose squares would otherwise cover the bottom of its ring. */}
       <button
         type="button"
         aria-label={t.moveSelectionHint}
@@ -141,22 +158,6 @@ function SelectionBox({ api }: { api: GraphEditorApi }) {
       >
         <DragHandleIcon className="h-5 w-5" />
       </button>
-      <PortCircle
-        side="in"
-        at={{ x: bounds.left, y }}
-        draw
-        jobs={jobs}
-        port="selection"
-        hint={t.selectionInHint}
-      />
-      <PortCircle
-        side="out"
-        at={{ x: bounds.right, y }}
-        draw
-        jobs={jobs}
-        port="selection"
-        hint={t.selectionOutHint}
-      />
     </>
   )
 }

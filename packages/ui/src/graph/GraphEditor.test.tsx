@@ -1568,6 +1568,15 @@ describe('selecting jobs', () => {
     expect(selection.style.top).toBe(own.style.top)
   })
 
+  it('draws the selection’s grip over its circles', () => {
+    renderGraph(editor())
+    fireEvent.click(within(jobRow('a')).getByRole('button', { name: 'A' }), { shiftKey: true })
+    const grip = screen.getByRole('button', { name: GRAPH_EDITOR_STRINGS.moveSelectionHint })
+    const circle = document.querySelector('[data-dag-selection][data-dag-port="in"]') as HTMLElement
+    // Of two overlapping siblings the later one paints on top, so the circle's square can't cover it.
+    expect(circle.compareDocumentPosition(grip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('moves the selected jobs together, anchored on the one dragged', () => {
     const e = editor()
     renderGraph(e)
