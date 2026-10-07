@@ -316,3 +316,8 @@ root := dev.NewRootCmd(cfg,
 
 A row's `State` is `ok`, `busy`, `error` or `off`, and its `URL` is shown as a
 link. An app's key may not be one of the view's own.
+
+`dev.Instances` lists the devs running on the machine, each with its checkout
+(`Root`) and the ports it allocated, keyed by their names in `dev.json`. A
+machine-wide tool of the app's, such as one that routes a shared hostname to
+one checkout, finds that checkout's ports there.

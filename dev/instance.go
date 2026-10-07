@@ -18,8 +18,8 @@ import (
 	"time"
 )
 
-// instance describes a running dev, for `dev ps` and tools.
-type instance struct {
+// Instance describes a running dev, for `dev ps` and tools.
+type Instance struct {
 	Root     string         `json:"root"`
 	Dir      string         `json:"dir"`
 	PID      int            `json:"pid"`
@@ -47,7 +47,7 @@ func version() string {
 	return "unknown"
 }
 
-func (s *supervisor) instance() instance {
+func (s *supervisor) instance() Instance {
 	ports := map[string]int{}
 	for name, port := range s.cfg.ports {
 		ports[name] = port
@@ -62,7 +62,7 @@ func (s *supervisor) instance() instance {
 			ports["s3"] = port
 		}
 	}
-	return instance{Root: s.cfg.Root, Dir: s.cfg.Dir, PID: os.Getpid(), Version: version(), Started: s.started, Ports: ports, Profiles: s.cfg.active}
+	return Instance{Root: s.cfg.Root, Dir: s.cfg.Dir, PID: os.Getpid(), Version: version(), Started: s.started, Ports: ports, Profiles: s.cfg.active}
 }
 
 // checkoutCheck is how often dev looks for its checkout; a variable so that
@@ -88,9 +88,10 @@ func (s *supervisor) watchCheckout(ctx context.Context, stop context.CancelFunc,
 	}
 }
 
-// ps lists every running dev, from the sockets they answer on. A socket no
-// dev answers on is left from one that was killed, and is removed.
-func ps(ctx context.Context) ([]instance, error) {
+// Instances lists every running dev on this machine, from the sockets they
+// answer on, so an app's own tools can find a checkout's allocated ports. A
+// socket no dev answers on is left from one that was killed, and is removed.
+func Instances(ctx context.Context) ([]Instance, error) {
 	dir, err := socketDir()
 	if err != nil {
 		return nil, err
@@ -102,7 +103,7 @@ func ps(ctx context.Context) ([]instance, error) {
 	if err != nil {
 		return nil, err
 	}
-	var out []instance
+	var out []Instance
 	for _, e := range entries {
 		if !strings.HasSuffix(e.Name(), ".sock") {
 			continue
@@ -118,7 +119,7 @@ func ps(ctx context.Context) ([]instance, error) {
 		}
 		out = append(out, *resp.Info)
 	}
-	slices.SortFunc(out, func(a, b instance) int { return strings.Compare(a.Root, b.Root) })
+	slices.SortFunc(out, func(a, b Instance) int { return strings.Compare(a.Root, b.Root) })
 	return out, nil
 }
 

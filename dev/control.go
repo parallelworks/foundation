@@ -27,7 +27,7 @@ type controlResponse struct {
 	// Starting says what dev is doing before its services start, such as
 	// starting the stack; until then every service reads stopped.
 	Starting string            `json:"starting,omitempty"`
-	Info     *instance         `json:"info,omitempty"`
+	Info     *Instance         `json:"info,omitempty"`
 	Env      map[string]string `json:"env,omitempty"`
 	Error    string            `json:"error,omitempty"`
 }

@@ -32,7 +32,7 @@ type (
 	mcpStatus struct {
 		Starting string    `json:"starting,omitempty"`
 		Services []status  `json:"services"`
-		Info     *instance `json:"info,omitempty"`
+		Info     *Instance `json:"info,omitempty"`
 	}
 	mcpText struct {
 		Text string `json:"text"`

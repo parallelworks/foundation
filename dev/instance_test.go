@@ -75,7 +75,7 @@ func TestPSListsRunningDevsAndClearsStaleSockets(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	list, err := ps(t.Context())
+	list, err := Instances(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
