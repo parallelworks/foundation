@@ -23,7 +23,7 @@ const ROWS: DemoRow[] = [
   { id: '4', name: 'googleflex', status: 'active', owner: 'bob' },
 ]
 
-function ControlsDemo() {
+function ControlsDemo({ searchable }: { searchable: boolean }) {
   const view = useListView<DemoRow>({
     storageKey: 'storybook-demo-list',
     columns: [
@@ -56,7 +56,7 @@ function ControlsDemo() {
       {
         key: 'owner',
         label: 'Owner',
-        searchable: true,
+        searchable,
         options: [...new Set(ROWS.map((row) => row.owner))].map((owner) => ({
           value: owner,
           label: owner,
@@ -69,7 +69,8 @@ function ControlsDemo() {
   const rows = view.applyOrder(view.applyFilters(ROWS))
   return (
     <div className="flex flex-col gap-4 max-w-2xl">
-      <div className="flex items-center gap-2">
+      {/* At the end, as in a host toolbar: facet flyouts open to the left. */}
+      <div className="flex items-center justify-end gap-2">
         <ListSearchControl search={search} placeholder="Search clusters" />
         <ListFilterMenu view={view} />
         <ListDisplayMenu view={view} />
@@ -93,8 +94,12 @@ function ControlsDemo() {
   )
 }
 
-export const Controls: StoryObj = {
-  render: () => <ControlsDemo />,
+export const Controls: StoryObj<{ searchable: boolean }> = {
+  args: { searchable: true },
+  argTypes: {
+    searchable: { control: 'boolean', description: 'Search box in the Owner facet' },
+  },
+  render: (args) => <ControlsDemo searchable={args.searchable} />,
 }
 
 export const CappedPager: StoryObj = {

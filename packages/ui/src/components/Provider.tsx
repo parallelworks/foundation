@@ -371,7 +371,8 @@ export interface UIStrings {
     filter: string
     clear: string
     searchOptions: string
-    pager: (start: number, end: number, total: number | string) => string
+    /** `atLeast`: `total` is a floor, because the count was capped and more rows follow. */
+    pager: (start: number, end: number, total: number, atLeast: boolean) => string
     perPage: string
     paginationPrevious: string
     paginationNext: string
@@ -894,7 +895,7 @@ const DEFAULTS: UIProviderValue = {
       filter: 'Filter',
       clear: 'Clear',
       searchOptions: 'Search options…',
-      pager: (start, end, total) => `${start}–${end} of ${total}`,
+      pager: (start, end, total, atLeast) => `${start}–${end} of ${total}${atLeast ? '+' : ''}`,
       perPage: 'Per page',
       paginationPrevious: 'Previous',
       paginationNext: 'Next',

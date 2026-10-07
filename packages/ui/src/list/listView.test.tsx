@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react'
+import { memoryStorage } from '../test/storage'
 import type { FilterFacet } from './listView'
 import { useListView } from './listView'
-import { memoryStorage } from './testStorage'
 
 vi.mock('use-intl', () => ({
   useTranslations: () => (key: string) => key,

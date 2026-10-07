@@ -35,13 +35,14 @@ export function ListPager({
   const smallest = Math.min(...pageSizes)
   // Also keep the select when a larger page size is what hid paging, so it can be reset.
   const showSizeSelect = !!onPageSizeChange && (total > smallest || pageSize > smallest)
-  if (pageCount <= 1 && !showSizeSelect) {
+  // A capped total can read as one page while more rows follow.
+  if (pageCount <= 1 && !hasNext && !showSizeSelect) {
     return null
   }
   return (
     <div className="flex items-center justify-between px-2.5 h-10 shrink-0 border-t theme-border">
       <div className="flex items-center gap-3 text-xs text-(--theme-muted-text-color)">
-        <span>{t.pager(start, end, pastCap ? `${end}+` : total)}</span>
+        <span>{t.pager(start, end, pastCap ? end : total, pastCap)}</span>
         {showSizeSelect && (
           <label className="flex items-center gap-1">
             {t.perPage}

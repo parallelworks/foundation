@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
+import { memoryStorage } from '../test/storage'
 import { ListSearchControl, useListSearch } from './listSearch'
-import { memoryStorage } from './testStorage'
 
 function Harness({ storageKey }: { storageKey?: string }) {
   const search = useListSearch(true, storageKey)

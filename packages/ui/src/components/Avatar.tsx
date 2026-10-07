@@ -66,7 +66,8 @@ export function Avatar({ src, name, size = 'md', status, className }: AvatarProp
             SIZE_CLASSES[size],
           )}
         >
-          {avatarInitials(name)}
+          {/* Two letters crowd a 16px circle and sit under the status dot. */}
+          {size === 'xs' ? avatarInitials(name).charAt(0) : avatarInitials(name)}
         </div>
       )}
 

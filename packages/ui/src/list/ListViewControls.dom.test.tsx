@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
+import { memoryStorage } from '../test/storage'
 import { ListFilterMenu } from './ListViewControls'
 import { useListView } from './listView'
-import { memoryStorage } from './testStorage'
 
 type Row = { owner: string }
 
@@ -57,5 +57,25 @@ describe('searchable filter facet', () => {
 
     expect(screen.getByRole('button', { name: 'alice' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'bob' })).toBeNull()
+  })
+
+  it('says so when nothing matches', () => {
+    render(<Harness />)
+    fireEvent.change(openOwnerFacet(), { target: { value: 'zzz' } })
+
+    expect(screen.getByText('No options found')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /alice|bob|carol/ })).toBeNull()
+  })
+
+  it('keeps the flyout and the search box focused after picking an option', () => {
+    render(<Harness />)
+    const box = openOwnerFacet()
+    const option = screen.getByRole('button', { name: 'bob' })
+
+    expect(fireEvent.mouseDown(option)).toBe(false)
+    fireEvent.click(option)
+
+    expect(box).toHaveFocus()
+    expect(screen.getByRole('button', { name: 'carol' })).toBeInTheDocument()
   })
 })
