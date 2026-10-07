@@ -684,8 +684,8 @@ function useGraphEditorState({
         editStep(job, index)
       }
     }
-    // The edits that put `jobs` in the node `box`, leaving all its jobs with the same needs: every
-    // need its connectors draw. Null if that loops or cuts a need an expression reads.
+    // The edits that make `jobs` one unit with the node `box`: all its jobs need what its connectors
+    // draw, and what needs one needs them all. Null on a loop or a cut need an expression reads.
     const joinEdits = (jobs: string[], box: string[]): GraphEdit[] | null => {
       const source = latest.current.source
       const all = needs()
@@ -717,14 +717,23 @@ function useGraphEditorState({
           .map((need) => ({ job, need })),
       )
       const before = withoutRefs(all, [...dropped, ...replaced])
+      const targets = (job: string) => (before[job] ?? []).map(needTarget)
+      const dependents = Object.keys(before).filter(
+        (job) => !node.includes(job) && targets(job).some((dep) => node.includes(dep)),
+      )
       const after: Record<string, string[]> = { ...before }
       for (const job of node) {
         after[job] = drawn
       }
-      // No need of the node may wait on one of its jobs, and no two of its jobs on each other.
+      for (const job of dependents) {
+        after[job] = [...new Set([...targets(job), ...node])]
+      }
+      // No need of the node may wait on one of its jobs, no two of its jobs on each other, and
+      // nothing it now feeds may feed it back.
       const loops =
         node.some((job) => drawn.some((dep) => dependsOn(before, dep, job))) ||
-        node.some((a) => node.some((b) => a !== b && dependsOn(after, a, b)))
+        node.some((a) => node.some((b) => a !== b && dependsOn(after, a, b))) ||
+        [...node, ...dependents].some((job) => dependsOn(after, job, job))
       if (loops || needInUse(source, [...dropped, ...replaced])) {
         return null
       }
@@ -738,6 +747,11 @@ function useGraphEditorState({
           drawn
             .filter((dep) => !has(job).includes(dep))
             .map((dep) => ({ type: 'connect' as const, from: dep, to: job })),
+        ),
+        ...dependents.flatMap((job) =>
+          node
+            .filter((member) => !targets(job).includes(member))
+            .map((member) => ({ type: 'connect' as const, from: member, to: job })),
         ),
       ]
     }

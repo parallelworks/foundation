@@ -23,7 +23,7 @@ import Loader from '../components/Loader'
 import { useRunFile, useSlots, useStrings, useWorkflowEngine } from '../components/Provider'
 import { TooltipInfo } from '../components/Tooltip'
 import { toAbsHumanDuration } from '../duration'
-import type { GraphLayout, WorkflowEditing } from '../editing'
+import type { GraphLayout, LaidOutColumn, WorkflowEditing } from '../editing'
 import type { MatrixGroup, RunStatus, WorkflowEngine } from '../engine'
 import {
   ArrowLeftIcon,
@@ -306,6 +306,39 @@ function parsePrefixToPath(prefix: string): (string | number)[] {
 }
 
 // A matrix that ran as one job draws as that job, in the slot stored for its YAML job.
+// Jobs sharing a slot form one node only when they need, and are needed by, the same jobs, as a
+// layout drawn afresh would group them; the rest take the rows below, the largest group staying.
+function unitsOnly(
+  columns: LaidOutColumn[],
+  together: (a: string, b: string) => boolean,
+): LaidOutColumn[] {
+  return columns.map((col) => {
+    const boxes: string[][] = []
+    const rows: number[] = []
+    let last = -1
+    col.boxes.forEach((box, i) => {
+      const groups: string[][] = []
+      for (const job of box) {
+        const group = groups.find((g) => together(g[0] ?? job, job))
+        if (group) {
+          group.push(job)
+        } else {
+          groups.push([job])
+        }
+      }
+      const main = groups.reduce((a, b) => (b.length > a.length ? b : a))
+      let row = Math.max(col.rows[i] ?? i, last + 1)
+      for (const group of [main, ...groups.filter((g) => g !== main)]) {
+        boxes.push(group)
+        rows.push(row)
+        last = row
+        row += 1
+      }
+    })
+    return { ...col, boxes, rows }
+  })
+}
+
 function withLoneMatrixSlots(
   { layoutPosition, mapLayout }: WorkflowEditing,
   layout: GraphLayout,
@@ -439,11 +472,14 @@ export function computeGraphLayout(
   const editing = engine.editing
   const laidOut =
     layout && editing?.hasLayout(layout)
-      ? editing.boxesFromLayout(
-          Object.keys(visibleJobs),
-          filteredDeps,
-          withLoneMatrixSlots(editing, layout, visibleJobs, matrixGroups),
-          { together, alone },
+      ? unitsOnly(
+          editing.boxesFromLayout(
+            Object.keys(visibleJobs),
+            filteredDeps,
+            withLoneMatrixSlots(editing, layout, visibleJobs, matrixGroups),
+            { together, alone },
+          ),
+          together,
         )
       : null
   const finalDeps: string[][][] = laidOut ? laidOut.map((col) => col.boxes) : []

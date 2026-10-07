@@ -1,6 +1,14 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { dumpYaml, type GraphLayout, layoutFromCols } from '@parallelworks/workflow-parser'
+import {
+  applyGraphEdit,
+  dumpYaml,
+  type GraphEdit,
+  type GraphLayout,
+  jobNeeds,
+  layoutFromCols,
+  loadYaml,
+} from '@parallelworks/workflow-parser'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeAll, describe, expect, it, onTestFinished, vi } from 'vitest'
@@ -1848,6 +1856,17 @@ describe('nodes formed by hand', () => {
     expect(rowSlots).toEqual([[0], [0, 1]])
   })
 
+  it('draws jobs sharing a slot as one node only when they need, and are needed by, the same jobs', () => {
+    // b and c both need a, but only b feeds x.
+    const mixed = { a: job(), b: job(['a']), c: job(['a']), x: job(['b']) }
+    const layout = emptyLayoutWith({ a: [0, 0], b: [1, 0], c: [1, 0], x: [2, 0] })
+    const split = computeGraphLayout(testEngine, mixed, {}, layout)
+    expect(split.dependencyCols[1]).toEqual([['b'], ['c']])
+    expect(split.rowSlots[1]).toEqual([0, 1])
+    const both = { ...mixed, x: job(['b', 'c']) }
+    expect(computeGraphLayout(testEngine, both, {}, layout).dependencyCols[1]).toEqual([['b', 'c']])
+  })
+
   it('leaves the rows above a node empty', () => {
     const layout = emptyLayoutWith({
       a: [0, 0],
@@ -1941,15 +1960,49 @@ describe('nodes formed by hand', () => {
     })
   })
 
-  it('leaves every job in a node a job merges into with every need the node draws', () => {
-    // x and m share a node, but only m needs p.
+  it('merges a job into a node as one unit, which a reset layout keeps together', () => {
+    // b and c need a; x needs only b, and y only c, so they start as two nodes.
+    const units = {
+      jobs: {
+        a: { steps: [{ run: 'a' }] },
+        b: { needs: ['a'], steps: [{ run: 'b' }] },
+        c: { needs: ['a'], steps: [{ run: 'c' }] },
+        x: { needs: ['b'], steps: [{ run: 'x' }] },
+        y: { needs: ['c'], steps: [{ run: 'y' }] },
+      },
+    }
     const e = editor()
-    renderEditor(e, emptyLayoutWith({ p: [0, 0], e: [0, 1], x: [1, 0], m: [1, 0] }), 300, {
+    renderEditor(e, undefined, 300, units)
+    dragRow('c', [350, 30], document.getElementById('node_b'))
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'batch',
+      edits: [
+        expect.objectContaining({ type: 'groupJobs', jobs: ['c'], into: 'b' }),
+        { type: 'connect', from: 'c', to: 'x' },
+        { type: 'connect', from: 'b', to: 'y' },
+      ],
+    })
+    const joined = vi.mocked(e.onEdit).mock.calls[0]?.[0] as GraphEdit
+    const { yml } = applyGraphEdit({ yml: dumpYaml(units), layout: undefined }, joined)
+    const needs = jobNeeds((loadYaml(yml) as { jobs: unknown }).jobs)
+    const reset = computeGraphLayout(
+      testEngine,
+      Object.fromEntries(Object.entries(needs).map(([name, list]) => [name, job(list)])),
+      {},
+    )
+    expect(reset.dependencyCols[1]).toEqual([['b', 'c']])
+  })
+
+  it('leaves every job in a node a job merges into with every need the node draws', () => {
+    // x and m share a node, since q already waits on p, but only m lists p.
+    const e = editor()
+    renderEditor(e, undefined, 300, {
       jobs: {
         p: { steps: [{ run: 'p' }] },
         e: { steps: [{ run: 'e' }] },
-        x: { steps: [{ run: 'x' }] },
-        m: { needs: ['p'], steps: [{ run: 'm' }] },
+        q: { needs: ['p'], steps: [{ run: 'q' }] },
+        x: { needs: ['q'], steps: [{ run: 'x' }] },
+        m: { needs: ['p', 'q'], steps: [{ run: 'm' }] },
       },
     })
     dragRow('e', [350, 30], document.getElementById('node_x'))
