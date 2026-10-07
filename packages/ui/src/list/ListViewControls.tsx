@@ -502,7 +502,7 @@ function FacetOptions<T>({
   facet: FilterFacet<T>
   selected: string[]
 }) {
-  const t = useStrings().list
+  const strings = useStrings()
   const [query, setQuery] = useState('')
   const needle = query.trim().toLowerCase()
   // Checked options stay listed so narrowing the box never hides an active filter.
@@ -517,17 +517,22 @@ function FacetOptions<T>({
         <div className="border-b border-(--theme-border) px-3 pb-1.5 pt-0.5">
           <input
             ref={focusOnMount}
+            type="text"
+            autoComplete="off"
+            data-1p-ignore
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={t.searchOptions}
-            aria-label={t.searchOptions}
+            placeholder={strings.list.searchOptions}
+            aria-label={strings.list.searchOptions}
             className="w-full bg-transparent text-[13px] text-(--theme-app) placeholder:text-(--theme-muted-text-color) focus:outline-none"
           />
         </div>
       )}
       <div className="min-h-0 overflow-y-auto">
         {options.length === 0 && (
-          <div className="px-3 py-1.5 text-[13px] text-(--theme-muted-text-color)">{t.none}</div>
+          <div className="px-3 py-1.5 text-[13px] text-(--theme-muted-text-color)">
+            {strings.dropdown.noOptionsFound}
+          </div>
         )}
         {options.map((option) => {
           const checked = selected.includes(option.value)
