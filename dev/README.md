@@ -80,7 +80,14 @@ the stack's addresses:
 | `a` | Every service's output, interleaved |
 | `r` | Restart the service, rebuilding a server |
 | `s` | Start or stop it, including a `manual` one |
-| `q` | Stop everything and quit |
+| `q` | Stop everything and quit; in an attached view, leave dev running |
+| `Q` | In an attached view, stop dev |
+
+Run `dev` where one is already running, such as one started with `dev up` by
+you or an agent, and the view attaches to it instead of starting a second:
+states come over the socket and output from the logs it writes. `q` then
+leaves it running and `Q` stops it, and the view says so if the running dev is
+another version.
 
 `dev status`, `start`, `stop` and `restart` reach a running dev through a Unix
 socket in a directory only you can enter (`$XDG_RUNTIME_DIR/foundation-dev`, or
