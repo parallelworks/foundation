@@ -1,0 +1,262 @@
+package dev
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"sync"
+	"time"
+)
+
+// state is where a service is in its life.
+type state string
+
+const (
+	stateStopped  state = "stopped"
+	stateBuilding state = "building"
+	stateRunning  state = "running"
+	stateFailed   state = "failed" // the build failed; waiting for a change
+	stateExited   state = "exited"
+)
+
+// status is a service's state, as the TUI and `dev status` show it.
+type status struct {
+	Name   string    `json:"name"`
+	State  state     `json:"state"`
+	Detail string    `json:"detail,omitempty"`
+	Since  time.Time `json:"since"`
+	Manual bool      `json:"manual,omitempty"`
+}
+
+// supervisor runs the stack and the services, and lets each service be
+// started, stopped and restarted on its own while the rest keep running.
+type supervisor struct {
+	cfg     Config
+	logger  *slog.Logger
+	outputs *outputs
+	// Compiling every server at once exhausts a laptop's memory.
+	builds chan struct{}
+
+	mu       sync.Mutex
+	running  bool // services can start: the stack is up
+	order    []string
+	services map[string]*runner
+	stack    string // what the stack is doing, for the TUI's header
+	changed  chan struct{}
+}
+
+type runner struct {
+	svc    Service
+	out    *lineWriter
+	status status
+	cancel context.CancelFunc
+	done   chan struct{}
+}
+
+// newSupervisor prepares cfg's services. Their output goes, prefixed, to
+// out, which is io.Discard when the TUI shows it instead.
+func newSupervisor(cfg Config, logger *slog.Logger, out io.Writer) (*supervisor, error) {
+	cfg, err := cfg.withDefaults()
+	if err != nil {
+		return nil, err
+	}
+	o, err := newOutputs(out, cfg, cfg.Services)
+	if err != nil {
+		return nil, err
+	}
+	s := &supervisor{
+		cfg:      cfg,
+		logger:   logger,
+		outputs:  o,
+		builds:   make(chan struct{}, 1),
+		services: map[string]*runner{},
+		changed:  make(chan struct{}, 1),
+	}
+	for _, svc := range cfg.Services {
+		s.order = append(s.order, svc.Name)
+		s.services[svc.Name] = &runner{
+			svc:    svc,
+			out:    o.writer(svc.Name),
+			status: status{Name: svc.Name, State: stateStopped, Since: time.Now(), Manual: svc.Manual},
+		}
+	}
+	return s, nil
+}
+
+// run runs the before commands and the stack, starts the services named
+// (or every one not marked Manual), and stops everything when ctx ends.
+func (s *supervisor) run(ctx context.Context, names ...string) error {
+	defer s.outputs.close()
+	selected, err := s.cfg.selectServices(names)
+	if err != nil {
+		return err
+	}
+	closeControl, err := s.serveControl(ctx)
+	if err != nil {
+		return err
+	}
+	defer closeControl()
+	env, err := s.cfg.environ(nil)
+	if err != nil {
+		return err
+	}
+	s.setStack("running before commands")
+	if err := runBefore(ctx, s.cfg, env, s.outputs.writer("before")); err != nil || ctx.Err() != nil {
+		return err
+	}
+
+	if s.cfg.Postgres != nil || s.cfg.S3 != nil {
+		s.setStack("starting the stack")
+		stack, err := StartStack(ctx, s.cfg, s.logger)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			s.setStack("stopping the stack")
+			if err := stack.Stop(context.WithoutCancel(ctx)); err != nil {
+				s.logger.ErrorContext(ctx, "stop stack", "error", err)
+			}
+		}()
+	}
+	s.setStack("")
+
+	s.mu.Lock()
+	s.running = true
+	s.mu.Unlock()
+	for _, svc := range selected {
+		if err := s.start(ctx, svc.Name); err != nil {
+			return err
+		}
+	}
+	<-ctx.Done()
+	s.mu.Lock()
+	s.running = false
+	s.mu.Unlock()
+
+	var wg sync.WaitGroup
+	for _, name := range s.order {
+		wg.Go(func() { _ = s.stop(name) })
+	}
+	wg.Wait()
+	return nil
+}
+
+func (s *supervisor) runner(name string) (*runner, error) {
+	r, ok := s.services[name]
+	if !ok {
+		return nil, fmt.Errorf("no service named %q", name)
+	}
+	return r, nil
+}
+
+// start runs a service until ctx ends or it is stopped. ctx is dev's own,
+// not a request's: a service started from the TUI or the control socket
+// outlives the request that started it.
+func (s *supervisor) start(ctx context.Context, name string) error {
+	r, err := s.runner(name)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.running || ctx.Err() != nil {
+		return errors.New("dev is not running services yet")
+	}
+	if r.cancel != nil {
+		return fmt.Errorf("%s is already running", name)
+	}
+	env, err := s.cfg.environ(&r.svc)
+	if err != nil {
+		return fmt.Errorf("%s: %w", name, err)
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	r.cancel, r.done = cancel, make(chan struct{})
+	set := func(st state, detail string) { s.setState(r, st, detail) }
+	logger := s.logger.With("service", name)
+	go func() {
+		defer close(r.done)
+		if len(r.svc.Build) > 0 {
+			runServer(ctx, s.cfg, r.svc, env, s.builds, r.out, logger, set)
+		} else {
+			runProcess(ctx, r.svc, env, r.out, logger, set)
+		}
+	}()
+	return nil
+}
+
+func (s *supervisor) stop(name string) error {
+	r, err := s.runner(name)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	cancel, done := r.cancel, r.done
+	s.mu.Unlock()
+	if cancel == nil {
+		return nil
+	}
+	cancel()
+	<-done
+	s.mu.Lock()
+	r.cancel, r.done = nil, nil
+	s.mu.Unlock()
+	s.setState(r, stateStopped, "")
+	return nil
+}
+
+func (s *supervisor) restart(ctx context.Context, name string) error {
+	if err := s.stop(name); err != nil {
+		return err
+	}
+	return s.start(ctx, name)
+}
+
+func (s *supervisor) statuses() []status {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]status, 0, len(s.order))
+	for _, name := range s.order {
+		out = append(out, s.services[name].status)
+	}
+	return out
+}
+
+func (s *supervisor) stackState() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.stack
+}
+
+func (s *supervisor) setState(r *runner, st state, detail string) {
+	s.mu.Lock()
+	// A stopped runner's last report would otherwise race its stop.
+	if r.cancel == nil && st != stateStopped {
+		s.mu.Unlock()
+		return
+	}
+	r.status.State, r.status.Detail, r.status.Since = st, detail, time.Now()
+	s.mu.Unlock()
+	s.notify()
+}
+
+func (s *supervisor) setStack(what string) {
+	s.mu.Lock()
+	s.stack = what
+	s.mu.Unlock()
+	s.notify()
+}
+
+func (s *supervisor) notify() {
+	select {
+	case s.changed <- struct{}{}:
+	default:
+	}
+}
+
+// lines returns the recent output of a service, or of everything when name
+// is empty, oldest first.
+func (s *supervisor) lines(name string) []string {
+	return s.outputs.recent(name)
+}

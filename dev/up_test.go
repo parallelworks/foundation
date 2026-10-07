@@ -406,3 +406,24 @@ func TestPrintLogFollowsAcrossRuns(t *testing.T) {
 		t.Errorf("printLog = %q, %v", out.String(), err)
 	}
 }
+
+func TestPrintLogsPrefixesSeveral(t *testing.T) {
+	dir := t.TempDir()
+	write(t, LogPath(dir, "api"), "one\ntwo\n")
+	write(t, LogPath(dir, "web"), "ready\n")
+
+	var out bytes.Buffer
+	if err := printLogs(t.Context(), dir, []string{"api", "web"}, false, &out); err != nil {
+		t.Fatal(err)
+	}
+	if want := "api │ one\napi │ two\nweb │ ready\n"; out.String() != want {
+		t.Errorf("several = %q, want %q", out.String(), want)
+	}
+	out.Reset()
+	if err := printLogs(t.Context(), dir, []string{"web"}, false, &out); err != nil || out.String() != "ready\n" {
+		t.Errorf("one = %q, %v; want it unprefixed", out.String(), err)
+	}
+	if err := printLogs(t.Context(), dir, []string{"nope"}, false, &out); err == nil {
+		t.Error("a service with no log printed nothing and no error")
+	}
+}
