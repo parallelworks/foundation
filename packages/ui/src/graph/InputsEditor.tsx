@@ -55,11 +55,18 @@ import {
   TypeBadge,
   withCreatedInputs,
 } from './InputDialog'
+import { type DrawnRow, type Drop, dropWidths, linesIn, snapSplit } from './inputRows'
 import { MOD_KEY, type ShortcutGroup } from './ShortcutsButton'
+
+/** A new input's share of the line it's dropped on, and the edits sharing the line with it. */
+interface Beside {
+  width: string
+  edits: GraphEdit[]
+}
 
 type Dialog =
   | { kind: 'edit'; path: InputPath }
-  | { kind: 'create'; parent: InputPath; index: number; type: string }
+  | { kind: 'create'; parent: InputPath; index: number; type: string; beside?: Beside }
 
 /** Where a dragged input would land: before `index` of `parent`. */
 interface Gap {
@@ -68,6 +75,8 @@ interface Gap {
   left: number
   right: number
   y: number
+  /** Beside an input on its line rather than between lines, marked by a bar at `x`. */
+  beside?: { path: InputPath; side: 'left' | 'right'; x: number; top: number; bottom: number }
 }
 
 interface DragView {
@@ -78,8 +87,21 @@ interface DragView {
   gap: Gap | null
 }
 
+/** The edge between two inputs sharing a line, and how they split it, in percent of their list. */
+interface Edge {
+  left: InputPath
+  right: InputPath
+  x: number
+  top: number
+  bottom: number
+  split: [number, number]
+}
+
 interface UiState {
   drag: DragView | null
+  /** The edge under the pointer, or being dragged, between inputs sharing a line. */
+  edge: Edge | null
+  resizing: boolean
   dialog: Dialog | null
   /** The innermost row under the pointer, whose toolbar shows. */
   hovered: string | null
@@ -93,6 +115,8 @@ interface UiState {
 const createFormStore = () =>
   createStore<UiState>({
     drag: null,
+    edge: null,
+    resizing: false,
     dialog: null,
     hovered: null,
     problems: [],
@@ -121,8 +145,11 @@ interface InputsEditorApi {
   edit: (path: InputPath) => void
   remove: (path: InputPath) => void
   openMenu: (x: number, y: number, path: InputPath) => void
-  openTypeMenu: (x: number, y: number, parent: InputPath, index: number) => void
+  openTypeMenu: (x: number, y: number, parent: InputPath, index: number, beside?: Beside) => void
   startDrag: (e: Press, path: InputPath | null, label: string, how?: DragHow) => void
+  startResize: (e: Press, edge: Edge) => void
+  /** Moves an edge by `delta` percent, as the arrow keys do. */
+  nudgeEdge: (edge: Edge, delta: number) => void
   /** Shows a line of the YAML, when the YAML editor is beside the form. */
   reveal: (line: number) => void
   /** Deletes the selected inputs, reporting whether any were. */
@@ -257,7 +284,7 @@ function InputRow({
   const rowKey = key(path)
   const active = useUi(
     api?.store ?? EMPTY_STORE,
-    (state) => state.hovered === rowKey && !state.drag,
+    (state) => state.hovered === rowKey && !state.drag && !state.resizing,
   )
   const selected = useUi(api?.store ?? EMPTY_STORE, (state) => state.selection.includes(rowKey))
   const problems = useUi(api?.store ?? EMPTY_STORE, (state) =>
@@ -455,43 +482,112 @@ function typeMenu(
   ]
 }
 
+// How far in from an input's side a drop shares its line, and how far sideways a drag must go first,
+// so a drag up or down never lands beside an input by accident.
+const BESIDE_REACH = 64
+const BESIDE_INTENT = 24
+
 function gapsIn(root: HTMLElement): Gap[] {
   const gaps: Gap[] = []
-  const last = new Map<string, { parent: InputPath; index: number; rect: DOMRect }>()
-  for (const el of root.querySelectorAll<HTMLElement>('[data-input-path]')) {
-    const path = JSON.parse(el.dataset['inputPath'] ?? '[]') as InputPath
-    const parent = path.slice(0, -1)
-    const index = Number(el.dataset['inputIndex'] ?? 0)
-    const rect = el.getBoundingClientRect()
+  const last = new Map<string, DrawnRow[]>()
+  for (const { parent, rows } of linesIn(root)) {
+    const [first] = rows
+    if (!first) {
+      continue
+    }
     gaps.push({
       parent,
-      index,
-      left: rect.left,
-      right: rect.right,
-      y: rect.top,
+      index: first.index,
+      left: Math.min(...rows.map((row) => row.rect.left)),
+      right: Math.max(...rows.map((row) => row.rect.right)),
+      y: first.rect.top,
     })
-    last.set(key(parent), { parent, index, rect })
+    rows.forEach(({ path, index, rect }, i) => {
+      const reach = Math.min(BESIDE_REACH, rect.width / 4)
+      const before = rows[i - 1]?.rect
+      const after = rows[i + 1]?.rect
+      const span = { top: rect.top, bottom: rect.bottom }
+      gaps.push({
+        parent,
+        index,
+        left: rect.left - 8,
+        right: rect.left + reach,
+        y: rect.top,
+        beside: {
+          path,
+          side: 'left',
+          x: before ? (before.right + rect.left) / 2 : rect.left - 4,
+          ...span,
+        },
+      })
+      gaps.push({
+        parent,
+        index: index + 1,
+        left: rect.right - reach,
+        right: rect.right + 8,
+        y: rect.top,
+        beside: {
+          path,
+          side: 'right',
+          x: after ? (rect.right + after.left) / 2 : rect.right + 4,
+          ...span,
+        },
+      })
+    })
+    last.set(key(parent), rows)
   }
   for (const el of root.querySelectorAll<HTMLElement>('[data-input-add]')) {
     const parent = JSON.parse(el.dataset['inputAdd'] ?? '[]') as InputPath
-    const end = last.get(key(parent))
+    const rows = last.get(key(parent)) ?? []
+    const end = rows.at(-1)
     const rect = el.getBoundingClientRect()
     gaps.push({
       parent,
       index: end ? end.index + 1 : 0,
-      left: end?.rect.left ?? rect.left,
-      right: end?.rect.right ?? rect.right,
-      y: end ? end.rect.bottom : rect.top,
+      left: end ? Math.min(...rows.map((row) => row.rect.left)) : rect.left,
+      right: end ? Math.max(...rows.map((row) => row.rect.right)) : rect.right,
+      y: end ? Math.max(...rows.map((row) => row.rect.bottom)) : rect.top,
     })
   }
   return gaps
 }
 
-function nearestGap(gaps: Gap[], x: number, y: number, moving: InputPath[] | null): Gap | null {
+function nearestGap(
+  gaps: Gap[],
+  client: { x: number; y: number },
+  start: { x: number; y: number },
+  moving: InputPath[] | null,
+): Gap | null {
+  const { x, y } = client
+  const into = (gap: Gap) => moving?.some((path) => isInside(gap.parent, path)) ?? false
+  // Over an input's side, after a sideways drag, the drop shares its line; the innermost wins.
+  let beside: Gap | null = null
+  if (Math.abs(x - start.x) >= BESIDE_INTENT) {
+    for (const gap of gaps) {
+      const side = gap.beside
+      if (
+        !side ||
+        into(gap) ||
+        moving?.some((path) => samePath(path, side.path)) ||
+        x < gap.left ||
+        x > gap.right ||
+        y < side.top ||
+        y > side.bottom
+      ) {
+        continue
+      }
+      if (!beside || gap.parent.length > beside.parent.length) {
+        beside = gap
+      }
+    }
+  }
+  if (beside) {
+    return beside
+  }
   let best: Gap | null = null
   let bestDistance = Number.POSITIVE_INFINITY
   for (const gap of gaps) {
-    if (moving?.some((path) => isInside(gap.parent, path))) {
+    if (gap.beside || into(gap)) {
       continue
     }
     if (x < gap.left - 24 || x > gap.right + 24) {
@@ -509,6 +605,84 @@ function nearestGap(gaps: Gap[], x: number, y: number, moving: InputPath[] | nul
   }
   return best
 }
+
+const WIDTH_VAR = '--input-width'
+
+/** The cells two neighbours on a line sit in, and the row of cells holding them. */
+function cellsAt(root: HTMLElement, edge: Pick<Edge, 'left' | 'right'>) {
+  const cellOf = (path: InputPath) =>
+    [...root.querySelectorAll<HTMLElement>('[data-input-path]')]
+      .find((el) => el.dataset['inputPath'] === key(path))
+      ?.closest<HTMLElement>('[data-input-cell]')
+  const left = cellOf(edge.left)
+  const right = cellOf(edge.right)
+  const flow = left?.parentElement
+  return left && right && flow ? { left, right, flow } : null
+}
+
+function edgeOf(root: HTMLElement, before: DrawnRow, after: DrawnRow): Edge | null {
+  const cells = cellsAt(root, { left: before.path, right: after.path })
+  const width = cells?.flow.getBoundingClientRect().width ?? 0
+  if (!cells || width <= 0) {
+    return null
+  }
+  const share = (cell: HTMLElement) =>
+    Math.round((cell.getBoundingClientRect().width / width) * 100)
+  return {
+    left: before.path,
+    right: after.path,
+    x: cells.left.getBoundingClientRect().right,
+    top: Math.min(before.rect.top, after.rect.top),
+    bottom: Math.max(before.rect.bottom, after.rect.bottom),
+    split: [share(cells.left), share(cells.right)],
+  }
+}
+
+/** The edge between neighbours on a line that the pointer is over, the innermost list's first. */
+function edgeAt(root: HTMLElement, x: number, y: number): Edge | null {
+  let found: { depth: number; before: DrawnRow; after: DrawnRow } | null = null
+  for (const { parent, rows } of linesIn(root)) {
+    for (let i = 1; i < rows.length; i++) {
+      const before = rows[i - 1]
+      const after = rows[i]
+      if (
+        !before ||
+        !after ||
+        x < before.rect.right - 2 ||
+        x > after.rect.left + 2 ||
+        y < Math.min(before.rect.top, after.rect.top) ||
+        y > Math.max(before.rect.bottom, after.rect.bottom)
+      ) {
+        continue
+      }
+      if (!found || parent.length > found.depth) {
+        found = { depth: parent.length, before, after }
+      }
+    }
+  }
+  return found ? edgeOf(root, found.before, found.after) : null
+}
+
+/** The edge between the same two inputs, if they still share a line. */
+function edgeBetween(root: HTMLElement, left: InputPath, right: InputPath): Edge | null {
+  for (const { rows } of linesIn(root)) {
+    const i = rows.findIndex((row) => samePath(row.path, left))
+    const after = rows[i + 1]
+    const before = rows[i]
+    if (before && after && samePath(after.path, right)) {
+      return edgeOf(root, before, after)
+    }
+  }
+  return null
+}
+
+const sameEdge = (a: Edge | null, b: Edge | null) =>
+  a === b ||
+  (a !== null &&
+    b !== null &&
+    samePath(a.left, b.left) &&
+    samePath(a.right, b.right) &&
+    Math.round(a.x) === Math.round(b.x))
 
 const DELETE_KEYS = new Set(['Delete', 'Backspace'])
 
@@ -539,6 +713,7 @@ function formShortcuts(g: GraphEditorStrings): ShortcutGroup[] {
       title: g.shortcutGroups.change,
       shortcuts: [
         { combos: [[key.dragHandle]], does: does.moveInput },
+        { combos: [[key.dragEdge]], does: does.resizeInputs },
         { combos: [[key.dragButton]], does: does.addInput },
         { combos: [['E']], does: does.editInput },
         { combos: [[key.delete]], does: does.removeInputs },
@@ -600,25 +775,33 @@ export function InputsFormEditor({
       namesIn(containerAt(editing, latest.current.inputs, path.slice(0, -1))).indexOf(
         path.at(-1) ?? '',
       )
-    const create = (parent: InputPath, index: number, type: string) => {
+    const create = (parent: InputPath, index: number, type: string, beside?: Beside) => {
       const { editor, inputs } = latest.current
       if (editor.openOnAdd === false) {
-        send({
+        const add: GraphEdit = {
           type: 'addInput',
           parent,
           index: Math.min(index, namesIn(containerAt(editing, inputs, parent)).length),
           name: nextInputName(editing, inputs),
-          definition: newInputDefinition(type),
-        })
+          definition: { ...newInputDefinition(type), ...(beside ? { width: beside.width } : {}) },
+        }
+        // The add goes last, so the batch reports the input it created.
+        send(beside ? { type: 'batch', edits: [...beside.edits, add] } : add)
         return
       }
-      store.set({ dialog: { kind: 'create', parent, index, type } })
+      store.set({ dialog: { kind: 'create', parent, index, type, ...(beside ? { beside } : {}) } })
     }
-    const openTypeMenu = (x: number, y: number, parent: InputPath, index: number) =>
+    const openTypeMenu = (
+      x: number,
+      y: number,
+      parent: InputPath,
+      index: number,
+      beside?: Beside,
+    ) =>
       openMenu(
         x,
         y,
-        typeMenu(t, parent.length === 0, (type) => create(parent, index, type)),
+        typeMenu(t, parent.length === 0, (type) => create(parent, index, type, beside)),
         undefined,
         typeSearch(t),
       )
@@ -640,6 +823,48 @@ export function InputsFormEditor({
       return (
         at.every((index, i) => index === first + i) && gap.index >= first && gap.index <= last + 1
       )
+    }
+    const dropOf = (gap: Gap): Drop => ({
+      parent: gap.parent,
+      index: gap.index,
+      ...(gap.beside ? { beside: { path: gap.beside.path, side: gap.beside.side } } : {}),
+    })
+    // Width changes as edits, each at the path its input has once the drop has moved it.
+    const widthEdits = (
+      widths: Map<string, string | undefined>,
+      moving: InputPath[],
+      drop: Drop,
+    ): GraphEdit[] => {
+      const edits: GraphEdit[] = []
+      for (const [rowKey, width] of widths) {
+        const path = pathOf(rowKey)
+        if (definition(path)['width'] === width) {
+          continue
+        }
+        const at = moving.some((other) => samePath(other, path))
+          ? [...drop.parent, path.at(-1) ?? '']
+          : path
+        edits.push(
+          width === undefined
+            ? { type: 'updateInput', path: at, unset: ['width'] }
+            : { type: 'updateInput', path: at, set: { width } },
+        )
+      }
+      return edits
+    }
+    // A new input dropped beside others takes an even share of their line.
+    const besideNew = (gap: Gap): Beside | undefined => {
+      const root = containerRef.current
+      if (!gap.beside || !root) {
+        return undefined
+      }
+      const drop = dropOf(gap)
+      // No input is named '', so it stands in for the one not made yet.
+      const placeholder = [...gap.parent, '']
+      const widths = dropWidths(linesIn(root), [placeholder], drop)
+      const width = widths.get(key(placeholder))
+      widths.delete(key(placeholder))
+      return width ? { width, edits: widthEdits(widths, [], drop) } : undefined
     }
     // Moved inputs, and the selected ones inside them, stay selected at their new paths.
     const followSelection = (moved: InputPath[], parent: InputPath) =>
@@ -702,6 +927,7 @@ export function InputsFormEditor({
         : null
       const shown =
         paths && paths.length > 1 ? paths.map((other) => other.at(-1)).join(', ') : label
+      const start = { x: e.clientX, y: e.clientY }
       const onEnd = (client: { x: number; y: number }, dragged: boolean) => {
         const gap = store.get().drag?.gap ?? null
         store.set({ drag: null })
@@ -713,22 +939,21 @@ export function InputsFormEditor({
           return
         }
         if (!paths) {
-          openTypeMenu(client.x, client.y, gap.parent, gap.index)
+          openTypeMenu(client.x, client.y, gap.parent, gap.index, besideNew(gap))
           return
         }
         // The pressed grip can end up on another row once the rows redraw, holding its toolbar open.
-        containerRef.current?.focus({ preventScroll: true })
-        if (staysPut(paths, gap)) {
-          return
-        }
-        if (
-          send({
-            type: 'moveInputs',
-            paths,
-            parent: gap.parent,
-            index: gap.index,
-          })
-        ) {
+        const root = containerRef.current
+        root?.focus({ preventScroll: true })
+        const drop = dropOf(gap)
+        const edits: GraphEdit[] = [
+          ...(staysPut(paths, gap)
+            ? []
+            : [{ type: 'moveInputs' as const, paths, parent: gap.parent, index: gap.index }]),
+          ...(root ? widthEdits(dropWidths(linesIn(root), paths, drop), paths, drop) : []),
+        ]
+        const [only] = edits
+        if (only && send(edits.length === 1 ? only : { type: 'batch', edits })) {
           followSelection(paths, gap.parent)
         }
       }
@@ -740,7 +965,7 @@ export function InputsFormEditor({
           ...(how.holdText ? { holdText: how.holdText } : {}),
           onMove: (client) => {
             const root = containerRef.current
-            const gap = root ? nearestGap(gapsIn(root), client.x, client.y, paths) : null
+            const gap = root ? nearestGap(gapsIn(root), client, start, paths) : null
             store.set({ drag: { paths, label: shown, client, gap } })
           },
           onEnd,
@@ -810,6 +1035,71 @@ export function InputsFormEditor({
       ]
     }
 
+    // Both sides of an edge get their share of the line as a percent, as one undo step.
+    const resize = (edge: Edge, split: [number, number]) => {
+      const edits: GraphEdit[] = []
+      for (const [path, share] of [
+        [edge.left, split[0]],
+        [edge.right, split[1]],
+      ] as const) {
+        const width = `${share}%`
+        if (definition(path)['width'] !== width) {
+          edits.push({ type: 'updateInput', path, set: { width } })
+        }
+      }
+      const [only] = edits
+      return only ? Boolean(send(edits.length === 1 ? only : { type: 'batch', edits })) : false
+    }
+    const startResize = (e: Press, edge: Edge) => {
+      const root = containerRef.current
+      const cells = root && cellsAt(root, edge)
+      if (e.button !== 0 || !cells) {
+        return
+      }
+      e.stopPropagation()
+      const from = cells.left.getBoundingClientRect().left
+      const width = cells.flow.getBoundingClientRect().width
+      const total = edge.split[0] + edge.split[1]
+      const drawn = [cells.left, cells.right].map((cell) => cell.style.getPropertyValue(WIDTH_VAR))
+      // The cells show the new split while the drag lasts; the edit then sets it for good.
+      const show = (split: [number, number]) => {
+        cells.left.style.setProperty(WIDTH_VAR, `${split[0]}%`)
+        cells.right.style.setProperty(WIDTH_VAR, `${split[1]}%`)
+      }
+      const restore = () => {
+        cells.left.style.setProperty(WIDTH_VAR, drawn[0] ?? '')
+        cells.right.style.setProperty(WIDTH_VAR, drawn[1] ?? '')
+      }
+      let split = edge.split
+      store.set({ resizing: true })
+      trackDrag(
+        { x: e.clientX, y: e.clientY },
+        {
+          escape: true,
+          holdText: 'press',
+          swallowClick: 'always',
+          onMove: (client) => {
+            split = snapSplit(total, ((client.x - from) / width) * 100)
+            show(split)
+            store.set({ edge: { ...edge, x: cells.left.getBoundingClientRect().right, split } })
+          },
+          // Focus goes back to the form, or the pressed handle would stay up on this edge.
+          onEnd: () => {
+            store.set({ resizing: false })
+            root.focus({ preventScroll: true })
+            if (!resize(edge, split)) {
+              restore()
+            }
+          },
+          onCancel: () => {
+            store.set({ resizing: false })
+            root.focus({ preventScroll: true })
+            restore()
+          },
+        },
+      )
+    }
+
     return {
       store,
       definition,
@@ -819,6 +1109,10 @@ export function InputsFormEditor({
       openMenu: (x, y, path) => openMenu(x, y, menuFor(path)),
       openTypeMenu,
       startDrag,
+      startResize,
+      nudgeEdge: (edge, delta) => {
+        resize(edge, snapSplit(edge.split[0] + edge.split[1], edge.split[0] + delta))
+      },
       reveal: (line) => latest.current.editor.onReveal?.({ line }),
       removeSelection,
       moveSelection,
@@ -837,6 +1131,15 @@ export function InputsFormEditor({
   useEffect(() => {
     store.set({ problems: problems ?? [] })
   }, [store, problems])
+
+  // After an edit the shown edge follows its two inputs, or goes once they no longer share a line.
+  useEffect(() => {
+    const { edge, resizing } = store.get()
+    const root = containerRef.current
+    if (edge && !resizing && root && inputs) {
+      store.set({ edge: edgeBetween(root, edge.left, edge.right) })
+    }
+  }, [store, inputs])
 
   // A selected input that's gone, by an undo or a change typed in the YAML, drops out.
   useEffect(() => {
@@ -1014,11 +1317,30 @@ export function InputsFormEditor({
             // biome-ignore lint/a11y/noNoninteractiveTabindex: focusable so the undo shortcuts reach the form instead of the YAML editor.
             tabIndex={0}
             className="relative outline-none"
-            onPointerLeave={() => store.set({ hovered: null })}
+            onPointerMove={(e) => {
+              const state = store.get()
+              const root = containerRef.current
+              if (!root || state.drag || state.marquee || state.resizing || resizerFocused(root)) {
+                return
+              }
+              // Only a form with widths draws inputs side by side.
+              const edge = root.querySelector('[data-input-cell]')
+                ? edgeAt(root, e.clientX, e.clientY)
+                : null
+              if (!sameEdge(edge, state.edge)) {
+                store.set({ edge })
+              }
+            }}
+            onPointerLeave={() => {
+              const root = containerRef.current
+              const keep = store.get().resizing || (root !== null && resizerFocused(root))
+              store.set({ hovered: null, ...(keep ? {} : { edge: null }) })
+            }}
           >
             {empty && <div className="mb-3 text-sm theme-muted-text">{t.noInputs}</div>}
             {children}
             <DropIndicator store={store} container={containerRef} />
+            <RowResizer api={api} container={containerRef} />
             <Marquee store={store} container={containerRef} />
             <div data-input-chrome className="sticky bottom-2 z-10 mt-2 flex justify-end">
               <EditorBar editor={editor} groups={formShortcuts(g)}>
@@ -1059,21 +1381,90 @@ function DropIndicator({
   const rect = root.getBoundingClientRect()
   return (
     <>
-      {drag.gap && (
+      {drag.gap?.beside ? (
         <div
-          className="pointer-events-none absolute z-20 h-1 rounded-full bg-(--theme-element)"
+          className="pointer-events-none absolute z-20 w-1 rounded-full bg-(--theme-element)"
           style={{
-            left: drag.gap.left - rect.left,
-            top: drag.gap.y - rect.top - 2,
-            width: drag.gap.right - drag.gap.left,
+            left: drag.gap.beside.x - rect.left - 2,
+            top: drag.gap.beside.top - rect.top,
+            height: drag.gap.beside.bottom - drag.gap.beside.top,
           }}
         />
+      ) : (
+        drag.gap && (
+          <div
+            className="pointer-events-none absolute z-20 h-1 rounded-full bg-(--theme-element)"
+            style={{
+              left: drag.gap.left - rect.left,
+              top: drag.gap.y - rect.top - 2,
+              width: drag.gap.right - drag.gap.left,
+            }}
+          />
+        )
       )}
       <DragLabel
         at={{ x: drag.client.x - rect.left, y: drag.client.y - rect.top }}
         text={drag.label}
       />
     </>
+  )
+}
+
+const resizerFocused = (root: HTMLElement) =>
+  document.activeElement instanceof HTMLElement &&
+  root.contains(document.activeElement) &&
+  document.activeElement.dataset['inputResizer'] !== undefined
+
+/** The handle on the edge between two inputs sharing a line, which moves width between them. */
+function RowResizer({
+  api,
+  container,
+}: {
+  api: InputsEditorApi
+  container: React.RefObject<HTMLDivElement | null>
+}) {
+  const t = useInputsEditorStrings()
+  const edge = useUi(api.store, (state) => state.edge)
+  const root = container.current
+  if (!edge || !root) {
+    return null
+  }
+  const rect = root.getBoundingClientRect()
+  const total = edge.split[0] + edge.split[1]
+  return (
+    // biome-ignore lint/a11y/useSemanticElements: a window splitter must be focusable and full height; <hr> is reset to height 0 and cannot host the drag surface.
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={t.resizeInputs}
+      aria-valuenow={edge.split[0]}
+      aria-valuemin={Math.min(10, total / 2)}
+      aria-valuemax={total - Math.min(10, total / 2)}
+      tabIndex={0}
+      data-input-chrome
+      data-input-resizer
+      className="group/edge absolute z-20 flex w-3 -translate-x-1/2 cursor-col-resize touch-none justify-center outline-none"
+      style={{
+        left: edge.x - rect.left,
+        top: edge.top - rect.top,
+        height: edge.bottom - edge.top,
+      }}
+      onPointerDown={(e) => api.startResize(e, edge)}
+      onKeyDown={(e) => {
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+          e.preventDefault()
+          e.stopPropagation()
+          api.nudgeEdge(edge, e.key === 'ArrowLeft' ? -5 : 5)
+        }
+      }}
+      onBlur={() => {
+        if (!api.store.get().resizing) {
+          api.store.set({ edge: null })
+        }
+      }}
+    >
+      <div className="h-full w-0.5 rounded-full bg-(--theme-element) opacity-50 group-hover/edge:opacity-100 group-focus-visible/edge:opacity-100" />
+    </div>
   )
 }
 
@@ -1128,11 +1519,15 @@ function Dialogs({
     const siblings = namesIn(containerAt(editing, inputs, dialog.parent))
     const index = Math.min(dialog.index, siblings.length)
     const home = homeFor(editing, inputs, dialog.parent, index)
+    const beside = dialog.beside
     return (
       <InputDialog
         key={`create:${key(dialog.parent)}:${dialog.index}`}
         name={nextInputName(editing, inputs)}
-        definition={newInputDefinition(dialog.type)}
+        definition={{
+          ...newInputDefinition(dialog.type),
+          ...(beside ? { width: beside.width } : {}),
+        }}
         isNew
         siblings={siblings}
         allowStep={dialog.parent.length === 0}
@@ -1147,6 +1542,7 @@ function Dialogs({
             editor.onEdit({
               type: 'batch',
               edits: [
+                ...(beside?.edits ?? []),
                 {
                   type: 'addInput',
                   parent: dialog.parent,
@@ -1163,19 +1559,16 @@ function Dialogs({
               ],
             }),
         }}
-        onSave={(name, definition, _patch, created) =>
-          save(
-            {
-              type: 'addInput',
-              parent: dialog.parent,
-              index: samePath(home.parent, dialog.parent) ? index + created.length : index,
-              name,
-              definition,
-            },
-            created,
-            home,
-          )
-        }
+        onSave={(name, definition, _patch, created) => {
+          const add: GraphEdit = {
+            type: 'addInput',
+            parent: dialog.parent,
+            index: samePath(home.parent, dialog.parent) ? index + created.length : index,
+            name,
+            definition,
+          }
+          save(beside ? { type: 'batch', edits: [...beside.edits, add] } : add, created, home)
+        }}
       />
     )
   }

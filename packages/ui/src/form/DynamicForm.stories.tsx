@@ -59,6 +59,34 @@ export const ClusterSettings: StoryObj<typeof DynamicForm> = {
   },
 }
 
+/**
+ * Inputs with a `width` share a row when they fit: a number is pixels, a percentage a share of
+ * the row. An input sharing a row has its label on top unless the form sets `labelPosition`.
+ * A form narrower than 36rem gives every input the full width.
+ */
+export const WithWidths: StoryObj<typeof DynamicForm> = {
+  args: {
+    formJSONs: {
+      name: { type: 'string', label: 'Job name', default: 'train-resnet', width: '50%' },
+      queue: {
+        type: 'dropdown',
+        label: 'Queue',
+        default: 'gpu',
+        options: ['cpu', 'gpu', 'debug'],
+        width: '25%',
+      },
+      priority: { type: 'number', label: 'Priority', default: 5, width: '25%' },
+      dataset: { type: 'string', label: 'Dataset', default: 's3://datasets/images' },
+      epochs: { type: 'number', label: 'Epochs', default: 10, width: '33%' },
+      batch: { type: 'number', label: 'Batch size', default: 64, width: '33%' },
+      rate: { type: 'number', label: 'Learning rate', default: 0.001, width: '33%' },
+      seed: { type: 'number', label: 'Seed', default: 42, width: 160 },
+    },
+    initialValues: {},
+    skipValueParse: true,
+  },
+}
+
 export const CompactLabels: StoryObj<typeof DynamicForm> = {
   args: {
     formJSONs: FORM_JSONS,

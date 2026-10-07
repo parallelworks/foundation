@@ -51,13 +51,19 @@ vi.mock('./fieldRegistry', async (importOriginal) => ({
   Registry: ({
     field,
     label,
+    labelPosition,
   }: {
     field: { name: string; type: string; optional?: unknown }
     label: string
+    labelPosition: string
   }) => (
     // data-optional surfaces the resolved flag; FieldWrapper renders the required
     // asterisk from it, but the real field components are mocked out here.
-    <div data-testid={`field-${field.name}`} data-optional={String(field.optional)}>
+    <div
+      data-testid={`field-${field.name}`}
+      data-optional={String(field.optional)}
+      data-label-position={labelPosition}
+    >
       <label htmlFor={field.name}>{label}</label>
       <input id={field.name} name={field.name} type="text" />
     </div>
@@ -207,6 +213,86 @@ describe('DynamicForm workflowForm prop', () => {
       const lastValues = capturedValues[capturedValues.length - 1]!
       expect(lastValues).toHaveProperty('hiddenIgnoredField', 'default-value')
     })
+  })
+})
+
+describe('input widths', () => {
+  const cellOf = (name: string) => screen.getByTestId(`field-${name}`).closest('[data-input-cell]')
+  const labelOf = (name: string) =>
+    screen.getByTestId(`field-${name}`).getAttribute('data-label-position')
+
+  it('stacks a form without widths as it always has', async () => {
+    const { container } = render(
+      <DynamicForm
+        initialValues={{}}
+        formJSONs={{ a: { type: 'string' }, b: { type: 'string', width: '50px' } }}
+      />,
+    )
+    await screen.findByTestId('field-a')
+    expect(container.querySelector('[data-input-cell]')).toBeNull()
+  })
+
+  it('gives each input a cell as wide as its width, and full width without one', async () => {
+    render(
+      <DynamicForm
+        initialValues={{}}
+        formJSONs={{
+          half: { type: 'string', width: '50%' },
+          fixed: { type: 'string', width: 320 },
+          whole: { type: 'string' },
+        }}
+      />,
+    )
+    await screen.findByTestId('field-half')
+    expect(cellOf('half')).toHaveStyle({ '--input-width': '50%' })
+    expect(cellOf('fixed')).toHaveStyle({ '--input-width': '320px' })
+    expect(cellOf('whole')).toHaveStyle({ '--input-width': '100%' })
+  })
+
+  it('puts the label of an input sharing its row on top when the workflow chose no position', async () => {
+    render(
+      <DynamicForm
+        initialValues={{}}
+        formJSONs={{
+          half: { type: 'string', width: '50%' },
+          full: { type: 'string', width: '100%' },
+          whole: { type: 'string' },
+        }}
+      />,
+    )
+    await screen.findByTestId('field-half')
+    expect(labelOf('half')).toBe('top')
+    expect(labelOf('full')).toBe('left')
+    expect(labelOf('whole')).toBe('left')
+  })
+
+  it('follows the label position the workflow chose, in its groups too', async () => {
+    render(
+      <DynamicForm
+        initialValues={{}}
+        formJSONs={{
+          $meta: { labelPosition: 'left' },
+          half: { type: 'string', width: '50%' },
+          settings: {
+            type: 'group',
+            label: 'Settings',
+            options: { inner: { type: 'string', width: '50%' } },
+          },
+          chosen: {
+            type: 'group',
+            label: 'Chosen',
+            options: {
+              $meta: { labelPosition: 'top' },
+              own: { type: 'string' },
+            },
+          },
+        }}
+      />,
+    )
+    await screen.findByTestId('field-half')
+    expect(labelOf('half')).toBe('left')
+    expect(labelOf('inner')).toBe('left')
+    expect(labelOf('own')).toBe('top')
   })
 })
 

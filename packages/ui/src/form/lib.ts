@@ -32,6 +32,16 @@ export function resolvedFlag<T>(value: T): T | undefined {
   return typeof value === 'string' && value.includes('${{') ? undefined : value
 }
 
+const PERCENT_WIDTH = /^(100|[1-9]\d?(\.\d+)?)%$/
+
+/** An input's `width` as CSS: a number of pixels or a percentage; undefined for anything else. */
+export function inputWidth(value: unknown): string | undefined {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) && value > 0 ? `${value}px` : undefined
+  }
+  return typeof value === 'string' && PERCENT_WIDTH.test(value) ? value : undefined
+}
+
 export function enforceOneMustBeTrue(
   items: Array<Record<string, unknown>>,
   options: DynamicFormSchema,

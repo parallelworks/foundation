@@ -9,8 +9,11 @@ import {
   useFormikContext,
 } from 'formik'
 import React, {
+  type CSSProperties,
+  createContext,
   type SetStateAction,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -28,7 +31,7 @@ import { AngleRightIcon, TrashIcon } from '../icons'
 import { useFieldControlProps, useFieldRequired } from './fieldContext'
 import { type FieldComponent, FieldRegistryContext, Registry } from './fieldRegistry'
 import { EditingScope, useFormEditing } from './formEditing'
-import { resolvedFlag } from './lib'
+import { inputWidth, resolvedFlag } from './lib'
 import { useParsedOpts } from './useParsedOpts'
 import { usePrevious } from './usePrevious'
 import { getParentValue } from './utils/getParentValue'
@@ -55,6 +58,7 @@ interface SchemaField {
   noCollapse?: boolean
   computeOn?: boolean
   tooltip?: string | string[]
+  width?: number | string
   template?: Record<string, unknown>
   items?: Record<string, unknown>
   options?: Record<string, unknown>
@@ -82,6 +86,15 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function flagValue(value: unknown, fallback: string | boolean): string | boolean {
   return value && (typeof value === 'string' || typeof value === 'boolean') ? value : fallback
+}
+
+/** The `$meta.labelPosition` a workflow set, which nested lists inherit; undefined when none did. */
+const ChosenLabelPosition = createContext<'left' | 'top' | undefined>(undefined)
+
+function useChosenLabelPosition(options: Record<string, unknown>): 'left' | 'top' | undefined {
+  const inherited = useContext(ChosenLabelPosition)
+  const position = asRecord(options['$meta'])['labelPosition']
+  return position === 'left' || position === 'top' ? position : inherited
 }
 
 /** Applies `$meta` overrides for `labelPosition` / `spaceCompact`. */
@@ -1073,30 +1086,64 @@ export function FieldsFromOptions({
   workflowForm?: boolean | undefined
 }) {
   const editing = useFormEditing()
-  const fields = Object.keys(options).map((fieldName) => (
-    <FormField
-      key={fieldName}
-      optionsField={options[fieldName]}
-      fieldName={fieldName}
-      values={values}
-      setFormDirty={setFormDirty}
-      setFieldValue={setFieldValue}
-      setFieldTouched={setFieldTouched}
-      parentInfo={parentInfo}
-      labelPosition={labelPosition}
-      missingFields={missingFields}
-      spaceCompact={spaceCompact}
-      workflowForm={workflowForm}
-    />
-  ))
-  if (!editing) {
-    return fields
-  }
+  const chosen = useChosenLabelPosition(options)
+  const widths = new Map(
+    Object.keys(options).map((fieldName) => [
+      fieldName,
+      inputWidth(asRecord(options[fieldName])['width']),
+    ]),
+  )
+  // Without a width in the list, the fields stack exactly as they always have.
+  const flows = [...widths.values()].some((width) => width !== undefined)
+  const fields = Object.keys(options).map((fieldName) => {
+    const width = widths.get(fieldName)
+    // A side label would squeeze a field that shares its row, unless the workflow chose one.
+    const position = width === undefined || width === '100%' ? labelPosition : (chosen ?? 'top')
+    const field = (
+      <FormField
+        key={fieldName}
+        optionsField={options[fieldName]}
+        fieldName={fieldName}
+        values={values}
+        setFormDirty={setFormDirty}
+        setFieldValue={setFieldValue}
+        setFieldTouched={setFieldTouched}
+        parentInfo={parentInfo}
+        labelPosition={position}
+        missingFields={missingFields}
+        spaceCompact={spaceCompact}
+        workflowForm={workflowForm}
+      />
+    )
+    if (!flows) {
+      return field
+    }
+    return (
+      <div
+        key={fieldName}
+        data-input-cell
+        className="w-full max-w-full px-2 empty:hidden @min-[36rem]/inputs:w-(--input-width)"
+        style={{ '--input-width': width ?? '100%' } as CSSProperties}
+      >
+        {field}
+      </div>
+    )
+  })
+  const add = editing ? <editing.Add parent={editing.parent} /> : null
   return (
-    <>
-      {fields}
-      <editing.Add parent={editing.parent} />
-    </>
+    <ChosenLabelPosition.Provider value={chosen}>
+      {flows ? (
+        <div className="-mx-2 flex flex-wrap items-start @container/inputs">
+          {fields}
+          {add && <div className="w-full px-2">{add}</div>}
+        </div>
+      ) : (
+        <>
+          {fields}
+          {add}
+        </>
+      )}
+    </ChosenLabelPosition.Provider>
   )
 }
 
@@ -1155,9 +1202,11 @@ function DynamicFormContent({
 
   const wizardConfig = parseWizardConfig(opts)
   const meta = resolveMetaOverrides(options, labelPosition, spaceCompact)
+  // A wizard's steps hold their own fields, so they learn the form's choice from here.
+  const chosen = useChosenLabelPosition(options)
 
   return (
-    <>
+    <ChosenLabelPosition.Provider value={chosen}>
       <DirtyStateBridge setFormDirty={setFormDirty} />
       <FormikStateBridge onChange={handleChange} />
       <DynamicDefaultsSync key={contextKey ?? ''} options={opts} />
@@ -1193,7 +1242,7 @@ function DynamicFormContent({
           )}
         </>
       )}
-    </>
+    </ChosenLabelPosition.Provider>
   )
 }
 

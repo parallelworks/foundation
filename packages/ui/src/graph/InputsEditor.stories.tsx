@@ -126,6 +126,58 @@ export const WithProblems: StoryObj<typeof InputsFormEditor> = {
   ),
 }
 
+const SIDE_BY_SIDE_WORKFLOW = `on:
+  execute:
+    inputs:
+      dataset:
+        type: string
+        label: Dataset
+        default: s3://datasets/images
+        width: 50%
+      epochs:
+        type: number
+        label: Epochs
+        default: 10
+        width: 25%
+      batch:
+        type: number
+        label: Batch size
+        default: 64
+        width: 25%
+      precision:
+        type: radio
+        label: Precision
+        options: [fp16, bf16, fp32]
+        default: bf16
+      resources:
+        type: group
+        label: Resources
+        items:
+          gpus:
+            type: dropdown
+            label: GPUs
+            options: [1, 2, 4, 8]
+            default: 2
+            width: 50%
+          walltime:
+            type: duration
+            label: Time limit
+            default: 3600
+            width: 50%
+jobs:
+  train:
+    steps:
+      - run: python train.py --epochs \${{ inputs.epochs }}
+`
+
+/**
+ * Inputs sharing lines. Drag an input sideways onto another's edge to put it beside it, between
+ * lines to give it a line of its own, or drag the edge between two inputs to resize them.
+ */
+export const SideBySide: StoryObj<typeof InputsFormEditor> = {
+  render: () => <EditableForm source={SIDE_BY_SIDE_WORKFLOW} />,
+}
+
 /** A workflow without inputs yet. */
 export const Empty: StoryObj<typeof InputsFormEditor> = {
   render: () => <EditableForm source={'jobs:\n  main:\n    steps:\n      - run: echo hi\n'} />,

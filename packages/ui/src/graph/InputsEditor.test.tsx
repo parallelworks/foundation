@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
+import * as parser from '@parallelworks/workflow-parser'
 import { convertToDynamicForm } from '@parallelworks/workflow-parser'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -45,7 +46,7 @@ import { DynamicForm } from '../form/Form'
 import { suggestionsOf } from '../test/DropdownStandIn'
 import type { DependencyGraphEditor, EditorProblem } from './editorApi'
 import { GRAPH_EDITOR_STRINGS, INPUTS_EDITOR_STRINGS } from './editorStrings'
-import { INPUT_TYPE_GROUPS, InputDialog } from './InputDialog'
+import { INPUT_TYPE_GROUPS, InputDialog, inputTypes, offeredInputKeys } from './InputDialog'
 import { InputsFormEditor } from './InputsEditor'
 
 afterEach(cleanup)
@@ -893,6 +894,38 @@ describe('InputDialog', () => {
     )
   })
 
+  it('reads a width as pixels or a share of the row, and nothing else', () => {
+    const onSave = open({ type: 'string', width: 320 })
+    expect(screen.getByLabelText('Width')).toHaveValue('320')
+    fireEvent.change(screen.getByLabelText('Width'), { target: { value: '50px' } })
+    expect(screen.getByText(INPUTS_EDITOR_STRINGS.invalidWidth)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+    fireEvent.change(screen.getByLabelText('Width'), { target: { value: '50%' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith(
+      'field',
+      { type: 'string', width: '50%' },
+      { set: { width: '50%' }, unset: [] },
+      [],
+    )
+    cleanup()
+    const cleared = open({ type: 'string', width: '50%' })
+    fireEvent.change(screen.getByLabelText('Width'), { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(cleared).toHaveBeenCalledWith(
+      'field',
+      { type: 'string' },
+      { set: {}, unset: ['width'] },
+      [],
+    )
+  })
+
+  it('offers a width on every input but a wizard step', () => {
+    for (const type of inputTypes()) {
+      expect(offeredInputKeys(parser, type).includes('width')).toBe(type !== 'step')
+    }
+  })
+
   it('offers radio options as default values and picks the layout by name', () => {
     const onSave = open({
       type: 'radio',
@@ -1274,5 +1307,144 @@ describe('selecting inputs', () => {
     clickLabel(['name'])
     fireEvent.keyDown(form(), { key: 'ArrowUp' })
     expect(e.onEdit).not.toHaveBeenCalled()
+  })
+})
+
+describe('inputs side by side', () => {
+  const ROWS = {
+    a: { type: 'string', label: 'A' },
+    b: { type: 'string', label: 'B' },
+    c: { type: 'string', label: 'C' },
+  }
+  const HALVES = {
+    a: { type: 'string', label: 'A', width: '50%' },
+    b: { type: 'string', label: 'B', width: '50%' },
+    c: { type: 'string', label: 'C' },
+  }
+  const render = (e: DependencyGraphEditor, inputs: Record<string, unknown>) =>
+    renderForm(e, inputs as typeof INPUTS)
+  // jsdom lays nothing out, so each row, and each cell the form puts it in, gets a rect by hand.
+  function layOut(rects: Record<string, [number, number, number, number]>) {
+    for (const [name, [x, y, w, h]] of Object.entries(rects)) {
+      const el = row([name])
+      el.getBoundingClientRect = () => new DOMRect(x, y, w, h)
+      const cell = el.closest<HTMLElement>('[data-input-cell]')
+      if (cell) {
+        cell.getBoundingClientRect = () => new DOMRect(x - 8, y, w + 16, h)
+        const flow = cell.parentElement as HTMLElement
+        flow.getBoundingClientRect = () => new DOMRect(-8, 0, 616, 200)
+      }
+    }
+  }
+  function drag(handle: HTMLElement, from: [number, number], to: [number, number]) {
+    fireEvent.pointerDown(handle, { button: 0, clientX: from[0], clientY: from[1] })
+    act(() => {
+      fireEvent.pointerMove(window, { clientX: to[0], clientY: to[1] })
+    })
+    act(() => {
+      fireEvent.pointerUp(window, { clientX: to[0], clientY: to[1] })
+    })
+    fireEvent.click(handle)
+  }
+  const handleOf = (name: string) => row([name]).querySelector('[data-drag-handle]') as HTMLElement
+  const form = () => row(['a']).closest('[tabindex="0"]') as HTMLElement
+
+  it('puts an input dragged sideways onto another’s edge beside it, sharing the line evenly', () => {
+    const e = editor()
+    render(e, ROWS)
+    layOut({ a: [0, 0, 600, 40], b: [0, 50, 600, 40], c: [0, 100, 600, 40] })
+    drag(handleOf('c'), [480, 105], [590, 20])
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'batch',
+      edits: [
+        { type: 'moveInputs', paths: [['c']], parent: [], index: 1 },
+        { type: 'updateInput', path: ['a'], set: { width: '50%' } },
+        { type: 'updateInput', path: ['c'], set: { width: '50%' } },
+      ],
+    })
+  })
+
+  it('keeps a drag straight up or down a move between lines, even along an input’s edge', () => {
+    const e = editor()
+    render(e, ROWS)
+    layOut({ a: [0, 0, 600, 40], b: [0, 50, 600, 40], c: [0, 100, 600, 40] })
+    drag(handleOf('c'), [590, 105], [590, 20])
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'moveInputs',
+      paths: [['c']],
+      parent: [],
+      index: 0,
+    })
+  })
+
+  it('gives an input dragged out of a shared line, and the one left there, the full width', () => {
+    const e = editor()
+    render(e, HALVES)
+    layOut({ a: [0, 0, 292, 40], b: [308, 0, 292, 40], c: [0, 50, 600, 40] })
+    drag(handleOf('b'), [400, 5], [400, 95])
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'batch',
+      edits: [
+        { type: 'moveInputs', paths: [['b']], parent: [], index: 3 },
+        { type: 'updateInput', path: ['a'], unset: ['width'] },
+        { type: 'updateInput', path: ['b'], unset: ['width'] },
+      ],
+    })
+  })
+
+  it('gives a new input dropped beside another an even share of its line', () => {
+    const e = editor()
+    render(e, ROWS)
+    layOut({ a: [0, 0, 600, 40], b: [0, 50, 600, 40], c: [0, 100, 600, 40] })
+    drag(screen.getByText('Input').closest('button') as HTMLElement, [540, 300], [590, 20])
+    pickType('Number')
+    expect(screen.getByLabelText('Width')).toHaveValue('50%')
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'batch',
+      edits: [
+        { type: 'updateInput', path: ['a'], set: { width: '50%' } },
+        {
+          type: 'addInput',
+          parent: [],
+          index: 1,
+          name: 'input_1',
+          definition: { type: 'number', width: '50%' },
+        },
+      ],
+    })
+  })
+
+  it('resizes two inputs sharing a line from the edge between them, in 5% steps', () => {
+    const e = editor()
+    render(e, HALVES)
+    layOut({ a: [0, 0, 292, 40], b: [308, 0, 292, 40], c: [0, 50, 600, 40] })
+    expect(screen.queryByRole('separator')).toBeNull()
+    fireEvent.pointerMove(form(), { clientX: 300, clientY: 20 })
+    const edge = screen.getByRole('separator', { name: INPUTS_EDITOR_STRINGS.resizeInputs })
+    expect(edge).toHaveAttribute('aria-valuenow', '50')
+    drag(edge, [300, 20], [176, 20])
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'batch',
+      edits: [
+        { type: 'updateInput', path: ['a'], set: { width: '30%' } },
+        { type: 'updateInput', path: ['b'], set: { width: '70%' } },
+      ],
+    })
+  })
+
+  it('moves the edge between two inputs with the arrow keys', () => {
+    const e = editor()
+    render(e, HALVES)
+    layOut({ a: [0, 0, 292, 40], b: [308, 0, 292, 40], c: [0, 50, 600, 40] })
+    fireEvent.pointerMove(form(), { clientX: 300, clientY: 20 })
+    fireEvent.keyDown(screen.getByRole('separator'), { key: 'ArrowLeft' })
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'batch',
+      edits: [
+        { type: 'updateInput', path: ['a'], set: { width: '45%' } },
+        { type: 'updateInput', path: ['b'], set: { width: '55%' } },
+      ],
+    })
   })
 })

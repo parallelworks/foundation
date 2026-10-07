@@ -4,6 +4,7 @@ import {
   flattenGroups,
   impureSetValueFromPath,
   initializeValues,
+  inputWidth,
 } from './lib'
 
 const MockSchema = {
@@ -42,6 +43,21 @@ const MockSchema = {
     label: 'field2',
   },
 }
+
+describe('inputWidth', () => {
+  it('reads a number as pixels and keeps a percentage', () => {
+    expect(inputWidth(320)).toBe('320px')
+    expect(inputWidth('50%')).toBe('50%')
+    expect(inputWidth('33.5%')).toBe('33.5%')
+    expect(inputWidth('100%')).toBe('100%')
+  })
+
+  it('ignores anything else', () => {
+    for (const value of [0, -5, Number.NaN, '50px', '320', '0%', '150%', 'abc', null, undefined]) {
+      expect(inputWidth(value)).toBeUndefined()
+    }
+  })
+})
 
 describe('flattenGroups', () => {
   it('should flatten schema', () => {
