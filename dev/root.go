@@ -162,9 +162,10 @@ func NewRootCmd(cfg Config) *cobra.Command {
 
 	var psJSON bool
 	psCmd := &cobra.Command{
-		Use:   "ps",
-		Short: "List every dev running on this machine",
-		Args:  cobra.NoArgs,
+		Use:         "ps",
+		Short:       "List every dev running on this machine",
+		Args:        cobra.NoArgs,
+		Annotations: map[string]string{anywhere: "yes"},
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			list, err := ps(cmd.Context())
 			if err != nil {
@@ -316,6 +317,26 @@ func printLog(ctx context.Context, path string, follow bool, out io.Writer) erro
 			}
 			offset = 0
 		}
+	}
+}
+
+// anywhere marks a command that needs no dev.json, such as `dev ps`.
+const anywhere = "dev/anywhere"
+
+// RequireConfig makes every command but those that need no dev.json fail
+// with err, for a dev run where no dev.json was found.
+func RequireConfig(root *cobra.Command, err error) {
+	next := root.PersistentPreRunE
+	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		for c := cmd; c != nil; c = c.Parent() {
+			if c.Annotations[anywhere] != "" || c.Name() == "help" || c.Name() == "completion" {
+				if next != nil {
+					return next(cmd, args)
+				}
+				return nil
+			}
+		}
+		return err
 	}
 }
 
