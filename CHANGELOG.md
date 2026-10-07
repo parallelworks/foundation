@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.14.0](https://github.com/parallelworks/foundation/compare/v0.13.0...v0.14.0) (2026-10-07)
+
+
+### ⚠ BREAKING CHANGES
+
+* **spa:** a set DevServer always proxies, so a stale build never takes Vite's place ([#117](https://github.com/parallelworks/foundation/issues/117))
+
+### Features
+
+* **dev:** dev runs the stack, the server with hot reload and the app's processes in one terminal ([#108](https://github.com/parallelworks/foundation/issues/108)) ([6d6f716](https://github.com/parallelworks/foundation/commit/6d6f716766078053bdd777dcb144ac860347cb61))
+* **dev:** go tool dev runs Postgres and S3 for local development, and is the base of an app's own dev command ([#100](https://github.com/parallelworks/foundation/issues/100)) ([4fd3576](https://github.com/parallelworks/foundation/commit/4fd3576f4c83d3bad84bde5d27e46bbcd1712747))
+* **server:** Serve binds before it logs, and logs a URL to reach the server ([#126](https://github.com/parallelworks/foundation/issues/126)) ([552eee7](https://github.com/parallelworks/foundation/commit/552eee75d4c8b902f2150209997362b4edbd3da9))
+* **spa:** a set DevServer always proxies, so a stale build never takes Vite's place ([#117](https://github.com/parallelworks/foundation/issues/117)) ([cac9b21](https://github.com/parallelworks/foundation/commit/cac9b21da2becdbf16ca40a0aba43b34ee8eecd4))
+
 ## [0.13.0](https://github.com/parallelworks/foundation/compare/v0.12.0...v0.13.0) (2026-10-03)
 
 
