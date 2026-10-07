@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/parallelworks/foundation/compare/dev/v0.7.0...dev/v0.8.0) (2026-10-07)
+
+
+### Features
+
+* **dev:** install dev globally, and it runs each repository's own dev ([#143](https://github.com/parallelworks/foundation/issues/143)) ([8c88705](https://github.com/parallelworks/foundation/commit/8c887050e671c7f97af9d7a8702f0e93f23cf269))
+
 ## [0.7.0](https://github.com/parallelworks/foundation/compare/dev/v0.6.1...dev/v0.7.0) (2026-10-07)
 
 
