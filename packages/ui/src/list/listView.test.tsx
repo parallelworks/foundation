@@ -115,18 +115,25 @@ describe('shared list view filters', () => {
 })
 
 describe('stacked columns', () => {
-  it('hides a stacked column below the medium width and says so per visible column', () => {
+  it('stacks columns without a priority by default, except the first and any set not to', () => {
     const { result } = renderHook(() =>
       useListView<{ id: string }>({
         storageKey: 'stack-test',
         columns: [
           { key: 'name', label: 'Name', alwaysVisible: true },
-          { key: 'status', label: 'Status', stack: true },
+          { key: 'status', label: 'Status' },
+          { key: 'total', label: 'Total', stack: false },
           { key: 'owner', label: 'Owner', priority: 'low' },
         ],
       }),
     )
-    expect(result.current.columnStacks).toEqual([false, true, false])
-    expect(result.current.columnClasses[1]).toBe('hidden @[36rem]:table-cell')
+    // The first is what others stack under; a priority drops instead; stack: false stays a column.
+    expect(result.current.columnStacks).toEqual([false, true, false, false])
+    expect(result.current.columnClasses).toEqual([
+      '',
+      'hidden @[36rem]:table-cell',
+      '',
+      'hidden @[52rem]:table-cell',
+    ])
   })
 })

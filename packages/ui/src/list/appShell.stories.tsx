@@ -177,7 +177,7 @@ function Viewport({ children, narrow }: { children: ReactNode; narrow?: boolean 
 interface ShellArgs {
   state: 'ready' | 'loading' | 'empty' | 'error'
   rowCount: number
-  /** A phone-width frame, where Location drops and Status stacks under the name. */
+  /** A phone-width frame, where Location and Owner drop and Status stacks under the name. */
   narrow?: boolean
 }
 
@@ -195,8 +195,8 @@ function ClustersPage({ state, rowCount }: ShellArgs) {
     columns: [
       { key: 'name', label: 'Name', alwaysVisible: true },
       { key: 'location', label: 'Location', priority: 'medium' },
-      // Too important to drop on a phone: it moves under the name instead.
-      { key: 'status', label: 'Status', stack: true },
+      // No priority: on a phone it moves under the name rather than dropping.
+      { key: 'status', label: 'Status' },
       { key: 'owner', label: 'Owner', priority: 'low' },
     ],
     orderBys: [

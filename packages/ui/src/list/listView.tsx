@@ -15,10 +15,13 @@ export interface ColumnDef {
   defaultHidden?: boolean
   /** NOT a table column (no header) — appears in picker and isVisible, but excluded from visibleColumns. */
   inline?: boolean
+  /** Drops below a container width instead of stacking (see `stack`). */
   priority?: ColumnPriority
-  /** Too important to drop, too wide to keep on a narrow container (a status,
-   * say): below the `medium` width its cell gives way and its content shows
-   * under the first column's instead. Takes the place of `priority`. */
+  /** Below the `medium` width, a column without a `priority` gives up its cell
+   * and its content shows under the first column's instead, so a phone gets a
+   * row it can read rather than one running off the side. `false` keeps it a
+   * column there: for something short that compares best lined up, like a
+   * total. The first column never stacks; it is what the others stack under. */
   stack?: boolean
 }
 
@@ -32,8 +35,13 @@ const PRIORITY_SHOW_CLASS: Record<ColumnPriority, string> = {
   medium: 'hidden @[36rem]:table-cell',
 }
 
-function columnResponsiveClass(col: ColumnDef): string {
-  if (col.stack) {
+/** Whether the column at index `i` of the visible ones stacks on a narrow container. */
+function stacks(col: ColumnDef, i: number): boolean {
+  return i > 0 && !col.priority && col.stack !== false
+}
+
+function columnResponsiveClass(col: ColumnDef, i: number): string {
+  if (stacks(col, i)) {
     return PRIORITY_SHOW_CLASS.medium
   }
   return col.priority ? PRIORITY_SHOW_CLASS[col.priority] : ''
@@ -302,7 +310,7 @@ export function useListView<T>({
   )
 
   const columnClasses = useMemo(() => visibleColumns.map(columnResponsiveClass), [visibleColumns])
-  const columnStacks = useMemo(() => visibleColumns.map((c) => Boolean(c.stack)), [visibleColumns])
+  const columnStacks = useMemo(() => visibleColumns.map(stacks), [visibleColumns])
 
   const toggleColumn = useCallback(
     (key: string) =>
