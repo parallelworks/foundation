@@ -89,11 +89,12 @@ func nextFreePort(ctx context.Context, preferred int, taken map[int]bool) (int, 
 // server bound to localhost alone still holds it for a browser.
 func portFree(ctx context.Context, port int) bool {
 	p := strconv.Itoa(port)
-	for _, addr := range []string{":" + p, "127.0.0.1:" + p, "[::1]:" + p} {
+	for i, addr := range []string{":" + p, "127.0.0.1:" + p, "[::1]:" + p} {
 		ln, err := (&net.ListenConfig{}).Listen(ctx, "tcp", addr)
 		if err != nil {
-			// A machine without IPv6 has no [::1] to hold.
-			if errors.Is(err, syscall.EADDRNOTAVAIL) {
+			// A machine without IPv6 has no [::1] to hold, and macOS lets a
+			// user bind a port under 1024 on the wildcard address alone.
+			if errors.Is(err, syscall.EADDRNOTAVAIL) || (i > 0 && errors.Is(err, syscall.EACCES)) {
 				continue
 			}
 			return false
