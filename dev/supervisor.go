@@ -49,6 +49,7 @@ type supervisor struct {
 	order    []string
 	services map[string]*runner
 	stack    string // what the stack is doing, for the TUI's header
+	since    time.Time
 	changed  chan struct{}
 }
 
@@ -267,10 +268,12 @@ func (s *supervisor) starting() string {
 	return "starting"
 }
 
-func (s *supervisor) stackState() string {
+// stackState is what dev is doing before its services start, and since
+// when; "" once they have.
+func (s *supervisor) stackState() (string, time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.stack
+	return s.stack, s.since
 }
 
 func (s *supervisor) setState(r *runner, st state, detail string) {
@@ -344,7 +347,7 @@ func (s *supervisor) learnURL(r *runner, line string) {
 
 func (s *supervisor) setStack(what string) {
 	s.mu.Lock()
-	s.stack = what
+	s.stack, s.since = what, time.Now()
 	s.mu.Unlock()
 	s.notify()
 }
