@@ -27,7 +27,9 @@ func TestHealthMovesAServiceThroughItsStates(t *testing.T) {
 	cfg := Config{Root: root, Services: []Service{
 		{Name: "api", Run: []string{"sleep", "300"}, Health: health.URL},
 		{Name: "web", Run: []string{"sleep", "300"}},
-		{Name: "job", Run: []string{"sh", "-c", "sleep 0.2; exit 4"}, Manual: true},
+		// Never answers its health URL, so it is never up before it exits;
+		// without one it would count as up while running.
+		{Name: "job", Run: []string{"sh", "-c", "sleep 0.2; exit 4"}, Manual: true, Health: "http://127.0.0.1:1/"},
 	}}
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan struct{})
