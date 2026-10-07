@@ -158,6 +158,8 @@ func startS3(ctx context.Context, dir, addr string, logger *slog.Logger) (*http.
 	srv := &http.Server{
 		Handler:           gofakes3.New(backend).Server(),
 		ReadHeaderTimeout: 10 * time.Second,
+		// Without one, net/http logs to stderr, under the interactive view.
+		ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelWarn),
 	}
 	go func() {
 		if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {

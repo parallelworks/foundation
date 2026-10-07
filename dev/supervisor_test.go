@@ -39,7 +39,7 @@ func testServices(root string) Config {
 		return []string{"sh", "-c", "echo $$ > " + name + ".pid; echo " + name + " up; exec sleep 300"}
 	}
 	return Config{Root: root, Services: []Service{
-		{Name: "api", Build: []string{"true"}, Run: write("api"), Watch: []string{"."}},
+		{Name: "api", Build: []string{"true"}, Run: write("api"), Watch: []string{"."}, URL: "http://localhost:8080"},
 		{Name: "web", Run: write("web")},
 		{Name: "worker", Run: write("worker"), Manual: true},
 	}}
@@ -138,6 +138,8 @@ func TestTUIKeysDriveServices(t *testing.T) {
 			msg = tea.KeyPressMsg{Code: tea.KeyEnter}
 		case "esc":
 			msg = tea.KeyPressMsg{Code: tea.KeyEscape}
+		case "ctrl+u":
+			msg = tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl}
 		default:
 			msg = tea.KeyPressMsg{Code: rune(k[0]), Text: k}
 		}
@@ -156,6 +158,14 @@ func TestTUIKeysDriveServices(t *testing.T) {
 			t.Errorf("home view lacks %q:\n%s", want, home)
 		}
 	}
+	// An OSC 8 hyperlink, which terminals open on cmd-click.
+	if !strings.Contains(home, "\x1b]8;;http://localhost:8080") {
+		t.Errorf("api's URL is not a link:\n%q", home)
+	}
+	lines := strings.Split(home, "\n")
+	if len(lines) != 20 || !strings.Contains(lines[19], "q quit") {
+		t.Errorf("help is not on the last of 20 lines: %d lines, last %q", len(lines), lines[len(lines)-1])
+	}
 
 	press("down") // web
 	press("s")
@@ -169,6 +179,11 @@ func TestTUIKeysDriveServices(t *testing.T) {
 	eventually(t, "web's output in its view", func() bool { return strings.Contains(m.View().Content, "web up") })
 	if strings.Contains(m.View().Content, "api up") {
 		t.Error("web's view shows api's output")
+	}
+	// Paging works with the keys a laptop has.
+	press("ctrl+u")
+	if m.scroll != 0 {
+		t.Errorf("ctrl+u scrolled past the top of a short log: %d", m.scroll)
 	}
 	press("esc")
 	press("a")
@@ -192,5 +207,48 @@ func TestSocketsLiveInRuntimeState(t *testing.T) {
 	home, _ := os.UserHomeDir()
 	if dir, err := socketDir(); err != nil || dir != filepath.Join(home, ".local", "state", "foundation-dev") {
 		t.Errorf("without: %q, %v", dir, err)
+	}
+}
+
+func TestServicesLearnWhereToOpenThem(t *testing.T) {
+	root := t.TempDir()
+	cfg := Config{Root: root, S3: &S3{Addr: "127.0.0.1:" + strconv.Itoa(freePort(t))}, Services: []Service{
+		// As Vite prints it, colors and all.
+		{Name: "web", Run: []string{"sh", "-c", `printf '  \033[32m➜\033[0m  Local:   \033[36mhttp://localhost:5173/\033[0m\n'; exec sleep 300`}},
+		{Name: "api", Run: []string{"sleep", "300"}, Health: "http://localhost:8080/readyz"},
+		{Name: "set", Run: []string{"sh", "-c", "echo http://localhost:9999; exec sleep 300"}, URL: "http://localhost:3000"},
+	}}
+	s, err := newSupervisor(cfg, slog.New(slog.DiscardHandler), io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() { done <- s.run(ctx) }()
+	t.Cleanup(func() { cancel(); <-done })
+
+	urlOf := func(name string) string {
+		for _, st := range s.statuses() {
+			if st.Name == name {
+				return st.URL
+			}
+		}
+		return ""
+	}
+	eventually(t, "web's printed address", func() bool { return urlOf("web") == "http://localhost:5173/" })
+	if got := urlOf("api"); got != "http://localhost:8080" {
+		t.Errorf("api = %q, want its health URL's origin", got)
+	}
+	eventually(t, "set's output", func() bool { return len(s.lines("set")) > 0 })
+	if got := urlOf("set"); got != "http://localhost:3000" {
+		t.Errorf("set = %q, want the url dev.json gives over what it prints", got)
+	}
+
+	// Rendered inside another style, a link loses its styling from the first
+	// character on; it must reach the screen exactly as link renders it.
+	m := &model{sup: s, ctx: ctx, cancel: cancel}
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 10})
+	if s3 := link("http://"+cfg.S3.Addr, true); !strings.Contains(m.View().Content, s3) {
+		t.Errorf("the S3 link was restyled:\n%q", m.View().Content)
 	}
 }

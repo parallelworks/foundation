@@ -88,6 +88,7 @@ func (s *supervisor) transition(r *runner, from, to state, detail string) {
 	}
 	r.status.State, r.status.Detail, r.status.Since = to, detail, since
 	s.mu.Unlock()
+	s.announce(r, from.up(), to)
 	s.notify()
 }
 

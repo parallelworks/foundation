@@ -21,14 +21,19 @@ func runTUI(ctx context.Context, cfg Config, names []string) error {
 	// dev's own log goes to its own pane; on the terminal it would tear the
 	// screen.
 	devLog := &tuiLog{}
-	logger := slog.New(tint.NewTextHandler(devLog, &tint.Options{TimeFormat: time.TimeOnly, NoColor: true}))
-	s, err := newSupervisor(cfg, logger, discard{})
+	probs := newProblems(tint.NewTextHandler(devLog, &tint.Options{TimeFormat: time.TimeOnly, NoColor: true}))
+	s, err := newSupervisor(cfg, slog.New(probs), discard{})
 	if err != nil {
 		return err
 	}
 	devLog.w = s.outputs.writer("dev")
+	restore, err := captureOutput(devLog)
+	if err != nil {
+		return err
+	}
+	defer restore()
 
-	m := &model{sup: s, ctx: ctx, cancel: cancel, name: s.cfg.Name}
+	m := &model{sup: s, ctx: ctx, cancel: cancel, name: s.cfg.Name, problems: probs}
 	p := tea.NewProgram(m, tea.WithContext(context.WithoutCancel(ctx)))
 	runErr := make(chan error, 1)
 	go func() {
@@ -77,9 +82,10 @@ type model struct {
 	sup *supervisor
 	// ctx is dev's own: services started from here run under it, and q
 	// cancels it.
-	ctx    context.Context
-	cancel context.CancelFunc
-	name   string
+	ctx      context.Context
+	cancel   context.CancelFunc
+	problems *problems // nil in tests that drive the model directly
+	name     string
 
 	view     view
 	cursor   int
@@ -159,19 +165,35 @@ func (m *model) key(k string) (tea.Model, tea.Cmd) {
 			m.scroll++
 		case "down", "j":
 			m.scroll = max(m.scroll-1, 0)
-		case "pgup":
+		// Laptop keyboards lack pgup, pgdn and end; less and vim's keys
+		// work everywhere.
+		case "pgup", "ctrl+u", "ctrl+b":
 			m.scroll += m.pageSize()
-		case "pgdown":
+		case "pgdown", "ctrl+d", "ctrl+f", "space":
 			m.scroll = max(m.scroll-m.pageSize(), 0)
 		case "end", "G":
 			m.scroll = 0
+		case "home", "g":
+			m.scroll = m.maxScroll()
 		case "r":
 			if m.view == viewLogs {
 				return m, m.act(services, m.restart)
 			}
 		}
+		m.scroll = min(m.scroll, m.maxScroll())
 	}
 	return m, nil
+}
+
+// maxScroll is how far up the current log can scroll: to its oldest line at
+// the top of the page.
+func (m *model) maxScroll() int {
+	name := ""
+	if m.view == viewLogs {
+		services := m.sup.statuses()
+		name = services[min(m.cursor, len(services)-1)].Name
+	}
+	return max(len(m.sup.lines(name))-m.pageSize(), 0)
 }
 
 // act runs a start, stop or restart off the UI's goroutine: stopping waits
@@ -191,10 +213,11 @@ func (m *model) restart(name string) error { return m.sup.restart(m.ctx, name) }
 func (m *model) pageSize() int { return max(m.height-4, 1) }
 
 var (
-	titleStyle = lipgloss.NewStyle().Bold(true)
-	dimStyle   = lipgloss.NewStyle().Faint(true)
-	cursorBar  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12"))
-	stateStyle = map[state]lipgloss.Style{
+	titleStyle   = lipgloss.NewStyle().Bold(true)
+	dimStyle     = lipgloss.NewStyle().Faint(true)
+	problemStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
+	cursorBar    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12"))
+	stateStyle   = map[state]lipgloss.Style{
 		stateRunning:   lipgloss.NewStyle().Foreground(lipgloss.Color("2")),
 		stateBuilding:  lipgloss.NewStyle().Foreground(lipgloss.Color("3")),
 		stateFailed:    lipgloss.NewStyle().Foreground(lipgloss.Color("1")),
@@ -218,9 +241,9 @@ func (m *model) View() tea.View {
 	case viewLogs:
 		services := m.sup.statuses()
 		name := services[min(m.cursor, len(services)-1)].Name
-		m.log(&b, name, m.sup.lines(name), "esc back · r restart · ↑↓ pgup pgdn scroll · end follow · q quit")
+		m.log(&b, name, m.sup.lines(name), "esc back · r restart · ↑↓ scroll · ctrl+u/d page · g top · G follow · q quit")
 	case viewAll:
-		m.log(&b, "all output", m.sup.lines(""), "esc back · ↑↓ pgup pgdn scroll · end follow · q quit")
+		m.log(&b, "all output", m.sup.lines(""), "esc back · ↑↓ scroll · ctrl+u/d page · g top · G follow · q quit")
 	}
 	v := tea.NewView(b.String())
 	v.AltScreen = true
@@ -235,7 +258,7 @@ func (m *model) home(b *strings.Builder) {
 	}
 	b.WriteString(titleStyle.Render(title))
 	if stack := m.stackLine(); stack != "" {
-		b.WriteString(dimStyle.Render("   " + stack))
+		b.WriteString("   " + stack)
 	}
 	b.WriteString("\n\n")
 
@@ -247,7 +270,7 @@ func (m *model) home(b *strings.Builder) {
 	for i, s := range services {
 		bar := "  "
 		if i == m.cursor {
-			bar = cursorBar.Render("▌ ")
+			bar = cursorBar.Render("> ")
 		}
 		st := stateStyle[s.State]
 		detail := s.Detail
@@ -255,18 +278,24 @@ func (m *model) home(b *strings.Builder) {
 			detail = "manual"
 		}
 		fmt.Fprintf(b, "%s%s %-*s  %s  %s  %s\n", bar, st.Render(stateMark[s.State]), width, s.Name,
-			st.Render(fmt.Sprintf("%-9s", s.State)), dimStyle.Render(since(s.Since)), dimStyle.Render(detail))
+			st.Render(fmt.Sprintf("%-9s", s.State)), dimStyle.Render(since(s.Since)),
+			strings.TrimSpace(link(s.URL, s.State.up())+"  "+dimStyle.Render(detail)))
 	}
 	if len(services) == 0 {
 		b.WriteString(dimStyle.Render("  no services in dev.json") + "\n")
 	}
 
-	b.WriteString("\n")
-	if m.notice != "" {
+	// The status and help lines stay at the bottom of the screen, as in the
+	// log views.
+	for range m.height - 2 - strings.Count(b.String(), "\n") {
+		b.WriteString("\n")
+	}
+	switch {
+	case m.notice != "":
 		b.WriteString(m.notice + "\n")
-	} else if devLines := m.sup.lines("dev"); len(devLines) > 0 {
-		b.WriteString(dimStyle.Render(truncate(devLines[len(devLines)-1], m.width)) + "\n")
-	} else {
+	case m.problems != nil && m.problems.recent() != "":
+		b.WriteString(problemStyle.Render(truncate(m.problems.recent(), m.width)) + "\n")
+	default:
 		b.WriteString("\n")
 	}
 	if m.quitting {
@@ -276,18 +305,20 @@ func (m *model) home(b *strings.Builder) {
 	}
 }
 
+// stackLine describes the stack, each part styled on its own: styling a
+// string that already holds a link would cut into the link's own styling.
 func (m *model) stackLine() string {
 	if what := m.sup.stackState(); what != "" {
-		return what + "…"
+		return dimStyle.Render(what + "…")
 	}
 	var parts []string
 	if m.sup.cfg.Postgres != nil {
-		parts = append(parts, fmt.Sprintf("postgres :%d", m.sup.cfg.Postgres.Port))
+		parts = append(parts, dimStyle.Render(fmt.Sprintf("postgres :%d", m.sup.cfg.Postgres.Port)))
 	}
 	if m.sup.cfg.S3 != nil {
-		parts = append(parts, "s3 "+m.sup.cfg.S3.Addr)
+		parts = append(parts, dimStyle.Render("s3 ")+link("http://"+m.sup.cfg.S3.Addr, true))
 	}
-	return strings.Join(parts, " · ")
+	return strings.Join(parts, dimStyle.Render(" · "))
 }
 
 func (m *model) log(b *strings.Builder, title string, lines []string, help string) {
@@ -311,6 +342,19 @@ func (m *model) log(b *strings.Builder, title string, lines []string, help strin
 		help = m.notice
 	}
 	b.WriteString(dimStyle.Render(help))
+}
+
+// link renders a URL the terminal opens on cmd-click (OSC 8), in link blue,
+// dimmed while nothing answers there.
+func link(url string, up bool) string {
+	if url == "" {
+		return ""
+	}
+	style := lipgloss.NewStyle().Foreground(lipgloss.Color("12")).Underline(true).Hyperlink(url)
+	if !up {
+		style = style.Faint(true)
+	}
+	return style.Render(url)
 }
 
 func since(t time.Time) string {
