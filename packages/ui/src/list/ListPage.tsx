@@ -177,11 +177,14 @@ export function ListRow({
   const cells = Children.toArray(children)
   // A stacked column's content also rides under the first cell, shown only
   // where its own cell has given way, so it never leaves the row.
-  const stacked = cells.flatMap((child, i) =>
-    i > 0 && columnStacks[i] && isValidElement(child)
-      ? [(child as ReactElement<{ children?: ReactNode }>).props.children]
-      : [],
-  )
+  // A cell with nothing in it (a status only some rows have) adds nothing.
+  const stacked = cells.flatMap((child, i) => {
+    if (i === 0 || !columnStacks[i] || !isValidElement(child)) {
+      return []
+    }
+    const content = (child as ReactElement<{ children?: ReactNode }>).props.children
+    return Children.toArray(content).length > 0 ? [content] : []
+  })
   const styledCells = cells.map((child, i) => {
     const cls = columnClasses[i]
     if (!isValidElement(child) || (!cls && !(i === 0 && stacked.length > 0))) {
