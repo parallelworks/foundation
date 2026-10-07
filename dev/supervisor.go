@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"net/url"
 	"regexp"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,6 +25,7 @@ const (
 	stateRunning  state = "running"
 	stateFailed   state = "failed" // the build failed; waiting for a change
 	stateExited   state = "exited"
+	stateWaiting  state = "waiting" // for the services it depends on
 )
 
 // status is a service's state, as the TUI and `dev status` show it.
@@ -219,6 +222,9 @@ func (s *supervisor) start(ctx context.Context, name string) error {
 		wg.Go(func() { s.probe(ctx, r) })
 	}
 	wg.Go(func() {
+		if !s.waitForDependencies(ctx, r) {
+			return
+		}
 		if len(r.svc.Build) > 0 {
 			runServer(ctx, s.cfg, r.svc, env, s.builds, r.out, logger, set)
 		} else {
@@ -379,4 +385,29 @@ func (s *supervisor) notify() {
 // is empty, oldest first.
 func (s *supervisor) lines(name string) []string {
 	return s.outputs.recent(name)
+}
+
+// waitForDependencies holds a service back until every service it depends
+// on is up; false when it is stopped first.
+func (s *supervisor) waitForDependencies(ctx context.Context, r *runner) bool {
+	if len(r.svc.DependsOn) == 0 {
+		return true
+	}
+	s.setState(r, stateWaiting, "for "+strings.Join(r.svc.DependsOn, ", "))
+	for {
+		up := true
+		for _, st := range s.statuses() {
+			if slices.Contains(r.svc.DependsOn, st.Name) && !st.State.up() {
+				up = false
+			}
+		}
+		if up {
+			return true
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
 }

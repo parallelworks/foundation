@@ -168,7 +168,7 @@ func TestWatcherReportsSourceChangesOnly(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	w, err := newWatcher([]string{root}, []string{"web"}, []string{".go"}, slog.New(slog.DiscardHandler))
+	w, err := newWatcher([]string{root}, []string{"web"}, []string{".go"}, nil, slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatal(err)
 	}

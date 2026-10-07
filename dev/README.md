@@ -157,6 +157,19 @@ service comes up. Without one, a service with a `health` URL links to that
 URL's origin, and any other takes the first local address it prints, as Vite
 and Storybook do when they start.
 
+A service can depend on others: with `"dependsOn": ["db"]` it reads *waiting*
+until `db` is up, and `dev web` starts `db` too. `"restart": "on-failure"`
+starts a service again when it exits with an error, waiting longer each time
+it keeps failing; without it a service that exits is left stopped.
+`"rebuildOnCheckout": true` rebuilds a server when the checkout's branch
+changes, for a build stamped with it; it finds the branch through git, so it
+works in a worktree too.
+
+A local database is a service like any other, such as
+`{ "name": "db", "run": ["mongod", "--dbpath", "{dir}/mongo", "--port", "{port.db}"], "health": … }`:
+`{dir}` is the stack's directory (`.devstack`), where its data stays with the
+checkout.
+
 Each service runs in its `dir`, relative to `dev.json`. Each command runs in
 its own process group, and stopping one ends everything it started, such as
 the Vite under `pnpm`. Unix only.
@@ -205,8 +218,11 @@ service's own `env`; `envFile` (default `.env` beside `dev.json`, skipped when
 missing); the service's `envFile`, relative to its `dir`; and the real
 environment, so `SHOP_LOG_LEVEL=info make dev` overrides everything. Values
 in `env` may name the stack: `{postgres}` and `{postgres_test}` are database
-URLs, and `{s3}` is the S3 endpoint. Keep `.env` for secrets and personal
-settings.
+URLs, and `{s3}` is the S3 endpoint. `{dir}` is the stack's directory,
+`{root}` the checkout's, and `{instance}` names the checkout in a few readable
+characters, such as `shop-1a2b`, for anything shared between checkouts that
+must not collide, like a queue on a shared server. Keep `.env` for secrets and
+personal settings.
 
 `before` commands run once, in order, before anything starts, such as
 generating files a server embeds. If one fails, `dev` stops with its error.
