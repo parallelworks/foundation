@@ -1,6 +1,7 @@
 import { createContext, use, useRef } from 'react'
 import { keyedByContent } from '../components/keys'
 import { useNotify, useStrings } from '../components/Provider'
+import { mapWithConcurrency } from './lib/batch'
 import type { IFileExplorerClient, IFileExplorerProvider } from './lib/fileExplorer'
 import type { TreeNode, UploadFileProgress, UploadNode, UploadSession } from './lib/types'
 import { calculateUploadNodesTotalSize, getUploadSessionETA, removeLeadingSlash } from './lib/utils'
@@ -25,6 +26,8 @@ interface IFileExplorerContextValue {
   getUploadQueueIndex: (sessionId: string) => number
   startUploadSession: (sessionId: string) => Promise<void>
 }
+
+const UPLOAD_CONCURRENCY = 3
 
 const FileExplorerContext = createContext<IFileExplorerContextValue | undefined>(undefined)
 
@@ -264,13 +267,15 @@ export function FileExplorerProvider({ children }: IFileExplorerProviderProps) {
         autoClose: false,
       })
 
-      const results = await Promise.allSettled(
-        session.uploadNodes.map(async (node) => {
+      const results = await mapWithConcurrency(
+        session.uploadNodes,
+        UPLOAD_CONCURRENCY,
+        async (node) => {
           const fileProgress = session.progress?.allFiles?.get(node.relativePath)
           if (!fileProgress) {
             return
           }
-          // Throwing, not returning, is what makes allSettled count the file
+          // Throwing, not returning, is what makes the settled results count the file
           // as not uploaded; the summary then tells cancelled from failed by
           // the message.
           if (fileProgress.status === 'cancelled') {
@@ -383,11 +388,11 @@ export function FileExplorerProvider({ children }: IFileExplorerProviderProps) {
               autoClose: false,
             })
 
-            // Re-throw the error for Promise.allSettled to process the overall toast
+            // Re-throw so the file counts as not uploaded in the overall toast
             throw error
           }
           return
-        }),
+        },
       )
 
       try {
