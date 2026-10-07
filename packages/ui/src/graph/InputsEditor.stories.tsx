@@ -76,8 +76,9 @@ function EditableForm({ source, problems }: { source: string; problems?: EditorP
   const formJSONs = useMemo(() => engine.convertInputs(inputs ?? {}), [engine, inputs])
   // The form starts from the inputs' defaults, as a host's run form does.
   const initialValues = useMemo(() => initializeValues(formJSONs) ?? {}, [formJSONs])
+  // In a padded panel, as an app's editing page shows the form.
   return (
-    <div className="max-w-2xl p-4">
+    <div className="relative max-w-2xl p-4 panel">
       <InputsFormEditor
         editor={story.editor(
           problems

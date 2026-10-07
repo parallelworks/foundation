@@ -148,17 +148,21 @@ function EditableGraph({
     ...problem,
     pick: () => {},
   }))
+  // In a padded panel without its own border, as an app's editing page shows it.
   return (
-    <DependencyGraphPreview
-      yml={story.workflow}
-      layout={story.layout}
-      height={height}
-      editor={story.editor({
-        ...(problems ? { problems } : {}),
-        ...(listed ? { listedProblems: listed } : {}),
-        usesSuggestions: ['workflow/deploy', 'marketplace/notify'],
-      })}
-    />
+    <div className="relative p-4 panel">
+      <DependencyGraphPreview
+        yml={story.workflow}
+        layout={story.layout}
+        height={height}
+        removeBorder
+        editor={story.editor({
+          ...(problems ? { problems } : {}),
+          ...(listed ? { listedProblems: listed } : {}),
+          usesSuggestions: ['workflow/deploy', 'marketplace/notify'],
+        })}
+      />
+    </div>
   )
 }
 
