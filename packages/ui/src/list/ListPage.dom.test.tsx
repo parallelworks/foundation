@@ -142,6 +142,23 @@ describe('ListRow stacked columns', () => {
     expect(first?.querySelector('[data-stacked]')).toHaveTextContent('Running')
   })
 
+  it('adds nothing for a stacked cell with nothing in it', () => {
+    render(
+      <ListRowActionsProvider view={view}>
+        <table>
+          <tbody>
+            <ListRow href={null} items={[]} goTo={() => {}} openMenu={() => {}}>
+              <Table.Item>Ada</Table.Item>
+              <Table.Item>Lisbon</Table.Item>
+              <Table.Item>{false}</Table.Item>
+            </ListRow>
+          </tbody>
+        </table>
+      </ListRowActionsProvider>,
+    )
+    expect(screen.getAllByRole('cell')[0]?.querySelector('[data-stacked]')).toBeNull()
+  })
+
   it('leaves rows alone when nothing stacks', () => {
     render(
       <ListRowActionsProvider view={{ ...view, columnStacks: [false, false, false] }}>
