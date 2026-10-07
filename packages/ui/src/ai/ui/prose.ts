@@ -2,7 +2,7 @@
 // body on a 26px line, headings one step up at semibold rather than display
 // sizes, and list items that breathe. The measure is set by the column.
 export const chatProseClasses = [
-  'chat-ink prose max-w-none leading-relaxed',
+  'chat-ink prose max-w-none leading-relaxed wrap-break-word',
   'prose-p:my-3 prose-p:leading-relaxed',
   'prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-1',
   // text-[1rem], not text-base: this project's --color-base makes text-base a colour.
