@@ -2,7 +2,7 @@ import cx from 'classnames'
 import { useState } from 'react'
 import { useStrings } from './Provider'
 
-export type AvatarSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl'
+export type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl'
 export type AvatarStatus = 'online' | 'offline' | 'busy' | 'away'
 
 export interface AvatarProps {
@@ -15,6 +15,7 @@ export interface AvatarProps {
 }
 
 const SIZE_CLASSES: Record<AvatarSize, string> = {
+  xs: 'w-4 h-4 text-[9px]',
   sm: 'w-6 h-6 text-xs',
   md: 'w-8 h-8 text-sm',
   lg: 'w-10 h-10 text-base',
@@ -53,6 +54,7 @@ export function Avatar({ src, name, size = 'md', status, className }: AvatarProp
         <img
           src={src}
           alt={name || strings.common.userAvatar}
+          loading="lazy"
           onError={() => setErroredUrl(src)}
           className={cx('rounded-full object-cover', SIZE_CLASSES[size])}
         />
@@ -74,7 +76,7 @@ export function Avatar({ src, name, size = 'md', status, className }: AvatarProp
           className={cx(
             'absolute bottom-0 right-0 block rounded-full ring-2 ring-(--theme-app-bg)',
             STATUS_CLASSES[status],
-            size === 'sm' ? 'w-1.5 h-1.5' : 'w-2.5 h-2.5',
+            size === 'xs' || size === 'sm' ? 'w-1.5 h-1.5' : 'w-2.5 h-2.5',
           )}
         />
       )}

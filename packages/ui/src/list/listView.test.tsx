@@ -2,24 +2,11 @@
 import { act, renderHook } from '@testing-library/react'
 import type { FilterFacet } from './listView'
 import { useListView } from './listView'
+import { memoryStorage } from './testStorage'
 
 vi.mock('use-intl', () => ({
   useTranslations: () => (key: string) => key,
 }))
-
-function memoryStorage(): Storage {
-  const store = new Map<string, string>()
-  return {
-    getItem: (key: string) => store.get(key) ?? null,
-    setItem: (key: string, value: string) => store.set(key, value),
-    removeItem: (key: string) => store.delete(key),
-    clear: () => store.clear(),
-    key: (index: number) => [...store.keys()][index] ?? null,
-    get length() {
-      return store.size
-    },
-  } as Storage
-}
 
 type Row = { namespace: string; kind: string }
 

@@ -29,7 +29,10 @@ export function ListPager({
   const t = useStrings().list
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
   const start = page * pageSize + 1
-  const end = Math.min(total, (page + 1) * pageSize)
+  const pageEnd = (page + 1) * pageSize
+  // Past a capped count the server still reports more pages, so show the cap as a floor.
+  const pastCap = hasNext === true && pageEnd >= total
+  const end = pastCap ? pageEnd : Math.min(total, pageEnd)
   const smallest = Math.min(...pageSizes)
   // Also keep the select when a larger page size is what hid paging, so it can be reset.
   const showSizeSelect = !!onPageSizeChange && (total > smallest || pageSize > smallest)
@@ -39,7 +42,7 @@ export function ListPager({
   return (
     <div className="flex items-center justify-between px-2.5 h-10 shrink-0 border-t theme-border">
       <div className="flex items-center gap-3 text-xs text-(--theme-muted-text-color)">
-        <span>{t.pager(start, end, total)}</span>
+        <span>{t.pager(start, end, pastCap ? `${end}+` : total)}</span>
         {showSizeSelect && (
           <label className="flex items-center gap-1">
             {t.perPage}

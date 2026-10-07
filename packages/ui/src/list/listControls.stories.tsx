@@ -53,6 +53,16 @@ function ControlsDemo() {
         ],
         matches: (row, selected) => selected.includes(row.status),
       },
+      {
+        key: 'owner',
+        label: 'Owner',
+        searchable: true,
+        options: [...new Set(ROWS.map((row) => row.owner))].map((owner) => ({
+          value: owner,
+          label: owner,
+        })),
+        matches: (row, selected) => selected.includes(row.owner),
+      },
     ],
   })
   const search = useListSearch(true, 'storybook-demo-search')
@@ -85,4 +95,13 @@ function ControlsDemo() {
 
 export const Controls: StoryObj = {
   render: () => <ControlsDemo />,
+}
+
+/** A cursor list whose server caps the count: the label shows the cap as a floor and next stays enabled. */
+export const CappedPager: StoryObj = {
+  render: () => (
+    <div className="max-w-2xl">
+      <ListPager page={200} pageSize={50} total={10000} hasNext onPageChange={() => {}} />
+    </div>
+  ),
 }

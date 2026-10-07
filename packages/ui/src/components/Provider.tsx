@@ -370,7 +370,8 @@ export interface UIStrings {
     none: string
     filter: string
     clear: string
-    pager: (start: number, end: number, total: number) => string
+    searchOptions: string
+    pager: (start: number, end: number, total: number | string) => string
     perPage: string
     paginationPrevious: string
     paginationNext: string
@@ -892,6 +893,7 @@ const DEFAULTS: UIProviderValue = {
       none: 'None',
       filter: 'Filter',
       clear: 'Clear',
+      searchOptions: 'Search options…',
       pager: (start, end, total) => `${start}–${end} of ${total}`,
       perPage: 'Per page',
       paginationPrevious: 'Previous',
