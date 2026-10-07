@@ -179,9 +179,11 @@ interface ShellArgs {
   rowCount: number
   /** A phone-width frame, where Location and Owner drop and Status stacks under the name. */
   narrow?: boolean
+  /** Only clusters that need a look show a status, so some rows' Status cells are empty. */
+  sparseStatus?: boolean
 }
 
-function ClustersPage({ state, rowCount }: ShellArgs) {
+function ClustersPage({ state, rowCount, sparseStatus }: ShellArgs) {
   const copySubmenu = useCopySubmenu()
   const goTo = useListNavigate()
   const { openMenu, contextMenu } = useRowMenu()
@@ -343,7 +345,9 @@ function ClustersPage({ state, rowCount }: ShellArgs) {
               )}
               {view.isVisible('status') && (
                 <Table.Item className="py-2.5">
-                  <StatusBadge variant={STATUS_VARIANT[row.status]}>{row.status}</StatusBadge>
+                  {(!sparseStatus || row.status !== 'stopped') && (
+                    <StatusBadge variant={STATUS_VARIANT[row.status]}>{row.status}</StatusBadge>
+                  )}
                 </Table.Item>
               )}
               {view.isVisible('owner') && (
@@ -370,6 +374,7 @@ const meta: Meta<ShellArgs> = {
     },
     rowCount: { control: { type: 'range', min: 1, max: 40, step: 1 } },
     narrow: { control: 'boolean' },
+    sparseStatus: { control: 'boolean' },
   },
   render: (args) => (
     <MockHost>
@@ -400,6 +405,9 @@ export const LoadFailed: Story = { args: { state: 'error' } }
 
 /** At phone width the Status column gives way and each status sits under its row's name. */
 export const NarrowStacksStatus: Story = { args: { narrow: true } }
+
+/** Rows whose Status is empty add nothing under the name. */
+export const NarrowWithSomeStatusesEmpty: Story = { args: { narrow: true, sparseStatus: true } }
 
 export const RowMenuOpen: Story = {
   play: async ({ canvasElement }) => {
