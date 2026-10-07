@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"golang.org/x/mod/modfile"
@@ -25,45 +26,56 @@ const (
 // Version is this dev's module version.
 func Version() string { return version() }
 
-// HandOff runs the dev a repository pins in place of this one, when this is
-// a dev installed globally (`go install …/cmd/dev`) and the repository whose
-// dev.json is at configPath pins a different version as a tool. Every
-// checkout then runs the version it pins, as its CI and teammates do. On
-// success it does not return; it returns nil when this dev should run.
+// HandOff runs a repository's own dev in place of this one, when this is a
+// dev installed globally (`go install …/cmd/dev`). The repository whose
+// dev.json is at configPath says which: its `command`, for an app whose dev
+// adds commands of its own, or else the version its tools module pins. Every
+// checkout then runs what its CI and teammates run. On success it does not
+// return; it returns nil when this dev should run.
 func HandOff(configPath string, args []string) error {
-	dir, err := handOffTo(configPath)
-	if err != nil || dir == "" {
+	argv, err := handOffTo(configPath)
+	if err != nil || argv == nil {
 		return err
 	}
-	goBin, err := exec.LookPath("go")
+	bin, err := exec.LookPath(argv[0])
 	if err != nil {
 		return err
 	}
-	argv := append([]string{"go", "-C", dir, "tool", "dev"}, args...)
-	return syscall.Exec(goBin, argv, append(os.Environ(), handedOff+"=1")) //nolint:gosec // the go command, running the repository's own pinned dev
+	return syscall.Exec(bin, append(argv, args...), append(os.Environ(), handedOff+"=1")) //nolint:gosec // the repository's own dev, as its dev.json or tools module names it
 }
 
-// handOffTo is the module directory whose pinned dev should run instead of
-// this one, or "" when this one should.
-func handOffTo(configPath string) (string, error) {
+// handOffTo is the command that runs the repository's own dev instead of
+// this one, or nil when this one should run.
+func handOffTo(configPath string) ([]string, error) {
 	if configPath == "" || os.Getenv(handedOff) != "" || os.Getenv(forceGlobal) != "" {
-		return "", nil
+		return nil, nil
 	}
 	root := filepath.Dir(configPath)
+	cfg, err := LoadConfig(configPath)
+	if err != nil {
+		return nil, err
+	}
+	if len(cfg.Command) > 0 {
+		argv := make([]string, len(cfg.Command))
+		for i, a := range cfg.Command {
+			argv[i] = strings.ReplaceAll(a, "{root}", root)
+		}
+		return argv, nil
+	}
 	for _, dir := range []string{filepath.Join(root, "tools"), root} {
 		pinned, ok, err := pinnedDev(filepath.Join(dir, "go.mod"))
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		if !ok {
 			continue
 		}
 		if pinned == version() {
-			return "", nil
+			return nil, nil
 		}
-		return dir, nil
+		return []string{"go", "-C", dir, "tool", "dev"}, nil
 	}
-	return "", nil
+	return nil, nil
 }
 
 // pinnedDev reports the version of dev a go.mod pins as a tool.

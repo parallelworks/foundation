@@ -213,11 +213,20 @@ generating files a server embeds. If one fails, `dev` stops with its error.
 
 ## Your own command
 
-An app with its own development tasks builds its command on the same base:
+An app with development tasks of its own builds its dev on the same base,
+loading `dev.json` as `cmd/dev` does and adding its commands:
 
 ```go
 func main() {
-	root := dev.NewRootCmd(dev.Config{Name: "shop", Postgres: &dev.Postgres{}, S3: &dev.S3{}})
+	path, err := dev.FindConfig(".")
+	if err != nil {
+		log.Fatal(err)
+	}
+	cfg, err := dev.LoadConfig(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	root := dev.NewRootCmd(cfg)
 	root.AddCommand(seedCmd)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -226,3 +235,16 @@ func main() {
 	}
 }
 ```
+
+Then point the global `dev` at it: list the package as a tool in the module it
+lives in (`tool example.com/shop/cmd/dev` in `go.mod`), and name the command in
+`dev.json`:
+
+```json
+"command": ["go", "tool", "dev"]
+```
+
+`dev` then runs the app's own dev in its repository, from any directory in it:
+`dev seed` reaches the app's command, and `dev --help` lists it beside `up`,
+`status` and the rest. `{root}` in `command` stands for the directory of
+`dev.json`. A command wins over a pinned tools module.
