@@ -211,6 +211,33 @@ stands for the allocated port in `env`, `run`, `build`, `before`, `url` and
 `health`, and `{postgres}` and `{s3}` follow theirs, so a second checkout, or
 another app, runs beside the first without either changing its config.
 
+## Profiles
+
+Profiles are setups a checkout chooses between, such as a database on this
+machine or a shared remote one. Each can set `env`, include other profiles
+(which makes presets), and enable the services that name it in `profiles`:
+
+```json
+"profiles": {
+  "local-db":  { "env": { "SHOP_DB_URL": "mongodb://localhost:{port.db}/shop" } },
+  "remote-db": { "env": { "SHOP_DB_URL": "mongodb://localhost:27017/shop" } },
+  "local":     { "description": "everything on this machine", "include": ["local-db"] },
+  "remote":    { "description": "shared data", "include": ["remote-db"] }
+},
+"defaultProfiles": ["local"],
+"services": [
+  { "name": "db", "profiles": ["local-db"], "run": ["mongod", "--dbpath", "{dir}/db", "--port", "{port.db}"], … },
+  { "name": "api", "dependsOn": ["db"], … }
+]
+```
+
+`dev --profile remote` (or `remote-db,local-cache` to mix) chooses, and the
+checkout keeps the choice until it chooses again; `dev profiles` lists them,
+marking the ones in use. Chosen profiles set their env over the base, in the
+order chosen. A service that names profiles runs only when one of them is
+chosen, and a service that depends on it no longer waits when it is not: the
+other setup provides it.
+
 ## Environment
 
 Every command gets, from lowest to highest precedence: `env` in `dev.json`; the

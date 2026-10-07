@@ -20,12 +20,13 @@ import (
 
 // instance describes a running dev, for `dev ps` and tools.
 type instance struct {
-	Root    string         `json:"root"`
-	Dir     string         `json:"dir"`
-	PID     int            `json:"pid"`
-	Version string         `json:"version"`
-	Started time.Time      `json:"started"`
-	Ports   map[string]int `json:"ports,omitempty"`
+	Root     string         `json:"root"`
+	Dir      string         `json:"dir"`
+	PID      int            `json:"pid"`
+	Version  string         `json:"version"`
+	Started  time.Time      `json:"started"`
+	Ports    map[string]int `json:"ports,omitempty"`
+	Profiles []string       `json:"profiles,omitempty"`
 }
 
 // version is this dev's module version, which a client compares with the
@@ -61,7 +62,7 @@ func (s *supervisor) instance() instance {
 			ports["s3"] = port
 		}
 	}
-	return instance{Root: s.cfg.Root, Dir: s.cfg.Dir, PID: os.Getpid(), Version: version(), Started: s.started, Ports: ports}
+	return instance{Root: s.cfg.Root, Dir: s.cfg.Dir, PID: os.Getpid(), Version: version(), Started: s.started, Ports: ports, Profiles: s.cfg.active}
 }
 
 // checkoutCheck is how often dev looks for its checkout; a variable so that
