@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.0](https://github.com/parallelworks/foundation/compare/dev/v0.4.0...dev/v0.5.0) (2026-10-07)
+
+
+### Features
+
+* **dev:** an interactive view of the services, and commands to drive a running dev ([#122](https://github.com/parallelworks/foundation/issues/122)) ([e0ac469](https://github.com/parallelworks/foundation/commit/e0ac469084a36c71519ddba6334e7b9271db3cd4))
+* **dev:** health URLs tell when a service is ready, and dev wait waits for services ([#123](https://github.com/parallelworks/foundation/issues/123)) ([08f0a50](https://github.com/parallelworks/foundation/commit/08f0a50d35647b96ee4479d986bb16d4019ce9ba))
+* **dev:** services link to where they are open, and the view keeps its help at the bottom ([#124](https://github.com/parallelworks/foundation/issues/124)) ([f7f5a9d](https://github.com/parallelworks/foundation/commit/f7f5a9d2f8dede7fdbb89c54a8985889f39af845))
+
 ## [0.4.0](https://github.com/parallelworks/foundation/compare/dev/v0.3.0...dev/v0.4.0) (2026-10-06)
 
 
