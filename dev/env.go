@@ -55,18 +55,24 @@ func (c Config) vars(svc *Service) (map[string]string, error) {
 			fromFiles[k] = v
 		}
 	}
-	// ${NAME} reads what the command would see without dev.json, so a value
-	// dev.json composes, such as a URL, can hold a secret kept in an env file.
+	vars := map[string]string{}
+	// ${NAME} reads what the command would see, so a value dev.json composes,
+	// such as a URL, can hold a secret kept in an env file, and a service's
+	// value can follow one a profile sets.
 	lookup := func(name string) (string, bool) {
 		if v, ok := os.LookupEnv(name); ok {
 			return v, true
 		}
-		v, ok := fromFiles[name]
+		if v, ok := fromFiles[name]; ok {
+			return v, true
+		}
+		v, ok := vars[name]
 		return v, ok
 	}
-
-	vars := map[string]string{}
 	set := func(env map[string]string) error {
+		// A layer's values read the layers under it, not each other, so the
+		// order of a map does not change them.
+		layer := map[string]string{}
 		for k, v := range env {
 			expanded, err := c.expand(v)
 			if err == nil {
@@ -75,8 +81,9 @@ func (c Config) vars(svc *Service) (map[string]string, error) {
 			if err != nil {
 				return fmt.Errorf("env %s: %w", k, err)
 			}
-			vars[k] = expanded
+			layer[k] = expanded
 		}
+		maps.Copy(vars, layer)
 		return nil
 	}
 	if err := set(c.Env); err != nil {
@@ -91,16 +98,20 @@ func (c Config) vars(svc *Service) (map[string]string, error) {
 	return vars, nil
 }
 
-var envRef = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
+var envRef = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)(:-[^}]*)?\}`)
 
-// expandRefs replaces each ${NAME} in v with lookup's value for NAME.
+// expandRefs replaces each ${NAME} in v with lookup's value for NAME, and
+// ${NAME:-default} with default where NAME is unset or empty.
 func expandRefs(v string, lookup func(string) (string, bool)) (string, error) {
 	var missing []string
 	out := envRef.ReplaceAllStringFunc(v, func(ref string) string {
-		name := ref[2 : len(ref)-1]
-		val, ok := lookup(name)
+		m := envRef.FindStringSubmatch(ref)
+		val, ok := lookup(m[1])
+		if fallback, hasDefault := strings.CutPrefix(m[2], ":-"); hasDefault && val == "" {
+			return fallback
+		}
 		if !ok {
-			missing = append(missing, name)
+			missing = append(missing, m[1])
 		}
 		return val
 	})

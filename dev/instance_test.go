@@ -101,6 +101,9 @@ func TestExecPassesOnTheEnvironmentAndExitStatus(t *testing.T) {
 		Services: []Service{{Name: "web", Run: []string{"sleep", "300"}}},
 	}
 	runUp(t, cfg)
+	if env, err := Env(t.Context(), cfg); err != nil || env["DEV_TEST_FROM_DEV"] != "yes" {
+		t.Errorf("Env = %v, %v", env, err)
+	}
 	if err := execWith(t.Context(), cfg, []string{"sh", "-c", `test "$DEV_TEST_FROM_DEV" = yes`}); err != nil {
 		t.Errorf("the command did not get dev's environment: %v", err)
 	}

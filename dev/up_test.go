@@ -187,6 +187,22 @@ func TestEnvironReadsSecretsInto(t *testing.T) {
 		t.Errorf("DEV_TEST_KEPT = %q, want %q", got, want)
 	}
 
+	svc := Service{Name: "api", Env: map[string]string{
+		"DEV_TEST_PROXY": "${DEV_TEST_LAYERED:-none}",
+		"DEV_TEST_EMPTY": "[${DEV_TEST_NOWHERE:-}]",
+	}}
+	vars, err = cfg.vars(&svc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if vars["DEV_TEST_PROXY"] != "none" || vars["DEV_TEST_EMPTY"] != "[]" {
+		t.Errorf("defaults: DEV_TEST_PROXY = %q, DEV_TEST_EMPTY = %q", vars["DEV_TEST_PROXY"], vars["DEV_TEST_EMPTY"])
+	}
+	cfg.Env["DEV_TEST_LAYERED"] = "socks5://127.0.0.1:1080"
+	if vars, err = cfg.vars(&svc); err != nil || vars["DEV_TEST_PROXY"] != "socks5://127.0.0.1:1080" {
+		t.Errorf("a service value should follow dev.json's: %q, %v", vars["DEV_TEST_PROXY"], err)
+	}
+
 	cfg.Env = map[string]string{"DEV_TEST_URL": "x${DEV_TEST_NOWHERE}${DEV_TEST_ALSO}"}
 	_, err = cfg.vars(nil)
 	if err == nil || !strings.Contains(err.Error(), "DEV_TEST_URL: ${DEV_TEST_NOWHERE}, ${DEV_TEST_ALSO} is set in no env file") {

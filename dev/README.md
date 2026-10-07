@@ -264,8 +264,11 @@ set it, so `dev.json` can compose a value around a secret it should not hold:
 "env": { "DB_URL": "mongodb://app:${DB_PASS}@localhost:{port.mongo}/" }
 ```
 
-A `${NAME}` that neither sets is an error naming it. An env file's own values
-are taken as written.
+A `${NAME}` that neither sets is an error naming it; `${NAME:-default}` falls
+back instead. A service's values also read dev.json's and the active profiles',
+so a profile can set one variable that a single service turns into its own,
+such as a proxy only one server should use. An env file's own values are taken
+as written.
 
 `before` commands run once, in order, before anything starts, such as
 generating files a server embeds. If one fails, `dev` stops with its error.
@@ -326,6 +329,10 @@ root := dev.NewRootCmd(cfg,
 
 A row's `State` is `ok`, `busy`, `error` or `off`, and its `URL` is shown as a
 link. An app's key may not be one of the view's own.
+
+`dev.Env` is what the checkout's running dev sets for its commands, with its
+allocated ports filled in, for a tool of the app's that reaches what its
+services use, such as a query tool for their database.
 
 `dev.Instances` lists the devs running on the machine, each with its checkout
 (`Root`) and the ports it allocated, keyed by their names in `dev.json`. A
