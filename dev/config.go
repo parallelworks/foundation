@@ -37,6 +37,13 @@ type Config struct {
 	// and under the real environment. Defaults to .env; a missing file is
 	// skipped.
 	EnvFile string `json:"envFile,omitempty"`
+	// Ports names the ports the app's services listen on, with the one each
+	// prefers, such as {"server": 8080, "web": 5173}. dev gives each its
+	// preferred port when free and the next free one otherwise, and
+	// {port.<name>} stands for it in env, commands, url and health.
+	Ports map[string]int `json:"ports,omitempty"`
+	// ports is what dev allocated for Ports; nil until it has.
+	ports map[string]int
 	// Postgres runs when set.
 	Postgres *Postgres `json:"postgres,omitempty"`
 	// S3 runs when set.
@@ -110,6 +117,8 @@ var reserved = map[string]bool{
 	"start": true, "stop": true, "restart": true, "help": true, "completion": true,
 }
 
+var validPortName = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
+
 // The name lands in connection URLs and is the default for credentials, so
 // keep it to characters that need no escaping anywhere.
 var validName = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
@@ -167,6 +176,11 @@ func (c Config) withDefaults() (Config, error) {
 		c.EnvFile = ".env"
 	}
 	c.EnvFile = c.path(c.EnvFile)
+	for name, port := range c.Ports {
+		if !validPortName.MatchString(name) || port < 1 || port > 65535 {
+			return c, fmt.Errorf("port %q: want a lowercase name and a port from 1 to 65535, got %d", name, port)
+		}
+	}
 	for i, cmd := range c.Before {
 		if len(cmd) == 0 {
 			return c, fmt.Errorf("before %d is empty", i)
@@ -185,7 +199,10 @@ func (c Config) withDefaults() (Config, error) {
 		}
 		seen[svc.Name] = true
 		for field, v := range map[string]string{"url": svc.URL, "health": svc.Health} {
-			if u, err := url.Parse(v); v != "" && (err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "") {
+			// Placeholders such as {port.web} are filled in later; stand in
+			// a port so the rest of the URL is still checked now.
+			u, err := url.Parse(stackRef.ReplaceAllString(v, "1"))
+			if v != "" && (err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "") {
 				return c, fmt.Errorf("service %q: %s must be an http(s) URL, got %q", svc.Name, field, v)
 			}
 		}

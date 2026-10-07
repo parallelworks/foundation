@@ -63,9 +63,15 @@ type runner struct {
 
 // newSupervisor prepares cfg's services. Their output goes, prefixed, to
 // out, which is io.Discard when the TUI shows it instead.
-func newSupervisor(cfg Config, logger *slog.Logger, out io.Writer) (*supervisor, error) {
+func newSupervisor(ctx context.Context, cfg Config, logger *slog.Logger, out io.Writer) (*supervisor, error) {
 	cfg, err := cfg.withDefaults()
 	if err != nil {
+		return nil, err
+	}
+	if cfg, err = cfg.allocate(ctx, logger); err != nil {
+		return nil, err
+	}
+	if cfg, err = cfg.expandCommands(); err != nil {
 		return nil, err
 	}
 	o, err := newOutputs(out, cfg, cfg.Services)

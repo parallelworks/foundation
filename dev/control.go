@@ -129,6 +129,8 @@ func (s *supervisor) answer(ctx context.Context, conn net.Conn) {
 	_ = json.NewEncoder(conn).Encode(resp)
 }
 
+var errNotRunning = errors.New("dev is not running")
+
 // control sends a request to the dev running for cfg's stack.
 func control(ctx context.Context, cfg Config, req controlRequest) ([]status, error) {
 	resp, err := controlFull(ctx, cfg, req)
@@ -146,7 +148,7 @@ func controlFull(ctx context.Context, cfg Config, req controlRequest) (controlRe
 	}
 	conn, err := (&net.Dialer{Timeout: time.Second}).DialContext(ctx, "unix", path)
 	if err != nil {
-		return controlResponse{}, fmt.Errorf("dev is not running in %s", c.Root)
+		return controlResponse{}, fmt.Errorf("%w in %s", errNotRunning, c.Root)
 	}
 	defer conn.Close()
 	if err := json.NewEncoder(conn).Encode(req); err != nil {

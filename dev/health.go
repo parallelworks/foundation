@@ -2,6 +2,7 @@ package dev
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -18,6 +19,8 @@ const (
 
 // Variables, so tests need not wait minutes.
 var (
+	// connectGrace is how long dev wait looks for a dev that is starting.
+	connectGrace  = 10 * time.Second
 	probeStarting = time.Second
 	probeReady    = 5 * time.Second
 	probeTimeout  = 2 * time.Second
@@ -105,8 +108,18 @@ func (st state) done() bool {
 func waitServices(ctx context.Context, cfg Config, names []string, timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+	// A dev started just before this has not opened its socket yet.
+	appear := time.Now().Add(connectGrace)
 	for {
 		resp, err := controlFull(ctx, cfg, controlRequest{Command: "status"})
+		if errors.Is(err, errNotRunning) && time.Now().Before(appear) {
+			select {
+			case <-ctx.Done():
+				return err
+			case <-time.After(200 * time.Millisecond):
+			}
+			continue
+		}
 		if err != nil {
 			return err
 		}

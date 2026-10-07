@@ -21,7 +21,7 @@ const stopGrace = 10 * time.Second
 // service not marked Manual. Each service's output is prefixed with its name
 // and also written to its log under cfg.Dir.
 func Up(ctx context.Context, cfg Config, logger *slog.Logger, out io.Writer, names ...string) error {
-	s, err := newSupervisor(cfg, logger, out)
+	s, err := newSupervisor(ctx, cfg, logger, out)
 	if err != nil {
 		return err
 	}
