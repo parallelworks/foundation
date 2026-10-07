@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -22,6 +24,9 @@ type backend interface {
 	halt(ctx context.Context, name string) error
 	restart(ctx context.Context, name string) error
 	stackState() (string, time.Time)
+	// use switches dev to other profiles; profileChoices lists them.
+	use(ctx context.Context, profiles []string) error
+	profileChoices() (all, active []string)
 	// stackAddrs is where Postgres and S3 listen; 0 and "" without them.
 	stackAddrs() (postgres int, s3 string)
 }
@@ -175,4 +180,16 @@ func runAttached(ctx context.Context, cfg Config) error {
 		return err
 	}
 	return m.err
+}
+
+func (r *remote) use(ctx context.Context, profiles []string) error {
+	_, err := controlFull(ctx, r.cfg, controlRequest{Command: "use", Profiles: profiles})
+	return err
+}
+
+func (r *remote) profileChoices() (all, active []string) {
+	if info := r.snapshot().Info; info != nil {
+		active = info.Profiles
+	}
+	return slices.Sorted(maps.Keys(r.cfg.Profiles)), active
 }

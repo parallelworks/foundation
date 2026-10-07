@@ -159,7 +159,7 @@ type S3 struct {
 var reserved = map[string]bool{
 	"stack": true, "wait": true, "reset": true, "logs": true, "status": true,
 	"start": true, "stop": true, "restart": true, "help": true, "completion": true,
-	"up": true, "down": true, "ps": true, "exec": true, "mcp": true, "profiles": true,
+	"up": true, "down": true, "ps": true, "exec": true, "mcp": true, "profiles": true, "use": true,
 }
 
 var validPortName = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)

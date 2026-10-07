@@ -64,11 +64,12 @@ func TestRestartOnFailure(t *testing.T) {
 		return strings.Count(string(b), "run") >= 2
 	})
 
+	// A second config, not a reassigned one: the first dev still reads its own.
 	once := t.TempDir()
-	cfg = Config{Root: once, Services: []Service{{Name: "flaky", Run: crash}}}
+	without := Config{Root: once, Services: []Service{{Name: "flaky", Run: crash}}}
 	ctx2, cancel2 := context.WithCancel(t.Context())
 	done2 := make(chan struct{})
-	go func() { _ = Up(ctx2, cfg, slog.New(slog.DiscardHandler), io.Discard); close(done2) }()
+	go func() { _ = Up(ctx2, without, slog.New(slog.DiscardHandler), io.Discard); close(done2) }()
 	time.Sleep(2500 * time.Millisecond)
 	cancel2()
 	<-done2

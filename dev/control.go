@@ -17,8 +17,9 @@ import (
 // can see and drive its services: `dev status`, `dev restart api`.
 
 type controlRequest struct {
-	Command string `json:"command"` // status, start, stop or restart
-	Service string `json:"service,omitempty"`
+	Command  string   `json:"command"` // status, start, stop, restart, info, env, shutdown or use
+	Service  string   `json:"service,omitempty"`
+	Profiles []string `json:"profiles,omitempty"`
 }
 
 type controlResponse struct {
@@ -124,6 +125,8 @@ func (s *supervisor) answer(ctx context.Context, conn net.Conn) {
 		resp.Env, err = s.cfg.vars(nil)
 	case "shutdown":
 		s.shutdown()
+	case "use":
+		err = s.use(ctx, req.Profiles)
 	case "start":
 		err = s.start(ctx, req.Service)
 	case "stop":

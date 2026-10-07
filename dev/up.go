@@ -2,6 +2,7 @@ package dev
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -22,11 +23,18 @@ const stopGrace = 10 * time.Second
 // service not marked Manual. Each service's output is prefixed with its name
 // and also written to its log under cfg.Dir.
 func Up(ctx context.Context, cfg Config, logger *slog.Logger, out io.Writer, names ...string) error {
-	s, err := newSupervisor(ctx, cfg, logger, out)
-	if err != nil {
-		return err
+	for {
+		s, err := newSupervisor(ctx, cfg, logger, out)
+		if err != nil {
+			return err
+		}
+		err = s.run(ctx, names...)
+		if !errors.Is(err, errSwitch) {
+			return err
+		}
+		cfg.Active = s.switchTo
+		logger.InfoContext(ctx, "switching profiles", "profiles", strings.Join(s.switchTo, ","))
 	}
-	return s.run(ctx, names...)
 }
 
 func (c Config) selectServices(names []string) ([]Service, error) {

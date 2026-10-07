@@ -2,9 +2,12 @@ package dev
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -28,11 +31,12 @@ func runTUI(ctx context.Context, cfg Config, names []string) error {
 	// screen.
 	devLog := &tuiLog{}
 	probs := newProblems(tint.NewTextHandler(devLog, &tint.Options{TimeFormat: time.TimeOnly, NoColor: true}))
-	s, err := newSupervisor(ctx, cfg, slog.New(probs), discard{})
+	logger := slog.New(probs)
+	s, err := newSupervisor(ctx, cfg, logger, discard{})
 	if err != nil {
 		return err
 	}
-	devLog.w = s.outputs.writer("dev")
+	devLog.set(s.outputs.writer("dev"))
 	restore, err := captureOutput(devLog)
 	if err != nil {
 		return err
@@ -43,9 +47,25 @@ func runTUI(ctx context.Context, cfg Config, names []string) error {
 	p := tea.NewProgram(m, tea.WithContext(context.WithoutCancel(ctx)))
 	runErr := make(chan error, 1)
 	go func() {
-		err := s.run(ctx, names...)
-		runErr <- err
-		p.Send(stoppedMsg{err: err})
+		// Switching profiles ends a run; the view stays, on a new one.
+		for {
+			err := s.run(ctx, names...)
+			if !errors.Is(err, errSwitch) {
+				runErr <- err
+				p.Send(stoppedMsg{err: err})
+				return
+			}
+			cfg.Active = s.switchTo
+			next, err := newSupervisor(ctx, cfg, logger, discard{})
+			if err != nil {
+				runErr <- err
+				p.Send(stoppedMsg{err: err})
+				return
+			}
+			s = next
+			devLog.set(s.outputs.writer("dev"))
+			p.Send(swapMsg{sup: s})
+		}
 	}()
 	if _, err := p.Run(); err != nil {
 		cancel()
@@ -59,18 +79,31 @@ type discard struct{}
 
 func (discard) Write(p []byte) (int, error) { return len(p), nil }
 
-// tuiLog hands dev's own log lines to a writer created once the supervisor
-// exists.
-type tuiLog struct{ w *lineWriter }
+// tuiLog hands dev's own log lines to the current supervisor's writer, which
+// changes when dev switches profiles.
+type tuiLog struct {
+	mu sync.Mutex
+	w  *lineWriter
+}
+
+func (l *tuiLog) set(w *lineWriter) {
+	l.mu.Lock()
+	l.w = w
+	l.mu.Unlock()
+}
 
 func (l *tuiLog) Write(p []byte) (int, error) {
-	if l.w == nil {
+	l.mu.Lock()
+	w := l.w
+	l.mu.Unlock()
+	if w == nil {
 		return len(p), nil
 	}
-	return l.w.Write(p)
+	return w.Write(p)
 }
 
 type (
+	swapMsg    struct{ sup backend }
 	tickMsg    struct{}
 	stoppedMsg struct{ err error }
 	actionMsg  struct{ err error }
@@ -82,6 +115,7 @@ const (
 	viewHome view = iota
 	viewLogs
 	viewAll
+	viewProfiles
 )
 
 type model struct {
@@ -98,6 +132,7 @@ type model struct {
 
 	view     view
 	cursor   int
+	pick     int // the highlighted profile in the picker
 	scroll   int // lines up from the bottom of a log
 	width    int
 	height   int
@@ -119,6 +154,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 	case tickMsg:
 		return m, tick()
+	case swapMsg:
+		m.sup, m.notice = msg.sup, ""
 	case stoppedMsg:
 		m.err = msg.err
 		return m, tea.Quit
@@ -170,6 +207,10 @@ func (m *model) key(k string) (tea.Model, tea.Cmd) {
 			}
 		case "a":
 			m.view, m.scroll = viewAll, 0
+		case "p":
+			if all, _ := m.sup.profileChoices(); len(all) > 0 {
+				m.view, m.pick = viewProfiles, 0
+			}
 		case "r":
 			return m, m.act(services, m.restart)
 		case "s":
@@ -177,6 +218,22 @@ func (m *model) key(k string) (tea.Model, tea.Cmd) {
 				return m, m.act(services, m.start)
 			}
 			return m, m.act(services, m.halt)
+		}
+	case viewProfiles:
+		all, _ := m.sup.profileChoices()
+		switch k {
+		case "esc", "backspace", "h":
+			m.view = viewHome
+		case "up", "k":
+			m.pick = max(m.pick-1, 0)
+		case "down", "j":
+			m.pick = min(m.pick+1, len(all)-1)
+		case "enter":
+			if m.pick < len(all) {
+				name := all[m.pick]
+				m.view, m.notice = viewHome, "switching to "+name+"…"
+				return m, func() tea.Msg { return actionMsg{err: m.sup.use(m.ctx, []string{name})} }
+			}
 		}
 	case viewLogs, viewAll:
 		switch k {
@@ -273,6 +330,8 @@ func (m *model) View() tea.View {
 		services := m.sup.statuses()
 		name := services[min(m.cursor, len(services)-1)].Name
 		m.log(&b, name, m.sup.lines(name), "esc back · r restart · ↑↓ scroll · ctrl+u/d page · g top · G follow · "+m.quitHelp())
+	case viewProfiles:
+		m.profiles(&b)
 	case viewAll:
 		m.log(&b, "all output", m.sup.lines(""), "esc back · ↑↓ scroll · ctrl+u/d page · g top · G follow · "+m.quitHelp())
 	}
@@ -290,8 +349,8 @@ func (m *model) home(b *strings.Builder) {
 	if m.attached {
 		title += " (attached)"
 	}
-	if s, ok := m.sup.(*supervisor); ok && len(s.cfg.active) > 0 {
-		title += " · " + strings.Join(s.cfg.active, " + ")
+	if _, active := m.sup.profileChoices(); len(active) > 0 {
+		title += " · " + strings.Join(active, " + ")
 	}
 	b.WriteString(titleStyle.Render(title))
 	if stack := m.stackLine(); stack != "" {
@@ -345,12 +404,32 @@ func (m *model) home(b *strings.Builder) {
 	if m.quitting {
 		b.WriteString(dimStyle.Render("stopping…"))
 	} else {
-		b.WriteString(dimStyle.Render("↑↓ select · enter output · a all output · r restart · s start/stop · " + m.quitHelp()))
+		b.WriteString(dimStyle.Render("↑↓ select · enter output · a all output · r restart · s start/stop · p profiles · " + m.quitHelp()))
 	}
 }
 
 // stackLine describes the stack, each part styled on its own: styling a
 // string that already holds a link would cut into the link's own styling.
+func (m *model) profiles(b *strings.Builder) {
+	b.WriteString(titleStyle.Render("profiles") + "\n\n")
+	all, active := m.sup.profileChoices()
+	for i, name := range all {
+		bar := "  "
+		if i == m.pick {
+			bar = cursorBar.Render("> ")
+		}
+		mark := "  "
+		if slices.Contains(active, name) {
+			mark = stateStyle[stateRunning].Render("● ")
+		}
+		b.WriteString(bar + mark + name + "\n")
+	}
+	for range m.height - 3 - len(all) {
+		b.WriteString("\n")
+	}
+	b.WriteString(dimStyle.Render("↑↓ select · enter switch to it, restarting dev · esc back"))
+}
+
 func (m *model) stackLine() string {
 	if what, since := m.sup.stackState(); what != "" {
 		return dimStyle.Render(fmt.Sprintf("%s… %s", what, strings.TrimSpace(elapsed(since))))
