@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.25.0](https://github.com/parallelworks/foundation/compare/ui-v0.24.2...ui-v0.25.0) (2026-10-07)
+
+
+### Features
+
+* **ui:** searchable filter facets, capped pager totals and an xs avatar size ([#141](https://github.com/parallelworks/foundation/issues/141)) ([6343b44](https://github.com/parallelworks/foundation/commit/6343b442b18ee805011d5334854c58b8bb02b32d))
+
 ## [0.24.2](https://github.com/parallelworks/foundation/compare/ui-v0.24.1...ui-v0.24.2) (2026-10-07)
 
 
