@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -15,6 +16,11 @@ import (
 
 func main() {
 	if err := run(); err != nil {
+		// dev exec passes on its command's status instead of its own.
+		var exit dev.ExitError
+		if errors.As(err, &exit) {
+			os.Exit(exit.Code)
+		}
 		fmt.Fprintln(os.Stderr, "dev:", err)
 		os.Exit(1)
 	}

@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +22,7 @@ import (
 // with its own development tasks adds them with AddCommand.
 func NewRootCmd(cfg Config) *cobra.Command {
 	var verbose, plain bool
+	var lifetime time.Duration
 	logger := func() *slog.Logger {
 		level := slog.LevelInfo
 		if verbose {
@@ -41,12 +44,19 @@ func NewRootCmd(cfg Config) *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, names []string) error {
-			if !plain && interactive() {
-				return runTUI(cmd.Context(), cfg, names)
+			ctx := cmd.Context()
+			if lifetime > 0 {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithTimeout(ctx, lifetime)
+				defer cancel()
 			}
-			return Up(cmd.Context(), cfg, logger(), os.Stdout, names...)
+			if !plain && interactive() {
+				return runTUI(ctx, cfg, names)
+			}
+			return Up(ctx, cfg, logger(), os.Stdout, names...)
 		},
 	}
+	root.Flags().DurationVar(&lifetime, "for", 0, "stop after this long, such as 2h (default: until interrupted)")
 	root.Flags().BoolVar(&plain, "plain", false, "print prefixed output instead of the interactive view")
 	root.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "log debug output")
 	var dir string
@@ -92,20 +102,94 @@ func NewRootCmd(cfg Config) *cobra.Command {
 	wait.Flags().DurationVar(&timeout, "timeout", 2*time.Minute, "how long to wait")
 	root.AddCommand(wait)
 
-	root.AddCommand(&cobra.Command{
+	var statusJSON bool
+	status := &cobra.Command{
 		Use:   "status",
 		Short: "Show the services of the dev running here",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			resp, err := controlFull(cmd.Context(), cfg, controlRequest{Command: "status"})
+			command := "status"
+			if statusJSON {
+				command = "info" // services too, and the instance: ports, pid, version
+			}
+			resp, err := controlFull(cmd.Context(), cfg, controlRequest{Command: command})
 			if err != nil {
 				return err
+			}
+			if statusJSON {
+				return printJSON(cmd.OutOrStdout(), resp)
 			}
 			if resp.Starting != "" {
 				fmt.Fprintf(cmd.OutOrStdout(), "dev is %s…\n", resp.Starting)
 			}
 			printStatuses(cmd.OutOrStdout(), resp.Services)
 			return nil
+		},
+	}
+	status.Flags().BoolVar(&statusJSON, "json", false, "print services, their states and URLs, and the instance's ports as JSON")
+	root.AddCommand(status)
+
+	var upTimeout time.Duration
+	upCmd := &cobra.Command{
+		Use:   "up [service...]",
+		Short: "Start dev in the background, and return once its services are up",
+		Long: "Start dev in the background, in its own session so that closing the terminal does not stop it, " +
+			"and return once the services named (or every one not marked manual) are up, or with why they are not. " +
+			"`dev down` stops it; it also stops itself if the checkout is deleted, or after --for.",
+		RunE: func(cmd *cobra.Command, names []string) error {
+			args := slices.Clone(names)
+			if lifetime > 0 {
+				args = append(args, "--for", lifetime.String())
+			}
+			if dir != "" {
+				args = append(args, "--dir", cfg.Dir)
+			}
+			return up(cmd.Context(), cfg, args, names, upTimeout, cmd.OutOrStdout())
+		},
+	}
+	upCmd.Flags().DurationVar(&lifetime, "for", 0, "stop after this long, such as 2h")
+	upCmd.Flags().DurationVar(&upTimeout, "timeout", 5*time.Minute, "how long to wait for the services")
+	root.AddCommand(upCmd)
+
+	root.AddCommand(&cobra.Command{
+		Use:   "down",
+		Short: "Stop the dev running here, foreground or background",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return down(cmd.Context(), cfg)
+		},
+	})
+
+	var psJSON bool
+	psCmd := &cobra.Command{
+		Use:   "ps",
+		Short: "List every dev running on this machine",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			list, err := ps(cmd.Context())
+			if err != nil {
+				return err
+			}
+			if psJSON {
+				return printJSON(cmd.OutOrStdout(), list)
+			}
+			for _, in := range list {
+				fmt.Fprintf(cmd.OutOrStdout(), "%-7d %5s  %-10s %s  %s\n", in.PID, strings.TrimSpace(since(in.Started)), in.Version, in.Root, formatPorts(in.Ports))
+			}
+			return nil
+		},
+	}
+	psCmd.Flags().BoolVar(&psJSON, "json", false, "print as JSON")
+	root.AddCommand(psCmd)
+
+	root.AddCommand(&cobra.Command{
+		Use:   "exec -- command [arg...]",
+		Short: "Run a command with the running dev's environment",
+		Long: "Run a command with the environment the running dev gives its services, under your own: " +
+			"allocated ports, {postgres}, {s3} and the rest. Tests, migrations and scripts then reach this checkout's stack.",
+		Args: cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, argv []string) error {
+			return execWith(cmd.Context(), cfg, argv)
 		},
 	})
 	for _, c := range []struct{ name, short string }{
@@ -260,4 +344,12 @@ func printStatuses(w io.Writer, services []status) {
 		fmt.Fprintf(w, "%-*s  %-9s  %4s  %s\n", width, s.Name, s.State, strings.TrimSpace(since(s.Since)),
 			strings.TrimSpace(strings.Join([]string{s.URL, detail}, "  ")))
 	}
+}
+
+func formatPorts(ports map[string]int) string {
+	parts := make([]string, 0, len(ports))
+	for _, name := range slices.Sorted(maps.Keys(ports)) {
+		parts = append(parts, fmt.Sprintf("%s:%d", name, ports[name]))
+	}
+	return strings.Join(parts, " ")
 }
