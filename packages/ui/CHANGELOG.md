@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.24.2](https://github.com/parallelworks/foundation/compare/ui-v0.24.1...ui-v0.24.2) (2026-10-07)
+
+
+### Bug Fixes
+
+* **ui:** long URLs in chat messages overflow the message bubble ([#145](https://github.com/parallelworks/foundation/issues/145)) ([30cc8c5](https://github.com/parallelworks/foundation/commit/30cc8c55dfedf1e11d2e1d401714c0407aacd0b3))
+
 ## [0.24.1](https://github.com/parallelworks/foundation/compare/ui-v0.24.0...ui-v0.24.1) (2026-10-07)
 
 
