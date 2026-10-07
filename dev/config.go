@@ -23,6 +23,10 @@ type Config struct {
 	// Name is the Postgres user, password and database, and required with
 	// Postgres. Tests get Name_test.
 	Name string `json:"name"`
+	// Command is the repository's own dev, for an app whose dev adds commands
+	// of its own, such as ["go", "tool", "dev"]. A dev installed globally runs
+	// it instead of itself; {root} stands for the directory of dev.json.
+	Command []string `json:"command,omitempty"`
 	// Root is the directory commands run in and relative paths resolve
 	// against. LoadConfig sets it to the config file's directory; otherwise
 	// it defaults to the working directory.

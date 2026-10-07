@@ -41,6 +41,7 @@ func NewRootCmd(cfg Config) *cobra.Command {
 		Long: "With no command, dev runs what dev.json describes until interrupted: Postgres and S3, " +
 			"and the services named, or every service not marked manual.",
 		Args:          cobra.ArbitraryArgs,
+		Version:       version(),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, names []string) error {
