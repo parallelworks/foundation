@@ -16,6 +16,10 @@ export interface ColumnDef {
   /** NOT a table column (no header) — appears in picker and isVisible, but excluded from visibleColumns. */
   inline?: boolean
   priority?: ColumnPriority
+  /** Too important to drop, too wide to keep on a narrow container (a status,
+   * say): below the `medium` width its cell gives way and its content shows
+   * under the first column's instead. Takes the place of `priority`. */
+  stack?: boolean
 }
 
 /** Column responsive importance; `low` drops before `medium`. See {@link ColumnDef.priority}. */
@@ -29,6 +33,9 @@ const PRIORITY_SHOW_CLASS: Record<ColumnPriority, string> = {
 }
 
 function columnResponsiveClass(col: ColumnDef): string {
+  if (col.stack) {
+    return PRIORITY_SHOW_CLASS.medium
+  }
   return col.priority ? PRIORITY_SHOW_CLASS[col.priority] : ''
 }
 
@@ -99,6 +106,9 @@ export interface ListViewChrome {
   /** Responsive show/hide class per visible column (aligned to
    * {@link visibleColumns}); `ListColumns` and `ListRow` apply entry `i`. */
   columnClasses: string[]
+  /** Per visible column, whether it stacks under the first on a narrow
+   * container ({@link ColumnDef.stack}); `ListRow` reads entry `i`. */
+  columnStacks: boolean[]
 }
 
 export interface ListView<T> extends ListViewChrome {
@@ -292,6 +302,7 @@ export function useListView<T>({
   )
 
   const columnClasses = useMemo(() => visibleColumns.map(columnResponsiveClass), [visibleColumns])
+  const columnStacks = useMemo(() => visibleColumns.map((c) => Boolean(c.stack)), [visibleColumns])
 
   const toggleColumn = useCallback(
     (key: string) =>
@@ -435,6 +446,7 @@ export function useListView<T>({
     columns,
     visibleColumns,
     columnClasses,
+    columnStacks,
     isVisible,
     pinnedCount,
     actionsWidth,

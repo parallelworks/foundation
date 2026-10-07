@@ -38,7 +38,8 @@ const RowActionsContext = createContext<{
   show: boolean
   always: boolean
   columnClasses: string[]
-}>({ show: true, always: false, columnClasses: [] })
+  columnStacks: boolean[]
+}>({ show: true, always: false, columnClasses: [], columnStacks: [] })
 
 function useRowActions(view?: ListViewChrome) {
   return useMemo(
@@ -46,8 +47,9 @@ function useRowActions(view?: ListViewChrome) {
       show: view?.showActions ?? true,
       always: view?.alwaysShowActions ?? false,
       columnClasses: view?.columnClasses ?? [],
+      columnStacks: view?.columnStacks ?? [],
     }),
-    [view?.showActions, view?.alwaysShowActions, view?.columnClasses],
+    [view?.showActions, view?.alwaysShowActions, view?.columnClasses, view?.columnStacks],
   )
 }
 
@@ -167,16 +169,45 @@ export function ListRow({
     show: showActions,
     always: alwaysShowActions,
     columnClasses,
+    columnStacks,
   } = useContext(RowActionsContext)
 
   // Apply each column's responsive class to its cell by position. toArray drops
   // the falsy `{isVisible && ...}` entries, so cells line up with columnClasses.
-  const styledCells = Children.toArray(children).map((child, i) => {
+  const cells = Children.toArray(children)
+  // A stacked column's content also rides under the first cell, shown only
+  // where its own cell has given way, so it never leaves the row.
+  const stacked = cells.flatMap((child, i) =>
+    i > 0 && columnStacks[i] && isValidElement(child)
+      ? [(child as ReactElement<{ children?: ReactNode }>).props.children]
+      : [],
+  )
+  const styledCells = cells.map((child, i) => {
     const cls = columnClasses[i]
-    if (!cls || !isValidElement(child)) {
+    if (!isValidElement(child) || (!cls && !(i === 0 && stacked.length > 0))) {
       return child
     }
-    const el = child as ReactElement<{ className?: string }>
+    const el = child as ReactElement<{ className?: string; children?: ReactNode }>
+    if (i === 0 && stacked.length > 0) {
+      return cloneElement(el, {
+        className: cx(el.props.className, cls),
+        children: (
+          <>
+            {el.props.children}
+            {stacked.map((content, j) => (
+              <div
+                // biome-ignore lint/suspicious/noArrayIndexKey: stacked cells keep their column order
+                key={j}
+                className="mt-1 @[36rem]:hidden"
+                data-stacked
+              >
+                {content}
+              </div>
+            ))}
+          </>
+        ),
+      })
+    }
     return cloneElement(el, { className: cx(el.props.className, cls) })
   })
 

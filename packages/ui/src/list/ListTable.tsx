@@ -33,6 +33,7 @@ export function NameCell({
   href,
   badge,
   title,
+  children,
 }: {
   icon: ReactNode
   name: string
@@ -40,6 +41,9 @@ export function NameCell({
   href: string | null
   badge?: ReactNode
   title?: string | undefined
+  /** More under the name, outside its link: where a stacked column shows on a
+   * narrow container (see `ColumnDef.stack`). */
+  children?: ReactNode
 }) {
   const Link = useLink()
   const inner = (
@@ -68,6 +72,8 @@ export function NameCell({
       ) : (
         <div className="flex items-center gap-2.5 min-w-0">{inner}</div>
       )}
+      {/* Lined up with the name, past the icon (h-5 w-5 and the gap-2.5 beside it). */}
+      {children && <div className="pl-[1.875rem]">{children}</div>}
     </Table.Item>
   )
 }

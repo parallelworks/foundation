@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import cx from 'classnames'
 import type { ReactNode } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { expect, screen, userEvent, within } from 'storybook/test'
@@ -160,9 +161,14 @@ function MockHost({ children }: { children: (host: ReturnType<typeof useMockHost
 }
 
 /** Storybook renders in a short frame; the shell fills its host, so give it one. */
-function Viewport({ children }: { children: ReactNode }) {
+function Viewport({ children, narrow }: { children: ReactNode; narrow?: boolean | undefined }) {
   return (
-    <div className="h-[32rem] overflow-hidden rounded-md border border-(--theme-border) bg-(--theme-app-bg)">
+    <div
+      className={cx(
+        'h-[32rem] overflow-hidden rounded-md border border-(--theme-border) bg-(--theme-app-bg)',
+        narrow && 'max-w-[24rem]',
+      )}
+    >
       {children}
     </div>
   )
@@ -171,6 +177,8 @@ function Viewport({ children }: { children: ReactNode }) {
 interface ShellArgs {
   state: 'ready' | 'loading' | 'empty' | 'error'
   rowCount: number
+  /** A phone-width frame, where Location drops and Status stacks under the name. */
+  narrow?: boolean
 }
 
 function ClustersPage({ state, rowCount }: ShellArgs) {
@@ -187,7 +195,8 @@ function ClustersPage({ state, rowCount }: ShellArgs) {
     columns: [
       { key: 'name', label: 'Name', alwaysVisible: true },
       { key: 'location', label: 'Location', priority: 'medium' },
-      { key: 'status', label: 'Status' },
+      // Too important to drop on a phone: it moves under the name instead.
+      { key: 'status', label: 'Status', stack: true },
       { key: 'owner', label: 'Owner', priority: 'low' },
     ],
     orderBys: [
@@ -360,11 +369,12 @@ const meta: Meta<ShellArgs> = {
       options: ['ready', 'loading', 'empty', 'error'],
     },
     rowCount: { control: { type: 'range', min: 1, max: 40, step: 1 } },
+    narrow: { control: 'boolean' },
   },
   render: (args) => (
     <MockHost>
       {(host) => (
-        <Viewport>
+        <Viewport narrow={args.narrow}>
           <div className="flex h-full flex-col">
             <div className="min-h-0 flex-1">
               <ClustersPage {...args} />
@@ -387,6 +397,9 @@ export const Loading: Story = { args: { state: 'loading' } }
 export const Empty: Story = { args: { state: 'empty' } }
 
 export const LoadFailed: Story = { args: { state: 'error' } }
+
+/** At phone width the Status column gives way and each status sits under its row's name. */
+export const NarrowStacksStatus: Story = { args: { narrow: true } }
 
 export const RowMenuOpen: Story = {
   play: async ({ canvasElement }) => {

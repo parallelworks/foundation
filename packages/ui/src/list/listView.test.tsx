@@ -113,3 +113,20 @@ describe('shared list view filters', () => {
     expect(view.result.current.filters['namespace']).toBeUndefined()
   })
 })
+
+describe('stacked columns', () => {
+  it('hides a stacked column below the medium width and says so per visible column', () => {
+    const { result } = renderHook(() =>
+      useListView<{ id: string }>({
+        storageKey: 'stack-test',
+        columns: [
+          { key: 'name', label: 'Name', alwaysVisible: true },
+          { key: 'status', label: 'Status', stack: true },
+          { key: 'owner', label: 'Owner', priority: 'low' },
+        ],
+      }),
+    )
+    expect(result.current.columnStacks).toEqual([false, true, false])
+    expect(result.current.columnClasses[1]).toBe('hidden @[36rem]:table-cell')
+  })
+})
