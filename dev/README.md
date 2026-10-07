@@ -72,7 +72,7 @@ the stack's addresses:
 | Key | |
 | --- | --- |
 | `↑` `↓` | Select a service |
-| `enter` | Its output; `esc` goes back, `↑` `↓` `pgup` `pgdn` scroll, `end` follows |
+| `enter` | Its output; `esc` goes back, `↑` `↓` scroll, `ctrl+u` `ctrl+d` (or `pgup` `pgdn`) page, `g` jumps to the oldest line, `G` (or `end`) follows |
 | `a` | Every service's output, interleaved |
 | `r` | Restart the service, rebuilding a server |
 | `s` | Start or stop it, including a `manual` one |

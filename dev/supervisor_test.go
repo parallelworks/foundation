@@ -138,6 +138,8 @@ func TestTUIKeysDriveServices(t *testing.T) {
 			msg = tea.KeyPressMsg{Code: tea.KeyEnter}
 		case "esc":
 			msg = tea.KeyPressMsg{Code: tea.KeyEscape}
+		case "ctrl+u":
+			msg = tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl}
 		default:
 			msg = tea.KeyPressMsg{Code: rune(k[0]), Text: k}
 		}
@@ -177,6 +179,11 @@ func TestTUIKeysDriveServices(t *testing.T) {
 	eventually(t, "web's output in its view", func() bool { return strings.Contains(m.View().Content, "web up") })
 	if strings.Contains(m.View().Content, "api up") {
 		t.Error("web's view shows api's output")
+	}
+	// Paging works with the keys a laptop has.
+	press("ctrl+u")
+	if m.scroll != 0 {
+		t.Errorf("ctrl+u scrolled past the top of a short log: %d", m.scroll)
 	}
 	press("esc")
 	press("a")

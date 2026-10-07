@@ -165,19 +165,35 @@ func (m *model) key(k string) (tea.Model, tea.Cmd) {
 			m.scroll++
 		case "down", "j":
 			m.scroll = max(m.scroll-1, 0)
-		case "pgup":
+		// Laptop keyboards lack pgup, pgdn and end; less and vim's keys
+		// work everywhere.
+		case "pgup", "ctrl+u", "ctrl+b":
 			m.scroll += m.pageSize()
-		case "pgdown":
+		case "pgdown", "ctrl+d", "ctrl+f", "space":
 			m.scroll = max(m.scroll-m.pageSize(), 0)
 		case "end", "G":
 			m.scroll = 0
+		case "home", "g":
+			m.scroll = m.maxScroll()
 		case "r":
 			if m.view == viewLogs {
 				return m, m.act(services, m.restart)
 			}
 		}
+		m.scroll = min(m.scroll, m.maxScroll())
 	}
 	return m, nil
+}
+
+// maxScroll is how far up the current log can scroll: to its oldest line at
+// the top of the page.
+func (m *model) maxScroll() int {
+	name := ""
+	if m.view == viewLogs {
+		services := m.sup.statuses()
+		name = services[min(m.cursor, len(services)-1)].Name
+	}
+	return max(len(m.sup.lines(name))-m.pageSize(), 0)
 }
 
 // act runs a start, stop or restart off the UI's goroutine: stopping waits
@@ -225,9 +241,9 @@ func (m *model) View() tea.View {
 	case viewLogs:
 		services := m.sup.statuses()
 		name := services[min(m.cursor, len(services)-1)].Name
-		m.log(&b, name, m.sup.lines(name), "esc back · r restart · ↑↓ pgup pgdn scroll · end follow · q quit")
+		m.log(&b, name, m.sup.lines(name), "esc back · r restart · ↑↓ scroll · ctrl+u/d page · g top · G follow · q quit")
 	case viewAll:
-		m.log(&b, "all output", m.sup.lines(""), "esc back · ↑↓ pgup pgdn scroll · end follow · q quit")
+		m.log(&b, "all output", m.sup.lines(""), "esc back · ↑↓ scroll · ctrl+u/d page · g top · G follow · q quit")
 	}
 	v := tea.NewView(b.String())
 	v.AltScreen = true
