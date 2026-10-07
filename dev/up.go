@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -39,12 +40,30 @@ func (c Config) selectServices(names []string) ([]Service, error) {
 		return services, nil
 	}
 	services := make([]Service, 0, len(names))
-	for _, name := range names {
+	added := map[string]bool{}
+	// A named service brings what it depends on, first.
+	var add func(name string) error
+	add = func(name string) error {
+		if added[name] {
+			return nil
+		}
 		i := slices.IndexFunc(c.Services, func(s Service) bool { return s.Name == name })
 		if i < 0 {
-			return nil, fmt.Errorf("no service named %q", name)
+			return fmt.Errorf("no service named %q", name)
+		}
+		added[name] = true
+		for _, dep := range c.Services[i].DependsOn {
+			if err := add(dep); err != nil {
+				return err
+			}
 		}
 		services = append(services, c.Services[i])
+		return nil
+	}
+	for _, name := range names {
+		if err := add(name); err != nil {
+			return nil, err
+		}
 	}
 	return services, nil
 }
@@ -72,27 +91,66 @@ func runBefore(ctx context.Context, cfg Config, env []string, out *lineWriter) e
 
 func runProcess(ctx context.Context, svc Service, env []string, out *lineWriter, logger *slog.Logger, set func(state, string)) {
 	defer out.flush()
-	proc, err := startProc(svc.Run, svc.Dir, env, out)
-	if err != nil {
-		logger.ErrorContext(ctx, "start", "error", err)
-		set(stateExited, err.Error())
-		return
+	var retry backoff
+	for {
+		started := time.Now()
+		proc, err := startProc(svc.Run, svc.Dir, env, out)
+		if err != nil {
+			logger.ErrorContext(ctx, "start", "error", err)
+			set(stateExited, err.Error())
+			return
+		}
+		set(stateRunning, "")
+		select {
+		case <-ctx.Done():
+			proc.stop()
+			return
+		case <-proc.done:
+			proc.drain()
+		}
+		status := exitStatus(proc.err)
+		if proc.err == nil || svc.Restart != "on-failure" {
+			logger.WarnContext(ctx, "exited", "status", status)
+			set(stateExited, status)
+			return
+		}
+		wait := retry.next(time.Since(started))
+		logger.WarnContext(ctx, "exited; restarting", "status", status, "in", wait)
+		set(stateExited, fmt.Sprintf("%s; restarting in %s", status, wait))
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(wait):
+		}
 	}
-	set(stateRunning, "")
-	select {
-	case <-ctx.Done():
-		proc.stop()
-	case <-proc.done:
-		proc.drain()
-		logger.WarnContext(ctx, "exited", "status", exitStatus(proc.err))
-		set(stateExited, exitStatus(proc.err))
+}
+
+// backoff spaces out restarts of a service that keeps failing, and starts
+// over once it has run a while.
+type backoff struct{ wait time.Duration }
+
+func (b *backoff) next(ran time.Duration) time.Duration {
+	if b.wait == 0 || ran > 30*time.Second {
+		b.wait = time.Second
+	} else {
+		b.wait = min(b.wait*2, 30*time.Second)
 	}
+	return b.wait
 }
 
 func runServer(ctx context.Context, cfg Config, svc Service, env []string, builds chan struct{}, out *lineWriter, logger *slog.Logger, set func(state, string)) {
 	defer out.flush()
 	// The stack's own data and logs change constantly and are never source.
-	w, err := newWatcher(svc.Watch, append([]string{cfg.Dir}, svc.Exclude...), svc.Extensions, logger)
+	var files []string
+	if svc.RebuildOnCheckout {
+		head, err := gitHead(ctx, svc.Dir)
+		if err != nil {
+			logger.WarnContext(ctx, "rebuildOnCheckout: not a git checkout", "error", err)
+		} else {
+			files = append(files, head)
+		}
+	}
+	w, err := newWatcher(svc.Watch, append([]string{cfg.Dir}, svc.Exclude...), svc.Extensions, files, logger)
 	if err != nil {
 		logger.ErrorContext(ctx, "watch", "error", err)
 		return
@@ -101,6 +159,8 @@ func runServer(ctx context.Context, cfg Config, svc Service, env []string, build
 	go w.run(ctx, changed)
 
 	var server *proc
+	var retry backoff
+	var serverStarted time.Time
 	defer func() {
 		if server != nil {
 			server.stop()
@@ -119,6 +179,7 @@ func runServer(ctx context.Context, cfg Config, svc Service, env []string, build
 		}
 		if built {
 			logger.InfoContext(ctx, "built", "in", time.Since(start).Round(time.Millisecond))
+			serverStarted = time.Now()
 			if server, err = startProc(svc.Run, svc.Dir, env, out); err != nil {
 				logger.ErrorContext(ctx, "start", "error", err)
 				set(stateExited, err.Error())
@@ -139,8 +200,22 @@ func runServer(ctx context.Context, cfg Config, svc Service, env []string, build
 			return
 		case <-changed:
 		case <-exited:
-			logger.WarnContext(ctx, "exited; waiting for a change", "status", exitStatus(server.err))
-			set(stateExited, exitStatus(server.err))
+			status := exitStatus(server.err)
+			if svc.Restart == "on-failure" && server.err != nil {
+				wait := retry.next(time.Since(serverStarted))
+				logger.WarnContext(ctx, "exited; restarting", "status", status, "in", wait)
+				set(stateExited, fmt.Sprintf("%s; restarting in %s", status, wait))
+				server = nil
+				select {
+				case <-ctx.Done():
+					return
+				case <-changed:
+				case <-time.After(wait):
+				}
+				continue
+			}
+			logger.WarnContext(ctx, "exited; waiting for a change", "status", status)
+			set(stateExited, status)
 			server = nil
 			select {
 			case <-ctx.Done():
@@ -285,4 +360,14 @@ func (o *outputs) close() {
 // directory of a stack's logs.
 func LogPath(logs, service string) string {
 	return filepath.Join(logs, service+".log")
+}
+
+// gitHead is the file git rewrites when the checkout's branch changes; in a
+// worktree it lives in the main repository's .git.
+func gitHead(ctx context.Context, dir string) (string, error) {
+	out, err := exec.CommandContext(ctx, "git", "-C", dir, "rev-parse", "--path-format=absolute", "--git-path", "HEAD").Output() //nolint:gosec // git, in the service.s own directory
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
 }
