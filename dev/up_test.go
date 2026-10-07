@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -273,8 +274,15 @@ func TestUpRebuildsTheServerAndRunsProcesses(t *testing.T) {
 		t.Fatal(err)
 	}
 	serverPID, _ = strconv.Atoi(strings.TrimSpace(string(pid)))
+	// Briefly allow for a process killed a moment ago: a leaked one is a
+	// sleep 300 that is still there long after.
+	deadline := time.Now().Add(2 * time.Second)
+	for alive(serverPID) && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
 	if alive(serverPID) {
-		t.Error("the server outlived Up")
+		out, _ := exec.CommandContext(t.Context(), "ps", "-o", "pid,ppid,stat,command", "-p", strconv.Itoa(serverPID)).CombinedOutput()
+		t.Errorf("the server outlived Up:\n%s", out)
 	}
 }
 

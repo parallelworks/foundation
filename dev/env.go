@@ -9,6 +9,7 @@ import (
 	"os"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -60,10 +61,22 @@ func (c Config) environ(svc *Service) ([]string, error) {
 	return env, nil
 }
 
-// expand replaces the stack's names in a value with where it listens.
+// expand replaces the stack's names and {port.<name>} in a value with where
+// they listen.
 func (c Config) expand(v string) (string, error) {
 	var missing error
 	out := stackRef.ReplaceAllStringFunc(v, func(ref string) string {
+		if name, ok := strings.CutPrefix(strings.Trim(ref, "{}"), "port."); ok {
+			port, ok := c.ports[name]
+			if !ok {
+				port, ok = c.Ports[name]
+			}
+			if !ok {
+				missing = fmt.Errorf("%s names no port in ports", ref)
+				return ref
+			}
+			return strconv.Itoa(port)
+		}
 		var val string
 		switch ref {
 		case "{postgres}":
@@ -83,7 +96,7 @@ func (c Config) expand(v string) (string, error) {
 	return out, missing
 }
 
-var stackRef = regexp.MustCompile(`\{(postgres|postgres_test|s3)\}`)
+var stackRef = regexp.MustCompile(`\{(postgres|postgres_test|s3|port\.[a-z][a-z0-9_-]*)\}`)
 
 // readDotenv reads KEY=value lines, skipping blanks and # comments. Values
 // may be quoted; nothing is expanded.

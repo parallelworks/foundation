@@ -109,6 +109,25 @@ Each service runs in its `dir`, relative to `dev.json`. Each command runs in
 its own process group, and stopping one ends everything it started, such as
 the Vite under `pnpm`. Unix only.
 
+## Ports
+
+`ports` names the ports the services listen on, with the one each prefers:
+
+```json
+"ports": { "server": 8080, "web": 5173 },
+"env": { "SHOP_HTTP_ADDR": ":{port.server}", "SHOP_VITE_URL": "http://localhost:{port.web}" },
+"services": [
+  { "name": "server", "url": "http://localhost:{port.server}", "health": "http://localhost:{port.server}/readyz", … },
+  { "name": "web", "run": ["pnpm", "--filter", "web", "dev", "--port", "{port.web}", "--strictPort"] }
+]
+```
+
+dev gives each its preferred port when nothing holds it, and the next free one
+otherwise, logging the move; Postgres and S3 do the same. `{port.<name>}`
+stands for the allocated port in `env`, `run`, `build`, `before`, `url` and
+`health`, and `{postgres}` and `{s3}` follow theirs, so a second checkout, or
+another app, runs beside the first without either changing its config.
+
 ## Environment
 
 Every command gets, from lowest to highest precedence: `env` in `dev.json`; the

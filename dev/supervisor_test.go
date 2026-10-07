@@ -117,7 +117,7 @@ func TestControlDrivesARunningDev(t *testing.T) {
 func TestTUIKeysDriveServices(t *testing.T) {
 	root := t.TempDir()
 	cfg := testServices(root)
-	s, err := newSupervisor(cfg, slog.New(slog.DiscardHandler), io.Discard)
+	s, err := newSupervisor(t.Context(), cfg, slog.New(slog.DiscardHandler), io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,7 +218,7 @@ func TestServicesLearnWhereToOpenThem(t *testing.T) {
 		{Name: "api", Run: []string{"sleep", "300"}, Health: "http://localhost:8080/readyz"},
 		{Name: "set", Run: []string{"sh", "-c", "echo http://localhost:9999; exec sleep 300"}, URL: "http://localhost:3000"},
 	}}
-	s, err := newSupervisor(cfg, slog.New(slog.DiscardHandler), io.Discard)
+	s, err := newSupervisor(t.Context(), cfg, slog.New(slog.DiscardHandler), io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -260,7 +260,7 @@ func TestViewShowsStartupProgress(t *testing.T) {
 		Before:   [][]string{{"sh", "-c", "echo regenerating content; sleep 300"}},
 		Services: []Service{{Name: "web", Run: []string{"sleep", "300"}}},
 	}
-	s, err := newSupervisor(cfg, slog.New(slog.DiscardHandler), io.Discard)
+	s, err := newSupervisor(t.Context(), cfg, slog.New(slog.DiscardHandler), io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}

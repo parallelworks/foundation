@@ -22,7 +22,7 @@ func runTUI(ctx context.Context, cfg Config, names []string) error {
 	// screen.
 	devLog := &tuiLog{}
 	probs := newProblems(tint.NewTextHandler(devLog, &tint.Options{TimeFormat: time.TimeOnly, NoColor: true}))
-	s, err := newSupervisor(cfg, slog.New(probs), discard{})
+	s, err := newSupervisor(ctx, cfg, slog.New(probs), discard{})
 	if err != nil {
 		return err
 	}
