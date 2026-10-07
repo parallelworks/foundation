@@ -39,7 +39,8 @@ Describe the app in `dev.json` at the repository root:
       "build": ["go", "build", "-o", "tmp/shop", "./cmd/shop"],
       "run": ["tmp/shop", "serve"],
       "exclude": ["tmp", "web", "tools"],
-      "extensions": [".go", ".sql"]
+      "extensions": [".go", ".sql"],
+      "health": "http://localhost:8080/readyz"
     },
     { "name": "web", "run": ["pnpm", "--filter", "web", "dev"] }
   ]
@@ -53,7 +54,7 @@ Describe the app in `dev.json` at the repository root:
 | `dev start`, `stop`, `restart` *service* | Drive one service of the running dev; `restart` rebuilds a server |
 | `dev logs [service...] [-f]` | Print services' output from the latest run (all of them when none is named), and with `-f` keep following it |
 | `dev stack` | Run Postgres on `:5432` and S3 on `127.0.0.1:8333` until interrupted. User, password and database are `name` (required with Postgres); tests get `name_test` |
-| `dev wait` | Block until a stack started elsewhere accepts connections |
+| `dev wait [service...]` | Block until a stack started elsewhere accepts connections, or until the services named are up; fails as soon as one fails, exits or turns unhealthy |
 | `dev reset` | Delete the stack's data |
 
 Data and each service's latest log live in `.devstack/` beside `dev.json`, or
@@ -64,7 +65,8 @@ killed is stopped on the next start.
 ## The interactive view
 
 In a terminal, `dev` takes over the screen with its services, their states
-(building, running, failed, exited, stopped) and the stack's addresses:
+(building, starting, ready, running, unhealthy, failed, exited, stopped) and
+the stack's addresses:
 
 | Key | |
 | --- | --- |
@@ -89,6 +91,12 @@ change, so nothing runs stale code, and only one service builds at a time, so
 several servers do not exhaust a laptop's memory. A service without `build`
 runs once; if it exits, it is left stopped so its error is not buried under
 restarts.
+
+A service with a `health` URL reads *starting* once its process is up, *ready*
+when the URL answers 2xx, and *unhealthy* if it stops answering, or never
+answers within a minute. Without one, a service reads *running* as soon as its
+process is up. `dev wait api web` waits for exactly that, for scripts, CI and
+tools that need the app answering before they go on.
 
 Each service runs in its `dir`, relative to `dev.json`. Each command runs in
 its own process group, and stopping one ends everything it started, such as
