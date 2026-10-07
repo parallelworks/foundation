@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.24.1](https://github.com/parallelworks/foundation/compare/ui-v0.24.0...ui-v0.24.1) (2026-10-07)
+
+
+### Bug Fixes
+
+* **ui:** a stacked cell with nothing in it adds nothing under the first ([#135](https://github.com/parallelworks/foundation/issues/135)) ([508455e](https://github.com/parallelworks/foundation/commit/508455e23849a7b882bd71b77dcae8743ce0bc7e))
+
 ## [0.24.0](https://github.com/parallelworks/foundation/compare/ui-v0.23.0...ui-v0.24.0) (2026-10-07)
 
 
