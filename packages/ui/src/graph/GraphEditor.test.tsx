@@ -1920,8 +1920,8 @@ describe('nodes formed by hand', () => {
     })
   })
 
-  it('gives a job merged into a node every need its connectors draw', () => {
-    // x and m share a node by hand, but only m needs p.
+  it('leaves every job in a node a job merges into with every need the node draws', () => {
+    // x and m share a node, but only m needs p.
     const e = editor()
     renderEditor(e, emptyLayoutWith({ p: [0, 0], e: [0, 1], x: [1, 0], m: [1, 0] }), 300, {
       jobs: {
@@ -1936,6 +1936,7 @@ describe('nodes formed by hand', () => {
       type: 'batch',
       edits: [
         expect.objectContaining({ type: 'groupJobs', jobs: ['e'], into: 'x' }),
+        { type: 'connect', from: 'p', to: 'x' },
         { type: 'connect', from: 'p', to: 'e' },
       ],
     })

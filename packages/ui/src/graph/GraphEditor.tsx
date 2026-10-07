@@ -669,8 +669,8 @@ function useGraphEditorState({
         editStep(job, index)
       }
     }
-    // The edits that put `jobs` in the node `box`: they take every need its connectors draw, and
-    // its jobs drop their needs on them. Null if that loops or cuts a need an expression reads.
+    // The edits that put `jobs` in the node `box`, leaving all its jobs with the same needs: every
+    // need its connectors draw. Null if that loops or cuts a need an expression reads.
     const joinEdits = (jobs: string[], box: string[]): GraphEdit[] | null => {
       const source = latest.current.source
       const all = needs()
@@ -703,25 +703,25 @@ function useGraphEditorState({
       )
       const before = withoutRefs(all, [...dropped, ...replaced])
       const after: Record<string, string[]> = { ...before }
-      for (const job of jobs) {
+      for (const job of node) {
         after[job] = drawn
       }
-      // No need of the node may already wait on a joining job, and no two of its jobs on each other.
+      // No need of the node may wait on one of its jobs, and no two of its jobs on each other.
       const loops =
-        jobs.some((job) => drawn.some((dep) => dependsOn(before, dep, job))) ||
+        node.some((job) => drawn.some((dep) => dependsOn(before, dep, job))) ||
         node.some((a) => node.some((b) => a !== b && dependsOn(after, a, b)))
       if (loops || needInUse(source, [...dropped, ...replaced])) {
         return null
       }
-      const kept = own(head)
-        .filter((need) => !jobs.includes(needTarget(need)))
-        .map(needTarget)
+      // Each job's needs after the disconnect, the joining ones' being the head's.
+      const has = (job: string) =>
+        (box.includes(job) && job !== head ? before[job] : before[head])?.map(needTarget) ?? []
       return [
         ...(dropped.length > 0 ? [{ type: 'disconnect' as const, needs: dropped }] : []),
         { type: 'groupJobs', jobs, into: head, layout: materialize() },
-        ...jobs.flatMap((job) =>
+        ...node.flatMap((job) =>
           drawn
-            .filter((dep) => !kept.includes(dep))
+            .filter((dep) => !has(job).includes(dep))
             .map((dep) => ({ type: 'connect' as const, from: dep, to: job })),
         ),
       ]
