@@ -80,3 +80,23 @@ export const QueuedMessages: StoryObj<{ queued: number; handedOver: number }> = 
     )
   },
 }
+
+const LINK =
+  'https://example.com/organization/repository/tree/main/examples/structured_mesh_solver_parameter_sweep'
+
+const longUrls: ChatMessage[] = [
+  makeMessage({
+    role: 'user',
+    content: `Build the workflow to match this one:\n${LINK}\n\nSo it can feed a parameter sweep later.`,
+  }),
+  makeMessage({
+    role: 'assistant',
+    content: `The example at ${LINK} reads its inputs from one file, so a sweep only has to rewrite that file.`,
+  }),
+]
+
+// A URL has nowhere to wrap, so it breaks inside the bubble rather than
+// running past its edge.
+export const LongUrls: StoryObj = {
+  render: () => <MessageList messages={longUrls} allMessages={longUrls} />,
+}
