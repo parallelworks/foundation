@@ -165,14 +165,14 @@ func (r *remote) act(ctx context.Context, command, name string) error {
 
 // runAttached opens the view on the dev already running for the checkout.
 // q leaves it running; Q stops it.
-func runAttached(ctx context.Context, cfg Config) error {
+func runAttached(ctx context.Context, cfg Config, ext extension) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	r, err := newRemote(ctx, cfg)
 	if err != nil {
 		return err
 	}
-	m := &model{sup: r, ctx: ctx, cancel: cancel, name: r.cfg.Name, attached: true}
+	m := &model{sup: r, ctx: ctx, cancel: cancel, name: r.cfg.Name, attached: true, ext: ext}
 	if v := r.version(); v != version() {
 		m.notice = fmt.Sprintf("attached to dev %s; this is dev %s", v, version())
 	}

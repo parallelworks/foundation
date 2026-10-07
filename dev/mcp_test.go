@@ -17,7 +17,7 @@ func TestMCPToolsDriveTheRunningDev(t *testing.T) {
 	})
 
 	serverT, clientT := mcp.NewInMemoryTransports()
-	if _, err := newMCPServer(cfg).Connect(t.Context(), serverT, nil); err != nil {
+	if _, err := newMCPServer(cfg, extension{}).Connect(t.Context(), serverT, nil); err != nil {
 		t.Fatal(err)
 	}
 	session, err := mcp.NewClient(&mcp.Implementation{Name: "test"}, nil).Connect(t.Context(), clientT, nil)
