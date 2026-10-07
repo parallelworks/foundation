@@ -1540,18 +1540,32 @@ describe('selecting jobs', () => {
     expect(selected()).toEqual([])
   })
 
-  it('outlines each run of selected jobs, never an unselected job between', () => {
+  it('outlines the whole selection in one box, across columns', () => {
     renderGraph(editor())
-    const outlines = () => document.querySelectorAll('.rounded-xl.border-dashed').length
+    const outlines = () =>
+      [...document.querySelectorAll<HTMLElement>('.rounded-xl.border-dashed')].map((outline) => [
+        outline.style.left,
+        outline.style.width,
+      ])
     const pick = (job: string) =>
       fireEvent.click(within(jobRow(job)).getByRole('button', { name: job.toUpperCase() }), {
         shiftKey: true,
       })
     pick('a')
     pick('c')
-    expect(outlines()).toBe(2)
-    pick('b')
-    expect(outlines()).toBe(1)
+    pick('d')
+    // From a's node, 36px out, to d's, 36px out.
+    expect(outlines()).toEqual([['-36px', '472px']])
+  })
+
+  it('puts the selection’s circles level with a selected job’s own', () => {
+    renderGraph(editor())
+    fireEvent.click(within(jobRow('a')).getByRole('button', { name: 'A' }), { shiftKey: true })
+    const own = document.querySelector('[data-dag-port="in"][data-dag-node="a"]') as HTMLElement
+    const selection = document.querySelector(
+      '[data-dag-selection][data-dag-port="in"]',
+    ) as HTMLElement
+    expect(selection.style.top).toBe(own.style.top)
   })
 
   it('moves the selected jobs together, anchored on the one dragged', () => {

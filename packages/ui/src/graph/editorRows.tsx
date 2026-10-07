@@ -102,49 +102,24 @@ export function GraphEditorCanvas() {
   )
 }
 
-// Selected jobs that sit together in one column with no unselected job between, top-left first.
-function selectionRuns(cols: string[][][], selected: string[]): string[][] {
-  return cols.flatMap((col) => {
-    const runs: string[][] = [[]]
-    for (const job of col.flat()) {
-      if (selected.includes(job)) {
-        runs.at(-1)?.push(job)
-      } else if (runs.at(-1)?.length) {
-        runs.push([])
-      }
-    }
-    return runs.filter((run) => run.length > 0)
-  })
-}
-
-/** The selected jobs' outlines, the first with a grip to move them all and circles to connect them. */
+/** One outline around the selected jobs, with a grip to move them all and circles to connect them. */
 function SelectionBox({ api }: { api: GraphEditorApi }) {
   const t = api.t
   const grid = api.grid()
   const jobs = api.selected()
-  const runs = grid
-    ? selectionRuns(grid.cols, jobs).flatMap((run) => {
-        const box = selectionBounds(grid.wrapper, run)
-        return box ? [{ run, box }] : []
-      })
-    : []
-  const [first] = runs
-  if (!first) {
+  const bounds = grid ? selectionBounds(grid.wrapper, jobs) : null
+  if (!grid || !bounds) {
     return null
   }
-  const bounds = first.box
   // Dragging the grip moves the selection as if by its top-left job.
-  const anchor = first.run[0]
-  const y = (bounds.top + bounds.bottom) / 2
+  const anchor = grid.cols.flat(2).find((job) => jobs.includes(job))
+  const y = bounds.connectorY
   return (
     <>
-      {runs.map(({ run, box }) => (
-        <div
-          key={run.join()}
-          className="absolute rounded-xl border-2 border-dashed border-(--theme-element)"
-          style={place(box)}
-        />
-      ))}
+      <div
+        className="absolute rounded-xl border-2 border-dashed border-(--theme-element)"
+        style={place(bounds)}
+      />
       <button
         type="button"
         aria-label={t.moveSelectionHint}

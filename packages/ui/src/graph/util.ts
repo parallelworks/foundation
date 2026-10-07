@@ -1,5 +1,8 @@
 import type { WorkflowJob } from './types'
 
+/** How far below a node's top edge its connectors meet it, level with its first job. */
+export const NODE_CONNECTOR_Y = 37
+
 /** A job as people read it: `run_tests` is "Run tests", a matrix member "Build (2/4)". */
 export function jobLabel(jobName: string, job?: WorkflowJob): string {
   const matrix = job?._matrix

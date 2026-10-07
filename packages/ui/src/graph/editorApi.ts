@@ -17,7 +17,7 @@ import type { Box, Point, Store } from './editorPrimitives'
 import type { GraphEditorStrings } from './editorStrings'
 import type { SettingsView } from './GraphEditorDialogs'
 import type { ListedProblem } from './ProblemsButton'
-import { jobLabel } from './util'
+import { jobLabel, NODE_CONNECTOR_Y } from './util'
 
 export type { Box }
 
@@ -287,20 +287,36 @@ const SELECTION_SIDE_PAD = 36
  * The outline around the selected jobs, in content coordinates: as tall as their rows and
  * as wide as their nodes, so its circles sit clear of the nodes' own.
  */
-export function selectionBounds(wrapper: HTMLElement, jobs: string[]): Box | null {
+export function selectionBounds(
+  wrapper: HTMLElement,
+  jobs: string[],
+): (Box & { connectorY: number }) | null {
   const found = jobs.flatMap((job) => {
     const row = wrapper.querySelector(`[data-dag-job="${CSS.escape(job)}"]`)
     const node = row?.closest('[id^="node_"]')
-    return row && node ? [{ row: contentBox(wrapper, row), node: contentBox(wrapper, node) }] : []
+    const first = node?.querySelector('[data-dag-job]')
+    return row && node && first
+      ? [
+          {
+            row: contentBox(wrapper, row),
+            node: contentBox(wrapper, node),
+            first: contentBox(wrapper, first),
+          },
+        ]
+      : []
   })
   if (found.length === 0) {
     return null
   }
+  // The circles go level with the nodes' own: where a node's connectors would meet a row were
+  // it the node's first, halfway between the top and bottom rows.
+  const connectors = found.map((f) => f.node.top + NODE_CONNECTOR_Y + f.row.top - f.first.top)
   return {
     left: Math.min(...found.map((f) => f.node.left)) - SELECTION_SIDE_PAD,
     top: Math.min(...found.map((f) => f.row.top)) - SELECTION_PAD,
     right: Math.max(...found.map((f) => f.node.right)) + SELECTION_SIDE_PAD,
     bottom: Math.max(...found.map((f) => f.row.bottom)) + SELECTION_PAD,
+    connectorY: (Math.min(...connectors) + Math.max(...connectors)) / 2,
   }
 }
 const TEXT_INPUT = 'input, textarea, select, [contenteditable="true"]'

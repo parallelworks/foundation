@@ -61,7 +61,7 @@ import { MatrixGroupNode, MatrixGroupSummaryItem } from './MatrixGroup'
 import { Reveal } from './Reveal'
 import TreeView from './TreeView'
 import { isJobRecord, type RunLink, type WorkflowJob, type WorkflowStep } from './types'
-import { jobLabel, toggled } from './util'
+import { jobLabel, NODE_CONNECTOR_Y, toggled } from './util'
 
 export type ViewMode = 'dag' | 'tree'
 
@@ -1023,7 +1023,7 @@ function Subgraph({
         const gid = (name: string) => document.getElementById(`node_${pathPrefix}${name}`)
         const ox = (el: HTMLElement) => offsetWithin(el, wrapper).x
         // Y position where connectors attach to a node
-        const nodeConnectorY = (el: HTMLElement) => offsetWithin(el, wrapper).y + 37
+        const nodeConnectorY = (el: HTMLElement) => offsetWithin(el, wrapper).y + NODE_CONNECTOR_Y
 
         // A need draws from the box its job sits in, and a box formed by hand draws all its members' needs.
         const headOf = new Map<string, string>()
