@@ -252,3 +252,27 @@ func TestServicesLearnWhereToOpenThem(t *testing.T) {
 		t.Errorf("the S3 link was restyled:\n%q", m.View().Content)
 	}
 }
+
+func TestViewShowsStartupProgress(t *testing.T) {
+	root := t.TempDir()
+	cfg := Config{
+		Root:     root,
+		Before:   [][]string{{"sh", "-c", "echo regenerating content; sleep 300"}},
+		Services: []Service{{Name: "web", Run: []string{"sleep", "300"}}},
+	}
+	s, err := newSupervisor(cfg, slog.New(slog.DiscardHandler), io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() { done <- s.run(ctx) }()
+	t.Cleanup(func() { cancel(); <-done })
+
+	m := &model{sup: s, ctx: ctx, cancel: cancel}
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 12})
+	eventually(t, "the before command's output in the view", func() bool {
+		v := m.View().Content
+		return strings.Contains(v, "running before commands…") && strings.Contains(v, "regenerating content")
+	})
+}

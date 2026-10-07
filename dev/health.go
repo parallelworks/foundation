@@ -106,16 +106,20 @@ func waitServices(ctx context.Context, cfg Config, names []string, timeout time.
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	for {
-		services, err := control(ctx, cfg, controlRequest{Command: "status"})
+		resp, err := controlFull(ctx, cfg, controlRequest{Command: "status"})
 		if err != nil {
 			return err
 		}
+		services := resp.Services
 		waiting := 0
 		for _, name := range names {
 			i := slices.IndexFunc(services, func(s status) bool { return s.Name == name })
 			switch {
 			case i < 0:
 				return fmt.Errorf("no service named %q", name)
+			case resp.Starting != "":
+				// Every service reads stopped until the stack is up.
+				waiting++
 			case services[i].State.up():
 			case services[i].State.done() && time.Since(services[i].Since) > time.Second:
 				// A moment's grace: a service just restarted reads stopped.

@@ -23,7 +23,10 @@ type controlRequest struct {
 
 type controlResponse struct {
 	Services []status `json:"services,omitempty"`
-	Error    string   `json:"error,omitempty"`
+	// Starting says what dev is doing before its services start, such as
+	// starting the stack; until then every service reads stopped.
+	Starting string `json:"starting,omitempty"`
+	Error    string `json:"error,omitempty"`
 }
 
 // socketPath is the control socket of the dev whose stack lives in dir. It
@@ -119,7 +122,7 @@ func (s *supervisor) answer(ctx context.Context, conn net.Conn) {
 	default:
 		err = fmt.Errorf("unknown command %q", req.Command)
 	}
-	resp := controlResponse{Services: s.statuses()}
+	resp := controlResponse{Services: s.statuses(), Starting: s.starting()}
 	if err != nil {
 		resp.Error = err.Error()
 	}
@@ -128,28 +131,33 @@ func (s *supervisor) answer(ctx context.Context, conn net.Conn) {
 
 // control sends a request to the dev running for cfg's stack.
 func control(ctx context.Context, cfg Config, req controlRequest) ([]status, error) {
+	resp, err := controlFull(ctx, cfg, req)
+	return resp.Services, err
+}
+
+func controlFull(ctx context.Context, cfg Config, req controlRequest) (controlResponse, error) {
 	c, err := cfg.withDefaults()
 	if err != nil {
-		return nil, err
+		return controlResponse{}, err
 	}
 	path, err := socketPath(c.Dir)
 	if err != nil {
-		return nil, err
+		return controlResponse{}, err
 	}
 	conn, err := (&net.Dialer{Timeout: time.Second}).DialContext(ctx, "unix", path)
 	if err != nil {
-		return nil, fmt.Errorf("dev is not running in %s", c.Root)
+		return controlResponse{}, fmt.Errorf("dev is not running in %s", c.Root)
 	}
 	defer conn.Close()
 	if err := json.NewEncoder(conn).Encode(req); err != nil {
-		return nil, err
+		return controlResponse{}, err
 	}
 	var resp controlResponse
 	if err := json.NewDecoder(conn).Decode(&resp); err != nil {
-		return nil, err
+		return controlResponse{}, err
 	}
 	if resp.Error != "" {
-		return resp.Services, errors.New(resp.Error)
+		return resp, errors.New(resp.Error)
 	}
-	return resp.Services, nil
+	return resp, nil
 }

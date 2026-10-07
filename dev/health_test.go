@@ -27,7 +27,9 @@ func TestHealthMovesAServiceThroughItsStates(t *testing.T) {
 	cfg := Config{Root: root, Services: []Service{
 		{Name: "api", Run: []string{"sleep", "300"}, Health: health.URL},
 		{Name: "web", Run: []string{"sleep", "300"}},
-		{Name: "job", Run: []string{"sh", "-c", "sleep 0.2; exit 4"}, Manual: true},
+		// Never answers its health URL, so it is never up before it exits;
+		// without one it would count as up while running.
+		{Name: "job", Run: []string{"sh", "-c", "sleep 0.2; exit 4"}, Manual: true, Health: "http://127.0.0.1:1/"},
 	}}
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan struct{})
@@ -76,5 +78,32 @@ func TestHealthMustBeAnHTTPURL(t *testing.T) {
 	cfg := Config{Services: []Service{{Name: "api", Run: []string{"api"}, Health: "localhost:8080/readyz"}}}
 	if _, err := cfg.withDefaults(); err == nil {
 		t.Error("a health URL without a scheme was accepted")
+	}
+}
+
+func TestWaitWaitsThroughStartup(t *testing.T) {
+	root := t.TempDir()
+	cfg := Config{
+		Root:     root,
+		Before:   [][]string{{"sleep", "2"}},
+		Services: []Service{{Name: "web", Run: []string{"sleep", "300"}}},
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		_ = Up(ctx, cfg, slog.New(slog.DiscardHandler), io.Discard)
+		close(done)
+	}()
+	t.Cleanup(func() { cancel(); <-done })
+
+	// While the before command runs, web reads stopped; wait must not take
+	// that for a service that gave up.
+	eventually(t, "dev to answer", func() bool {
+		resp, err := controlFull(t.Context(), cfg, controlRequest{Command: "status"})
+		return err == nil && resp.Starting != ""
+	})
+	time.Sleep(1200 * time.Millisecond) // past wait's grace for a stopped service
+	if err := waitServices(t.Context(), cfg, []string{"web"}, 10*time.Second); err != nil {
+		t.Errorf("wait during startup: %v", err)
 	}
 }

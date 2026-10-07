@@ -97,11 +97,14 @@ func NewRootCmd(cfg Config) *cobra.Command {
 		Short: "Show the services of the dev running here",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			services, err := control(cmd.Context(), cfg, controlRequest{Command: "status"})
+			resp, err := controlFull(cmd.Context(), cfg, controlRequest{Command: "status"})
 			if err != nil {
 				return err
 			}
-			printStatuses(cmd.OutOrStdout(), services)
+			if resp.Starting != "" {
+				fmt.Fprintf(cmd.OutOrStdout(), "dev is %s…\n", resp.Starting)
+			}
+			printStatuses(cmd.OutOrStdout(), resp.Services)
 			return nil
 		},
 	})

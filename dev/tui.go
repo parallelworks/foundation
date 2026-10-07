@@ -260,7 +260,14 @@ func (m *model) home(b *strings.Builder) {
 	if stack := m.stackLine(); stack != "" {
 		b.WriteString("   " + stack)
 	}
-	b.WriteString("\n\n")
+	b.WriteString("\n")
+	// A before command can take a minute; show that it is getting somewhere.
+	if what, _ := m.sup.stackState(); what != "" {
+		if all := m.sup.lines(""); len(all) > 0 {
+			b.WriteString(dimStyle.Render(truncate("  "+all[len(all)-1], m.width)))
+		}
+	}
+	b.WriteString("\n")
 
 	services := m.sup.statuses()
 	width := 0
@@ -308,8 +315,8 @@ func (m *model) home(b *strings.Builder) {
 // stackLine describes the stack, each part styled on its own: styling a
 // string that already holds a link would cut into the link's own styling.
 func (m *model) stackLine() string {
-	if what := m.sup.stackState(); what != "" {
-		return dimStyle.Render(what + "…")
+	if what, since := m.sup.stackState(); what != "" {
+		return dimStyle.Render(fmt.Sprintf("%s… %s", what, strings.TrimSpace(elapsed(since))))
 	}
 	var parts []string
 	if m.sup.cfg.Postgres != nil {
@@ -355,6 +362,14 @@ func link(url string, up bool) string {
 		style = style.Faint(true)
 	}
 	return style.Render(url)
+}
+
+// elapsed is since for a moment that may be unset.
+func elapsed(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return since(t)
 }
 
 func since(t time.Time) string {

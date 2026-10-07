@@ -49,6 +49,7 @@ type supervisor struct {
 	order    []string
 	services map[string]*runner
 	stack    string // what the stack is doing, for the TUI's header
+	since    time.Time
 	changed  chan struct{}
 }
 
@@ -188,6 +189,12 @@ func (s *supervisor) start(ctx context.Context, name string) error {
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	r.cancel, r.done = cancel, make(chan struct{})
+	// Read as on its way at once, not stopped until its goroutine reports:
+	// dev wait would take stopped for a service that gave up.
+	r.status.State, r.status.Detail, r.status.Since = stateStarting, "", time.Now()
+	if len(r.svc.Build) > 0 {
+		r.status.State = stateBuilding
+	}
 	set := func(st state, detail string) { s.setState(r, st, detail) }
 	logger := s.logger.With("service", name)
 	// done waits for the prober too, so that stop leaves nothing behind.
@@ -247,10 +254,26 @@ func (s *supervisor) statuses() []status {
 	return out
 }
 
-func (s *supervisor) stackState() string {
+// starting is what dev is doing before its services start, or "" once they
+// have.
+func (s *supervisor) starting() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.stack
+	if s.running {
+		return ""
+	}
+	if s.stack != "" {
+		return s.stack
+	}
+	return "starting"
+}
+
+// stackState is what dev is doing before its services start, and since
+// when; "" once they have.
+func (s *supervisor) stackState() (string, time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.stack, s.since
 }
 
 func (s *supervisor) setState(r *runner, st state, detail string) {
@@ -324,7 +347,7 @@ func (s *supervisor) learnURL(r *runner, line string) {
 
 func (s *supervisor) setStack(what string) {
 	s.mu.Lock()
-	s.stack = what
+	s.stack, s.since = what, time.Now()
 	s.mu.Unlock()
 	s.notify()
 }
