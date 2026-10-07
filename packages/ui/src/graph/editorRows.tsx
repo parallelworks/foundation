@@ -307,6 +307,8 @@ function EditableRow({
       {...(selected ? { 'data-selected': '' } : {})}
       className={cx(
         EDITOR_HANDLE_CLASS,
+        // Room between the label and its ring, without moving the label or widening the node.
+        '-mx-0.5 px-0.5',
         className,
         selected && 'bg-(--theme-element)/15',
         flagged ? 'ring-2 ring-(--theme-error)' : selected && 'ring-2 ring-(--theme-element)',
