@@ -34,9 +34,8 @@ export function ViewSwitch({
 }) {
   const t = useGraphEditorStrings()
   return (
-    <div className="w-36" data-tooltip-id={TOOLTIP_ID} data-tooltip-content={t.help.view}>
+    <div data-tooltip-id={TOOLTIP_ID} data-tooltip-content={t.help.view}>
       <ChoiceButtons
-        size="xs"
         options={[
           { value: 'yaml', label: t.viewYaml },
           { value: 'form', label: t.viewForm },

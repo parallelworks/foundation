@@ -516,7 +516,6 @@ function SettingsForm({
               description={t.help.sessionType}
             />
             <ChoiceButtons
-              size="xs"
               options={[
                 { value: 'tunnel', label: t.sessionTypeTunnel },
                 { value: 'link', label: t.sessionTypeLink },
@@ -530,7 +529,6 @@ function SettingsForm({
               description={t.help.promptForName}
             />
             <ChoiceButtons
-              size="xs"
               options={[
                 { value: 'off', label: t.promptOff },
                 { value: 'ask', label: t.promptAsk },
@@ -615,7 +613,6 @@ function SettingsForm({
             />
             <FieldLabel label={t.fields.linkTarget} description={t.help.linkTarget} />
             <ChoiceButtons
-              size="xs"
               options={[
                 { value: 'endpoint', label: t.linkToEndpoint },
                 { value: 'url', label: t.linkToUrl },
@@ -727,7 +724,6 @@ function SettingsForm({
           description={t.help.labelPosition}
         />
         <ChoiceButtons
-          size="xs"
           options={[
             { value: 'left', label: t.labelsBeside },
             { value: 'top', label: t.labelsAbove },

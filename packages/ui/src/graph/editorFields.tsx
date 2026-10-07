@@ -12,6 +12,7 @@ import {
 } from 'react'
 import { BareModal, modalPanelClasses } from '../components/BareModal'
 import { Button } from '../components/Button'
+import { FilterPill } from '../components/FilterPill'
 import { ghostButtonClasses, primaryButtonClasses } from '../components/ghostButton'
 import { IconButton } from '../components/IconButton'
 import { Input, Textarea } from '../components/Input'
@@ -429,40 +430,25 @@ export function ToggleField({
   )
 }
 
-// The pane toggles' look: a solid accent fill when on, only an outline when off.
-export function pressedClasses(on: boolean): string {
-  return on
-    ? 'border-(--theme-element) bg-(--theme-element) font-medium text-(--theme-element-text)'
-    : 'theme-border theme-muted-text hover:theme-hover'
-}
-
 export function ChoiceButtons<T extends string>({
   options,
   value,
   onChange,
-  size = 'sm',
 }: {
   options: { value: T; label: string }[]
   value: T
   onChange: (value: T) => void
-  size?: 'sm' | 'xs'
 }) {
   return (
-    <div className="flex gap-2">
+    <div className="flex flex-wrap gap-1">
       {options.map((option) => (
-        <button
+        <FilterPill
           key={option.value}
-          type="button"
-          aria-pressed={value === option.value}
+          active={value === option.value}
           onClick={() => onChange(option.value)}
-          className={cx(
-            'flex-1 cursor-pointer rounded-md border px-3 py-2 transition-colors',
-            size === 'sm' ? 'text-sm' : 'text-xs',
-            pressedClasses(value === option.value),
-          )}
         >
           {option.label}
-        </button>
+        </FilterPill>
       ))}
     </div>
   )

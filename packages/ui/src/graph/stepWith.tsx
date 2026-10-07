@@ -499,7 +499,6 @@ export function UsesPicker({
     <div className="flex flex-col gap-2">
       <FieldLabel label={t.fields.uses} yamlKey="uses" description={t.help.uses} />
       <ChoiceButtons
-        size="xs"
         options={[
           { value: 'action', label: t.usesAction },
           { value: 'workflow', label: t.usesWorkflow },

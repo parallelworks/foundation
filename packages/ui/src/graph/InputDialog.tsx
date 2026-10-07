@@ -1,6 +1,7 @@
 import cx from 'classnames'
 import { type ReactNode, useId, useMemo, useRef, useState } from 'react'
 import Dropdown from '../components/Dropdown'
+import { FilterPill } from '../components/FilterPill'
 import { IconButton } from '../components/IconButton'
 import { Input, Textarea } from '../components/Input'
 import { withPositionKeys } from '../components/keys'
@@ -33,7 +34,6 @@ import {
   type OpenOnAdd,
   parseJson,
   parseScalar,
-  pressedClasses,
   Section,
   SectionMemory,
   StringListEditor,
@@ -580,7 +580,6 @@ function OptionsEditor({
     <div className="flex flex-col gap-2">
       {draft.mode !== 'expression' && modes.length > 1 && (
         <ChoiceButtons
-          size="xs"
           options={modes}
           value={draft.mode}
           onChange={(mode) => onChange({ ...draft, mode })}
@@ -729,20 +728,14 @@ function ImpliesEditor({
           {listed
             .filter((other) => other.value !== option.value)
             .map((other) => {
-              const on = (draft[option.value] ?? []).includes(other.value)
               return (
-                <button
+                <FilterPill
                   key={other.value}
-                  type="button"
-                  aria-pressed={on}
+                  active={(draft[option.value] ?? []).includes(other.value)}
                   onClick={() => toggle(option.value, other.value)}
-                  className={cx(
-                    'cursor-pointer rounded-md border px-2 py-1 text-xs transition-colors',
-                    pressedClasses(on),
-                  )}
                 >
                   {nameOf(other.value)}
-                </button>
+                </FilterPill>
               )
             })}
         </div>
@@ -1531,7 +1524,6 @@ function PropField({
       return (
         <LabelledField {...field}>
           <ChoiceButtons
-            size="xs"
             options={(prop.choices ?? []).map((choice) => ({
               value: choice,
               label: choiceLabels?.[choice] ?? choice,

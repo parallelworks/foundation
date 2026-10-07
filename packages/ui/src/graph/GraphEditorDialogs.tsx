@@ -703,7 +703,6 @@ function MatrixVariable({
           </div>
           <div className="flex-1">
             <ChoiceButtons
-              size="xs"
               options={[
                 { value: 'values', label: t.matrixValuesListed },
                 { value: 'input', label: t.modeFromInput },
@@ -1104,7 +1103,6 @@ function JobForm({
                     description={t.help.targetMode}
                   >
                     <ChoiceButtons
-                      size="xs"
                       options={TARGET_MODES.map((mode) => ({
                         value: mode,
                         label: t.targetModes[mode],
@@ -1638,7 +1636,6 @@ function StepForm({
         alert={!!errors.ssh}
       >
         <ChoiceButtons
-          size="xs"
           options={[
             { value: 'inherit', label: t.sshInherit },
             { value: 'custom', label: t.sshCustom },
