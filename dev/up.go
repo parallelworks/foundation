@@ -175,15 +175,16 @@ func build(ctx context.Context, svc Service, env []string, builds chan struct{},
 // outputs prefixes each source's lines with its name, padded to align, and
 // writes them unprefixed to the source's log.
 type outputs struct {
-	mu    sync.Mutex
-	out   io.Writer
-	logs  string
-	files []*os.File
-	width int
-	color bool
-	next  int
-	rings map[string]*ring
-	all   *ring // every source's lines, prefixed
+	mu     sync.Mutex
+	out    io.Writer
+	logs   string
+	files  []*os.File
+	width  int
+	color  bool
+	next   int
+	rings  map[string]*ring
+	all    *ring    // every source's lines, prefixed
+	allLog *os.File // the same, for a view attached from elsewhere
 }
 
 func newOutputs(out io.Writer, cfg Config, services []Service) (*outputs, error) {
@@ -192,6 +193,10 @@ func newOutputs(out io.Writer, cfg Config, services []Service) (*outputs, error)
 		return nil, err
 	}
 	o := &outputs{out: out, logs: logs, width: len("before"), color: colorEnabled(out), rings: map[string]*ring{}, all: newRing(allLines)}
+	if f, err := os.Create(LogPath(logs, "all")); err == nil {
+		o.allLog = f
+		o.files = append(o.files, f)
+	}
 	for _, svc := range services {
 		o.width = max(o.width, len(svc.Name))
 	}
@@ -213,6 +218,9 @@ func (o *outputs) writer(name string) *lineWriter {
 	w := &lineWriter{mu: &o.mu, out: o.out, prefix: prefix, sink: func(line string) {
 		r.add(line)
 		o.all.add(plain + line)
+		if o.allLog != nil {
+			_, _ = o.allLog.WriteString(plain + line + "\n")
+		}
 	}}
 	// Each run starts its logs afresh; a log that cannot be opened only
 	// costs the copy, never the terminal output.
