@@ -1,5 +1,6 @@
 import cx from 'classnames'
-import { useSyncExternalStore } from 'react'
+import { useEffect, useRef, useSyncExternalStore } from 'react'
+import type { OpenMenu } from '../list/RowContextMenu'
 
 export interface Point {
   x: number
@@ -38,6 +39,54 @@ export type Store<T extends object> = ReturnType<typeof createStore<T>>
 
 export function useStore<T extends object, V>(store: Store<T>, select: (state: T) => V): V {
   return useSyncExternalStore(store.subscribe, () => select(store.get()))
+}
+
+/**
+ * Gives `container` focus back once it has fallen to the page, as when the row, menu or dialog
+ * holding it goes away, so the editor's shortcuts, Cmd+Z among them, keep reaching it.
+ */
+export function reclaimFocus(container: HTMLElement | null | undefined) {
+  // After the edit's redraw, once the row, menu or dialog has gone from the page.
+  window.setTimeout(() => {
+    const active = document.activeElement
+    if (container?.isConnected && (!active || active === document.body)) {
+      container.focus({ preventScroll: true })
+    }
+  })
+}
+
+/** Reclaims focus for the editor's container each time its dialog closes. */
+export function useFocusAfterDialog<T extends { dialog: unknown }>(
+  store: Store<T>,
+  container: () => HTMLElement | null,
+) {
+  const latest = useRef(container)
+  latest.current = container
+  useEffect(() => {
+    let open = store.get().dialog !== null
+    return store.subscribe(() => {
+      const now = store.get().dialog !== null
+      if (open && !now) {
+        reclaimFocus(latest.current())
+      }
+      open = now
+    })
+  }, [store])
+}
+
+/** `openMenu` whose menus reclaim focus for the editor when they close. */
+export function returningFocus(openMenu: OpenMenu, container: () => HTMLElement | null): OpenMenu {
+  return (x, y, items, onClose, search) =>
+    openMenu(
+      x,
+      y,
+      items,
+      () => {
+        onClose?.()
+        reclaimFocus(container())
+      },
+      search,
+    )
 }
 
 // A press becomes a drag once the pointer has moved this far, so a click stays a click.

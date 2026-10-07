@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { dumpYaml, type GraphLayout, layoutFromCols } from '@parallelworks/workflow-parser'
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeAll, describe, expect, it, onTestFinished, vi } from 'vitest'
 import type { NestedWorkflowText } from '../editor/nestedText'
@@ -339,6 +339,27 @@ describe('DependencyGraphPreview editor', () => {
       job: 'mac',
       variables: [['value', [1, 2]]],
     })
+  })
+
+  it('takes focus back after an edit from a menu, so undo keys still reach the graph', async () => {
+    const e = editor()
+    render(<DependencyGraphPreview yml={yml} editor={e} />)
+    const row = document.querySelector('[data-dag-job="mac"]') as HTMLElement
+    fireEvent.contextMenu(row, { clientX: 5, clientY: 5 })
+    fireEvent.click(screen.getByText('Make matrix'))
+    const graph = document.querySelector('[tabindex="-1"]') as HTMLElement
+    await waitFor(() => expect(graph).toHaveFocus())
+    fireEvent.keyDown(graph, { key: 'z', metaKey: true })
+    expect(e.onUndo).toHaveBeenCalledOnce()
+  })
+
+  it('takes focus back when a job dialog closes', async () => {
+    render(<DependencyGraphPreview yml={yml} editor={editor()} />)
+    const row = document.querySelector('[data-dag-job="mac"]') as HTMLElement
+    fireEvent.contextMenu(row, { clientX: 5, clientY: 5 })
+    fireEvent.click(screen.getByText('Edit job'))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(document.querySelector('[tabindex="-1"]')).toHaveFocus())
   })
 
   it('edits a job through its dialog as one edit', () => {

@@ -61,7 +61,15 @@ import {
 } from './editorApi'
 import { AddChip, BarDivider, DragLabel, EditorBar } from './editorChrome'
 import { asRecord, openOnAddOf } from './editorFields'
-import { type Box, createStore, type Point, trackDrag } from './editorPrimitives'
+import {
+  type Box,
+  createStore,
+  type Point,
+  reclaimFocus,
+  returningFocus,
+  trackDrag,
+  useFocusAfterDialog,
+} from './editorPrimitives'
 import { type GraphEditorStrings, useGraphEditorStrings } from './editorStrings'
 import { JobDialog, StepDialog } from './GraphEditorDialogs'
 import { refusalText } from './refusalText'
@@ -531,10 +539,16 @@ function useGraphEditorState({
   const viewRef = useRef<GraphView | null>(null)
   const trashRef = useRef<HTMLDivElement>(null)
   const source: Record<string, unknown> = yamlJobs ?? jobs
-  const latest = useRef({ editor, source, layout })
+  const latest = useRef({ editor, source, layout, container })
   // Set during render, so the api reads this render's jobs rather than the last one's.
-  latest.current = { editor, source, layout }
-  const { openMenu, contextMenu } = useRowMenu()
+  latest.current = { editor, source, layout, container }
+  const rowMenu = useRowMenu()
+  const openMenu = useMemo(
+    () => returningFocus(rowMenu.openMenu, () => latest.current.container),
+    [rowMenu.openMenu],
+  )
+  const contextMenu = rowMenu.contextMenu
+  useFocusAfterDialog(store, () => latest.current.container)
   const editing = useWorkflowEditing()
 
   const api = useMemo<GraphEditorApi>(() => {
@@ -556,6 +570,7 @@ function useGraphEditorState({
     // Other edits can renumber steps, so only step moves and pastes keep the step selection.
     const edit = (graphEdit: GraphEdit) => {
       const result = latest.current.editor?.onEdit(graphEdit)
+      reclaimFocus(latest.current.container)
       if (
         store.get().steps.length > 0 &&
         graphEdit.type !== 'moveSteps' &&

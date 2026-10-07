@@ -33,7 +33,10 @@ import {
   createStore,
   type Store as EditorStore,
   MarqueeBox,
+  reclaimFocus,
+  returningFocus,
   trackDrag,
+  useFocusAfterDialog,
   useStore,
 } from './editorPrimitives'
 import {
@@ -573,10 +576,20 @@ export function InputsFormEditor({
   const latest = useRef({ editor, inputs })
   // Rows read the inputs while they render, so they must see this render's, not the last one's.
   latest.current = { editor, inputs }
-  const { openMenu, contextMenu } = useRowMenu()
+  const rowMenu = useRowMenu()
+  const openMenu = useMemo(
+    () => returningFocus(rowMenu.openMenu, () => containerRef.current),
+    [rowMenu.openMenu],
+  )
+  const contextMenu = rowMenu.contextMenu
+  useFocusAfterDialog(store, () => containerRef.current)
 
   const api = useMemo<InputsEditorApi>(() => {
-    const send = (edit: GraphEdit) => latest.current.editor.onEdit(edit)
+    const send = (edit: GraphEdit) => {
+      const result = latest.current.editor.onEdit(edit)
+      reclaimFocus(containerRef.current)
+      return result
+    }
     const definition = (path: InputPath): Json =>
       path.length === 0
         ? asRecord(latest.current.inputs)

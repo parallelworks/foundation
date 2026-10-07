@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { convertToDynamicForm } from '@parallelworks/workflow-parser'
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 // The editor calls useWorkflowEngine(), which throws outside a UIProvider carrying one.
@@ -187,6 +187,16 @@ describe('InputsFormEditor', () => {
         definition: { type: 'boolean' },
       }),
     )
+  })
+
+  it('takes focus back after an edit from a row, so undo keys still reach the form', async () => {
+    const e = editor()
+    renderForm(e)
+    const form = row(['name']).closest<HTMLElement>('[tabindex="0"]') as HTMLElement
+    fireEvent.click(within(row(['name'])).getByRole('button', { name: 'Delete input' }))
+    await waitFor(() => expect(form).toHaveFocus())
+    fireEvent.keyDown(form, { key: 'z', metaKey: true })
+    expect(e.onUndo).toHaveBeenCalledOnce()
   })
 
   it('removes, moves and edits from a row', () => {
