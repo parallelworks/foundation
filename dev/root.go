@@ -277,7 +277,7 @@ func NewRootCmd(cfg Config, opts ...Option) *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{anywhere: "yes"},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			list, err := ps(cmd.Context())
+			list, err := Instances(cmd.Context())
 			if err != nil {
 				return err
 			}
