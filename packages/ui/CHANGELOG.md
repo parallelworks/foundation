@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.24.0](https://github.com/parallelworks/foundation/compare/ui-v0.23.0...ui-v0.24.0) (2026-10-07)
+
+
+### Features
+
+* **ui:** list columns stack under the first on a narrow container ([#132](https://github.com/parallelworks/foundation/issues/132)) ([f146e19](https://github.com/parallelworks/foundation/commit/f146e19115a536fc97714047e522b3a41044d5e6))
+
 ## [0.23.0](https://github.com/parallelworks/foundation/compare/ui-v0.22.0...ui-v0.23.0) (2026-10-06)
 
 
