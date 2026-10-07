@@ -152,6 +152,18 @@ func NewRootCmd(cfg Config) *cobra.Command {
 	root.AddCommand(upCmd)
 
 	root.AddCommand(&cobra.Command{
+		Use:   "mcp",
+		Short: "Answer MCP over stdio, so an agent can drive this checkout's dev as tools",
+		Long: "Answer the Model Context Protocol over stdin and stdout. An agent configured with " +
+			"`go -C tools tool dev mcp` gets tools to start dev in the background (up), see services, their states, " +
+			"URLs and ports (status), read output (logs), start, stop and restart services, wait for them, and stop dev (down).",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return serveMCP(cmd.Context(), cfg)
+		},
+	})
+
+	root.AddCommand(&cobra.Command{
 		Use:   "down",
 		Short: "Stop the dev running here, foreground or background",
 		Args:  cobra.NoArgs,

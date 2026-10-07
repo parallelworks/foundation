@@ -113,10 +113,14 @@ func newSupervisor(ctx context.Context, cfg Config, logger *slog.Logger, out io.
 // (or every one not marked Manual), and stops everything when ctx ends.
 func (s *supervisor) run(ctx context.Context, names ...string) error {
 	defer s.outputs.close()
+	// Wait for the watcher after stop has ended it, so run leaves nothing.
+	var watch sync.WaitGroup
+	defer watch.Wait()
 	ctx, stop := context.WithCancel(ctx)
 	defer stop()
 	s.shutdown, s.started = stop, time.Now()
-	go s.watchCheckout(ctx, stop)
+	every := checkoutCheck
+	watch.Go(func() { s.watchCheckout(ctx, stop, every) })
 	selected, err := s.cfg.selectServices(names)
 	if err != nil {
 		return err

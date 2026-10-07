@@ -70,8 +70,8 @@ var checkoutCheck = 5 * time.Second
 
 // watchCheckout stops dev when its checkout is deleted, as a finished
 // worktree is, so that a detached dev does not outlive the code it runs.
-func (s *supervisor) watchCheckout(ctx context.Context, stop context.CancelFunc) {
-	tick := time.NewTicker(checkoutCheck)
+func (s *supervisor) watchCheckout(ctx context.Context, stop context.CancelFunc, every time.Duration) {
+	tick := time.NewTicker(every)
 	defer tick.Stop()
 	for {
 		select {

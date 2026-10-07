@@ -58,6 +58,7 @@ Describe the app in `dev.json` at the repository root:
 | `dev down` | Stop the dev running here |
 | `dev ps` | List every dev running on this machine: checkout, pid, ports |
 | `dev exec -- command` | Run a command with the running dev's environment: allocated ports, `{postgres}`, `{s3}` |
+| `dev mcp` | Answer MCP over stdio, so an agent drives this checkout's dev as tools |
 | `dev stack` | Run Postgres on `:5432` and S3 on `127.0.0.1:8333` until interrupted. User, password and database are `name` (required with Postgres); tests get `name_test` |
 | `dev wait [service...]` | Block until a stack started elsewhere accepts connections, or until the services named are up; fails as soon as one fails, exits or turns unhealthy |
 | `dev reset` | Delete the stack's data |
@@ -128,6 +129,15 @@ with the services' errors), `dev status --json` gives its URLs and ports,
 `dev exec -- make test` runs tests against that checkout's stack, `dev logs`
 reads output, and `dev down` stops it. A detached dev also stops itself when
 its checkout is deleted, as a finished worktree is, and after `--for`.
+
+`dev mcp` offers the same as tools over the Model Context Protocol: `up`,
+`status`, `logs` (with `match` to filter), `start`, `stop`, `restart`, `wait`
+and `down`. In an app, an `.mcp.json` at the repository root gives agents that
+work in it the tools, for whichever checkout they run in:
+
+```json
+{ "mcpServers": { "dev": { "command": "go", "args": ["-C", "tools", "tool", "dev", "mcp"] } } }
+```
 
 ## Ports
 
