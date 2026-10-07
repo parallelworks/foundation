@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.9.0](https://github.com/parallelworks/foundation/compare/dev/v0.8.0...dev/v0.9.0) (2026-10-07)
+
+
+### Features
+
+* **dev:** an app's own dev adds rows and keys to the view, and tools to dev mcp ([#151](https://github.com/parallelworks/foundation/issues/151)) ([5c08f33](https://github.com/parallelworks/foundation/commit/5c08f338f346b24a49bb1ff929c12706a818c275))
+* **dev:** dev use and the view's p switch a running dev to other profiles ([#150](https://github.com/parallelworks/foundation/issues/150)) ([7044720](https://github.com/parallelworks/foundation/commit/7044720845f5503137dcd81f9000ee869bd76f7e))
+* **dev:** profiles choose between setups per checkout, such as local or shared data ([#148](https://github.com/parallelworks/foundation/issues/148)) ([0dafe31](https://github.com/parallelworks/foundation/commit/0dafe31779298778dbcd6988461264f107b82bc3))
+* **dev:** services depend on others, restart on failure, rebuild on checkout, and name the checkout ([#147](https://github.com/parallelworks/foundation/issues/147)) ([20cf179](https://github.com/parallelworks/foundation/commit/20cf179bde5a43edea154a318a14c7e57739839e))
+
 ## [0.8.0](https://github.com/parallelworks/foundation/compare/dev/v0.7.0...dev/v0.8.0) (2026-10-07)
 
 
