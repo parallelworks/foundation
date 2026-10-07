@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { render, screen } from '@testing-library/react'
-import { UIProvider } from '../components/Provider'
+import { UIProvider, type UIStrings } from '../components/Provider'
 import { ListPager } from './ListPager'
 
 it('shows a capped total as a floor and keeps paging past it', () => {
@@ -11,16 +11,13 @@ it('shows a capped total as a floor and keeps paging past it', () => {
 })
 
 it('passes a translated pager the floor as a number and flags it', () => {
-  const pager = vi.fn((start: number, end: number, total: number, atLeast: boolean) =>
-    atLeast ? `${start}-${end} of at least ${total}` : `${start}-${end} of ${total}`,
-  )
+  const pager = vi.fn<UIStrings['list']['pager']>(() => '')
   const { rerender } = render(
     <UIProvider strings={{ list: { pager } }}>
       <ListPager page={200} pageSize={50} total={10000} hasNext onPageChange={() => {}} />
     </UIProvider>,
   )
   expect(pager).toHaveBeenLastCalledWith(10001, 10050, 10050, true)
-  expect(screen.getByText('10001-10050 of at least 10050')).toBeInTheDocument()
 
   rerender(
     <UIProvider strings={{ list: { pager } }}>

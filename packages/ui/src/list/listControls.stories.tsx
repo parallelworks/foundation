@@ -96,9 +96,6 @@ function ControlsDemo({ searchable }: { searchable: boolean }) {
 
 export const Controls: StoryObj<{ searchable: boolean }> = {
   args: { searchable: true },
-  argTypes: {
-    searchable: { control: 'boolean', description: 'Search box in the Owner facet' },
-  },
   render: (args) => <ControlsDemo searchable={args.searchable} />,
 }
 

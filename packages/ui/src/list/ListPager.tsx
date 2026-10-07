@@ -6,7 +6,7 @@ import { listControlButtonClasses } from './ListViewControls'
 /** Page sizes offered by the pager's per-page select; first entry is the default. */
 export const LIST_PAGE_SIZES: readonly [number, ...number[]] = [50, 100, 200]
 
-/** Footer pager bar for paginated new-nav lists: "{start}–{end} of {total}" with prev/next. Renders nothing for a single page. */
+/** Footer pager bar for paginated new-nav lists: "{start}–{end} of {total}" with prev/next. Renders nothing for a single page with no more rows after it. */
 export function ListPager({
   page,
   pageSize,
