@@ -93,6 +93,12 @@ func (c Config) expand(v string) (string, error) {
 		}
 		var val string
 		switch ref {
+		case "{dir}":
+			val = c.Dir
+		case "{root}":
+			val = c.Root
+		case "{instance}":
+			val = c.instance()
 		case "{postgres}":
 			val = c.DatabaseURL()
 		case "{postgres_test}":
@@ -110,7 +116,7 @@ func (c Config) expand(v string) (string, error) {
 	return out, missing
 }
 
-var stackRef = regexp.MustCompile(`\{(postgres|postgres_test|s3|port\.[a-z][a-z0-9_-]*)\}`)
+var stackRef = regexp.MustCompile(`\{(postgres|postgres_test|s3|dir|root|instance|port\.[a-z][a-z0-9_-]*)\}`)
 
 // readDotenv reads KEY=value lines, skipping blanks and # comments. Values
 // may be quoted; nothing is expanded.

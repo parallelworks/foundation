@@ -18,6 +18,12 @@ func runTUI(ctx context.Context, cfg Config, names []string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	// A dev already running here, such as one an agent started with dev up,
+	// gets this view instead of a second dev.
+	if _, err := control(ctx, cfg, controlRequest{Command: "status"}); err == nil {
+		return runAttached(ctx, cfg)
+	}
+
 	// dev's own log goes to its own pane; on the terminal it would tear the
 	// screen.
 	devLog := &tuiLog{}
@@ -79,7 +85,10 @@ const (
 )
 
 type model struct {
-	sup *supervisor
+	sup backend
+	// attached views a dev that runs on without this view: q leaves it, Q
+	// stops it.
+	attached bool
 	// ctx is dev's own: services started from here run under it, and q
 	// cancels it.
 	ctx      context.Context
@@ -125,7 +134,19 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) key(k string) (tea.Model, tea.Cmd) {
-	if k == "ctrl+c" || k == "q" {
+	if m.attached && (k == "ctrl+c" || k == "q") {
+		return m, tea.Quit
+	}
+	if m.attached && k == "Q" {
+		m.quitting = true
+		return m, func() tea.Msg {
+			if r, ok := m.sup.(*remote); ok {
+				_ = down(m.ctx, r.cfg)
+			}
+			return stoppedMsg{}
+		}
+	}
+	if k == "ctrl+c" || k == "q" || k == "Q" {
 		if !m.quitting {
 			m.quitting = true
 			m.cancel()
@@ -155,7 +176,7 @@ func (m *model) key(k string) (tea.Model, tea.Cmd) {
 			if m.cursor < len(services) && services[m.cursor].State == stateStopped {
 				return m, m.act(services, m.start)
 			}
-			return m, m.act(services, m.sup.stop)
+			return m, m.act(services, m.halt)
 		}
 	case viewLogs, viewAll:
 		switch k {
@@ -209,6 +230,15 @@ func (m *model) act(services []status, do func(string) error) tea.Cmd {
 
 func (m *model) start(name string) error   { return m.sup.start(m.ctx, name) }
 func (m *model) restart(name string) error { return m.sup.restart(m.ctx, name) }
+func (m *model) halt(name string) error    { return m.sup.halt(m.ctx, name) }
+
+// quitHelp is how to leave: stopping everything, or leaving it running.
+func (m *model) quitHelp() string {
+	if m.attached {
+		return "q detach · Q stop dev"
+	}
+	return "q quit"
+}
 
 func (m *model) pageSize() int { return max(m.height-4, 1) }
 
@@ -226,10 +256,11 @@ var (
 		stateStarting:  lipgloss.NewStyle().Foreground(lipgloss.Color("3")),
 		stateReady:     lipgloss.NewStyle().Foreground(lipgloss.Color("2")),
 		stateUnhealthy: lipgloss.NewStyle().Foreground(lipgloss.Color("1")),
+		stateWaiting:   lipgloss.NewStyle().Faint(true),
 	}
 	stateMark = map[state]string{
 		stateRunning: "●", stateBuilding: "◐", stateFailed: "✗", stateExited: "✗", stateStopped: "○",
-		stateStarting: "◐", stateReady: "●", stateUnhealthy: "✗",
+		stateStarting: "◐", stateReady: "●", stateUnhealthy: "✗", stateWaiting: "◌",
 	}
 )
 
@@ -241,9 +272,9 @@ func (m *model) View() tea.View {
 	case viewLogs:
 		services := m.sup.statuses()
 		name := services[min(m.cursor, len(services)-1)].Name
-		m.log(&b, name, m.sup.lines(name), "esc back · r restart · ↑↓ scroll · ctrl+u/d page · g top · G follow · q quit")
+		m.log(&b, name, m.sup.lines(name), "esc back · r restart · ↑↓ scroll · ctrl+u/d page · g top · G follow · "+m.quitHelp())
 	case viewAll:
-		m.log(&b, "all output", m.sup.lines(""), "esc back · ↑↓ scroll · ctrl+u/d page · g top · G follow · q quit")
+		m.log(&b, "all output", m.sup.lines(""), "esc back · ↑↓ scroll · ctrl+u/d page · g top · G follow · "+m.quitHelp())
 	}
 	v := tea.NewView(b.String())
 	v.AltScreen = true
@@ -255,6 +286,9 @@ func (m *model) home(b *strings.Builder) {
 	title := "dev"
 	if m.name != "" {
 		title += " · " + m.name
+	}
+	if m.attached {
+		title += " (attached)"
 	}
 	b.WriteString(titleStyle.Render(title))
 	if stack := m.stackLine(); stack != "" {
@@ -308,7 +342,7 @@ func (m *model) home(b *strings.Builder) {
 	if m.quitting {
 		b.WriteString(dimStyle.Render("stopping…"))
 	} else {
-		b.WriteString(dimStyle.Render("↑↓ select · enter output · a all output · r restart · s start/stop · q quit"))
+		b.WriteString(dimStyle.Render("↑↓ select · enter output · a all output · r restart · s start/stop · " + m.quitHelp()))
 	}
 }
 
@@ -319,11 +353,12 @@ func (m *model) stackLine() string {
 		return dimStyle.Render(fmt.Sprintf("%s… %s", what, strings.TrimSpace(elapsed(since))))
 	}
 	var parts []string
-	if m.sup.cfg.Postgres != nil {
-		parts = append(parts, dimStyle.Render(fmt.Sprintf("postgres :%d", m.sup.cfg.Postgres.Port)))
+	pg, s3 := m.sup.stackAddrs()
+	if pg != 0 {
+		parts = append(parts, dimStyle.Render(fmt.Sprintf("postgres :%d", pg)))
 	}
-	if m.sup.cfg.S3 != nil {
-		parts = append(parts, dimStyle.Render("s3 ")+link("http://"+m.sup.cfg.S3.Addr, true))
+	if s3 != "" {
+		parts = append(parts, dimStyle.Render("s3 ")+link("http://"+s3, true))
 	}
 	return strings.Join(parts, dimStyle.Render(" · "))
 }

@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"net/url"
 	"regexp"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,6 +25,7 @@ const (
 	stateRunning  state = "running"
 	stateFailed   state = "failed" // the build failed; waiting for a change
 	stateExited   state = "exited"
+	stateWaiting  state = "waiting" // for the services it depends on
 )
 
 // status is a service's state, as the TUI and `dev status` show it.
@@ -113,10 +116,14 @@ func newSupervisor(ctx context.Context, cfg Config, logger *slog.Logger, out io.
 // (or every one not marked Manual), and stops everything when ctx ends.
 func (s *supervisor) run(ctx context.Context, names ...string) error {
 	defer s.outputs.close()
+	// Wait for the watcher after stop has ended it, so run leaves nothing.
+	var watch sync.WaitGroup
+	defer watch.Wait()
 	ctx, stop := context.WithCancel(ctx)
 	defer stop()
 	s.shutdown, s.started = stop, time.Now()
-	go s.watchCheckout(ctx, stop)
+	every := checkoutCheck
+	watch.Go(func() { s.watchCheckout(ctx, stop, every) })
 	selected, err := s.cfg.selectServices(names)
 	if err != nil {
 		return err
@@ -215,6 +222,9 @@ func (s *supervisor) start(ctx context.Context, name string) error {
 		wg.Go(func() { s.probe(ctx, r) })
 	}
 	wg.Go(func() {
+		if !s.waitForDependencies(ctx, r) {
+			return
+		}
 		if len(r.svc.Build) > 0 {
 			runServer(ctx, s.cfg, r.svc, env, s.builds, r.out, logger, set)
 		} else {
@@ -375,4 +385,29 @@ func (s *supervisor) notify() {
 // is empty, oldest first.
 func (s *supervisor) lines(name string) []string {
 	return s.outputs.recent(name)
+}
+
+// waitForDependencies holds a service back until every service it depends
+// on is up; false when it is stopped first.
+func (s *supervisor) waitForDependencies(ctx context.Context, r *runner) bool {
+	if len(r.svc.DependsOn) == 0 {
+		return true
+	}
+	s.setState(r, stateWaiting, "for "+strings.Join(r.svc.DependsOn, ", "))
+	for {
+		up := true
+		for _, st := range s.statuses() {
+			if slices.Contains(r.svc.DependsOn, st.Name) && !st.State.up() {
+				up = false
+			}
+		}
+		if up {
+			return true
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
 }

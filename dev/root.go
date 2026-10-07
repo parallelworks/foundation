@@ -41,6 +41,7 @@ func NewRootCmd(cfg Config) *cobra.Command {
 		Long: "With no command, dev runs what dev.json describes until interrupted: Postgres and S3, " +
 			"and the services named, or every service not marked manual.",
 		Args:          cobra.ArbitraryArgs,
+		Version:       version(),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, names []string) error {
@@ -150,6 +151,18 @@ func NewRootCmd(cfg Config) *cobra.Command {
 	upCmd.Flags().DurationVar(&lifetime, "for", 0, "stop after this long, such as 2h")
 	upCmd.Flags().DurationVar(&upTimeout, "timeout", 5*time.Minute, "how long to wait for the services")
 	root.AddCommand(upCmd)
+
+	root.AddCommand(&cobra.Command{
+		Use:   "mcp",
+		Short: "Answer MCP over stdio, so an agent can drive this checkout's dev as tools",
+		Long: "Answer the Model Context Protocol over stdin and stdout. An agent configured with " +
+			"`go -C tools tool dev mcp` gets tools to start dev in the background (up), see services, their states, " +
+			"URLs and ports (status), read output (logs), start, stop and restart services, wait for them, and stop dev (down).",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return serveMCP(cmd.Context(), cfg)
+		},
+	})
 
 	root.AddCommand(&cobra.Command{
 		Use:   "down",

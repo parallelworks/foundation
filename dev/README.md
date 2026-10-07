@@ -5,20 +5,58 @@ an S3-compatible server natively, with data kept between runs; its Go servers,
 rebuilt and restarted when their sources change; and processes beside them,
 such as Vite.
 
-It belongs in the app's tools module, not the service's: built under the
-service module's `godebug fips140=only`, the S3 emulator's MD5 ETags would
-panic. So from the repository root it runs as `go -C tools tool dev`, not
-`go tool dev`, which only finds the root module's tools. Apps usually wrap it,
-as `make dev` or `pnpm dev`; every example below works the same way with
-`go -C tools tool` in front.
+Install it once, and use `dev` in every repository that has a `dev.json`:
 
 ```sh
-go -C tools get -tool github.com/parallelworks/foundation/dev/cmd/dev
-go -C tools tool dev                # everything
-go -C tools tool dev web            # only the web service
-go -C tools tool dev restart api    # another terminal: rebuild and restart api
-go -C tools tool dev logs api web   # another terminal: their output
+go install github.com/parallelworks/foundation/dev/cmd/dev@latest
 ```
+
+In a repository that pins dev in its tools module, the global `dev` runs the
+pinned version instead of itself whenever the two differ, so every checkout,
+including one of an older branch, runs what its CI and teammates run.
+`DEV_GLOBAL=1` makes it run itself anyway, and `dev --version` says which ran.
+Without the global install, run the pinned one directly as
+`go -C tools tool dev`; plain `go tool dev` finds only the root module's tools.
+
+```sh
+dev                                 # everything
+dev web                             # only the web service
+dev restart api                     # another terminal: rebuild and restart api
+dev logs api web                    # another terminal: their output
+```
+
+## Adding dev to an app
+
+1. **A tools module.** If the app has none, create one beside its own module;
+   it holds development tools, never service code:
+
+   ```sh
+   mkdir tools && go -C tools mod init "$(go list -m)/tools"
+   ```
+
+2. **Pin dev in it.** This records it as a tool, at a version every checkout
+   shares and the global `dev` defers to. It also lives here rather than in
+   the service's module: built under that module's `godebug fips140=only`,
+   the S3 emulator's MD5 ETags would panic.
+
+   ```sh
+   go -C tools get -tool github.com/parallelworks/foundation/dev/cmd/dev@latest
+   ```
+
+3. **Describe the app** in `dev.json` at the repository root (below).
+4. **Ignore what dev writes:** add `.devstack/` (the stack's data and the
+   services' logs) and the servers' build output, such as `tmp/`, to
+   `.gitignore`.
+5. **Wrap it** where people already look, such as `dev:` in the Makefile
+   running `go -C tools tool dev`, or `"dev"` in `package.json`, so it works
+   without the global install too.
+6. **Give agents the tools** with `.mcp.json` at the repository root (see
+   [Tools and agents](#tools-and-agents)).
+
+Upgrade a repository's pin with the same `go -C tools get -tool …@latest`, and
+the global `dev` with `go install …@latest`.
+
+## Describing the app
 
 Describe the app in `dev.json` at the repository root:
 
@@ -27,11 +65,13 @@ Describe the app in `dev.json` at the repository root:
   "name": "shop",
   "postgres": { "parameters": { "max_connections": "300" } },
   "s3": {},
+  "ports": { "server": 8080, "web": 5173 },
   "env": {
+    "SHOP_HTTP_ADDR": ":{port.server}",
     "SHOP_DATABASE_URL": "{postgres}",
     "SHOP_TEST_DATABASE_URL": "{postgres_test}",
     "SHOP_S3_ENDPOINT": "{s3}",
-    "SHOP_VITE_URL": "http://localhost:5173"
+    "SHOP_VITE_URL": "http://localhost:{port.web}"
   },
   "services": [
     {
@@ -40,10 +80,10 @@ Describe the app in `dev.json` at the repository root:
       "run": ["tmp/shop", "serve"],
       "exclude": ["tmp", "web", "tools"],
       "extensions": [".go", ".sql"],
-      "url": "http://localhost:8080",
-      "health": "http://localhost:8080/readyz"
+      "url": "http://localhost:{port.server}",
+      "health": "http://localhost:{port.server}/readyz"
     },
-    { "name": "web", "run": ["pnpm", "--filter", "web", "dev"] }
+    { "name": "web", "run": ["pnpm", "--filter", "web", "dev", "--port", "{port.web}", "--strictPort"] }
   ]
 }
 ```
@@ -58,6 +98,7 @@ Describe the app in `dev.json` at the repository root:
 | `dev down` | Stop the dev running here |
 | `dev ps` | List every dev running on this machine: checkout, pid, ports |
 | `dev exec -- command` | Run a command with the running dev's environment: allocated ports, `{postgres}`, `{s3}` |
+| `dev mcp` | Answer MCP over stdio, so an agent drives this checkout's dev as tools |
 | `dev stack` | Run Postgres on `:5432` and S3 on `127.0.0.1:8333` until interrupted. User, password and database are `name` (required with Postgres); tests get `name_test` |
 | `dev wait [service...]` | Block until a stack started elsewhere accepts connections, or until the services named are up; fails as soon as one fails, exits or turns unhealthy |
 | `dev reset` | Delete the stack's data |
@@ -80,7 +121,14 @@ the stack's addresses:
 | `a` | Every service's output, interleaved |
 | `r` | Restart the service, rebuilding a server |
 | `s` | Start or stop it, including a `manual` one |
-| `q` | Stop everything and quit |
+| `q` | Stop everything and quit; in an attached view, leave dev running |
+| `Q` | In an attached view, stop dev |
+
+Run `dev` where one is already running, such as one started with `dev up` by
+you or an agent, and the view attaches to it instead of starting a second:
+states come over the socket and output from the logs it writes. `q` then
+leaves it running and `Q` stops it, and the view says so if the running dev is
+another version.
 
 `dev status`, `start`, `stop` and `restart` reach a running dev through a Unix
 socket in a directory only you can enter (`$XDG_RUNTIME_DIR/foundation-dev`, or
@@ -109,6 +157,19 @@ service comes up. Without one, a service with a `health` URL links to that
 URL's origin, and any other takes the first local address it prints, as Vite
 and Storybook do when they start.
 
+A service can depend on others: with `"dependsOn": ["db"]` it reads *waiting*
+until `db` is up, and `dev web` starts `db` too. `"restart": "on-failure"`
+starts a service again when it exits with an error, waiting longer each time
+it keeps failing; without it a service that exits is left stopped.
+`"rebuildOnCheckout": true` rebuilds a server when the checkout's branch
+changes, for a build stamped with it; it finds the branch through git, so it
+works in a worktree too.
+
+A local database is a service like any other, such as
+`{ "name": "db", "run": ["mongod", "--dbpath", "{dir}/mongo", "--port", "{port.db}"], "health": … }`:
+`{dir}` is the stack's directory (`.devstack`), where its data stays with the
+checkout.
+
 Each service runs in its `dir`, relative to `dev.json`. Each command runs in
 its own process group, and stopping one ends everything it started, such as
 the Vite under `pnpm`. Unix only.
@@ -121,6 +182,15 @@ with the services' errors), `dev status --json` gives its URLs and ports,
 `dev exec -- make test` runs tests against that checkout's stack, `dev logs`
 reads output, and `dev down` stops it. A detached dev also stops itself when
 its checkout is deleted, as a finished worktree is, and after `--for`.
+
+`dev mcp` offers the same as tools over the Model Context Protocol: `up`,
+`status`, `logs` (with `match` to filter), `start`, `stop`, `restart`, `wait`
+and `down`. In an app, an `.mcp.json` at the repository root gives agents that
+work in it the tools, for whichever checkout they run in:
+
+```json
+{ "mcpServers": { "dev": { "command": "go", "args": ["-C", "tools", "tool", "dev", "mcp"] } } }
+```
 
 ## Ports
 
@@ -148,19 +218,31 @@ service's own `env`; `envFile` (default `.env` beside `dev.json`, skipped when
 missing); the service's `envFile`, relative to its `dir`; and the real
 environment, so `SHOP_LOG_LEVEL=info make dev` overrides everything. Values
 in `env` may name the stack: `{postgres}` and `{postgres_test}` are database
-URLs, and `{s3}` is the S3 endpoint. Keep `.env` for secrets and personal
-settings.
+URLs, and `{s3}` is the S3 endpoint. `{dir}` is the stack's directory,
+`{root}` the checkout's, and `{instance}` names the checkout in a few readable
+characters, such as `shop-1a2b`, for anything shared between checkouts that
+must not collide, like a queue on a shared server. Keep `.env` for secrets and
+personal settings.
 
 `before` commands run once, in order, before anything starts, such as
 generating files a server embeds. If one fails, `dev` stops with its error.
 
 ## Your own command
 
-An app with its own development tasks builds its command on the same base:
+An app with development tasks of its own builds its dev on the same base,
+loading `dev.json` as `cmd/dev` does and adding its commands:
 
 ```go
 func main() {
-	root := dev.NewRootCmd(dev.Config{Name: "shop", Postgres: &dev.Postgres{}, S3: &dev.S3{}})
+	path, err := dev.FindConfig(".")
+	if err != nil {
+		log.Fatal(err)
+	}
+	cfg, err := dev.LoadConfig(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	root := dev.NewRootCmd(cfg)
 	root.AddCommand(seedCmd)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -169,3 +251,16 @@ func main() {
 	}
 }
 ```
+
+Then point the global `dev` at it: list the package as a tool in the module it
+lives in (`tool example.com/shop/cmd/dev` in `go.mod`), and name the command in
+`dev.json`:
+
+```json
+"command": ["go", "tool", "dev"]
+```
+
+`dev` then runs the app's own dev in its repository, from any directory in it:
+`dev seed` reaches the app's command, and `dev --help` lists it beside `up`,
+`status` and the rest. `{root}` in `command` stands for the directory of
+`dev.json`. A command wins over a pinned tools module.

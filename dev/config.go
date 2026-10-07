@@ -4,6 +4,8 @@ package dev
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 )
 
 // ConfigFile is the name the dev command looks for, from the working
@@ -23,6 +26,10 @@ type Config struct {
 	// Name is the Postgres user, password and database, and required with
 	// Postgres. Tests get Name_test.
 	Name string `json:"name"`
+	// Command is the repository's own dev, for an app whose dev adds commands
+	// of its own, such as ["go", "tool", "dev"]. A dev installed globally runs
+	// it instead of itself; {root} stands for the directory of dev.json.
+	Command []string `json:"command,omitempty"`
 	// Root is the directory commands run in and relative paths resolve
 	// against. LoadConfig sets it to the config file's directory; otherwise
 	// it defaults to the working directory.
@@ -102,6 +109,16 @@ type Service struct {
 	Health string `json:"health,omitempty"`
 	// Manual services start only when named: `dev web worker`.
 	Manual bool `json:"manual,omitempty"`
+	// DependsOn names services that must be up (ready, or running without a
+	// health URL) before this one starts, such as a database. Starting this
+	// one starts them too.
+	DependsOn []string `json:"dependsOn,omitempty"`
+	// Restart is "on-failure" to start the service again, with backoff, when
+	// it exits with an error; by default it is left stopped.
+	Restart string `json:"restart,omitempty"`
+	// RebuildOnCheckout rebuilds a server when the checkout's branch changes,
+	// as a branch-stamped build needs.
+	RebuildOnCheckout bool `json:"rebuildOnCheckout,omitempty"`
 }
 
 // S3 configures the local S3-compatible server.
@@ -115,7 +132,7 @@ type S3 struct {
 var reserved = map[string]bool{
 	"stack": true, "wait": true, "reset": true, "logs": true, "status": true,
 	"start": true, "stop": true, "restart": true, "help": true, "completion": true,
-	"up": true, "down": true, "ps": true, "exec": true,
+	"up": true, "down": true, "ps": true, "exec": true, "mcp": true,
 }
 
 var validPortName = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
@@ -230,6 +247,9 @@ func (c Config) withDefaults() (Config, error) {
 		services[i] = svc
 	}
 	c.Services = services
+	if err := c.checkDependencies(); err != nil {
+		return c, err
+	}
 	if c.Postgres != nil {
 		pg := *c.Postgres
 		if pg.Port == 0 {
@@ -273,4 +293,66 @@ func (c Config) databaseURL(db string) string {
 		return ""
 	}
 	return fmt.Sprintf("postgres://%s:%s@localhost:%d/%s?sslmode=disable", c.Name, c.Name, c.Postgres.Port, db)
+}
+
+// checkDependencies rejects unknown services in dependsOn, a dependency
+// cycle, and restart values other than "on-failure".
+func (c Config) checkDependencies() error {
+	byName := map[string]Service{}
+	for _, svc := range c.Services {
+		byName[svc.Name] = svc
+	}
+	for _, svc := range c.Services {
+		if svc.Restart != "" && svc.Restart != "on-failure" {
+			return fmt.Errorf("service %q: restart must be on-failure or unset, got %q", svc.Name, svc.Restart)
+		}
+		for _, dep := range svc.DependsOn {
+			if _, ok := byName[dep]; !ok {
+				return fmt.Errorf("service %q depends on %q, which dev.json does not define", svc.Name, dep)
+			}
+		}
+	}
+	const (
+		unvisited = iota
+		visiting
+		done
+	)
+	state := map[string]int{}
+	var visit func(name string, path []string) error
+	visit = func(name string, path []string) error {
+		switch state[name] {
+		case visiting:
+			return fmt.Errorf("services depend on each other: %s", strings.Join(append(path, name), " → "))
+		case done:
+			return nil
+		}
+		state[name] = visiting
+		for _, dep := range byName[name].DependsOn {
+			if err := visit(dep, append(path, name)); err != nil {
+				return err
+			}
+		}
+		state[name] = done
+		return nil
+	}
+	for _, svc := range c.Services {
+		if err := visit(svc.Name, nil); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// instance names the checkout in a few readable characters, for names that
+// must differ between checkouts, such as a shared queue's.
+func (c Config) instance() string {
+	base := strings.ToLower(filepath.Base(c.Root))
+	clean := strings.Map(func(r rune) rune {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			return r
+		}
+		return '-'
+	}, base)
+	sum := sha256.Sum256([]byte(c.Root))
+	return strings.Trim(clean, "-") + "-" + hex.EncodeToString(sum[:2])
 }

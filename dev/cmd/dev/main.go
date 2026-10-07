@@ -1,6 +1,7 @@
 // Command dev runs an app's local development stack as described by the
-// nearest dev.json. Apps with their own development tasks build their command
-// on dev.NewRootCmd instead.
+// nearest dev.json. Installed globally, it runs the version a repository pins
+// in its tools module instead of its own. Apps with their own development
+// tasks build their command on dev.NewRootCmd instead.
 package main
 
 import (
@@ -33,6 +34,10 @@ func run() error {
 	defer stop()
 
 	path, findErr := dev.FindConfig(".")
+	// Installed globally, defer to the version the repository pins.
+	if err := dev.HandOff(path, os.Args[1:]); err != nil {
+		return err
+	}
 	var cfg dev.Config
 	if findErr == nil {
 		var err error

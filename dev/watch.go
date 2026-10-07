@@ -20,19 +20,29 @@ const settle = 200 * time.Millisecond
 // watcher reports changes to files with the given extensions under dirs.
 type watcher struct {
 	fs         *fsnotify.Watcher
+	files      map[string]bool // single files whose changes count, whatever their extension
 	exclude    []string
 	extensions []string
 	logger     *slog.Logger
 }
 
-func newWatcher(dirs, exclude, extensions []string, logger *slog.Logger) (*watcher, error) {
+func newWatcher(dirs, exclude, extensions, files []string, logger *slog.Logger) (*watcher, error) {
 	fsw, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, err
 	}
-	w := &watcher{fs: fsw, exclude: exclude, extensions: extensions, logger: logger}
+	w := &watcher{fs: fsw, exclude: exclude, extensions: extensions, files: map[string]bool{}, logger: logger}
 	for _, dir := range dirs {
 		if err := w.add(dir); err != nil {
+			_ = fsw.Close()
+			return nil, err
+		}
+	}
+	// A file replaced by a rename, as git replaces HEAD, is only seen from
+	// its directory.
+	for _, f := range files {
+		w.files[f] = true
+		if err := fsw.Add(filepath.Dir(f)); err != nil {
 			_ = fsw.Close()
 			return nil, err
 		}
@@ -86,7 +96,7 @@ func (w *watcher) run(ctx context.Context, changed chan<- struct{}) {
 					continue
 				}
 			}
-			if ev.Op != fsnotify.Chmod && slices.Contains(w.extensions, filepath.Ext(ev.Name)) {
+			if ev.Op != fsnotify.Chmod && (w.files[ev.Name] || slices.Contains(w.extensions, filepath.Ext(ev.Name))) {
 				timer.Reset(settle)
 			}
 		case err, ok := <-w.fs.Errors:
