@@ -1842,9 +1842,14 @@ describe('nodes formed by hand', () => {
   })
 
   // jsdom lays nothing out, so each row and node gets a rect by hand.
-  function renderEditor(e: DependencyGraphEditor, layout?: GraphLayout, bLeft = 300) {
-    render(<DependencyGraphPreview yml={graph} editor={e} {...(layout ? { layout } : {})} />)
-    const node = document.getElementById('node_a') as HTMLElement
+  function renderEditor(
+    e: DependencyGraphEditor,
+    layout?: GraphLayout,
+    bLeft = 300,
+    yml: { jobs: Record<string, unknown> } = graph,
+  ) {
+    render(<DependencyGraphPreview yml={yml} editor={e} {...(layout ? { layout } : {})} />)
+    const node = document.querySelector('[id^="node_"]') as HTMLElement
     act(() => {
       fireEvent.mouseEnter(node)
     })
@@ -1857,8 +1862,10 @@ describe('nodes formed by hand', () => {
       node_b: [bLeft, 0, 100, 70],
     }
     for (const [id, [x, y, w, h]] of Object.entries(rects)) {
-      const el = document.getElementById(id) as HTMLElement
-      el.getBoundingClientRect = () => new DOMRect(x, y, w, h)
+      const el = document.getElementById(id)
+      if (el) {
+        el.getBoundingClientRect = () => new DOMRect(x, y, w, h)
+      }
     }
   }
 
@@ -1894,9 +1901,69 @@ describe('nodes formed by hand', () => {
     )
   })
 
-  it('refuses a merge that would make a job need itself', () => {
+  it('merges a job into a node that needs it, whose jobs then drop that need', () => {
     const e = editor()
     renderEditor(e)
+    dragRow('a', [350, 30], document.getElementById('node_b'))
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'batch',
+      edits: [
+        {
+          type: 'disconnect',
+          needs: [
+            { job: 'b', need: 'a' },
+            { job: 'c', need: 'a' },
+          ],
+        },
+        expect.objectContaining({ type: 'groupJobs', jobs: ['a'], into: 'b' }),
+      ],
+    })
+  })
+
+  it('gives a job merged into a node every need its connectors draw', () => {
+    // x and m share a node by hand, but only m needs p.
+    const e = editor()
+    renderEditor(e, emptyLayoutWith({ p: [0, 0], e: [0, 1], x: [1, 0], m: [1, 0] }), 300, {
+      jobs: {
+        p: { steps: [{ run: 'p' }] },
+        e: { steps: [{ run: 'e' }] },
+        x: { steps: [{ run: 'x' }] },
+        m: { needs: ['p'], steps: [{ run: 'm' }] },
+      },
+    })
+    dragRow('e', [350, 30], document.getElementById('node_x'))
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'batch',
+      edits: [
+        expect.objectContaining({ type: 'groupJobs', jobs: ['e'], into: 'x' }),
+        { type: 'connect', from: 'p', to: 'e' },
+      ],
+    })
+  })
+
+  it('refuses a merge that drops a need an expression reads', () => {
+    const e = editor()
+    renderEditor(e, undefined, 300, {
+      jobs: {
+        ...graph.jobs,
+        b: { needs: ['a'], steps: [{ run: 'echo ${{ needs.a.outputs.v }}' }] },
+      },
+    })
+    dragRow('a', [350, 30], document.getElementById('node_b'))
+    expect(e.onEdit).not.toHaveBeenCalled()
+  })
+
+  it('refuses a merge that would loop through another job', () => {
+    // a feeds m, which feeds b, so a can't sit beside b.
+    const e = editor()
+    renderEditor(e, undefined, 300, {
+      jobs: {
+        a: { steps: [{ run: 'a' }] },
+        m: { needs: ['a'], steps: [{ run: 'm' }] },
+        b: { needs: ['m'], steps: [{ run: 'b' }] },
+        d: { steps: [{ run: 'd' }] },
+      },
+    })
     dragRow('a', [350, 30], document.getElementById('node_b'))
     expect(e.onEdit).not.toHaveBeenCalled()
   })

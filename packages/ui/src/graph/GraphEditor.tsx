@@ -540,6 +540,7 @@ function useGraphEditorState({
   const api = useMemo<GraphEditorApi>(() => {
     const {
       applyGraphEdit,
+      batchOf,
       dependsOn,
       jobNeeds,
       jobsYaml,
@@ -609,12 +610,13 @@ function useGraphEditorState({
     }
     // `into` puts the new job in that job's node, with its needs.
     const addJob = (graphEdit: GraphEdit, into?: string) => {
-      const join = (created: string): GraphEdit => ({
-        type: 'groupJobs',
-        jobs: [created],
-        into: into ?? '',
-        layout: materialize(),
-      })
+      const join = (created: string): GraphEdit =>
+        joinInto([created], into ?? '') ?? {
+          type: 'groupJobs',
+          jobs: [created],
+          into: into ?? '',
+          layout: materialize(),
+        }
       const created = preview(graphEdit)?.created
       const addition: GraphEdit | undefined = created
         ? into
@@ -667,8 +669,9 @@ function useGraphEditorState({
         editStep(job, index)
       }
     }
-    // Whether `jobs` can join `box`, taking its head's needs, without a loop or a need on themselves.
-    const canJoin = (jobs: string[], box: string[]): boolean => {
+    // The edits that put `jobs` in the node `box`: they take every need its connectors draw, and
+    // its jobs drop their needs on them. Null if that loops or cuts a need an expression reads.
+    const joinEdits = (jobs: string[], box: string[]): GraphEdit[] | null => {
       const source = latest.current.source
       const all = needs()
       const head = box[0] ?? ''
@@ -676,19 +679,56 @@ function useGraphEditorState({
         const raw = (source[job] as { needs?: unknown } | undefined)?.needs
         return raw === undefined || raw === null || Array.isArray(raw)
       }
-      const targets = (all[head] ?? []).map(needTarget)
-      return (
-        !isMatrix(source[head]) &&
-        listed(head) &&
-        jobs.every(
-          (job) =>
-            !isMatrix(source[job]) &&
-            listed(job) &&
-            !targets.includes(job) &&
-            targets.every((dep) => !dependsOn(all, dep, job)) &&
-            box.every((member) => !(all[member] ?? []).some((n) => needTarget(n) === job)),
-        )
+      if (
+        isMatrix(source[head]) ||
+        !box.every(listed) ||
+        jobs.some((job) => isMatrix(source[job]) || !listed(job))
+      ) {
+        return null
+      }
+      const node = [...box, ...jobs]
+      const own = (job: string) => all[job] ?? []
+      const dropped = box.flatMap((member) =>
+        own(member)
+          .filter((need) => jobs.includes(needTarget(need)))
+          .map((need) => ({ job: member, need })),
       )
+      const drawn = [...new Set(box.flatMap(own).map(needTarget))].filter(
+        (dep) => !node.includes(dep),
+      )
+      const replaced = jobs.flatMap((job) =>
+        own(job)
+          .filter((need) => !drawn.includes(needTarget(need)))
+          .map((need) => ({ job, need })),
+      )
+      const before = withoutRefs(all, [...dropped, ...replaced])
+      const after: Record<string, string[]> = { ...before }
+      for (const job of jobs) {
+        after[job] = drawn
+      }
+      // No need of the node may already wait on a joining job, and no two of its jobs on each other.
+      const loops =
+        jobs.some((job) => drawn.some((dep) => dependsOn(before, dep, job))) ||
+        node.some((a) => node.some((b) => a !== b && dependsOn(after, a, b)))
+      if (loops || needInUse(source, [...dropped, ...replaced])) {
+        return null
+      }
+      const kept = own(head)
+        .filter((need) => !jobs.includes(needTarget(need)))
+        .map(needTarget)
+      return [
+        ...(dropped.length > 0 ? [{ type: 'disconnect' as const, needs: dropped }] : []),
+        { type: 'groupJobs', jobs, into: head, layout: materialize() },
+        ...jobs.flatMap((job) =>
+          drawn
+            .filter((dep) => !kept.includes(dep))
+            .map((dep) => ({ type: 'connect' as const, from: dep, to: job })),
+        ),
+      ]
+    }
+    const joinInto = (jobs: string[], into: string): GraphEdit | null => {
+      const edits = joinEdits(jobs, boxOf(gridRef.current?.cols ?? [], into))
+      return edits && batchOf(edits)
     }
     // Every new need between the dragged node and the drop; null if any would need itself or loop.
     const connectEdits = (payload: ConnectPayload, jobs: string[]): GraphEdit[] | null => {
@@ -833,7 +873,7 @@ function useGraphEditorState({
           kind: 'merge',
           into: on.head,
           jobs,
-          valid: payload.kind === 'new' ? !payload.matrix && canJoin([], box) : canJoin(jobs, box),
+          valid: (payload.kind !== 'new' || !payload.matrix) && joinEdits(jobs, box) !== null,
           box: contentBox(grid.wrapper, on.el),
         }
       }
@@ -856,13 +896,9 @@ function useGraphEditorState({
               selection: store.get().selection.filter((job) => !payload.jobs.includes(job)),
             })
           } else if (target?.kind === 'merge') {
-            if (target.valid) {
-              edit({
-                type: 'groupJobs',
-                jobs: target.jobs,
-                into: target.into,
-                layout: materialize(),
-              })
+            const joined = target.valid ? joinInto(target.jobs, target.into) : null
+            if (joined) {
+              edit(joined)
             }
           } else if (target?.kind === 'slot' && !target.blocked) {
             edit({
