@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.0](https://github.com/parallelworks/foundation/compare/dev/v0.6.1...dev/v0.7.0) (2026-10-07)
+
+
+### Features
+
+* **dev:** dev mcp lets agents drive a checkout's dev as tools ([#140](https://github.com/parallelworks/foundation/issues/140)) ([a0c7029](https://github.com/parallelworks/foundation/commit/a0c70292c42d4d6d6179b1ca38e1cd99faa5c8eb))
+* **dev:** the view attaches to a dev already running, such as one dev up started ([#139](https://github.com/parallelworks/foundation/issues/139)) ([4eaefc5](https://github.com/parallelworks/foundation/commit/4eaefc5bc7469e73de290df6c7552e302622b90a))
+
 ## [0.6.1](https://github.com/parallelworks/foundation/compare/dev/v0.6.0...dev/v0.6.1) (2026-10-07)
 
 
