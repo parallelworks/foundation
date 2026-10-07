@@ -127,3 +127,17 @@ func TestWaitLooksForADevThatIsStarting(t *testing.T) {
 		t.Errorf("wait for a dev that started after it: %v", err)
 	}
 }
+
+func TestPrivilegedPortFreeWhereOnlyTheWildcardIsAllowed(t *testing.T) {
+	// macOS lets a user bind a port under 1024 on the wildcard address but
+	// not on loopback; where the wildcard is refused too, the port is not
+	// usable and this has nothing to show.
+	ln, err := net.Listen("tcp", ":443")
+	if err != nil {
+		t.Skipf("cannot bind :443 here: %v", err)
+	}
+	_ = ln.Close()
+	if !portFree(t.Context(), 443) {
+		t.Error("a privileged port the user can bind on the wildcard address was reported taken")
+	}
+}
