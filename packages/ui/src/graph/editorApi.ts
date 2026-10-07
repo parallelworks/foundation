@@ -196,7 +196,10 @@ export interface GraphEditorApi {
   openJobMenu: (x: number, y: number, job: string) => void
   openStepMenu: (x: number, y: number, job: string, index: number) => void
   openEdgeMenu: (x: number, y: number, edge: EdgeSelection) => void
-  /** Selects a connector alone, or adds it to the selection or takes it out when `add`. */
+  /**
+   * Selects a connector alone, or with `add` adds it to the selected connectors or takes it out;
+   * selected jobs or steps give way to it.
+   */
   selectEdge: (edge: EdgeSelection, add: boolean) => void
   /** Whether an expression reads one of a connector's needs, so it can't be removed or moved. */
   edgeInUse: (edge: EdgeSelection) => boolean
@@ -220,9 +223,11 @@ export interface GraphEditorApi {
   registerView: (view: GraphView | null) => void
   /** The selected jobs that still exist. */
   selected: () => string[]
+  /** Adds a job to the selected jobs or takes it out; selected steps or connectors give way to it. */
   toggleSelected: (job: string) => void
   /** The selected steps that still exist. */
   selectedSteps: () => StepRef[]
+  /** Adds a step to the selected steps or takes it out; selected jobs or connectors give way to it. */
   toggleStep: (step: StepRef) => void
   /** Puts the selected jobs or steps on the clipboard, as YAML; null when nothing is selected. */
   copySelection: () => string | null

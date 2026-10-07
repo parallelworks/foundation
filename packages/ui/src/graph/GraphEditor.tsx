@@ -1072,9 +1072,9 @@ function useGraphEditorState({
     const refsInUse = (refs: NeedRef[]) => !!needInUse(latest.current.source, refs)
     const selectEdge = (edge: EdgeSelection, add: boolean) => {
       const { edges, selection, steps } = store.get()
-      if (!add) {
+      if (!add || steps.length > 0 || selection.length > 0) {
         store.set({ edges: [edge], selection: NO_SELECTION, steps: NO_STEPS })
-      } else if (steps.length === 0 && selection.length === 0) {
+      } else {
         store.set({
           edges: edges.some((other) => sameEdge(other, edge))
             ? edges.filter((other) => !sameEdge(other, edge))
@@ -1313,6 +1313,7 @@ function useGraphEditorState({
       toggleSelected: (job) => {
         const { selection, steps, edges } = store.get()
         if (steps.length > 0 || edges.length > 0) {
+          store.set({ selection: [job], steps: NO_STEPS, edges: NO_EDGES })
           return
         }
         store.set({
@@ -1325,6 +1326,7 @@ function useGraphEditorState({
       toggleStep: (step) => {
         const { selection, steps, edges } = store.get()
         if (selection.length > 0 || edges.length > 0) {
+          store.set({ selection: NO_SELECTION, steps: [step], edges: NO_EDGES })
           return
         }
         store.set({

@@ -1503,22 +1503,22 @@ describe('selecting jobs', () => {
     expect(selected()).toEqual([])
   })
 
-  it('adds only what is selected already, by box or shift-click', () => {
+  it('adds only the kind already selected by box, and a shift-click on another kind starts over with it', () => {
     renderGraph(editor())
     fireEvent.click(connector())
     marquee([-10, 90], [150, 125], true)
     expect(selected()).toEqual([])
+    expect(connector()).toHaveAttribute('aria-pressed', 'true')
     fireEvent.click(within(jobRow('c')).getByRole('button', { name: 'C' }), {
       shiftKey: true,
     })
+    expect(selected()).toEqual(['c'])
+    expect(connector()).toHaveAttribute('aria-pressed', 'false')
+    marquee([180, 0], [220, 20], true)
+    expect(connector()).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(connector(), { shiftKey: true })
     expect(selected()).toEqual([])
     expect(connector()).toHaveAttribute('aria-pressed', 'true')
-    marquee([500, 500], [500, 500])
-    marquee([-10, 90], [150, 125], true)
-    marquee([180, 0], [220, 20], true)
-    fireEvent.click(connector(), { shiftKey: true })
-    expect(selected()).toEqual(['b'])
-    expect(connector()).toHaveAttribute('aria-pressed', 'false')
   })
 
   it('toggles a job with shift-click without opening its steps', () => {
@@ -1681,16 +1681,12 @@ describe('moves and removals an expression depends on', () => {
     expect(free).not.toHaveAttribute('aria-disabled', 'true')
   })
 
-  it('selects a connector with a click, adds only connectors with shift, and deletes them with Delete', () => {
+  it('selects a connector with a click, adds connectors with shift, and deletes them with Delete', () => {
     const e = editor({ onEdit: vi.fn(() => ({ yml: '', layout: undefined })) })
     renderGraph(plain, e)
     const [fromA, fromB] = connectors()
     fireEvent.click(fromA as Element)
     expect(ends()).toHaveLength(2)
-    fireEvent.click(within(jobRow('d')).getByRole('button', { name: 'D' }), {
-      shiftKey: true,
-    })
-    expect(jobRow('d')).not.toHaveAttribute('data-selected')
     fireEvent.click(fromB as Element, { shiftKey: true })
     expect(ends()).toHaveLength(4)
     const container = document.querySelector('[tabindex="-1"]') as HTMLElement
@@ -2004,19 +2000,20 @@ describe('steps, the clipboard and the arrow keys', () => {
   }
   const selected = (el: HTMLElement) => el.hasAttribute('data-selected')
 
-  it('selects steps with shift-click, and only steps until the selection is cleared', () => {
-    const container = renderGraph(withSource())
+  it('selects steps with shift-click, and a shift-click on a job or step starts over with it', () => {
+    renderGraph(withSource())
     openSteps('build', 'Build')
     fireEvent.click(stepRow('build', 0), { shiftKey: true })
-    expect(selected(stepRow('build', 0))).toBe(true)
-    fireEvent.click(jobRow('lint'), { shiftKey: true })
-    expect(selected(jobRow('lint'))).toBe(false)
-    fireEvent.keyDown(container, { key: 'Escape' })
-    expect(selected(stepRow('build', 0))).toBe(false)
-    fireEvent.click(jobRow('lint'), { shiftKey: true })
     fireEvent.click(stepRow('build', 1), { shiftKey: true })
+    expect(selected(stepRow('build', 0))).toBe(true)
+    expect(selected(stepRow('build', 1))).toBe(true)
+    fireEvent.click(jobRow('lint'), { shiftKey: true })
     expect(selected(jobRow('lint'))).toBe(true)
+    expect(selected(stepRow('build', 0))).toBe(false)
     expect(selected(stepRow('build', 1))).toBe(false)
+    fireEvent.click(stepRow('build', 1), { shiftKey: true })
+    expect(selected(stepRow('build', 1))).toBe(true)
+    expect(selected(jobRow('lint'))).toBe(false)
   })
 
   it('drags the selected steps into another job as one edit', () => {
