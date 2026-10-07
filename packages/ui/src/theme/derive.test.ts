@@ -91,6 +91,15 @@ describe('deriveTheme', () => {
     )
   })
 
+  it('puts the seed text on accent fills over its own pick', () => {
+    const seed = { accent: '#0d6efd', background: '#ffffff' }
+    expect(deriveTheme(seed)['--theme-element-text']).toBe('#000000')
+
+    const vars = deriveTheme({ ...seed, accentText: '#ffffff' })
+    expect(vars['--theme-element-text']).toBe('#ffffff')
+    expect(vars['--theme-accent-text']).toBe('#ffffff')
+  })
+
   it('softens foregrounds at lower contrast', () => {
     const normal = deriveTheme({ accent: '#06354f', background: '#ffffff' })
     const soft = deriveTheme({
