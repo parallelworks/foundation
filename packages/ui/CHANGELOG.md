@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.0](https://github.com/parallelworks/foundation/compare/ui-v0.25.0...ui-v0.26.0) (2026-10-07)
+
+
+### Features
+
+* **ui:** storages can take uploads without allowing delete, and uploads run three at a time ([#153](https://github.com/parallelworks/foundation/issues/153)) ([091dc2a](https://github.com/parallelworks/foundation/commit/091dc2a45bef3df19d185c7b650628c7213bc69b))
+
 ## [0.25.0](https://github.com/parallelworks/foundation/compare/ui-v0.24.2...ui-v0.25.0) (2026-10-07)
 
 
