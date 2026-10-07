@@ -15,7 +15,14 @@ export interface ColumnDef {
   defaultHidden?: boolean
   /** NOT a table column (no header) — appears in picker and isVisible, but excluded from visibleColumns. */
   inline?: boolean
+  /** Drops below a container width instead of stacking (see `stack`). */
   priority?: ColumnPriority
+  /** Below the `medium` width, a column without a `priority` gives up its cell
+   * and its content shows under the first column's instead, so a phone gets a
+   * row it can read rather than one running off the side. `false` keeps it a
+   * column there: for something short that compares best lined up, like a
+   * total. The first column never stacks; it is what the others stack under. */
+  stack?: boolean
 }
 
 /** Column responsive importance; `low` drops before `medium`. See {@link ColumnDef.priority}. */
@@ -28,7 +35,15 @@ const PRIORITY_SHOW_CLASS: Record<ColumnPriority, string> = {
   medium: 'hidden @[36rem]:table-cell',
 }
 
-function columnResponsiveClass(col: ColumnDef): string {
+/** Whether the column at index `i` of the visible ones stacks on a narrow container. */
+function stacks(col: ColumnDef, i: number): boolean {
+  return i > 0 && !col.priority && col.stack !== false
+}
+
+function columnResponsiveClass(col: ColumnDef, i: number): string {
+  if (stacks(col, i)) {
+    return PRIORITY_SHOW_CLASS.medium
+  }
   return col.priority ? PRIORITY_SHOW_CLASS[col.priority] : ''
 }
 
@@ -99,6 +114,9 @@ export interface ListViewChrome {
   /** Responsive show/hide class per visible column (aligned to
    * {@link visibleColumns}); `ListColumns` and `ListRow` apply entry `i`. */
   columnClasses: string[]
+  /** Per visible column, whether it stacks under the first on a narrow
+   * container ({@link ColumnDef.stack}); `ListRow` reads entry `i`. */
+  columnStacks: boolean[]
 }
 
 export interface ListView<T> extends ListViewChrome {
@@ -292,6 +310,7 @@ export function useListView<T>({
   )
 
   const columnClasses = useMemo(() => visibleColumns.map(columnResponsiveClass), [visibleColumns])
+  const columnStacks = useMemo(() => visibleColumns.map(stacks), [visibleColumns])
 
   const toggleColumn = useCallback(
     (key: string) =>
@@ -435,6 +454,7 @@ export function useListView<T>({
     columns,
     visibleColumns,
     columnClasses,
+    columnStacks,
     isVisible,
     pinnedCount,
     actionsWidth,
