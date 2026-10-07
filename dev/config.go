@@ -10,10 +10,12 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -58,9 +60,31 @@ type Config struct {
 	// Before lists commands run once, in order, before anything starts, such
 	// as generating files a server embeds. A failure stops dev.
 	Before [][]string `json:"before,omitempty"`
+	// Profiles are alternative setups to choose between per checkout, such as
+	// a local database or a shared remote one. Each can set env, include other
+	// profiles, and enable the services that name it.
+	Profiles map[string]Profile `json:"profiles,omitempty"`
+	// DefaultProfiles are active until a checkout chooses others with
+	// --profile.
+	DefaultProfiles []string `json:"defaultProfiles,omitempty"`
+	// Active names the profiles to use, overriding the checkout's choice;
+	// --profile sets it.
+	Active []string `json:"-"`
+	// active is Active resolved: includes expanded, in order.
+	active []string
 	// Services run until dev stops: servers rebuilt when their sources
 	// change, and processes such as a Vite dev server.
 	Services []Service `json:"services,omitempty"`
+}
+
+// Profile is one of the setups a checkout can choose.
+type Profile struct {
+	// Description says what choosing it means, for `dev profiles`.
+	Description string `json:"description,omitempty"`
+	// Include activates other profiles first, which makes presets.
+	Include []string `json:"include,omitempty"`
+	// Env is set over the config's env, in the order profiles are chosen.
+	Env map[string]string `json:"env,omitempty"`
 }
 
 // Postgres configures the local PostgreSQL server.
@@ -119,6 +143,9 @@ type Service struct {
 	// RebuildOnCheckout rebuilds a server when the checkout's branch changes,
 	// as a branch-stamped build needs.
 	RebuildOnCheckout bool `json:"rebuildOnCheckout,omitempty"`
+	// Profiles limits the service to checkouts that choose one of them, such
+	// as a local database that the remote setup does without.
+	Profiles []string `json:"profiles,omitempty"`
 }
 
 // S3 configures the local S3-compatible server.
@@ -132,7 +159,7 @@ type S3 struct {
 var reserved = map[string]bool{
 	"stack": true, "wait": true, "reset": true, "logs": true, "status": true,
 	"start": true, "stop": true, "restart": true, "help": true, "completion": true,
-	"up": true, "down": true, "ps": true, "exec": true, "mcp": true,
+	"up": true, "down": true, "ps": true, "exec": true, "mcp": true, "profiles": true,
 }
 
 var validPortName = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
@@ -250,6 +277,9 @@ func (c Config) withDefaults() (Config, error) {
 	if err := c.checkDependencies(); err != nil {
 		return c, err
 	}
+	if c, err = c.activate(); err != nil {
+		return c, err
+	}
 	if c.Postgres != nil {
 		pg := *c.Postgres
 		if pg.Port == 0 {
@@ -355,4 +385,100 @@ func (c Config) instance() string {
 	}, base)
 	sum := sha256.Sum256([]byte(c.Root))
 	return strings.Trim(clean, "-") + "-" + hex.EncodeToString(sum[:2])
+}
+
+// profilesFile is where a checkout keeps the profiles it chose.
+func (c Config) profilesFile() string { return filepath.Join(c.Dir, "profiles") }
+
+// activate applies the chosen profiles: their env over the config's, and only
+// the services that need no profile or name a chosen one. A service whose
+// profile is not chosen is provided some other way, so depending on it is no
+// longer waiting for it.
+func (c Config) activate() (Config, error) {
+	for name, p := range c.Profiles {
+		if !validPortName.MatchString(name) {
+			return c, fmt.Errorf("profile %q: want a lowercase name", name)
+		}
+		for _, inc := range p.Include {
+			if _, ok := c.Profiles[inc]; !ok {
+				return c, fmt.Errorf("profile %q includes %q, which dev.json does not define", name, inc)
+			}
+		}
+	}
+	for _, svc := range c.Services {
+		for _, name := range svc.Profiles {
+			if _, ok := c.Profiles[name]; !ok {
+				return c, fmt.Errorf("service %q names profile %q, which dev.json does not define", svc.Name, name)
+			}
+		}
+	}
+
+	chosen := c.Active
+	if chosen == nil {
+		if data, err := os.ReadFile(c.profilesFile()); err == nil {
+			chosen = strings.Fields(string(data))
+		} else {
+			chosen = c.DefaultProfiles
+		}
+	}
+	var active []string
+	seen := map[string]bool{}
+	var expand func(name string, path []string) error
+	expand = func(name string, path []string) error {
+		if slices.Contains(path, name) {
+			return fmt.Errorf("profiles include each other: %s", strings.Join(append(path, name), " → "))
+		}
+		p, ok := c.Profiles[name]
+		if !ok {
+			return fmt.Errorf("no profile named %q", name)
+		}
+		for _, inc := range p.Include {
+			if err := expand(inc, append(path, name)); err != nil {
+				return err
+			}
+		}
+		if !seen[name] {
+			seen[name] = true
+			active = append(active, name)
+		}
+		return nil
+	}
+	for _, name := range chosen {
+		if err := expand(name, nil); err != nil {
+			return c, err
+		}
+	}
+	c.active = active
+
+	env := maps.Clone(c.Env)
+	for _, name := range active {
+		if env == nil {
+			env = map[string]string{}
+		}
+		maps.Copy(env, c.Profiles[name].Env)
+	}
+	c.Env = env
+
+	kept := map[string]bool{}
+	var services []Service
+	for _, svc := range c.Services {
+		if len(svc.Profiles) == 0 || slices.ContainsFunc(svc.Profiles, func(p string) bool { return seen[p] }) {
+			services = append(services, svc)
+			kept[svc.Name] = true
+		}
+	}
+	for i, svc := range services {
+		svc.DependsOn = slices.DeleteFunc(slices.Clone(svc.DependsOn), func(d string) bool { return !kept[d] })
+		services[i] = svc
+	}
+	c.Services = services
+	return c, nil
+}
+
+// chooseProfiles records the profiles a checkout uses from now on.
+func (c Config) chooseProfiles(names []string) error {
+	if err := os.MkdirAll(c.Dir, 0o750); err != nil {
+		return err
+	}
+	return os.WriteFile(c.profilesFile(), []byte(strings.Join(names, "\n")+"\n"), 0o600)
 }

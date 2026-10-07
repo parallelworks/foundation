@@ -290,6 +290,9 @@ func (m *model) home(b *strings.Builder) {
 	if m.attached {
 		title += " (attached)"
 	}
+	if s, ok := m.sup.(*supervisor); ok && len(s.cfg.active) > 0 {
+		title += " · " + strings.Join(s.cfg.active, " + ")
+	}
 	b.WriteString(titleStyle.Render(title))
 	if stack := m.stackLine(); stack != "" {
 		b.WriteString("   " + stack)

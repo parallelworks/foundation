@@ -22,6 +22,7 @@ import (
 // with its own development tasks adds them with AddCommand.
 func NewRootCmd(cfg Config) *cobra.Command {
 	var verbose, plain bool
+	var profiles []string
 	var lifetime time.Duration
 	logger := func() *slog.Logger {
 		level := slog.LevelInfo
@@ -62,14 +63,25 @@ func NewRootCmd(cfg Config) *cobra.Command {
 	root.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "log debug output")
 	var dir string
 	root.PersistentFlags().StringVar(&dir, "dir", "", "directory for Postgres data and S3 objects (default .devstack beside dev.json)")
+	root.PersistentFlags().StringSliceVar(&profiles, "profile", nil, "use these profiles, and keep using them in this checkout (see `dev profiles`)")
 	root.PersistentPreRunE = func(*cobra.Command, []string) error {
-		if dir == "" {
+		if dir != "" {
+			// A flag is relative to where it was typed, not to the root.
+			abs, err := filepath.Abs(dir)
+			if err != nil {
+				return err
+			}
+			cfg.Dir = abs
+		}
+		if profiles == nil {
 			return nil
 		}
-		// A flag is relative to where it was typed, not to the root.
-		abs, err := filepath.Abs(dir)
-		cfg.Dir = abs
-		return err
+		cfg.Active = profiles
+		c, err := cfg.withDefaults()
+		if err != nil {
+			return err
+		}
+		return c.chooseProfiles(profiles)
 	}
 
 	root.AddCommand(&cobra.Command{
@@ -145,6 +157,9 @@ func NewRootCmd(cfg Config) *cobra.Command {
 			if dir != "" {
 				args = append(args, "--dir", cfg.Dir)
 			}
+			if profiles != nil {
+				args = append(args, "--profile", strings.Join(profiles, ","))
+			}
 			return up(cmd.Context(), cfg, args, names, upTimeout, cmd.OutOrStdout())
 		},
 	}
@@ -170,6 +185,34 @@ func NewRootCmd(cfg Config) *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return down(cmd.Context(), cfg)
+		},
+	})
+
+	root.AddCommand(&cobra.Command{
+		Use:   "profiles",
+		Short: "List the profiles dev.json defines, marking those this checkout uses",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			c, err := cfg.withDefaults()
+			if err != nil {
+				return err
+			}
+			for _, name := range slices.Sorted(maps.Keys(c.Profiles)) {
+				p := c.Profiles[name]
+				mark := " "
+				if slices.Contains(c.active, name) {
+					mark = "*"
+				}
+				line := fmt.Sprintf("%s %s", mark, name)
+				if len(p.Include) > 0 {
+					line += " (" + strings.Join(p.Include, " + ") + ")"
+				}
+				if p.Description != "" {
+					line += ": " + p.Description
+				}
+				fmt.Fprintln(cmd.OutOrStdout(), line)
+			}
+			return nil
 		},
 	})
 
