@@ -2,7 +2,7 @@ import { Indicator } from '../components/Indicator'
 import { useStrings, useWorkflowEngine } from '../components/Provider'
 import type { MatrixGroup, RunStatus } from '../engine'
 import { emptyRowsStyle } from './editorApi'
-import { EditableJobRow, ProblemOutline } from './editorRows'
+import { EditableJobRow } from './editorRows'
 import { type JobHandlers, Joblist } from './JobSummary'
 import { Reveal } from './Reveal'
 import type { WorkflowJob } from './types'
@@ -136,7 +136,6 @@ export function MatrixGroupNode({
           transition: `opacity ${animT}s`,
         }}
       >
-        {editable && <ProblemOutline jobs={[matrixName]} />}
         {editable ? (
           <EditableJobRow job={matrixName} label={t.matrixOf(matrixName)} badge={false}>
             {header}

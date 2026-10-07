@@ -2371,7 +2371,7 @@ describe('problems and the YAML beside the graph', () => {
     expect(show?.({ message: '', line: 1, input: ['name'] })).toBe(false)
   })
 
-  it('marks a job, its step and its node with their problems', () => {
+  it('marks a job and its step with their problems, and not their node', () => {
     const onReveal = vi.fn()
     renderGraph(editor({ problems, onReveal }))
     fireEvent.click(within(jobRow('test')).getByRole('button', { name: 'Test' }))
@@ -2384,11 +2384,11 @@ describe('problems and the YAML beside the graph', () => {
     ) as HTMLElement
     expect(badge(step)?.dataset['tooltipContent']).toBe('unit reads matrix.os')
     expect(badge(jobRow('build'))).toBeNull()
+    expect(jobRow('test')).toHaveClass('ring-(--theme-error)')
+    expect(step).toHaveClass('ring-(--theme-error)')
+    expect(jobRow('build')).not.toHaveClass('ring-(--theme-error)')
     expect(
       document.getElementById('node_test')?.querySelector('.border-\\(--theme-error\\)'),
-    ).not.toBeNull()
-    expect(
-      document.getElementById('node_build')?.querySelector('.border-\\(--theme-error\\)'),
     ).toBeNull()
     onReveal.mockClear()
     fireEvent.click(badge(step) as HTMLElement)

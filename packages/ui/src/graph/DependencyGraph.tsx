@@ -54,7 +54,6 @@ import {
   EmptyGraphEditor,
   GraphEditorCanvas,
   NodePorts,
-  ProblemOutline,
 } from './editorRows'
 import { type JobHandlers, Joblist } from './JobSummary'
 import { MatrixGroupNode, MatrixGroupSummaryItem } from './MatrixGroup'
@@ -998,7 +997,6 @@ function Subgraph({
                       }}
                     >
                       {editable && jobNames.length > 1 && <BoxGrip jobs={jobNames} />}
-                      {editable && <ProblemOutline jobs={jobNames} />}
                       <Joblist
                         jobs={displayJobs}
                         jobNames={jobNames}

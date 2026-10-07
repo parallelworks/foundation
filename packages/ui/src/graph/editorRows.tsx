@@ -229,20 +229,6 @@ function ProblemBadge({ api, job, step }: { api: GraphEditorApi; job: string; st
   )
 }
 
-/** A red border over a node whose jobs, or their steps, have problems. */
-export function ProblemOutline({ jobs }: { jobs: string[] }) {
-  const api = useGraphEditor()
-  const flagged = useUi(
-    api,
-    (state) =>
-      state.problems.some((problem) => problem.job !== undefined && jobs.includes(problem.job)),
-    false,
-  )
-  return flagged ? (
-    <div className="pointer-events-none absolute -inset-1 rounded-xl border-4 border-(--theme-error)" />
-  ) : null
-}
-
 /** What a job or step row does in the editor: drag, shift-click to select, a menu, its problems. */
 function EditableRow({
   api,
