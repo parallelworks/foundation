@@ -76,7 +76,8 @@ In a terminal, `dev` takes over the screen with its services, their states
 | `q` | Stop everything and quit |
 
 `dev status`, `start`, `stop` and `restart` reach a running dev through a Unix
-socket in a directory only you can enter, so a second terminal or a tool can
+socket in a directory only you can enter (`$XDG_RUNTIME_DIR/foundation-dev`, or
+`~/.local/state/foundation-dev`), so a second terminal or a tool can
 drive it while the view runs. Only one dev runs per checkout.
 
 ## Services

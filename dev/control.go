@@ -31,16 +31,39 @@ type controlResponse struct {
 // run the app's commands, and is named by a hash so that it stays under the
 // platform's limit on socket paths however deep the checkout is.
 func socketPath(dir string) (string, error) {
-	cache, err := os.UserCacheDir()
+	sockets, err := socketDir()
 	if err != nil {
 		return "", err
 	}
-	sockets := filepath.Join(cache, "foundation-dev")
 	if err := os.MkdirAll(sockets, 0o700); err != nil {
 		return "", err
 	}
+	// MkdirAll leaves an existing directory as it is; one others can enter
+	// would let them drive this user's dev.
+	info, err := os.Stat(sockets)
+	if err != nil {
+		return "", err
+	}
+	if info.Mode().Perm()&0o077 != 0 {
+		return "", fmt.Errorf("%s is open to other users (mode %v); make it 0700", sockets, info.Mode().Perm())
+	}
 	sum := sha256.Sum256([]byte(dir))
 	return filepath.Join(sockets, hex.EncodeToString(sum[:8])+".sock"), nil
+}
+
+// socketDir holds every running dev's socket, which is how one dev finds
+// another. It is runtime state, so not a cache directory, which the system
+// may clear while dev runs: $XDG_RUNTIME_DIR where the system provides one,
+// otherwise ~/.local/state.
+func socketDir() (string, error) {
+	if run := os.Getenv("XDG_RUNTIME_DIR"); run != "" {
+		return filepath.Join(run, "foundation-dev"), nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".local", "state", "foundation-dev"), nil
 }
 
 // serveControl answers control requests until ctx ends. It fails when

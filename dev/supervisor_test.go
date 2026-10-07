@@ -182,3 +182,15 @@ func TestTUIKeysDriveServices(t *testing.T) {
 		t.Error("q did not stop dev")
 	}
 }
+
+func TestSocketsLiveInRuntimeState(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", "/run/user/1000")
+	if dir, err := socketDir(); err != nil || dir != "/run/user/1000/foundation-dev" {
+		t.Errorf("with XDG_RUNTIME_DIR: %q, %v", dir, err)
+	}
+	t.Setenv("XDG_RUNTIME_DIR", "")
+	home, _ := os.UserHomeDir()
+	if dir, err := socketDir(); err != nil || dir != filepath.Join(home, ".local", "state", "foundation-dev") {
+		t.Errorf("without: %q, %v", dir, err)
+	}
+}
