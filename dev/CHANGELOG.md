@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.11.0](https://github.com/parallelworks/foundation/compare/dev/v0.10.0...dev/v0.11.0) (2026-10-07)
+
+
+### Features
+
+* **dev:** ${NAME} in dev.json env composes values around secrets and profiles' settings, and dev.Env exports them ([#157](https://github.com/parallelworks/foundation/issues/157)) ([5bd5e1a](https://github.com/parallelworks/foundation/commit/5bd5e1ab20e778454d428c46d14419aee7c8e454))
+
+
+### Bug Fixes
+
+* **dev:** a port under 1024 moves to a random one on macOS though the server could bind it ([#158](https://github.com/parallelworks/foundation/issues/158)) ([d6c2c15](https://github.com/parallelworks/foundation/commit/d6c2c1577765cd65282dce063f70d3891253cec9))
+
 ## [0.10.0](https://github.com/parallelworks/foundation/compare/dev/v0.9.0...dev/v0.10.0) (2026-10-07)
 
 
