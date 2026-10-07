@@ -360,9 +360,12 @@ export default function FileExplorer({
   const findStorage = (storageId: string | undefined) => storages.find((s) => s.id === storageId)
   const storageCanWrite = (storageId?: string) => findStorage(storageId)?.canWrite === true
   const storageCanUpload = (storageId?: string) => findStorage(storageId)?.canUpload !== false
+  const storageCanDelete = (storage: TStorage | undefined) =>
+    (storage?.canDelete ?? storage?.canWrite) === true
   const selectedStorage = findStorage(selectedNode?.storageId)
   const selectedNodeCanWrite = selectedStorage?.canWrite === true
   const selectedNodeCanUpload = selectedStorage?.canUpload !== false
+  const selectedNodeCanDelete = storageCanDelete(selectedStorage)
   const selectedNodeCanShare = selectedStorage?.canShare !== false
   const selectedNodeCanManageAccess = selectedStorage?.canManageAccess !== false
   const [accessDrawerOpen, setAccessDrawerOpen] = useState(false)
@@ -997,8 +1000,7 @@ export default function FileExplorer({
   }
 
   const deleteNode = (node: TreeNode) => {
-    const storage = findStorage(node.storageId)
-    if (storage?.canWrite !== true) {
+    if (!storageCanDelete(findStorage(node.storageId))) {
       notify.error(t.messages.noWriteAccess)
       return
     }
@@ -1033,7 +1035,7 @@ export default function FileExplorer({
   // Order: lead → actions → Copy → delete last.
   const buildRowMenu = (node: TreeNode): RowMenuItem[] => {
     const storage = findStorage(node.storageId)
-    const nodeCanWrite = storage?.canWrite === true
+    const nodeCanDelete = storageCanDelete(storage)
     const nodeCanShare = storage?.canShare !== false
     const isFile = node.type === 'file'
     const uris = getNodeUris(node)
@@ -1067,7 +1069,7 @@ export default function FileExplorer({
     actions.push(...(extraRowActions?.(node, storage) ?? []))
     // The storage root has no tree parent to refresh after a delete, and
     // deleting the whole storage is not a file-explorer operation — omit it.
-    if (nodeCanWrite && !node.root) {
+    if (nodeCanDelete && !node.root) {
       actions.push({
         key: 'delete',
         label: t.preview.delete,
@@ -1173,7 +1175,7 @@ export default function FileExplorer({
   }
 
   const onDeleteClick = () => {
-    if (!selectedNodeCanWrite) {
+    if (!selectedNodeCanDelete) {
       notify.error(t.messages.noWriteAccess)
       return
     }
@@ -1775,7 +1777,7 @@ export default function FileExplorer({
                       <span className="hidden md:inline">{t.chrome.manageAccess}</span>
                     </button>
 
-                    {selectedNodeCanWrite && (
+                    {selectedNodeCanDelete && (
                       <button
                         type="button"
                         aria-label={t.chrome.delete}

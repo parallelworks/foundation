@@ -672,3 +672,21 @@ describe('FileExplorer host extensions', () => {
     expect(onSelect).toHaveBeenCalledWith('b')
   })
 })
+
+describe('FileExplorer write without delete', () => {
+  it('offers upload and new folder but no delete when the storage cannot delete', async () => {
+    const script = scriptedStorage()
+    render(explorer(FOLDER_A, script, [{ ...storage, canUpload: true, canDelete: false }]))
+    await act(async () => {})
+
+    expect(screen.getByLabelText('Upload')).toBeInTheDocument()
+    expect(screen.getByLabelText('New folder')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Delete')).not.toBeInTheDocument()
+
+    fireEvent.contextMenu(await findTreeItem('b'))
+    await waitFor(() =>
+      expect(screen.getAllByRole('button', { name: 'New folder' })).toHaveLength(2),
+    )
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
+  })
+})
