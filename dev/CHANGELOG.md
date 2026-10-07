@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.0](https://github.com/parallelworks/foundation/compare/dev/v0.5.1...dev/v0.6.0) (2026-10-07)
+
+
+### Features
+
+* **dev:** dev up runs in the background, with dev down, ps, status --json and exec for tools and agents ([#131](https://github.com/parallelworks/foundation/issues/131)) ([7bebaef](https://github.com/parallelworks/foundation/commit/7bebaef620c7895542d99320e49b56f90e6caee2))
+* **dev:** ports are allocated, so checkouts and apps run side by side ([#130](https://github.com/parallelworks/foundation/issues/130)) ([2020ae6](https://github.com/parallelworks/foundation/commit/2020ae6dd1f2c1aa4a16f20596a83098b90a3fc5))
+
 ## [0.5.1](https://github.com/parallelworks/foundation/compare/dev/v0.5.0...dev/v0.5.1) (2026-10-07)
 
 
