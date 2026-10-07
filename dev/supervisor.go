@@ -188,6 +188,12 @@ func (s *supervisor) start(ctx context.Context, name string) error {
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	r.cancel, r.done = cancel, make(chan struct{})
+	// Read as on its way at once, not stopped until its goroutine reports:
+	// dev wait would take stopped for a service that gave up.
+	r.status.State, r.status.Detail, r.status.Since = stateStarting, "", time.Now()
+	if len(r.svc.Build) > 0 {
+		r.status.State = stateBuilding
+	}
 	set := func(st state, detail string) { s.setState(r, st, detail) }
 	logger := s.logger.With("service", name)
 	// done waits for the prober too, so that stop leaves nothing behind.
@@ -245,6 +251,20 @@ func (s *supervisor) statuses() []status {
 		out = append(out, s.services[name].status)
 	}
 	return out
+}
+
+// starting is what dev is doing before its services start, or "" once they
+// have.
+func (s *supervisor) starting() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.running {
+		return ""
+	}
+	if s.stack != "" {
+		return s.stack
+	}
+	return "starting"
 }
 
 func (s *supervisor) stackState() string {

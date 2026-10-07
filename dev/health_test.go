@@ -78,3 +78,30 @@ func TestHealthMustBeAnHTTPURL(t *testing.T) {
 		t.Error("a health URL without a scheme was accepted")
 	}
 }
+
+func TestWaitWaitsThroughStartup(t *testing.T) {
+	root := t.TempDir()
+	cfg := Config{
+		Root:     root,
+		Before:   [][]string{{"sleep", "2"}},
+		Services: []Service{{Name: "web", Run: []string{"sleep", "300"}}},
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		_ = Up(ctx, cfg, slog.New(slog.DiscardHandler), io.Discard)
+		close(done)
+	}()
+	t.Cleanup(func() { cancel(); <-done })
+
+	// While the before command runs, web reads stopped; wait must not take
+	// that for a service that gave up.
+	eventually(t, "dev to answer", func() bool {
+		resp, err := controlFull(t.Context(), cfg, controlRequest{Command: "status"})
+		return err == nil && resp.Starting != ""
+	})
+	time.Sleep(1200 * time.Millisecond) // past wait's grace for a stopped service
+	if err := waitServices(t.Context(), cfg, []string{"web"}, 10*time.Second); err != nil {
+		t.Errorf("wait during startup: %v", err)
+	}
+}
