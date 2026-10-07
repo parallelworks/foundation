@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/parallelworks/foundation/compare/dev/v0.6.0...dev/v0.6.1) (2026-10-07)
+
+
+### Bug Fixes
+
+* **dev:** dev ps lists every dev from anywhere, with no dev.json needed ([#136](https://github.com/parallelworks/foundation/issues/136)) ([a54baa1](https://github.com/parallelworks/foundation/commit/a54baa12a9570ff3705e49a5b96f628416f47b1d))
+
 ## [0.6.0](https://github.com/parallelworks/foundation/compare/dev/v0.5.1...dev/v0.6.0) (2026-10-07)
 
 
