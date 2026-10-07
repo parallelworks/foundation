@@ -16,7 +16,8 @@ import (
 // environ is the environment for a command: from lowest to highest, the
 // config's Env, the service's Env, the config's EnvFile, the service's
 // EnvFile, and the real environment, so that `NAME=value go tool dev`
-// overrides everything. svc is nil for before commands.
+// overrides everything. A ${NAME} in dev.json's env reads the env files and
+// the real environment. svc is nil for before commands.
 func (c Config) environ(svc *Service) ([]string, error) {
 	vars, err := c.vars(svc)
 	if err != nil {
@@ -39,29 +40,11 @@ func underEnviron(vars map[string]string) []string {
 // vars is what dev itself sets for a command: dev.json's env and the env
 // files, without the real environment.
 func (c Config) vars(svc *Service) (map[string]string, error) {
-	vars := map[string]string{}
-	set := func(env map[string]string) error {
-		for k, v := range env {
-			expanded, err := c.expand(v)
-			if err != nil {
-				return fmt.Errorf("env %s: %w", k, err)
-			}
-			vars[k] = expanded
-		}
-		return nil
-	}
 	files := []string{c.EnvFile}
-	if err := set(c.Env); err != nil {
-		return nil, err
+	if svc != nil && svc.EnvFile != "" {
+		files = append(files, svc.EnvFile)
 	}
-	if svc != nil {
-		if err := set(svc.Env); err != nil {
-			return nil, err
-		}
-		if svc.EnvFile != "" {
-			files = append(files, svc.EnvFile)
-		}
-	}
+	fromFiles := map[string]string{}
 	for _, f := range files {
 		kvs, err := readDotenv(f)
 		if err != nil {
@@ -69,10 +52,73 @@ func (c Config) vars(svc *Service) (map[string]string, error) {
 		}
 		for _, kv := range kvs {
 			k, v, _ := strings.Cut(kv, "=")
-			vars[k] = v
+			fromFiles[k] = v
 		}
 	}
+	vars := map[string]string{}
+	// ${NAME} reads what the command would see, so a value dev.json composes,
+	// such as a URL, can hold a secret kept in an env file, and a service's
+	// value can follow one a profile sets.
+	lookup := func(name string) (string, bool) {
+		if v, ok := os.LookupEnv(name); ok {
+			return v, true
+		}
+		if v, ok := fromFiles[name]; ok {
+			return v, true
+		}
+		v, ok := vars[name]
+		return v, ok
+	}
+	set := func(env map[string]string) error {
+		// A layer's values read the layers under it, not each other, so the
+		// order of a map does not change them.
+		layer := map[string]string{}
+		for k, v := range env {
+			expanded, err := c.expand(v)
+			if err == nil {
+				expanded, err = expandRefs(expanded, lookup)
+			}
+			if err != nil {
+				return fmt.Errorf("env %s: %w", k, err)
+			}
+			layer[k] = expanded
+		}
+		maps.Copy(vars, layer)
+		return nil
+	}
+	if err := set(c.Env); err != nil {
+		return nil, err
+	}
+	if svc != nil {
+		if err := set(svc.Env); err != nil {
+			return nil, err
+		}
+	}
+	maps.Copy(vars, fromFiles)
 	return vars, nil
+}
+
+var envRef = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)(:-[^}]*)?\}`)
+
+// expandRefs replaces each ${NAME} in v with lookup's value for NAME, and
+// ${NAME:-default} with default where NAME is unset or empty.
+func expandRefs(v string, lookup func(string) (string, bool)) (string, error) {
+	var missing []string
+	out := envRef.ReplaceAllStringFunc(v, func(ref string) string {
+		m := envRef.FindStringSubmatch(ref)
+		val, ok := lookup(m[1])
+		if fallback, hasDefault := strings.CutPrefix(m[2], ":-"); hasDefault && val == "" {
+			return fallback
+		}
+		if !ok {
+			missing = append(missing, m[1])
+		}
+		return val
+	})
+	if len(missing) > 0 {
+		return "", fmt.Errorf("${%s} is set in no env file and not in the environment", strings.Join(missing, "}, ${"))
+	}
+	return out, nil
 }
 
 // expand replaces the stack's names and {port.<name>} in a value with where

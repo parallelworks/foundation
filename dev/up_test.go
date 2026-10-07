@@ -161,6 +161,55 @@ func TestEnvironRejectsWhatIsNotThere(t *testing.T) {
 	}
 }
 
+func TestEnvironReadsSecretsInto(t *testing.T) {
+	root := t.TempDir()
+	write(t, filepath.Join(root, ".env"), "DEV_TEST_PASS=s3cret\n")
+	t.Setenv("DEV_TEST_USER", "me")
+	cfg, err := Config{
+		Root:  root,
+		Ports: map[string]int{"db": 27017},
+		Env: map[string]string{
+			"DEV_TEST_URL":  "mongodb://${DEV_TEST_USER}:${DEV_TEST_PASS}@localhost:{port.db}/",
+			"DEV_TEST_KEPT": "costs $5 or {not-a-ref}",
+		},
+	}.withDefaults()
+	if err != nil {
+		t.Fatal(err)
+	}
+	vars, err := cfg.vars(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := vars["DEV_TEST_URL"], "mongodb://me:s3cret@localhost:27017/"; got != want {
+		t.Errorf("DEV_TEST_URL = %q, want %q", got, want)
+	}
+	if got, want := vars["DEV_TEST_KEPT"], "costs $5 or {not-a-ref}"; got != want {
+		t.Errorf("DEV_TEST_KEPT = %q, want %q", got, want)
+	}
+
+	svc := Service{Name: "api", Env: map[string]string{
+		"DEV_TEST_PROXY": "${DEV_TEST_LAYERED:-none}",
+		"DEV_TEST_EMPTY": "[${DEV_TEST_NOWHERE:-}]",
+	}}
+	vars, err = cfg.vars(&svc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if vars["DEV_TEST_PROXY"] != "none" || vars["DEV_TEST_EMPTY"] != "[]" {
+		t.Errorf("defaults: DEV_TEST_PROXY = %q, DEV_TEST_EMPTY = %q", vars["DEV_TEST_PROXY"], vars["DEV_TEST_EMPTY"])
+	}
+	cfg.Env["DEV_TEST_LAYERED"] = "socks5://127.0.0.1:1080"
+	if vars, err = cfg.vars(&svc); err != nil || vars["DEV_TEST_PROXY"] != "socks5://127.0.0.1:1080" {
+		t.Errorf("a service value should follow dev.json's: %q, %v", vars["DEV_TEST_PROXY"], err)
+	}
+
+	cfg.Env = map[string]string{"DEV_TEST_URL": "x${DEV_TEST_NOWHERE}${DEV_TEST_ALSO}"}
+	_, err = cfg.vars(nil)
+	if err == nil || !strings.Contains(err.Error(), "DEV_TEST_URL: ${DEV_TEST_NOWHERE}, ${DEV_TEST_ALSO} is set in no env file") {
+		t.Errorf("an unset ${NAME}: %v", err)
+	}
+}
+
 func TestWatcherReportsSourceChangesOnly(t *testing.T) {
 	root := t.TempDir()
 	for _, dir := range []string{"pkg", "web", ".git", "node_modules"} {

@@ -249,15 +249,27 @@ type ExitError struct{ Code int }
 
 func (e ExitError) Error() string { return fmt.Sprintf("exit status %d", e.Code) }
 
+// Env is what the checkout's running dev sets for every command, without the
+// real environment: dev.json's env with its allocated ports, {postgres} and
+// the rest filled in, and the env files. An app's own tools, such as one that
+// queries the database its services use, read it to find what they use.
+func Env(ctx context.Context, cfg Config) (map[string]string, error) {
+	resp, err := controlFull(ctx, cfg, controlRequest{Command: "env"})
+	if err != nil {
+		return nil, err
+	}
+	return resp.Env, nil
+}
+
 // execWith runs a command with the running dev's environment under the real
 // one: its allocated ports, {postgres} and the rest, as its services see them.
 func execWith(ctx context.Context, cfg Config, argv []string) error {
-	resp, err := controlFull(ctx, cfg, controlRequest{Command: "env"})
+	env, err := Env(ctx, cfg)
 	if err != nil {
 		return err
 	}
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...) //nolint:gosec // the developer's own command
-	cmd.Env = underEnviron(resp.Env)
+	cmd.Env = underEnviron(env)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	err = cmd.Run()
 	var exit *exec.ExitError
