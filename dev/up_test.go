@@ -210,6 +210,34 @@ func TestEnvironReadsSecretsInto(t *testing.T) {
 	}
 }
 
+func TestBeforeCommandsRunBeforeTheSecretsTheyWrite(t *testing.T) {
+	root := t.TempDir()
+	cfg, err := Config{
+		Root:    root,
+		EnvFile: ".env",
+		Env:     map[string]string{"DEV_TEST_URL": "amqp://app:${DEV_TEST_SECRET}@localhost/", "DEV_TEST_PLAIN": "kept"},
+	}.withDefaults()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cfg.environ(nil); err == nil {
+		t.Fatal("a service's environment should fail while the secret is unset")
+	}
+	before, err := cfg.beforeEnviron()
+	if err != nil {
+		t.Fatalf("before commands should run without the secret their env file will hold: %v", err)
+	}
+	if !slices.Contains(before, "DEV_TEST_PLAIN=kept") || slices.ContainsFunc(before, func(kv string) bool { return strings.HasPrefix(kv, "DEV_TEST_URL=") }) {
+		t.Errorf("before env should keep what resolves and leave out what does not: %v", before)
+	}
+
+	write(t, filepath.Join(root, ".env"), "DEV_TEST_SECRET=s3cret\n")
+	vars, err := cfg.vars(nil)
+	if err != nil || vars["DEV_TEST_URL"] != "amqp://app:s3cret@localhost/" {
+		t.Errorf("once written, the secret should reach the services: %q, %v", vars["DEV_TEST_URL"], err)
+	}
+}
+
 func TestWatcherReportsSourceChangesOnly(t *testing.T) {
 	root := t.TempDir()
 	for _, dir := range []string{"pkg", "web", ".git", "node_modules"} {

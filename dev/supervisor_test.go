@@ -2,6 +2,7 @@ package dev
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"os"
@@ -275,4 +276,33 @@ func TestViewShowsStartupProgress(t *testing.T) {
 		v := m.View().Content
 		return strings.Contains(v, "running before commands…") && strings.Contains(v, "regenerating content")
 	})
+}
+
+func TestTUIStaysWithWhyDevFailedToStart(t *testing.T) {
+	cfg := testServices(t.TempDir())
+	s, err := newSupervisor(t.Context(), cfg, slog.New(slog.DiscardHandler), io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	m := &model{sup: s, ctx: ctx, cancel: cancel, name: "shop"}
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+
+	if _, cmd := m.Update(stoppedMsg{err: errors.New("before: secrets failed")}); cmd != nil {
+		t.Fatal("the view left at once on a failed start")
+	}
+	if home := m.View().Content; !strings.Contains(home, "dev stopped: before: secrets failed") {
+		t.Errorf("the view does not say why dev stopped:\n%s", home)
+	}
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 'q', Text: "q"})
+	if cmd == nil {
+		t.Fatal("q did not leave")
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Error("q after a failed start did not quit")
+	}
+	if m.err == nil {
+		t.Error("the failure is not returned for dev to print")
+	}
 }
