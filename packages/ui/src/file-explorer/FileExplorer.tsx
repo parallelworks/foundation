@@ -386,41 +386,69 @@ export default function FileExplorer({
     }
     return roots
   }, [rootNodes, parentToChildrenMap])
+  const storageRootPaths = useMemo(
+    () => new Map(storages.map((storage) => [storage.id, storage.rootPath])),
+    [storages],
+  )
   const seenStorageRootsRef = useRef(storageRoots)
-  const forgetStorages = useEffectEvent((removed: [string, string][]) => {
+  const seenRootPathsRef = useRef(storageRootPaths)
+  const dropStorageListings = (roots: [string, string][]) => {
     const isUnder = (path: string) =>
-      removed.some(([, root]) => path !== root && path.startsWith(root))
-    const isWithin = (path: string) => removed.some(([, root]) => path.startsWith(root))
+      roots.some(([, root]) => path !== root && path.startsWith(root))
+    const isWithin = (path: string) => roots.some(([, root]) => path.startsWith(root))
     for (const path of [...fetchesInFlightRef.current.keys()]) {
       if (isWithin(path)) {
         fetchesInFlightRef.current.delete(path)
       }
     }
-    setListings((prev) => removed.reduce((next, [, root]) => clearListingsUnder(next, root), prev))
+    setListings((prev) => roots.reduce((next, [, root]) => clearListingsUnder(next, root), prev))
     setLoadingPaths((prev) => new Set([...prev].filter((path) => !isWithin(path))))
     setExpandedPaths((prev) => new Set([...prev].filter((path) => !isUnder(path))))
-    const withoutRemoved = <T,>(prev: Map<string, T>) => {
+    const withoutDropped = <T,>(prev: Map<string, T>) => {
       const next = new Map(prev)
-      for (const [id] of removed) {
+      for (const [id] of roots) {
         next.delete(id)
       }
       return next
     }
-    updateConnectionIssuesMessage(withoutRemoved)
-    setHasCorsIssue(withoutRemoved)
+    updateConnectionIssuesMessage(withoutDropped)
+    setHasCorsIssue(withoutDropped)
+  }
+  const forgetStorages = useEffectEvent((removed: [string, string][]) => {
+    dropStorageListings(removed)
     const selectedRoot = removed.find(([, root]) => normalizedSelectedPath.startsWith(root))?.[1]
     if (selectedRoot) {
       const parent = getParentPath(selectedRoot)
       setSelectedPath(treeMap[parent] ? parent : '')
     }
   })
+  const rerootStorages = useEffectEvent((rerooted: [string, string][]) => {
+    dropStorageListings(rerooted)
+    clearPreviewCache()
+    if (previewNode && rerooted.some(([id]) => id === previewNode.storageId)) {
+      setPreviewOpen(false)
+      setPreviewNode(null)
+    }
+    const selectedRoot = rerooted.find(([, root]) => normalizedSelectedPath.startsWith(root))?.[1]
+    if (selectedRoot && selectedRoot !== normalizedSelectedPath) {
+      setSelectedPath(selectedRoot)
+    }
+  })
   useEffect(() => {
+    const seenRootPaths = seenRootPathsRef.current
     const removed = [...seenStorageRootsRef.current].filter(([id]) => !storageRoots.has(id))
+    const rerooted = [...storageRoots].filter(
+      ([id]) => seenRootPaths.has(id) && seenRootPaths.get(id) !== storageRootPaths.get(id),
+    )
     seenStorageRootsRef.current = storageRoots
+    seenRootPathsRef.current = storageRootPaths
     if (removed.length > 0) {
       forgetStorages(removed)
     }
-  }, [storageRoots])
+    if (rerooted.length > 0) {
+      rerootStorages(rerooted)
+    }
+  }, [storageRoots, storageRootPaths])
 
   const [uploadModalOpen, setUploadModalOpen] = useState(false)
   const [createFolderTarget, setCreateFolderTarget] = useState<TreeNode | null>(null)

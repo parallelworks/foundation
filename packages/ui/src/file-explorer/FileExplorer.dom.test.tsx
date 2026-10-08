@@ -600,6 +600,26 @@ describe('FileExplorer storage removal', () => {
     expect(bucket.callsFor('a/')).toHaveLength(1)
     expect(otherBucket.callsFor('')).toHaveLength(1)
   })
+
+  it('lists a storage whose root moves from its new root and moves a selection inside it there', async () => {
+    const { bucket, otherBucket, onPathChange, rerender } = await renderTwo(FOLDER_A)
+    await screen.findByLabelText('Select one.txt')
+    expect(bucket.callsFor('')).toHaveLength(1)
+
+    bucket.fixture.set('', [[dir('c/')]])
+    const rerooted = [{ ...storage, rootPath: '/data' }, other]
+    await rerender(FOLDER_A, rerooted)
+
+    const root = `${storage.user}/${storage.name}/`
+    expect(onPathChange).toHaveBeenCalledWith(root)
+    await rerender(root, rerooted)
+
+    await waitFor(() => expect(bucket.callsFor('')).toHaveLength(2))
+    expect(await findTreeItem('c')).toBeInTheDocument()
+    expect(screen.getAllByRole('treeitem').filter((el) => el.textContent === 'a')).toHaveLength(1)
+    expect(bucket.callsFor('a/')).toHaveLength(1)
+    expect(otherBucket.callsFor('')).toHaveLength(1)
+  })
 })
 
 describe('FileExplorer selection across navigation', () => {
