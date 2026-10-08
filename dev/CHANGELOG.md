@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.1](https://github.com/parallelworks/foundation/compare/dev/v0.11.0...dev/v0.11.1) (2026-10-08)
+
+
+### Bug Fixes
+
+* **dev:** dev fails before writing the secrets its env reads, and a failed start leaves terminal replies in the shell ([#160](https://github.com/parallelworks/foundation/issues/160)) ([2895141](https://github.com/parallelworks/foundation/commit/289514140267b93f6e5e2202ac0244e80128f33b))
+
 ## [0.11.0](https://github.com/parallelworks/foundation/compare/dev/v0.10.0...dev/v0.11.0) (2026-10-07)
 
 
