@@ -12,9 +12,13 @@ go install github.com/parallelworks/foundation/dev/cmd/dev@latest
 ```
 
 In a repository that pins dev in its tools module, the global `dev` runs the
-pinned version instead of itself whenever the two differ, so every checkout,
-including one of an older branch, runs what its CI and teammates run.
-`DEV_GLOBAL=1` makes it run itself anyway, and `dev --version` says which ran.
+pinned version instead of itself when the pin is newer, so a repository that
+needs a later dev gets it on every machine. When the global one is as new or
+newer it runs itself: a newer dev reads an older `dev.json` as it was meant, so
+its new commands work everywhere without bumping each repository, while CI,
+scripts and agents run the pin through `go -C tools tool dev`. Bump a pin when
+the repository uses something new in `dev.json`. `DEV_GLOBAL=1` makes the
+global one run itself anyway, and `dev --version` says which ran.
 Without the global install, run the pinned one directly as
 `go -C tools tool dev`; plain `go tool dev` finds only the root module's tools.
 

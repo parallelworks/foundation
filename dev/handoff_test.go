@@ -40,14 +40,25 @@ func TestGlobalDevHandsOffToThePinnedOne(t *testing.T) {
 	pins := func(v string) string {
 		return "module example.com/app/tools\n\ngo 1.27.0\n\ntool " + devTool + "\n\nrequire " + devModule + " " + v + " // indirect\n"
 	}
-	cfg := repo(t, pins("v0.0.1"))
-	if argv, err := handOffTo(cfg); err != nil || !slices.Equal(argv, []string{"go", "-C", filepath.Join(filepath.Dir(cfg), "tools"), "tool", "dev"}) {
-		t.Errorf("a repository pinning another version: hand off to %v, %v", argv, err)
-	}
+	installed := "v0.5.0"
+	currentVersion = func() string { return installed }
+	t.Cleanup(func() { currentVersion = version })
 
-	if argv, _ := handOffTo(repo(t, pins(version()))); argv != nil {
-		t.Errorf("the pinned version is this one, yet it hands off to %v", argv)
+	cfg := repo(t, pins("v0.6.0"))
+	if argv, err := handOffTo(cfg); err != nil || !slices.Equal(argv, []string{"go", "-C", filepath.Join(filepath.Dir(cfg), "tools"), "tool", "dev"}) {
+		t.Errorf("a repository pinning a newer version: hand off to %v, %v", argv, err)
 	}
+	for _, pin := range []string{"v0.5.0", "v0.4.2"} {
+		if argv, _ := handOffTo(repo(t, pins(pin))); argv != nil {
+			t.Errorf("v0.5.0 installed, %s pinned: hand off to %v; the newer dev should run", pin, argv)
+		}
+	}
+	// One built from a checkout cannot tell how new it is.
+	installed = "(devel)"
+	if argv, _ := handOffTo(repo(t, pins("v0.4.2"))); argv == nil {
+		t.Error("a dev of unknown version should defer to the pin")
+	}
+	installed = "v0.5.0"
 	if argv, _ := handOffTo(repo(t, "module example.com/app/tools\n\ngo 1.27.0\n")); argv != nil {
 		t.Errorf("a tools module without dev: hand off to %v", argv)
 	}
