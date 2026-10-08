@@ -10,6 +10,7 @@ import (
 	"syscall"
 
 	"golang.org/x/mod/modfile"
+	"golang.org/x/mod/semver"
 )
 
 const (
@@ -29,8 +30,10 @@ func Version() string { return version() }
 // HandOff runs a repository's own dev in place of this one, when this is a
 // dev installed globally (`go install …/cmd/dev`). The repository whose
 // dev.json is at configPath says which: its `command`, for an app whose dev
-// adds commands of its own, or else the version its tools module pins. Every
-// checkout then runs what its CI and teammates run. On success it does not
+// adds commands of its own, or else the version its tools module pins, when
+// that is newer than this one. A newer dev reads an older dev.json as it was
+// meant, so an install runs its own commands everywhere until a repository
+// needs a later one; CI and agents still run the pin. On success it does not
 // return; it returns nil when this dev should run.
 func HandOff(configPath string, args []string) error {
 	argv, err := handOffTo(configPath)
@@ -70,12 +73,28 @@ func handOffTo(configPath string) ([]string, error) {
 		if !ok {
 			continue
 		}
-		if pinned == version() {
+		if !newer(pinned, currentVersion()) {
 			return nil, nil
 		}
 		return []string{"go", "-C", dir, "tool", "dev"}, nil
 	}
 	return nil, nil
+}
+
+// currentVersion is this dev's version, which tests set.
+var currentVersion = version
+
+// newer reports whether a repository's pinned version is newer than this
+// dev's. A dev that cannot tell its own version, such as one built from a
+// checkout, defers to any pin.
+func newer(pinned, current string) bool {
+	if pinned == current {
+		return false
+	}
+	if !semver.IsValid(current) {
+		return true
+	}
+	return semver.Compare(pinned, current) > 0
 }
 
 // pinnedDev reports the version of dev a go.mod pins as a tool.
