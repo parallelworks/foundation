@@ -379,6 +379,43 @@ export interface UIStrings {
     paginationShowing: (name: string, start: number | string, end: number | string) => ReactNode
     paginationShowingTimeRange: (name: string, startTime: string, endTime: string) => ReactNode
   }
+  access: {
+    title: string
+    search: string
+    total: (total: number) => string
+    matching: (shown: number, total: number) => string
+    organization: string
+    organizationMeta: string
+    withAccess: (count: number) => string
+    otherGroups: (count: number) => string
+    members: (count: number) => string
+    permissionsFor: (name: string) => string
+    includedByHigher: string
+    grantedToOrganization: string
+    unsaved: string
+    revoked: string
+    revoke: string
+    revokeFor: (name: string) => string
+    revokeAll: string
+    revokeAllFor: (name: string) => string
+    undo: string
+    undoFor: (name: string) => string
+    noGroups: string
+    noGroupsHint: string
+    noMatches: (query: string) => string
+    noMatchesHint: string
+    clearSearch: string
+    noChanges: string
+    unsavedChanges: (count: number) => string
+    saved: string
+    discard: string
+    save: string
+    saving: string
+    discardTitle: string
+    discardDescription: (count: number) => string
+    discardConfirm: string
+    keepEditing: string
+  }
 }
 
 export interface UINavigation {
@@ -912,6 +949,46 @@ const DEFAULTS: UIProviderValue = {
         </>
       ),
     },
+    access: {
+      title: 'Manage access',
+      search: 'Search groups',
+      total: (total) => (total === 1 ? '1 group' : `${total} groups`),
+      matching: (shown, total) => `${shown} of ${total} groups`,
+      organization: 'Everyone in the organization',
+      organizationMeta: 'All members, including new ones',
+      withAccess: (count) => `With access · ${count}`,
+      otherGroups: (count) => `All other groups · ${count}`,
+      members: (count) => (count === 1 ? '1 member' : `${count} members`),
+      permissionsFor: (name) => `Permissions for ${name}`,
+      includedByHigher: 'Included by a higher permission.',
+      grantedToOrganization: 'Granted to everyone in the organization.',
+      unsaved: 'unsaved',
+      revoked: 'Access revoked, unsaved',
+      revoke: 'Revoke',
+      revokeFor: (name) => `Revoke access for ${name}`,
+      revokeAll: 'Revoke all',
+      revokeAllFor: (name) => `Revoke all permissions for ${name}`,
+      undo: 'Undo',
+      undoFor: (name) => `Undo changes for ${name}`,
+      noGroups: 'No groups yet',
+      noGroupsHint: 'Groups appear here once they are created.',
+      noMatches: (query) => `No groups match “${query}”`,
+      noMatchesHint: 'Check the spelling, or search for part of the name.',
+      clearSearch: 'Clear search',
+      noChanges: 'No unsaved changes',
+      unsavedChanges: (count) => (count === 1 ? '1 unsaved change' : `${count} unsaved changes`),
+      saved: 'Access saved',
+      discard: 'Discard',
+      save: 'Save access',
+      saving: 'Saving…',
+      discardTitle: 'Discard unsaved changes?',
+      discardDescription: (count) =>
+        count === 1
+          ? 'The change you made to access will be lost.'
+          : `The ${count} changes you made to access will be lost.`,
+      discardConfirm: 'Discard changes',
+      keepEditing: 'Keep editing',
+    },
   },
   navigation: {
     goTo: (to) => {
@@ -1082,6 +1159,7 @@ export function UIProvider({
         form: { ...DEFAULTS.strings.form, ...strings?.form },
         time: { ...DEFAULTS.strings.time, ...strings?.time },
         list: { ...DEFAULTS.strings.list, ...strings?.list },
+        access: { ...DEFAULTS.strings.access, ...strings?.access },
       },
       navigation: { ...DEFAULTS.navigation, ...navigation },
       data: { ...DEFAULTS.data, ...data },

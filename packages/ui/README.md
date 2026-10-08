@@ -5,7 +5,7 @@ so an application ships only what it imports:
 
 | Subpath | Contents |
 | --- | --- |
-| `.` | theme contract, primitives (buttons, inputs, tables, tooltips, modals, dropdowns, settings layouts, page header), `UIProvider` |
+| `.` | theme contract, primitives (buttons, inputs, tables, tooltips, modals, drawers, dropdowns, settings layouts, page header), the group access drawer, `UIProvider` |
 | `./theme` | `deriveTheme`, presets, `applyTheme` |
 | `./icons` | the icon barrel |
 | `./list` | list pages, tables, row menus and list controls |

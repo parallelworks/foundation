@@ -8,6 +8,8 @@ import { cleanup, render } from '@testing-library/react'
 import type React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import * as accessDrawer from './components/access/AccessDrawer.stories'
+import * as drawer from './components/Drawer.stories'
 import * as primitives from './components/primitives.stories'
 import * as fileExplorer from './file-explorer/FileExplorer.stories'
 import * as form from './form/DynamicForm.stories'
@@ -39,6 +41,8 @@ vi.mock('react-zoom-pan-pinch', () => ({
 
 const SUITES = {
   primitives,
+  drawer,
+  accessDrawer,
   logviewer,
   list,
   listControls,
