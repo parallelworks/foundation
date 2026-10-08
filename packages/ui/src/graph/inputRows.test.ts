@@ -10,6 +10,8 @@ function line(...names: string[]): Line {
       index,
       rect: {} as DOMRect,
       el: {} as HTMLElement,
+      hidden: false,
+      trailing: false,
     })),
   }
 }
@@ -53,6 +55,11 @@ describe('dropWidths', () => {
       b: undefined,
       c: undefined,
     })
+  })
+
+  it('leaves an input that was alone on its line its width when it moves between lines', () => {
+    const lines = [line('a'), line('b'), line('c')]
+    expect(widths(dropWidths(lines, [['a']], { parent: [], index: 3 }))).toEqual({})
   })
 
   it('reshares a line when one of its inputs moves along it', () => {

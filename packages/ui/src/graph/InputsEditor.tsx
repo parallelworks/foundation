@@ -55,7 +55,7 @@ import {
   TypeBadge,
   withCreatedInputs,
 } from './InputDialog'
-import { type DrawnRow, type Drop, dropWidths, linesIn, snapSplit } from './inputRows'
+import { type DrawnRow, type Drop, dropWidths, type Line, linesIn, snapSplit } from './inputRows'
 import { MOD_KEY, type ShortcutGroup } from './ShortcutsButton'
 
 /** A new input's share of the line it's dropped on, and the edits sharing the line with it. */
@@ -77,6 +77,8 @@ interface Gap {
   y: number
   /** Beside an input on its line rather than between lines, marked by a bar at `x`. */
   beside?: { path: InputPath; side: 'left' | 'right'; x: number; top: number; bottom: number }
+  /** Among the hidden inputs a list with widths lists after its shown ones. */
+  trailing?: boolean
 }
 
 interface DragView {
@@ -355,6 +357,7 @@ function InputRow({
       role="none"
       data-input-path={rowKey}
       data-input-index={index}
+      {...(hidden ? { 'data-input-hidden': '' } : {})}
       {...(selected ? { 'data-selected': '' } : {})}
       className={cx(
         'relative w-full',
@@ -482,15 +485,23 @@ function typeMenu(
   ]
 }
 
-// How far in from an input's side a drop shares its line, and how far sideways a drag must go first,
-// so a drag up or down never lands beside an input by accident.
-const BESIDE_REACH = 64
-const BESIDE_INTENT = 24
+/** What a drag carries: the inputs it moves, none for a new one, and whether any is hidden or shown. */
+interface Mover {
+  paths: InputPath[] | null
+  hidden: boolean
+  shown: boolean
+}
 
-function gapsIn(root: HTMLElement): Gap[] {
+const extent = (rows: DrawnRow[]) => ({
+  left: Math.min(...rows.map((row) => row.rect.left)),
+  right: Math.max(...rows.map((row) => row.rect.right)),
+})
+
+/** Gaps between lines: above each line, after a list's shown inputs, and at each list's end. */
+function lineGaps(root: HTMLElement, lines: Line[]): Gap[] {
   const gaps: Gap[] = []
-  const last = new Map<string, DrawnRow[]>()
-  for (const { parent, rows } of linesIn(root)) {
+  const lists = new Map<string, { parent: InputPath; rows: DrawnRow[] }>()
+  for (const { parent, rows } of lines) {
     const [first] = rows
     if (!first) {
       continue
@@ -498,102 +509,58 @@ function gapsIn(root: HTMLElement): Gap[] {
     gaps.push({
       parent,
       index: first.index,
-      left: Math.min(...rows.map((row) => row.rect.left)),
-      right: Math.max(...rows.map((row) => row.rect.right)),
+      ...extent(rows),
       y: first.rect.top,
+      ...(first.trailing ? { trailing: true } : {}),
     })
-    rows.forEach(({ path, index, rect }, i) => {
-      const reach = Math.min(BESIDE_REACH, rect.width / 4)
-      const before = rows[i - 1]?.rect
-      const after = rows[i + 1]?.rect
-      const span = { top: rect.top, bottom: rect.bottom }
+    const list = lists.get(key(parent)) ?? { parent, rows: [] }
+    list.rows.push(...rows)
+    lists.set(key(parent), list)
+  }
+  for (const { parent, rows } of lists.values()) {
+    const shown = rows.filter((row) => !row.trailing)
+    if (shown.length > 0 && shown.length < rows.length) {
       gaps.push({
         parent,
-        index,
-        left: rect.left - 8,
-        right: rect.left + reach,
-        y: rect.top,
-        beside: {
-          path,
-          side: 'left',
-          x: before ? (before.right + rect.left) / 2 : rect.left - 4,
-          ...span,
-        },
+        index: Math.max(...shown.map((row) => row.index)) + 1,
+        ...extent(shown),
+        y: Math.max(...shown.map((row) => row.rect.bottom)),
       })
-      gaps.push({
-        parent,
-        index: index + 1,
-        left: rect.right - reach,
-        right: rect.right + 8,
-        y: rect.top,
-        beside: {
-          path,
-          side: 'right',
-          x: after ? (rect.right + after.left) / 2 : rect.right + 4,
-          ...span,
-        },
-      })
-    })
-    last.set(key(parent), rows)
+    }
   }
   for (const el of root.querySelectorAll<HTMLElement>('[data-input-add]')) {
     const parent = JSON.parse(el.dataset['inputAdd'] ?? '[]') as InputPath
-    const rows = last.get(key(parent)) ?? []
-    const end = rows.at(-1)
+    const rows = lists.get(key(parent))?.rows ?? []
     const rect = el.getBoundingClientRect()
-    gaps.push({
-      parent,
-      index: end ? end.index + 1 : 0,
-      left: end ? Math.min(...rows.map((row) => row.rect.left)) : rect.left,
-      right: end ? Math.max(...rows.map((row) => row.rect.right)) : rect.right,
-      y: end ? Math.max(...rows.map((row) => row.rect.bottom)) : rect.top,
-    })
+    gaps.push(
+      rows.length > 0
+        ? {
+            parent,
+            index: Math.max(...rows.map((row) => row.index)) + 1,
+            ...extent(rows),
+            y: Math.max(...rows.map((row) => row.rect.bottom)),
+          }
+        : { parent, index: 0, left: rect.left, right: rect.right, y: rect.top },
+    )
   }
   return gaps
 }
 
-function nearestGap(
-  gaps: Gap[],
-  client: { x: number; y: number },
-  start: { x: number; y: number },
-  moving: InputPath[] | null,
-): Gap | null {
-  const { x, y } = client
-  const into = (gap: Gap) => moving?.some((path) => isInside(gap.parent, path)) ?? false
-  // Over an input's side, after a sideways drag, the drop shares its line; the innermost wins.
-  let beside: Gap | null = null
-  if (Math.abs(x - start.x) >= BESIDE_INTENT) {
-    for (const gap of gaps) {
-      const side = gap.beside
-      if (
-        !side ||
-        into(gap) ||
-        moving?.some((path) => samePath(path, side.path)) ||
-        x < gap.left ||
-        x > gap.right ||
-        y < side.top ||
-        y > side.bottom
-      ) {
-        continue
-      }
-      if (!beside || gap.parent.length > beside.parent.length) {
-        beside = gap
-      }
-    }
-  }
-  if (beside) {
-    return beside
-  }
+const into = (parent: InputPath, mover: Mover) =>
+  mover.paths?.some((path) => isInside(parent, path)) ?? false
+
+function nearestLineGap(gaps: Gap[], client: { x: number; y: number }, mover: Mover): Gap | null {
   let best: Gap | null = null
   let bestDistance = Number.POSITIVE_INFINITY
   for (const gap of gaps) {
-    if (gap.beside || into(gap)) {
+    // A shown input dropped among the hidden ones listed after a list would land somewhere else.
+    if (into(gap.parent, mover) || (gap.trailing && mover.shown)) {
       continue
     }
-    if (x < gap.left - 24 || x > gap.right + 24) {
+    if (client.x < gap.left - 24 || client.x > gap.right + 24) {
       continue
     }
-    const distance = Math.abs(y - gap.y)
+    const distance = Math.abs(client.y - gap.y)
     // Ties go to the innermost list, so a group's own gaps win over the form's.
     if (
       distance < bestDistance ||
@@ -604,6 +571,143 @@ function nearestGap(
     }
   }
   return best
+}
+
+function besideGap(line: Line, row: DrawnRow, side: 'left' | 'right'): Gap {
+  const i = line.rows.indexOf(row)
+  const before = line.rows[i - 1]?.rect
+  const after = line.rows[i + 1]?.rect
+  const { rect } = row
+  let x = side === 'left' ? rect.left - 4 : rect.right + 4
+  if (side === 'left' && before) {
+    x = (before.right + rect.left) / 2
+  } else if (side === 'right' && after) {
+    x = (rect.right + after.left) / 2
+  }
+  return {
+    parent: line.parent,
+    index: side === 'left' ? row.index : row.index + 1,
+    left: rect.left,
+    right: rect.right,
+    y: rect.top,
+    beside: { path: row.path, side, x, top: rect.top, bottom: rect.bottom },
+  }
+}
+
+function aboveGap({ parent, rows }: Line): Gap {
+  return {
+    parent,
+    index: Math.min(...rows.map((row) => row.index)),
+    ...extent(rows),
+    y: Math.min(...rows.map((row) => row.rect.top)),
+  }
+}
+
+function belowGap({ parent, rows }: Line): Gap {
+  return {
+    parent,
+    index: Math.max(...rows.map((row) => row.index)) + 1,
+    ...extent(rows),
+    y: Math.max(...rows.map((row) => row.rect.bottom)),
+  }
+}
+
+/** Where a group's own inputs start, below its title; null for an input holding none drawn. */
+function bodyTop(root: HTMLElement, lines: Line[], row: DrawnRow): number | null {
+  const tops = lines
+    .filter((line) => samePath(line.parent, row.path))
+    .flatMap((line) => line.rows.map((child) => child.rect))
+  for (const el of root.querySelectorAll<HTMLElement>('[data-input-add]')) {
+    if (el.dataset['inputAdd'] === key(row.path)) {
+      tops.push(el.getBoundingClientRect())
+    }
+  }
+  const drawn = tops.filter((rect) => rect.height > 0).map((rect) => rect.top)
+  return drawn.length > 0 ? Math.min(...drawn) : null
+}
+
+/**
+ * Where a drop at `client` lands: on an input's left or right quarter, beside it; over its
+ * middle, above or below its line, by which half; between inputs, the nearest gap.
+ */
+function dropGap(root: HTMLElement, client: { x: number; y: number }, mover: Mover): Gap | null {
+  const lines = linesIn(root)
+  const gaps = lineGaps(root, lines)
+  const moving = (path: InputPath) => mover.paths?.some((other) => isInside(path, other)) ?? false
+  const under = (rect: DOMRect) =>
+    client.x >= rect.left &&
+    client.x <= rect.right &&
+    client.y >= rect.top &&
+    client.y <= rect.bottom
+  // The innermost input under the pointer, so a group's own inputs win over the group.
+  let hit: { line: Line; row: DrawnRow } | null = null
+  for (const line of lines) {
+    for (const row of line.rows) {
+      if (!moving(row.path) && under(row.rect) && (!hit || row.path.length > hit.row.path.length)) {
+        hit = { line, row }
+      }
+    }
+  }
+  if (hit) {
+    const { line, row } = hit
+    const body = bodyTop(root, lines, row)
+    if (body !== null && client.y >= body) {
+      return nearestLineGap(
+        gaps.filter((gap) => samePath(gap.parent, row.path)),
+        client,
+        mover,
+      )
+    }
+    if (row.trailing && mover.shown) {
+      return nearestLineGap(
+        gaps.filter((gap) => samePath(gap.parent, line.parent)),
+        client,
+        mover,
+      )
+    }
+    const { rect } = row
+    const quarter = rect.width / 4
+    // A hidden input takes no share of a line, so it never goes beside one, nor one beside it.
+    if (!mover.hidden && !row.hidden) {
+      if (client.x < rect.left + quarter) {
+        return besideGap(line, row, 'left')
+      }
+      if (client.x > rect.right - quarter) {
+        return besideGap(line, row, 'right')
+      }
+    }
+    // A group's title stands for the group, so its halves are the title's.
+    return client.y < (rect.top + (body ?? rect.bottom)) / 2 ? aboveGap(line) : belowGap(line)
+  }
+  if (!mover.hidden) {
+    for (const line of lines) {
+      if (into(line.parent, mover)) {
+        continue
+      }
+      for (let i = 1; i < line.rows.length; i++) {
+        const before = line.rows[i - 1]
+        const after = line.rows[i]
+        if (
+          !before ||
+          !after ||
+          client.x <= before.rect.right ||
+          client.x >= after.rect.left ||
+          client.y < Math.min(before.rect.top, after.rect.top) ||
+          client.y > Math.max(before.rect.bottom, after.rect.bottom)
+        ) {
+          continue
+        }
+        // Between two inputs sharing a line, the drop goes between them.
+        if (!moving(before.path)) {
+          return besideGap(line, before, 'right')
+        }
+        if (!moving(after.path)) {
+          return besideGap(line, after, 'left')
+        }
+      }
+    }
+  }
+  return nearestLineGap(gaps, client, mover)
 }
 
 const WIDTH_VAR = '--input-width'
@@ -927,7 +1031,16 @@ export function InputsFormEditor({
         : null
       const shown =
         paths && paths.length > 1 ? paths.map((other) => other.at(-1)).join(', ') : label
-      const start = { x: e.clientX, y: e.clientY }
+      const hiddenPaths = (paths ?? []).filter((path) =>
+        containerRef.current
+          ?.querySelector(`[data-input-path='${key(path)}']`)
+          ?.hasAttribute('data-input-hidden'),
+      )
+      const mover: Mover = {
+        paths,
+        hidden: hiddenPaths.length > 0,
+        shown: !paths || hiddenPaths.length < paths.length,
+      }
       const onEnd = (client: { x: number; y: number }, dragged: boolean) => {
         const gap = store.get().drag?.gap ?? null
         store.set({ drag: null })
@@ -965,7 +1078,7 @@ export function InputsFormEditor({
           ...(how.holdText ? { holdText: how.holdText } : {}),
           onMove: (client) => {
             const root = containerRef.current
-            const gap = root ? nearestGap(gapsIn(root), client, start, paths) : null
+            const gap = root ? dropGap(root, client, mover) : null
             store.set({ drag: { paths, label: shown, client, gap } })
           },
           onEnd,

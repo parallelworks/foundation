@@ -6,6 +6,9 @@ export interface DrawnRow {
   index: number
   rect: DOMRect
   el: HTMLElement
+  hidden: boolean
+  /** A hidden input a list with widths draws after the inputs the form shows. */
+  trailing: boolean
 }
 
 /** The inputs of one list drawn side by side on one line of the form, left to right. */
@@ -26,25 +29,35 @@ const key = (path: InputPath) => JSON.stringify(path)
 const samePath = (a: InputPath, b: InputPath) =>
   a.length === b.length && a.every((name, i) => b[i] === name)
 
-/** The form's lines: rows of one list drawn at the same height share a line. */
+/** Rows of one list drawn at one height share a line, left to right as drawn: not always the
+ * inputs' order, since hidden ones are listed after the rest. */
 export function linesIn(root: HTMLElement): Line[] {
   const lines: Line[] = []
   for (const el of root.querySelectorAll<HTMLElement>('[data-input-path]')) {
     const path = JSON.parse(el.dataset['inputPath'] ?? '[]') as InputPath
     const parent = path.slice(0, -1)
+    const hidden = el.dataset['inputHidden'] !== undefined
     const row = {
       path,
       index: Number(el.dataset['inputIndex'] ?? 0),
       rect: el.getBoundingClientRect(),
       el,
+      hidden,
+      trailing: hidden && el.parentElement?.dataset['inputCell'] !== undefined,
     }
-    const line = lines.findLast((other) => samePath(other.parent, parent))
-    const first = line?.rows[0]
-    if (line && first && Math.abs(first.rect.top - row.rect.top) < 1) {
+    const line = lines.find(
+      (other) =>
+        samePath(other.parent, parent) &&
+        Math.abs((other.rows[0]?.rect.top ?? Number.NaN) - row.rect.top) < 1,
+    )
+    if (line) {
       line.rows.push(row)
     } else {
       lines.push({ parent, rows: [row] })
     }
+  }
+  for (const line of lines) {
+    line.rows.sort((a, b) => a.rect.left - b.rect.left)
   }
   return lines
 }
@@ -54,11 +67,8 @@ export function evenWidth(count: number): string | undefined {
   return count > 1 ? `${Math.floor(100 / count)}%` : undefined
 }
 
-/**
- * The widths a drop gives, by row key, undefined meaning the full width. Inputs dropped beside
- * another share its line evenly; ones dropped between lines get a line of their own; and a line
- * they leave is shared evenly by the inputs that stay.
- */
+/** Widths a drop gives by row key (undefined = full): lines dropped into or left are shared evenly,
+ * and an input leaving a shared line for its own takes it whole; one that was alone keeps its width. */
 export function dropWidths(
   lines: Line[],
   moving: InputPath[],
@@ -80,8 +90,12 @@ export function dropWidths(
   const target =
     beside && lines.find((line) => line.rows.some((row) => samePath(row.path, beside.path)))
   if (!beside || !target) {
-    for (const path of moving) {
-      widths.set(key(path), undefined)
+    for (const line of lines) {
+      for (const row of line.rows) {
+        if (line.rows.length > 1 && !stays(row)) {
+          widths.set(key(row.path), undefined)
+        }
+      }
     }
     return widths
   }

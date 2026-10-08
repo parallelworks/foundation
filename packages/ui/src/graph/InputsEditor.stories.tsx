@@ -134,6 +134,11 @@ const SIDE_BY_SIDE_WORKFLOW = `on:
         label: Dataset
         default: s3://datasets/images
         width: 50%
+      seed:
+        type: number
+        label: Seed
+        default: 42
+        hidden: true
       epochs:
         type: number
         label: Epochs
@@ -170,10 +175,8 @@ jobs:
       - run: python train.py --epochs \${{ inputs.epochs }}
 `
 
-/**
- * Inputs sharing lines. Drag an input sideways onto another's edge to put it beside it, between
- * lines to give it a line of its own, or drag the edge between two inputs to resize them.
- */
+/** Inputs sharing lines: drop an input on another's left or right quarter to put it beside it, and
+ * drag the edge between two to resize them. The hidden Seed is listed after the shown inputs. */
 export const SideBySide: StoryObj<typeof InputsFormEditor> = {
   render: () => <EditableForm source={SIDE_BY_SIDE_WORKFLOW} />,
 }

@@ -1118,11 +1118,13 @@ export function FieldsFromOptions({
     if (!flows) {
       return field
     }
+    // The editor lists a hidden input after the ones the form shows, full width, so it never
+    // splits a row the run form keeps together.
     return (
       <div
         key={fieldName}
         data-input-cell
-        className="w-full max-w-full px-2 empty:hidden @min-[36rem]/inputs:w-(--input-width)"
+        className="w-full max-w-full px-2 empty:hidden @min-[36rem]/inputs:w-(--input-width) has-[>[data-input-hidden]]:order-1 has-[>[data-input-hidden]]:w-full"
         style={{ '--input-width': width ?? '100%' } as CSSProperties}
       >
         {field}
@@ -1135,7 +1137,7 @@ export function FieldsFromOptions({
       {flows ? (
         <div className="-mx-2 flex flex-wrap items-start @container/inputs">
           {fields}
-          {add && <div className="w-full px-2">{add}</div>}
+          {add && <div className="order-2 w-full px-2">{add}</div>}
         </div>
       ) : (
         <>

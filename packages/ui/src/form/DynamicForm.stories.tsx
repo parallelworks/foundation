@@ -59,11 +59,8 @@ export const ClusterSettings: StoryObj<typeof DynamicForm> = {
   },
 }
 
-/**
- * Inputs with a `width` share a row when they fit: a number is pixels, a percentage a share of
- * the row. An input sharing a row has its label on top unless the form sets `labelPosition`.
- * A form narrower than 36rem gives every input the full width.
- */
+/** Inputs with a `width` (pixels, or a share of the row) sit side by side when they fit, label on
+ * top unless the form sets `labelPosition`; under 36rem every input takes the full width. */
 export const WithWidths: StoryObj<typeof DynamicForm> = {
   args: {
     formJSONs: {

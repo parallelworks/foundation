@@ -1364,16 +1364,36 @@ describe('inputs side by side', () => {
     })
   })
 
-  it('keeps a drag straight up or down a move between lines, even along an input’s edge', () => {
+  it('drops above or below an input from the top or bottom half of its middle', () => {
     const e = editor()
     render(e, ROWS)
     layOut({ a: [0, 0, 600, 40], b: [0, 50, 600, 40], c: [0, 100, 600, 40] })
-    drag(handleOf('c'), [590, 105], [590, 20])
-    expect(e.onEdit).toHaveBeenCalledWith({
+    drag(handleOf('c'), [480, 105], [300, 10])
+    expect(e.onEdit).toHaveBeenLastCalledWith({
       type: 'moveInputs',
       paths: [['c']],
       parent: [],
       index: 0,
+    })
+    drag(handleOf('a'), [480, 5], [300, 70])
+    expect(e.onEdit).toHaveBeenLastCalledWith({
+      type: 'moveInputs',
+      paths: [['a']],
+      parent: [],
+      index: 2,
+    })
+  })
+
+  it('keeps the width of an input that sat alone on its line when it moves', () => {
+    const e = editor()
+    render(e, { a: { type: 'string', label: 'A', width: '50%' }, b: ROWS.b, c: ROWS.c })
+    layOut({ a: [0, 0, 292, 40], b: [0, 50, 600, 40], c: [0, 100, 600, 40] })
+    drag(handleOf('a'), [200, 5], [300, 130])
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'moveInputs',
+      paths: [['a']],
+      parent: [],
+      index: 3,
     })
   })
 
@@ -1430,6 +1450,56 @@ describe('inputs side by side', () => {
         { type: 'updateInput', path: ['a'], set: { width: '30%' } },
         { type: 'updateInput', path: ['b'], set: { width: '70%' } },
       ],
+    })
+  })
+
+  // A hidden input sits between two halves: the run form keeps them on one line, so the editor does.
+  const SPLIT = {
+    a: HALVES.a,
+    h: { type: 'string', label: 'H', hidden: true },
+    b: HALVES.b,
+    c: HALVES.c,
+  }
+  const SPLIT_LAYOUT: Record<string, [number, number, number, number]> = {
+    a: [0, 0, 292, 40],
+    b: [308, 0, 292, 40],
+    c: [0, 50, 600, 40],
+    h: [0, 100, 600, 16],
+  }
+
+  it('lists a hidden input after the ones the form shows, never between two sharing a line', () => {
+    render(editor(), SPLIT)
+    layOut(SPLIT_LAYOUT)
+    expect(row(['h'])).toHaveAttribute('data-input-hidden')
+    fireEvent.pointerMove(form(), { clientX: 300, clientY: 20 })
+    expect(screen.getByRole('separator')).toHaveAttribute('aria-valuenow', '50')
+  })
+
+  it('lands a shown input dropped on a hidden one after the shown inputs', () => {
+    const e = editor()
+    render(e, SPLIT)
+    layOut(SPLIT_LAYOUT)
+    drag(handleOf('a'), [200, 5], [300, 108])
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'batch',
+      edits: [
+        { type: 'moveInputs', paths: [['a']], parent: [], index: 4 },
+        { type: 'updateInput', path: ['b'], unset: ['width'] },
+        { type: 'updateInput', path: ['a'], unset: ['width'] },
+      ],
+    })
+  })
+
+  it('never puts a hidden input beside another', () => {
+    const e = editor()
+    render(e, SPLIT)
+    layOut(SPLIT_LAYOUT)
+    drag(handleOf('h'), [300, 105], [280, 30])
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'moveInputs',
+      paths: [['h']],
+      parent: [],
+      index: 3,
     })
   })
 
