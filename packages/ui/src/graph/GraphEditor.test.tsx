@@ -288,6 +288,20 @@ describe('DependencyGraphPreview editor', () => {
     expect(e.onEdit).toHaveBeenCalledWith({ type: 'addJob', matrix: true })
   })
 
+  it('places each job where its position in the YAML says', () => {
+    const placed = {
+      jobs: {
+        a: { position: { column: 1, row: 0 }, steps: [{ run: 'a' }] },
+        b: { position: { column: 0, row: 0 }, steps: [{ run: 'b' }] },
+      },
+    }
+    render(<DependencyGraphPreview yml={placed} editor={editor()} />)
+    expect(screen.getByRole('button', { name: 'Reset layout' })).toBeEnabled()
+    expect(
+      [...document.querySelectorAll('[data-dag-job]')].map((el) => el.getAttribute('data-dag-job')),
+    ).toEqual(['b', 'a'])
+  })
+
   it('makes job rows draggable and gives multi-job boxes a grip', () => {
     render(<DependencyGraphPreview yml={yml} editor={editor()} />)
     const rows = [...document.querySelectorAll('[data-dag-job]')].map((el) =>

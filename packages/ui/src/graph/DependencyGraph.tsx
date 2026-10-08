@@ -1743,6 +1743,12 @@ export default function DependencyGraph({
   }, [isRunFinished])
   const currentPath = executedJobsPath[executedJobsPathIdx] ?? []
   const jobs = walkJobPath(rootJobs, currentPath)
+  const root = currentPath.length === 0
+  // Jobs keep their place on the graph in their own `position`; a host's layout is the root's.
+  const placed = useMemo(
+    () => (root && layout) || positionsOf(root ? (yamlJobs ?? jobs) : jobs),
+    [root, layout, yamlJobs, jobs],
+  )
   const [editorApi, setEditorApi] = useState<GraphEditorApi | null>(null)
   const editorOverlays = editor ? (
     <Suspense fallback={null}>
@@ -1752,7 +1758,7 @@ export default function DependencyGraph({
         yamlJobs={yamlJobs}
         inputs={inputs}
         workflow={workflow}
-        layout={layout}
+        layout={placed}
         container={containerEl}
         onApi={setEditorApi}
       />
@@ -2428,7 +2434,7 @@ export default function DependencyGraph({
                         matrixOpen={matrixOpen}
                         toggleMatrix={toggleMatrix}
                         onReady={fitGraph}
-                        layout={currentPath.length === 0 ? layout : undefined}
+                        layout={placed}
                         editable={!!editorApi && currentPath.length === 0}
                       />
                     </div>
@@ -2490,6 +2496,24 @@ export default function DependencyGraph({
     </div>
   )
   return <GraphEditorProvider value={editorApi}>{graph}</GraphEditorProvider>
+}
+
+const isSlot = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isInteger(value) && value >= 0
+
+/** Each job's place on the graph from its `position`; none when no job has one. */
+function positionsOf(jobs: Record<string, unknown>): GraphLayout | undefined {
+  const layout: GraphLayout = Object.create(null)
+  let any = false
+  for (const [name, job] of Object.entries(jobs)) {
+    const position = isJobRecord(job) ? (job as Record<string, unknown>)['position'] : undefined
+    const { column, row } = isJobRecord(position) ? (position as Record<string, unknown>) : {}
+    if (isSlot(column) && isSlot(row)) {
+      layout[name] = { column, row }
+      any = true
+    }
+  }
+  return any ? layout : undefined
 }
 
 export function DependencyGraphPreview(inputs: {
