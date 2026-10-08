@@ -82,6 +82,9 @@ export const GRAPH_EDITOR_STRINGS = {
     moveInput:
       'Move the input, or all the selected ones. Drop on another input’s left or right side to put them side by side, or on its lower half to go under it',
     resizeInputs: 'Change how much of the line each input takes',
+    pickInput: 'Select the input above, below or beside',
+    extendInputs: 'Add each input passed to the selection',
+    reorderInputs: 'Move the selected inputs up or down',
     addInput: 'Add an input where you drop it',
     editInput: "Open the selected input's settings",
     inputMenu: 'Menu of an input',

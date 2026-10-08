@@ -37,6 +37,7 @@ import {
   returningFocus,
   trackDrag,
   useFocusAfterDialog,
+  usePressOutside,
   useStore,
 } from './editorPrimitives'
 import {
@@ -66,7 +67,7 @@ import {
   rowsOf,
   snapSplit,
 } from './inputRows'
-import { MOD_KEY, type ShortcutGroup } from './ShortcutsButton'
+import { ALT_KEY, MOD_KEY, type ShortcutGroup } from './ShortcutsButton'
 
 /** A new input's keys from where it's dropped, and the edits that make room for it there. */
 interface Placement {
@@ -122,6 +123,10 @@ interface UiState {
   problems: EditorProblem[]
   /** Selected inputs, by row key. */
   selection: string[]
+  /** The input the arrow keys move from: the one last pressed or reached. */
+  cursor: string | null
+  /** Rows whose toolbar is open: the hovered one, and each column's head on a line it shares. */
+  open: string[]
   /** The box a shift + drag is drawing, in the page's coordinates. */
   marquee: Box | null
 }
@@ -135,6 +140,8 @@ const createFormStore = () =>
     hovered: null,
     problems: [],
     selection: [],
+    cursor: null,
+    open: [],
     marquee: null,
   })
 
@@ -178,6 +185,10 @@ interface InputsEditorApi {
   editSelection: () => boolean
   /** Moves the selected inputs one slot among their siblings, reporting whether any moved. */
   moveSelection: (delta: -1 | 1) => boolean
+  /** Selects the input beside the last one reached, or adds it with `extend`; reports a move. */
+  navigate: (direction: Direction, extend: boolean) => boolean
+  /** Opens the hovered row's toolbar, and each column head's on a line of several. */
+  hover: (rowKey: string) => void
 }
 
 const ApiContext = createContext<InputsEditorApi | null>(null)
@@ -234,6 +245,10 @@ function contains(rect: DOMRect, box: Box): boolean {
 
 // Presses on these keep their own meaning; elsewhere in the form shift selects.
 const CHROME = '[data-input-chrome], [data-input-add], [role="menu"], [role="dialog"]'
+
+// A field's own controls take their presses; anywhere else on an input picks the input up.
+const CONTROLS =
+  'input, textarea, select, button, a[href], label, [contenteditable="true"], .monaco-editor, [role="button"], [role="checkbox"], [role="combobox"], [role="listbox"], [role="option"], [role="radio"], [role="slider"], [role="switch"], [role="tab"]'
 
 function rowsIn(root: HTMLElement) {
   return [...root.querySelectorAll<HTMLElement>('[data-input-path]')].map((el) => ({
@@ -304,7 +319,7 @@ function InputRow({
   const rowKey = key(path)
   const active = useUi(
     api?.store ?? EMPTY_STORE,
-    (state) => state.hovered === rowKey && !state.drag && !state.resizing,
+    (state) => state.open.includes(rowKey) && !state.drag && !state.resizing,
   )
   const selected = useUi(api?.store ?? EMPTY_STORE, (state) => state.selection.includes(rowKey))
   const problems = useUi(api?.store ?? EMPTY_STORE, (state) =>
@@ -387,9 +402,7 @@ function InputRow({
       )}
       onPointerOver={(e) => {
         e.stopPropagation()
-        if (api.store.get().hovered !== rowKey) {
-          api.store.set({ hovered: rowKey })
-        }
+        api.hover(rowKey)
       }}
       onContextMenu={(e) => {
         e.preventDefault()
@@ -854,6 +867,65 @@ const sameEdge = (a: Edge | null, b: Edge | null) =>
 
 const DELETE_KEYS = new Set(['Delete', 'Backspace'])
 
+type Direction = 'up' | 'down' | 'left' | 'right'
+
+const ARROWS: Record<string, Direction | undefined> = {
+  ArrowUp: 'up',
+  ArrowDown: 'down',
+  ArrowLeft: 'left',
+  ArrowRight: 'right',
+}
+
+/** The input an arrow key reaches from `from` as the form draws them: the nearest one starting
+ * above or below it, or beside it, those in line with it first. */
+function neighbour(
+  rows: { path: InputPath; rect: DOMRect }[],
+  from: { path: InputPath; rect: DOMRect },
+  direction: Direction,
+): { path: InputPath; rect: DOMRect } | undefined {
+  const r = from.rect
+  const middle = (rect: DOMRect) => ({
+    x: (rect.left + rect.right) / 2,
+    y: (rect.top + rect.bottom) / 2,
+  })
+  const distance = (rect: DOMRect) =>
+    Math.hypot(middle(rect).x - middle(r).x, middle(rect).y - middle(r).y)
+  const others = rows.filter((row) => row !== from)
+  const vertical = direction === 'up' || direction === 'down'
+  const ahead = others.filter(({ rect }) =>
+    direction === 'down'
+      ? rect.top > r.top + 1
+      : direction === 'up'
+        ? rect.top < r.top - 1
+        : direction === 'right'
+          ? rect.left >= r.right - 1
+          : rect.right <= r.left + 1,
+  )
+  const inLine = ahead.filter(({ rect }) =>
+    vertical
+      ? Math.min(rect.right, r.right) > Math.max(rect.left, r.left)
+      : Math.min(rect.bottom, r.bottom) > Math.max(rect.top, r.top),
+  )
+  const gap = ({ rect }: { rect: DOMRect }) =>
+    direction === 'down'
+      ? rect.top - r.top
+      : direction === 'up'
+        ? r.top - rect.top
+        : direction === 'right'
+          ? rect.left - r.right
+          : r.left - rect.right
+  const pool = inLine.length > 0 ? inLine : ahead
+  return pool.reduce<{ path: InputPath; rect: DOMRect } | undefined>(
+    (best, row) =>
+      !best ||
+      gap(row) < gap(best) ||
+      (gap(row) === gap(best) && distance(row.rect) < distance(best.rect))
+        ? row
+        : best,
+    undefined,
+  )
+}
+
 function undoKeys(e: KeyboardEvent, editor: DependencyGraphEditor) {
   const pressed = e.key.toLowerCase()
   if (pressed === 'z' && !e.shiftKey) {
@@ -874,6 +946,14 @@ function formShortcuts(g: GraphEditorStrings): ShortcutGroup[] {
       shortcuts: [
         { combos: [[key.shift, key.click]], does: does.selectInput },
         { combos: [[key.shift, key.drag]], does: does.boxInputs },
+        { combos: [['←', '↑', '↓', '→']], does: does.pickInput },
+        {
+          combos: [
+            [key.shift, '↑'],
+            [key.shift, '↓'],
+          ],
+          does: does.extendInputs,
+        },
         { combos: [['Esc']], does: does.escape },
       ],
     },
@@ -882,6 +962,13 @@ function formShortcuts(g: GraphEditorStrings): ShortcutGroup[] {
       shortcuts: [
         { combos: [[key.dragHandle]], does: does.moveInput },
         { combos: [[key.dragEdge]], does: does.resizeInputs },
+        {
+          combos: [
+            [ALT_KEY, '↑'],
+            [ALT_KEY, '↓'],
+          ],
+          does: does.reorderInputs,
+        },
         { combos: [[key.dragButton]], does: does.addInput },
         { combos: [['E']], does: does.editInput },
         { combos: [[key.delete]], does: does.removeInputs },
@@ -926,6 +1013,15 @@ export function InputsFormEditor({
   )
   const contextMenu = rowMenu.contextMenu
   useFocusAfterDialog(store, () => containerRef.current)
+  // A press anywhere else on the page lets go of the selected inputs.
+  usePressOutside(
+    () => containerRef.current,
+    () => {
+      if (store.get().selection.length > 0) {
+        store.set({ selection: [] })
+      }
+    },
+  )
 
   const api = useMemo<InputsEditorApi>(() => {
     const send = (edit: GraphEdit) => {
@@ -933,6 +1029,10 @@ export function InputsFormEditor({
       reclaimFocus(containerRef.current)
       return result
     }
+    const rowElement = (rowKey: string) =>
+      [...(containerRef.current?.querySelectorAll<HTMLElement>('[data-input-path]') ?? [])].find(
+        (el) => el.dataset['inputPath'] === rowKey,
+      )
     const definition = (path: InputPath): Json =>
       path.length === 0
         ? asRecord(latest.current.inputs)
@@ -1307,6 +1407,45 @@ export function InputsFormEditor({
       reveal: (line) => latest.current.editor.onReveal?.({ line }),
       removeSelection,
       moveSelection,
+      navigate: (direction, extend) => {
+        const root = containerRef.current
+        const rows = root ? rowsIn(root) : []
+        const { cursor, selection } = store.get()
+        const from = rows.find((row) => key(row.path) === (cursor ?? selection.at(-1)))
+        const to = from
+          ? neighbour(rows, from, direction)
+          : direction === 'up' || direction === 'left'
+            ? rows.at(-1)
+            : rows[0]
+        if (!to) {
+          return false
+        }
+        const reached = key(to.path)
+        // With shift each input passed is added, the one started from too.
+        const visited = from ? [key(from.path), reached] : [reached]
+        store.set({
+          cursor: reached,
+          selection: extend ? [...new Set([...selection, ...visited])] : [reached],
+        })
+        rowElement(reached)?.scrollIntoView?.({ block: 'nearest' })
+        return true
+      },
+      hover: (rowKey) => {
+        const root = containerRef.current
+        if (!root || store.get().hovered === rowKey) {
+          return
+        }
+        // On a line of several columns every column opens its head's toolbar, so the columns stay level.
+        const line = linesIn(root).find(
+          ({ columns }) =>
+            columns.length > 1 &&
+            columns.some((column) => column.rows.some((row) => key(row.path) === rowKey)),
+        )
+        const heads = line?.columns.flatMap((column) =>
+          column.rows[0] ? [key(column.rows[0].path)] : [],
+        )
+        store.set({ hovered: rowKey, open: [...new Set([rowKey, ...(heads ?? [])])] })
+      },
       editSelection: () => {
         const [only, ...more] = store.get().selection
         if (only === undefined || more.length > 0) {
@@ -1357,32 +1496,8 @@ export function InputsFormEditor({
       const start = { x: e.clientX, y: e.clientY }
       if (!e.shiftKey) {
         const rowKey = row?.dataset['inputPath']
-        // A field's own label, or a group's title, carries its input in a drag; the field itself still
-        // takes the click, but the label never passes the click on to it.
-        const title = e.target.closest<HTMLElement>('[data-field-label]')
-        if (rowKey && title && title.closest('[data-input-path]') === row) {
-          const path = pathOf(rowKey)
-          const name = path.at(-1) ?? ''
-          // A group's title still folds the group on a click.
-          if (title.tagName !== 'LABEL') {
-            api.startDrag(e, path, name, { holdText: 'drag' })
-            return
-          }
-          e.preventDefault()
-          container.focus({ preventScroll: true })
-          // Pressing one of several selected inputs keeps them all, so a drag takes them along.
-          if (!store.get().selection.includes(rowKey)) {
-            store.set({ selection: [rowKey] })
-          }
-          api.startDrag(e, path, name, {
-            swallowClick: 'always',
-            holdText: 'drag',
-            onClick: () => store.set({ selection: [rowKey] }),
-          })
-          return
-        }
         // A plain click between the fields clears the selection.
-        if (!row) {
+        if (!rowKey) {
           trackDrag(start, {
             onEnd: (_, dragged) => {
               if (!dragged) {
@@ -1390,7 +1505,32 @@ export function InputsFormEditor({
               }
             },
           })
+          return
         }
+        const selected = store.get().selection.includes(rowKey)
+        const title = e.target.closest<HTMLElement>('[data-field-label]')
+        const ownTitle = title !== null && title.closest('[data-input-path]') === row
+        // A field takes its own press; pressing one outside the selection lets the selection go.
+        if (!ownTitle && e.target.closest(CONTROLS)) {
+          if (!selected) {
+            store.set({ selection: [] })
+          }
+          return
+        }
+        const path = pathOf(rowKey)
+        const name = path.at(-1) ?? ''
+        // Anywhere else on an input carries it in a drag. A group's title still folds the group on a click.
+        if (ownTitle && title.tagName !== 'LABEL') {
+          api.startDrag(e, path, name, { holdText: 'drag' })
+          return
+        }
+        e.preventDefault()
+        container.focus({ preventScroll: true })
+        // Pressing a selected input keeps the whole selection, so a drag takes it all along.
+        if (!selected) {
+          store.set({ selection: [rowKey], cursor: rowKey })
+        }
+        api.startDrag(e, path, name, { swallowClick: 'always', holdText: 'drag' })
         return
       }
       // With shift the press selects, so the field under it neither takes focus nor reacts.
@@ -1421,6 +1561,7 @@ export function InputsFormEditor({
               selection: base.includes(rowKey)
                 ? base.filter((other) => other !== rowKey)
                 : [...base, rowKey],
+              cursor: rowKey,
             })
           }
         },
@@ -1440,6 +1581,7 @@ export function InputsFormEditor({
       if (typing(e.target)) {
         return
       }
+      const arrow = ARROWS[e.key]
       if (e.metaKey || e.ctrlKey) {
         undoKeys(e, latest.current.editor)
       } else if (DELETE_KEYS.has(e.key) && !e.altKey && api.removeSelection()) {
@@ -1447,10 +1589,12 @@ export function InputsFormEditor({
       } else if (e.key.toLowerCase() === 'e' && !e.altKey && api.editSelection()) {
         e.preventDefault()
       } else if (
+        e.altKey &&
         (e.key === 'ArrowUp' || e.key === 'ArrowDown') &&
-        !e.altKey &&
         api.moveSelection(e.key === 'ArrowUp' ? -1 : 1)
       ) {
+        e.preventDefault()
+      } else if (!e.altKey && arrow && api.navigate(arrow, e.shiftKey)) {
         e.preventDefault()
       } else if (e.key === 'Escape' && !store.get().drag) {
         store.set({ selection: [] })
@@ -1525,7 +1669,7 @@ export function InputsFormEditor({
             onPointerLeave={() => {
               const root = containerRef.current
               const keep = store.get().resizing || (root !== null && resizerFocused(root))
-              store.set({ hovered: null, ...(keep ? {} : { edge: null }) })
+              store.set({ hovered: null, open: [], ...(keep ? {} : { edge: null }) })
             }}
           >
             {empty && <div className="mb-3 text-sm theme-muted-text">{t.noInputs}</div>}

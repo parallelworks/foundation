@@ -1569,6 +1569,14 @@ describe('selecting jobs', () => {
     expect(selected()).toEqual([])
   })
 
+  it('lets go of the selection on a press outside the graph', () => {
+    renderGraph(editor())
+    marquee([-10, 90], [150, 155], true)
+    expect(selected().sort()).toEqual(['b', 'c'])
+    fireEvent.pointerDown(document.body, { button: 0 })
+    expect(selected()).toEqual([])
+  })
+
   it('outlines the whole selection in one box, across columns', () => {
     renderGraph(editor())
     const outlines = () =>

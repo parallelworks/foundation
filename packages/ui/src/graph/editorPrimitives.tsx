@@ -202,3 +202,30 @@ export function MarqueeBox({ box, className }: { box: Box; className?: string })
     />
   )
 }
+
+// Menus, dialogs and lists an editor opens render outside it, with their backdrops, and are still its.
+const OPENED = '[role="menu"], [role="dialog"], [role="listbox"]'
+
+/** Calls `clear` when a press lands outside the editor and everything it has open. */
+export function usePressOutside(container: () => HTMLElement | null, clear: () => void) {
+  const latest = useRef({ container, clear })
+  latest.current = { container, clear }
+  useEffect(() => {
+    const onDown = (e: PointerEvent) => {
+      const root = latest.current.container()
+      const target = e.target
+      if (
+        !root ||
+        !(target instanceof Element) ||
+        root.contains(target) ||
+        target.closest(OPENED) ||
+        target.querySelector(`:scope > :is(${OPENED})`)
+      ) {
+        return
+      }
+      latest.current.clear()
+    }
+    document.addEventListener('pointerdown', onDown, true)
+    return () => document.removeEventListener('pointerdown', onDown, true)
+  }, [])
+}

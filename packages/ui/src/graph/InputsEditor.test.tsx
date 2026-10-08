@@ -1263,15 +1263,14 @@ describe('selecting inputs', () => {
     })
   })
 
-  it('drags every selected input from one of their labels, and a click on it selects just that one', () => {
+  it('drags every selected input from one of their labels, and a click on one keeps them all', () => {
     const e = editor()
     renderForm(e)
     layOut()
     shiftClick(['secret'], [5, 55])
     shiftClick(['name'], [5, 5])
     clickLabel(['name'])
-    expect(selected()).toEqual([JSON.stringify(['name'])])
-    shiftClick(['secret'], [5, 55])
+    expect(selected()).toEqual(['["name"]', '["secret"]'])
     drag(titleOf(['name']), [5, 5], [5, 112])
     expect(e.onEdit).toHaveBeenCalledWith({
       type: 'moveInputs',
@@ -1302,11 +1301,11 @@ describe('selecting inputs', () => {
     )
   })
 
-  it('moves the highlighted input down with the arrow keys', () => {
+  it('moves the highlighted input down with alt and the arrow keys', () => {
     const e = editor()
     renderForm(e)
     clickLabel(['name'])
-    fireEvent.keyDown(form(), { key: 'ArrowDown' })
+    fireEvent.keyDown(form(), { key: 'ArrowDown', altKey: true })
     expect(e.onEdit).toHaveBeenCalledWith({
       type: 'moveInputs',
       paths: [['name']],
@@ -1319,8 +1318,49 @@ describe('selecting inputs', () => {
     const e = editor()
     renderForm(e)
     clickLabel(['name'])
-    fireEvent.keyDown(form(), { key: 'ArrowUp' })
+    fireEvent.keyDown(form(), { key: 'ArrowUp', altKey: true })
     expect(e.onEdit).not.toHaveBeenCalled()
+  })
+
+  it('moves between inputs with the arrow keys, and adds each one passed with shift', () => {
+    renderForm(editor())
+    layOut()
+    clickLabel(['name'])
+    fireEvent.keyDown(form(), { key: 'ArrowDown' })
+    expect(selected()).toEqual(['["secret"]'])
+    fireEvent.keyDown(form(), { key: 'ArrowDown', shiftKey: true })
+    fireEvent.keyDown(form(), { key: 'ArrowDown', shiftKey: true })
+    expect(selected()).toEqual(['["secret"]', '["settings","size"]', '["settings"]'])
+    fireEvent.keyDown(form(), { key: 'ArrowUp' })
+    expect(selected()).toEqual(['["settings"]'])
+  })
+
+  it('picks an input up from anywhere on it but its field, and lets go on a press elsewhere', () => {
+    const e = editor()
+    renderForm(e)
+    layOut()
+    // The strip the toolbar opens in, left of the toolbar.
+    const strip = row(['name']).querySelector('[data-input-chrome]')?.parentElement as HTMLElement
+    fireEvent.pointerDown(strip, { button: 0, clientX: 5, clientY: 5 })
+    act(() => {
+      fireEvent.pointerUp(window, { clientX: 5, clientY: 5 })
+    })
+    expect(selected()).toEqual(['["name"]'])
+    drag(strip, [5, 5], [5, 112])
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'moveInputs',
+      paths: [['name']],
+      parent: ['settings'],
+      index: 0,
+    })
+    clickLabel(['name'])
+    fireEvent.pointerDown(row(['settings', 'size']).querySelector('input') as HTMLElement, {
+      button: 0,
+    })
+    expect(selected()).toEqual([])
+    clickLabel(['name'])
+    fireEvent.pointerDown(document.body, { button: 0 })
+    expect(selected()).toEqual([])
   })
 })
 
@@ -1576,6 +1616,17 @@ describe('inputs side by side', () => {
     })
   })
 
+  it('opens the toolbar of every column’s head on a line of several', () => {
+    render(editor(), { ...HALVES, c: { type: 'string', label: 'C', below: true } })
+    layOut({ a: [0, 0, 292, 40], b: [308, 0, 292, 40], c: [308, 50, 292, 40] })
+    fireEvent.pointerOver(row(['c']))
+    const open = (name: string) =>
+      row([name]).querySelector('[data-input-chrome]')?.parentElement?.classList.contains('h-7')
+    expect([open('a'), open('b'), open('c')]).toEqual([true, true, true])
+    fireEvent.pointerOver(row(['b']))
+    expect([open('a'), open('b'), open('c')]).toEqual([true, true, false])
+  })
+
   it('moves the edge between two inputs with the arrow keys', () => {
     const e = editor()
     render(e, HALVES)
@@ -1647,7 +1698,10 @@ describe('list templates', () => {
       fireEvent.pointerUp(window, { clientX: 5, clientY: 5 })
     })
     fireEvent.click(label)
-    fireEvent.keyDown(row(['hosts']).closest('[tabindex="0"]') as HTMLElement, { key: 'ArrowUp' })
+    fireEvent.keyDown(row(['hosts']).closest('[tabindex="0"]') as HTMLElement, {
+      key: 'ArrowUp',
+      altKey: true,
+    })
     expect(e.onEdit).toHaveBeenCalledWith({
       type: 'moveInputs',
       paths: [['hosts', 'port']],

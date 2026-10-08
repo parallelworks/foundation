@@ -69,6 +69,7 @@ import {
   returningFocus,
   trackDrag,
   useFocusAfterDialog,
+  usePressOutside,
 } from './editorPrimitives'
 import { type GraphEditorStrings, useGraphEditorStrings } from './editorStrings'
 import { JobDialog, StepDialog } from './GraphEditorDialogs'
@@ -1421,6 +1422,17 @@ function useGraphEditorState({
   useEffect(() => {
     store.set({ problems })
   }, [store, problems])
+
+  // A press anywhere else on the page lets go of what's selected here.
+  usePressOutside(
+    () => latest.current.container,
+    () => {
+      const { selection, steps, edges } = store.get()
+      if (selection.length > 0 || steps.length > 0 || edges.length > 0) {
+        store.set({ selection: NO_SELECTION, steps: NO_STEPS, edges: NO_EDGES })
+      }
+    },
+  )
 
   const active = editor !== undefined
   useEffect(() => {

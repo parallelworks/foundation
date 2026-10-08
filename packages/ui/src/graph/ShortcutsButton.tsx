@@ -19,6 +19,9 @@ export interface ShortcutGroup {
 export const MOD_KEY =
   typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl'
 
+export const ALT_KEY =
+  typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌥' : 'Alt'
+
 /** A toolbar button that opens the list of gestures and keys a pane takes. */
 export function ShortcutsButton({ groups }: { groups: ShortcutGroup[] }) {
   const t = useGraphEditorStrings()
