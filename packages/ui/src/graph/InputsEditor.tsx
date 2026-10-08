@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { IconButton } from '../components/IconButton'
 import { useWorkflowEditing } from '../components/Provider'
 import { TOOLTIP_ID } from '../components/Tooltip'
 import type { FieldPatch, GraphEdit, InputPath, WorkflowEditing } from '../editing'
@@ -66,7 +67,6 @@ import {
   dropChanges,
   type Line,
   linesIn,
-  reorderChanges,
   rowsOf,
   snapSplit,
 } from './inputRows'
@@ -76,15 +76,6 @@ import { ALT_KEY, MOD_KEY, type ShortcutGroup } from './ShortcutsButton'
 interface Placement {
   keys: Json
   edits: GraphEdit[]
-}
-
-// A placement names the input not made yet '', so an input going under it waits for its name.
-function placementEdits(placement: Placement | undefined, name: string): GraphEdit[] {
-  return (placement?.edits ?? []).map((edit) =>
-    edit.type === 'updateInput' && edit.set?.['under'] === ''
-      ? { ...edit, set: { ...edit.set, under: name } }
-      : edit,
-  )
 }
 
 type Dialog =
@@ -485,15 +476,14 @@ function InputRow({
   )
 }
 
-/** The add button that ends each list of inputs; the form's own also offers to split it into pages. */
+/** The add button that ends each list of inputs. */
 function AddInput({ parent }: { parent: InputPath }) {
   const api = useContext(ApiContext)
-  const inputs = useContext(InputsContext)
   const t = useInputsEditorStrings()
   if (!api) {
     return null
   }
-  const add = (
+  return (
     <button
       type="button"
       data-input-add={key(parent)}
@@ -506,23 +496,6 @@ function AddInput({ parent }: { parent: InputPath }) {
       <AddIcon className="h-3 w-3" />
       {parent.length === 0 ? t.addInputHere : t.addField}
     </button>
-  )
-  if (parent.length > 0 || isWizard(inputs)) {
-    return add
-  }
-  return (
-    <div className="flex items-start gap-4">
-      {add}
-      <button
-        type="button"
-        data-input-chrome
-        className="mb-[15px] flex cursor-pointer items-center gap-1.5 text-[13px] theme-muted-text hover:text-(--theme-link)"
-        onClick={api.splitIntoPages}
-      >
-        <FilesIcon className="h-3 w-3" />
-        {t.splitIntoPages}
-      </button>
-    </div>
   )
 }
 
@@ -1100,11 +1073,7 @@ export function InputsFormEditor({
           definition: { ...(ownWizard ?? newInputDefinition(type)), ...placement?.keys },
         }
         // The add goes last, so the batch reports the input it created.
-        send(
-          placement?.edits.length
-            ? { type: 'batch', edits: [...placementEdits(placement, name), add] }
-            : add,
-        )
+        send(placement?.edits.length ? { type: 'batch', edits: [...placement.edits, add] } : add)
         return
       }
       store.set({
@@ -1166,7 +1135,9 @@ export function InputsFormEditor({
     })
     const changesOf = (moving: InputPath[], drop: Drop) => {
       const root = containerRef.current
-      return root ? dropChanges(linesIn(root), moving, drop, definition) : new Map<string, Change>()
+      return root
+        ? dropChanges(linesIn(root), moving, drop, (path) => definition(path)['width'])
+        : new Map<string, Change>()
     }
     // A drop's changes as edits, each at the path its input has once the drop has moved it.
     const layoutEdits = (
@@ -1195,26 +1166,6 @@ export function InputsFormEditor({
         edits.push({ type: 'updateInput', path: at, ...patch })
       }
       return edits
-    }
-    // A move along the list, rather than onto a spot, keeps each column's inputs together.
-    const keepingColumns = (parent: InputPath, moved: string[], index: number): GraphEdit => {
-      const names = namesIn(containerAt(editing, latest.current.inputs, parent))
-      const stay = (from: number, to?: number) =>
-        names.slice(from, to).filter((name) => !moved.includes(name))
-      const after = [...stay(0, index), ...moved, ...stay(index)]
-      const changes = reorderChanges(names, after, (name) => definition([...parent, name]))
-      const move: GraphEdit = {
-        type: 'moveInputs',
-        paths: moved.map((name) => [...parent, name]),
-        parent,
-        index,
-      }
-      const edits = layoutEdits(
-        new Map([...changes].map(([name, change]) => [key([...parent, name]), change])),
-        [],
-        { parent, index },
-      )
-      return edits.length > 0 ? { type: 'batch', edits: [move, ...edits] } : move
     }
     // A new input dropped beside or into a column takes its keys there from the same rules.
     const placementOf = (gap: Gap): Placement | undefined => {
@@ -1273,13 +1224,7 @@ export function InputsFormEditor({
       if (index < 0 || index > count) {
         return false
       }
-      send(
-        keepingColumns(
-          parent,
-          paths.map((path) => path.at(-1) ?? ''),
-          index,
-        ),
-      )
+      send({ type: 'moveInputs', paths, parent, index })
       return true
     }
 
@@ -1384,14 +1329,26 @@ export function InputsFormEditor({
           label: t.moveUp,
           icon: <ArrowUpIcon />,
           disabled: index <= 0,
-          onSelect: () => send(keepingColumns(parent, [path.at(-1) ?? ''], index - 1)),
+          onSelect: () =>
+            send({
+              type: 'moveInputs',
+              paths: [path],
+              parent,
+              index: index - 1,
+            }),
         },
         {
           kind: 'action',
           label: t.moveDown,
           icon: <ArrowDownIcon />,
           disabled: index >= count - 1,
-          onSelect: () => send(keepingColumns(parent, [path.at(-1) ?? ''], index + 2)),
+          onSelect: () =>
+            send({
+              type: 'moveInputs',
+              paths: [path],
+              parent,
+              index: index + 2,
+            }),
         },
         { kind: 'divider' },
         {
@@ -1768,6 +1725,15 @@ export function InputsFormEditor({
                     api.openTypeMenu(r.left, r.bottom, [], Number.MAX_SAFE_INTEGER)
                   }}
                 />
+                {!isWizard(inputs) && (
+                  <IconButton
+                    icon={<FilesIcon className="h-4 w-4" />}
+                    label={t.splitIntoPages}
+                    size="sm"
+                    variant="ghost"
+                    onClick={api.splitIntoPages}
+                  />
+                )}
                 {editor.onOpenSettings && <BarDivider />}
               </EditorBar>
             </div>
@@ -1944,7 +1910,6 @@ function Dialogs({
         }}
         isNew
         siblings={siblings}
-        anchors={siblings.slice(0, index)}
         allowStep={isWizard(containerAt(editing, inputs, dialog.parent))}
         inputs={inputs}
         home={home}
@@ -1957,7 +1922,7 @@ function Dialogs({
             editor.onEdit({
               type: 'batch',
               edits: [
-                ...placementEdits(placement, name),
+                ...(placement?.edits ?? []),
                 {
                   type: 'addInput',
                   parent: dialog.parent,
@@ -1983,9 +1948,7 @@ function Dialogs({
             definition,
           }
           save(
-            placement?.edits.length
-              ? { type: 'batch', edits: [...placementEdits(placement, name), add] }
-              : add,
+            placement?.edits.length ? { type: 'batch', edits: [...placement.edits, add] } : add,
             created,
             home,
           )
@@ -2007,7 +1970,6 @@ function Dialogs({
       definition={asRecord(container[name])}
       isNew={false}
       siblings={namesIn(container).filter((other) => other !== name)}
-      anchors={namesIn(container).slice(0, namesIn(container).indexOf(name))}
       allowStep={isWizard(container)}
       inputs={inputs}
       home={home}

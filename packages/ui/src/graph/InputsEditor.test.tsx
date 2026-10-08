@@ -485,6 +485,24 @@ describe('InputsFormEditor', () => {
     )
   })
 
+  it('lifts a type submenu that would run past the bottom of the window', () => {
+    const real = Element.prototype.getBoundingClientRect
+    // jsdom lays nothing out, so the submenu reports where it would sit: past the bottom of the window.
+    const rect = vi
+      .spyOn(Element.prototype, 'getBoundingClientRect')
+      .mockImplementation(function (this: Element) {
+        return this.classList.contains('-top-1')
+          ? DOMRect.fromRect({ x: 0, y: window.innerHeight - 60, width: 180, height: 200 })
+          : real.call(this)
+      })
+    renderForm(editor())
+    fireEvent.click(screen.getByText('Add input'))
+    fireEvent.mouseEnter(within(screen.getByRole('menu')).getByText('Layout'))
+    const panel = screen.getByText('Wizard step').closest('.-top-1')
+    expect(panel).toHaveStyle({ transform: 'translateY(-148px)' })
+    rect.mockRestore()
+  })
+
   it('adds a wizard step outside a wizard as a wizard of its own, in a group', () => {
     const e = editor({ openOnAdd: false, onOpenOnAddChange: vi.fn() })
     renderForm(e)
@@ -512,7 +530,7 @@ describe('InputsFormEditor', () => {
   it('splits the form into pages, its inputs starting the first one', () => {
     const e = editor()
     renderForm(e)
-    fireEvent.click(screen.getByText('Split into pages'))
+    fireEvent.click(screen.getByRole('button', { name: 'Split into pages' }))
     expect(e.onEdit).toHaveBeenCalledWith({
       type: 'batch',
       edits: [
@@ -970,21 +988,21 @@ describe('InputDialog', () => {
     )
   })
 
-  it('offers a width, and an input to go under, on every input but a wizard step', () => {
+  it('offers a width, and a place below the input before, on every input but a wizard step', () => {
     for (const type of inputTypes()) {
       expect(offeredInputKeys(parser, type).includes('width')).toBe(type !== 'step')
-      expect(offeredInputKeys(parser, type).includes('under')).toBe(type !== 'step')
+      expect(offeredInputKeys(parser, type).includes('anchor-below')).toBe(type !== 'step')
     }
   })
 
-  it('puts an input under the one named in its dialog', () => {
+  it('puts an input below the one before it from its dialog', () => {
     const onSave = open({ type: 'string' })
-    fireEvent.change(screen.getByLabelText('Under'), { target: { value: 'epochs' } })
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Below the input before it' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(onSave).toHaveBeenCalledWith(
       'field',
-      { type: 'string', under: 'epochs' },
-      { set: { under: 'epochs' }, unset: [] },
+      { type: 'string', 'anchor-below': true },
+      { set: { 'anchor-below': true }, unset: [] },
       [],
     )
   })
@@ -1628,14 +1646,14 @@ describe('inputs side by side', () => {
       edits: [
         { type: 'updateInput', path: ['a'], set: { width: '50%' } },
         { type: 'updateInput', path: ['b'], set: { width: '50%' } },
-        { type: 'updateInput', path: ['c'], set: { under: 'b' }, unset: ['width'] },
+        { type: 'updateInput', path: ['c'], set: { 'anchor-below': true }, unset: ['width'] },
       ],
     })
   })
 
   it('moves the next input up to head a column when its head leaves', () => {
     const e = editor()
-    render(e, { ...HALVES, c: { type: 'string', label: 'C', under: 'b' } })
+    render(e, { ...HALVES, c: { type: 'string', label: 'C', 'anchor-below': true } })
     layOut({ a: [0, 0, 292, 40], b: [308, 0, 292, 40], c: [308, 50, 292, 40] })
     expect(row(['c']).parentElement).toBe(row(['b']).parentElement)
     drag(handleOf('b'), [400, 5], [300, 140])
@@ -1643,7 +1661,7 @@ describe('inputs side by side', () => {
       type: 'batch',
       edits: [
         { type: 'moveInputs', paths: [['b']], parent: [], index: 3 },
-        { type: 'updateInput', path: ['c'], set: { width: '50%' }, unset: ['under'] },
+        { type: 'updateInput', path: ['c'], set: { width: '50%' }, unset: ['anchor-below'] },
         { type: 'updateInput', path: ['b'], unset: ['width'] },
       ],
     })
@@ -1661,12 +1679,12 @@ describe('inputs side by side', () => {
       parent: [],
       index: 2,
       name: 'input_1',
-      definition: { type: 'number', under: 'b' },
+      definition: { type: 'number', 'anchor-below': true },
     })
   })
 
   it('opens the toolbar of every column’s head on a line of several', () => {
-    render(editor(), { ...HALVES, c: { type: 'string', label: 'C', under: 'b' } })
+    render(editor(), { ...HALVES, c: { type: 'string', label: 'C', 'anchor-below': true } })
     layOut({ a: [0, 0, 292, 40], b: [308, 0, 292, 40], c: [308, 50, 292, 40] })
     fireEvent.pointerOver(row(['c']))
     const open = (name: string) =>

@@ -11,7 +11,7 @@ export interface DrawnRow {
   trailing: boolean
 }
 
-/** Inputs drawn one under another: an input and those `under` it, top to bottom. */
+/** Inputs drawn one under another: an input and those `anchor-below` it, top to bottom. */
 export interface Column {
   rows: DrawnRow[]
   /** The cell a list with widths draws the column in. */
@@ -35,12 +35,10 @@ export interface Drop {
 /** What a drop writes on an input; null removes the key. */
 export interface Change {
   width?: unknown
-  under?: string | null
+  'anchor-below'?: true | null
 }
 
 const key = (path: InputPath) => JSON.stringify(path)
-
-const nameOf = (path: InputPath) => path.at(-1) ?? ''
 
 const samePath = (a: InputPath, b: InputPath) =>
   a.length === b.length && a.every((name, i) => b[i] === name)
@@ -55,7 +53,7 @@ export function linesIn(root: HTMLElement): Line[] {
   const columns = new Map<HTMLElement, { parent: InputPath; column: Column }>()
   for (const el of root.querySelectorAll<HTMLElement>('[data-input-path]')) {
     const path = JSON.parse(el.dataset['inputPath'] ?? '[]') as InputPath
-    // An input with its own width under another sits in a wrapper of that width inside the cell.
+    // An input narrower than its column sits in a wrapper of its own width inside the cell.
     const holder =
       el.parentElement?.dataset['inputMember'] !== undefined
         ? el.parentElement.parentElement
@@ -109,9 +107,8 @@ export function dropChanges(
   lines: Line[],
   moving: InputPath[],
   drop: Drop,
-  fieldOf: (path: InputPath) => { width?: unknown; under?: unknown },
+  widthOf: (path: InputPath) => unknown,
 ): Map<string, Change> {
-  const widthOf = (path: InputPath) => fieldOf(path).width
   const movingKeys = new Set(moving.map(key))
   const stays = (row: DrawnRow) => !movingKeys.has(key(row.path))
   const changes = new Map<string, Change>()
@@ -121,8 +118,8 @@ export function dropChanges(
     const change = changes.get(key(path))
     return change && 'width' in change ? change.width : widthOf(path)
   }
-  // Leaving: a column whose head goes is headed by its next input at the head's width, the inputs
-  // under ones that go go under its head, and a line that loses a column is shared again by those left.
+  // Leaving: a column whose head goes is headed by its next input at the head's width, and a line
+  // that loses a column is shared again by those left.
   const shared = new Set<string>()
   for (const line of lines) {
     if (rowsOf(line).every(stays)) {
@@ -138,22 +135,9 @@ export function dropChanges(
           shared.add(key(row.path))
         }
       }
-      const [next, ...rest] = column.rows.filter(stays)
-      if (!next) {
-        continue
-      }
-      if (!stays(head)) {
-        set(next.path, { under: null, width: widthOf(head.path) ?? null })
-      }
-      const top = nameOf(stays(head) ? head.path : next.path)
-      const leaving = new Set(
-        column.rows.filter((row) => !stays(row)).map((row) => nameOf(row.path)),
-      )
-      for (const row of rest) {
-        const under = fieldOf(row.path).under
-        if (typeof under === 'string' && leaving.has(under)) {
-          set(row.path, { under: top })
-        }
+      const next = column.rows.find(stays)
+      if (!stays(head) && next) {
+        set(next.path, { 'anchor-below': null, width: widthOf(head.path) ?? null })
       }
     }
     const kept = line.columns.filter((column) => column.rows.some(stays))
@@ -188,7 +172,7 @@ export function dropChanges(
       }
     }
     for (const path of moving) {
-      set(path, { width: evenWidth(count) ?? null, under: null })
+      set(path, { width: evenWidth(count) ?? null, 'anchor-below': null })
     }
     return changes
   }
@@ -199,54 +183,19 @@ export function dropChanges(
     const [first, ...rest] = moving
     // Above a column's head, the first dropped input heads the column in its place.
     if (stack.side === 'above' && head && first && samePath(head.path, stack.path)) {
-      set(first, { width: widthNow(head.path) ?? null, under: null })
+      set(first, { width: widthNow(head.path) ?? null, 'anchor-below': null })
       for (const path of [head.path, ...rest]) {
-        set(path, { width: null, under: nameOf(first) })
+        set(path, { width: null, 'anchor-below': true })
       }
       return changes
     }
-    const top = nameOf((head ?? into.column.rows[0] ?? { path: stack.path }).path)
     for (const path of moving) {
-      set(path, { width: null, under: top })
+      set(path, { width: null, 'anchor-below': true })
     }
     return changes
   }
   for (const path of moving) {
-    set(path, { under: null, ...(shared.has(key(path)) ? { width: null } : {}) })
-  }
-  return changes
-}
-
-/** What moving inputs along their list writes, by name, so each column keeps its inputs: the first one
- * listed heads it at the column's width, and the rest go under that one. `after` is the list once moved. */
-export function reorderChanges(
-  names: string[],
-  after: string[],
-  fieldOf: (name: string) => { width?: unknown; under?: unknown },
-): Map<string, Change> {
-  // Columns as the form draws them: an input under one listed before it joins that one's column.
-  const headOf = new Map<string, string>()
-  for (const name of names) {
-    const under = fieldOf(name).under
-    headOf.set(name, (typeof under === 'string' && headOf.get(under)) || name)
-  }
-  const changes = new Map<string, Change>()
-  for (const head of new Set(headOf.values())) {
-    const [first, ...rest] = after.filter((name) => headOf.get(name) === head)
-    if (!first || rest.length === 0) {
-      continue
-    }
-    if (first !== head) {
-      changes.set(first, { under: null, width: fieldOf(head).width ?? null })
-      changes.set(head, { under: first, width: null })
-    }
-    for (const name of rest) {
-      const under = fieldOf(name).under
-      const before = after.slice(0, after.indexOf(name))
-      if (name !== head && !(typeof under === 'string' && before.includes(under))) {
-        changes.set(name, { under: first })
-      }
-    }
+    set(path, { 'anchor-below': null, ...(shared.has(key(path)) ? { width: null } : {}) })
   }
   return changes
 }

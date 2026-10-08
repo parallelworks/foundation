@@ -253,7 +253,7 @@ function RowContextMenu({
       return
     }
     const { width, height } = ref.current.getBoundingClientRect()
-    const pad = 8
+    const pad = MENU_EDGE
     // Open upward when the menu won't fit below the anchor but fits above, so a
     // row near the viewport bottom doesn't push the menu off-screen or onto it.
     const spaceBelow = window.innerHeight - pad - state.y
@@ -377,6 +377,34 @@ function RowContextMenu({
     // The --theme-* tokens live on the document root, so the body-level portal
     // resolves them everywhere.
     document.body,
+  )
+}
+
+// How far a menu keeps from the window's edges.
+const MENU_EDGE = 8
+
+// A submenu opens level with its item, lifted by as much as would run past the window's bottom.
+function SubmenuPanel({ side, children }: { side: 'left' | 'right'; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [lift, setLift] = useState(0)
+  useLayoutEffect(() => {
+    const rect = ref.current?.getBoundingClientRect()
+    if (rect) {
+      const over = rect.bottom - (window.innerHeight - MENU_EDGE)
+      setLift(Math.max(0, Math.min(over, rect.top - MENU_EDGE)))
+    }
+  }, [])
+  return (
+    <div
+      ref={ref}
+      className={cx(
+        'absolute -top-1 z-10 min-w-44 rounded-lg border border-(--theme-border) bg-(--theme-panel-bg) py-1 shadow-lg',
+        side === 'left' ? 'right-full' : 'left-full',
+      )}
+      style={lift > 0 ? { transform: `translateY(-${lift}px)` } : undefined}
+    >
+      {children}
+    </div>
   )
 }
 
@@ -541,14 +569,9 @@ function MenuRow({
           <ChevronRightIcon className="h-3 w-3 shrink-0 opacity-60" />
         </button>
         {openSub && (
-          <div
-            className={cx(
-              'absolute -top-1 z-10 min-w-44 rounded-lg border border-(--theme-border) bg-(--theme-panel-bg) py-1 shadow-lg',
-              side === 'left' ? 'right-full' : 'left-full',
-            )}
-          >
+          <SubmenuPanel side={side}>
             <MenuItemList items={item.items} search={item.search} onClose={onClose} side={side} />
-          </div>
+          </SubmenuPanel>
         )}
       </div>
     )

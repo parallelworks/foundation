@@ -250,7 +250,7 @@ describe('input widths', () => {
     expect(cellOf('whole')).toHaveStyle({ '--input-width': '100%', '--input-narrow': '100%' })
   })
 
-  it('puts an input under the one it names, in that one’s column at its own width', async () => {
+  it('puts an input marked anchor-below in the column of the shown one before it, at its own width', async () => {
     render(
       <DynamicForm
         initialValues={{}}
@@ -258,8 +258,8 @@ describe('input widths', () => {
           a: { type: 'string', width: '50%' },
           b: { type: 'string', width: '50%' },
           h: { type: 'string', hidden: true },
-          c: { type: 'string', under: 'b', width: '25%' },
-          d: { type: 'string', under: 'c' },
+          c: { type: 'string', 'anchor-below': true, width: '25%' },
+          d: { type: 'string', 'anchor-below': true },
         }}
       />,
     )
@@ -276,21 +276,19 @@ describe('input widths', () => {
     expect(labelOf('c')).toBe('top')
   })
 
-  it('gives an input under one listed after it, or under none of its list, a column of its own', async () => {
+  it('gives the first input of a list a column of its own even when marked anchor-below', async () => {
     render(
       <DynamicForm
         initialValues={{}}
         formJSONs={{
-          a: { type: 'string', under: 'b', width: '50%' },
+          a: { type: 'string', 'anchor-below': true, width: '50%' },
           b: { type: 'string', width: '50%' },
-          c: { type: 'string', under: 'missing' },
         }}
       />,
     )
     await screen.findByTestId('field-a')
     expect(cellOf('a')).not.toBe(cellOf('b'))
-    expect(cellOf('c')).not.toBe(cellOf('b'))
-    expect(cellOf('c')).toHaveStyle({ '--input-width': '100%' })
+    expect(cellOf('a')).toHaveStyle({ '--input-width': '50%' })
   })
 
   it('puts the label of an input sharing its row on top when the workflow chose no position', async () => {

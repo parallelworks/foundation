@@ -59,7 +59,7 @@ interface SchemaField {
   computeOn?: boolean
   tooltip?: string | string[]
   width?: number | string
-  under?: string
+  'anchor-below'?: boolean
   template?: Record<string, unknown>
   items?: Record<string, unknown>
   options?: Record<string, unknown>
@@ -1155,10 +1155,10 @@ function FieldList({
     )
   }
   const names = Object.keys(options)
-  // Without a width or an `under` in the list, the fields stack exactly as they always have.
+  // Without a width or an `anchor-below` in the list, the fields stack exactly as they always have.
   const flows = names.some((name) => {
     const field = asRecord(options[name])
-    return inputWidth(field['width']) !== undefined || typeof field['under'] === 'string'
+    return inputWidth(field['width']) !== undefined || field['anchor-below'] === true
   })
   const columns = flows ? columnsOf(options, names) : []
   const fieldOf = (fieldName: string, width: string | undefined) => (
@@ -1236,23 +1236,22 @@ interface Column {
   names: string[]
 }
 
-// A field `under` one listed before it joins that one's column, below it; any other field heads
-// a column of its own, and columns follow the list's order.
+// A field marked `anchor-below` goes under the shown field before it, in that one's column; any other
+// field heads a column of its own, and columns follow the list's order.
 function columnsOf(options: Record<string, unknown>, names: string[]): Column[] {
   const columns: Column[] = []
-  const columnOf = new Map<string, Column>()
+  let shown: Column | undefined
   for (const name of names) {
-    const under = asRecord(options[name])['under']
-    const anchor = typeof under === 'string' ? columnOf.get(under) : undefined
-    if (anchor) {
-      anchor.names.push(name)
-      columnOf.set(name, anchor)
+    const field = asRecord(options[name])
+    const hidden = name.startsWith('$') || field['hidden'] === true
+    if (shown && !hidden && field['anchor-below'] === true) {
+      shown.names.push(name)
       continue
     }
     const column = { head: name, names: [name] }
     columns.push(column)
-    if (!name.startsWith('$')) {
-      columnOf.set(name, column)
+    if (!hidden) {
+      shown = column
     }
   }
   return columns

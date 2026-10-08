@@ -592,7 +592,7 @@ export const INPUTS_EDITOR_STRINGS = {
     description: 'Description',
     tooltip: 'Tooltip',
     width: 'Width',
-    under: 'Under',
+    'anchor-below': 'Below the input before it',
     optional: 'Optional',
     hidden: 'Hidden',
     disabled: 'Read-only',
@@ -646,8 +646,8 @@ export const INPUTS_EDITOR_STRINGS = {
     tooltip: 'Extra help shown when users hover over the field’s info icon.',
     width:
       'How wide the field is: a number of pixels, such as 320, or a share of the row, such as 50%. Fields whose widths fit side by side share a row. Empty means the full width.',
-    under:
-      'The name of an input listed before this one. This field goes under it, in its column, and can be no wider than it. Empty means a column of its own.',
+    'anchor-below':
+      'Puts the field under the input before it, in that input’s column, when that input shares a row. It can be no wider than that input.',
     default: 'The value the field starts with.',
     defaultList: 'The values picked when the form opens.',
     defaultResource: 'What’s picked when the form opens, by its resource address.',
