@@ -248,6 +248,13 @@ interface PreviewView {
   offsetY: number
 }
 
+// The graph's outermost nodes, which hold any nested subgraph and clip one that's closing; all
+// nodes if the structure changes. They sit at content > wrapper > flex > column > node.
+function outerNodes(content: HTMLElement) {
+  const top = content.querySelectorAll<HTMLElement>(':scope > div > div > div > div[id^="node_"]')
+  return top.length > 0 ? top : content.querySelectorAll<HTMLElement>('[id^="node_"]')
+}
+
 // Bounds are measured in content space against the view captured on first
 // layout, so panning never resizes the panel. Null until the graph has nodes
 // and the library has applied its initial transform.
@@ -255,7 +262,7 @@ function measurePreviewHeight(
   content: HTMLElement | null,
   viewRef: React.RefObject<PreviewView | null>,
 ): number | null {
-  const nodes = content?.querySelectorAll<HTMLElement>('[id^="node_"]')
+  const nodes = content ? outerNodes(content) : undefined
   const transform = content?.parentElement
     ? getComputedStyle(content.parentElement).transform
     : 'none'
@@ -685,6 +692,38 @@ const GraphEditorOverlays = lazy(() => import('./GraphEditor'))
 const CONNECTOR_COLOR = 'var(--theme-border)'
 const HIGHLIGHT_COLOR = 'var(--theme-element)'
 const FIT_ANIMATION_MS = 300
+
+// Resolves once a whole frame passes with none of `els` resizing (observing brings one delivery
+// at once, so a still layout resolves too). A reveal follows a nested one's width a frame later.
+function sizesSettled(els: Element[]) {
+  return new Promise<void>((resolve) => {
+    let frame = 0
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        frame = requestAnimationFrame(() => {
+          observer.disconnect()
+          resolve()
+        })
+      })
+    })
+    for (const el of els) {
+      observer.observe(el)
+    }
+  })
+}
+
+// The transitions sizing a box as it opens or closes: Reveal's row height and its width.
+function sizingTransitions(el: HTMLElement) {
+  return el
+    .getAnimations({ subtree: true })
+    .filter(
+      (animation) =>
+        animation instanceof CSSTransition &&
+        (animation.transitionProperty === 'grid-template-rows' ||
+          animation.transitionProperty === 'width'),
+    )
+}
 
 // The least shift that brings [start, end] inside [low, high], keeping the start in view when it can't all fit.
 function intoView(start: number, end: number, low: number, high: number) {
@@ -1878,11 +1917,8 @@ export default function DependencyGraph({
       if (!container || !content || !transform) {
         return
       }
-      // Fit to the outermost (depth-0) nodes so nested subgraphs don't shrink the
-      // whole view when expanded; fall back to all nodes if the structure changes.
-      // Depth-0 nodes sit at content > wrapper > flex > column > node.
-      const topNodes = content.querySelectorAll(':scope > div > div > div > div[id^="node_"]')
-      const nodes = topNodes.length > 0 ? topNodes : content.querySelectorAll('[id^="node_"]')
+      // Fit to the outermost nodes so nested subgraphs don't shrink the whole view when expanded.
+      const nodes = outerNodes(content)
       if (nodes.length === 0) {
         return
       }
@@ -1952,9 +1988,31 @@ export default function DependencyGraph({
     [invalidateConnectors, nodeOf],
   )
 
-  // Animated re-fit for user-triggered view changes (inline expand/collapse
-  // settle, reset on the main graph). Re-root and initial fits stay instant.
-  const animatedFit = useCallback(() => fitGraph(FIT_ANIMATION_MS), [fitGraph])
+  // Boxes open and close over CSS transitions, so a fit before they end measures them mid-way:
+  // zoomed in too far after opening, out too far after closing.
+  const fitWhenSettled = useCallback(async () => {
+    const container = containerRef.current
+    const content = graphContentRef.current
+    if (!container || !content) {
+      return
+    }
+    // A box whose content widens as it opens restarts its width transition, so look again.
+    let running = sizingTransitions(content)
+    while (running.length > 0) {
+      await Promise.allSettled(running.map((transition) => transition.finished))
+      running = sizingTransitions(content)
+    }
+    // A preview's panel follows its graph a frame behind, and the fit measures the panel.
+    const panelHeight =
+      preview && !fixedHeight ? measurePreviewHeight(content, previewViewRef) : null
+    if (panelHeight !== null) {
+      flushSync(() => setPreviewHeight(panelHeight))
+    }
+    // The pan/zoom library cancels a running animation whenever the graph or its panel resizes.
+    await sizesSettled([container, content, ...outerNodes(content)])
+    invalidateConnectors()
+    fitGraph(FIT_ANIMATION_MS)
+  }, [fitGraph, invalidateConnectors, preview, fixedHeight])
 
   // Pans `el` to the middle of the panel, keeping the zoom.
   const centerOn = useCallback((el: HTMLElement) => {
@@ -2092,23 +2150,21 @@ export default function DependencyGraph({
     }
   }
   const toggleExpandAll = () => {
-    if (allExpanded) {
-      setExpandedSubworkflows(new Set())
-      setStepsOpen(new Set())
-      setMatrixOpen(new Set())
-    } else {
-      // Open every subworkflow, the step list of each containing job, and every
-      // matrix group so members (and their subworkflows) are actually revealed.
-      setExpandedSubworkflows(new Set(expansionKeys.subworkflowKeys))
-      setStepsOpen(new Set(expansionKeys.jobKeys))
-      setMatrixOpen(new Set(expansionKeys.matrixKeys))
-    }
-    // Reset the view after the instant (matrix / step-list) growth; expanding
-    // subworkflows re-fit again via their own onSettled as they animate.
-    requestAnimationFrame(() => {
-      invalidateConnectors()
-      fitGraph()
+    // Committed now, so the boxes' transitions have started when fitWhenSettled looks for them.
+    flushSync(() => {
+      if (allExpanded) {
+        setExpandedSubworkflows(new Set())
+        setStepsOpen(new Set())
+        setMatrixOpen(new Set())
+      } else {
+        // Open every subworkflow, the step list of each containing job, and every
+        // matrix group so members (and their subworkflows) are actually revealed.
+        setExpandedSubworkflows(new Set(expansionKeys.subworkflowKeys))
+        setStepsOpen(new Set(expansionKeys.jobKeys))
+        setMatrixOpen(new Set(expansionKeys.matrixKeys))
+      }
     })
+    void fitWhenSettled()
   }
 
   const nextStep = useCallback(
@@ -2428,7 +2484,7 @@ export default function DependencyGraph({
                         openInNewGraph={openInNewGraph}
                         setSublogOpen={setSublogOpen}
                         invalidateConnectors={invalidateConnectors}
-                        requestFit={animatedFit}
+                        requestFit={fitWhenSettled}
                         stepsOpen={stepsOpen}
                         toggleSteps={toggleSteps}
                         matrixOpen={matrixOpen}

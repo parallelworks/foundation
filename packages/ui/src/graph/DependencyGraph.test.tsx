@@ -14,6 +14,7 @@ global.ResizeObserver = class {
 // synchronously here would re-enter render. Geometry isn't asserted in jsdom.
 global.requestAnimationFrame = (() => 0) as typeof requestAnimationFrame
 global.cancelAnimationFrame = (() => {}) as typeof cancelAnimationFrame
+Element.prototype.getAnimations = () => []
 
 // Pan/zoom + animation wrappers reduced to plain passthroughs (no layout in jsdom).
 vi.mock('../components/Provider', async (importOriginal) =>
