@@ -13,6 +13,7 @@ import { useWorkflowEditing } from '../components/Provider'
 import { TOOLTIP_ID } from '../components/Tooltip'
 import type { FieldPatch, GraphEdit, InputPath, WorkflowEditing } from '../editing'
 import { type FormEditing, FormEditingContext } from '../form/formEditing'
+import { type WizardPages, WizardPagesContext } from '../form/Wizard/wizardPages'
 import {
   AddIcon,
   AlertIcon,
@@ -488,7 +489,7 @@ function InputRow({
           {outline.map((child) => (
             <InputRow key={child} path={[...path, child]} hidden />
           ))}
-          <AddInput parent={path} />
+          {outline.length === 0 && <AddInput parent={path} />}
         </div>
       )}
     </div>
@@ -551,6 +552,46 @@ function PageActions({
         <CollapseIcon className="h-3 w-3" />
       </ChromeButton>
     </>
+  )
+}
+
+// The pages of a wizard's list, in order.
+function pagesIn(list: unknown): string[] {
+  const record = asRecord(list)
+  return namesIn(record).filter((name) => asRecord(record[name])['type'] === 'step')
+}
+
+/** The bar's page of the form's wizard, turned by typing its number or with the arrow keys. */
+function PageNumber({
+  count,
+  page,
+  onChange,
+}: {
+  count: number
+  page: number
+  onChange: (index: number) => void
+}) {
+  const t = useInputsEditorStrings()
+  const shown = Math.min(Math.max(page, 0), Math.max(count - 1, 0))
+  return (
+    <label className="flex h-7 items-center gap-1 px-1 text-xs theme-muted-text">
+      {t.page}
+      <input
+        type="number"
+        min={1}
+        max={count}
+        value={shown + 1}
+        aria-label={t.pageNumber}
+        className="h-6 w-10 rounded border theme-border bg-(--theme-input-bg) px-1 text-center text-(--theme-input) text-xs"
+        onChange={(e) => {
+          const typed = Number(e.target.value)
+          if (Number.isInteger(typed) && typed >= 1 && typed <= count) {
+            onChange(typed - 1)
+          }
+        }}
+      />
+      <span>/ {count}</span>
+    </label>
   )
 }
 
@@ -642,20 +683,21 @@ function lineGaps(root: HTMLElement, lines: Line[]): Gap[] {
       })
     }
   }
+  for (const { parent, rows } of lists.values()) {
+    gaps.push({
+      parent,
+      index: Math.max(...rows.map((row) => row.index)) + 1,
+      ...extent(rows),
+      y: Math.max(...rows.map((row) => row.rect.bottom)),
+    })
+  }
+  // Only an empty list has an add button, and a drop goes where it sits.
   for (const el of root.querySelectorAll<HTMLElement>('[data-input-add]')) {
     const parent = JSON.parse(el.dataset['inputAdd'] ?? '[]') as InputPath
-    const rows = lists.get(key(parent))?.rows ?? []
-    const rect = el.getBoundingClientRect()
-    gaps.push(
-      rows.length > 0
-        ? {
-            parent,
-            index: Math.max(...rows.map((row) => row.index)) + 1,
-            ...extent(rows),
-            y: Math.max(...rows.map((row) => row.rect.bottom)),
-          }
-        : { parent, index: 0, left: rect.left, right: rect.right, y: rect.top },
-    )
+    if (!lists.has(key(parent))) {
+      const rect = el.getBoundingClientRect()
+      gaps.push({ parent, index: 0, left: rect.left, right: rect.right, y: rect.top })
+    }
   }
   return gaps
 }
@@ -1088,6 +1130,15 @@ export function InputsFormEditor({
   const g = useGraphEditorStrings()
   const editing = useWorkflowEditing()
   const [store] = useState(createFormStore)
+  // The page each wizard in the form shows, by its list's path as JSON.
+  const [pages, setPages] = useState<Record<string, number>>({})
+  const wizardPages = useMemo<WizardPages>(
+    () => ({
+      page: (wizard) => pages[wizard] ?? 0,
+      setPage: (wizard, index) => setPages((now) => ({ ...now, [wizard]: index })),
+    }),
+    [pages],
+  )
   const containerRef = useRef<HTMLDivElement>(null)
   const latest = useRef({ editor, inputs })
   // Rows read the inputs while they render, so they must see this render's, not the last one's.
@@ -1190,8 +1241,12 @@ export function InputsFormEditor({
           parent.length === 0 ? t.submitLabel : undefined,
         ),
       )
-    const addPage = (parent: InputPath) =>
-      send(addPageEdit(editing, listAt(parent), parent, t.stepTitle))
+    // A page added is the one shown, for its first fields.
+    const addPage = (parent: InputPath) => {
+      const list = listAt(parent)
+      send(addPageEdit(editing, list, parent, t.stepTitle))
+      setPages((now) => ({ ...now, [key(parent)]: pagesIn(list).length }))
+    }
     const unsplitPages = (parent: InputPath) =>
       sendAll(unsplitPagesEdits(listAt(parent), parent, childKeyAt(parent)))
     const openTypeMenu = (
@@ -1809,7 +1864,9 @@ export function InputsFormEditor({
             }}
           >
             {empty && <div className="mb-3 text-sm theme-muted-text">{t.noInputs}</div>}
-            {children}
+            <WizardPagesContext.Provider value={wizardPages}>
+              {children}
+            </WizardPagesContext.Provider>
             <DropIndicator store={store} container={containerRef} />
             <RowResizer api={api} container={containerRef} />
             <Marquee store={store} container={containerRef} />
@@ -1822,16 +1879,23 @@ export function InputsFormEditor({
                   onPointerDown={(e) => api.startDrag(e, null, t.addInput)}
                   onClick={(e) => {
                     const r = e.currentTarget.getBoundingClientRect()
-                    // A wizard draws only its pages, so its new inputs go in the last one.
-                    const last = isWizard(inputs)
-                      ? namesIn(asRecord(inputs))
-                          .filter((name) => asRecord(asRecord(inputs)[name])['type'] === 'step')
-                          .at(-1)
-                      : undefined
+                    // A wizard draws only its pages, so its new inputs go in the last one, shown.
+                    const form = isWizard(inputs) ? pagesIn(inputs) : []
+                    const last = form.at(-1)
+                    if (last) {
+                      wizardPages.setPage('[]', form.length - 1)
+                    }
                     api.openTypeMenu(r.left, r.bottom, last ? [last] : [], Number.MAX_SAFE_INTEGER)
                   }}
                 />
                 <PageActions api={api} parent={[]} list={inputs} bar />
+                {isWizard(inputs) && (
+                  <PageNumber
+                    count={pagesIn(inputs).length}
+                    page={wizardPages.page('[]')}
+                    onChange={(index) => wizardPages.setPage('[]', index)}
+                  />
+                )}
                 {editor.onOpenSettings && <BarDivider />}
               </EditorBar>
             </div>

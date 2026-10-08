@@ -1178,7 +1178,11 @@ function FieldList({
       workflowForm={workflowForm}
     />
   )
-  const add = editing ? <editing.Add parent={editing.parent} /> : null
+  // Each input's bar adds after it, so a list's own add button is only for a list still empty.
+  const add =
+    editing && !names.some((name) => !name.startsWith('$')) ? (
+      <editing.Add parent={editing.parent} />
+    ) : null
   return (
     <ChosenLabelPosition.Provider value={chosen}>
       {flows ? (

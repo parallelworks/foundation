@@ -441,6 +441,7 @@ export const INPUTS_EDITOR_STRINGS = {
   unsplitPages: 'Unsplit pages',
   addPage: 'Add a page after the last',
   page: 'Page',
+  pageNumber: 'Page shown',
   /** The title of a wizard's `count`th page when the editor adds it. */
   stepTitle: (count: number) => `Step ${count}`,
   /** The submit button label of a form the editor splits into pages. */

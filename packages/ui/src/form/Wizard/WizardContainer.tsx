@@ -1,5 +1,5 @@
 import { type FormikValues, useFormikContext } from 'formik'
-import { useCallback } from 'react'
+import { useCallback, useContext, useState } from 'react'
 import { useFormEditing } from '../formEditing'
 import { getValueUsingPath } from '../utils/getValueUsingPath'
 import type { WizardContainerProps } from './types'
@@ -7,6 +7,7 @@ import { useWizardState } from './useWizardState'
 import { WizardNavigation } from './WizardNavigation'
 import { WizardStepContent } from './WizardStepContent'
 import { WizardStepIndicator } from './WizardStepIndicator'
+import { WizardPagesContext } from './wizardPages'
 
 export function WizardContainer({
   wizardConfig,
@@ -28,6 +29,8 @@ export function WizardContainer({
 }) {
   const { validateForm, setTouched, touched } = useFormikContext<FormikValues>()
   const editing = useFormEditing()
+  const pages = useContext(WizardPagesContext)
+  const [ownPage, setOwnPage] = useState(0)
 
   const { config, steps, stepOrder } = wizardConfig
 
@@ -107,15 +110,42 @@ export function WizardContainer({
     await onSubmit?.(values)
   }, [isLastStep, validateForm, values, setTouched, touched, onSubmit])
 
-  // A form builder edits every page at once instead of paging through them.
+  // A form being built pages as it will when run, moving freely: no step blocks the next, every
+  // step can be jumped to, and the editor can turn the pages too.
   if (editing) {
+    const wizardKey = JSON.stringify(editing.parent)
+    const last = Math.max(stepOrder.length - 1, 0)
+    const index = Math.min(Math.max(pages ? pages.page(wizardKey) : ownPage, 0), last)
+    const turn = (to: number) => {
+      const next = Math.min(Math.max(to, 0), last)
+      if (pages) {
+        pages.setPage(wizardKey, next)
+      } else {
+        setOwnPage(next)
+      }
+    }
+    const stepKey = stepOrder[index] ?? ''
+    const stepConfig = steps[stepKey]
     return (
       <div className={className}>
-        {stepOrder.map((stepKey) => {
-          const stepConfig = steps[stepKey]
-          return stepConfig ? (
+        {navigation.showSteps !== false && (
+          <WizardStepIndicator
+            stepOrder={stepOrder}
+            currentStep={stepKey}
+            steps={steps}
+            visitedSteps={new Set(stepOrder)}
+            invalidSteps={new Set()}
+            onStepClick={(key) => {
+              turn(stepOrder.indexOf(key))
+              return true
+            }}
+            allowJump
+            hideStepNumbers={navigation.hideStepNumbers}
+          />
+        )}
+        {stepConfig && (
+          <div className="mb-4">
             <WizardStepContent
-              key={stepKey}
               currentStep={stepKey}
               stepConfig={stepConfig}
               flatten={config.flatten}
@@ -129,8 +159,22 @@ export function WizardContainer({
               setFieldValue={setFieldValue}
               setFieldTouched={setFieldTouched}
             />
-          ) : null
-        })}
+          </div>
+        )}
+        <WizardNavigation
+          isLastStep={index === last}
+          canGoBack={index > 0}
+          isCurrentStepValid
+          nextLabel={stepConfig?.nextLabel}
+          prevLabel={stepConfig?.prevLabel}
+          submitLabel={config.submitLabel || 'Execute'}
+          onNext={async () => {
+            turn(index + 1)
+            return true
+          }}
+          onPrevious={() => turn(index - 1)}
+          onSubmit={nested ? undefined : async () => {}}
+        />
       </div>
     )
   }

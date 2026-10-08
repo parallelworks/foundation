@@ -116,14 +116,19 @@ describe('InputsFormEditor', () => {
     expect(within(row(['name'])).getByText('Text')).toBeInTheDocument()
     expect(within(row(['secret'])).getByText('hidden')).toBeInTheDocument()
     expect(within(row(['settings', 'size'])).getByText('Number')).toBeInTheDocument()
-    expect(screen.getByText('Add input')).toBeInTheDocument()
-    expect(screen.getByText('Add field')).toBeInTheDocument()
+  })
+
+  it('gives only a list still empty its own add button, each input’s bar adding after it', () => {
+    renderForm(editor(), { ...INPUTS, empty: { type: 'group', label: 'Empty', items: {} } })
+    expect(screen.queryByText('Add input')).toBeNull()
+    expect(screen.getAllByText('Add field')).toHaveLength(1)
+    expect(within(row(['empty'])).getByText('Add field')).toBeInTheDocument()
   })
 
   it('adds an input of the picked type at the end once its dialog saves', () => {
     const e = editor()
     renderForm(e)
-    fireEvent.click(screen.getByText('Add input'))
+    fireEvent.click(screen.getByRole('button', { name: 'Input' }))
     pickType('Number')
     expect(screen.getByLabelText('Name')).toHaveValue('input_1')
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -138,7 +143,7 @@ describe('InputsFormEditor', () => {
 
   it('lists the type groups and finds any type by search', () => {
     renderForm(editor())
-    fireEvent.click(screen.getByText('Add input'))
+    fireEvent.click(screen.getByRole('button', { name: 'Input' }))
     const menu = screen.getByRole('menu')
     const types = INPUTS_EDITOR_STRINGS.types as Record<string, string>
     const labels = () =>
@@ -189,7 +194,9 @@ describe('InputsFormEditor', () => {
   it('adds a field inside a group', () => {
     const e = editor()
     renderForm(e)
-    fireEvent.click(screen.getByText('Add field'))
+    fireEvent.click(
+      within(row(['settings', 'size'])).getByRole('button', { name: 'Add input below' }),
+    )
     pickType('Switch')
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(e.onEdit).toHaveBeenCalledWith(
@@ -259,8 +266,9 @@ describe('InputsFormEditor', () => {
     } as typeof INPUTS)
     expect(within(row(['advanced'])).getAllByText('hidden')).toHaveLength(1)
     expect(within(row(['advanced', 'depth'])).queryByText('hidden')).toBeNull()
-    const adds = within(row(['advanced'])).getAllByText('Add field')
-    fireEvent.click(adds[0] as HTMLElement)
+    fireEvent.click(
+      within(row(['advanced', 'depth'])).getByRole('button', { name: 'Add input below' }),
+    )
     pickType('Text')
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(e.onEdit).toHaveBeenCalledWith(
@@ -268,7 +276,7 @@ describe('InputsFormEditor', () => {
     )
   })
 
-  it('edits every wizard page at once', () => {
+  it('pages a wizard as it runs, turned by its own controls and the bar’s page number', () => {
     renderForm(editor(), {
       $meta: { wizard: { mode: 'wizard' } },
       first: {
@@ -283,8 +291,18 @@ describe('InputsFormEditor', () => {
       },
     } as unknown as typeof INPUTS)
     expect(row(['first', 'a'])).toBeInTheDocument()
+    expect(
+      document.querySelector(`[data-input-path='${JSON.stringify(['second', 'b'])}']`),
+    ).toBeNull()
+    fireEvent.change(screen.getByLabelText('Page shown'), { target: { value: '2' } })
     expect(row(['second', 'b'])).toBeInTheDocument()
     expect(within(row(['second'])).getByText('Wizard step')).toBeInTheDocument()
+    expect(
+      document.querySelector(`[data-input-path='${JSON.stringify(['first', 'a'])}']`),
+    ).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Go to previous step' }))
+    expect(row(['first', 'a'])).toBeInTheDocument()
+    expect(screen.getByLabelText('Page shown')).toHaveValue(1)
   })
 
   it('offers the form’s inputs to a setting that reads one', () => {
@@ -507,7 +525,7 @@ describe('InputsFormEditor', () => {
         : real.call(this)
     })
     renderForm(editor())
-    fireEvent.click(screen.getByText('Add input'))
+    fireEvent.click(screen.getByRole('button', { name: 'Input' }))
     fireEvent.mouseEnter(within(screen.getByRole('menu')).getByText('Layout'))
     const panel = screen.getByText('Wizard step').closest('.-top-1')
     expect(panel).toHaveStyle({ transform: 'translateY(-148px)' })
@@ -517,7 +535,7 @@ describe('InputsFormEditor', () => {
   it('adds a wizard step outside a wizard as a wizard of its own, in a group', () => {
     const e = editor({ openOnAdd: false, onOpenOnAddChange: vi.fn() })
     renderForm(e)
-    fireEvent.click(screen.getByText('Add input'))
+    fireEvent.click(screen.getByRole('button', { name: 'Input' }))
     const menu = screen.getByRole('menu')
     fireEvent.click(within(menu).getByText('Layout'))
     fireEvent.click(within(menu).getByText('Wizard step'))
@@ -601,7 +619,7 @@ describe('InputsFormEditor', () => {
     const e = editor()
     renderForm(e, PAGED)
     expect(screen.queryByRole('button', { name: 'Split into pages' })).toBeNull()
-    fireEvent.click(screen.getByText('Page'))
+    fireEvent.click(screen.getByRole('button', { name: 'Page' }))
     expect(e.onEdit).toHaveBeenCalledWith({
       type: 'addInput',
       parent: [],
@@ -686,7 +704,7 @@ describe('InputsFormEditor', () => {
   it('adds an input straight away when new ones skip their dialog', () => {
     const e = editor({ openOnAdd: false, onOpenOnAddChange: vi.fn() })
     renderForm(e)
-    fireEvent.click(screen.getByText('Add input'))
+    fireEvent.click(screen.getByRole('button', { name: 'Input' }))
     pickType('Number')
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(e.onEdit).toHaveBeenCalledWith({
