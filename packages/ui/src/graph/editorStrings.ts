@@ -80,7 +80,7 @@ export const GRAPH_EDITOR_STRINGS = {
     pickJob: 'Select the focused job',
     pickDependency: 'Select the focused dependency',
     moveInput:
-      'Move the input, or all the selected ones. Drag sideways onto another input’s edge to put them side by side',
+      'Move the input, or all the selected ones. Drop on another input’s left or right side to put them side by side',
     resizeInputs: 'Change how much of the line each input takes',
     addInput: 'Add an input where you drop it',
     editInput: "Open the selected input's settings",
