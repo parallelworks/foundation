@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/parallelworks/foundation/compare/dev/v0.12.0...dev/v0.13.0) (2026-10-08)
+
+
+### Features
+
+* **dev:** the global dev runs itself where a repository pins an older one ([#165](https://github.com/parallelworks/foundation/issues/165)) ([db0d718](https://github.com/parallelworks/foundation/commit/db0d71824a4d8d952cb2c258bae114c1b4591cda))
+
 ## [0.12.0](https://github.com/parallelworks/foundation/compare/dev/v0.11.1...dev/v0.12.0) (2026-10-08)
 
 
