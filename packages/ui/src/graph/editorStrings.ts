@@ -437,6 +437,11 @@ export const INPUTS_EDITOR_STRINGS = {
   addInput: 'Input',
   addInputHint: 'Drag into the form to add an input, or click to pick its type',
   addInputHere: 'Add input',
+  splitIntoPages: 'Split into pages',
+  /** The title of the first page a form split into pages, or a new wizard, starts with. */
+  firstStep: 'Step 1',
+  /** The label of the group a wizard step added outside a wizard comes in. */
+  stepsGroup: 'Steps',
   addInputBelow: 'Add input below',
   addField: 'Add field',
   inputActions: 'Input actions',
@@ -587,7 +592,7 @@ export const INPUTS_EDITOR_STRINGS = {
     description: 'Description',
     tooltip: 'Tooltip',
     width: 'Width',
-    below: 'Below the input before it',
+    under: 'Under',
     optional: 'Optional',
     hidden: 'Hidden',
     disabled: 'Read-only',
@@ -641,8 +646,8 @@ export const INPUTS_EDITOR_STRINGS = {
     tooltip: 'Extra help shown when users hover over the field’s info icon.',
     width:
       'How wide the field is: a number of pixels, such as 320, or a share of the row, such as 50%. Fields whose widths fit side by side share a row. Empty means the full width.',
-    below:
-      'Puts the field under the input before it, in that input’s column, when that input shares a row.',
+    under:
+      'The name of an input listed before this one. This field goes under it, in its column, and can be no wider than it. Empty means a column of its own.',
     default: 'The value the field starts with.',
     defaultList: 'The values picked when the form opens.',
     defaultResource: 'What’s picked when the form opens, by its resource address.',

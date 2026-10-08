@@ -485,6 +485,55 @@ describe('InputsFormEditor', () => {
     )
   })
 
+  it('adds a wizard step outside a wizard as a wizard of its own, in a group', () => {
+    const e = editor({ openOnAdd: false, onOpenOnAddChange: vi.fn() })
+    renderForm(e)
+    fireEvent.click(screen.getByText('Add input'))
+    const menu = screen.getByRole('menu')
+    fireEvent.click(within(menu).getByText('Layout'))
+    fireEvent.click(within(menu).getByText('Wizard step'))
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'addInput',
+      parent: [],
+      index: 3,
+      name: 'input_1',
+      definition: {
+        type: 'group',
+        label: 'Steps',
+        flatten: true,
+        items: {
+          $meta: { wizard: { mode: 'wizard' } },
+          step_1: { type: 'step', title: 'Step 1', options: {} },
+        },
+      },
+    })
+  })
+
+  it('splits the form into pages, its inputs starting the first one', () => {
+    const e = editor()
+    renderForm(e)
+    fireEvent.click(screen.getByText('Split into pages'))
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'batch',
+      edits: [
+        { type: 'updateWorkflow', inputsMeta: { set: { wizard: { mode: 'wizard' } } } },
+        {
+          type: 'addInput',
+          parent: [],
+          index: 0,
+          name: 'step_1',
+          definition: { type: 'step', title: 'Step 1', options: {} },
+        },
+        {
+          type: 'moveInputs',
+          paths: [['name'], ['secret'], ['settings']],
+          parent: ['step_1'],
+          index: 0,
+        },
+      ],
+    })
+  })
+
   it('adds an input straight away when new ones skip their dialog', () => {
     const e = editor({ openOnAdd: false, onOpenOnAddChange: vi.fn() })
     renderForm(e)
@@ -921,21 +970,21 @@ describe('InputDialog', () => {
     )
   })
 
-  it('offers a width, and a place below the input before, on every input but a wizard step', () => {
+  it('offers a width, and an input to go under, on every input but a wizard step', () => {
     for (const type of inputTypes()) {
       expect(offeredInputKeys(parser, type).includes('width')).toBe(type !== 'step')
-      expect(offeredInputKeys(parser, type).includes('below')).toBe(type !== 'step')
+      expect(offeredInputKeys(parser, type).includes('under')).toBe(type !== 'step')
     }
   })
 
-  it('puts an input below the one before it from its dialog', () => {
+  it('puts an input under the one named in its dialog', () => {
     const onSave = open({ type: 'string' })
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Below the input before it' }))
+    fireEvent.change(screen.getByLabelText('Under'), { target: { value: 'epochs' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(onSave).toHaveBeenCalledWith(
       'field',
-      { type: 'string', below: true },
-      { set: { below: true }, unset: [] },
+      { type: 'string', under: 'epochs' },
+      { set: { under: 'epochs' }, unset: [] },
       [],
     )
   })
@@ -1579,14 +1628,14 @@ describe('inputs side by side', () => {
       edits: [
         { type: 'updateInput', path: ['a'], set: { width: '50%' } },
         { type: 'updateInput', path: ['b'], set: { width: '50%' } },
-        { type: 'updateInput', path: ['c'], set: { below: true }, unset: ['width'] },
+        { type: 'updateInput', path: ['c'], set: { under: 'b' }, unset: ['width'] },
       ],
     })
   })
 
   it('moves the next input up to head a column when its head leaves', () => {
     const e = editor()
-    render(e, { ...HALVES, c: { type: 'string', label: 'C', below: true } })
+    render(e, { ...HALVES, c: { type: 'string', label: 'C', under: 'b' } })
     layOut({ a: [0, 0, 292, 40], b: [308, 0, 292, 40], c: [308, 50, 292, 40] })
     expect(row(['c']).parentElement).toBe(row(['b']).parentElement)
     drag(handleOf('b'), [400, 5], [300, 140])
@@ -1594,7 +1643,7 @@ describe('inputs side by side', () => {
       type: 'batch',
       edits: [
         { type: 'moveInputs', paths: [['b']], parent: [], index: 3 },
-        { type: 'updateInput', path: ['c'], set: { width: '50%' }, unset: ['below'] },
+        { type: 'updateInput', path: ['c'], set: { width: '50%' }, unset: ['under'] },
         { type: 'updateInput', path: ['b'], unset: ['width'] },
       ],
     })
@@ -1612,12 +1661,12 @@ describe('inputs side by side', () => {
       parent: [],
       index: 2,
       name: 'input_1',
-      definition: { type: 'number', below: true },
+      definition: { type: 'number', under: 'b' },
     })
   })
 
   it('opens the toolbar of every column’s head on a line of several', () => {
-    render(editor(), { ...HALVES, c: { type: 'string', label: 'C', below: true } })
+    render(editor(), { ...HALVES, c: { type: 'string', label: 'C', under: 'b' } })
     layOut({ a: [0, 0, 292, 40], b: [308, 0, 292, 40], c: [308, 50, 292, 40] })
     fireEvent.pointerOver(row(['c']))
     const open = (name: string) =>

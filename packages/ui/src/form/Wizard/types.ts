@@ -74,6 +74,10 @@ export interface WizardContainerProps {
   spaceCompact?: boolean
   /** Workflow form mode */
   workflowForm?: boolean
+  /** A wizard inside a group submits with the form around it, so its last step has no submit. */
+  nested?: boolean
+  /** Where the fields' values sit when the wizard is inside a group that keeps its own values. */
+  fieldNamePrefix?: string | undefined
 }
 
 /**
@@ -118,8 +122,8 @@ export interface WizardNavigationProps {
   onNext: () => Promise<boolean>
   /** Callback to go to previous step */
   onPrevious: () => void
-  /** Callback to submit wizard */
-  onSubmit: () => Promise<void>
+  /** Callback to submit wizard; without one the last step has no button of its own */
+  onSubmit?: (() => Promise<void>) | undefined
 }
 
 /**
@@ -140,4 +144,6 @@ export interface WizardStepContentProps {
   spaceCompact?: boolean
   /** Workflow form mode */
   workflowForm?: boolean
+  /** Where the fields' values sit when the wizard is inside a group that keeps its own values. */
+  fieldNamePrefix?: string | undefined
 }

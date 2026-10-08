@@ -1,15 +1,12 @@
 import { type FormikValues, useFormikContext } from 'formik'
 import { useCallback } from 'react'
 import { useFormEditing } from '../formEditing'
+import { getValueUsingPath } from '../utils/getValueUsingPath'
 import type { WizardContainerProps } from './types'
 import { useWizardState } from './useWizardState'
 import { WizardNavigation } from './WizardNavigation'
 import { WizardStepContent } from './WizardStepContent'
 import { WizardStepIndicator } from './WizardStepIndicator'
-
-function hasNestedError(stepErrors: unknown, fieldName: string): boolean {
-  return typeof stepErrors === 'object' && stepErrors !== null && fieldName in stepErrors
-}
 
 export function WizardContainer({
   wizardConfig,
@@ -21,6 +18,8 @@ export function WizardContainer({
   missingFields = [],
   spaceCompact = false,
   workflowForm = false,
+  nested = false,
+  fieldNamePrefix = '',
   setFieldValue,
   setFieldTouched,
 }: WizardContainerProps & {
@@ -39,31 +38,30 @@ export function WizardContainer({
         return true
       }
 
-      // Get all field names in this step
-      const stepFieldNames = Object.keys(stepConfig.options)
-      const shouldFlatten = config.flatten !== false
+      // Where the step's fields keep their values: where the wizard's do, or under the step's name.
+      const stepPrefix =
+        config.flatten !== false ? fieldNamePrefix : `${fieldNamePrefix}${stepKey}.`
+      const stepFieldPaths = Object.keys(stepConfig.options).map((name) => `${stepPrefix}${name}`)
 
       // Validate all fields and collect errors
       const errors = await validateForm()
-
-      // Check if any step fields have errors
-      const hasStepErrors = shouldFlatten
-        ? stepFieldNames.some((fieldName) => errors[fieldName])
-        : stepFieldNames.some((fieldName) => hasNestedError(errors[stepKey], fieldName))
+      const hasStepErrors = stepFieldPaths.some((path) => getValueUsingPath(errors, path))
 
       // Mark fields as touched to show errors
       if (hasStepErrors) {
-        const touchedFields = Object.fromEntries(stepFieldNames.map((name) => [name, true]))
-        if (shouldFlatten) {
-          setTouched({ ...touched, ...touchedFields }, false)
+        if (stepPrefix) {
+          for (const path of stepFieldPaths) {
+            setFieldTouched(path, true, false)
+          }
         } else {
-          setTouched({ ...touched, [stepKey]: touchedFields }, false)
+          const touchedFields = Object.fromEntries(stepFieldPaths.map((path) => [path, true]))
+          setTouched({ ...touched, ...touchedFields }, false)
         }
       }
 
       return !hasStepErrors
     },
-    [steps, config, validateForm, setTouched, touched],
+    [steps, config, fieldNamePrefix, validateForm, setTouched, setFieldTouched, touched],
   )
 
   const {
@@ -127,6 +125,7 @@ export function WizardContainer({
               spaceCompact={spaceCompact}
               setFormDirty={() => onChange?.(values)}
               workflowForm={workflowForm}
+              fieldNamePrefix={fieldNamePrefix}
               setFieldValue={setFieldValue}
               setFieldTouched={setFieldTouched}
             />
@@ -165,6 +164,7 @@ export function WizardContainer({
             spaceCompact={spaceCompact}
             setFormDirty={() => onChange?.(values)}
             workflowForm={workflowForm}
+            fieldNamePrefix={fieldNamePrefix}
             setFieldValue={setFieldValue}
             setFieldTouched={setFieldTouched}
           />
@@ -181,7 +181,7 @@ export function WizardContainer({
         submitLabel={config.submitLabel || 'Execute'}
         onNext={handleGoToNext}
         onPrevious={goToPrevious}
-        onSubmit={handleSubmit}
+        onSubmit={nested ? undefined : handleSubmit}
       />
     </div>
   )

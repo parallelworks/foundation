@@ -36,6 +36,7 @@ vi.mock('@parallelworks/ui', async () => ({
 
 vi.mock('@parallelworks/ui/icons', () => ({
   AngleRightIcon: () => null,
+  LoaderIcon: () => null,
   SuccessCheckmark: () => null,
   TrashIcon: () => null,
 }))
@@ -232,7 +233,7 @@ describe('input widths', () => {
     expect(container.querySelector('[data-input-cell]')).toBeNull()
   })
 
-  it('gives each input a cell as wide as its width, and full width without one', async () => {
+  it('gives each input a cell as wide as its width, full width without one, and only pixels in a narrow list', async () => {
     render(
       <DynamicForm
         initialValues={{}}
@@ -244,12 +245,12 @@ describe('input widths', () => {
       />,
     )
     await screen.findByTestId('field-half')
-    expect(cellOf('half')).toHaveStyle({ '--input-width': '50%' })
-    expect(cellOf('fixed')).toHaveStyle({ '--input-width': '320px' })
-    expect(cellOf('whole')).toHaveStyle({ '--input-width': '100%' })
+    expect(cellOf('half')).toHaveStyle({ '--input-width': '50%', '--input-narrow': '100%' })
+    expect(cellOf('fixed')).toHaveStyle({ '--input-width': '320px', '--input-narrow': '320px' })
+    expect(cellOf('whole')).toHaveStyle({ '--input-width': '100%', '--input-narrow': '100%' })
   })
 
-  it('puts an input marked below in the column of the shown one before it', async () => {
+  it('puts an input under the one it names, in that one’s column at its own width', async () => {
     render(
       <DynamicForm
         initialValues={{}}
@@ -257,15 +258,39 @@ describe('input widths', () => {
           a: { type: 'string', width: '50%' },
           b: { type: 'string', width: '50%' },
           h: { type: 'string', hidden: true },
-          c: { type: 'string', below: true, width: '25%' },
+          c: { type: 'string', under: 'b', width: '25%' },
+          d: { type: 'string', under: 'c' },
         }}
       />,
     )
     await screen.findByTestId('field-c')
     expect(cellOf('c')).toBe(cellOf('b'))
+    expect(cellOf('d')).toBe(cellOf('b'))
     expect(cellOf('a')).not.toBe(cellOf('b'))
     expect(cellOf('b')).toHaveStyle({ '--input-width': '50%' })
+    expect(screen.getByTestId('field-c').closest('[data-input-member]')).toHaveStyle({
+      '--input-width': 'calc(25cqw - 1rem)',
+      '--input-narrow': '100%',
+    })
+    expect(screen.getByTestId('field-d').closest('[data-input-member]')).toBeNull()
     expect(labelOf('c')).toBe('top')
+  })
+
+  it('gives an input under one listed after it, or under none of its list, a column of its own', async () => {
+    render(
+      <DynamicForm
+        initialValues={{}}
+        formJSONs={{
+          a: { type: 'string', under: 'b', width: '50%' },
+          b: { type: 'string', width: '50%' },
+          c: { type: 'string', under: 'missing' },
+        }}
+      />,
+    )
+    await screen.findByTestId('field-a')
+    expect(cellOf('a')).not.toBe(cellOf('b'))
+    expect(cellOf('c')).not.toBe(cellOf('b'))
+    expect(cellOf('c')).toHaveStyle({ '--input-width': '100%' })
   })
 
   it('puts the label of an input sharing its row on top when the workflow chose no position', async () => {
@@ -312,6 +337,36 @@ describe('input widths', () => {
     expect(labelOf('half')).toBe('left')
     expect(labelOf('inner')).toBe('left')
     expect(labelOf('own')).toBe('top')
+  })
+})
+
+describe('a wizard inside a group', () => {
+  it('pages its fields inside the form, with no submit of its own', async () => {
+    render(
+      <DynamicForm
+        initialValues={{}}
+        formJSONs={{
+          before: { type: 'string' },
+          steps: {
+            type: 'group',
+            label: 'Steps',
+            options: {
+              $meta: { wizard: { mode: 'wizard' } },
+              one: { type: 'step', title: 'One', options: { a: { type: 'string' } } },
+              two: { type: 'step', title: 'Two', options: { b: { type: 'string' } } },
+            },
+          },
+        }}
+      />,
+    )
+    await screen.findByTestId('field-a')
+    expect(screen.getByTestId('field-before')).toBeInTheDocument()
+    expect(screen.queryByTestId('field-b')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Go to next step' }))
+    await screen.findByTestId('field-b')
+    expect(screen.queryByTestId('field-a')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Go to previous step' })).toBeEnabled()
+    expect(screen.getAllByRole('button').some((b) => b.textContent === 'Execute')).toBe(false)
   })
 })
 

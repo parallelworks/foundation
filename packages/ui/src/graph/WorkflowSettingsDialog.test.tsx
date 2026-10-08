@@ -107,19 +107,32 @@ describe('WorkflowSettingsDialog', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
   })
 
-  it('edits the input form layout in the same step', () => {
+  it('edits the input form layout in the same step, the inputs starting the first page', () => {
     const onEdit = open()
     fireEvent.click(screen.getByText(GRAPH_EDITOR_STRINGS.labelsBeside))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Split into pages' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(onEdit).toHaveBeenCalledWith({
-      type: 'updateWorkflow',
-      set: {},
-      unset: [],
-      inputsMeta: {
-        set: { wizard: { mode: 'wizard' } },
-        unset: ['labelPosition'],
-      },
+      type: 'batch',
+      edits: [
+        {
+          type: 'updateWorkflow',
+          set: {},
+          unset: [],
+          inputsMeta: {
+            set: { wizard: { mode: 'wizard' } },
+            unset: ['labelPosition'],
+          },
+        },
+        {
+          type: 'addInput',
+          parent: [],
+          index: 0,
+          name: 'step_1',
+          definition: { type: 'step', title: 'Step 1', options: {} },
+        },
+        { type: 'moveInputs', paths: [['x']], parent: ['step_1'], index: 0 },
+      ],
     })
   })
 

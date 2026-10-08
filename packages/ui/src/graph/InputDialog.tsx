@@ -375,15 +375,15 @@ const TYPE_PROPS: Record<string, Prop[]> = {
 
 const TEXT_FIELDS = ['label', 'description', 'tooltip'] as const
 const FLAG_FIELDS = ['optional', 'hidden', 'disabled', 'ignore'] as const
-type CommonKey = (typeof TEXT_FIELDS)[number] | 'width' | 'below' | (typeof FLAG_FIELDS)[number]
+type CommonKey = (typeof TEXT_FIELDS)[number] | 'width' | 'under' | (typeof FLAG_FIELDS)[number]
 
 // Which shared keys each type takes, per the workflow schema.
 const COMMON_KEYS: Record<string, CommonKey[]> = {
-  group: ['label', 'description', 'tooltip', 'width', 'below', 'hidden', 'ignore'],
-  header: ['label', 'description', 'tooltip', 'width', 'below', 'hidden'],
+  group: ['label', 'description', 'tooltip', 'width', 'under', 'hidden', 'ignore'],
+  header: ['label', 'description', 'tooltip', 'width', 'under', 'hidden'],
   step: ['description'],
 }
-const ALL_COMMON: CommonKey[] = [...TEXT_FIELDS, 'width', 'below', ...FLAG_FIELDS]
+const ALL_COMMON: CommonKey[] = [...TEXT_FIELDS, 'width', 'under', ...FLAG_FIELDS]
 
 // Keys this dialog manages; anything else on an input is left untouched.
 const KNOWN_KEYS = new Set<string>([
@@ -1597,8 +1597,8 @@ function commonProp(key: CommonKey): Prop {
   if (key === 'width') {
     return { key, kind: 'width', help: 'width' }
   }
-  if (key === 'below') {
-    return { key, kind: 'bool', help: 'below' }
+  if (key === 'under') {
+    return { key, kind: 'text', help: 'under' }
   }
   const flag = (FLAG_FIELDS as readonly string[]).includes(key)
   return {
@@ -1798,6 +1798,8 @@ interface InputDialogProps {
   isNew: boolean
   /** Names already taken in the same container. */
   siblings: string[]
+  /** The inputs listed before this one, which it can go under. */
+  anchors?: string[] | undefined
   allowStep: boolean
   /** The workflow's inputs, for settings that read another input. */
   inputs?: Json | undefined
@@ -1994,6 +1996,7 @@ function InputForm({
   definition,
   isNew,
   siblings,
+  anchors = [],
   allowStep,
   inputs,
   home,
@@ -2161,7 +2164,7 @@ function InputForm({
       original={definition[prop.key]}
       error={errors[draftKey(prop)]}
       onChange={(value) => setDraft(draftKey(prop), value)}
-      suggestions={prop.key === 'default' ? optionValues : []}
+      suggestions={prop.key === 'default' ? optionValues : prop.key === 'under' ? anchors : []}
       inputType={type}
       optionRows={optionRows}
       source={newInputs.source}
@@ -2176,7 +2179,7 @@ function InputForm({
     (prop) =>
       ((TEXT_FIELDS as readonly string[]).includes(prop.key) ||
         prop.key === 'width' ||
-        prop.key === 'below') &&
+        prop.key === 'under') &&
       isCommon(prop),
   )
   const behaviorProps = props.filter(

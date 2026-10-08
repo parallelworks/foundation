@@ -20,6 +20,7 @@ import {
   DragHandleIcon,
   DuplicateIcon,
   EditIcon,
+  FilesIcon,
   MinusIcon,
   MoreIcon,
   TrashIcon,
@@ -56,6 +57,7 @@ import {
   TypeBadge,
   withCreatedInputs,
 } from './InputDialog'
+import { isWizard, splitIntoPagesEdits, stepAllowedIn, wizardGroupDefinition } from './inputPages'
 import {
   type Change,
   type Column,
@@ -64,6 +66,7 @@ import {
   dropChanges,
   type Line,
   linesIn,
+  reorderChanges,
   rowsOf,
   snapSplit,
 } from './inputRows'
@@ -75,9 +78,26 @@ interface Placement {
   edits: GraphEdit[]
 }
 
+// A placement names the input not made yet '', so an input going under it waits for its name.
+function placementEdits(placement: Placement | undefined, name: string): GraphEdit[] {
+  return (placement?.edits ?? []).map((edit) =>
+    edit.type === 'updateInput' && edit.set?.['under'] === ''
+      ? { ...edit, set: { ...edit.set, under: name } }
+      : edit,
+  )
+}
+
 type Dialog =
   | { kind: 'edit'; path: InputPath }
-  | { kind: 'create'; parent: InputPath; index: number; type: string; placement?: Placement }
+  | {
+      kind: 'create'
+      parent: InputPath
+      index: number
+      type: string
+      /** In place of the type's own starting definition. */
+      definition?: Json
+      placement?: Placement
+    }
 
 /** Where a dragged input would land: before `index` of `parent`. */
 interface Gap {
@@ -189,6 +209,8 @@ interface InputsEditorApi {
   navigate: (direction: Direction, extend: boolean) => boolean
   /** Opens the hovered row's toolbar, and each column head's on a line of several. */
   hover: (rowKey: string) => void
+  /** Makes the form a wizard, its inputs outside a step going into a first one. */
+  splitIntoPages: () => void
 }
 
 const ApiContext = createContext<InputsEditorApi | null>(null)
@@ -463,14 +485,15 @@ function InputRow({
   )
 }
 
-/** The add button that ends each list of inputs. */
+/** The add button that ends each list of inputs; the form's own also offers to split it into pages. */
 function AddInput({ parent }: { parent: InputPath }) {
   const api = useContext(ApiContext)
+  const inputs = useContext(InputsContext)
   const t = useInputsEditorStrings()
   if (!api) {
     return null
   }
-  return (
+  const add = (
     <button
       type="button"
       data-input-add={key(parent)}
@@ -483,6 +506,23 @@ function AddInput({ parent }: { parent: InputPath }) {
       <AddIcon className="h-3 w-3" />
       {parent.length === 0 ? t.addInputHere : t.addField}
     </button>
+  )
+  if (parent.length > 0 || isWizard(inputs)) {
+    return add
+  }
+  return (
+    <div className="flex items-start gap-4">
+      {add}
+      <button
+        type="button"
+        data-input-chrome
+        className="mb-[15px] flex cursor-pointer items-center gap-1.5 text-[13px] theme-muted-text hover:text-(--theme-link)"
+        onClick={api.splitIntoPages}
+      >
+        <FilesIcon className="h-3 w-3" />
+        {t.splitIntoPages}
+      </button>
+    </div>
   )
 }
 
@@ -1045,22 +1085,44 @@ export function InputsFormEditor({
       )
     const create = (parent: InputPath, index: number, type: string, placement?: Placement) => {
       const { editor, inputs } = latest.current
+      const container = containerAt(editing, inputs, parent)
+      const ownWizard =
+        type === 'step' && !isWizard(container)
+          ? wizardGroupDefinition(t.stepsGroup, t.firstStep)
+          : undefined
       if (editor.openOnAdd === false) {
+        const name = nextInputName(editing, inputs)
         const add: GraphEdit = {
           type: 'addInput',
           parent,
-          index: Math.min(index, namesIn(containerAt(editing, inputs, parent)).length),
-          name: nextInputName(editing, inputs),
-          definition: { ...newInputDefinition(type), ...placement?.keys },
+          index: Math.min(index, namesIn(container).length),
+          name,
+          definition: { ...(ownWizard ?? newInputDefinition(type)), ...placement?.keys },
         }
         // The add goes last, so the batch reports the input it created.
-        send(placement?.edits.length ? { type: 'batch', edits: [...placement.edits, add] } : add)
+        send(
+          placement?.edits.length
+            ? { type: 'batch', edits: [...placementEdits(placement, name), add] }
+            : add,
+        )
         return
       }
       store.set({
-        dialog: { kind: 'create', parent, index, type, ...(placement ? { placement } : {}) },
+        dialog: {
+          kind: 'create',
+          parent,
+          index,
+          type: ownWizard ? 'group' : type,
+          ...(ownWizard ? { definition: ownWizard } : {}),
+          ...(placement ? { placement } : {}),
+        },
       })
     }
+    const splitIntoPages = () =>
+      send({
+        type: 'batch',
+        edits: splitIntoPagesEdits(editing, latest.current.inputs, t.firstStep),
+      })
     const openTypeMenu = (
       x: number,
       y: number,
@@ -1071,7 +1133,9 @@ export function InputsFormEditor({
       openMenu(
         x,
         y,
-        typeMenu(t, parent.length === 0, (type) => create(parent, index, type, placement)),
+        typeMenu(t, stepAllowedIn(definition, parent), (type) =>
+          create(parent, index, type, placement),
+        ),
         undefined,
         typeSearch(t),
       )
@@ -1102,9 +1166,7 @@ export function InputsFormEditor({
     })
     const changesOf = (moving: InputPath[], drop: Drop) => {
       const root = containerRef.current
-      return root
-        ? dropChanges(linesIn(root), moving, drop, (path) => definition(path)['width'])
-        : new Map<string, Change>()
+      return root ? dropChanges(linesIn(root), moving, drop, definition) : new Map<string, Change>()
     }
     // A drop's changes as edits, each at the path its input has once the drop has moved it.
     const layoutEdits = (
@@ -1133,6 +1195,26 @@ export function InputsFormEditor({
         edits.push({ type: 'updateInput', path: at, ...patch })
       }
       return edits
+    }
+    // A move along the list, rather than onto a spot, keeps each column's inputs together.
+    const keepingColumns = (parent: InputPath, moved: string[], index: number): GraphEdit => {
+      const names = namesIn(containerAt(editing, latest.current.inputs, parent))
+      const stay = (from: number, to?: number) =>
+        names.slice(from, to).filter((name) => !moved.includes(name))
+      const after = [...stay(0, index), ...moved, ...stay(index)]
+      const changes = reorderChanges(names, after, (name) => definition([...parent, name]))
+      const move: GraphEdit = {
+        type: 'moveInputs',
+        paths: moved.map((name) => [...parent, name]),
+        parent,
+        index,
+      }
+      const edits = layoutEdits(
+        new Map([...changes].map(([name, change]) => [key([...parent, name]), change])),
+        [],
+        { parent, index },
+      )
+      return edits.length > 0 ? { type: 'batch', edits: [move, ...edits] } : move
     }
     // A new input dropped beside or into a column takes its keys there from the same rules.
     const placementOf = (gap: Gap): Placement | undefined => {
@@ -1191,7 +1273,13 @@ export function InputsFormEditor({
       if (index < 0 || index > count) {
         return false
       }
-      send({ type: 'moveInputs', paths, parent, index })
+      send(
+        keepingColumns(
+          parent,
+          paths.map((path) => path.at(-1) ?? ''),
+          index,
+        ),
+      )
       return true
     }
 
@@ -1280,7 +1368,9 @@ export function InputsFormEditor({
           kind: 'submenu',
           label: t.addInputBelow,
           icon: <AddIcon />,
-          items: typeMenu(t, parent.length === 0, (type) => create(parent, index + 1, type)),
+          items: typeMenu(t, stepAllowedIn(definition, parent), (type) =>
+            create(parent, index + 1, type),
+          ),
           search: typeSearch(t),
         },
         {
@@ -1294,26 +1384,14 @@ export function InputsFormEditor({
           label: t.moveUp,
           icon: <ArrowUpIcon />,
           disabled: index <= 0,
-          onSelect: () =>
-            send({
-              type: 'moveInputs',
-              paths: [path],
-              parent,
-              index: index - 1,
-            }),
+          onSelect: () => send(keepingColumns(parent, [path.at(-1) ?? ''], index - 1)),
         },
         {
           kind: 'action',
           label: t.moveDown,
           icon: <ArrowDownIcon />,
           disabled: index >= count - 1,
-          onSelect: () =>
-            send({
-              type: 'moveInputs',
-              paths: [path],
-              parent,
-              index: index + 2,
-            }),
+          onSelect: () => send(keepingColumns(parent, [path.at(-1) ?? ''], index + 2)),
         },
         { kind: 'divider' },
         {
@@ -1446,6 +1524,7 @@ export function InputsFormEditor({
         )
         store.set({ hovered: rowKey, open: [...new Set([rowKey, ...(heads ?? [])])] })
       },
+      splitIntoPages,
       editSelection: () => {
         const [only, ...more] = store.get().selection
         if (only === undefined || more.length > 0) {
@@ -1859,10 +1938,14 @@ function Dialogs({
       <InputDialog
         key={`create:${key(dialog.parent)}:${dialog.index}`}
         name={nextInputName(editing, inputs)}
-        definition={{ ...newInputDefinition(dialog.type), ...placement?.keys }}
+        definition={{
+          ...(dialog.definition ?? newInputDefinition(dialog.type)),
+          ...placement?.keys,
+        }}
         isNew
         siblings={siblings}
-        allowStep={dialog.parent.length === 0}
+        anchors={siblings.slice(0, index)}
+        allowStep={isWizard(containerAt(editing, inputs, dialog.parent))}
         inputs={inputs}
         home={home}
         onClose={close}
@@ -1874,7 +1957,7 @@ function Dialogs({
             editor.onEdit({
               type: 'batch',
               edits: [
-                ...(placement?.edits ?? []),
+                ...placementEdits(placement, name),
                 {
                   type: 'addInput',
                   parent: dialog.parent,
@@ -1900,7 +1983,9 @@ function Dialogs({
             definition,
           }
           save(
-            placement?.edits.length ? { type: 'batch', edits: [...placement.edits, add] } : add,
+            placement?.edits.length
+              ? { type: 'batch', edits: [...placementEdits(placement, name), add] }
+              : add,
             created,
             home,
           )
@@ -1922,7 +2007,8 @@ function Dialogs({
       definition={asRecord(container[name])}
       isNew={false}
       siblings={namesIn(container).filter((other) => other !== name)}
-      allowStep={path.length === 1}
+      anchors={namesIn(container).slice(0, namesIn(container).indexOf(name))}
+      allowStep={isWizard(container)}
       inputs={inputs}
       home={home}
       onClose={close}

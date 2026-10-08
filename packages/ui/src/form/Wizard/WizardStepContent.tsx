@@ -11,6 +11,7 @@ export function WizardStepContent({
   setFormDirty,
   setFieldValue,
   setFieldTouched,
+  fieldNamePrefix = '',
   ...fieldsProps
 }: WizardStepContentProps & {
   setFormDirty: TSetFormDirty
@@ -48,10 +49,17 @@ export function WizardStepContent({
             ? {
                 parentInfo: {
                   parentName: currentStep,
-                  fieldNamePrefix: `${currentStep}.`,
+                  fieldNamePrefix: `${fieldNamePrefix}${currentStep}.`,
                 },
               }
-            : {})}
+            : fieldNamePrefix
+              ? {
+                  parentInfo: {
+                    parentName: fieldNamePrefix.slice(0, -1),
+                    fieldNamePrefix,
+                  },
+                }
+              : {})}
           {...fieldsProps}
         />
       </EditingScope>

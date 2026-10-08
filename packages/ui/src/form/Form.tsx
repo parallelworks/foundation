@@ -59,7 +59,7 @@ interface SchemaField {
   computeOn?: boolean
   tooltip?: string | string[]
   width?: number | string
-  below?: boolean
+  under?: string
   template?: Record<string, unknown>
   items?: Record<string, unknown>
   options?: Record<string, unknown>
@@ -1133,25 +1133,34 @@ function FieldList({
 }) {
   const editing = useFormEditing()
   const chosen = useChosenLabelPosition(options)
-  const names = Object.keys(options)
-  // Without a width in the list, the fields stack exactly as they always have.
-  const flows = names.some((name) => inputWidth(asRecord(options[name])['width']) !== undefined)
-  // A field marked `below` goes under the shown field before it, in that one's column.
-  const columns: { names: string[]; width: string | undefined }[] = []
-  let shown: (typeof columns)[number] | undefined
-  for (const name of names) {
-    const field = asRecord(options[name])
-    const hidden = name.startsWith('$') || field['hidden'] === true
-    if (flows && shown && !hidden && field['below'] === true) {
-      shown.names.push(name)
-      continue
-    }
-    const column = { names: [name], width: inputWidth(field['width']) }
-    columns.push(column)
-    if (!hidden) {
-      shown = column
-    }
+  // A group's fields can be a wizard of their own, paged inside the form around it.
+  const wizard = parseWizardConfig(options)
+  if (wizard) {
+    return (
+      <ChosenLabelPosition.Provider value={chosen}>
+        <WizardContainer
+          wizardConfig={wizard}
+          values={values}
+          className="w-full"
+          labelPosition={labelPosition}
+          missingFields={missingFields}
+          spaceCompact={spaceCompact}
+          workflowForm={workflowForm}
+          nested
+          fieldNamePrefix={parentInfo?.fieldNamePrefix}
+          setFieldValue={setFieldValue}
+          setFieldTouched={setFieldTouched}
+        />
+      </ChosenLabelPosition.Provider>
+    )
   }
+  const names = Object.keys(options)
+  // Without a width or an `under` in the list, the fields stack exactly as they always have.
+  const flows = names.some((name) => {
+    const field = asRecord(options[name])
+    return inputWidth(field['width']) !== undefined || typeof field['under'] === 'string'
+  })
+  const columns = flows ? columnsOf(options, names) : []
   const fieldOf = (fieldName: string, width: string | undefined) => (
     <FormField
       key={fieldName}
@@ -1173,19 +1182,41 @@ function FieldList({
   return (
     <ChosenLabelPosition.Provider value={chosen}>
       {flows ? (
-        <div className="-mx-2 flex flex-wrap items-start">
-          {columns.map((column) => (
-            // A column keeps its width until it would be under 16rem, then wraps. The editor lists a
-            // column of hidden inputs after the shown ones, so it never splits a row.
-            <div
-              key={column.names[0]}
-              data-input-cell
-              className="flex w-(--input-width) min-w-[min(100%,16rem)] max-w-full flex-col px-2 empty:hidden [&:not(:has(>:not([data-input-hidden])))]:order-1 [&:not(:has(>:not([data-input-hidden])))]:w-full"
-              style={{ '--input-width': column.width ?? '100%' } as CSSProperties}
-            >
-              {column.names.map((name) => fieldOf(name, column.width))}
-            </div>
-          ))}
+        // Below 24rem the list is too narrow for rows: shares of it go full width, pixels stay.
+        <div className="@container/inputs -mx-2 flex flex-wrap items-start">
+          {columns.map((column) => {
+            const width = inputWidth(asRecord(options[column.head])['width'])
+            return (
+              // The editor lists a column of hidden inputs after the shown ones, so it never splits a row.
+              <div
+                key={column.head}
+                data-input-cell
+                className="flex w-(--input-narrow) max-w-full flex-col px-2 empty:hidden @min-[24rem]/inputs:w-(--input-width) [&:not(:has(>:not([data-input-hidden])))]:order-1 [&:not(:has(>:not([data-input-hidden])))]:w-full"
+                style={widthVars(width, width)}
+              >
+                {column.names.map((name) => {
+                  const own =
+                    name === column.head ? undefined : inputWidth(asRecord(options[name])['width'])
+                  return own === undefined ? (
+                    fieldOf(name, width)
+                  ) : (
+                    // A share of the list, less the gutter a column of that share keeps.
+                    <div
+                      key={name}
+                      data-input-member
+                      className="w-(--input-narrow) max-w-full @min-[24rem]/inputs:w-(--input-width)"
+                      style={widthVars(
+                        own,
+                        own.endsWith('%') ? `calc(${parseFloat(own)}cqw - 1rem)` : own,
+                      )}
+                    >
+                      {fieldOf(name, width)}
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })}
           {add && <div className="order-2 w-full px-2">{add}</div>}
         </div>
       ) : (
@@ -1199,6 +1230,41 @@ function FieldList({
 }
 
 const noop = () => {}
+
+interface Column {
+  head: string
+  names: string[]
+}
+
+// A field `under` one listed before it joins that one's column, below it; any other field heads
+// a column of its own, and columns follow the list's order.
+function columnsOf(options: Record<string, unknown>, names: string[]): Column[] {
+  const columns: Column[] = []
+  const columnOf = new Map<string, Column>()
+  for (const name of names) {
+    const under = asRecord(options[name])['under']
+    const anchor = typeof under === 'string' ? columnOf.get(under) : undefined
+    if (anchor) {
+      anchor.names.push(name)
+      columnOf.set(name, anchor)
+      continue
+    }
+    const column = { head: name, names: [name] }
+    columns.push(column)
+    if (!name.startsWith('$')) {
+      columnOf.set(name, column)
+    }
+  }
+  return columns
+}
+
+// A width as written applies once the list has room for rows; before that only pixels hold.
+function widthVars(width: string | undefined, wide: string | undefined): CSSProperties {
+  return {
+    '--input-width': wide ?? '100%',
+    '--input-narrow': width?.endsWith('px') ? width : '100%',
+  } as CSSProperties
+}
 
 interface DynamicFormContentProps {
   options: Record<string, unknown>

@@ -38,10 +38,11 @@ import {
   text,
   withoutUndefined,
 } from './editorFields'
-import { useGraphEditorStrings } from './editorStrings'
+import { useGraphEditorStrings, useInputsEditorStrings } from './editorStrings'
 import { expressionRefs } from './expressionRefs'
 import { type SettingsFormHooks, type SettingsView, useSettingsViews } from './GraphEditorDialogs'
 import { useNewInputs } from './InputDialog'
+import { firstPageEdits } from './inputPages'
 import { FlagField, refSuggestions } from './inputRefs'
 
 const LINK_NAME = /^[a-z0-9_-]*[a-z0-9]$/
@@ -292,6 +293,7 @@ function SettingsForm({
   pending = false,
 }: SettingsDialogProps & SettingsFormHooks) {
   const t = useGraphEditorStrings()
+  const inputStrings = useInputsEditorStrings()
   const [original] = useState(() => workflow)
   const editing = useWorkflowEditing()
   const newInputs = useNewInputs(editing.workflowInputsSchema(original))
@@ -453,8 +455,18 @@ function SettingsForm({
   const invalid = Object.values(errors).some(Boolean)
   const setWizard = <T,>(set: (value: T) => void) => tracked<T>('meta', set)
 
+  const update: GraphEdit = { type: 'updateWorkflow', ...patch, inputsMeta: metaPatch }
+  // Split into pages, the inputs outside a page would no longer show, so they start the first one.
+  const firstPage =
+    wizardOn && wizard['mode'] !== 'wizard'
+      ? firstPageEdits(editing, editing.workflowInputsSchema(original), inputStrings.firstStep)
+      : []
   const saveEdit = newInputs.save(
-    dirty ? { type: 'updateWorkflow', ...patch, inputsMeta: metaPatch } : null,
+    dirty
+      ? firstPage.length > 0
+        ? { type: 'batch', edits: [update, ...firstPage] }
+        : update
+      : null,
   )
   onDraft?.(saveEdit)
   const children = (
