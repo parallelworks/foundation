@@ -635,6 +635,7 @@ export const INPUTS_EDITOR_STRINGS = {
     csp: 'Cloud provider',
     provider: 'Cluster types',
     multi: 'Multiple choices',
+    multiStep: 'Repeatable page',
     generateCredentials: 'Generate credentials',
     region: 'Region',
     resource: 'Cluster',
@@ -711,6 +712,8 @@ export const INPUTS_EDITOR_STRINGS = {
     provider:
       'Show only clusters of these types, separated by commas, such as aws-slurm or existing.',
     multi: 'Let users pick more than one.',
+    multiStep:
+      'Lets the person running the workflow add copies of this page. Its fields’ values become a list under the page’s name, one row per copy.',
     includeWorkspace: 'Also offer the user’s own workspace.',
     includeUnprovisioned: 'Also offer clusters that aren’t running yet.',
     generateCredentials: 'Create credentials for the bucket and pass them to the run with it.',

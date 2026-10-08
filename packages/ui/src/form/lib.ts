@@ -9,6 +9,7 @@ interface SchemaEntry {
   default?: unknown
   autoselect?: unknown
   prefillDefault?: unknown
+  multi?: unknown
   wizard?: { flatten?: boolean }
 }
 
@@ -147,6 +148,13 @@ export function initializeValues(
         return acc
       }
       const fieldSchema = schema[field] ?? EMPTY_ENTRY
+      // A repeated page keeps a row per copy, and the form shows at least one.
+      if (fieldSchema.type === 'step' && fieldSchema.multi === true) {
+        const saved = data[field]
+        const rows = Array.isArray(saved) && saved.length > 0 ? saved : [{}]
+        acc[field] = rows.map((row) => initializeValues(fieldSchema.options, asRecord(row)))
+        return acc
+      }
       // A group's fields, and a wizard step's unless the wizard keeps steps nested,
       // live at the level that holds the group.
       const flattenStep = fieldSchema.type === 'step' && schema['$meta']?.wizard?.flatten !== false

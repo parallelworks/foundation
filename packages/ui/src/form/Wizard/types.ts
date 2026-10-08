@@ -38,6 +38,8 @@ export interface StepFieldConfig {
   nextLabel?: string
   /** Custom label for previous button on this step */
   prevLabel?: string
+  /** The person running it can add copies of this page; its values are a list, one row per copy */
+  multi?: boolean
 }
 
 /**
@@ -146,4 +148,6 @@ export interface WizardStepContentProps {
   workflowForm?: boolean
   /** Where the fields' values sit when the wizard is inside a group that keeps its own values. */
   fieldNamePrefix?: string | undefined
+  /** Which copy of a repeated page this is; its fields' values sit in that row of the page's list. */
+  copy?: number | undefined
 }

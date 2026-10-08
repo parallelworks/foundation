@@ -12,6 +12,7 @@ export function WizardStepContent({
   setFieldValue,
   setFieldTouched,
   fieldNamePrefix = '',
+  copy,
   ...fieldsProps
 }: WizardStepContentProps & {
   setFormDirty: TSetFormDirty
@@ -24,6 +25,20 @@ export function WizardStepContent({
     return null
   }
   const path = editing ? [...editing.parent, currentStep] : null
+  // A repeated page's copy keeps its fields in its row of the page's list, and only the first copy
+  // edits them, as only a list's first row edits its template.
+  const parentInfo =
+    copy !== undefined
+      ? {
+          parentName: currentStep,
+          fieldNamePrefix: `${fieldNamePrefix}${currentStep}[${copy}].`,
+          arrayIndex: copy,
+        }
+      : flatten === false
+        ? { parentName: currentStep, fieldNamePrefix: `${fieldNamePrefix}${currentStep}.` }
+        : fieldNamePrefix
+          ? { parentName: fieldNamePrefix.slice(0, -1), fieldNamePrefix }
+          : undefined
 
   const content = (
     <div className="mb-4 w-full">
@@ -39,27 +54,13 @@ export function WizardStepContent({
       )}
       <EditingScope editing={editing} path={path}>
         <FieldsFromOptions
-          key={currentStep}
+          key={copy === undefined ? currentStep : `${currentStep}[${copy}]`}
           options={stepConfig.options}
           values={values}
           setFormDirty={setFormDirty}
           setFieldValue={setFieldValue}
           setFieldTouched={setFieldTouched}
-          {...(flatten === false
-            ? {
-                parentInfo: {
-                  parentName: currentStep,
-                  fieldNamePrefix: `${fieldNamePrefix}${currentStep}.`,
-                },
-              }
-            : fieldNamePrefix
-              ? {
-                  parentInfo: {
-                    parentName: fieldNamePrefix.slice(0, -1),
-                    fieldNamePrefix,
-                  },
-                }
-              : {})}
+          {...(parentInfo ? { parentInfo } : {})}
           {...fieldsProps}
         />
       </EditingScope>

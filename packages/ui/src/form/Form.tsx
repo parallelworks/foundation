@@ -127,7 +127,7 @@ export function listLengthsSignature(
       continue
     }
     const fullName = prefix ? `${prefix}${fieldName}` : fieldName
-    if (field.type === 'list') {
+    if (field.type === 'list' || repeatsPage(field)) {
       const items = values?.[fieldName]
       const len = Array.isArray(items) ? items.length : 0
       parts.push(`${fullName}:${len}`)
@@ -202,7 +202,7 @@ export function collectFieldsWithDefaults(
       continue
     }
 
-    if (field.type === 'list') {
+    if (field.type === 'list' || repeatsPage(field)) {
       const listTemplate = field.template || field.options
       const listValues = values?.[fieldName]
       if (listTemplate && Array.isArray(listValues)) {
@@ -1234,6 +1234,11 @@ function FieldList({
 }
 
 const noop = () => {}
+
+// A wizard page the form repeats keeps its values as a list, one row per copy, like a list input.
+function repeatsPage(field: { type?: unknown; multi?: unknown }): boolean {
+  return field.type === 'step' && field.multi === true
+}
 
 interface Column {
   head: string

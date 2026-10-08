@@ -97,6 +97,8 @@ interface Prop {
   grow?: boolean
   /** Text people read, such as a label, set in the regular font instead of as code. */
   prose?: boolean
+  /** The field's label where its key means something else on another type. */
+  label?: keyof InputsEditorStrings['fields']
 }
 
 /** Input types by menu group, in the order the add menu lists them. */
@@ -325,6 +327,7 @@ const TYPE_PROPS: Record<string, Prop[]> = {
     { key: 'title', kind: 'text', help: 'title', required: true, prose: true },
     { key: 'nextLabel', kind: 'text', help: 'nextLabel', prose: true },
     { key: 'prevLabel', kind: 'text', help: 'prevLabel', prose: true },
+    { key: 'multi', kind: 'bool', help: 'multiStep', label: 'multiStep' },
   ],
   'compute-clusters': COMPUTE,
   'compute-resources': COMPUTE,
@@ -1370,7 +1373,7 @@ function PropField({
 }) {
   const t = useInputsEditorStrings()
   const description = t.help[prop.help]
-  const name = (t.fields as Record<string, string | undefined>)[prop.key] ?? prop.key
+  const name = (t.fields as Record<string, string | undefined>)[prop.label ?? prop.key] ?? prop.key
   const field = { label: name, yamlKey: prop.key, description }
   switch (kind) {
     case 'flag':

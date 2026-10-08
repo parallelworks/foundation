@@ -1144,6 +1144,18 @@ describe('InputDialog', () => {
     }
   })
 
+  it('makes a wizard step a repeatable page from its dialog', () => {
+    const onSave = open({ type: 'step', title: 'Host', options: {} })
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Repeatable page' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith(
+      'field',
+      { type: 'step', title: 'Host', options: {}, multi: true },
+      { set: { multi: true }, unset: [] },
+      [],
+    )
+  })
+
   it('puts an input below the one before it from its dialog', () => {
     const onSave = open({ type: 'string' })
     fireEvent.click(screen.getByRole('checkbox', { name: 'Below the input before it' }))

@@ -991,3 +991,20 @@ describe('deepEqual', () => {
     expect(result).toBe(false)
   })
 })
+
+describe('a repeated wizard page', () => {
+  const schema = {
+    $meta: { wizard: { mode: 'wizard' } },
+    hosts: { type: 'step', multi: true, options: { cpus: { type: 'number', default: 2 } } },
+  }
+
+  it('starts with one copy from the defaults, its values a list under the page’s name', () => {
+    expect(initializeValues(schema)).toEqual({ hosts: [{ cpus: 2 }] })
+  })
+
+  it('keeps every saved copy, defaulting what one leaves out', () => {
+    expect(initializeValues(schema, { hosts: [{ cpus: 8 }, {}] })).toEqual({
+      hosts: [{ cpus: 8 }, { cpus: 2 }],
+    })
+  })
+})

@@ -340,6 +340,10 @@ export interface UIStrings {
     invalidDuration: string
     durationOutOfRange: (min: string, max: string) => string
     durationBelowMin: (min: string) => string
+    /** A repeated wizard page's copy, numbered from 1. */
+    copyTitle: (title: string, number: number) => string
+    addCopy: (title: string) => string
+    removeCopy: (title: string) => string
   }
   time: {
     now: string
@@ -914,6 +918,9 @@ const DEFAULTS: UIProviderValue = {
       invalidDuration: 'Enter a duration as DD-HH:MM:SS or HH:MM:SS.',
       durationOutOfRange: (min, max) => `Must be between ${min} and ${max}.`,
       durationBelowMin: (min) => `Must be at least ${min}.`,
+      copyTitle: (title, number) => `${title} ${number}`,
+      addCopy: (title) => `+ Add ${title}`,
+      removeCopy: (title) => `Remove ${title}`,
     },
     time: {
       now: 'now',
