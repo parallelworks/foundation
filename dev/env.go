@@ -26,6 +26,17 @@ func (c Config) environ(svc *Service) ([]string, error) {
 	return underEnviron(vars), nil
 }
 
+// beforeEnviron is the environment for before commands. A value whose
+// ${NAME} nothing sets yet is left out rather than failing, since a before
+// command may be what writes the env file that sets it.
+func (c Config) beforeEnviron() ([]string, error) {
+	vars, err := c.varsWith(nil, true)
+	if err != nil {
+		return nil, err
+	}
+	return underEnviron(vars), nil
+}
+
 // underEnviron is the real environment, with vars added where it has none.
 func underEnviron(vars map[string]string) []string {
 	env := os.Environ()
@@ -40,6 +51,12 @@ func underEnviron(vars map[string]string) []string {
 // vars is what dev itself sets for a command: dev.json's env and the env
 // files, without the real environment.
 func (c Config) vars(svc *Service) (map[string]string, error) {
+	return c.varsWith(svc, false)
+}
+
+// varsWith is vars, leaving out a value whose ${NAME} nothing sets when
+// lenient instead of failing.
+func (c Config) varsWith(svc *Service, lenient bool) (map[string]string, error) {
 	files := []string{c.EnvFile}
 	if svc != nil && svc.EnvFile != "" {
 		files = append(files, svc.EnvFile)
@@ -77,6 +94,9 @@ func (c Config) vars(svc *Service) (map[string]string, error) {
 			expanded, err := c.expand(v)
 			if err == nil {
 				expanded, err = expandRefs(expanded, lookup)
+				if lenient && errors.Is(err, errUnset) {
+					continue
+				}
 			}
 			if err != nil {
 				return fmt.Errorf("env %s: %w", k, err)
@@ -98,6 +118,9 @@ func (c Config) vars(svc *Service) (map[string]string, error) {
 	return vars, nil
 }
 
+// errUnset is a ${NAME} that nothing sets.
+var errUnset = errors.New("is set in no env file and not in the environment")
+
 var envRef = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)(:-[^}]*)?\}`)
 
 // expandRefs replaces each ${NAME} in v with lookup's value for NAME, and
@@ -116,7 +139,7 @@ func expandRefs(v string, lookup func(string) (string, bool)) (string, error) {
 		return val
 	})
 	if len(missing) > 0 {
-		return "", fmt.Errorf("${%s} is set in no env file and not in the environment", strings.Join(missing, "}, ${"))
+		return "", fmt.Errorf("${%s} %w", strings.Join(missing, "}, ${"), errUnset)
 	}
 	return out, nil
 }

@@ -140,7 +140,7 @@ func (s *supervisor) run(ctx context.Context, names ...string) error {
 		return err
 	}
 	defer closeControl()
-	env, err := s.cfg.environ(nil)
+	env, err := s.cfg.beforeEnviron()
 	if err != nil {
 		return err
 	}

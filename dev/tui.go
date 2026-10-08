@@ -142,6 +142,7 @@ type model struct {
 	height   int
 	quitting bool
 	notice   string
+	failed   bool
 	err      error
 }
 
@@ -169,6 +170,15 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.sup, m.notice = msg.sup, ""
 	case stoppedMsg:
 		m.err = msg.err
+		// A dev that fails to start stays on screen with why, its output still
+		// browsable, rather than leaving at once: the terminal is still
+		// answering the view's opening queries, and those answers would land
+		// in the shell.
+		if msg.err != nil && !m.quitting && m.ctx.Err() == nil {
+			m.failed = true
+			m.notice = "dev stopped: " + msg.err.Error() + " · q quits"
+			return m, nil
+		}
 		return m, tea.Quit
 	case actionMsg:
 		m.notice = ""
@@ -193,6 +203,9 @@ func (m *model) key(k string) (tea.Model, tea.Cmd) {
 			}
 			return stoppedMsg{}
 		}
+	}
+	if m.failed && (k == "ctrl+c" || k == "q" || k == "Q") {
+		return m, tea.Quit
 	}
 	if k == "ctrl+c" || k == "q" || k == "Q" {
 		if !m.quitting {
