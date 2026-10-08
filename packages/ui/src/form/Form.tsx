@@ -1175,12 +1175,12 @@ function FieldList({
       {flows ? (
         <div className="-mx-2 flex flex-wrap items-start">
           {columns.map((column) => (
-            // A column keeps its width until it would be under 8rem, then wraps. The editor lists a
+            // A column keeps its width until it would be under 16rem, then wraps. The editor lists a
             // column of hidden inputs after the shown ones, so it never splits a row.
             <div
               key={column.names[0]}
               data-input-cell
-              className="flex w-(--input-width) min-w-[min(100%,8rem)] max-w-full flex-col px-2 empty:hidden [&:not(:has(>:not([data-input-hidden])))]:order-1 [&:not(:has(>:not([data-input-hidden])))]:w-full"
+              className="flex w-(--input-width) min-w-[min(100%,16rem)] max-w-full flex-col px-2 empty:hidden [&:not(:has(>:not([data-input-hidden])))]:order-1 [&:not(:has(>:not([data-input-hidden])))]:w-full"
               style={{ '--input-width': column.width ?? '100%' } as CSSProperties}
             >
               {column.names.map((name) => fieldOf(name, column.width))}

@@ -60,7 +60,7 @@ export const ClusterSettings: StoryObj<typeof DynamicForm> = {
 }
 
 /** Inputs with a `width` (pixels, or a share of the row) sit side by side, label on top unless the
- * form sets `labelPosition`; one that would be narrower than 8rem wraps to the next line. */
+ * form sets `labelPosition`; one that would be narrower than 16rem wraps to the next line. */
 export const WithWidths: StoryObj<typeof DynamicForm> = {
   args: {
     formJSONs: {
