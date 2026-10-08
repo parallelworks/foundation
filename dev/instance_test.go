@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -22,6 +23,33 @@ func runUp(t *testing.T, cfg Config) (done <-chan error) {
 	})
 	t.Cleanup(stop)
 	return finished
+}
+
+func TestDownStopsAnotherCheckoutsDev(t *testing.T) {
+	root := t.TempDir()
+	write(t, filepath.Join(root, "cmd", "app", "main.go"), "package main\n")
+	cfg := Config{Root: root, Services: []Service{{Name: "web", Run: []string{"sleep", "300"}}}}
+	done := runUp(t, cfg)
+
+	if _, err := instanceAt(t.Context(), t.TempDir()); err == nil || !strings.Contains(err.Error(), "no dev runs in") {
+		t.Errorf("a directory no dev runs in: %v", err)
+	}
+	// Named by a directory inside the checkout, as from a shell in it.
+	in, err := instanceAt(t.Context(), filepath.Join(root, "cmd", "app"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := down(t.Context(), Config{Root: in.Root, Dir: in.Dir}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("dev kept running after down named its checkout")
+	}
 }
 
 func TestDownStopsARunningDev(t *testing.T) {
