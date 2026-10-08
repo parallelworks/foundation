@@ -95,7 +95,7 @@ Describe the app in `dev.json` at the repository root:
 | `dev start`, `stop`, `restart` *service* | Drive one service of the running dev; `restart` rebuilds a server |
 | `dev logs [service...] [-f]` | Print services' output from the latest run (all of them when none is named), and with `-f` keep following it |
 | `dev up [service...]` | Start dev in the background, and return once its services are up (or with why not); `--for 2h` stops it later |
-| `dev down` | Stop the dev running here |
+| `dev down [checkout]` | Stop the dev running here, or the one running in a checkout `dev ps` lists, from anywhere; `kill <pid>` does the same |
 | `dev use profile[,profile]` | Switch this checkout's profiles, restarting the dev running here |
 | `dev profiles` | List the profiles `dev.json` defines, marking those in use |
 | `dev ps` | List every dev running on this machine: checkout, pid, ports |

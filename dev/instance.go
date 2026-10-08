@@ -243,6 +243,37 @@ func down(ctx context.Context, cfg Config) error {
 	}
 }
 
+// instanceAt is the running dev whose checkout holds dir.
+func instanceAt(ctx context.Context, dir string) (Instance, error) {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return Instance{}, err
+	}
+	resolve := func(p string) string {
+		if r, err := filepath.EvalSymlinks(p); err == nil {
+			return r
+		}
+		return p
+	}
+	target := resolve(abs)
+	list, err := Instances(ctx)
+	if err != nil {
+		return Instance{}, err
+	}
+	var found Instance
+	for _, in := range list {
+		root := resolve(in.Root)
+		// The innermost, for a checkout nested in another.
+		if (target == root || strings.HasPrefix(target, root+string(filepath.Separator))) && len(root) > len(resolve(found.Root)) {
+			found = in
+		}
+	}
+	if found.Root == "" {
+		return Instance{}, fmt.Errorf("no dev runs in %s; dev ps lists those that do", abs)
+	}
+	return found, nil
+}
+
 // ExitError carries a command's exit status out of `dev exec`, so that dev
 // exits with it.
 type ExitError struct{ Code int }

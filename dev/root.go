@@ -209,11 +209,25 @@ func NewRootCmd(cfg Config, opts ...Option) *cobra.Command {
 	})
 
 	root.AddCommand(&cobra.Command{
-		Use:   "down",
+		Use:   "down [checkout]",
 		Short: "Stop the dev running here, foreground or background",
-		Long:  "Stop the dev running in this checkout, whether in a terminal or started with dev up, and every service it started.",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
+		Long: "Stop the dev running in this checkout, whether in a terminal or started with dev up, and every service it started. " +
+			"Name a checkout, as dev ps lists them, to stop the dev running there instead, from anywhere.",
+		Example: `  dev down
+  dev down ~/src/shop-feature`,
+		Args:        cobra.MaximumNArgs(1),
+		Annotations: map[string]string{anywhere: "yes"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 1 {
+				in, err := instanceAt(cmd.Context(), args[0])
+				if err != nil {
+					return err
+				}
+				return down(cmd.Context(), Config{Root: in.Root, Dir: in.Dir})
+			}
+			if cfg.Root == "" {
+				return errors.New("no dev.json here or in its parents; name a checkout to stop, as dev ps lists them")
+			}
 			return down(cmd.Context(), cfg)
 		},
 	})
@@ -307,6 +321,10 @@ func NewRootCmd(cfg Config, opts ...Option) *cobra.Command {
 			}
 			for _, in := range list {
 				fmt.Fprintf(cmd.OutOrStdout(), "%-7d %5s  %-10s %s  %s\n", in.PID, strings.TrimSpace(since(in.Started)), in.Version, in.Root, formatPorts(in.Ports))
+			}
+			// For a person only: stdout stays the table for scripts.
+			if len(list) > 0 && isTerminal(os.Stderr) {
+				fmt.Fprintln(cmd.ErrOrStderr(), "stop one: dev down <checkout>, or kill <pid>")
 			}
 			return nil
 		},
@@ -481,13 +499,12 @@ func RequireConfig(root *cobra.Command, err error) {
 // interactive reports whether both ends of the terminal are a person, which
 // the full-screen view needs; pipes, CI and tools get prefixed lines.
 func interactive() bool {
-	for _, f := range []*os.File{os.Stdin, os.Stdout} {
-		info, err := f.Stat()
-		if err != nil || info.Mode()&os.ModeCharDevice == 0 {
-			return false
-		}
-	}
-	return os.Getenv("TERM") != "dumb"
+	return isTerminal(os.Stdin) && isTerminal(os.Stdout) && os.Getenv("TERM") != "dumb"
+}
+
+func isTerminal(f *os.File) bool {
+	info, err := f.Stat()
+	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }
 
 func printStatuses(w io.Writer, services []status) {
