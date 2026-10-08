@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { dropWidths, evenWidth, type Line, snapSplit } from './inputRows'
+import { type Column, dropChanges, evenWidth, type Line, snapSplit } from './inputRows'
 
-// Only the rows' paths matter to the widths; where they're drawn is the DOM's business.
-function line(...names: string[]): Line {
+// Only the rows' paths matter to the changes; where they're drawn is the DOM's business.
+function column(...names: string[]): Column {
   return {
-    parent: [],
+    cell: null,
     rows: names.map((name, index) => ({
       path: [name],
       index,
@@ -15,12 +15,28 @@ function line(...names: string[]): Line {
     })),
   }
 }
+const line = (...columns: Column[]): Line => ({ parent: [], columns })
+const one = (...names: string[]) => line(...names.map((name) => column(name)))
 
-const widths = (map: Map<string, string | undefined>) =>
-  Object.fromEntries([...map].map(([rowKey, width]) => [JSON.parse(rowKey).join('.'), width]))
+const changes = (
+  lines: Line[],
+  moving: string[],
+  drop: Parameters<typeof dropChanges>[2],
+  widths: Record<string, unknown> = {},
+) =>
+  Object.fromEntries(
+    [
+      ...dropChanges(
+        lines,
+        moving.map((name) => [name]),
+        drop,
+        (path) => widths[path.join('.')],
+      ),
+    ].map(([rowKey, change]) => [JSON.parse(rowKey).join('.'), change]),
+  )
 
 describe('evenWidth', () => {
-  it('splits a line evenly in whole percents, and leaves an input alone on its line full width', () => {
+  it('splits a line evenly in whole percents, and leaves a column alone on its line full width', () => {
     expect(evenWidth(1)).toBeUndefined()
     expect(evenWidth(2)).toBe('50%')
     expect(evenWidth(3)).toBe('33%')
@@ -28,44 +44,56 @@ describe('evenWidth', () => {
   })
 })
 
-describe('dropWidths', () => {
-  it('shares the line of the input dropped beside, evenly', () => {
-    const lines = [line('a'), line('b'), line('c')]
+describe('dropChanges', () => {
+  it('shares the line of the column dropped beside, evenly', () => {
+    const lines = [one('a'), one('b'), one('c')]
     const drop = { parent: [], index: 1, beside: { path: ['a'], side: 'right' as const } }
-    expect(widths(dropWidths(lines, [['c']], drop))).toEqual({ a: '50%', c: '50%' })
-  })
-
-  it('puts the dropped inputs on the side they were dropped, among the line’s others', () => {
-    const lines = [{ parent: [], rows: [...line('a', 'b').rows] }, line('c'), line('d')]
-    const left = { parent: [], index: 1, beside: { path: ['b'], side: 'left' as const } }
-    expect(widths(dropWidths(lines, [['c'], ['d']], left))).toEqual({
-      a: '25%',
-      b: '25%',
-      c: '25%',
-      d: '25%',
+    expect(changes(lines, ['c'], drop)).toEqual({
+      a: { width: '50%' },
+      c: { width: '50%', below: null },
     })
   })
 
-  it('gives the inputs left on a line its width again, the last one all of it', () => {
-    const lines = [line('a', 'b', 'c'), line('d')]
+  it('gives the columns left on a line its width again, the last one all of it', () => {
+    const lines = [one('a', 'b', 'c'), one('d')]
     const down = { parent: [], index: 4 }
-    expect(widths(dropWidths(lines, [['c']], down))).toEqual({ a: '50%', b: '50%', c: undefined })
-    expect(widths(dropWidths(lines, [['b'], ['c']], down))).toEqual({
-      a: undefined,
-      b: undefined,
-      c: undefined,
+    expect(changes(lines, ['c'], down)).toEqual({
+      a: { width: '50%' },
+      b: { width: '50%' },
+      c: { below: null, width: null },
     })
   })
 
   it('leaves an input that was alone on its line its width when it moves between lines', () => {
-    const lines = [line('a'), line('b'), line('c')]
-    expect(widths(dropWidths(lines, [['a']], { parent: [], index: 3 }))).toEqual({})
+    const lines = [one('a'), one('b'), one('c')]
+    expect(changes(lines, ['a'], { parent: [], index: 3 })).toEqual({ a: { below: null } })
   })
 
-  it('reshares a line when one of its inputs moves along it', () => {
-    const lines = [line('a', 'b', 'c')]
-    const drop = { parent: [], index: 3, beside: { path: ['c'], side: 'right' as const } }
-    expect(widths(dropWidths(lines, [['a']], drop))).toEqual({ a: '33%', b: '33%', c: '33%' })
+  it('stacks an input dropped below one in a column under it', () => {
+    const lines = [one('a', 'b', 'c')]
+    const drop = { parent: [], index: 2, stack: { path: ['b'], side: 'below' as const } }
+    expect(changes(lines, ['c'], drop)).toEqual({
+      a: { width: '50%' },
+      b: { width: '50%' },
+      c: { width: null, below: true },
+    })
+  })
+
+  it('heads a column with an input dropped above its head, at the head’s width', () => {
+    const lines = [line(column('a'), column('b', 'c')), one('d')]
+    const drop = { parent: [], index: 1, stack: { path: ['b'], side: 'above' as const } }
+    expect(changes(lines, ['d'], drop, { a: '50%', b: '50%' })).toEqual({
+      d: { width: '50%', below: null },
+      b: { width: null, below: true },
+    })
+  })
+
+  it('moves the next input up to head a column its head leaves, at the head’s width', () => {
+    const lines = [line(column('a'), column('b', 'c'))]
+    expect(changes(lines, ['b'], { parent: [], index: 3 }, { a: '50%', b: '50%' })).toEqual({
+      c: { below: null, width: '50%' },
+      b: { below: null, width: null },
+    })
   })
 })
 

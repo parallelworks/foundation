@@ -34,6 +34,8 @@ export interface BaseField extends RuntimeFieldExtensions {
   default?: unknown
   /** Pixels, or a share of the row such as '50%'; inputs whose widths fit share a row. */
   width?: number | string
+  /** Under the input before it, in that input's column. */
+  below?: boolean
 }
 
 type AnyField = BaseField

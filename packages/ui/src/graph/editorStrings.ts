@@ -80,7 +80,7 @@ export const GRAPH_EDITOR_STRINGS = {
     pickJob: 'Select the focused job',
     pickDependency: 'Select the focused dependency',
     moveInput:
-      'Move the input, or all the selected ones. Drop on another input’s left or right side to put them side by side',
+      'Move the input, or all the selected ones. Drop on another input’s left or right side to put them side by side, or on its lower half to go under it',
     resizeInputs: 'Change how much of the line each input takes',
     addInput: 'Add an input where you drop it',
     editInput: "Open the selected input's settings",
@@ -584,6 +584,7 @@ export const INPUTS_EDITOR_STRINGS = {
     description: 'Description',
     tooltip: 'Tooltip',
     width: 'Width',
+    below: 'Below the input before it',
     optional: 'Optional',
     hidden: 'Hidden',
     disabled: 'Read-only',
@@ -637,6 +638,8 @@ export const INPUTS_EDITOR_STRINGS = {
     tooltip: 'Extra help shown when users hover over the field’s info icon.',
     width:
       'How wide the field is: a number of pixels, such as 320, or a share of the row, such as 50%. Fields whose widths fit side by side share a row. Empty means the full width.',
+    below:
+      'Puts the field under the input before it, in that input’s column, when that input shares a row.',
     default: 'The value the field starts with.',
     defaultList: 'The values picked when the form opens.',
     defaultResource: 'What’s picked when the form opens, by its resource address.',

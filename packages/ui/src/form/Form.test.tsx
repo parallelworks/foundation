@@ -249,6 +249,25 @@ describe('input widths', () => {
     expect(cellOf('whole')).toHaveStyle({ '--input-width': '100%' })
   })
 
+  it('puts an input marked below in the column of the shown one before it', async () => {
+    render(
+      <DynamicForm
+        initialValues={{}}
+        formJSONs={{
+          a: { type: 'string', width: '50%' },
+          b: { type: 'string', width: '50%' },
+          h: { type: 'string', hidden: true },
+          c: { type: 'string', below: true, width: '25%' },
+        }}
+      />,
+    )
+    await screen.findByTestId('field-c')
+    expect(cellOf('c')).toBe(cellOf('b'))
+    expect(cellOf('a')).not.toBe(cellOf('b'))
+    expect(cellOf('b')).toHaveStyle({ '--input-width': '50%' })
+    expect(labelOf('c')).toBe('top')
+  })
+
   it('puts the label of an input sharing its row on top when the workflow chose no position', async () => {
     render(
       <DynamicForm

@@ -921,10 +921,23 @@ describe('InputDialog', () => {
     )
   })
 
-  it('offers a width on every input but a wizard step', () => {
+  it('offers a width, and a place below the input before, on every input but a wizard step', () => {
     for (const type of inputTypes()) {
       expect(offeredInputKeys(parser, type).includes('width')).toBe(type !== 'step')
+      expect(offeredInputKeys(parser, type).includes('below')).toBe(type !== 'step')
     }
+  })
+
+  it('puts an input below the one before it from its dialog', () => {
+    const onSave = open({ type: 'string' })
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Below the input before it' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith(
+      'field',
+      { type: 'string', below: true },
+      { set: { below: true }, unset: [] },
+      [],
+    )
   })
 
   it('offers radio options as default values and picks the layout by name', () => {
@@ -1501,6 +1514,65 @@ describe('inputs side by side', () => {
       paths: [['h']],
       parent: [],
       index: 3,
+    })
+  })
+
+  // a | b | c on one line, a third each.
+  const THIRDS = {
+    a: { type: 'string', label: 'A', width: '33%' },
+    b: { type: 'string', label: 'B', width: '33%' },
+    c: { type: 'string', label: 'C', width: '33%' },
+  }
+  const THIRDS_LAYOUT: Record<string, [number, number, number, number]> = {
+    a: [0, 0, 184, 40],
+    b: [208, 0, 184, 40],
+    c: [416, 0, 184, 40],
+  }
+
+  it('stacks an input dropped on the lower half of one sharing a row under it, in its column', () => {
+    const e = editor()
+    render(e, THIRDS)
+    layOut(THIRDS_LAYOUT)
+    drag(handleOf('c'), [500, 5], [300, 30])
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'batch',
+      edits: [
+        { type: 'updateInput', path: ['a'], set: { width: '50%' } },
+        { type: 'updateInput', path: ['b'], set: { width: '50%' } },
+        { type: 'updateInput', path: ['c'], set: { below: true }, unset: ['width'] },
+      ],
+    })
+  })
+
+  it('moves the next input up to head a column when its head leaves', () => {
+    const e = editor()
+    render(e, { ...HALVES, c: { type: 'string', label: 'C', below: true } })
+    layOut({ a: [0, 0, 292, 40], b: [308, 0, 292, 40], c: [308, 50, 292, 40] })
+    expect(row(['c']).parentElement).toBe(row(['b']).parentElement)
+    drag(handleOf('b'), [400, 5], [300, 140])
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'batch',
+      edits: [
+        { type: 'moveInputs', paths: [['b']], parent: [], index: 3 },
+        { type: 'updateInput', path: ['c'], set: { width: '50%' }, unset: ['below'] },
+        { type: 'updateInput', path: ['b'], unset: ['width'] },
+      ],
+    })
+  })
+
+  it('puts a new input dropped on the lower half of one in a column under it', () => {
+    const e = editor()
+    render(e, HALVES)
+    layOut({ a: [0, 0, 292, 40], b: [308, 0, 292, 40], c: [0, 50, 600, 40] })
+    drag(screen.getByText('Input').closest('button') as HTMLElement, [540, 300], [450, 30])
+    pickType('Number')
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'addInput',
+      parent: [],
+      index: 2,
+      name: 'input_1',
+      definition: { type: 'number', below: true },
     })
   })
 

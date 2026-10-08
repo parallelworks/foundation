@@ -375,15 +375,15 @@ const TYPE_PROPS: Record<string, Prop[]> = {
 
 const TEXT_FIELDS = ['label', 'description', 'tooltip'] as const
 const FLAG_FIELDS = ['optional', 'hidden', 'disabled', 'ignore'] as const
-type CommonKey = (typeof TEXT_FIELDS)[number] | 'width' | (typeof FLAG_FIELDS)[number]
+type CommonKey = (typeof TEXT_FIELDS)[number] | 'width' | 'below' | (typeof FLAG_FIELDS)[number]
 
 // Which shared keys each type takes, per the workflow schema.
 const COMMON_KEYS: Record<string, CommonKey[]> = {
-  group: ['label', 'description', 'tooltip', 'width', 'hidden', 'ignore'],
-  header: ['label', 'description', 'tooltip', 'width', 'hidden'],
+  group: ['label', 'description', 'tooltip', 'width', 'below', 'hidden', 'ignore'],
+  header: ['label', 'description', 'tooltip', 'width', 'below', 'hidden'],
   step: ['description'],
 }
-const ALL_COMMON: CommonKey[] = [...TEXT_FIELDS, 'width', ...FLAG_FIELDS]
+const ALL_COMMON: CommonKey[] = [...TEXT_FIELDS, 'width', 'below', ...FLAG_FIELDS]
 
 // Keys this dialog manages; anything else on an input is left untouched.
 const KNOWN_KEYS = new Set<string>([
@@ -1597,6 +1597,9 @@ function commonProp(key: CommonKey): Prop {
   if (key === 'width') {
     return { key, kind: 'width', help: 'width' }
   }
+  if (key === 'below') {
+    return { key, kind: 'bool', help: 'below' }
+  }
   const flag = (FLAG_FIELDS as readonly string[]).includes(key)
   return {
     key,
@@ -2171,7 +2174,9 @@ function InputForm({
   )
   const textProps = props.filter(
     (prop) =>
-      ((TEXT_FIELDS as readonly string[]).includes(prop.key) || prop.key === 'width') &&
+      ((TEXT_FIELDS as readonly string[]).includes(prop.key) ||
+        prop.key === 'width' ||
+        prop.key === 'below') &&
       isCommon(prop),
   )
   const behaviorProps = props.filter(

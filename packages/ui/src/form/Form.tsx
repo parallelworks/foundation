@@ -59,6 +59,7 @@ interface SchemaField {
   computeOn?: boolean
   tooltip?: string | string[]
   width?: number | string
+  below?: boolean
   template?: Record<string, unknown>
   items?: Record<string, unknown>
   options?: Record<string, unknown>
@@ -1132,61 +1133,64 @@ function FieldList({
 }) {
   const editing = useFormEditing()
   const chosen = useChosenLabelPosition(options)
-  const widths = new Map(
-    Object.keys(options).map((fieldName) => [
-      fieldName,
-      inputWidth(asRecord(options[fieldName])['width']),
-    ]),
-  )
+  const names = Object.keys(options)
   // Without a width in the list, the fields stack exactly as they always have.
-  const flows = [...widths.values()].some((width) => width !== undefined)
-  const fields = Object.keys(options).map((fieldName) => {
-    const width = widths.get(fieldName)
-    // A side label would squeeze a field that shares its row, unless the workflow chose one.
-    const position = width === undefined || width === '100%' ? labelPosition : (chosen ?? 'top')
-    const field = (
-      <FormField
-        key={fieldName}
-        optionsField={options[fieldName]}
-        fieldName={fieldName}
-        values={values}
-        setFormDirty={setFormDirty}
-        setFieldValue={setFieldValue}
-        setFieldTouched={setFieldTouched}
-        parentInfo={parentInfo}
-        labelPosition={position}
-        missingFields={missingFields}
-        spaceCompact={spaceCompact}
-        workflowForm={workflowForm}
-      />
-    )
-    if (!flows) {
-      return field
+  const flows = names.some((name) => inputWidth(asRecord(options[name])['width']) !== undefined)
+  // A field marked `below` goes under the shown field before it, in that one's column.
+  const columns: { names: string[]; width: string | undefined }[] = []
+  let shown: (typeof columns)[number] | undefined
+  for (const name of names) {
+    const field = asRecord(options[name])
+    const hidden = name.startsWith('$') || field['hidden'] === true
+    if (flows && shown && !hidden && field['below'] === true) {
+      shown.names.push(name)
+      continue
     }
-    // The editor lists a hidden input after the ones the form shows, full width, so it never
-    // splits a row the run form keeps together.
-    return (
-      <div
-        key={fieldName}
-        data-input-cell
-        className="w-full max-w-full px-2 empty:hidden @min-[36rem]/inputs:w-(--input-width) has-[>[data-input-hidden]]:order-1 has-[>[data-input-hidden]]:w-full"
-        style={{ '--input-width': width ?? '100%' } as CSSProperties}
-      >
-        {field}
-      </div>
-    )
-  })
+    const column = { names: [name], width: inputWidth(field['width']) }
+    columns.push(column)
+    if (!hidden) {
+      shown = column
+    }
+  }
+  const fieldOf = (fieldName: string, width: string | undefined) => (
+    <FormField
+      key={fieldName}
+      optionsField={options[fieldName]}
+      fieldName={fieldName}
+      values={values}
+      setFormDirty={setFormDirty}
+      setFieldValue={setFieldValue}
+      setFieldTouched={setFieldTouched}
+      parentInfo={parentInfo}
+      // A side label would squeeze a field that shares its row, unless the workflow chose one.
+      labelPosition={width === undefined || width === '100%' ? labelPosition : (chosen ?? 'top')}
+      missingFields={missingFields}
+      spaceCompact={spaceCompact}
+      workflowForm={workflowForm}
+    />
+  )
   const add = editing ? <editing.Add parent={editing.parent} /> : null
   return (
     <ChosenLabelPosition.Provider value={chosen}>
       {flows ? (
-        <div className="-mx-2 flex flex-wrap items-start @container/inputs">
-          {fields}
+        <div className="-mx-2 flex flex-wrap items-start">
+          {columns.map((column) => (
+            // A column keeps its width until it would be under 8rem, then wraps. The editor lists a
+            // column of hidden inputs after the shown ones, so it never splits a row.
+            <div
+              key={column.names[0]}
+              data-input-cell
+              className="flex w-(--input-width) min-w-[min(100%,8rem)] max-w-full flex-col px-2 empty:hidden [&:not(:has(>:not([data-input-hidden])))]:order-1 [&:not(:has(>:not([data-input-hidden])))]:w-full"
+              style={{ '--input-width': column.width ?? '100%' } as CSSProperties}
+            >
+              {column.names.map((name) => fieldOf(name, column.width))}
+            </div>
+          ))}
           {add && <div className="order-2 w-full px-2">{add}</div>}
         </div>
       ) : (
         <>
-          {fields}
+          {names.map((name) => fieldOf(name, undefined))}
           {add}
         </>
       )}

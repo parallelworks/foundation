@@ -143,12 +143,12 @@ const SIDE_BY_SIDE_WORKFLOW = `on:
         type: number
         label: Epochs
         default: 10
-        width: 25%
+        width: 50%
       batch:
         type: number
         label: Batch size
         default: 64
-        width: 25%
+        below: true
       precision:
         type: radio
         label: Precision
@@ -175,8 +175,8 @@ jobs:
       - run: python train.py --epochs \${{ inputs.epochs }}
 `
 
-/** Inputs sharing lines: drop an input on another's left or right quarter to put it beside it, and
- * drag the edge between two to resize them. The hidden Seed is listed after the shown inputs. */
+/** Dataset beside Epochs over Batch size (`below`). Drop on an input's side for a column beside it, on
+ * its lower half to go under it; drag the edge between columns to resize. Hidden Seed is listed last. */
 export const SideBySide: StoryObj<typeof InputsFormEditor> = {
   render: () => <EditableForm source={SIDE_BY_SIDE_WORKFLOW} />,
 }

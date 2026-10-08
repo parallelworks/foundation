@@ -10,7 +10,7 @@ import {
 } from 'react'
 import { useWorkflowEditing } from '../components/Provider'
 import { TOOLTIP_ID } from '../components/Tooltip'
-import type { GraphEdit, InputPath, WorkflowEditing } from '../editing'
+import type { FieldPatch, GraphEdit, InputPath, WorkflowEditing } from '../editing'
 import { type FormEditing, FormEditingContext } from '../form/formEditing'
 import {
   AddIcon,
@@ -55,18 +55,28 @@ import {
   TypeBadge,
   withCreatedInputs,
 } from './InputDialog'
-import { type DrawnRow, type Drop, dropWidths, type Line, linesIn, snapSplit } from './inputRows'
+import {
+  type Change,
+  type Column,
+  type DrawnRow,
+  type Drop,
+  dropChanges,
+  type Line,
+  linesIn,
+  rowsOf,
+  snapSplit,
+} from './inputRows'
 import { MOD_KEY, type ShortcutGroup } from './ShortcutsButton'
 
-/** A new input's share of the line it's dropped on, and the edits sharing the line with it. */
-interface Beside {
-  width: string
+/** A new input's keys from where it's dropped, and the edits that make room for it there. */
+interface Placement {
+  keys: Json
   edits: GraphEdit[]
 }
 
 type Dialog =
   | { kind: 'edit'; path: InputPath }
-  | { kind: 'create'; parent: InputPath; index: number; type: string; beside?: Beside }
+  | { kind: 'create'; parent: InputPath; index: number; type: string; placement?: Placement }
 
 /** Where a dragged input would land: before `index` of `parent`. */
 interface Gap {
@@ -75,8 +85,10 @@ interface Gap {
   left: number
   right: number
   y: number
-  /** Beside an input on its line rather than between lines, marked by a bar at `x`. */
+  /** A column beside an input's own rather than a line, marked by a bar at `x`. */
   beside?: { path: InputPath; side: 'left' | 'right'; x: number; top: number; bottom: number }
+  /** Above or below an input in its column. */
+  stack?: { path: InputPath; side: 'above' | 'below' }
   /** Among the hidden inputs a list with widths lists after its shown ones. */
   trailing?: boolean
 }
@@ -147,7 +159,13 @@ interface InputsEditorApi {
   edit: (path: InputPath) => void
   remove: (path: InputPath) => void
   openMenu: (x: number, y: number, path: InputPath) => void
-  openTypeMenu: (x: number, y: number, parent: InputPath, index: number, beside?: Beside) => void
+  openTypeMenu: (
+    x: number,
+    y: number,
+    parent: InputPath,
+    index: number,
+    placement?: Placement,
+  ) => void
   startDrag: (e: Press, path: InputPath | null, label: string, how?: DragHow) => void
   startResize: (e: Press, edge: Edge) => void
   /** Moves an edge by `delta` percent, as the arrow keys do. */
@@ -501,21 +519,18 @@ const extent = (rows: DrawnRow[]) => ({
 function lineGaps(root: HTMLElement, lines: Line[]): Gap[] {
   const gaps: Gap[] = []
   const lists = new Map<string, { parent: InputPath; rows: DrawnRow[] }>()
-  for (const { parent, rows } of lines) {
-    const [first] = rows
-    if (!first) {
+  for (const line of lines) {
+    const rows = rowsOf(line)
+    if (rows.length === 0) {
       continue
     }
     gaps.push({
-      parent,
-      index: first.index,
-      ...extent(rows),
-      y: first.rect.top,
-      ...(first.trailing ? { trailing: true } : {}),
+      ...aboveGap(line),
+      ...(rows.every((row) => row.trailing) ? { trailing: true } : {}),
     })
-    const list = lists.get(key(parent)) ?? { parent, rows: [] }
+    const list = lists.get(key(line.parent)) ?? { parent: line.parent, rows: [] }
     list.rows.push(...rows)
-    lists.set(key(parent), list)
+    lists.set(key(line.parent), list)
   }
   for (const { parent, rows } of lists.values()) {
     const shown = rows.filter((row) => !row.trailing)
@@ -573,50 +588,80 @@ function nearestLineGap(gaps: Gap[], client: { x: number; y: number }, mover: Mo
   return best
 }
 
-function besideGap(line: Line, row: DrawnRow, side: 'left' | 'right'): Gap {
-  const i = line.rows.indexOf(row)
-  const before = line.rows[i - 1]?.rect
-  const after = line.rows[i + 1]?.rect
-  const { rect } = row
-  let x = side === 'left' ? rect.left - 4 : rect.right + 4
+/** A column of its own beside `column`, marked by a bar down that side. */
+function besideGap(line: Line, column: Column, side: 'left' | 'right'): Gap {
+  const { rows } = column
+  const own = extent(rows)
+  const i = line.columns.indexOf(column)
+  const before = line.columns[i - 1]
+  const after = line.columns[i + 1]
+  let x = side === 'left' ? own.left - 4 : own.right + 4
   if (side === 'left' && before) {
-    x = (before.right + rect.left) / 2
+    x = (extent(before.rows).right + own.left) / 2
   } else if (side === 'right' && after) {
-    x = (rect.right + after.left) / 2
+    x = (own.right + extent(after.rows).left) / 2
   }
+  const top = Math.min(...rows.map((row) => row.rect.top))
   return {
     parent: line.parent,
-    index: side === 'left' ? row.index : row.index + 1,
-    left: rect.left,
-    right: rect.right,
-    y: rect.top,
-    beside: { path: row.path, side, x, top: rect.top, bottom: rect.bottom },
+    index:
+      side === 'left'
+        ? Math.min(...rows.map((row) => row.index))
+        : Math.max(...rows.map((row) => row.index)) + 1,
+    ...own,
+    y: top,
+    beside: {
+      path: (rows[0] as DrawnRow).path,
+      side,
+      x,
+      top,
+      bottom: Math.max(...rows.map((row) => row.rect.bottom)),
+    },
   }
 }
 
-function aboveGap({ parent, rows }: Line): Gap {
+/** Above or below `row` in its column, marked by a bar across the column. */
+function stackGap(line: Line, column: Column, row: DrawnRow, side: 'above' | 'below'): Gap {
   return {
-    parent,
+    parent: line.parent,
+    index: side === 'above' ? row.index : row.index + 1,
+    ...extent(column.rows),
+    y: side === 'above' ? row.rect.top : row.rect.bottom,
+    stack: { path: row.path, side },
+  }
+}
+
+function aboveGap(line: Line): Gap {
+  const rows = rowsOf(line)
+  return {
+    parent: line.parent,
     index: Math.min(...rows.map((row) => row.index)),
     ...extent(rows),
     y: Math.min(...rows.map((row) => row.rect.top)),
   }
 }
 
-function belowGap({ parent, rows }: Line): Gap {
+function belowGap(line: Line): Gap {
+  const rows = rowsOf(line)
   return {
-    parent,
+    parent: line.parent,
     index: Math.max(...rows.map((row) => row.index)) + 1,
     ...extent(rows),
     y: Math.max(...rows.map((row) => row.rect.bottom)),
   }
 }
 
+/** A column narrower than its list stacks a drop on its inputs' halves instead of starting a line. */
+function stacks(line: Line, column: Column): boolean {
+  const width = column.cell?.style.getPropertyValue(WIDTH_VAR) ?? ''
+  return line.columns.length > 1 || column.rows.length > 1 || (width !== '' && width !== '100%')
+}
+
 /** Where a group's own inputs start, below its title; null for an input holding none drawn. */
 function bodyTop(root: HTMLElement, lines: Line[], row: DrawnRow): number | null {
   const tops = lines
     .filter((line) => samePath(line.parent, row.path))
-    .flatMap((line) => line.rows.map((child) => child.rect))
+    .flatMap((line) => rowsOf(line).map((child) => child.rect))
   for (const el of root.querySelectorAll<HTMLElement>('[data-input-add]')) {
     if (el.dataset['inputAdd'] === key(row.path)) {
       tops.push(el.getBoundingClientRect())
@@ -627,8 +672,8 @@ function bodyTop(root: HTMLElement, lines: Line[], row: DrawnRow): number | null
 }
 
 /**
- * Where a drop at `client` lands: on an input's left or right quarter, beside it; over its
- * middle, above or below its line, by which half; between inputs, the nearest gap.
+ * Where a drop at `client` lands: on an input's left or right quarter, in a column beside its
+ * own; over its middle, above or below it by which half, in its column or as a line of its own.
  */
 function dropGap(root: HTMLElement, client: { x: number; y: number }, mover: Mover): Gap | null {
   const lines = linesIn(root)
@@ -640,16 +685,22 @@ function dropGap(root: HTMLElement, client: { x: number; y: number }, mover: Mov
     client.y >= rect.top &&
     client.y <= rect.bottom
   // The innermost input under the pointer, so a group's own inputs win over the group.
-  let hit: { line: Line; row: DrawnRow } | null = null
+  let hit: { line: Line; column: Column; row: DrawnRow } | null = null
   for (const line of lines) {
-    for (const row of line.rows) {
-      if (!moving(row.path) && under(row.rect) && (!hit || row.path.length > hit.row.path.length)) {
-        hit = { line, row }
+    for (const column of line.columns) {
+      for (const row of column.rows) {
+        if (
+          !moving(row.path) &&
+          under(row.rect) &&
+          (!hit || row.path.length > hit.row.path.length)
+        ) {
+          hit = { line, column, row }
+        }
       }
     }
   }
   if (hit) {
-    const { line, row } = hit
+    const { line, column, row } = hit
     const body = bodyTop(root, lines, row)
     if (body !== null && client.y >= body) {
       return nearestLineGap(
@@ -668,40 +719,47 @@ function dropGap(root: HTMLElement, client: { x: number; y: number }, mover: Mov
     const { rect } = row
     const quarter = rect.width / 4
     // A hidden input takes no share of a line, so it never goes beside one, nor one beside it.
-    if (!mover.hidden && !row.hidden) {
-      if (client.x < rect.left + quarter) {
-        return besideGap(line, row, 'left')
-      }
-      if (client.x > rect.right - quarter) {
-        return besideGap(line, row, 'right')
-      }
+    const shares = !mover.hidden && !row.hidden
+    if (shares && client.x < rect.left + quarter) {
+      return besideGap(line, column, 'left')
+    }
+    if (shares && client.x > rect.right - quarter) {
+      return besideGap(line, column, 'right')
     }
     // A group's title stands for the group, so its halves are the title's.
-    return client.y < (rect.top + (body ?? rect.bottom)) / 2 ? aboveGap(line) : belowGap(line)
+    const above = client.y < (rect.top + (body ?? rect.bottom)) / 2
+    if (shares && stacks(line, column)) {
+      return stackGap(line, column, row, above ? 'above' : 'below')
+    }
+    return above ? aboveGap(line) : belowGap(line)
   }
   if (!mover.hidden) {
     for (const line of lines) {
       if (into(line.parent, mover)) {
         continue
       }
-      for (let i = 1; i < line.rows.length; i++) {
-        const before = line.rows[i - 1]
-        const after = line.rows[i]
+      for (let i = 1; i < line.columns.length; i++) {
+        const before = line.columns[i - 1]
+        const after = line.columns[i]
+        if (!before || !after) {
+          continue
+        }
+        const left = extent(before.rows).right
+        const right = extent(after.rows).left
+        const rows = [...before.rows, ...after.rows]
         if (
-          !before ||
-          !after ||
-          client.x <= before.rect.right ||
-          client.x >= after.rect.left ||
-          client.y < Math.min(before.rect.top, after.rect.top) ||
-          client.y > Math.max(before.rect.bottom, after.rect.bottom)
+          client.x <= left ||
+          client.x >= right ||
+          client.y < Math.min(...rows.map((row) => row.rect.top)) ||
+          client.y > Math.max(...rows.map((row) => row.rect.bottom))
         ) {
           continue
         }
-        // Between two inputs sharing a line, the drop goes between them.
-        if (!moving(before.path)) {
+        // Between two columns sharing a line, the drop is a column between them.
+        if (before.rows.some((row) => !moving(row.path))) {
           return besideGap(line, before, 'right')
         }
-        if (!moving(after.path)) {
+        if (after.rows.some((row) => !moving(row.path))) {
           return besideGap(line, after, 'left')
         }
       }
@@ -712,7 +770,7 @@ function dropGap(root: HTMLElement, client: { x: number; y: number }, mover: Mov
 
 const WIDTH_VAR = '--input-width'
 
-/** The cells two neighbours on a line sit in, and the row of cells holding them. */
+/** The cells two neighbouring columns sit in, by their heads, and the row of cells holding them. */
 function cellsAt(root: HTMLElement, edge: Pick<Edge, 'left' | 'right'>) {
   const cellOf = (path: InputPath) =>
     [...root.querySelectorAll<HTMLElement>('[data-input-path]')]
@@ -724,38 +782,44 @@ function cellsAt(root: HTMLElement, edge: Pick<Edge, 'left' | 'right'>) {
   return left && right && flow ? { left, right, flow } : null
 }
 
-function edgeOf(root: HTMLElement, before: DrawnRow, after: DrawnRow): Edge | null {
-  const cells = cellsAt(root, { left: before.path, right: after.path })
-  const width = cells?.flow.getBoundingClientRect().width ?? 0
-  if (!cells || width <= 0) {
+function edgeOf(root: HTMLElement, before: Column, after: Column): Edge | null {
+  const [leftHead] = before.rows
+  const [rightHead] = after.rows
+  const cells =
+    leftHead && rightHead && cellsAt(root, { left: leftHead.path, right: rightHead.path })
+  const width = cells ? cells.flow.getBoundingClientRect().width : 0
+  if (!leftHead || !rightHead || !cells || width <= 0) {
     return null
   }
   const share = (cell: HTMLElement) =>
     Math.round((cell.getBoundingClientRect().width / width) * 100)
+  const rows = [...before.rows, ...after.rows]
   return {
-    left: before.path,
-    right: after.path,
+    left: leftHead.path,
+    right: rightHead.path,
     x: cells.left.getBoundingClientRect().right,
-    top: Math.min(before.rect.top, after.rect.top),
-    bottom: Math.max(before.rect.bottom, after.rect.bottom),
+    top: Math.min(...rows.map((row) => row.rect.top)),
+    bottom: Math.max(...rows.map((row) => row.rect.bottom)),
     split: [share(cells.left), share(cells.right)],
   }
 }
 
-/** The edge between neighbours on a line that the pointer is over, the innermost list's first. */
+/** The edge between columns on a line that the pointer is over, the innermost list's first. */
 function edgeAt(root: HTMLElement, x: number, y: number): Edge | null {
-  let found: { depth: number; before: DrawnRow; after: DrawnRow } | null = null
-  for (const { parent, rows } of linesIn(root)) {
-    for (let i = 1; i < rows.length; i++) {
-      const before = rows[i - 1]
-      const after = rows[i]
+  let found: { depth: number; before: Column; after: Column } | null = null
+  for (const { parent, columns } of linesIn(root)) {
+    for (let i = 1; i < columns.length; i++) {
+      const before = columns[i - 1]
+      const after = columns[i]
+      if (!before || !after) {
+        continue
+      }
+      const rows = [...before.rows, ...after.rows]
       if (
-        !before ||
-        !after ||
-        x < before.rect.right - 2 ||
-        x > after.rect.left + 2 ||
-        y < Math.min(before.rect.top, after.rect.top) ||
-        y > Math.max(before.rect.bottom, after.rect.bottom)
+        x < extent(before.rows).right - 2 ||
+        x > extent(after.rows).left + 2 ||
+        y < Math.min(...rows.map((row) => row.rect.top)) ||
+        y > Math.max(...rows.map((row) => row.rect.bottom))
       ) {
         continue
       }
@@ -767,13 +831,13 @@ function edgeAt(root: HTMLElement, x: number, y: number): Edge | null {
   return found ? edgeOf(root, found.before, found.after) : null
 }
 
-/** The edge between the same two inputs, if they still share a line. */
+/** The edge between the same two columns, by their heads, if they still share a line. */
 function edgeBetween(root: HTMLElement, left: InputPath, right: InputPath): Edge | null {
-  for (const { rows } of linesIn(root)) {
-    const i = rows.findIndex((row) => samePath(row.path, left))
-    const after = rows[i + 1]
-    const before = rows[i]
-    if (before && after && samePath(after.path, right)) {
+  for (const { columns } of linesIn(root)) {
+    const i = columns.findIndex((column) => samePath(column.rows[0]?.path ?? [], left))
+    const before = columns[i]
+    const after = columns[i + 1]
+    if (before && after && samePath(after.rows[0]?.path ?? [], right)) {
       return edgeOf(root, before, after)
     }
   }
@@ -879,7 +943,7 @@ export function InputsFormEditor({
       namesIn(containerAt(editing, latest.current.inputs, path.slice(0, -1))).indexOf(
         path.at(-1) ?? '',
       )
-    const create = (parent: InputPath, index: number, type: string, beside?: Beside) => {
+    const create = (parent: InputPath, index: number, type: string, placement?: Placement) => {
       const { editor, inputs } = latest.current
       if (editor.openOnAdd === false) {
         const add: GraphEdit = {
@@ -887,25 +951,27 @@ export function InputsFormEditor({
           parent,
           index: Math.min(index, namesIn(containerAt(editing, inputs, parent)).length),
           name: nextInputName(editing, inputs),
-          definition: { ...newInputDefinition(type), ...(beside ? { width: beside.width } : {}) },
+          definition: { ...newInputDefinition(type), ...placement?.keys },
         }
         // The add goes last, so the batch reports the input it created.
-        send(beside ? { type: 'batch', edits: [...beside.edits, add] } : add)
+        send(placement?.edits.length ? { type: 'batch', edits: [...placement.edits, add] } : add)
         return
       }
-      store.set({ dialog: { kind: 'create', parent, index, type, ...(beside ? { beside } : {}) } })
+      store.set({
+        dialog: { kind: 'create', parent, index, type, ...(placement ? { placement } : {}) },
+      })
     }
     const openTypeMenu = (
       x: number,
       y: number,
       parent: InputPath,
       index: number,
-      beside?: Beside,
+      placement?: Placement,
     ) =>
       openMenu(
         x,
         y,
-        typeMenu(t, parent.length === 0, (type) => create(parent, index, type, beside)),
+        typeMenu(t, parent.length === 0, (type) => create(parent, index, type, placement)),
         undefined,
         typeSearch(t),
       )
@@ -932,43 +998,55 @@ export function InputsFormEditor({
       parent: gap.parent,
       index: gap.index,
       ...(gap.beside ? { beside: { path: gap.beside.path, side: gap.beside.side } } : {}),
+      ...(gap.stack ? { stack: gap.stack } : {}),
     })
-    // Width changes as edits, each at the path its input has once the drop has moved it.
-    const widthEdits = (
-      widths: Map<string, string | undefined>,
+    const changesOf = (moving: InputPath[], drop: Drop) => {
+      const root = containerRef.current
+      return root
+        ? dropChanges(linesIn(root), moving, drop, (path) => definition(path)['width'])
+        : new Map<string, Change>()
+    }
+    // A drop's changes as edits, each at the path its input has once the drop has moved it.
+    const layoutEdits = (
+      changes: Map<string, Change>,
       moving: InputPath[],
       drop: Drop,
     ): GraphEdit[] => {
       const edits: GraphEdit[] = []
-      for (const [rowKey, width] of widths) {
+      for (const [rowKey, change] of changes) {
         const path = pathOf(rowKey)
-        if (definition(path)['width'] === width) {
+        const now = definition(path)
+        const patch: FieldPatch = {}
+        for (const [field, value] of Object.entries(change)) {
+          if (value === null && now[field] !== undefined) {
+            patch.unset = [...(patch.unset ?? []), field]
+          } else if (value !== null && value !== undefined && now[field] !== value) {
+            patch.set = { ...patch.set, [field]: value }
+          }
+        }
+        if (!patch.set && !patch.unset) {
           continue
         }
         const at = moving.some((other) => samePath(other, path))
           ? [...drop.parent, path.at(-1) ?? '']
           : path
-        edits.push(
-          width === undefined
-            ? { type: 'updateInput', path: at, unset: ['width'] }
-            : { type: 'updateInput', path: at, set: { width } },
-        )
+        edits.push({ type: 'updateInput', path: at, ...patch })
       }
       return edits
     }
-    // A new input dropped beside others takes an even share of their line.
-    const besideNew = (gap: Gap): Beside | undefined => {
-      const root = containerRef.current
-      if (!gap.beside || !root) {
+    // A new input dropped beside or into a column takes its keys there from the same rules.
+    const placementOf = (gap: Gap): Placement | undefined => {
+      if (!gap.beside && !gap.stack) {
         return undefined
       }
       const drop = dropOf(gap)
       // No input is named '', so it stands in for the one not made yet.
       const placeholder = [...gap.parent, '']
-      const widths = dropWidths(linesIn(root), [placeholder], drop)
-      const width = widths.get(key(placeholder))
-      widths.delete(key(placeholder))
-      return width ? { width, edits: widthEdits(widths, [], drop) } : undefined
+      const changes = changesOf([placeholder], drop)
+      const own = changes.get(key(placeholder)) ?? {}
+      changes.delete(key(placeholder))
+      const keys = Object.fromEntries(Object.entries(own).filter(([, value]) => value !== null))
+      return { keys, edits: layoutEdits(changes, [], drop) }
     }
     // Moved inputs, and the selected ones inside them, stay selected at their new paths.
     const followSelection = (moved: InputPath[], parent: InputPath) =>
@@ -1052,7 +1130,7 @@ export function InputsFormEditor({
           return
         }
         if (!paths) {
-          openTypeMenu(client.x, client.y, gap.parent, gap.index, besideNew(gap))
+          openTypeMenu(client.x, client.y, gap.parent, gap.index, placementOf(gap))
           return
         }
         // The pressed grip can end up on another row once the rows redraw, holding its toolbar open.
@@ -1063,7 +1141,7 @@ export function InputsFormEditor({
           ...(staysPut(paths, gap)
             ? []
             : [{ type: 'moveInputs' as const, paths, parent: gap.parent, index: gap.index }]),
-          ...(root ? widthEdits(dropWidths(linesIn(root), paths, drop), paths, drop) : []),
+          ...layoutEdits(changesOf(paths, drop), paths, drop),
         ]
         const [only] = edits
         if (only && send(edits.length === 1 ? only : { type: 'batch', edits })) {
@@ -1632,15 +1710,12 @@ function Dialogs({
     const siblings = namesIn(containerAt(editing, inputs, dialog.parent))
     const index = Math.min(dialog.index, siblings.length)
     const home = homeFor(editing, inputs, dialog.parent, index)
-    const beside = dialog.beside
+    const placement = dialog.placement
     return (
       <InputDialog
         key={`create:${key(dialog.parent)}:${dialog.index}`}
         name={nextInputName(editing, inputs)}
-        definition={{
-          ...newInputDefinition(dialog.type),
-          ...(beside ? { width: beside.width } : {}),
-        }}
+        definition={{ ...newInputDefinition(dialog.type), ...placement?.keys }}
         isNew
         siblings={siblings}
         allowStep={dialog.parent.length === 0}
@@ -1655,7 +1730,7 @@ function Dialogs({
             editor.onEdit({
               type: 'batch',
               edits: [
-                ...(beside?.edits ?? []),
+                ...(placement?.edits ?? []),
                 {
                   type: 'addInput',
                   parent: dialog.parent,
@@ -1680,7 +1755,11 @@ function Dialogs({
             name,
             definition,
           }
-          save(beside ? { type: 'batch', edits: [...beside.edits, add] } : add, created, home)
+          save(
+            placement?.edits.length ? { type: 'batch', edits: [...placement.edits, add] } : add,
+            created,
+            home,
+          )
         }}
       />
     )
