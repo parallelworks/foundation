@@ -36,7 +36,7 @@ export function BarDivider() {
   return <div className="mx-0.5 h-5 w-px bg-(--theme-border)" />
 }
 
-/** A toolbar chip that adds something: click to add it, or drag it to where it goes. */
+/** A toolbar chip that adds something: click to add it, or, given `onPointerDown`, drag it to where it goes. */
 export function AddChip({
   icon,
   label,
@@ -49,14 +49,15 @@ export function AddChip({
   label: string
   hint: string
   className?: string
-  onPointerDown: (e: ReactPointerEvent<HTMLButtonElement>) => void
+  onPointerDown?: (e: ReactPointerEvent<HTMLButtonElement>) => void
   onClick: (e: React.MouseEvent<HTMLButtonElement>) => void
 }) {
   return (
     <button
       type="button"
       className={cx(
-        'flex h-7 cursor-grab items-center gap-1 whitespace-nowrap rounded px-2 text-xs theme-hover',
+        'flex h-7 items-center gap-1 whitespace-nowrap rounded px-2 text-xs theme-hover',
+        onPointerDown ? 'cursor-grab' : 'cursor-pointer',
         className,
       )}
       data-tooltip-id={TOOLTIP_ID}

@@ -42,7 +42,7 @@ import { useGraphEditorStrings, useInputsEditorStrings } from './editorStrings'
 import { expressionRefs } from './expressionRefs'
 import { type SettingsFormHooks, type SettingsView, useSettingsViews } from './GraphEditorDialogs'
 import { useNewInputs } from './InputDialog'
-import { firstPageEdits } from './inputPages'
+import { firstPageEdits, pagesBackEdits } from './inputPages'
 import { FlagField, refSuggestions } from './inputRefs'
 
 const LINK_NAME = /^[a-z0-9_-]*[a-z0-9]$/
@@ -456,17 +456,17 @@ function SettingsForm({
   const setWizard = <T,>(set: (value: T) => void) => tracked<T>('meta', set)
 
   const update: GraphEdit = { type: 'updateWorkflow', ...patch, inputsMeta: metaPatch }
-  // Split into pages, the inputs outside a page would no longer show, so they start the first one.
-  const firstPage =
-    wizardOn && wizard['mode'] !== 'wizard'
-      ? firstPageEdits(editing, editing.workflowInputsSchema(original), inputStrings.firstStep)
-      : []
+  // A wizard draws only its pages, so splitting puts the inputs outside one in a first page, and
+  // unsplitting puts every page's inputs back.
+  const inputs = editing.workflowInputsSchema(original)
+  const pages =
+    wizardOn === (wizard['mode'] === 'wizard')
+      ? []
+      : wizardOn
+        ? firstPageEdits(editing, inputs, inputStrings.stepTitle(1))
+        : pagesBackEdits(inputs, [])
   const saveEdit = newInputs.save(
-    dirty
-      ? firstPage.length > 0
-        ? { type: 'batch', edits: [update, ...firstPage] }
-        : update
-      : null,
+    dirty ? (pages.length > 0 ? { type: 'batch', edits: [update, ...pages] } : update) : null,
   )
   onDraft?.(saveEdit)
   const children = (
@@ -748,7 +748,14 @@ function SettingsForm({
           yamlKey="wizard"
           description={t.help.wizard}
           checked={wizardOn}
-          onChange={setWizard(setWizardOn)}
+          onChange={setWizard((on: boolean) => {
+            setWizardOn(on)
+            // A form split here starts as the editor splits one: pages to jump between, and a Submit button.
+            if (on && wizard['mode'] !== 'wizard') {
+              setWizardFlags((current) => ({ ...current, allowJump: current.allowJump ?? true }))
+              setSubmitLabel((current) => current || inputStrings.submitLabel)
+            }
+          })}
         />
         {wizardOn && (
           <>

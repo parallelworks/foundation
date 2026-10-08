@@ -120,7 +120,9 @@ describe('WorkflowSettingsDialog', () => {
           set: {},
           unset: [],
           inputsMeta: {
-            set: { wizard: { mode: 'wizard' } },
+            set: {
+              wizard: { mode: 'wizard', navigation: { allowJump: true }, submitLabel: 'Submit' },
+            },
             unset: ['labelPosition'],
           },
         },
@@ -132,6 +134,30 @@ describe('WorkflowSettingsDialog', () => {
           definition: { type: 'step', title: 'Step 1', options: {} },
         },
         { type: 'moveInputs', paths: [['x']], parent: ['step_1'], index: 0 },
+      ],
+    })
+  })
+
+  it('puts a wizard’s inputs back when it is no longer split into pages', () => {
+    const onEdit = open({
+      on: {
+        execute: {
+          inputs: {
+            $meta: { wizard: { mode: 'wizard' } },
+            step_1: { type: 'step', title: 'One', options: { x: { type: 'string' } } },
+          },
+        },
+      },
+      jobs: { main: { steps: [{ run: 'echo' }] } },
+    })
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Split into pages' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onEdit).toHaveBeenCalledWith({
+      type: 'batch',
+      edits: [
+        { type: 'updateWorkflow', set: {}, unset: [], inputsMeta: { set: {}, unset: ['wizard'] } },
+        { type: 'moveInputs', paths: [['step_1', 'x']], parent: [], index: 0 },
+        { type: 'deleteInput', path: ['step_1'] },
       ],
     })
   })

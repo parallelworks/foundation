@@ -438,8 +438,13 @@ export const INPUTS_EDITOR_STRINGS = {
   addInputHint: 'Drag into the form to add an input, or click to pick its type',
   addInputHere: 'Add input',
   splitIntoPages: 'Split into pages',
-  /** The title of the first page a form split into pages, or a new wizard, starts with. */
-  firstStep: 'Step 1',
+  unsplitPages: 'Unsplit pages',
+  addPage: 'Add a page after the last',
+  page: 'Page',
+  /** The title of a wizard's `count`th page when the editor adds it. */
+  stepTitle: (count: number) => `Step ${count}`,
+  /** The submit button label of a form the editor splits into pages. */
+  submitLabel: 'Submit',
   /** The label of the group a wizard step added outside a wizard comes in. */
   stepsGroup: 'Steps',
   addInputBelow: 'Add input below',

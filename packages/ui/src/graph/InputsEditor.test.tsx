@@ -75,7 +75,7 @@ function editor(overrides: Partial<DependencyGraphEditor> = {}): DependencyGraph
   }
 }
 
-function renderForm(e: DependencyGraphEditor, inputs = INPUTS) {
+function renderForm(e: DependencyGraphEditor, inputs: Record<string, unknown> = INPUTS) {
   return render(
     <InputsFormEditor editor={e} inputs={inputs}>
       <DynamicForm formJSONs={convertToDynamicForm(inputs)} initialValues={{}} workflowForm />
@@ -89,6 +89,17 @@ function row(path: string[]): HTMLElement {
     throw new Error(`no row for ${path.join('.')}`)
   }
   return el
+}
+
+// The editor's own bar, not a group's or list's row, holds the form's page commands.
+function barButton(name: string): HTMLElement {
+  const found = screen
+    .getAllByRole('button', { name })
+    .find((button) => !button.closest('[data-input-path]'))
+  if (!found) {
+    throw new Error(`no ${name} on the bar`)
+  }
+  return found
 }
 
 // The add menu lists types by group; the types these tests add are all basic ones.
@@ -488,13 +499,13 @@ describe('InputsFormEditor', () => {
   it('lifts a type submenu that would run past the bottom of the window', () => {
     const real = Element.prototype.getBoundingClientRect
     // jsdom lays nothing out, so the submenu reports where it would sit: past the bottom of the window.
-    const rect = vi
-      .spyOn(Element.prototype, 'getBoundingClientRect')
-      .mockImplementation(function (this: Element) {
-        return this.classList.contains('-top-1')
-          ? DOMRect.fromRect({ x: 0, y: window.innerHeight - 60, width: 180, height: 200 })
-          : real.call(this)
-      })
+    const rect = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: Element,
+    ) {
+      return this.classList.contains('-top-1')
+        ? DOMRect.fromRect({ x: 0, y: window.innerHeight - 60, width: 180, height: 200 })
+        : real.call(this)
+    })
     renderForm(editor())
     fireEvent.click(screen.getByText('Add input'))
     fireEvent.mouseEnter(within(screen.getByRole('menu')).getByText('Layout'))
@@ -520,7 +531,7 @@ describe('InputsFormEditor', () => {
         label: 'Steps',
         flatten: true,
         items: {
-          $meta: { wizard: { mode: 'wizard' } },
+          $meta: { wizard: { mode: 'wizard', navigation: { allowJump: true } } },
           step_1: { type: 'step', title: 'Step 1', options: {} },
         },
       },
@@ -530,11 +541,18 @@ describe('InputsFormEditor', () => {
   it('splits the form into pages, its inputs starting the first one', () => {
     const e = editor()
     renderForm(e)
-    fireEvent.click(screen.getByRole('button', { name: 'Split into pages' }))
+    fireEvent.click(barButton('Split into pages'))
     expect(e.onEdit).toHaveBeenCalledWith({
       type: 'batch',
       edits: [
-        { type: 'updateWorkflow', inputsMeta: { set: { wizard: { mode: 'wizard' } } } },
+        {
+          type: 'updateWorkflow',
+          inputsMeta: {
+            set: {
+              wizard: { mode: 'wizard', navigation: { allowJump: true }, submitLabel: 'Submit' },
+            },
+          },
+        },
         {
           type: 'addInput',
           parent: [],
@@ -547,6 +565,119 @@ describe('InputsFormEditor', () => {
           paths: [['name'], ['secret'], ['settings']],
           parent: ['step_1'],
           index: 0,
+        },
+      ],
+    })
+  })
+
+  it('splits a group’s fields into pages from its row, writing them whole', () => {
+    const e = editor()
+    renderForm(e)
+    fireEvent.click(within(row(['settings'])).getByRole('button', { name: 'Split into pages' }))
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'updateInput',
+      path: ['settings'],
+      set: {
+        items: {
+          $meta: { wizard: { mode: 'wizard', navigation: { allowJump: true } } },
+          step_1: {
+            type: 'step',
+            title: 'Step 1',
+            options: { size: { type: 'number', label: 'Size' } },
+          },
+        },
+      },
+    })
+  })
+
+  // A form split into two pages.
+  const PAGED = {
+    $meta: { wizard: { mode: 'wizard' } },
+    step_1: { type: 'step', title: 'One', options: { a: { type: 'string', label: 'A' } } },
+    step_2: { type: 'step', title: 'Two', options: { b: { type: 'string', label: 'B' } } },
+  }
+
+  it('adds a page after a wizard’s last from the bar', () => {
+    const e = editor()
+    renderForm(e, PAGED)
+    expect(screen.queryByRole('button', { name: 'Split into pages' })).toBeNull()
+    fireEvent.click(screen.getByText('Page'))
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'addInput',
+      parent: [],
+      name: 'step_3',
+      definition: { type: 'step', title: 'Step 3', options: {} },
+    })
+  })
+
+  it('unsplits a wizard: each page’s inputs back where it was, in order, and no wizard', () => {
+    const e = editor()
+    renderForm(e, PAGED)
+    fireEvent.click(barButton('Unsplit pages'))
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'batch',
+      edits: [
+        { type: 'moveInputs', paths: [['step_1', 'a']], parent: [], index: 0 },
+        { type: 'deleteInput', path: ['step_1'] },
+        { type: 'moveInputs', paths: [['step_2', 'b']], parent: [], index: 1 },
+        { type: 'deleteInput', path: ['step_2'] },
+        { type: 'updateWorkflow', inputsMeta: { unset: ['wizard'] } },
+      ],
+    })
+  })
+
+  it('adds a new input from the bar to a wizard’s last page', () => {
+    const e = editor({ openOnAdd: false, onOpenOnAddChange: vi.fn() })
+    renderForm(e, PAGED)
+    fireEvent.click(screen.getByText('Input'))
+    pickType('Number')
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'addInput',
+      parent: ['step_2'],
+      index: 1,
+      name: 'input_1',
+      definition: { type: 'number' },
+    })
+  })
+
+  it('adds another page for a wizard step picked inside a page', () => {
+    const e = editor({ openOnAdd: false, onOpenOnAddChange: vi.fn() })
+    renderForm(e, PAGED)
+    fireEvent.click(within(row(['step_1', 'a'])).getByRole('button', { name: 'Add input below' }))
+    const menu = screen.getByRole('menu')
+    fireEvent.click(within(menu).getByText('Layout'))
+    fireEvent.click(within(menu).getByText('Wizard step'))
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'addInput',
+      parent: [],
+      name: 'step_3',
+      definition: { type: 'step', title: 'Step 3', options: {} },
+    })
+  })
+
+  it('unsplits a group’s wizard from its row, writing its fields whole without the wizard', () => {
+    const e = editor()
+    renderForm(e, {
+      steps: {
+        type: 'group',
+        label: 'Steps',
+        flatten: true,
+        items: {
+          $meta: { wizard: { mode: 'wizard' } },
+          step_1: { type: 'step', title: 'One', options: { a: { type: 'string', label: 'A' } } },
+        },
+      },
+    })
+    fireEvent.click(within(row(['steps'])).getByRole('button', { name: 'Unsplit pages' }))
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'batch',
+      edits: [
+        { type: 'moveInputs', paths: [['steps', 'step_1', 'a']], parent: ['steps'], index: 0 },
+        { type: 'deleteInput', path: ['steps', 'step_1'] },
+        {
+          type: 'updateInput',
+          path: ['steps'],
+          set: { items: { a: { type: 'string', label: 'A' } } },
         },
       ],
     })

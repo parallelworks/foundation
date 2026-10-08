@@ -18,12 +18,14 @@ import {
   AlertIcon,
   ArrowDownIcon,
   ArrowUpIcon,
+  CollapseIcon,
   DragHandleIcon,
   DuplicateIcon,
   EditIcon,
   FilesIcon,
   MinusIcon,
   MoreIcon,
+  PlusOutlineIcon,
   TrashIcon,
 } from '../icons'
 import { type MenuSearch, type RowMenuItem, useRowMenu } from '../list/RowContextMenu'
@@ -58,7 +60,13 @@ import {
   TypeBadge,
   withCreatedInputs,
 } from './InputDialog'
-import { isWizard, splitIntoPagesEdits, stepAllowedIn, wizardGroupDefinition } from './inputPages'
+import {
+  addPageEdit,
+  isWizard,
+  splitIntoPagesEdits,
+  unsplitPagesEdits,
+  wizardGroupDefinition,
+} from './inputPages'
 import {
   type Change,
   type Column,
@@ -200,8 +208,12 @@ interface InputsEditorApi {
   navigate: (direction: Direction, extend: boolean) => boolean
   /** Opens the hovered row's toolbar, and each column head's on a line of several. */
   hover: (rowKey: string) => void
-  /** Makes the form a wizard, its inputs outside a step going into a first one. */
-  splitIntoPages: () => void
+  /** Makes a list of inputs a wizard, its inputs outside a step going into a first one. */
+  splitIntoPages: (parent: InputPath) => void
+  /** Adds a page after a wizard's last. */
+  addPage: (parent: InputPath) => void
+  /** Puts a wizard's inputs back in its list, drawn all at once. */
+  unsplitPages: (parent: InputPath) => void
 }
 
 const ApiContext = createContext<InputsEditorApi | null>(null)
@@ -372,6 +384,13 @@ function InputRow({
       <span data-tooltip-id={TOOLTIP_ID} data-tooltip-content={name}>
         <TypeBadge type={text(definition['type'])} />
       </span>
+      {(definition['type'] === 'group' || definition['type'] === 'list') && (
+        <PageActions
+          api={api}
+          parent={path}
+          list={definition[editing.inputChildrenKey(definition['type']) ?? '']}
+        />
+      )}
       <ChromeButton label={t.editInput} onClick={() => api.edit(path)}>
         <EditIcon className="h-3 w-3" />
       </ChromeButton>
@@ -476,6 +495,65 @@ function InputRow({
   )
 }
 
+/**
+ * A list's page commands: split it into pages, or, once it is a wizard, add a page or put its
+ * inputs back. `bar` is the editor's own bar, for the form; otherwise a group's or list's row.
+ */
+function PageActions({
+  api,
+  parent,
+  list,
+  bar = false,
+}: {
+  api: InputsEditorApi
+  parent: InputPath
+  list: unknown
+  bar?: boolean
+}) {
+  const t = useInputsEditorStrings()
+  if (!isWizard(list)) {
+    return bar ? (
+      <IconButton
+        icon={<FilesIcon className="h-4 w-4" />}
+        label={t.splitIntoPages}
+        size="sm"
+        variant="ghost"
+        onClick={() => api.splitIntoPages(parent)}
+      />
+    ) : (
+      <ChromeButton label={t.splitIntoPages} onClick={() => api.splitIntoPages(parent)}>
+        <FilesIcon className="h-3 w-3" />
+      </ChromeButton>
+    )
+  }
+  return bar ? (
+    <>
+      <AddChip
+        icon={<AddIcon className="h-3 w-3" />}
+        label={t.page}
+        hint={t.addPage}
+        onClick={() => api.addPage(parent)}
+      />
+      <IconButton
+        icon={<CollapseIcon className="h-4 w-4" />}
+        label={t.unsplitPages}
+        size="sm"
+        variant="ghost"
+        onClick={() => api.unsplitPages(parent)}
+      />
+    </>
+  ) : (
+    <>
+      <ChromeButton label={t.addPage} onClick={() => api.addPage(parent)}>
+        <PlusOutlineIcon className="h-3 w-3" />
+      </ChromeButton>
+      <ChromeButton label={t.unsplitPages} onClick={() => api.unsplitPages(parent)}>
+        <CollapseIcon className="h-3 w-3" />
+      </ChromeButton>
+    </>
+  )
+}
+
 /** The add button that ends each list of inputs. */
 function AddInput({ parent }: { parent: InputPath }) {
   const api = useContext(ApiContext)
@@ -505,13 +583,8 @@ function typeSearch(labels: InputsEditorStrings): MenuSearch {
   return { placeholder: labels.searchTypes, empty: labels.noMatchingTypes }
 }
 
-function typeMenu(
-  labels: InputsEditorStrings,
-  allowStep: boolean,
-  pick: (type: string) => void,
-): RowMenuItem[] {
+function typeMenu(labels: InputsEditorStrings, pick: (type: string) => void): RowMenuItem[] {
   const types = labels.types as Record<string, string>
-  const allowed = (type: string) => allowStep || type !== 'step'
   const item = (type: string): RowMenuItem => ({
     kind: 'action',
     label: types[type] ?? type,
@@ -523,7 +596,7 @@ function typeMenu(
       ([group, list]): RowMenuItem => ({
         kind: 'submenu',
         label: labels.typeGroups[group],
-        items: list.filter(allowed).map(item),
+        items: list.map(item),
       }),
     ),
   ]
@@ -1058,10 +1131,21 @@ export function InputsFormEditor({
       )
     const create = (parent: InputPath, index: number, type: string, placement?: Placement) => {
       const { editor, inputs } = latest.current
+      // In a wizard's page, a new wizard step is another page of that wizard.
+      const wizardAbove = parent.slice(0, -1)
+      if (
+        type === 'step' &&
+        parent.length > 0 &&
+        definition(parent)['type'] === 'step' &&
+        isWizard(containerAt(editing, inputs, wizardAbove))
+      ) {
+        addPage(wizardAbove)
+        return
+      }
       const container = containerAt(editing, inputs, parent)
       const ownWizard =
         type === 'step' && !isWizard(container)
-          ? wizardGroupDefinition(t.stepsGroup, t.firstStep)
+          ? wizardGroupDefinition(t.stepsGroup, t.stepTitle(1))
           : undefined
       if (editor.openOnAdd === false) {
         const name = nextInputName(editing, inputs)
@@ -1087,11 +1171,29 @@ export function InputsFormEditor({
         },
       })
     }
-    const splitIntoPages = () =>
-      send({
-        type: 'batch',
-        edits: splitIntoPagesEdits(editing, latest.current.inputs, t.firstStep),
-      })
+    const listAt = (parent: InputPath) => containerAt(editing, latest.current.inputs, parent)
+    const childKeyAt = (parent: InputPath) =>
+      parent.length > 0 ? editing.inputChildrenKey(definition(parent)['type']) : undefined
+    const sendAll = ([only, ...more]: GraphEdit[]) => {
+      if (only) {
+        send(more.length > 0 ? { type: 'batch', edits: [only, ...more] } : only)
+      }
+    }
+    const splitIntoPages = (parent: InputPath) =>
+      sendAll(
+        splitIntoPagesEdits(
+          editing,
+          listAt(parent),
+          parent,
+          childKeyAt(parent),
+          t.stepTitle(1),
+          parent.length === 0 ? t.submitLabel : undefined,
+        ),
+      )
+    const addPage = (parent: InputPath) =>
+      send(addPageEdit(editing, listAt(parent), parent, t.stepTitle))
+    const unsplitPages = (parent: InputPath) =>
+      sendAll(unsplitPagesEdits(listAt(parent), parent, childKeyAt(parent)))
     const openTypeMenu = (
       x: number,
       y: number,
@@ -1102,9 +1204,7 @@ export function InputsFormEditor({
       openMenu(
         x,
         y,
-        typeMenu(t, stepAllowedIn(definition, parent), (type) =>
-          create(parent, index, type, placement),
-        ),
+        typeMenu(t, (type) => create(parent, index, type, placement)),
         undefined,
         typeSearch(t),
       )
@@ -1313,9 +1413,7 @@ export function InputsFormEditor({
           kind: 'submenu',
           label: t.addInputBelow,
           icon: <AddIcon />,
-          items: typeMenu(t, stepAllowedIn(definition, parent), (type) =>
-            create(parent, index + 1, type),
-          ),
+          items: typeMenu(t, (type) => create(parent, index + 1, type)),
           search: typeSearch(t),
         },
         {
@@ -1482,6 +1580,8 @@ export function InputsFormEditor({
         store.set({ hovered: rowKey, open: [...new Set([rowKey, ...(heads ?? [])])] })
       },
       splitIntoPages,
+      addPage,
+      unsplitPages,
       editSelection: () => {
         const [only, ...more] = store.get().selection
         if (only === undefined || more.length > 0) {
@@ -1722,18 +1822,16 @@ export function InputsFormEditor({
                   onPointerDown={(e) => api.startDrag(e, null, t.addInput)}
                   onClick={(e) => {
                     const r = e.currentTarget.getBoundingClientRect()
-                    api.openTypeMenu(r.left, r.bottom, [], Number.MAX_SAFE_INTEGER)
+                    // A wizard draws only its pages, so its new inputs go in the last one.
+                    const last = isWizard(inputs)
+                      ? namesIn(asRecord(inputs))
+                          .filter((name) => asRecord(asRecord(inputs)[name])['type'] === 'step')
+                          .at(-1)
+                      : undefined
+                    api.openTypeMenu(r.left, r.bottom, last ? [last] : [], Number.MAX_SAFE_INTEGER)
                   }}
                 />
-                {!isWizard(inputs) && (
-                  <IconButton
-                    icon={<FilesIcon className="h-4 w-4" />}
-                    label={t.splitIntoPages}
-                    size="sm"
-                    variant="ghost"
-                    onClick={api.splitIntoPages}
-                  />
-                )}
+                <PageActions api={api} parent={[]} list={inputs} bar />
                 {editor.onOpenSettings && <BarDivider />}
               </EditorBar>
             </div>
