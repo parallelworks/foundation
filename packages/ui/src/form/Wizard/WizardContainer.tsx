@@ -229,6 +229,10 @@ export function WizardContainer({
       setOwnPage(next)
     }
   }
+  const drawn = shown.order.length
+  useEffect(() => {
+    pages?.setCount(wizardKey, drawn)
+  }, [pages, wizardKey, drawn])
   const pageKey = editing ? (shown.order[editIndex] ?? '') : currentStep
   const page = shown.byKey[pageKey]
   // A new copy goes after the step's last and is the page shown.

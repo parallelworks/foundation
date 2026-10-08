@@ -3,6 +3,8 @@ import type { InputPath } from '../editing'
 /** One input's row as drawn, with its place among its list's inputs. */
 export interface DrawnRow {
   path: InputPath
+  /** Which copy of the input this is, when a list draws it in each of its rows. */
+  instance: string
   index: number
   rect: DOMRect
   el: HTMLElement
@@ -64,6 +66,7 @@ export function linesIn(root: HTMLElement): Line[] {
     columns.set(owner, entry)
     entry.column.rows.push({
       path,
+      instance: el.dataset['inputInstance'] ?? key(path),
       index: Number(el.dataset['inputIndex'] ?? 0),
       rect: el.getBoundingClientRect(),
       el,

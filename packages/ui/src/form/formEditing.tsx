@@ -8,6 +8,8 @@ export interface FormEditing {
     path: string[]
     /** The field isn't drawn, such as one marked hidden. */
     hidden?: boolean
+    /** The field's name in the form's values, which tells one input's copies in a list's rows apart. */
+    instance?: string
     children?: ReactNode
   }>
   Add: ComponentType<{ parent: string[] }>

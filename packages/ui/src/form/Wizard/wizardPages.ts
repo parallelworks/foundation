@@ -7,6 +7,9 @@ import { createContext } from 'react'
 export interface WizardPages {
   page: (wizard: string) => number
   setPage: (wizard: string, index: number) => void
+  /** How many pages the wizard draws, a repeated page's copies included, once it has drawn. */
+  count: (wizard: string) => number | undefined
+  setCount: (wizard: string, count: number) => void
 }
 
 export const WizardPagesContext = createContext<WizardPages | null>(null)

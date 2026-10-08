@@ -7,6 +7,7 @@ function column(...names: string[]): Column {
     cell: null,
     rows: names.map((name, index) => ({
       path: [name],
+      instance: JSON.stringify([name]),
       index,
       rect: {} as DOMRect,
       el: {} as HTMLElement,

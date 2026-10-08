@@ -305,6 +305,24 @@ describe('InputsFormEditor', () => {
     expect(screen.getByLabelText('Page shown')).toHaveValue(1)
   })
 
+  it('edits a repeated page’s fields from any copy, the bar counting each copy as a page', async () => {
+    renderForm(editor(), {
+      $meta: { wizard: { mode: 'wizard' } },
+      hosts: {
+        type: 'step',
+        title: 'Host',
+        multi: true,
+        min: 2,
+        options: { cpus: { type: 'number' } },
+      },
+      done: { type: 'step', title: 'Done', options: { note: { type: 'string' } } },
+    } as unknown as typeof INPUTS)
+    expect(await screen.findByText('/ 3')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Page shown'), { target: { value: '2' } })
+    expect(row(['hosts', 'cpus']).dataset['inputInstance']).toBe('hosts[1].cpus')
+    expect(within(row(['hosts', 'cpus'])).getByText('Number')).toBeInTheDocument()
+  })
+
   it('offers the form’s inputs to a setting that reads one', () => {
     const e = editor()
     renderForm(e, {
@@ -1924,12 +1942,17 @@ describe('list templates', () => {
     expect(within(row(['hosts', 'port'])).getByText('Number')).toBeInTheDocument()
   })
 
-  it('shows the rows after the first as the form draws them, without editing them', () => {
+  it('edits the template through every row, opening only the hovered row’s toolbar', () => {
     renderList(editor(), { hosts: [{ name: 'a' }, { name: 'b' }] })
-    expect(screen.getByDisplayValue('a')).toBeInTheDocument()
-    expect(screen.getByDisplayValue('b')).toBeInTheDocument()
-    expect(rowsOf(['hosts', 'name'])).toHaveLength(1)
-    expect(row(['hosts', 'name'])).toContainElement(screen.getByDisplayValue('a'))
+    const [first, second] = [...rowsOf(['hosts', 'name'])] as HTMLElement[]
+    expect(first).toContainElement(screen.getByDisplayValue('a'))
+    expect(second).toContainElement(screen.getByDisplayValue('b'))
+    expect(within(second as HTMLElement).getByText('Text')).toBeInTheDocument()
+    ;(second as HTMLElement).getBoundingClientRect = () => new DOMRect(0, 100, 600, 40)
+    fireEvent.pointerOver(second as HTMLElement)
+    const open = (el: HTMLElement | undefined) =>
+      el?.querySelector('[data-input-chrome]')?.parentElement?.classList.contains('h-7')
+    expect([open(first), open(second)]).toEqual([false, true])
   })
 
   it('moves a template field among the template’s own', () => {

@@ -30,7 +30,7 @@ import type { WorkflowVariables } from '../engine'
 import { AngleRightIcon, TrashIcon } from '../icons'
 import { useFieldControlProps, useFieldRequired } from './fieldContext'
 import { type FieldComponent, FieldRegistryContext, Registry } from './fieldRegistry'
-import { EditingScope, FormEditingContext, useFormEditing } from './formEditing'
+import { EditingScope, useFormEditing } from './formEditing'
 import { initializeValues, inputWidth, resolvedFlag } from './lib'
 import { useParsedOpts } from './useParsedOpts'
 import { usePrevious } from './usePrevious'
@@ -860,7 +860,9 @@ const FormField = React.memo(
         deleteFieldByPath(values, fieldObj.name)
       }
       // If it is not set, default to no show only without deleting field from values
-      return editing && path && fieldName !== '$meta' ? <editing.Row path={path} hidden /> : null
+      return editing && path && fieldName !== '$meta' ? (
+        <editing.Row path={path} instance={fieldObj.name} hidden />
+      ) : null
     }
     let onChange: ((val: unknown) => void) | undefined
     if (field.one_must_be_true && parentInfo?.onChange) {
@@ -897,7 +899,7 @@ const FormField = React.memo(
         if (!workflowForm) {
           deleteFieldByPath(values, fieldObj.name)
         }
-        return editing && path ? <editing.Row path={path} hidden /> : null
+        return editing && path ? <editing.Row path={path} instance={fieldObj.name} hidden /> : null
       }
     }
     if (field.depends_on && parentInfo?.arrayIndex !== undefined) {
@@ -953,7 +955,13 @@ const FormField = React.memo(
           </HeaderElement>
         </div>
       )
-      return editing && path ? <editing.Row path={path}>{group}</editing.Row> : group
+      return editing && path ? (
+        <editing.Row path={path} instance={fieldObj.name}>
+          {group}
+        </editing.Row>
+      ) : (
+        group
+      )
     }
     if (typeof field.type === 'object' && field.depends_on) {
       const parentValue = getValueUsingPath(values, field.depends_on)
@@ -1012,11 +1020,11 @@ const FormField = React.memo(
     if (!editing || !path) {
       return input
     }
-    // An object's fields are editable in place, and a list's template through its first row.
+    // An object's fields are editable in place, and a list's template through any of its rows.
     const holds = fieldObj.type === 'object' || fieldObj.type === 'list'
     const template = fieldObj.type === 'list' ? asRecord(fieldObj.options) : {}
     return (
-      <editing.Row path={path}>
+      <editing.Row path={path} instance={fieldObj.name}>
         <EditingScope editing={editing} path={holds ? path : null}>
           {input}
         </EditingScope>
@@ -1078,21 +1086,7 @@ function TemplateRow({
   return null
 }
 
-type FieldsFromOptionsProps = Parameters<typeof FieldList>[0]
-
-export function FieldsFromOptions(props: FieldsFromOptionsProps) {
-  const editing = useFormEditing()
-  // A list repeats its template in every row; only the first row edits it.
-  return editing && props.parentInfo?.arrayIndex ? (
-    <FormEditingContext.Provider value={null}>
-      <FieldList {...props} />
-    </FormEditingContext.Provider>
-  ) : (
-    <FieldList {...props} />
-  )
-}
-
-function FieldList({
+export function FieldsFromOptions({
   options = {},
   values,
   setFormDirty,

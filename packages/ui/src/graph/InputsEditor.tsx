@@ -138,14 +138,14 @@ interface UiState {
   edge: Edge | null
   resizing: boolean
   dialog: Dialog | null
-  /** The innermost row under the pointer, whose toolbar shows. */
+  /** The innermost row under the pointer, whose toolbar shows, by instance. */
   hovered: string | null
   problems: EditorProblem[]
   /** Selected inputs, by row key. */
   selection: string[]
   /** The input the arrow keys move from: the one last pressed or reached. */
   cursor: string | null
-  /** Rows whose toolbar is open: the hovered one, and each column's head on a line it shares. */
+  /** Rows whose toolbar is open, by instance: the hovered one, and each column's head on a line it shares. */
   open: string[]
   /** The box a shift + drag is drawing, in the page's coordinates. */
   marquee: Box | null
@@ -207,8 +207,8 @@ interface InputsEditorApi {
   moveSelection: (delta: -1 | 1) => boolean
   /** Selects the input beside the last one reached, or adds it with `extend`; reports a move. */
   navigate: (direction: Direction, extend: boolean) => boolean
-  /** Opens the hovered row's toolbar, and each column head's on a line of several. */
-  hover: (rowKey: string) => void
+  /** Opens the hovered row's toolbar, and each column head's on a line of several, by instance. */
+  hover: (instance: string) => void
   /** Makes a list of inputs a wizard, its inputs outside a step going into a first one. */
   splitIntoPages: (parent: InputPath) => void
   /** Adds a page after a wizard's last. */
@@ -331,10 +331,12 @@ function ChromeButton({
 function InputRow({
   path,
   hidden = false,
+  instance,
   children,
 }: {
   path: InputPath
   hidden?: boolean
+  instance?: string | undefined
   children?: ReactNode
 }) {
   const api = useContext(ApiContext)
@@ -343,9 +345,11 @@ function InputRow({
   const t = useInputsEditorStrings()
   const g = useGraphEditorStrings()
   const rowKey = key(path)
+  // A list draws its template in every row, so only the copy under the pointer opens its toolbar.
+  const copy = instance ?? rowKey
   const active = useUi(
     api?.store ?? EMPTY_STORE,
-    (state) => state.open.includes(rowKey) && !state.drag && !state.resizing,
+    (state) => state.open.includes(copy) && !state.drag && !state.resizing,
   )
   const selected = useUi(api?.store ?? EMPTY_STORE, (state) => state.selection.includes(rowKey))
   const problems = useUi(api?.store ?? EMPTY_STORE, (state) =>
@@ -422,6 +426,7 @@ function InputRow({
     <div
       role="none"
       data-input-path={rowKey}
+      data-input-instance={copy}
       data-input-index={index}
       {...(hidden ? { 'data-input-hidden': '' } : {})}
       {...(selected ? { 'data-selected': '' } : {})}
@@ -435,7 +440,7 @@ function InputRow({
       )}
       onPointerOver={(e) => {
         e.stopPropagation()
-        api.hover(rowKey)
+        api.hover(copy)
       }}
       onContextMenu={(e) => {
         e.preventDefault()
@@ -1139,14 +1144,18 @@ export function InputsFormEditor({
   const g = useGraphEditorStrings()
   const editing = useWorkflowEditing()
   const [store] = useState(createFormStore)
-  // The page each wizard in the form shows, by its list's path as JSON.
+  // The page each wizard in the form shows, and how many it draws, by its list's path as JSON.
   const [pages, setPages] = useState<Record<string, number>>({})
+  const [counts, setCounts] = useState<Record<string, number>>({})
   const wizardPages = useMemo<WizardPages>(
     () => ({
       page: (wizard) => pages[wizard] ?? 0,
       setPage: (wizard, index) => setPages((now) => ({ ...now, [wizard]: index })),
+      count: (wizard) => counts[wizard],
+      setCount: (wizard, count) =>
+        setCounts((now) => (now[wizard] === count ? now : { ...now, [wizard]: count })),
     }),
-    [pages],
+    [pages, counts],
   )
   const containerRef = useRef<HTMLDivElement>(null)
   const latest = useRef({ editor, inputs })
@@ -1627,21 +1636,21 @@ export function InputsFormEditor({
         rowElement(reached)?.scrollIntoView?.({ block: 'nearest' })
         return true
       },
-      hover: (rowKey) => {
+      hover: (instance) => {
         const root = containerRef.current
-        if (!root || store.get().hovered === rowKey) {
+        if (!root || store.get().hovered === instance) {
           return
         }
         // On a line of several columns every column opens its head's toolbar, so the columns stay level.
         const line = linesIn(root).find(
           ({ columns }) =>
             columns.length > 1 &&
-            columns.some((column) => column.rows.some((row) => key(row.path) === rowKey)),
+            columns.some((column) => column.rows.some((row) => row.instance === instance)),
         )
         const heads = line?.columns.flatMap((column) =>
-          column.rows[0] ? [key(column.rows[0].path)] : [],
+          column.rows[0] ? [column.rows[0].instance] : [],
         )
-        store.set({ hovered: rowKey, open: [...new Set([rowKey, ...(heads ?? [])])] })
+        store.set({ hovered: instance, open: [...new Set([instance, ...(heads ?? [])])] })
       },
       splitIntoPages,
       addPage,
@@ -1892,7 +1901,7 @@ export function InputsFormEditor({
                     const form = isWizard(inputs) ? pagesIn(inputs) : []
                     const last = form.at(-1)
                     if (last) {
-                      wizardPages.setPage('[]', form.length - 1)
+                      wizardPages.setPage('[]', (wizardPages.count('[]') ?? form.length) - 1)
                     }
                     api.openTypeMenu(r.left, r.bottom, last ? [last] : [], Number.MAX_SAFE_INTEGER)
                   }}
@@ -1900,7 +1909,7 @@ export function InputsFormEditor({
                 <PageActions api={api} parent={[]} list={inputs} bar />
                 {isWizard(inputs) && (
                   <PageNumber
-                    count={pagesIn(inputs).length}
+                    count={wizardPages.count('[]') ?? pagesIn(inputs).length}
                     page={wizardPages.page('[]')}
                     onChange={(index) => wizardPages.setPage('[]', index)}
                   />

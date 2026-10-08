@@ -26,8 +26,8 @@ export function WizardStepContent({
     return null
   }
   const path = editing ? [...editing.parent, currentStep] : null
-  // A repeated page's copy keeps its fields in its row of the page's list, and only the first copy
-  // edits them, as only a list's first row edits its template.
+  // A repeated page's copy keeps its fields in its row of the page's list, and every copy edits them,
+  // as every row of a list edits its template.
   const parentInfo =
     copy !== undefined
       ? {
@@ -67,5 +67,12 @@ export function WizardStepContent({
       </EditingScope>
     </div>
   )
-  return editing && path ? <editing.Row path={path}>{content}</editing.Row> : content
+  const instance = `${fieldNamePrefix}${currentStep}${copy === undefined ? '' : `[${copy}]`}`
+  return editing && path ? (
+    <editing.Row path={path} instance={instance}>
+      {content}
+    </editing.Row>
+  ) : (
+    content
+  )
 }
