@@ -110,6 +110,41 @@ Data and each service's latest log live in `.devstack/` beside `dev.json`, or
 how `go -C tools tool dev` finds it from `tools/`. A Postgres left running by a stack that was
 killed is stopped on the next start.
 
+### `dev.json` fields
+
+Values in `env`, `run`, `build`, `url`, `health` and `before` may use
+`{port.<name>}`, `{postgres}`, `{postgres_test}`, `{s3}`, `{dir}`, `{root}`
+and `{instance}`; values in `env` may also use `${NAME}` (see
+[Environment](#environment)). Unknown fields are an error.
+
+| Field | |
+| --- | --- |
+| `name` | The app's name: the view's title, and Postgres's user, password and database. Required with `postgres` |
+| `dir` | Where data and logs go (default `.devstack`) |
+| `postgres` | Run Postgres: `port` (default 5432) and server `parameters` |
+| `s3` | Run an S3-compatible server: `addr` (default `127.0.0.1:8333`) |
+| `ports` | Preferred ports by name; each checkout gets the next free one when taken ([Ports](#ports)) |
+| `env`, `envFile` | Every command's environment, and a dotenv file over it (default `.env`) ([Environment](#environment)) |
+| `before` | Commands run in order before anything starts |
+| `services` | The services, below |
+| `profiles`, `defaultProfiles` | Setups to choose between per checkout, and those used until one is chosen ([Profiles](#profiles)) |
+| `command` | The command a global `dev` runs here instead of itself, for an app with its own ([Your own command](#your-own-command)) |
+
+| Service field | |
+| --- | --- |
+| `name` | How commands and the view name it |
+| `dir` | Where it runs, relative to `dev.json` |
+| `run` | What runs it. Required |
+| `build` | What builds it; with it, the service is a server, rebuilt and restarted when its sources change |
+| `watch`, `exclude`, `extensions` | Directories whose changes rebuild a server (default its `dir`), directory names to skip, and file types (default `.go`) |
+| `env`, `envFile` | Its own environment over the config's, and a dotenv file relative to its `dir` |
+| `url`, `health` | Where to open it, and a URL that answers 2xx once it is ready |
+| `manual` | Start it only when named |
+| `dependsOn` | Services that must be up first; starting it starts them |
+| `restart` | `on-failure` to start it again, with backoff, when it exits with an error |
+| `rebuildOnCheckout` | Rebuild it when the branch changes, for a build stamped with it |
+| `profiles` | Run it only in checkouts using one of these |
+
 ## The interactive view
 
 In a terminal, `dev` takes over the screen with its services, their states
