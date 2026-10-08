@@ -14,6 +14,25 @@ export const modalPanelClasses =
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
 
+// Stacked modals can close in any order (a confirm over a drawer the host closes first), so
+// the first lock saves the body's overflow and only the last unlock restores it.
+let scrollLocks = 0
+let unlockedOverflow = ''
+
+function lockBodyScroll(): () => void {
+  if (scrollLocks === 0) {
+    unlockedOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+  }
+  scrollLocks++
+  return () => {
+    scrollLocks--
+    if (scrollLocks === 0) {
+      document.body.style.overflow = unlockedOverflow
+    }
+  }
+}
+
 export function BareModal({
   open,
   onClose,
@@ -59,10 +78,9 @@ export function BareModal({
       return
     }
     const previouslyFocused = document.activeElement as HTMLElement | null
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const unlock = lockBodyScroll()
     return () => {
-      document.body.style.overflow = previousOverflow
+      unlock()
       previouslyFocused?.focus?.()
     }
   }, [open])

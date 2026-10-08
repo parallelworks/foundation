@@ -1,11 +1,10 @@
 import cx from 'classnames'
 import type { ReactNode } from 'react'
-import { useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { SearchIcon } from '../../icons'
 import { ConfirmModal } from '../ConfirmModal'
 import { Drawer } from '../Drawer'
 import EmptyState from '../EmptyState'
-import { focusOnMount } from '../focus'
 import { ghostButtonClasses, primaryButtonClasses } from '../ghostButton'
 import { positionKeys } from '../keys'
 import { useStrings } from '../Provider'
@@ -83,29 +82,48 @@ export function AccessDrawer({
   const [confirming, setConfirming] = useState<'close' | 'save' | null>(null)
   const [saving, setSaving] = useState(false)
   const [justSaved, setJustSaved] = useState(false)
+  const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (open) {
       setQuery(defaultQuery)
       setJustSaved(false)
+    } else {
+      setConfirming(null)
     }
   }, [open, defaultQuery])
 
   const ready = !loading && error === undefined && value !== undefined
   const editable = ready && !readOnly
 
+  // An effect, not a ref callback: the modal records where to return focus in its own
+  // effect, which runs before this one, so focusing earlier would lose the trigger.
+  useEffect(() => {
+    if (open && ready) {
+      searchRef.current?.focus()
+    }
+  }, [open, ready])
+
+  const sorted = useMemo(() => [...groups].sort((a, b) => a.name.localeCompare(b.name)), [groups])
+
   // Sections come from the saved grants, not the draft, so a row never jumps away
   // from the pointer while it's being edited. They re-sort after a save.
   const sections = useMemo(() => {
     const needle = deferredQuery.trim().toLowerCase()
-    const sorted = [...groups].sort((a, b) => a.name.localeCompare(b.name))
-    const matches = needle ? sorted.filter((g) => g.name.toLowerCase().includes(needle)) : sorted
-    return {
-      shown: matches.length,
-      withAccess: matches.filter((g) => hasAccess(grants(draft.saved, g.name))),
-      others: matches.filter((g) => !hasAccess(grants(draft.saved, g.name))),
+    const withAccess: AccessGroup[] = []
+    const others: AccessGroup[] = []
+    for (const group of sorted) {
+      if (needle && !group.name.toLowerCase().includes(needle)) {
+        continue
+      }
+      if (hasAccess(grants(draft.saved, group.name))) {
+        withAccess.push(group)
+      } else {
+        others.push(group)
+      }
     }
-  }, [groups, deferredQuery, draft.saved])
+    return { shown: withAccess.length + others.length, withAccess, others }
+  }, [sorted, deferredQuery, draft.saved])
 
   const requestClose = () => {
     if (saving) {
@@ -119,11 +137,12 @@ export function AccessDrawer({
   }
 
   const runSave = async () => {
-    const next = normalize(draft.draft)
+    const submitted = draft.draft
+    const next = normalize(submitted)
     setSaving(true)
     try {
       await onSave(next)
-      draft.commit(next)
+      draft.commit(next, submitted)
       setJustSaved(true)
     } catch {
       // The host reports the failure; keeping the draft lets the person retry.
@@ -150,7 +169,7 @@ export function AccessDrawer({
                 className="pointer-events-none absolute left-3 h-3.5 w-3.5 text-(--theme-muted-text-color)"
               />
               <input
-                ref={focusOnMount}
+                ref={searchRef}
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
@@ -160,7 +179,7 @@ export function AccessDrawer({
               />
             </label>
             <span className="shrink-0 text-[13px] text-(--theme-muted-text-color)">
-              {query.trim()
+              {deferredQuery.trim()
                 ? strings.matching(sections.shown, groups.length)
                 : strings.total(groups.length)}
             </span>
@@ -222,8 +241,8 @@ export function AccessDrawer({
                 <AccessRow
                   {...rowProps}
                   subject={null}
-                  note={organization.disabledReason ?? strings.organizationMeta}
-                  locked={organization.disabledReason !== undefined}
+                  note={organization.disabledReason || strings.organizationMeta}
+                  locked={Boolean(organization.disabledReason)}
                 />
               </ul>
             )}
@@ -267,7 +286,7 @@ export function AccessDrawer({
         )}
       </Drawer>
       <ConfirmModal
-        open={confirming === 'close'}
+        open={open && confirming === 'close'}
         onClose={() => setConfirming(null)}
         title={strings.discardTitle}
         description={strings.discardDescription(draft.changes.length)}
@@ -281,7 +300,7 @@ export function AccessDrawer({
       />
       {confirmSave && (
         <ConfirmModal
-          open={confirming === 'save'}
+          open={open && confirming === 'save'}
           onClose={() => setConfirming(null)}
           title={confirmSave.title}
           description={confirmSave.description}

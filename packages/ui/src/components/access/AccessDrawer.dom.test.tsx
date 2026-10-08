@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AccessDrawer, type AccessDrawerProps } from './AccessDrawer'
 import type { AccessValue } from './accessDraft'
@@ -36,6 +37,30 @@ function renderDrawer(props: Partial<AccessDrawerProps> = {}) {
     />,
   )
   return { onSave: (props.onSave as typeof onSave | undefined) ?? onSave, onClose }
+}
+
+function Host(props: Partial<AccessDrawerProps>) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)}>
+        Open
+      </button>
+      <button type="button" onClick={() => setOpen(false)}>
+        Host close
+      </button>
+      <AccessDrawer
+        open={open}
+        onClose={() => setOpen(false)}
+        permissions={PERMISSIONS}
+        implied={IMPLIED}
+        groups={GROUPS}
+        value={VALUE}
+        onSave={async () => {}}
+        {...props}
+      />
+    </>
+  )
 }
 
 function rowNames(section: string) {
@@ -168,5 +193,97 @@ describe('AccessDrawer', () => {
     renderDrawer({ readOnly: true })
     expect(screen.queryByRole('button', { name: 'Save access' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Revoke all/ })).not.toBeInTheDocument()
+  })
+
+  it('keeps the organization row unlocked when the disabled reason is falsy', () => {
+    renderDrawer({ organization: { disabledReason: false } })
+    const org = row('Everyone in the organization')
+    expect(org.getByRole('button', { name: 'Admin' })).not.toHaveAttribute('aria-disabled')
+    expect(org.getByText('All members, including new ones')).toBeInTheDocument()
+  })
+
+  it('returns focus to the trigger on close', async () => {
+    render(<Host />)
+    const trigger = screen.getByRole('button', { name: 'Open' })
+    trigger.focus()
+    fireEvent.click(trigger)
+    expect(screen.getByRole('searchbox')).toHaveFocus()
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(trigger).toHaveFocus()
+  })
+
+  it('unlocks page scroll after discarding and closing', async () => {
+    render(<Host />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open' }))
+    fireEvent.click(row('beta').getByRole('button', { name: 'Admin' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard changes' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(document.body.style.overflow).toBe('')
+  })
+
+  it('hides the discard confirmation when the host closes the drawer', async () => {
+    render(<Host />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open' }))
+    fireEvent.click(row('beta').getByRole('button', { name: 'Admin' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    await screen.findByRole('button', { name: 'Discard changes' })
+    fireEvent.click(screen.getByRole('button', { name: 'Host close' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('keeps edits made while a save is in flight', async () => {
+    let finish = () => {}
+    const onSave = () =>
+      new Promise<void>((resolve) => {
+        finish = resolve
+      })
+    render(<Host onSave={onSave} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open' }))
+    fireEvent.click(row('beta').getByRole('button', { name: 'Admin' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save access' }))
+    fireEvent.click(row('gamma').getByRole('button', { name: 'Login' }))
+    await act(async () => finish())
+    expect(row('gamma').getByRole('button', { name: 'Login' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(screen.getByText('1 unsaved change')).toBeInTheDocument()
+  })
+
+  it('drops edits from an earlier opening when it reopens before the grants load', () => {
+    const { rerender } = render(<Host />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open' }))
+    fireEvent.click(row('beta').getByRole('button', { name: 'Admin' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Host close' }))
+    rerender(<Host value={undefined} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open' }))
+    rerender(<Host value={{ organization: {}, groups: {} }} />)
+    expect(row('beta').getByRole('button', { name: 'Admin' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
+    expect(screen.getByText('No unsaved changes')).toBeInTheDocument()
+  })
+
+  it('shows grants that arrived during editing once the edits are discarded', () => {
+    const { rerender } = render(<Host />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open' }))
+    fireEvent.click(row('beta').getByRole('button', { name: 'Admin' }))
+    rerender(<Host value={{ organization: {}, groups: { alpha: { login: true } } }} />)
+    expect(row('alpha').getByRole('button', { name: 'Login' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+    expect(row('alpha').getByRole('button', { name: 'Login' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(row('zeta').getByRole('button', { name: 'Admin' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
   })
 })

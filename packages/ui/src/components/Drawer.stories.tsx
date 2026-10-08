@@ -4,6 +4,8 @@ import { Drawer } from './Drawer'
 import { ghostButtonClasses, primaryButtonClasses } from './ghostButton'
 
 interface HarnessArgs {
+  title: string
+  description: string
   width: number
   withToolbar: boolean
   withFooter: boolean
@@ -11,7 +13,15 @@ interface HarnessArgs {
   rows: number
 }
 
-function Harness({ width, withToolbar, withFooter, preventClose, rows }: HarnessArgs) {
+function Harness({
+  title,
+  description,
+  width,
+  withToolbar,
+  withFooter,
+  preventClose,
+  rows,
+}: HarnessArgs) {
   const [open, setOpen] = useState(true)
   return (
     <div className="p-6">
@@ -21,8 +31,8 @@ function Harness({ width, withToolbar, withFooter, preventClose, rows }: Harness
       <Drawer
         open={open}
         onClose={() => setOpen(false)}
-        title="Details"
-        description="Supporting text under the title."
+        title={title}
+        description={description || undefined}
         width={width}
         preventClose={preventClose}
         toolbar={
@@ -63,7 +73,15 @@ function Harness({ width, withToolbar, withFooter, preventClose, rows }: Harness
 const meta: Meta<typeof Harness> = {
   title: 'UI/Drawer',
   component: Harness,
-  args: { width: 640, withToolbar: true, withFooter: true, preventClose: false, rows: 40 },
+  args: {
+    title: 'Details',
+    description: 'Supporting text under the title.',
+    width: 640,
+    withToolbar: true,
+    withFooter: true,
+    preventClose: false,
+    rows: 40,
+  },
   argTypes: { width: { control: { type: 'range', min: 320, max: 1200, step: 20 } } },
 }
 export default meta

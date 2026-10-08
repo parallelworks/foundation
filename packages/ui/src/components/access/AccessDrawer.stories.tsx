@@ -68,9 +68,17 @@ const FOUR_IMPLIED: ImpliedPermissions = {
 }
 const ONE: AccessPermission[] = [{ key: 'use', label: 'Use', description: 'Use this resource.' }]
 
-function makeValue(groups: AccessGroup[], granted: number, single: boolean): AccessValue {
+function makeValue(
+  groups: AccessGroup[],
+  granted: number,
+  single: boolean,
+  organizationGranted: boolean,
+): AccessValue {
   const cycle = single ? ['use'] : ['admin', 'writer', 'sudo', 'login', 'login']
-  const value: AccessValue = { organization: {}, groups: {} }
+  const value: AccessValue = {
+    organization: organizationGranted ? { [single ? 'use' : 'login']: true } : {},
+    groups: {},
+  }
   groups.slice(0, granted).forEach((group, index) => {
     value.groups[group.name] = { [cycle[index % cycle.length] ?? 'login']: true }
   })
@@ -78,9 +86,12 @@ function makeValue(groups: AccessGroup[], granted: number, single: boolean): Acc
 }
 
 interface HarnessArgs {
+  title: string
+  width: number
   groupCount: number
   granted: number
   singlePermission: boolean
+  organizationGranted: boolean
   loading: boolean
   loadError: boolean
   readOnly: boolean
@@ -92,10 +103,22 @@ interface HarnessArgs {
   defaultQuery: string
 }
 
+// Keyed on the args that build the grants, so changing one of them rebuilds the value.
 function Harness(args: HarnessArgs) {
+  return (
+    <SeededHarness
+      key={`${args.groupCount}-${args.granted}-${args.singlePermission}-${args.organizationGranted}`}
+      {...args}
+    />
+  )
+}
+
+function SeededHarness(args: HarnessArgs) {
   const [open, setOpen] = useState(true)
   const groups = useMemo(() => makeGroups(args.groupCount), [args.groupCount])
-  const [value, setValue] = useState(() => makeValue(groups, args.granted, args.singlePermission))
+  const [value, setValue] = useState(() =>
+    makeValue(groups, args.granted, args.singlePermission, args.organizationGranted),
+  )
   return (
     <div className="p-6">
       <button type="button" className={primaryButtonClasses} onClick={() => setOpen(true)}>
@@ -104,6 +127,8 @@ function Harness(args: HarnessArgs) {
       <AccessDrawer
         open={open}
         onClose={() => setOpen(false)}
+        title={args.title || undefined}
+        width={args.width}
         description={
           <>
             Cluster <span className="font-mono text-(--theme-app)">gpu-west</span>
@@ -164,9 +189,12 @@ const meta: Meta<typeof Harness> = {
   title: 'UI/Access drawer',
   component: Harness,
   args: {
+    title: '',
+    width: 640,
     groupCount: 240,
     granted: 6,
     singlePermission: false,
+    organizationGranted: false,
     loading: false,
     loadError: false,
     readOnly: false,
@@ -178,6 +206,7 @@ const meta: Meta<typeof Harness> = {
     defaultQuery: '',
   },
   argTypes: {
+    width: { control: { type: 'range', min: 320, max: 1200, step: 20 } },
     groupCount: { control: { type: 'range', min: 0, max: 1000, step: 10 } },
     granted: { control: { type: 'range', min: 0, max: 60, step: 1 } },
   },
@@ -203,6 +232,8 @@ export const Loading: Story = { args: { loading: true } }
 export const LoadError: Story = { args: { loadError: true } }
 
 export const ReadOnly: Story = { args: { readOnly: true } }
+
+export const OrganizationGranted: Story = { args: { organizationGranted: true } }
 
 export const OrganizationDisabled: Story = { args: { organizationDisabled: true } }
 
