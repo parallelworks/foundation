@@ -118,11 +118,11 @@ describe('InputsFormEditor', () => {
     expect(within(row(['settings', 'size'])).getByText('Number')).toBeInTheDocument()
   })
 
-  it('gives only a list still empty its own add button, each input’s bar adding after it', () => {
+  it('ends every list with an add button naming the list, a nested one further in', () => {
     renderForm(editor(), { ...INPUTS, empty: { type: 'group', label: 'Empty', items: {} } })
-    expect(screen.queryByText('Add input')).toBeNull()
-    expect(screen.getAllByText('Add field')).toHaveLength(1)
-    expect(within(row(['empty'])).getByText('Add field')).toBeInTheDocument()
+    expect(screen.getByText('Add input').closest('button')).not.toHaveClass('ml-4')
+    expect(screen.getByText('Add field to Settings').closest('button')).toHaveClass('ml-4')
+    expect(within(row(['empty'])).getByText('Add field to Empty')).toBeInTheDocument()
   })
 
   it('adds an input of the picked type at the end once its dialog saves', () => {

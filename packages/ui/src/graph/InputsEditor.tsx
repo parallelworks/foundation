@@ -489,7 +489,7 @@ function InputRow({
           {outline.map((child) => (
             <InputRow key={child} path={[...path, child]} hidden />
           ))}
-          {outline.length === 0 && <AddInput parent={path} />}
+          <AddInput parent={path} />
         </div>
       )}
     </div>
@@ -595,25 +595,34 @@ function PageNumber({
   )
 }
 
-/** The add button that ends each list of inputs. */
+// A nested list's add button sits further in the deeper the list, so it never reads as the one
+// for the list around it.
+const ADD_INDENT = ['', 'ml-4', 'ml-8', 'ml-12']
+
+/** The add button that ends each list of inputs, naming the list it adds to. */
 function AddInput({ parent }: { parent: InputPath }) {
   const api = useContext(ApiContext)
   const t = useInputsEditorStrings()
   if (!api) {
     return null
   }
+  const holder = parent.length > 0 ? api.definition(parent) : {}
+  const name = text(holder['label']) || text(holder['title']) || (parent.at(-1) ?? '')
   return (
     <button
       type="button"
       data-input-add={key(parent)}
-      className="mb-[15px] flex cursor-pointer items-center gap-1.5 text-[13px] theme-muted-text hover:text-(--theme-link)"
+      className={cx(
+        'mb-[15px] flex cursor-pointer items-center gap-1.5 text-[13px] theme-muted-text hover:text-(--theme-link)',
+        ADD_INDENT[Math.min(parent.length, ADD_INDENT.length - 1)],
+      )}
       onClick={(e) => {
         const r = e.currentTarget.getBoundingClientRect()
         api.openTypeMenu(r.left, r.bottom, parent, Number.MAX_SAFE_INTEGER)
       }}
     >
       <AddIcon className="h-3 w-3" />
-      {parent.length === 0 ? t.addInputHere : t.addField}
+      {parent.length === 0 ? t.addInputHere : t.addFieldTo(name)}
     </button>
   )
 }

@@ -450,6 +450,8 @@ export const INPUTS_EDITOR_STRINGS = {
   stepsGroup: 'Steps',
   addInputBelow: 'Add input below',
   addField: 'Add field',
+  /** The add button ending a group's, page's or list row's fields, named by its label or title. */
+  addFieldTo: (name: string) => `Add field to ${name}`,
   inputActions: 'Input actions',
   editInput: 'Edit input',
   duplicate: 'Duplicate',
