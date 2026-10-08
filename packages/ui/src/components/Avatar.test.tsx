@@ -39,6 +39,11 @@ describe('Avatar', () => {
     expect(screen.getByRole('img', { name: 'Avatar del usuario' })).toBeInTheDocument()
   })
 
+  it('shows one initial at the extra-small size', () => {
+    render(<Avatar name="Ada Lovelace" size="xs" />)
+    expect(screen.getByText('A')).toBeInTheDocument()
+  })
+
   it('shows a status dot', () => {
     render(<Avatar name="Ada" status="online" />)
     expect(screen.getByTestId('online-indicator')).toBeInTheDocument()

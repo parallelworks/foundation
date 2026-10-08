@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.14.0](https://github.com/parallelworks/foundation/compare/v0.13.0...v0.14.0) (2026-10-07)
+
+
+### ⚠ BREAKING CHANGES
+
+* **spa:** a set DevServer always proxies, so a stale build never takes Vite's place ([#117](https://github.com/parallelworks/foundation/issues/117))
+
+### Features
+
+* **server:** Serve binds before it logs, and logs a URL to reach the server ([#126](https://github.com/parallelworks/foundation/issues/126)) ([552eee7](https://github.com/parallelworks/foundation/commit/552eee75d4c8b902f2150209997362b4edbd3da9))
+* **spa:** a set DevServer always proxies, so a stale build never takes Vite's place ([#117](https://github.com/parallelworks/foundation/issues/117)) ([cac9b21](https://github.com/parallelworks/foundation/commit/cac9b21da2becdbf16ca40a0aba43b34ee8eecd4))
+
 ## [0.13.0](https://github.com/parallelworks/foundation/compare/v0.12.0...v0.13.0) (2026-10-03)
 
 

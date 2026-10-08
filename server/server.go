@@ -48,7 +48,8 @@ type Options struct {
 	// Web is the built single-page app (see spa.Handler). Nil serves no app.
 	Web fs.FS
 	// DevServer is the Vite dev server, such as "http://localhost:5173".
-	// While Web holds no build, the app is proxied from it.
+	// When set, the app is proxied from it, even if Web holds a build. Set it
+	// only in development.
 	DevServer string
 	// BasePath is where a host mounts the application, such as "/tandem".
 	// The app's index.html gets a matching <base href>. Defaults to "/".
@@ -98,7 +99,7 @@ func New(opts Options) http.Handler {
 	if csp == "" {
 		csp = DefaultContentSecurityPolicy
 	}
-	if opts.Web != nil && opts.DevServer != "" && !spa.Built(opts.Web) {
+	if opts.Web != nil && opts.DevServer != "" {
 		csp += "; script-src 'self' 'nonce-" + spa.DevNonce + "'; style-src 'self' 'nonce-" + spa.DevNonce + "'"
 	}
 
@@ -193,13 +194,28 @@ type Listen struct {
 const DefaultShutdownTimeout = 10 * time.Second
 
 // Serve runs an HTTP server until ctx is canceled, then shuts down
-// gracefully, giving in-flight requests up to ShutdownTimeout.
+// gracefully, giving in-flight requests up to ShutdownTimeout. It logs the
+// address it listens on once bound, with a URL to reach it there, which
+// development tools pick up to link to the service.
 func Serve(ctx context.Context, l Listen, handler http.Handler, logger *slog.Logger) error {
 	if l.ShutdownTimeout == 0 {
 		l.ShutdownTimeout = DefaultShutdownTimeout
 	}
+	withTLS := l.TLSCertFile != "" && l.TLSKeyFile != ""
+	addr := l.Addr
+	if addr == "" {
+		addr = ":http"
+		if withTLS {
+			addr = ":https"
+		}
+	}
+	// Binding before logging means "listening" is true, and the log names
+	// the port actually bound, which ":0" leaves to the system.
+	ln, err := (&net.ListenConfig{}).Listen(ctx, "tcp", addr)
+	if err != nil {
+		return err
+	}
 	srv := &http.Server{
-		Addr:              l.Addr,
 		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       120 * time.Second,
@@ -209,18 +225,14 @@ func Serve(ctx context.Context, l Listen, handler http.Handler, logger *slog.Log
 		// versions, cipher suites, curves and signature algorithms.
 		TLSConfig: &tls.Config{MinVersion: tls.VersionTLS12},
 	}
-	withTLS := l.TLSCertFile != "" && l.TLSKeyFile != ""
-
+	logger.InfoContext(ctx, "http server listening", "addr", ln.Addr().String(), "url", localURL(ln.Addr(), withTLS), "tls", withTLS)
 	errc := make(chan error, 1)
 	go func() {
-		logger.InfoContext(ctx, "http server listening", "addr", l.Addr, "tls", withTLS)
-		var err error
 		if withTLS {
-			err = srv.ListenAndServeTLS(l.TLSCertFile, l.TLSKeyFile)
+			errc <- srv.ServeTLS(ln, l.TLSCertFile, l.TLSKeyFile)
 		} else {
-			err = srv.ListenAndServe()
+			errc <- srv.Serve(ln)
 		}
-		errc <- err
 	}()
 
 	select {
@@ -239,6 +251,23 @@ func Serve(ctx context.Context, l Listen, handler http.Handler, logger *slog.Log
 		return err
 	}
 	return nil
+}
+
+// localURL is where a listener can be reached from this machine: its own
+// host, or localhost when it listens on every address.
+func localURL(addr net.Addr, withTLS bool) string {
+	host, port, err := net.SplitHostPort(addr.String())
+	if err != nil {
+		return ""
+	}
+	if ip := net.ParseIP(host); host == "" || (ip != nil && ip.IsUnspecified()) {
+		host = "localhost"
+	}
+	scheme := "http"
+	if withTLS {
+		scheme = "https"
+	}
+	return scheme + "://" + net.JoinHostPort(host, port)
 }
 
 // localeOf negotiates with locales, or with Accept-Language alone when the

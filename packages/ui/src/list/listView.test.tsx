@@ -1,25 +1,12 @@
 // @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react'
+import { memoryStorage } from '../test/storage'
 import type { FilterFacet } from './listView'
 import { useListView } from './listView'
 
 vi.mock('use-intl', () => ({
   useTranslations: () => (key: string) => key,
 }))
-
-function memoryStorage(): Storage {
-  const store = new Map<string, string>()
-  return {
-    getItem: (key: string) => store.get(key) ?? null,
-    setItem: (key: string, value: string) => store.set(key, value),
-    removeItem: (key: string) => store.delete(key),
-    clear: () => store.clear(),
-    key: (index: number) => [...store.keys()][index] ?? null,
-    get length() {
-      return store.size
-    },
-  } as Storage
-}
 
 type Row = { namespace: string; kind: string }
 
@@ -111,5 +98,29 @@ describe('shared list view filters', () => {
     window.localStorage.setItem('page-a:filters', JSON.stringify({ namespace: ['beta'] }))
     const view = renderView('page-a')
     expect(view.result.current.filters['namespace']).toBeUndefined()
+  })
+})
+
+describe('stacked columns', () => {
+  it('stacks columns without a priority by default, except the first and any set not to', () => {
+    const { result } = renderHook(() =>
+      useListView<{ id: string }>({
+        storageKey: 'stack-test',
+        columns: [
+          { key: 'name', label: 'Name', alwaysVisible: true },
+          { key: 'status', label: 'Status' },
+          { key: 'total', label: 'Total', stack: false },
+          { key: 'owner', label: 'Owner', priority: 'low' },
+        ],
+      }),
+    )
+    // The first is what others stack under; a priority drops instead; stack: false stays a column.
+    expect(result.current.columnStacks).toEqual([false, true, false, false])
+    expect(result.current.columnClasses).toEqual([
+      '',
+      'hidden @[36rem]:table-cell',
+      '',
+      'hidden @[52rem]:table-cell',
+    ])
   })
 })

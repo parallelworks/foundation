@@ -536,6 +536,72 @@ describe('FileExplorer storages prop', () => {
   })
 })
 
+describe('FileExplorer storage removal', () => {
+  const other: TStorage = { ...storage, id: 'storage-2', name: 'other', displayName: 'other' }
+  const OTHER_ROOT = `${other.user}/${other.name}/`
+
+  async function renderTwo(selectedPath: string) {
+    const bucket = scriptedStorage()
+    const otherBucket = scriptedStorage()
+    const onPathChange = vi.fn()
+    const view = (path: string, storages: TStorage[]) => (
+      <FileExplorerProvider>
+        <FileExplorer
+          getProviderAndClient={(s) =>
+            (s.id === other.id ? otherBucket : bucket).getProviderAndClient()
+          }
+          storages={storages}
+          selectedPath={path}
+          onPathChange={onPathChange}
+          showUserHierarchy
+          initialExpandedPaths={[`${storage.user}/`, OTHER_ROOT]}
+        />
+      </FileExplorerProvider>
+    )
+    const utils = render(view(selectedPath, [storage, other]))
+    await act(async () => {})
+    return {
+      bucket,
+      otherBucket,
+      onPathChange,
+      async rerender(path: string, storages: TStorage[]) {
+        utils.rerender(view(path, storages))
+        await act(async () => {})
+      },
+    }
+  }
+
+  it('moves a selection inside a removed storage to the user and leaves the other storage alone', async () => {
+    const { otherBucket, onPathChange, rerender } = await renderTwo(FOLDER_A)
+    await screen.findByLabelText('Select one.txt')
+    await waitFor(() => expect(otherBucket.callsFor('')).toHaveLength(1))
+
+    await rerender(FOLDER_A, [other])
+
+    expect(onPathChange).toHaveBeenCalledWith(`${storage.user}/`)
+    expect(treeItem('bucket')).toBeUndefined()
+    expect(await findTreeItem('other')).toBeInTheDocument()
+    expect(treeItem('a')).toBeDefined()
+    expect(otherBucket.callsFor('')).toHaveLength(1)
+  })
+
+  it('lists a storage that comes back afresh instead of showing what it held before', async () => {
+    const { bucket, otherBucket, rerender } = await renderTwo(FOLDER_A)
+    await screen.findByLabelText('Select one.txt')
+    expect(bucket.callsFor('')).toHaveLength(1)
+    expect(bucket.callsFor('a/')).toHaveLength(1)
+
+    await rerender(`${storage.user}/`, [other])
+    bucket.fixture.set('', [[dir('c/')]])
+    await rerender(`${storage.user}/`, [storage, other])
+
+    await waitFor(() => expect(bucket.callsFor('')).toHaveLength(2))
+    expect(await findTreeItem('c')).toBeInTheDocument()
+    expect(bucket.callsFor('a/')).toHaveLength(1)
+    expect(otherBucket.callsFor('')).toHaveLength(1)
+  })
+})
+
 describe('FileExplorer selection across navigation', () => {
   // Back/forward changes the path prop with none of the component's own handlers
   // running, so a checked set held over aimed delete at the folder just left.
@@ -567,5 +633,60 @@ describe('FileExplorer selection across navigation', () => {
 
     expect(screen.getByLabelText('Select one.txt')).toBeChecked()
     expect(deleteButton()).toBeEnabled()
+  })
+})
+
+describe('FileExplorer host extensions', () => {
+  it('adds host row actions to a folder menu and shows host content in the folder header', async () => {
+    const script = scriptedStorage()
+    const onSelect = vi.fn()
+    render(
+      <FileExplorerProvider>
+        <FileExplorer
+          getProviderAndClient={script.getProviderAndClient}
+          storages={[storage]}
+          selectedPath={FOLDER_A}
+          onPathChange={() => {}}
+          extraRowActions={(node, owner) =>
+            node.type === 'directory' && owner?.id === storage.id
+              ? [
+                  {
+                    key: 'host',
+                    label: 'Host action',
+                    icon: null,
+                    onSelect: () => onSelect(node.name),
+                  },
+                ]
+              : []
+          }
+          headerAccessory={(node) => <span>{`header for ${node.name}`}</span>}
+        />
+      </FileExplorerProvider>,
+    )
+    await act(async () => {})
+
+    expect(await screen.findByText('header for a')).toBeInTheDocument()
+
+    fireEvent.contextMenu(await findTreeItem('b'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Host action' }))
+    expect(onSelect).toHaveBeenCalledWith('b')
+  })
+})
+
+describe('FileExplorer write without delete', () => {
+  it('offers upload and new folder but no delete when the storage cannot delete', async () => {
+    const script = scriptedStorage()
+    render(explorer(FOLDER_A, script, [{ ...storage, canUpload: true, canDelete: false }]))
+    await act(async () => {})
+
+    expect(screen.getByLabelText('Upload')).toBeInTheDocument()
+    expect(screen.getByLabelText('New folder')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Delete')).not.toBeInTheDocument()
+
+    fireEvent.contextMenu(await findTreeItem('b'))
+    await waitFor(() =>
+      expect(screen.getAllByRole('button', { name: 'New folder' })).toHaveLength(2),
+    )
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
   })
 })

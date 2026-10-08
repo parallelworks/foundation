@@ -102,4 +102,35 @@ describe('upload summary', () => {
 
     await waitFor(() => expect(summaryFor(id)?.type).toBe('error'))
   })
+
+  it('keeps at most three uploads in flight', async () => {
+    const { explorer, summaryFor } = setup()
+    let inFlight = 0
+    let peak = 0
+    const uploadFile = vi.fn(async () => {
+      inFlight++
+      peak = Math.max(peak, inFlight)
+      await new Promise((resolve) => setTimeout(resolve, 5))
+      inFlight--
+      return {}
+    })
+    const nodes = Array.from({ length: 10 }, (_, i) => node(`f${i}.txt`))
+
+    let id = ''
+    act(() => {
+      id = explorer.current.addUploadSession(
+        'bucket',
+        'docs',
+        nodes,
+        client(uploadFile),
+        provider,
+        target,
+        refresh,
+      )
+    })
+
+    await waitFor(() => expect(summaryFor(id)?.type).toBe('success'), { timeout: 3000 })
+    expect(uploadFile).toHaveBeenCalledTimes(10)
+    expect(peak).toBe(3)
+  })
 })

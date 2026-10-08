@@ -1,5 +1,64 @@
 # Changelog
 
+## [0.26.0](https://github.com/parallelworks/foundation/compare/ui-v0.25.0...ui-v0.26.0) (2026-10-07)
+
+
+### Features
+
+* **ui:** storages can take uploads without allowing delete, and uploads run three at a time ([#153](https://github.com/parallelworks/foundation/issues/153)) ([091dc2a](https://github.com/parallelworks/foundation/commit/091dc2a45bef3df19d185c7b650628c7213bc69b))
+
+## [0.25.0](https://github.com/parallelworks/foundation/compare/ui-v0.24.2...ui-v0.25.0) (2026-10-07)
+
+
+### Features
+
+* **ui:** searchable filter facets, capped pager totals and an xs avatar size ([#141](https://github.com/parallelworks/foundation/issues/141)) ([6343b44](https://github.com/parallelworks/foundation/commit/6343b442b18ee805011d5334854c58b8bb02b32d))
+
+## [0.24.2](https://github.com/parallelworks/foundation/compare/ui-v0.24.1...ui-v0.24.2) (2026-10-07)
+
+
+### Bug Fixes
+
+* **ui:** long URLs in chat messages overflow the message bubble ([#145](https://github.com/parallelworks/foundation/issues/145)) ([30cc8c5](https://github.com/parallelworks/foundation/commit/30cc8c55dfedf1e11d2e1d401714c0407aacd0b3))
+
+## [0.24.1](https://github.com/parallelworks/foundation/compare/ui-v0.24.0...ui-v0.24.1) (2026-10-07)
+
+
+### Bug Fixes
+
+* **ui:** a stacked cell with nothing in it adds nothing under the first ([#135](https://github.com/parallelworks/foundation/issues/135)) ([508455e](https://github.com/parallelworks/foundation/commit/508455e23849a7b882bd71b77dcae8743ce0bc7e))
+
+## [0.24.0](https://github.com/parallelworks/foundation/compare/ui-v0.23.0...ui-v0.24.0) (2026-10-07)
+
+
+### Features
+
+* **ui:** list columns stack under the first on a narrow container ([#132](https://github.com/parallelworks/foundation/issues/132)) ([f146e19](https://github.com/parallelworks/foundation/commit/f146e19115a536fc97714047e522b3a41044d5e6))
+
+## [0.23.0](https://github.com/parallelworks/foundation/compare/ui-v0.22.0...ui-v0.23.0) (2026-10-06)
+
+
+### Features
+
+* **ui:** a user hover card offers to copy its username or email ([#120](https://github.com/parallelworks/foundation/issues/120)) ([263ec7c](https://github.com/parallelworks/foundation/commit/263ec7c9564e313db83215acc278154acab37837))
+* **ui:** file explorer accepts host row actions and header content ([#110](https://github.com/parallelworks/foundation/issues/110)) ([4da78fe](https://github.com/parallelworks/foundation/commit/4da78fe4f53aa637cc83e75de9e10e195b28e024))
+* **ui:** the chat composer turns a large paste into a card, and hosts choose which queued messages can be taken back ([#93](https://github.com/parallelworks/foundation/issues/93)) ([2870ccd](https://github.com/parallelworks/foundation/commit/2870ccd263ba4b33c88d5ecfcf2bd8d92565682a))
+* **ui:** the chat flags AI connections whose API key is rejected or endpoint is unreachable ([#109](https://github.com/parallelworks/foundation/issues/109)) ([577d800](https://github.com/parallelworks/foundation/commit/577d80002424fb1002ce567d409938ff1d69e4ad))
+
+## [0.22.0](https://github.com/parallelworks/foundation/compare/ui-v0.21.2...ui-v0.22.0) (2026-10-06)
+
+
+### Features
+
+* **ui:** per-storage preview limits for the file explorer ([#99](https://github.com/parallelworks/foundation/issues/99)) ([a52f4d2](https://github.com/parallelworks/foundation/commit/a52f4d20c3029a524d6a97f8d1fd1cd379118d33))
+
+## [0.21.2](https://github.com/parallelworks/foundation/compare/ui-v0.21.1...ui-v0.21.2) (2026-10-06)
+
+
+### Bug Fixes
+
+* **ui:** the file explorer keeps a removed storage's folders, listings and selection ([#94](https://github.com/parallelworks/foundation/issues/94)) ([77fbf1b](https://github.com/parallelworks/foundation/commit/77fbf1b392c69e8e5957f06f07ba0432d837a70d))
+
 ## [0.21.1](https://github.com/parallelworks/foundation/compare/ui-v0.21.0...ui-v0.21.1) (2026-10-03)
 
 

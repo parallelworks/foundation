@@ -1,4 +1,16 @@
 import type { IFileExplorerClient, IFileExplorerProvider } from './fileExplorer'
+
+/** Above these a file is not fetched for preview; the pane offers a download instead. */
+export type PreviewLimits = {
+  codeBytes: number
+  codeLines: number
+  tabularBytes: number
+  tabularRows: number
+  imageBytes: number
+  pdfBytes: number
+  notebookBytes: number
+}
+
 export type TStorage = {
   id: string
   name: string
@@ -12,10 +24,12 @@ export type TStorage = {
   imageUrl?: string
   canWrite?: boolean | undefined
   canUpload?: boolean | undefined
+  canDelete?: boolean | undefined
   // Storage capabilities. Undefined means capable (the cloud-bucket default);
   // only storages that lack a capability (e.g. workspace files) set it false.
   canShare?: boolean | undefined
   canManageAccess?: boolean | undefined
+  previewLimits?: Partial<PreviewLimits> | undefined
 }
 
 /** A file the host is asked to name or download: its storage, key and name. */

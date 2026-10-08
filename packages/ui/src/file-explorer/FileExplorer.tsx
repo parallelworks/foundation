@@ -169,6 +169,10 @@ interface IFileExplorerProps {
   /** A shell command that downloads files, offered beside the browser
    * download. An empty command hides it for that selection. */
   downloadCommand?: { label: string; build: (objects: ExplorerObject[]) => string } | undefined
+  /** Host actions for a row's menu, placed after the built-in ones and before Copy. */
+  extraRowActions?: ((node: TreeNode, storage: TStorage | undefined) => RowAction[]) | undefined
+  /** Host content for the selected folder's header, before its badges. */
+  headerAccessory?: ((node: TreeNode, storage: TStorage | undefined) => ReactNode) | undefined
 }
 
 const MAX_UPLOAD_SIZE = 80 * 1024 * 1024 * 1024 // 80 GB
@@ -257,6 +261,8 @@ export default function FileExplorer({
   onExpandedPathsChange,
   objectUris,
   downloadCommand,
+  extraRowActions,
+  headerAccessory,
 }: IFileExplorerProps) {
   const copySubmenu = useCopySubmenu()
   const t = useStrings().fileExplorer
@@ -354,9 +360,12 @@ export default function FileExplorer({
   const findStorage = (storageId: string | undefined) => storages.find((s) => s.id === storageId)
   const storageCanWrite = (storageId?: string) => findStorage(storageId)?.canWrite === true
   const storageCanUpload = (storageId?: string) => findStorage(storageId)?.canUpload !== false
+  const storageCanDelete = (storage: TStorage | undefined) =>
+    (storage?.canDelete ?? storage?.canWrite) === true
   const selectedStorage = findStorage(selectedNode?.storageId)
   const selectedNodeCanWrite = selectedStorage?.canWrite === true
   const selectedNodeCanUpload = selectedStorage?.canUpload !== false
+  const selectedNodeCanDelete = storageCanDelete(selectedStorage)
   const selectedNodeCanShare = selectedStorage?.canShare !== false
   const selectedNodeCanManageAccess = selectedStorage?.canManageAccess !== false
   const [accessDrawerOpen, setAccessDrawerOpen] = useState(false)
@@ -364,6 +373,54 @@ export default function FileExplorer({
     Map<string, string | null>
   >(new Map())
   const [hasCorsIssue, setHasCorsIssue] = useState<Map<string, boolean>>(new Map())
+
+  const storageRoots = useMemo(() => {
+    const roots = new Map<string, string>()
+    for (const node of rootNodes) {
+      const candidates = node.root ? [node] : (parentToChildrenMap[node.path] ?? [])
+      for (const root of candidates) {
+        if (root.root && root.storageId) {
+          roots.set(root.storageId, root.path)
+        }
+      }
+    }
+    return roots
+  }, [rootNodes, parentToChildrenMap])
+  const seenStorageRootsRef = useRef(storageRoots)
+  const forgetStorages = useEffectEvent((removed: [string, string][]) => {
+    const isUnder = (path: string) =>
+      removed.some(([, root]) => path !== root && path.startsWith(root))
+    const isWithin = (path: string) => removed.some(([, root]) => path.startsWith(root))
+    for (const path of [...fetchesInFlightRef.current.keys()]) {
+      if (isWithin(path)) {
+        fetchesInFlightRef.current.delete(path)
+      }
+    }
+    setListings((prev) => removed.reduce((next, [, root]) => clearListingsUnder(next, root), prev))
+    setLoadingPaths((prev) => new Set([...prev].filter((path) => !isWithin(path))))
+    setExpandedPaths((prev) => new Set([...prev].filter((path) => !isUnder(path))))
+    const withoutRemoved = <T,>(prev: Map<string, T>) => {
+      const next = new Map(prev)
+      for (const [id] of removed) {
+        next.delete(id)
+      }
+      return next
+    }
+    updateConnectionIssuesMessage(withoutRemoved)
+    setHasCorsIssue(withoutRemoved)
+    const selectedRoot = removed.find(([, root]) => normalizedSelectedPath.startsWith(root))?.[1]
+    if (selectedRoot) {
+      const parent = getParentPath(selectedRoot)
+      setSelectedPath(treeMap[parent] ? parent : '')
+    }
+  })
+  useEffect(() => {
+    const removed = [...seenStorageRootsRef.current].filter(([id]) => !storageRoots.has(id))
+    seenStorageRootsRef.current = storageRoots
+    if (removed.length > 0) {
+      forgetStorages(removed)
+    }
+  }, [storageRoots])
 
   const [uploadModalOpen, setUploadModalOpen] = useState(false)
   const [createFolderTarget, setCreateFolderTarget] = useState<TreeNode | null>(null)
@@ -943,8 +1000,7 @@ export default function FileExplorer({
   }
 
   const deleteNode = (node: TreeNode) => {
-    const storage = findStorage(node.storageId)
-    if (storage?.canWrite !== true) {
+    if (!storageCanDelete(findStorage(node.storageId))) {
       notify.error(t.messages.noWriteAccess)
       return
     }
@@ -979,7 +1035,7 @@ export default function FileExplorer({
   // Order: lead → actions → Copy → delete last.
   const buildRowMenu = (node: TreeNode): RowMenuItem[] => {
     const storage = findStorage(node.storageId)
-    const nodeCanWrite = storage?.canWrite === true
+    const nodeCanDelete = storageCanDelete(storage)
     const nodeCanShare = storage?.canShare !== false
     const isFile = node.type === 'file'
     const uris = getNodeUris(node)
@@ -1010,9 +1066,10 @@ export default function FileExplorer({
       }
     }
     actions.push(...getCreateFolderActions(node, storage))
+    actions.push(...(extraRowActions?.(node, storage) ?? []))
     // The storage root has no tree parent to refresh after a delete, and
     // deleting the whole storage is not a file-explorer operation — omit it.
-    if (nodeCanWrite && !node.root) {
+    if (nodeCanDelete && !node.root) {
       actions.push({
         key: 'delete',
         label: t.preview.delete,
@@ -1118,7 +1175,7 @@ export default function FileExplorer({
   }
 
   const onDeleteClick = () => {
-    if (!selectedNodeCanWrite) {
+    if (!selectedNodeCanDelete) {
       notify.error(t.messages.noWriteAccess)
       return
     }
@@ -1554,6 +1611,7 @@ export default function FileExplorer({
                   {renderBreadcrumb()}
                   {/* Action Buttons */}
                   <div className="flex shrink-0 items-center gap-2">
+                    {headerAccessory?.(selectedNode, findStorage(selectedNode.storageId))}
                     {/* Without this the row count reads as the folder's real size. */}
                     {folderHasMore && (
                       <StatusBadge variant="muted" className="whitespace-nowrap tabular-nums">
@@ -1719,7 +1777,7 @@ export default function FileExplorer({
                       <span className="hidden md:inline">{t.chrome.manageAccess}</span>
                     </button>
 
-                    {selectedNodeCanWrite && (
+                    {selectedNodeCanDelete && (
                       <button
                         type="button"
                         aria-label={t.chrome.delete}

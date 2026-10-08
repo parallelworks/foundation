@@ -142,14 +142,15 @@ func TestSecurityHeaders(t *testing.T) {
 }
 
 // While the app is proxied from Vite, the CSP accepts the nonce Vite puts on
-// what it injects; with a build it does not.
+// what it injects; serving the build, it does not.
 func TestDevServerCSP(t *testing.T) {
 	vite := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
 		_, _ = io.WriteString(w, `<html><head><script type="module" nonce="`+spa.DevNonce+`"></script></head></html>`)
 	}))
 	defer vite.Close()
-	dev := newHandler(t, server.Options{Web: fstest.MapFS{".gitkeep": {}}, DevServer: vite.URL})
+	// A build left in Web from an earlier `vite build` must not take Vite's place.
+	dev := newHandler(t, server.Options{DevServer: vite.URL})
 	rec := do(t, dev, http.MethodGet, "/issues")
 	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `<base href="/">`) {
 		t.Fatalf("GET /issues = %d %q, want Vite's page with a base href", rec.Code, rec.Body)
@@ -157,7 +158,7 @@ func TestDevServerCSP(t *testing.T) {
 	if csp := rec.Header().Get("Content-Security-Policy"); !strings.Contains(csp, "script-src 'self' 'nonce-"+spa.DevNonce+"'") {
 		t.Errorf("dev CSP = %q", csp)
 	}
-	built := newHandler(t, server.Options{DevServer: vite.URL})
+	built := newHandler(t, server.Options{})
 	if csp := do(t, built, http.MethodGet, "/").Header().Get("Content-Security-Policy"); strings.Contains(csp, "nonce") {
 		t.Errorf("CSP with a build = %q, want no nonce", csp)
 	}
@@ -350,5 +351,74 @@ func TestServeZeroShutdownTimeoutLetsRequestsFinish(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("Serve did not return after cancel")
+	}
+}
+
+// listening captures the "http server listening" record's attributes.
+type listening struct {
+	slog.Handler
+	attrs chan map[string]string
+}
+
+// Enabled overrides the embedded discarding handler, which would turn every
+// record away before Handle sees it.
+func (listening) Enabled(context.Context, slog.Level) bool { return true }
+
+func (h listening) Handle(_ context.Context, r slog.Record) error {
+	if r.Message == "http server listening" {
+		attrs := map[string]string{}
+		r.Attrs(func(a slog.Attr) bool {
+			attrs[a.Key] = a.Value.String()
+			return true
+		})
+		h.attrs <- attrs
+	}
+	return nil
+}
+
+func TestServeLogsWhereToReachIt(t *testing.T) {
+	for addr, host := range map[string]string{"127.0.0.1:0": "127.0.0.1", ":0": "localhost"} {
+		t.Run(addr, func(t *testing.T) {
+			logged := listening{Handler: slog.DiscardHandler, attrs: make(chan map[string]string, 1)}
+			ctx, cancel := context.WithCancel(t.Context())
+			done := make(chan error, 1)
+			go func() {
+				done <- server.Serve(ctx, server.Listen{Addr: addr, ShutdownTimeout: time.Second},
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, "up") }),
+					slog.New(logged))
+			}()
+			attrs := <-logged.attrs
+			if !strings.HasPrefix(attrs["url"], "http://"+host+":") || strings.HasSuffix(attrs["url"], ":0") {
+				t.Errorf("url = %q, want http://%s:<the bound port>", attrs["url"], host)
+			}
+			req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, attrs["url"], nil)
+			resp, err := shutdownClient.Do(req)
+			if err != nil {
+				t.Fatalf("GET the logged url: %v", err)
+			}
+			_ = resp.Body.Close()
+			cancel()
+			if err := <-done; err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestServeReportsATakenPortWithoutClaimingToListen(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	logged := listening{Handler: slog.DiscardHandler, attrs: make(chan map[string]string, 1)}
+	err = server.Serve(t.Context(), server.Listen{Addr: ln.Addr().String()}, http.NotFoundHandler(), slog.New(logged))
+	if err == nil {
+		t.Fatal("Serve on a taken port returned no error")
+	}
+	select {
+	case attrs := <-logged.attrs:
+		t.Errorf("logged listening on a port it never got: %v", attrs)
+	default:
 	}
 }

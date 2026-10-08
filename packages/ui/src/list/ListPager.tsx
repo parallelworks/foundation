@@ -6,7 +6,7 @@ import { listControlButtonClasses } from './ListViewControls'
 /** Page sizes offered by the pager's per-page select; first entry is the default. */
 export const LIST_PAGE_SIZES: readonly [number, ...number[]] = [50, 100, 200]
 
-/** Footer pager bar for paginated new-nav lists: "{start}–{end} of {total}" with prev/next. Renders nothing for a single page. */
+/** Footer pager bar for paginated new-nav lists: "{start}–{end} of {total}" with prev/next. Renders nothing for a single page with no more rows after it. */
 export function ListPager({
   page,
   pageSize,
@@ -29,17 +29,20 @@ export function ListPager({
   const t = useStrings().list
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
   const start = page * pageSize + 1
-  const end = Math.min(total, (page + 1) * pageSize)
+  const pageEnd = (page + 1) * pageSize
+  const pastCap = hasNext === true && pageEnd >= total
+  const end = pastCap ? pageEnd : Math.min(total, pageEnd)
   const smallest = Math.min(...pageSizes)
   // Also keep the select when a larger page size is what hid paging, so it can be reset.
   const showSizeSelect = !!onPageSizeChange && (total > smallest || pageSize > smallest)
-  if (pageCount <= 1 && !showSizeSelect) {
+  // A capped total can read as one page while more rows follow.
+  if (pageCount <= 1 && !hasNext && !showSizeSelect) {
     return null
   }
   return (
     <div className="flex items-center justify-between px-2.5 h-10 shrink-0 border-t theme-border">
       <div className="flex items-center gap-3 text-xs text-(--theme-muted-text-color)">
-        <span>{t.pager(start, end, total)}</span>
+        <span>{t.pager(start, end, pastCap ? end : total, pastCap)}</span>
         {showSizeSelect && (
           <label className="flex items-center gap-1">
             {t.perPage}

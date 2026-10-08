@@ -26,6 +26,12 @@ const OBJECTS: Record<string, string> = {
   'results/run-001/metrics.json': '{ "loss": 0.021, "epochs": 12 }\n',
   'results/run-001/stdout.log': 'epoch 1/12 ... done\nepoch 12/12 ... done\n',
   'results/run-002/metrics.json': '{ "loss": 0.018, "epochs": 14 }\n',
+  'results/run-002/report.ipynb': JSON.stringify({
+    cells: [{ cell_type: 'markdown', metadata: {}, source: ['# Run 002 report'] }],
+    metadata: {},
+    nbformat: 4,
+    nbformat_minor: 5,
+  }),
 }
 
 const LATENCY_MS = 350
@@ -140,13 +146,29 @@ const STORAGE: TStorage = {
 }
 const STORAGES = [STORAGE]
 
-function ExplorerDemo() {
+const COMPUTE_STORAGE: TStorage = {
+  id: 'demo-compute',
+  name: 'cluster~demo-cluster',
+  displayName: 'demo-cluster',
+  user: 'storybook',
+  type: 'cluster',
+  csp: 'compute',
+  canWrite: true,
+  canUpload: true,
+  canDelete: false,
+  canShare: false,
+  canManageAccess: false,
+  previewLimits: { codeLines: 1, notebookBytes: 64 },
+}
+
+function ExplorerDemo({ storages = STORAGES }: { storages?: TStorage[] }) {
   const [path, setPath] = useState('')
   return (
     <div style={{ height: 560 }}>
       <FileExplorerProvider>
         <FileExplorer
-          storages={STORAGES}
+          storages={storages}
+          showUserHierarchy
           getProviderAndClient={async () => ({
             provider: mockProvider,
             client: createMockClient(),
@@ -161,4 +183,20 @@ function ExplorerDemo() {
 
 export const Default: StoryObj = {
   render: () => <ExplorerDemo />,
+}
+
+function ComputeRootDemo() {
+  const [connected, setConnected] = useState(true)
+  return (
+    <div>
+      <button type="button" onClick={() => setConnected((c) => !c)}>
+        {connected ? 'Disconnect demo-cluster' : 'Reconnect demo-cluster'}
+      </button>
+      <ExplorerDemo storages={connected ? [STORAGE, COMPUTE_STORAGE] : STORAGES} />
+    </div>
+  )
+}
+
+export const ComputeRoot: StoryObj = {
+  render: () => <ComputeRootDemo />,
 }

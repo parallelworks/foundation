@@ -153,6 +153,7 @@ export interface UIStrings {
       errorTitle: string
       previewError: string
       tooLarge: string
+      tooLargeSize: (size: string) => string
       downloadInstead: string
       archiveTitle: string
       archiveMessage: string
@@ -385,7 +386,9 @@ export interface UIStrings {
     none: string
     filter: string
     clear: string
-    pager: (start: number, end: number, total: number) => string
+    searchOptions: string
+    /** `atLeast`: `total` is a floor, because the count was capped and more rows follow. */
+    pager: (start: number, end: number, total: number, atLeast: boolean) => string
     perPage: string
     paginationPrevious: string
     paginationNext: string
@@ -712,6 +715,8 @@ const DEFAULTS: UIProviderValue = {
         errorTitle: "Couldn't load preview",
         previewError: "This file couldn't be previewed in your browser.",
         tooLarge: 'This file is too large to preview in the browser.',
+        tooLargeSize: (size: string) =>
+          `This file is ${size}, too large to preview in the browser.`,
         downloadInstead: 'Download instead',
         archiveTitle: "Can't preview archives",
         archiveMessage:
@@ -963,7 +968,8 @@ const DEFAULTS: UIProviderValue = {
       none: 'None',
       filter: 'Filter',
       clear: 'Clear',
-      pager: (start, end, total) => `${start}–${end} of ${total}`,
+      searchOptions: 'Search options…',
+      pager: (start, end, total, atLeast) => `${start}–${end} of ${total}${atLeast ? '+' : ''}`,
       perPage: 'Per page',
       paginationPrevious: 'Previous',
       paginationNext: 'Next',

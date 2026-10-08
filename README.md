@@ -11,6 +11,7 @@ packages that several applications use the same way.
 | [`problem/problemrules`](problem/problemrules) (Go) | go-ruleguard rules that keep internal errors out of responses |
 | [`server`](server) (Go) | A service's HTTP handler and server: health probes, security headers, CSRF protection, logging, panic recovery, graceful shutdown |
 | [`pgdb`](pgdb) (Go) | An application's own PostgreSQL schema: a pool scoped to it, hopper's job tables and goose migrations in it, and a fresh schema per test |
+| [`dev`](dev) (Go, own module) | `go tool dev`: an app's development setup in one terminal, with Postgres and S3 without Docker and a hot-reloading server, and the base of an app's own development command |
 | [`spa`](spa) (Go) | Serves a Vite app from the Go server: the embedded build in production, the Vite dev server in development |
 | [`@parallelworks/problem`](packages/problem) (npm) | `ApiError`, `useErrorMessage()`, the shared codes' messages in five languages, and a Biome lint rule |
 | [`@parallelworks/ui`](packages/ui) (npm) | React components on one theme contract: primitives, lists, forms, a job graph, a code editor, a log viewer, a file explorer and an AI chat, each on its own subpath |
@@ -227,12 +228,17 @@ handler := server.New(server.Options{
 	Problems:  []*problem.Registry{problems},
 	Ready:     map[string]server.Pinger{"database": pool},
 	Web:       web.FS(),
-	DevServer: cfg.ViteURL, // development: proxy the app from Vite until a build is embedded
+	DevServer: cfg.ViteURL, // development only: proxy the app from Vite
 	HSTS:      cfg.Production,
 	Wrap:      sessions.Middleware, // the application's own authentication
 })
 return server.Serve(ctx, server.Listen{Addr: ":8080", ShutdownTimeout: 20 * time.Second}, handler, logger)
 ```
+
+`Serve` binds before it logs, so a taken port is an error rather than a
+"listening" line, and it logs the address it got with a `url` to reach it
+there (`http://localhost:8080`, or `https` with TLS), which [`dev`](dev) shows
+as a link.
 
 Besides the application's routes it serves `/healthz`, `/readyz` (the `Ready`
 pingers), `/problems/`, a 404 problem for unknown paths under `/api/`, and the
@@ -271,9 +277,10 @@ mux.Handle("/", app) // after the API routes
 With a build embedded, it serves each file (preferring a `.br` or `.gz`
 sibling the client accepts), then a
 prerendered `<path>/index.html`, then `index.html` for client-side routes.
-When `dist` holds only a placeholder, as it does before `pnpm build`, it
-proxies everything to the Vite dev server, including the HMR WebSocket. Open
-the Go server's address in development, not Vite's.
+With `DevServer` set, it proxies everything to the Vite dev server instead,
+including the HMR WebSocket, even when `dist` holds a build from an earlier
+`pnpm build`. Set it only in development, and open the Go server's address
+there, not Vite's. Without `DevServer`, `dist` must hold a build.
 
 Put Vite's content-hashed output in `/_build/`, which `spa.Handler` caches as
 immutable; files copied from `public/` keep their names and stay revalidatable,

@@ -30,6 +30,14 @@ export interface ChatStrings {
     title: string
     message: string
   }
+  providerIssue: {
+    keyRejected: string
+    unreachable: string
+    keyRejectedHint: string
+    unreachableHint: string
+    bannerKeyRejected: (provider: string) => string
+    bannerUnreachable: (provider: string) => string
+  }
   queue: {
     remove: string
   }
@@ -56,6 +64,12 @@ export interface ChatStrings {
     stopGenerating: string
     sendMessage: string
     filesAttached: (count: number) => string
+  }
+  paste: {
+    title: string
+    lines: (count: number) => string
+    saving: string
+    remove: string
   }
   thinking: {
     label: string
@@ -208,6 +222,16 @@ export const defaultChatStrings: ChatStrings = {
   queue: {
     remove: 'Remove queued message',
   },
+  providerIssue: {
+    keyRejected: 'API key rejected',
+    unreachable: 'Endpoint unreachable',
+    keyRejectedHint:
+      'The provider rejected this connection\u2019s API key. Update the key in the provider settings to resume.',
+    unreachableHint:
+      'The provider\u2019s endpoint did not respond. Check the endpoint URL and network access.',
+    bannerKeyRejected: (provider) => `API key rejected for \u201c${provider}\u201d`,
+    bannerUnreachable: (provider) => `\u201c${provider}\u201d is unreachable`,
+  },
   activity: {
     tokens: (input, output) => `↑${input} ↓${output} tokens`,
     stop: 'Stop',
@@ -231,6 +255,12 @@ export const defaultChatStrings: ChatStrings = {
     stopGenerating: 'Stop generating (Escape)',
     sendMessage: 'Send message (Enter)',
     filesAttached: (count) => `${count} file${count > 1 ? 's' : ''} attached`,
+  },
+  paste: {
+    title: 'Pasted text',
+    lines: (count) => `${count.toLocaleString()} line${count === 1 ? '' : 's'}`,
+    saving: 'Saving…',
+    remove: 'Remove paste',
   },
   thinking: {
     label: 'Thinking',
