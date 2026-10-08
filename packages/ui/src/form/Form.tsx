@@ -628,6 +628,8 @@ const InputField = React.memo(
         <TooltipInfo
           className="pr-2"
           place="top"
+          // Keep Tab moving field to field instead of stopping on every "?" icon.
+          tabIndex={-1}
           text={
             typeof fieldObj.tooltip === 'string'
               ? fieldObj.tooltip.replace(/\r/g, '')
