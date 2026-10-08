@@ -191,6 +191,10 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+function isWithinRoots(roots: [string, string][]) {
+  return (path: string) => roots.some(([, root]) => path.startsWith(root))
+}
+
 /** Directory paths from the storage root down to `path`. */
 function getAncestorDirPaths(path: string): string[] {
   const isDir = path.endsWith('/')
@@ -374,6 +378,9 @@ export default function FileExplorer({
   >(new Map())
   const [hasCorsIssue, setHasCorsIssue] = useState<Map<string, boolean>>(new Map())
 
+  const [previewNode, setPreviewNode] = useState<TreeNode | null>(null)
+  const [previewOpen, setPreviewOpen] = useState(false)
+
   const storageRoots = useMemo(() => {
     const roots = new Map<string, string>()
     for (const node of rootNodes) {
@@ -395,7 +402,7 @@ export default function FileExplorer({
   const dropStorageListings = (roots: [string, string][]) => {
     const isUnder = (path: string) =>
       roots.some(([, root]) => path !== root && path.startsWith(root))
-    const isWithin = (path: string) => roots.some(([, root]) => path.startsWith(root))
+    const isWithin = isWithinRoots(roots)
     for (const path of [...fetchesInFlightRef.current.keys()]) {
       if (isWithin(path)) {
         fetchesInFlightRef.current.delete(path)
@@ -404,6 +411,7 @@ export default function FileExplorer({
     setListings((prev) => roots.reduce((next, [, root]) => clearListingsUnder(next, root), prev))
     setLoadingPaths((prev) => new Set([...prev].filter((path) => !isWithin(path))))
     setExpandedPaths((prev) => new Set([...prev].filter((path) => !isUnder(path))))
+    setCheckedItems((prev) => new Set([...prev].filter((path) => !isWithin(path))))
     const withoutDropped = <T,>(prev: Map<string, T>) => {
       const next = new Map(prev)
       for (const [id] of roots) {
@@ -424,7 +432,7 @@ export default function FileExplorer({
   })
   const rerootStorages = useEffectEvent((rerooted: [string, string][]) => {
     dropStorageListings(rerooted)
-    clearPreviewCache()
+    clearPreviewCache(isWithinRoots(rerooted))
     if (previewNode && rerooted.some(([id]) => id === previewNode.storageId)) {
       setPreviewOpen(false)
       setPreviewNode(null)
@@ -464,8 +472,6 @@ export default function FileExplorer({
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<TreeNode[] | null>(null)
 
-  const [previewNode, setPreviewNode] = useState<TreeNode | null>(null)
-  const [previewOpen, setPreviewOpen] = useState(false)
   const [detailTab, setDetailTab] = useState<'details' | 'preview'>('details')
 
   useEffect(() => clearPreviewCache, [])

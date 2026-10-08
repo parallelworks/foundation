@@ -152,10 +152,16 @@ export function peekPreviewContent<T>(path: string): T | undefined {
   return (contentCache.get(path) as ContentRecord<T> | undefined)?.value
 }
 
-export function clearPreviewCache() {
-  for (const record of contentCache.values()) {
-    disposeContent(record)
+export function clearPreviewCache(isCleared: (path: string) => boolean = () => true) {
+  for (const [path, record] of contentCache) {
+    if (isCleared(path)) {
+      disposeContent(record)
+      contentCache.delete(path)
+    }
   }
-  contentCache.clear()
-  urlCache.clear()
+  for (const path of urlCache.keys()) {
+    if (isCleared(path)) {
+      urlCache.delete(path)
+    }
+  }
 }

@@ -620,6 +620,19 @@ describe('FileExplorer storage removal', () => {
     expect(bucket.callsFor('a/')).toHaveLength(1)
     expect(otherBucket.callsFor('')).toHaveLength(1)
   })
+
+  it('unchecks rows at the root of a storage whose root moves', async () => {
+    const root = `${storage.user}/${storage.name}/`
+    const { bucket, rerender } = await renderTwo(root)
+    check('a')
+
+    bucket.fixture.set('', [[dir('a/'), dir('c/')]])
+    await rerender(root, [{ ...storage, rootPath: '/data' }, other])
+
+    expect(await findTreeItem('c')).toBeInTheDocument()
+    expect(screen.getByLabelText('Select a')).not.toBeChecked()
+    expect(deleteButton()).toBeDisabled()
+  })
 })
 
 describe('FileExplorer selection across navigation', () => {
