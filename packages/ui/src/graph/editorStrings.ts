@@ -640,7 +640,6 @@ export const INPUTS_EDITOR_STRINGS = {
     provider: 'Cluster types',
     multi: 'Multiple choices',
     multiStep: 'Repeatable page',
-    copyCount: 'Number of copies',
     generateCredentials: 'Generate credentials',
     region: 'Region',
     resource: 'Cluster',
@@ -719,8 +718,10 @@ export const INPUTS_EDITOR_STRINGS = {
     multi: 'Let users pick more than one.',
     multiStep:
       'Lets the person running the workflow add copies of this page. Its fields’ values become a list under the page’s name, one row per copy.',
-    copyCount:
-      'How many copies a repeatable page has: a number, or an expression such as the length of an earlier list. Set, the person running it can’t add or remove copies.',
+    minCopies:
+      'The fewest copies of a repeatable page. It starts with this many, and no copy can be removed below it.',
+    maxCopies:
+      'The most copies of a repeatable page. Once it has this many, no more can be added. Set to the same as the minimum, the number is fixed.',
     includeWorkspace: 'Also offer the user’s own workspace.',
     includeUnprovisioned: 'Also offer clusters that aren’t running yet.',
     generateCredentials: 'Create credentials for the bucket and pass them to the run with it.',

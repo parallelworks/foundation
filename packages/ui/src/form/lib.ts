@@ -1,6 +1,6 @@
 import type { DynamicFormSchema } from './types/fieldTypes'
 import { applySecondaryField, findSecondaryOption } from './utils/secondaryField'
-import { copyCount } from './Wizard/utils'
+import { copyBounds } from './Wizard/utils'
 
 interface SchemaEntry {
   type?: string
@@ -11,7 +11,8 @@ interface SchemaEntry {
   autoselect?: unknown
   prefillDefault?: unknown
   multi?: unknown
-  count?: unknown
+  min?: unknown
+  max?: unknown
   wizard?: { flatten?: boolean }
 }
 
@@ -150,13 +151,12 @@ export function initializeValues(
         return acc
       }
       const fieldSchema = schema[field] ?? EMPTY_ENTRY
-      // A repeated page keeps a row per copy: as many as its `count`, or as were saved, at least one.
+      // A repeated page keeps a row per copy: those saved, padded to its `min`, at least one.
       if (fieldSchema.type === 'step' && fieldSchema.multi === true) {
         const saved = data[field]
-        const rows: unknown[] = Array.isArray(saved) && saved.length > 0 ? saved : [{}]
-        const fixed = copyCount(fieldSchema.count)
-        const sized =
-          fixed === undefined ? rows : Array.from({ length: fixed }, (_, i) => rows[i] ?? {})
+        const rows: unknown[] = Array.isArray(saved) ? saved : []
+        const { lo } = copyBounds(fieldSchema.min, fieldSchema.max)
+        const sized = Array.from({ length: Math.max(rows.length, lo) }, (_, i) => rows[i] ?? {})
         acc[field] = sized.map((row) => initializeValues(fieldSchema.options, asRecord(row)))
         return acc
       }

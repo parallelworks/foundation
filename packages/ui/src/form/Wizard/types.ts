@@ -40,8 +40,9 @@ export interface StepFieldConfig {
   prevLabel?: string
   /** The person running it can add copies of this page; its values are a list, one row per copy */
   multi?: boolean
-  /** How many copies a repeated page has, fixed: a number, or an expression the form evaluates */
-  count?: number | string
+  /** The fewest and most copies of a repeated page, as a list's rows: numbers or expressions */
+  min?: number | string
+  max?: number | string
 }
 
 /**

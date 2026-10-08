@@ -6,7 +6,7 @@ import { initializeValues } from '../lib'
 import { getValueUsingPath } from '../utils/getValueUsingPath'
 import type { StepFieldConfig, WizardContainerProps } from './types'
 import { useWizardState } from './useWizardState'
-import { copyCount, stepText } from './utils'
+import { copyBounds, stepText } from './utils'
 import { WizardNavigation } from './WizardNavigation'
 import { WizardStepContent } from './WizardStepContent'
 import { WizardStepIndicator } from './WizardStepIndicator'
@@ -16,10 +16,11 @@ import { WizardPagesContext } from './wizardPages'
 interface Page {
   step: string
   config: StepFieldConfig
-  /** A repeated step's copy, how many copies it has, and whether its `count` fixes that. */
+  /** A repeated step's copy, how many copies it has, and whether its `min`/`max` allow another or one fewer. */
   copy?: number
   count?: number
-  fixed?: boolean
+  canAdd?: boolean
+  canRemove?: boolean
 }
 
 export function WizardContainer({
@@ -71,7 +72,7 @@ export function WizardContainer({
     [engine, values, strings],
   )
 
-  // A repeated step shows a page per copy: as many as its `count`, or as its values have, at least one.
+  // A repeated step shows a page per copy in its values, and at least its `min`.
   const shown = useMemo(() => {
     const order: string[] = []
     const byKey: Record<string, Page> = {}
@@ -86,8 +87,8 @@ export function WizardContainer({
         continue
       }
       const rows = getValueUsingPath(values, `${fieldNamePrefix}${step}`)
-      const fixed = copyCount(stepConfig.count)
-      const count = fixed ?? Math.max(Array.isArray(rows) ? rows.length : 0, 1)
+      const { lo, hi } = copyBounds(stepConfig.min, stepConfig.max)
+      const count = Math.max(Array.isArray(rows) ? rows.length : 0, lo)
       for (let copy = 0; copy < count; copy++) {
         const key = `${step}[${copy}]`
         order.push(key)
@@ -95,7 +96,8 @@ export function WizardContainer({
           step,
           copy,
           count,
-          fixed: fixed !== undefined,
+          canAdd: hi === undefined || count < hi,
+          canRemove: count > lo,
           config: {
             ...stepConfig,
             title: perCopy(stepConfig.title, copy, true),
@@ -107,23 +109,23 @@ export function WizardContainer({
     return { order, byKey }
   }, [stepOrder, steps, values, fieldNamePrefix, perCopy])
 
-  // A page with a fixed `count` keeps exactly that many rows, starting new ones from the defaults.
+  // A repeated page below its `min` gets rows up to it from the defaults, as a list pads to its own.
   useEffect(() => {
     for (const step of stepOrder) {
       const stepConfig = steps[step]
-      const fixed = stepConfig?.multi === true ? copyCount(stepConfig.count) : undefined
-      if (fixed === undefined) {
+      if (stepConfig?.multi !== true) {
         continue
       }
+      const { lo } = copyBounds(stepConfig.min, stepConfig.max)
       const path = `${fieldNamePrefix}${step}`
       const rows = getValueUsingPath(values, path)
       const now = Array.isArray(rows) ? rows : []
-      if (now.length !== fixed) {
+      if (now.length < lo) {
         setFieldValue(
           path,
           Array.from(
-            { length: fixed },
-            (_, i) => now[i] ?? initializeValues(stepConfig?.options, {}) ?? {},
+            { length: lo },
+            (_, i) => now[i] ?? initializeValues(stepConfig.options, {}) ?? {},
           ),
         )
       }
@@ -257,9 +259,9 @@ export function WizardContainer({
 
   const stepTitle = page ? stepText(steps[page.step]?.title) : ''
   const copies =
-    page?.copy !== undefined && page.count !== undefined && !page.fixed ? (
+    page?.copy !== undefined && page.count !== undefined && (page.canAdd || page.canRemove) ? (
       <div className="mb-4 flex items-center justify-between gap-3">
-        {page.count > 1 ? (
+        {page.canRemove ? (
           <button
             type="button"
             onClick={() => removeCopy(page)}
@@ -270,7 +272,7 @@ export function WizardContainer({
         ) : (
           <span />
         )}
-        {page.copy === page.count - 1 && (
+        {page.canAdd && page.copy === page.count - 1 && (
           <button
             type="button"
             onClick={() => addCopy(page)}

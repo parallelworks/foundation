@@ -411,7 +411,7 @@ describe('a repeated wizard page’s copies', () => {
     )
   })
 
-  it('takes each copy’s title by reading [index] and its description from a list, as many as its count', async () => {
+  it('takes each copy’s title by reading [index] and its description from a list, fixed when min is max', async () => {
     const clusters = ['a', 'b', 'c']
     vi.mocked(testEngine.evaluate).mockImplementation((({
       obj,
@@ -433,7 +433,8 @@ describe('a repeated wizard page’s copies', () => {
             title: '${{ inputs.clusters.[index].name }}',
             description: ['first', 'second', 'third'],
             multi: true,
-            count: 3,
+            min: 3,
+            max: 3,
             options: { cpus: { type: 'number' } },
           },
         }}
@@ -445,6 +446,33 @@ describe('a repeated wizard page’s copies', () => {
     expect(screen.getAllByText('third').length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: /Add/ })).toBeNull()
     expect(screen.queryByRole('button', { name: /Remove/ })).toBeNull()
+  })
+
+  it('starts at its min, removes no copy at it, and adds none past its max', async () => {
+    render(
+      <DynamicForm
+        initialValues={{}}
+        formJSONs={{
+          $meta: { wizard: { mode: 'wizard', navigation: { allowJump: true } } },
+          hosts: {
+            type: 'step',
+            title: 'Host',
+            multi: true,
+            min: 2,
+            max: 3,
+            options: { cpus: { type: 'number' } },
+          },
+        }}
+      />,
+    )
+    await screen.findByRole('heading', { name: 'Host 1' })
+    expect(screen.getAllByText('Host 2').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: 'Remove Host' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Go to next step' }))
+    fireEvent.click(await screen.findByRole('button', { name: '+ Add Host' }))
+    await screen.findByRole('heading', { name: 'Host 3' })
+    expect(screen.queryByRole('button', { name: '+ Add Host' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Remove Host' })).toBeInTheDocument()
   })
 })
 

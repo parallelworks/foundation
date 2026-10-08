@@ -45,8 +45,13 @@ export function stepText(value: string | string[] | undefined): string {
   return Array.isArray(value) ? (value[0] ?? '') : (value ?? '')
 }
 
-/** A repeated page's fixed number of copies, when its `count` is one: a whole number from 1. */
-export function copyCount(value: unknown): number | undefined {
-  const count = typeof value === 'string' && value.trim() !== '' ? Number(value) : value
-  return typeof count === 'number' && Number.isInteger(count) && count >= 1 ? count : undefined
+/** A repeated page's bounds on its copies, read as a list's `min`/`max`; it always has at least one. */
+export function copyBounds(min: unknown, max: unknown): { lo: number; hi: number | undefined } {
+  const count = (value: unknown) => {
+    const n = value === undefined || value === null || value === '' ? Number.NaN : Number(value)
+    return Number.isInteger(n) && n >= 0 ? n : undefined
+  }
+  const lo = Math.max(count(min) ?? 1, 1)
+  const hi = count(max)
+  return { lo, hi: hi === undefined ? undefined : Math.max(hi, lo) }
 }
