@@ -44,6 +44,7 @@ vi.mock('../components/Dropdown', () => import('../test/DropdownStandIn'))
 
 import { DynamicForm } from '../form/Form'
 import { suggestionsOf } from '../test/DropdownStandIn'
+import ListStandIn from '../test/ListStandIn'
 import type { DependencyGraphEditor, EditorProblem } from './editorApi'
 import { GRAPH_EDITOR_STRINGS, INPUTS_EDITOR_STRINGS } from './editorStrings'
 import { INPUT_TYPE_GROUPS, InputDialog, inputTypes, offeredInputKeys } from './InputDialog'
@@ -1515,6 +1516,71 @@ describe('inputs side by side', () => {
         { type: 'updateInput', path: ['a'], set: { width: '45%' } },
         { type: 'updateInput', path: ['b'], set: { width: '55%' } },
       ],
+    })
+  })
+})
+
+describe('list templates', () => {
+  const HOSTS = {
+    hosts: {
+      type: 'list',
+      label: 'Hosts',
+      template: {
+        name: { type: 'string', label: 'Name' },
+        port: { type: 'number', label: 'Port' },
+        creds: {
+          type: 'group',
+          label: 'Credentials',
+          items: { user: { type: 'string', label: 'User' } },
+        },
+      },
+    },
+  }
+  function renderList(e: DependencyGraphEditor, values: Record<string, unknown> = {}) {
+    return render(
+      <InputsFormEditor editor={e} inputs={HOSTS}>
+        <DynamicForm
+          formJSONs={convertToDynamicForm(HOSTS)}
+          initialValues={values}
+          workflowForm
+          fields={{ list: ListStandIn }}
+        />
+      </InputsFormEditor>,
+    )
+  }
+  const rowsOf = (path: string[]) =>
+    document.querySelectorAll(`[data-input-path='${JSON.stringify(path)}']`)
+
+  it('edits a list’s template in place through its first row, a group in it too', async () => {
+    renderList(editor())
+    await waitFor(() => expect(rowsOf(['hosts', 'name'])).toHaveLength(1))
+    expect(rowsOf(['hosts', 'creds', 'user'])).toHaveLength(1)
+    expect(within(row(['hosts', 'port'])).getByText('Number')).toBeInTheDocument()
+  })
+
+  it('shows the rows after the first as the form draws them, without editing them', () => {
+    renderList(editor(), { hosts: [{ name: 'a' }, { name: 'b' }] })
+    expect(screen.getByDisplayValue('a')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('b')).toBeInTheDocument()
+    expect(rowsOf(['hosts', 'name'])).toHaveLength(1)
+    expect(row(['hosts', 'name'])).toContainElement(screen.getByDisplayValue('a'))
+  })
+
+  it('moves a template field among the template’s own', () => {
+    const e = editor()
+    renderList(e, { hosts: [{}] })
+    const label = row(['hosts', 'port']).querySelector('[data-field-label]') as HTMLElement
+    fireEvent.pointerDown(label, { button: 0, clientX: 5, clientY: 5 })
+    act(() => {
+      fireEvent.pointerUp(window, { clientX: 5, clientY: 5 })
+    })
+    fireEvent.click(label)
+    fireEvent.keyDown(row(['hosts']).closest('[tabindex="0"]') as HTMLElement, { key: 'ArrowUp' })
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'moveInputs',
+      paths: [['hosts', 'port']],
+      parent: ['hosts'],
+      index: 0,
     })
   })
 })

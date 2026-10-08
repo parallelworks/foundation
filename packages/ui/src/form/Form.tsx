@@ -30,8 +30,8 @@ import type { WorkflowVariables } from '../engine'
 import { AngleRightIcon, TrashIcon } from '../icons'
 import { useFieldControlProps, useFieldRequired } from './fieldContext'
 import { type FieldComponent, FieldRegistryContext, Registry } from './fieldRegistry'
-import { EditingScope, useFormEditing } from './formEditing'
-import { inputWidth, resolvedFlag } from './lib'
+import { EditingScope, FormEditingContext, useFormEditing } from './formEditing'
+import { initializeValues, inputWidth, resolvedFlag } from './lib'
 import { useParsedOpts } from './useParsedOpts'
 import { usePrevious } from './usePrevious'
 import { getParentValue } from './utils/getParentValue'
@@ -1011,12 +1011,22 @@ const FormField = React.memo(
     if (!editing || !path) {
       return input
     }
-    // Only an object's own fields are editable in place; list rows repeat a template.
+    // An object's fields are editable in place, and a list's template through its first row.
+    const holds = fieldObj.type === 'object' || fieldObj.type === 'list'
+    const template = fieldObj.type === 'list' ? asRecord(fieldObj.options) : {}
     return (
       <editing.Row path={path}>
-        <EditingScope editing={editing} path={fieldObj.type === 'object' ? path : null}>
+        <EditingScope editing={editing} path={holds ? path : null}>
           {input}
         </EditingScope>
+        {Object.keys(template).length > 0 && (
+          <TemplateRow
+            name={fieldObj.name}
+            rows={getValueUsingPath(values, fieldObj.name)}
+            template={template}
+            setFieldValue={setFieldValue}
+          />
+        )}
       </editing.Row>
     )
   },
@@ -1046,7 +1056,42 @@ const FormField = React.memo(
   },
 )
 
-export function FieldsFromOptions({
+/** In the editor a list always shows a row, the one standing for its template. */
+function TemplateRow({
+  name,
+  rows,
+  template,
+  setFieldValue,
+}: {
+  name: string
+  rows: unknown
+  template: Record<string, unknown>
+  setFieldValue: (field: string, value: unknown, shouldValidate?: boolean) => void
+}) {
+  const empty = !Array.isArray(rows) || rows.length === 0
+  useEffect(() => {
+    if (empty) {
+      setFieldValue(name, [initializeValues(template) ?? {}], false)
+    }
+  }, [empty, name, template, setFieldValue])
+  return null
+}
+
+type FieldsFromOptionsProps = Parameters<typeof FieldList>[0]
+
+export function FieldsFromOptions(props: FieldsFromOptionsProps) {
+  const editing = useFormEditing()
+  // A list repeats its template in every row; only the first row edits it.
+  return editing && props.parentInfo?.arrayIndex ? (
+    <FormEditingContext.Provider value={null}>
+      <FieldList {...props} />
+    </FormEditingContext.Provider>
+  ) : (
+    <FieldList {...props} />
+  )
+}
+
+function FieldList({
   options = {},
   values,
   setFormDirty,
