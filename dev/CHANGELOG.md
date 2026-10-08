@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/parallelworks/foundation/compare/dev/v0.11.1...dev/v0.12.0) (2026-10-08)
+
+
+### Features
+
+* **dev:** dev down stops any checkout's dev from anywhere, and dev ps says how ([#163](https://github.com/parallelworks/foundation/issues/163)) ([b1d0ca2](https://github.com/parallelworks/foundation/commit/b1d0ca2d11c24b9ff7c0c30384a6da300380b4e9))
+
 ## [0.11.1](https://github.com/parallelworks/foundation/compare/dev/v0.11.0...dev/v0.11.1) (2026-10-08)
 
 
