@@ -404,6 +404,50 @@ describe('a repeated wizard page', () => {
   })
 })
 
+describe('a repeated wizard page’s copies', () => {
+  afterEach(() => {
+    vi.mocked(testEngine.evaluate).mockImplementation(
+      (({ obj }: { obj: unknown }) => obj) as unknown as typeof testEngine.evaluate,
+    )
+  })
+
+  it('takes each copy’s title by reading [index] and its description from a list, as many as its count', async () => {
+    const clusters = ['a', 'b', 'c']
+    vi.mocked(testEngine.evaluate).mockImplementation((({
+      obj,
+      index,
+    }: {
+      obj: { text?: unknown }
+      index?: number
+    }) =>
+      typeof obj?.text === 'string' && obj.text.includes('[index]')
+        ? { text: `Cluster ${clusters[index ?? 0]}` }
+        : obj) as unknown as typeof testEngine.evaluate)
+    render(
+      <DynamicForm
+        initialValues={{}}
+        formJSONs={{
+          $meta: { wizard: { mode: 'wizard' } },
+          hosts: {
+            type: 'step',
+            title: '${{ inputs.clusters.[index].name }}',
+            description: ['first', 'second', 'third'],
+            multi: true,
+            count: 3,
+            options: { cpus: { type: 'number' } },
+          },
+        }}
+      />,
+    )
+    await screen.findByRole('heading', { name: 'Cluster a' })
+    expect(screen.getAllByText('Cluster c').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('first').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('third').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: /Add/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Remove/ })).toBeNull()
+  })
+})
+
 describe('FieldsFromOptions workflowForm prop', () => {
   const mockSetFormDirty = vi.fn()
 

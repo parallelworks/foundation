@@ -39,3 +39,14 @@ export function parseWizardConfig(options: Record<string, unknown>): ParsedWizar
     stepOrder,
   }
 }
+
+/** A step's title or description as one text: a list's first entry, as one copy shows it. */
+export function stepText(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? (value[0] ?? '') : (value ?? '')
+}
+
+/** A repeated page's fixed number of copies, when its `count` is one: a whole number from 1. */
+export function copyCount(value: unknown): number | undefined {
+  const count = typeof value === 'string' && value.trim() !== '' ? Number(value) : value
+  return typeof count === 'number' && Number.isInteger(count) && count >= 1 ? count : undefined
+}

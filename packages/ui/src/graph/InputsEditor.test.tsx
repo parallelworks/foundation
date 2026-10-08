@@ -1156,6 +1156,20 @@ describe('InputDialog', () => {
     )
   })
 
+  it('gives a repeatable page a title per copy and a fixed number of copies from its dialog', () => {
+    const onSave = open({ type: 'step', title: 'Host', multi: true, options: {} })
+    const [titlePerCopy] = screen.getAllByRole('checkbox', { name: 'One per copy' })
+    fireEvent.click(titlePerCopy as HTMLElement)
+    fireEvent.change(screen.getByLabelText('Number of copies'), { target: { value: '3' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith(
+      'field',
+      { type: 'step', title: ['Host'], multi: true, count: 3, options: {} },
+      { set: { title: ['Host'], count: 3 }, unset: [] },
+      [],
+    )
+  })
+
   it('puts an input below the one before it from its dialog', () => {
     const onSave = open({ type: 'string' })
     fireEvent.click(screen.getByRole('checkbox', { name: 'Below the input before it' }))

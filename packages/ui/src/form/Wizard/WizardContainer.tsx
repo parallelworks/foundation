@@ -1,11 +1,12 @@
 import { type FormikValues, useFormikContext } from 'formik'
-import { useCallback, useContext, useMemo, useState } from 'react'
-import { useStrings } from '../../components/Provider'
+import { useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { useStrings, useWorkflowEngine } from '../../components/Provider'
 import { useFormEditing } from '../formEditing'
 import { initializeValues } from '../lib'
 import { getValueUsingPath } from '../utils/getValueUsingPath'
 import type { StepFieldConfig, WizardContainerProps } from './types'
 import { useWizardState } from './useWizardState'
+import { copyCount, stepText } from './utils'
 import { WizardNavigation } from './WizardNavigation'
 import { WizardStepContent } from './WizardStepContent'
 import { WizardStepIndicator } from './WizardStepIndicator'
@@ -15,9 +16,10 @@ import { WizardPagesContext } from './wizardPages'
 interface Page {
   step: string
   config: StepFieldConfig
-  /** A repeated step's copy, and how many copies it has. */
+  /** A repeated step's copy, how many copies it has, and whether its `count` fixes that. */
   copy?: number
   count?: number
+  fixed?: boolean
 }
 
 export function WizardContainer({
@@ -43,10 +45,33 @@ export function WizardContainer({
   const pages = useContext(WizardPagesContext)
   const [ownPage, setOwnPage] = useState(0)
   const { form: strings } = useStrings()
+  const engine = useWorkflowEngine()
 
   const { config, steps, stepOrder } = wizardConfig
 
-  // A repeated step shows a page per copy in its values, and at least one.
+  // A repeated page's title or description: one per copy when written as a list, read for each copy
+  // when it uses `[index]`, and otherwise the page's own, a title numbered by copy.
+  const perCopy = useCallback(
+    (value: string | string[] | undefined, copy: number, numbered: boolean): string => {
+      if (Array.isArray(value)) {
+        return value[copy] ?? (numbered ? strings.copyTitle(value[0] ?? '', copy + 1) : '')
+      }
+      const text = value ?? ''
+      if (text.includes('${{')) {
+        const read = engine.evaluate<{ text: unknown }>({
+          inputs: values,
+          obj: { text },
+          orgVars: {},
+          index: copy,
+        })
+        return String(read.text ?? '')
+      }
+      return numbered && text ? strings.copyTitle(text, copy + 1) : text
+    },
+    [engine, values, strings],
+  )
+
+  // A repeated step shows a page per copy: as many as its `count`, or as its values have, at least one.
   const shown = useMemo(() => {
     const order: string[] = []
     const byKey: Record<string, Page> = {}
@@ -61,7 +86,8 @@ export function WizardContainer({
         continue
       }
       const rows = getValueUsingPath(values, `${fieldNamePrefix}${step}`)
-      const count = Math.max(Array.isArray(rows) ? rows.length : 0, 1)
+      const fixed = copyCount(stepConfig.count)
+      const count = fixed ?? Math.max(Array.isArray(rows) ? rows.length : 0, 1)
       for (let copy = 0; copy < count; copy++) {
         const key = `${step}[${copy}]`
         order.push(key)
@@ -69,12 +95,40 @@ export function WizardContainer({
           step,
           copy,
           count,
-          config: { ...stepConfig, title: strings.copyTitle(stepConfig.title, copy + 1) },
+          fixed: fixed !== undefined,
+          config: {
+            ...stepConfig,
+            title: perCopy(stepConfig.title, copy, true),
+            description: perCopy(stepConfig.description, copy, false),
+          },
         }
       }
     }
     return { order, byKey }
-  }, [stepOrder, steps, values, fieldNamePrefix, strings])
+  }, [stepOrder, steps, values, fieldNamePrefix, perCopy])
+
+  // A page with a fixed `count` keeps exactly that many rows, starting new ones from the defaults.
+  useEffect(() => {
+    for (const step of stepOrder) {
+      const stepConfig = steps[step]
+      const fixed = stepConfig?.multi === true ? copyCount(stepConfig.count) : undefined
+      if (fixed === undefined) {
+        continue
+      }
+      const path = `${fieldNamePrefix}${step}`
+      const rows = getValueUsingPath(values, path)
+      const now = Array.isArray(rows) ? rows : []
+      if (now.length !== fixed) {
+        setFieldValue(
+          path,
+          Array.from(
+            { length: fixed },
+            (_, i) => now[i] ?? initializeValues(stepConfig?.options, {}) ?? {},
+          ),
+        )
+      }
+    }
+  }, [stepOrder, steps, values, fieldNamePrefix, setFieldValue])
   const configs = useMemo(
     () => Object.fromEntries(Object.entries(shown.byKey).map(([key, page]) => [key, page.config])),
     [shown],
@@ -201,9 +255,9 @@ export function WizardContainer({
     show(`${shownPage.step}[${before}]`, shown.order.indexOf(pageKey) - (copy > 0 ? 1 : 0))
   }
 
-  const stepTitle = page ? (steps[page.step]?.title ?? '') : ''
+  const stepTitle = page ? stepText(steps[page.step]?.title) : ''
   const copies =
-    page?.copy !== undefined && page.count !== undefined ? (
+    page?.copy !== undefined && page.count !== undefined && !page.fixed ? (
       <div className="mb-4 flex items-center justify-between gap-3">
         {page.count > 1 ? (
           <button

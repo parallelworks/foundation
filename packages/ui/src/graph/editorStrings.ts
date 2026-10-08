@@ -452,6 +452,8 @@ export const INPUTS_EDITOR_STRINGS = {
   addField: 'Add field',
   /** The add button ending a group's, page's or list row's fields, named by its label or title. */
   addFieldTo: (name: string) => `Add field to ${name}`,
+  /** A repeatable page's title or description given per copy, as a list. */
+  onePerCopy: 'One per copy',
   inputActions: 'Input actions',
   editInput: 'Edit input',
   duplicate: 'Duplicate',
@@ -638,6 +640,7 @@ export const INPUTS_EDITOR_STRINGS = {
     provider: 'Cluster types',
     multi: 'Multiple choices',
     multiStep: 'Repeatable page',
+    copyCount: 'Number of copies',
     generateCredentials: 'Generate credentials',
     region: 'Region',
     resource: 'Cluster',
@@ -716,6 +719,8 @@ export const INPUTS_EDITOR_STRINGS = {
     multi: 'Let users pick more than one.',
     multiStep:
       'Lets the person running the workflow add copies of this page. Its fields’ values become a list under the page’s name, one row per copy.',
+    copyCount:
+      'How many copies a repeatable page has: a number, or an expression such as the length of an earlier list. Set, the person running it can’t add or remove copies.',
     includeWorkspace: 'Also offer the user’s own workspace.',
     includeUnprovisioned: 'Also offer clusters that aren’t running yet.',
     generateCredentials: 'Create credentials for the bucket and pass them to the run with it.',

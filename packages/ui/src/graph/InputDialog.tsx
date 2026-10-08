@@ -54,7 +54,7 @@ import {
 } from './editorStrings'
 import type { SettingsView } from './GraphEditorDialogs'
 import { FlagField, type InputSource, inputRefs, ValueOrInputField } from './inputRefs'
-import { FIELD_TEXT_BOX } from './SuggestionInput'
+import { FIELD_TEXT_BOX, SuggestionInput } from './SuggestionInput'
 import { NO_SCOPED, ViewSwitch, YamlPane, yamlProblem } from './settingsViews'
 
 type Help = keyof InputsEditorStrings['help']
@@ -76,6 +76,7 @@ type Kind =
   | 'implies'
   | 'choice'
   | 'width'
+  | 'perCopy'
 
 interface Prop {
   key: string
@@ -324,10 +325,11 @@ const TYPE_PROPS: Record<string, Prop[]> = {
     { key: 'bold', kind: 'flag', help: 'bold', fallback: true },
   ],
   step: [
-    { key: 'title', kind: 'text', help: 'title', required: true, prose: true },
+    { key: 'title', kind: 'perCopy', help: 'title', required: true, prose: true },
     { key: 'nextLabel', kind: 'text', help: 'nextLabel', prose: true },
     { key: 'prevLabel', kind: 'text', help: 'prevLabel', prose: true },
     { key: 'multi', kind: 'bool', help: 'multiStep', label: 'multiStep' },
+    { key: 'count', kind: 'number', help: 'copyCount', label: 'copyCount' },
   ],
   'compute-clusters': COMPUTE,
   'compute-resources': COMPUTE,
@@ -886,6 +888,13 @@ interface RowsDraft {
   rows: Json[]
 }
 
+/** A repeated page's title or description: one text, or one per copy. */
+interface PerCopyDraft {
+  list: boolean
+  text: string
+  values: string[]
+}
+
 function listItemText(item: unknown): string {
   if (isScalar(item)) {
     return String(item)
@@ -919,6 +928,10 @@ function draftOf(kind: Kind, value: unknown): unknown {
           }
     case 'duration':
       return typeof value === 'number' ? formatDuration(value) : text(value)
+    case 'perCopy':
+      return Array.isArray(value)
+        ? { list: true, text: '', values: value.map(listItemText) }
+        : { list: false, text: text(value), values: [] }
     case 'values':
       return typeof value === 'string' && EXPRESSION.test(value.trim())
         ? { expression: value, values: [] }
@@ -957,6 +970,15 @@ function writtenValue(
     }
     case 'options':
       return optionsValue(draft as OptionsDraft, labelled)
+    case 'perCopy': {
+      const perCopy = draft as PerCopyDraft
+      const values = perCopy.values.map((value) => value.trim()).filter(Boolean)
+      return perCopy.list
+        ? values.length > 0
+          ? values
+          : undefined
+        : perCopy.text.trim() || undefined
+    }
     case 'values': {
       const list = draft as ValuesDraft
       if (list.expression !== undefined) {
@@ -1439,6 +1461,53 @@ function PropField({
             keyed={inputType === 'dropdown'}
             described={inputType === 'checkbox-group'}
           />
+        </LabelledField>
+      )
+    }
+    case 'perCopy': {
+      const perCopy = draft as PerCopyDraft
+      return (
+        <LabelledField
+          {...field}
+          actions={
+            <label className="flex cursor-pointer items-center gap-1.5 text-xs theme-muted-text">
+              <input
+                type="checkbox"
+                checked={perCopy.list}
+                onChange={(e) =>
+                  onChange({
+                    ...perCopy,
+                    list: e.target.checked,
+                    values:
+                      e.target.checked && perCopy.values.length === 0 && perCopy.text.trim()
+                        ? [perCopy.text]
+                        : perCopy.values,
+                  })
+                }
+              />
+              {t.onePerCopy}
+            </label>
+          }
+        >
+          {perCopy.list ? (
+            <ValuesField
+              label={name}
+              draft={{ expression: undefined, values: perCopy.values }}
+              suggestions={[]}
+              onChange={(next) => onChange({ ...perCopy, values: next.values })}
+              error={error}
+            />
+          ) : (
+            <>
+              <SuggestionInput
+                aria-label={name}
+                value={perCopy.text}
+                suggestions={[]}
+                onChange={(next) => onChange({ ...perCopy, text: next })}
+              />
+              <FieldError message={error} />
+            </>
+          )}
         </LabelledField>
       )
     }
@@ -2056,7 +2125,15 @@ function InputForm({
             ? prop.key !== 'placeholder' && prop.key !== 'autoselect'
             : prop.key !== 'option-key' || optionsDraftNow?.mode === 'expression'
   const settingProps = (TYPE_PROPS[type] ?? []).filter(shown)
-  const props = [...commonKeys(type).map(commonProp), ...settingProps]
+  // A page's description, like its title, can be one per copy when the page repeats.
+  const props = [
+    ...commonKeys(type).map((key) =>
+      type === 'step' && key === 'description'
+        ? { ...commonProp(key), kind: 'perCopy' as const }
+        : commonProp(key),
+    ),
+    ...settingProps,
+  ]
   const kindOf = (prop: Prop) => effectiveKind(prop, definition[prop.key])
   const context = { labelled: type === 'multi-dropdown' }
   // An untouched field keeps its YAML value exactly, so `5` isn't rewritten as '5'.

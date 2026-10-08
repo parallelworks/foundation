@@ -2,6 +2,7 @@ import type { TSetFormDirty } from '../Form'
 import { FieldsFromOptions } from '../Form'
 import { EditingScope, useFormEditing } from '../formEditing'
 import type { WizardStepContentProps } from './types'
+import { stepText } from './utils'
 
 export function WizardStepContent({
   currentStep,
@@ -42,14 +43,14 @@ export function WizardStepContent({
 
   const content = (
     <div className="mb-4 w-full">
-      {stepConfig.title && (
+      {stepText(stepConfig.title) && (
         <h2 className="text-2xl font-bold mb-2" style={{ color: 'var(--theme-app)' }}>
-          {stepConfig.title}
+          {stepText(stepConfig.title)}
         </h2>
       )}
-      {stepConfig.description && (
+      {stepText(stepConfig.description) && (
         <p className="mb-4 leading-relaxed" style={{ color: 'var(--theme-muted-text-color)' }}>
-          {stepConfig.description}
+          {stepText(stepConfig.description)}
         </p>
       )}
       <EditingScope editing={editing} path={path}>

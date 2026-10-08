@@ -1002,6 +1002,13 @@ describe('a repeated wizard page', () => {
     expect(initializeValues(schema)).toEqual({ hosts: [{ cpus: 2 }] })
   })
 
+  it('starts as many copies as a fixed count, keeping the saved ones that fit', () => {
+    const counted = { hosts: { ...schema.hosts, count: 3 } }
+    expect(initializeValues(counted, { hosts: [{ cpus: 8 }] })).toEqual({
+      hosts: [{ cpus: 8 }, { cpus: 2 }, { cpus: 2 }],
+    })
+  })
+
   it('keeps every saved copy, defaulting what one leaves out', () => {
     expect(initializeValues(schema, { hosts: [{ cpus: 8 }, {}] })).toEqual({
       hosts: [{ cpus: 8 }, { cpus: 2 }],

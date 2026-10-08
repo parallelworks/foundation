@@ -1,5 +1,6 @@
 import type { DynamicFormSchema } from './types/fieldTypes'
 import { applySecondaryField, findSecondaryOption } from './utils/secondaryField'
+import { copyCount } from './Wizard/utils'
 
 interface SchemaEntry {
   type?: string
@@ -10,6 +11,7 @@ interface SchemaEntry {
   autoselect?: unknown
   prefillDefault?: unknown
   multi?: unknown
+  count?: unknown
   wizard?: { flatten?: boolean }
 }
 
@@ -148,11 +150,14 @@ export function initializeValues(
         return acc
       }
       const fieldSchema = schema[field] ?? EMPTY_ENTRY
-      // A repeated page keeps a row per copy, and the form shows at least one.
+      // A repeated page keeps a row per copy: as many as its `count`, or as were saved, at least one.
       if (fieldSchema.type === 'step' && fieldSchema.multi === true) {
         const saved = data[field]
-        const rows = Array.isArray(saved) && saved.length > 0 ? saved : [{}]
-        acc[field] = rows.map((row) => initializeValues(fieldSchema.options, asRecord(row)))
+        const rows: unknown[] = Array.isArray(saved) && saved.length > 0 ? saved : [{}]
+        const fixed = copyCount(fieldSchema.count)
+        const sized =
+          fixed === undefined ? rows : Array.from({ length: fixed }, (_, i) => rows[i] ?? {})
+        acc[field] = sized.map((row) => initializeValues(fieldSchema.options, asRecord(row)))
         return acc
       }
       // A group's fields, and a wizard step's unless the wizard keeps steps nested,

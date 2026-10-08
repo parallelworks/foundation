@@ -1,5 +1,6 @@
 import cx from 'classnames'
 import type { WizardStepIndicatorProps } from './types'
+import { stepText } from './utils'
 
 export function WizardStepIndicator({
   stepOrder,
@@ -73,8 +74,8 @@ export function WizardStepIndicator({
                     }
                   : { zIndex: 10 }
               }
-              aria-label={`Step ${index + 1}: ${stepConfig?.title}`}
-              title={stepConfig?.title}
+              aria-label={`Step ${index + 1}: ${stepText(stepConfig?.title)}`}
+              title={stepText(stepConfig?.title)}
             >
               {!hideStepNumbers && (
                 <span className={cx({ hidden: status === 'completed' })}>{index + 1}</span>
@@ -126,11 +127,11 @@ export function WizardStepIndicator({
                 })}
                 style={isDotActive ? { color: 'var(--theme-element)' } : {}}
               >
-                {stepConfig?.title}
+                {stepText(stepConfig?.title)}
               </div>
               {stepConfig?.description && (
                 <div className="text-xs theme-muted-text mt-1 text-center max-w-30">
-                  {stepConfig.description}
+                  {stepText(stepConfig.description)}
                 </div>
               )}
             </div>

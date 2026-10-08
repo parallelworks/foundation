@@ -26,10 +26,10 @@ export interface WizardConfig {
 export interface StepFieldConfig {
   /** Must be 'step' */
   type: 'step'
-  /** Title shown in step indicator */
-  title: string
-  /** Optional description/subtitle shown below title */
-  description?: string
+  /** Title shown in step indicator; a repeated page's can be one per copy */
+  title: string | string[]
+  /** Optional description/subtitle shown below title; a repeated page's can be one per copy */
+  description?: string | string[]
   /** Schema for fields within this step */
   options: DynamicFormSchema
   /** Validate current step before proceeding to next (default: true) */
@@ -40,6 +40,8 @@ export interface StepFieldConfig {
   prevLabel?: string
   /** The person running it can add copies of this page; its values are a list, one row per copy */
   multi?: boolean
+  /** How many copies a repeated page has, fixed: a number, or an expression the form evaluates */
+  count?: number | string
 }
 
 /**
