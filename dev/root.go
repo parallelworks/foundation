@@ -51,7 +51,17 @@ func NewRootCmd(cfg Config, opts ...Option) *cobra.Command {
 		Use:   "dev [service...]",
 		Short: "Run the stack and the app's services, rebuilding servers when their sources change",
 		Long: "With no command, dev runs what dev.json describes until interrupted: Postgres and S3, " +
-			"and the services named, or every service not marked manual.",
+			"and the services named, or every service not marked manual. In a terminal it shows them in an " +
+			"interactive view; where a dev already runs in this checkout, the view attaches to it.\n\n" +
+			"Each checkout runs its own dev, on ports of its own when the preferred ones are taken. " +
+			"dev.json, at the repository root, describes the app: see " +
+			"https://github.com/parallelworks/foundation/tree/canary/dev.",
+		Example: `  dev                     # every service, in the interactive view
+  dev web api             # only these, and what they depend on
+  dev up && dev status    # in the background, then what runs and where
+  dev logs api            # its output, from another terminal or a tool
+  dev exec -- go test ./... # with this checkout's ports and database
+  dev down`,
 		Args:          cobra.ArbitraryArgs,
 		Version:       version(),
 		SilenceUsage:  true,
@@ -74,7 +84,7 @@ func NewRootCmd(cfg Config, opts ...Option) *cobra.Command {
 	root.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "log debug output")
 	var dir string
 	root.PersistentFlags().StringVar(&dir, "dir", "", "directory for Postgres data and S3 objects (default .devstack beside dev.json)")
-	root.PersistentFlags().StringSliceVar(&profiles, "profile", nil, "use these profiles, and keep using them in this checkout (see `dev profiles`)")
+	root.PersistentFlags().StringSliceVar(&profiles, "profile", nil, "use these profiles, and keep using them in this checkout (see dev profiles)")
 	root.PersistentPreRunE = func(*cobra.Command, []string) error {
 		if dir != "" {
 			// A flag is relative to where it was typed, not to the root.
@@ -116,6 +126,8 @@ func NewRootCmd(cfg Config, opts ...Option) *cobra.Command {
 		Short: "Wait until a running stack accepts connections, or until services are up",
 		Long: "With no services, wait until the stack accepts connections. With services, wait until each " +
 			"is ready (or running, without a health URL), and fail as soon as one fails, exits or turns unhealthy.",
+		Example: `  dev wait                # the stack accepts connections
+  dev wait --timeout 5m api web`,
 		RunE: func(cmd *cobra.Command, names []string) error {
 			if len(names) > 0 {
 				return waitServices(cmd.Context(), cfg, names, timeout)
@@ -130,7 +142,11 @@ func NewRootCmd(cfg Config, opts ...Option) *cobra.Command {
 	status := &cobra.Command{
 		Use:   "status",
 		Short: "Show the services of the dev running here",
-		Args:  cobra.NoArgs,
+		Long: "Show each service of the dev running in this checkout: its state, how long it has had it, and its URL. " +
+			"--json adds the instance: its ports, PID, version and profiles.",
+		Example: `  dev status
+  dev status --json | jq .info.ports`,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			command := "status"
 			if statusJSON {
@@ -160,6 +176,8 @@ func NewRootCmd(cfg Config, opts ...Option) *cobra.Command {
 		Long: "Start dev in the background, in its own session so that closing the terminal does not stop it, " +
 			"and return once the services named (or every one not marked manual) are up, or with why they are not. " +
 			"`dev down` stops it; it also stops itself if the checkout is deleted, or after --for.",
+		Example: `  dev up                  # every service not marked manual
+  dev up --for 2h api     # api and what it depends on, stopping after two hours`,
 		RunE: func(cmd *cobra.Command, names []string) error {
 			args := slices.Clone(names)
 			if lifetime > 0 {
@@ -181,8 +199,8 @@ func NewRootCmd(cfg Config, opts ...Option) *cobra.Command {
 	root.AddCommand(&cobra.Command{
 		Use:   "mcp",
 		Short: "Answer MCP over stdio, so an agent can drive this checkout's dev as tools",
-		Long: "Answer the Model Context Protocol over stdin and stdout. An agent configured with " +
-			"`go -C tools tool dev mcp` gets tools to start dev in the background (up), see services, their states, " +
+		Long: "Answer the Model Context Protocol over stdin and stdout. An agent configured to run " +
+			"`dev mcp` in the repository, as .mcp.json does, gets tools to start dev in the background (up), see services, their states, " +
 			"URLs and ports (status), read output (logs), start, stop and restart services, wait for them, and stop dev (down).",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -193,6 +211,7 @@ func NewRootCmd(cfg Config, opts ...Option) *cobra.Command {
 	root.AddCommand(&cobra.Command{
 		Use:   "down",
 		Short: "Stop the dev running here, foreground or background",
+		Long:  "Stop the dev running in this checkout, whether in a terminal or started with dev up, and every service it started.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return down(cmd.Context(), cfg)
@@ -233,6 +252,8 @@ func NewRootCmd(cfg Config, opts ...Option) *cobra.Command {
 		Long: "Choose the profiles this checkout uses from now on, such as `dev use local` or " +
 			"`dev use local-db,remote-cache`. A dev running here stops its services and starts again with them, " +
 			"keeping its ports where they are free.",
+		Example: `  dev use local
+  dev use canary,socks`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			names := strings.Split(args[0], ",")
@@ -298,6 +319,8 @@ func NewRootCmd(cfg Config, opts ...Option) *cobra.Command {
 		Short: "Run a command with the running dev's environment",
 		Long: "Run a command with the environment the running dev gives its services, under your own: " +
 			"allocated ports, {postgres}, {s3} and the rest. Tests, migrations and scripts then reach this checkout's stack.",
+		Example: `  dev exec -- go test ./...
+  dev exec -- psql "$DATABASE_URL"`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, argv []string) error {
 			return execWith(cmd.Context(), cfg, argv)
@@ -311,7 +334,10 @@ func NewRootCmd(cfg Config, opts ...Option) *cobra.Command {
 		root.AddCommand(&cobra.Command{
 			Use:   c.name + " service",
 			Short: c.short,
-			Args:  cobra.ExactArgs(1),
+			Long: c.short + ", from another terminal or a tool while it runs, foreground or background. " +
+				"It prints every service's state after.",
+			Example: "  dev " + c.name + " web",
+			Args:    cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				services, err := control(cmd.Context(), cfg, controlRequest{Command: c.name, Service: args[0]})
 				if err != nil {
@@ -330,6 +356,8 @@ func NewRootCmd(cfg Config, opts ...Option) *cobra.Command {
 		Long: "Print services' output from the latest run, as dev wrote it to their logs: one service as it is, " +
 			"several (or, with none named, every service) with each line prefixed by its service. " +
 			"Use it from another terminal, or from a tool, while dev runs.",
+		Example: `  dev logs api
+  dev logs                # every service, prefixed`,
 		RunE: func(cmd *cobra.Command, names []string) error {
 			c, err := cfg.withDefaults()
 			if err != nil {
