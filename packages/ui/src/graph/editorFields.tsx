@@ -23,22 +23,16 @@ import type { FieldPatch } from '../editing'
 import { AddIcon, ChevronRightIcon, CloseIcon, ExpressionIcon } from '../icons'
 import { type GraphEditorStrings, useGraphEditorStrings } from './editorStrings'
 import { useFieldLint } from './fieldProblems'
+import { asRecord, type Json } from './records'
 import { SuggestionInput } from './SuggestionInput'
 
-export type Json = Record<string, unknown>
+export { asRecord, type Json } from './records'
 export type Strings = GraphEditorStrings
 
 export const EXPRESSION = /^\$\{\{.*\}\}$/
 export const ENV_KEY = /^[a-zA-Z0-9_]+$/
 const EMPTY_EXPRESSION = /^\$\{\{\s*\}\}$/
 export const DURATION = /^(\d+)(d|h|m|s)?$/
-
-/** `value` when it's a plain object, else an empty one, so its keys read without checks. */
-export function asRecord(value: unknown): Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {}
-}
 
 export function withoutUndefined(value: Json): Json {
   return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined))
@@ -367,7 +361,6 @@ export function FieldLabel({
   )
 }
 
-/** Switches a field between its own control and a typed expression, where the schema takes one. */
 /** A field's label and description above the editor that sets it. */
 export function LabelledField({
   children,
@@ -381,6 +374,10 @@ export function LabelledField({
   )
 }
 
+/**
+ * Switches a field between its own control and a typed expression, where the schema takes one. Its
+ * name says what pressing it does, so it isn't also announced as pressed.
+ */
 export function ExpressionToggle({
   active,
   onChange,
@@ -396,7 +393,6 @@ export function ExpressionToggle({
       size="sm"
       variant="ghost"
       active={active}
-      aria-pressed={active}
       onClick={() => onChange(!active)}
     />
   )
@@ -588,6 +584,7 @@ export function removeAt<T>(items: T[], index: number): T[] {
 
 /** A list of single values, such as permissions or variable names. */
 export function StringListEditor({
+  label,
   values,
   onChange,
   addLabel,
@@ -595,6 +592,8 @@ export function StringListEditor({
   error,
   suggestions = [],
 }: {
+  /** The list's name, which names each of its rows. */
+  label: string
   values: string[]
   onChange: (values: string[]) => void
   addLabel: string
@@ -610,7 +609,7 @@ export function StringListEditor({
         <div key={key} className="flex items-center gap-2">
           <div className="flex-1">
             <SuggestionInput
-              ariaLabel={addLabel}
+              ariaLabel={t.listItem(label, i + 1)}
               value={value}
               placeholder={placeholder}
               suggestions={suggestions.map((option) => ({ value: option }))}
@@ -654,9 +653,16 @@ export function SuggestedInput({
   const id = useId()
   const lint = useFieldLint(yamlKey, id, value, onChange)
   return (
-    <LabelledField label={label} yamlKey={yamlKey} description={description ?? ''} htmlFor={id}>
+    <LabelledField
+      label={label}
+      yamlKey={yamlKey}
+      description={description ?? ''}
+      htmlFor={id}
+      {...(description ? { descriptionId: `${id}-help` } : {})}
+    >
       <SuggestionInput
         id={id}
+        aria-describedby={description ? `${id}-help` : undefined}
         value={value}
         placeholder={placeholder}
         suggestions={suggestions.map((option) => ({ value: option }))}

@@ -299,7 +299,12 @@ function SpecField({
     case 'list':
       return (
         <LabelledField label={label} yamlKey={spec.key} description={description}>
-          <StringListEditor values={draft as string[]} onChange={onChange} addLabel={t.addRow} />
+          <StringListEditor
+            label={label}
+            values={draft as string[]}
+            onChange={onChange}
+            addLabel={t.addRow}
+          />
         </LabelledField>
       )
     case 'bool':

@@ -322,9 +322,7 @@ describe('InputDialog', () => {
     const add = screen.getByRole('button', { name: 'Add value' })
     fireEvent.click(add)
     fireEvent.click(add)
-    const [first, second] = screen.getAllByLabelText('Add value', {
-      selector: 'input',
-    })
+    const [first, second] = screen.getAllByRole('combobox', { name: /, item \d+$/ })
     fireEvent.change(first as HTMLElement, { target: { value: 'b' } })
     fireEvent.change(second as HTMLElement, {
       target: { value: 'pw://greybackup/mycluster' },
@@ -348,7 +346,7 @@ describe('InputDialog', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: 'Multiple choices' }))
     const add = screen.getByRole('button', { name: 'Add value' })
     fireEvent.click(add)
-    const rows = screen.getAllByLabelText('Add value', { selector: 'input' })
+    const rows = screen.getAllByRole('combobox', { name: /, item \d+$/ })
     expect(rows[0]).toHaveValue('pw://greybackup/one')
     fireEvent.change(rows[1] as HTMLElement, {
       target: { value: 'pw://greybackup/two' },
