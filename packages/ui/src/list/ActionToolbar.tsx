@@ -29,6 +29,8 @@ export interface ToolbarAction {
   enabledTooltip?: string
   disabledTooltip?: string | undefined
   hidden?: boolean
+  /** Makes the action a toggle: filled while on, outlined while off. */
+  active?: boolean | undefined
 }
 
 /** A pre-rendered element (e.g. a button component that owns its modal). */
@@ -53,13 +55,19 @@ export function ToolbarButton({ action }: { action: ToolbarAction }) {
   if (inOverflowMenu) {
     return <OverflowRow item={action} />
   }
+  const off = action.active === false
   const className = cx(
     'inline-flex items-center gap-x-0.5 h-9 px-2 rounded-md text-[13.5px] uppercase font-semibold transition-colors whitespace-nowrap',
-    'bg-(--theme-element) text-(--theme-element-text)',
+    off
+      ? 'border theme-border theme-muted-text'
+      : 'bg-(--theme-element) text-(--theme-element-text)',
     action.disabled
       ? 'opacity-50 cursor-not-allowed'
-      : 'cursor-pointer hover:bg-(--theme-element-hover)',
+      : off
+        ? 'cursor-pointer hover:theme-hover'
+        : 'cursor-pointer hover:bg-(--theme-element-hover)',
   )
+  const pressed = action.active === undefined ? {} : { 'aria-pressed': action.active }
   const tooltipProps = tipProps(
     action.disabled ? action.disabledTooltip : action.enabledTooltip,
     'bottom',
@@ -92,7 +100,13 @@ export function ToolbarButton({ action }: { action: ToolbarAction }) {
     )
   }
   return (
-    <button type="button" onClick={action.onClick} className={className} {...tooltipProps}>
+    <button
+      type="button"
+      onClick={action.onClick}
+      className={className}
+      {...pressed}
+      {...tooltipProps}
+    >
       {content}
     </button>
   )

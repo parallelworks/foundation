@@ -43,14 +43,40 @@ export type RowMenuItem =
       /** Declarative clipboard copy: the menu performs it and notifies, so
        * builders like useCopySubmenu need no toast or clipboard access. */
       copy?: { text: string; label: string }
+      /** More text a menu's search matches, beside the label. */
+      keywords?: string
     }
-  | { kind: 'submenu'; label: string; icon?: ReactNode; items: RowMenuItem[] }
+  | {
+      kind: 'submenu'
+      label: string
+      icon?: ReactNode
+      items: RowMenuItem[]
+      search?: MenuSearch | undefined
+    }
   | { kind: 'divider' }
+
+/** A field atop a menu that narrows it, submenus included, to the items it matches. */
+export interface MenuSearch {
+  placeholder: string
+  /** Shown when nothing matches. */
+  empty: string
+}
 
 type RowMenuEntry = Exclude<RowMenuItem, { kind: 'divider' }>
 
-type MenuState = { x: number; y: number; items: RowMenuItem[] }
-export type OpenMenu = (x: number, y: number, items: RowMenuItem[], onClose?: () => void) => void
+type MenuState = {
+  x: number
+  y: number
+  items: RowMenuItem[]
+  search?: MenuSearch | undefined
+}
+export type OpenMenu = (
+  x: number,
+  y: number,
+  items: RowMenuItem[],
+  onClose?: () => void,
+  search?: MenuSearch,
+) => void
 
 /** The shared shape every entity action hook's per-row actions boil down to.
  * Each hook's bespoke `*RowAction` type is structurally assignable to this. */
@@ -161,13 +187,13 @@ export function assembleRowMenu({
 export function useRowMenu(zClassName = 'z-50') {
   const [menu, setMenu] = useState<MenuState | null>(null)
   const onCloseRef = useRef<(() => void) | undefined>(undefined)
-  const openMenu = useCallback<OpenMenu>((x, y, items, onClose) => {
+  const openMenu = useCallback<OpenMenu>((x, y, items, onClose, search) => {
     if (items.length > 0) {
       // A new menu supersedes any open one — let the previous row drop its
       // active highlight before this one takes over.
       onCloseRef.current?.()
       onCloseRef.current = onClose
-      setMenu({ x, y, items })
+      setMenu({ x, y, items, search })
     }
   }, [])
   const close = useCallback(() => {
@@ -227,7 +253,7 @@ function RowContextMenu({
       return
     }
     const { width, height } = ref.current.getBoundingClientRect()
-    const pad = 8
+    const pad = MENU_EDGE
     // Open upward when the menu won't fit below the anchor but fits above, so a
     // row near the viewport bottom doesn't push the menu off-screen or onto it.
     const spaceBelow = window.innerHeight - pad - state.y
@@ -238,6 +264,29 @@ function RowContextMenu({
       top: Math.max(pad, top),
     })
   }, [state])
+
+  // Focus goes in once the menu is placed, since a hidden element can't take it: to the search field,
+  // or to the first item when the menu was opened from the keyboard. It returns to the opener on close.
+  useEffect(() => {
+    const menu = ref.current
+    if (!pos || !menu) {
+      return
+    }
+    const opener = document.activeElement
+    const target =
+      menu.querySelector<HTMLElement>(':scope > div > input[type="search"]') ??
+      (focusVisible(opener) ? menu.querySelector<HTMLElement>(MENU_ITEMS) : null)
+    if (!target) {
+      return
+    }
+    target.focus({ preventScroll: true })
+    return () => {
+      // Unless the item that closed the menu moved focus on, such as into a dialog.
+      if (opener instanceof HTMLElement && document.activeElement === document.body) {
+        opener.focus({ preventScroll: true })
+      }
+    }
+  }, [pos])
 
   useEffect(() => {
     if (!state) {
@@ -309,8 +358,20 @@ function RowContextMenu({
           top: pos?.top ?? state.y,
           visibility: pos ? 'visible' : 'hidden',
         }}
+        onKeyDown={(e) => {
+          const step = { ArrowDown: 1, ArrowUp: -1 }[e.key]
+          if (!step || e.defaultPrevented || !ref.current) {
+            return
+          }
+          e.preventDefault()
+          const items = [...ref.current.querySelectorAll<HTMLElement>(MENU_ITEMS)]
+          const at = items.indexOf(document.activeElement as HTMLElement)
+          items[(at + step + items.length) % items.length]?.focus({
+            preventScroll: true,
+          })
+        }}
       >
-        <MenuItemList items={state.items} onClose={onClose} side={side} />
+        <MenuItemList items={state.items} search={state.search} onClose={onClose} side={side} />
       </div>
     </div>,
     // The --theme-* tokens live on the document root, so the body-level portal
@@ -319,25 +380,145 @@ function RowContextMenu({
   )
 }
 
+// How far a menu keeps from the window's edges.
+const MENU_EDGE = 8
+
+// A submenu opens level with its item, lifted by as much as would run past the window's bottom.
+function SubmenuPanel({ side, children }: { side: 'left' | 'right'; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [lift, setLift] = useState(0)
+  useLayoutEffect(() => {
+    const rect = ref.current?.getBoundingClientRect()
+    if (rect) {
+      const over = rect.bottom - (window.innerHeight - MENU_EDGE)
+      setLift(Math.max(0, Math.min(over, rect.top - MENU_EDGE)))
+    }
+  }, [])
+  return (
+    <div
+      ref={ref}
+      className={cx(
+        'absolute -top-1 z-10 min-w-44 rounded-lg border border-(--theme-border) bg-(--theme-panel-bg) py-1 shadow-lg',
+        side === 'left' ? 'right-full' : 'left-full',
+      )}
+      style={lift > 0 ? { transform: `translateY(-${lift}px)` } : undefined}
+    >
+      {children}
+    </div>
+  )
+}
+
+// What arrow keys move between, open submenus included, in the order they read.
+const MENU_ITEMS = 'button:not([disabled]), a[href]'
+
+function focusVisible(element: Element | null): boolean {
+  try {
+    return !!element?.matches(':focus-visible')
+  } catch {
+    return false
+  }
+}
+
 const MENU_ITEM_CLASSES =
   'flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[13px] hover:bg-(--theme-muted-panel-bg) transition-colors cursor-pointer [&>svg]:h-4 [&>svg]:w-4 [&>svg]:shrink-0'
 
+function matchesSearch(item: RowMenuEntry, needle: string): boolean {
+  const keywords = item.kind === 'action' ? (item.keywords ?? '') : ''
+  return `${item.label} ${keywords}`.toLowerCase().includes(needle)
+}
+
+// Every item a search can reach, once each, with submenus opened out.
+function searchMatches(items: RowMenuItem[], needle: string): RowMenuEntry[] {
+  const found = new Map<string, RowMenuEntry>()
+  const walk = (list: RowMenuItem[]) => {
+    for (const item of list) {
+      if (item.kind === 'submenu') {
+        walk(item.items)
+      } else if (item.kind !== 'divider' && !found.has(item.label) && matchesSearch(item, needle)) {
+        found.set(item.label, item)
+      }
+    }
+  }
+  walk(items)
+  return [...found.values()]
+}
+
+function MenuSearchField({
+  search,
+  query,
+  onQuery,
+  onEnter,
+}: {
+  search: MenuSearch
+  query: string
+  onQuery: (query: string) => void
+  onEnter: () => void
+}) {
+  return (
+    <div className="px-2 pt-0.5 pb-1">
+      <input
+        type="search"
+        aria-label={search.placeholder}
+        placeholder={search.placeholder}
+        value={query}
+        onChange={(e) => onQuery(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            onEnter()
+          } else if (e.key === 'ArrowDown') {
+            e.preventDefault()
+            e.currentTarget.parentElement?.parentElement
+              ?.querySelector<HTMLElement>('button:not([disabled]), a')
+              ?.focus()
+          }
+        }}
+        className="w-full rounded-md border border-(--theme-border) bg-(--theme-muted-panel-bg) px-2 py-1 text-[13px] text-(--theme-app) placeholder:text-(--theme-muted-text-color) focus:border-(--theme-element) focus:outline-none"
+      />
+    </div>
+  )
+}
+
 function MenuItemList({
   items,
+  search,
   onClose,
   side,
 }: {
   items: RowMenuItem[]
+  search?: MenuSearch | undefined
   onClose: () => void
   side: 'left' | 'right'
 }) {
-  return keyedByContent(items, (it) => (it.kind === 'divider' ? 'divider' : it.label)).map(
-    ({ key, item }) =>
-      item.kind === 'divider' ? (
-        <div key={key} aria-hidden="true" className="my-1 h-px bg-(--theme-border)" />
-      ) : (
-        <MenuRow key={key} item={item} onClose={onClose} side={side} />
-      ),
+  const [query, setQuery] = useState('')
+  const needle = query.trim().toLowerCase()
+  const shown: RowMenuItem[] = search && needle ? searchMatches(items, needle) : items
+  const pickFirst = () => {
+    const first = shown.find((item) => item.kind === 'action' && !item.disabled)
+    if (first?.kind === 'action') {
+      first.onSelect?.()
+      onClose()
+    }
+  }
+  return (
+    <>
+      {search && (
+        <MenuSearchField search={search} query={query} onQuery={setQuery} onEnter={pickFirst} />
+      )}
+      {keyedByContent(shown, (it) => (it.kind === 'divider' ? 'divider' : it.label)).map(
+        ({ key, item }) =>
+          item.kind === 'divider' ? (
+            <div key={key} aria-hidden="true" className="my-1 h-px bg-(--theme-border)" />
+          ) : (
+            <MenuRow key={key} item={item} onClose={onClose} side={side} />
+          ),
+      )}
+      {search && needle && shown.length === 0 && (
+        <div className="px-3 py-1.5 text-[13px] text-(--theme-muted-text-color)">
+          {search.empty}
+        </div>
+      )}
+    </>
   )
 }
 
@@ -388,14 +569,9 @@ function MenuRow({
           <ChevronRightIcon className="h-3 w-3 shrink-0 opacity-60" />
         </button>
         {openSub && (
-          <div
-            className={cx(
-              'absolute -top-1 z-10 min-w-44 rounded-lg border border-(--theme-border) bg-(--theme-panel-bg) py-1 shadow-lg',
-              side === 'left' ? 'right-full' : 'left-full',
-            )}
-          >
-            <MenuItemList items={item.items} onClose={onClose} side={side} />
-          </div>
+          <SubmenuPanel side={side}>
+            <MenuItemList items={item.items} search={item.search} onClose={onClose} side={side} />
+          </SubmenuPanel>
         )}
       </div>
     )
