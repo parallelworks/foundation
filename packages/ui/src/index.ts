@@ -15,7 +15,7 @@ export type {
   AccessPermission,
   AccessValue,
   ImpliedPermissions,
-} from './components/access/accessDraft'
+} from './components/access/accessValue'
 export { BareModal, modalPanelClasses } from './components/BareModal'
 export {
   BreadcrumbProvider,

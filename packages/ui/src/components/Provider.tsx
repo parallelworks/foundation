@@ -381,40 +381,55 @@ export interface UIStrings {
   }
   access: {
     title: string
-    search: string
-    total: (total: number) => string
-    matching: (shown: number, total: number) => string
+    grantAccess: string
+    filter: string
+    grantedSummary: (granted: number, total: number) => string
+    holderCount: (count: number) => string
+    more: (count: number) => string
+    everyone: string
     organization: string
     organizationMeta: string
-    withAccess: (count: number) => string
-    otherGroups: (count: number) => string
     members: (count: number) => string
-    permissionsFor: (name: string) => string
-    includedByHigher: string
-    grantedToOrganization: string
-    unsaved: string
-    revoked: string
-    revoke: string
-    revokeFor: (name: string) => string
-    revokeAll: string
-    revokeAllFor: (name: string) => string
+    holdersOf: (permission: string) => string
+    categoryGranted: (count: number) => string
+    includedBy: (permission: string) => string
+    remove: string
+    removeFrom: (name: string, permission: string) => string
+    confirmRemove: string
+    cancel: string
+    removed: (name: string, permission: string) => string
+    granted: (permissions: number, to: string) => string
+    groupCount: (count: number) => string
     undo: string
-    undoFor: (name: string) => string
-    noGroups: string
-    noGroupsHint: string
+    undone: string
+    dismiss: string
+    noGrants: string
+    noGrantsHint: string
     noMatches: (query: string) => string
     noMatchesHint: string
-    clearSearch: string
-    noChanges: string
-    unsavedChanges: (count: number) => string
-    saved: string
-    discard: string
+    clearFilter: string
+    groupsLabel: string
+    groupsHint: string
+    searchGroups: (total: number) => string
+    noGroups: string
+    noGroupsMatch: (query: string) => string
+    selectedGroups: string
+    permissionsLabel: string
+    permissionsHint: string
+    searchPermissions: (total: number) => string
+    allTypes: string
+    otherType: string
+    resourceTypes: string
+    selectedPermissions: string
+    selectedCount: (count: number) => string
+    removeChip: (name: string) => string
+    noPermissionsMatch: (query: string) => string
+    pickBoth: string
+    pickPermissions: (groups: number) => string
+    pickGroups: (permissions: number) => string
+    grantSummary: (permissions: number, groups: number, already: number) => string
     save: string
     saving: string
-    discardTitle: string
-    discardDescription: (count: number) => string
-    discardConfirm: string
-    keepEditing: string
   }
 }
 
@@ -951,43 +966,60 @@ const DEFAULTS: UIProviderValue = {
     },
     access: {
       title: 'Manage access',
-      search: 'Search groups',
-      total: (total) => (total === 1 ? '1 group' : `${total} groups`),
-      matching: (shown, total) => `${shown} of ${total} groups`,
+      grantAccess: 'Grant access',
+      filter: 'Filter by permission or group',
+      grantedSummary: (granted, total) =>
+        `${granted} of ${total} ${total === 1 ? 'permission' : 'permissions'} granted`,
+      holderCount: (count) => `(${count})`,
+      more: (count) => `+${count}`,
+      everyone: 'Everyone',
       organization: 'Everyone in the organization',
       organizationMeta: 'All members, including new ones',
-      withAccess: (count) => `With access · ${count}`,
-      otherGroups: (count) => `All other groups · ${count}`,
       members: (count) => (count === 1 ? '1 member' : `${count} members`),
-      permissionsFor: (name) => `Permissions for ${name}`,
-      includedByHigher: 'Included by a higher permission.',
-      grantedToOrganization: 'Granted to everyone in the organization.',
-      unsaved: 'unsaved',
-      revoked: 'Access revoked, unsaved',
-      revoke: 'Revoke',
-      revokeFor: (name) => `Revoke access for ${name}`,
-      revokeAll: 'Revoke all',
-      revokeAllFor: (name) => `Revoke all permissions for ${name}`,
+      holdersOf: (permission) => `Who has ${permission}`,
+      categoryGranted: (count) => (count === 1 ? '1 granted' : `${count} granted`),
+      includedBy: (permission) => `Included by ${permission}`,
+      remove: 'Remove',
+      removeFrom: (name, permission) => `Remove ${name} from ${permission}`,
+      confirmRemove: 'Remove access?',
+      cancel: 'Cancel',
+      removed: (name, permission) => `Removed ${name} from ${permission}`,
+      granted: (permissions, to) =>
+        `Granted ${permissions === 1 ? '1 permission' : `${permissions} permissions`} to ${to}`,
+      groupCount: (count) => (count === 1 ? '1 group' : `${count} groups`),
       undo: 'Undo',
-      undoFor: (name) => `Undo changes for ${name}`,
+      undone: 'Change undone',
+      dismiss: 'Dismiss',
+      noGrants: 'No one has access yet',
+      noGrantsHint: 'Use Grant access to give groups permissions.',
+      noMatches: (query) => `Nothing matches “${query}”`,
+      noMatchesHint: 'Search by a permission name, its key, or a group name.',
+      clearFilter: 'Clear filter',
+      groupsLabel: 'Groups',
+      groupsHint: 'Who gets the permissions. Pick one or more.',
+      searchGroups: (total) => `Search ${total} groups`,
       noGroups: 'No groups yet',
-      noGroupsHint: 'Groups appear here once they are created.',
-      noMatches: (query) => `No groups match “${query}”`,
-      noMatchesHint: 'Check the spelling, or search for part of the name.',
-      clearSearch: 'Clear search',
-      noChanges: 'No unsaved changes',
-      unsavedChanges: (count) => (count === 1 ? '1 unsaved change' : `${count} unsaved changes`),
-      saved: 'Access saved',
-      discard: 'Discard',
-      save: 'Save access',
+      noGroupsMatch: (query) => `No groups match “${query}”`,
+      selectedGroups: 'Selected groups',
+      permissionsLabel: 'Permissions',
+      permissionsHint: 'What they can do, by type of resource.',
+      searchPermissions: (total) => `Search ${total} permissions`,
+      allTypes: 'All',
+      otherType: 'Other',
+      resourceTypes: 'Resource types',
+      selectedPermissions: 'Selected permissions',
+      selectedCount: (count) => `${count} selected`,
+      removeChip: (name) => `Remove ${name}`,
+      noPermissionsMatch: (query) => `No permissions match “${query}”`,
+      pickBoth: 'Pick at least one group and one permission',
+      pickPermissions: (groups) =>
+        `${groups === 1 ? '1 group' : `${groups} groups`} picked, now choose permissions`,
+      pickGroups: (permissions) =>
+        `${permissions === 1 ? '1 permission' : `${permissions} permissions`} picked, now choose groups`,
+      grantSummary: (permissions, groups, already) =>
+        `Grants ${permissions === 1 ? '1 permission' : `${permissions} permissions`} to ${groups === 1 ? '1 group' : `${groups} groups`}${already ? ` · ${already} already granted` : ''}`,
+      save: 'Save',
       saving: 'Saving…',
-      discardTitle: 'Discard unsaved changes?',
-      discardDescription: (count) =>
-        count === 1
-          ? 'The change you made to access will be lost.'
-          : `The ${count} changes you made to access will be lost.`,
-      discardConfirm: 'Discard changes',
-      keepEditing: 'Keep editing',
     },
   },
   navigation: {
