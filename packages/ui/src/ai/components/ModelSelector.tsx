@@ -240,9 +240,9 @@ export default function ModelSelector({
   // The placeholders share the trigger's box so swapping them in and out
   // never moves the toolbar.
   const boxClass = bare
-    ? 'flex items-center gap-1 rounded-md px-1.5 py-0.5 max-w-[280px]'
+    ? 'flex items-center gap-1.5 rounded-full h-8 px-2.5 max-w-[280px]'
     : 'flex items-center gap-2 px-3 h-8 rounded-lg min-w-[180px] max-w-[280px]'
-  const textClass = bare ? 'text-[11px]' : 'text-sm'
+  const textClass = bare ? 'text-[13px]' : 'text-sm'
 
   if (isLoadingModels && models.length === 0 && !targetSession) {
     return (
@@ -264,10 +264,7 @@ export default function ModelSelector({
           <button
             type="button"
             onClick={() => refreshModels()}
-            className={cx(
-              'flex items-center gap-1 text-blue-600 hover:underline ml-1',
-              bare ? 'text-[11px]' : 'text-xs',
-            )}
+            className="flex items-center gap-1 text-xs text-blue-600 hover:underline ml-1"
           >
             <RetryIcon className="h-2.5 w-2.5" />
             Retry
@@ -315,7 +312,7 @@ export default function ModelSelector({
           'transition-all cursor-pointer bg-transparent',
           'focus:outline-none',
           'disabled:opacity-50 disabled:cursor-not-allowed',
-          bare ? 'hover:theme-muted-panel' : 'border theme-border hover:theme-hover',
+          bare ? 'hover:chat-tint' : 'border theme-border hover:theme-hover',
         )}
       >
         {!bare && (
@@ -336,7 +333,7 @@ export default function ModelSelector({
                 className={cx(
                   'truncate',
                   bare
-                    ? 'text-[11px] theme-muted-text'
+                    ? 'text-[13px] font-medium theme-text'
                     : 'text-sm font-medium text-(--theme-panel)',
                 )}
               >
@@ -345,10 +342,7 @@ export default function ModelSelector({
               {selectedProviderName && (
                 <span
                   title={selectedProviderName}
-                  className={cx(
-                    'theme-muted-text truncate flex-shrink-0 max-w-[45%]',
-                    bare ? 'text-[10px]' : 'text-xs',
-                  )}
+                  className="theme-muted-text truncate flex-shrink-0 max-w-[45%] text-xs"
                 >
                   {selectedProviderName}
                 </span>
@@ -363,7 +357,7 @@ export default function ModelSelector({
           ) : (
             <span
               className={cx(
-                bare ? 'text-[11px]' : 'text-sm',
+                textClass,
                 targetSessionStatus === 'connecting' ? 'text-amber-600' : 'theme-muted-text',
               )}
             >

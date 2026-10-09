@@ -57,15 +57,22 @@ export const Pastes: StoryObj = {
   render: () => <MessageList />,
 }
 
-// Messages queued behind a running turn. The host can no longer take back the
-// oldest handedOver of them, so those show no remove button on hover.
-export const QueuedMessages: StoryObj<{ queued: number; handedOver: number }> = {
-  args: { queued: 2, handedOver: 1 },
+// Messages queued behind a running turn. The host has already handed the
+// oldest handedOver of them to the running turn, so those say so and cannot be
+// removed. delivery says when the rest reach the model: after the reply (the
+// chat provider) or between the agent's steps (a steering host).
+export const QueuedMessages: StoryObj<{
+  queued: number
+  handedOver: number
+  delivery: 'afterReply' | 'nextStep'
+}> = {
+  args: { queued: 2, handedOver: 1, delivery: 'nextStep' },
   argTypes: {
     queued: { control: { type: 'range', min: 0, max: QUEUED.length } },
     handedOver: { control: { type: 'range', min: 0, max: QUEUED.length } },
+    delivery: { control: 'inline-radio', options: ['afterReply', 'nextStep'] },
   },
-  render: ({ queued, handedOver }) => {
+  render: ({ queued, handedOver, delivery }) => {
     const messages = QUEUED.slice(0, queued).map((content, i) =>
       makeMessage({ id: `queued-${i + 1}`, role: 'user', content }),
     )
@@ -76,6 +83,7 @@ export const QueuedMessages: StoryObj<{ queued: number; handedOver: number }> = 
         queuedMessages={messages}
         onRemoveQueued={(id) => console.info('[remove queued]', id)}
         canRemoveQueued={(id) => !taken.has(id)}
+        queueDelivery={delivery}
       />
     )
   },
@@ -99,4 +107,28 @@ const longUrls: ChatMessage[] = [
 // running past its edge.
 export const LongUrls: StoryObj = {
   render: () => <MessageList messages={longUrls} allMessages={longUrls} />,
+}
+
+const reasoned: ChatMessage[] = [
+  makeMessage({ role: 'user', content: 'Which partition should the sweep run on?' }),
+  makeMessage({
+    role: 'assistant',
+    content: 'Run it on **compute**: the sweep is CPU-bound and gpu has only four nodes.',
+    reasoning:
+      'The sweep solves one mesh per point with no GPU kernels.\n\nCompute has 12 idle nodes; gpu has 4, all busy. Compute it is.',
+    reasoningDuration: 4200,
+  }),
+]
+
+// A finished reply's reasoning folds under its "Thought for" line and opens
+// in place, above the answer. The play opens it; Thread / Live reasoning
+// shows it streaming.
+export const ReasoningOpened: StoryObj<{ open: boolean }> = {
+  args: { open: true },
+  render: () => <MessageList messages={reasoned} allMessages={reasoned} />,
+  play: async ({ canvasElement, args }) => {
+    if (args.open) {
+      canvasElement.querySelector<HTMLButtonElement>('button[aria-expanded="false"]')?.click()
+    }
+  },
 }

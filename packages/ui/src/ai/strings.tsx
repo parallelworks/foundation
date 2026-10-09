@@ -40,6 +40,15 @@ export interface ChatStrings {
   }
   queue: {
     remove: string
+    /** Under a message that goes out once the running reply finishes. */
+    waiting: string
+    /** Under a message a steering host hands to the agent between steps. */
+    waitingNextStep: string
+    /** Under a message the host has already handed to the running turn. */
+    handedOver: string
+    /** The visible label of the remove control; `remove` names it for
+     *  assistive technology. */
+    removeShort: string
   }
   activity: {
     tokens: (input: string, output: string) => string
@@ -221,6 +230,10 @@ export const defaultChatStrings: ChatStrings = {
   },
   queue: {
     remove: 'Remove queued message',
+    waiting: 'Queued \u00b7 sends when this reply finishes',
+    waitingNextStep: 'Queued \u00b7 reaches the agent after its current step',
+    handedOver: 'Sent to the running turn',
+    removeShort: 'Remove',
   },
   providerIssue: {
     keyRejected: 'API key rejected',
