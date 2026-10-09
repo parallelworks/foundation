@@ -2670,12 +2670,22 @@ export function DependencyGraphPreview(inputs: {
   const workflowInputs = isJobRecord(executeInputs)
     ? (executeInputs as Record<string, unknown>)
     : undefined
+  const editable = !!inputs.editor
   const executedJobs = useMemo(() => {
-    const withCleanup = addCleanupSteps({ jobs })
+    // A run's graph leaves out a job whose `if` is false; the editor draws every job it edits.
+    const drawn = editable
+      ? Object.fromEntries(
+          Object.entries(jobs).map(([name, job]) => {
+            const { if: condition, ...rest } = job
+            return [name, condition === false ? rest : job]
+          }),
+        )
+      : jobs
+    const withCleanup = addCleanupSteps({ jobs: drawn })
     const evaluated = ready ? withRunExpressions(engine, withCleanup, workflowInputs) : withCleanup
     // A run lists a matrix's runs as jobs of their own; without an engine that edits, it stays one.
     return editing ? editing.expandMatrixJobs(evaluated) : evaluated
-  }, [engine, editing, ready, jobs, workflowInputs])
+  }, [engine, editing, ready, editable, jobs, workflowInputs])
   return (
     <DependencyGraph
       run={{

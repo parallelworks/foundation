@@ -542,6 +542,21 @@ describe('DependencyGraphPreview editor', () => {
     ).toEqual(['build', 'deploy'])
   })
 
+  it('keeps a job whose if is false on the graph it edits, which a run leaves out', () => {
+    const never = {
+      jobs: {
+        build: { steps: [{ run: 'make' }] },
+        off: { if: false, needs: ['build'], steps: [{ run: 'x' }] },
+      },
+    }
+    render(<DependencyGraphPreview yml={never} editor={editor()} />)
+    expect(document.querySelector('[data-dag-job="off"]')).not.toBeNull()
+    cleanup()
+    render(<DependencyGraphPreview yml={never} />)
+    expect(screen.getAllByText('Build').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Off')).toBeNull()
+  })
+
   it('offers only Edit matrix for a matrix job and saves include entries', () => {
     const e = editor()
     const matrix = {
