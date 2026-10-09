@@ -154,10 +154,10 @@ const WORKER_OPTIONS = {
 /** A repeated page with more copies than the row of step dots holds: the dots scroll, the current one in
  * view. */
 export const RepeatedPageMany: StoryObj<typeof DynamicForm> = {
-  // A phone's width, where ten steps overflow.
+  // A phone's width, where ten steps overflow. Inline, as story files don't feed the compiled classes.
   decorators: [
     (Story) => (
-      <div className="max-w-[360px]">
+      <div style={{ maxWidth: 360 }}>
         <Story />
       </div>
     ),

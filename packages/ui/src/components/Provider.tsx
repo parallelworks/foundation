@@ -437,13 +437,9 @@ export interface UIData {
   /** The built-in actions a workflow step can use, for the editor's step form. */
   workflowActions?: Record<string, WorkflowAction>
   resolveSecretVariables?: () => Promise<string[]>
+  /** Repository files, so the editor can read the workflow a step's repository `uses` names. */
   repoSuggestions?: {
-    refs: (repo: string) => Promise<RepoRef[]>
-    files: (repo: string, ref: string, path: string) => Promise<RepoEntry[]>
     file: (repo: string, ref: string, path: string) => Promise<string>
-    repos: (owner: string) => Promise<RepoSummary[]>
-    gitlabProjects: (search: string, host?: string) => Promise<GitlabProject[]>
-    owners: (provider: 'github' | 'gitlab', search: string, host?: string) => Promise<RepoOwner[]>
   }
   /**
    * Provisions browser-access CORS rules on a storage. Absent, the storage
@@ -456,36 +452,6 @@ export interface UIData {
     storageName: string
   }) => Promise<{ error?: string }>
   usePersistedState: PersistedStateHook
-}
-
-export interface RepoRef {
-  name: string
-  kind: string
-  detail: string
-}
-
-export interface RepoSummary {
-  name: string
-  description: string
-  private: boolean
-}
-
-export interface RepoOwner {
-  name: string
-  kind: string
-  host?: string | undefined
-}
-
-export interface GitlabProject {
-  path: string
-  host: string
-  description: string
-  private: boolean
-}
-
-export interface RepoEntry {
-  path: string
-  type: string
 }
 
 import type { FieldComponent } from '../form/fieldRegistry'
