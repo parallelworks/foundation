@@ -6,7 +6,7 @@ import type { AttachmentMeta, ChatMessage as Message } from '../types'
 import BlockedGroupBanner from './BlockedGroupBanner'
 import ChatInput, { type ChatInputHandle } from './ChatInput'
 import ChatMessageList from './ChatMessageList'
-import { ComposerControls, ConnectToolsLink } from './ComposerChrome'
+import { ComposerControls, ComposerUsage, ConnectToolsLink } from './ComposerChrome'
 import DragOverlay from './DragOverlay'
 import ProviderIssueBanner from './ProviderIssueBanner'
 import { ShareButton } from './ShareDialog'
@@ -183,7 +183,7 @@ export default function ChatThread({ conversationId }: { conversationId: string 
           settingsLeft={<ConnectToolsLink />}
           settingsRight={
             <>
-              {slots.composerUsage}
+              <ComposerUsage>{slots.composerUsage}</ComposerUsage>
               <ComposerControls />
             </>
           }
@@ -241,7 +241,7 @@ export default function ChatThread({ conversationId }: { conversationId: string 
               }
               settingsRight={
                 <>
-                  {slots.composerUsage}
+                  <ComposerUsage>{slots.composerUsage}</ComposerUsage>
                   <ComposerControls />
                 </>
               }

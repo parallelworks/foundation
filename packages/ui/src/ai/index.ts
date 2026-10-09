@@ -41,6 +41,7 @@ export {
   ComposerContext,
   ComposerControls,
   ComposerSettings,
+  ComposerUsage,
   ConnectToolsLink,
 } from './components/ComposerChrome'
 export { default as ComposerFrame } from './components/ComposerFrame'
