@@ -102,6 +102,8 @@ export interface ChatStrings {
     sharedWithYou: string
     openSidebar: string
     closeSidebar: string
+    resizeLabel: string
+    resizeHint: string
     newChat: string
     attachments: string
     connectTools: string
@@ -297,6 +299,8 @@ export const defaultChatStrings: ChatStrings = {
     sharedWithYou: 'Shared with you',
     openSidebar: 'Open sidebar',
     closeSidebar: 'Close sidebar',
+    resizeLabel: 'Resize conversation list',
+    resizeHint: 'Drag to resize; double-click to reset',
     newChat: 'New chat',
     attachments: 'Attachments',
     connectTools: 'Connect Tools',
