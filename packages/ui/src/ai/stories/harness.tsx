@@ -222,6 +222,9 @@ export function makeStaticAdapter(options?: {
   providerIssues?: ProviderIssue[]
   /** Each provider lists one model; omit for the single story provider. */
   providers?: ProviderInfo[]
+  /** False for an adapter that returns models only, so owners come from
+   *  each model's provider_owner. */
+  listProviders?: boolean
   attachments?: boolean
 }): ChatAdapter {
   const conversations = options?.conversations ?? [makeConversation()]
@@ -277,7 +280,8 @@ export function makeStaticAdapter(options?: {
                 owned_by: p.user,
                 provider: p.displayName ?? p.name,
                 provider_name: p.name,
-                provider_owner: p.user,
+                // Organization providers carry no owner on the model.
+                provider_owner: p.user === 'org' ? '' : p.user,
                 tool_calling_mode: 'none' as const,
               }))
             : [
@@ -382,7 +386,7 @@ export function makeStaticAdapter(options?: {
   }
 
   const providers = options?.providers
-  if (providers) {
+  if (providers && options?.listProviders !== false) {
     adapter.providers = {
       async list() {
         return providers
