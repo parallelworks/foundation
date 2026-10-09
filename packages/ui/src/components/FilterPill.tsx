@@ -10,6 +10,7 @@ export function FilterPill({ active, onClick, children }: FilterPillProps) {
   return (
     <button
       type="button"
+      aria-pressed={active}
       onClick={onClick}
       className={cx(
         'px-3 py-1.5 text-xs font-medium rounded-full border transition-all duration-200',

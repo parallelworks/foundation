@@ -284,9 +284,8 @@ function DropdownHelper({
       setBoundaryEl(null)
       return
     }
-    // Walk from reference up to dialog, use nearest scrollable ancestor as
-    // popper's boundary so flip/preventOverflow can see the modal panel's
-    // bottom edge instead of the viewport's.
+    // The nearest scrolling ancestor inside the dialog bounds flip and preventOverflow,
+    // so they see the modal panel's bottom edge rather than the viewport's.
     let node: HTMLElement | null = ref.parentElement
     while (node) {
       const style = getComputedStyle(node)
@@ -338,6 +337,8 @@ function DropdownHelper({
     modifiers: popperModifiers,
   })
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
+  // Closing the list clears the query, and Tab closes it before the blur that flushes.
+  const typedRef = useRef('')
   const buttonRef = useRef<HTMLButtonElement>(null)
 
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
@@ -381,6 +382,7 @@ function DropdownHelper({
     setQuery(val)
 
     if (allowCustomValue) {
+      typedRef.current = val
       // Debounce the onChange callback (same pattern as FormikCustomInput)
       if (debounceRef.current) {
         clearTimeout(debounceRef.current)
@@ -399,7 +401,7 @@ function DropdownHelper({
     if (allowCustomValue && debounceRef.current) {
       clearTimeout(debounceRef.current)
       debounceRef.current = null
-      flushCustomValue(query)
+      flushCustomValue(typedRef.current)
     }
     setQuery('')
   }

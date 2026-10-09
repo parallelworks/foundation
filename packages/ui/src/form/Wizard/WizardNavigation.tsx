@@ -35,7 +35,7 @@ export function WizardNavigation({
     setIsLoading(true)
     setError(null)
     try {
-      await onSubmit()
+      await onSubmit?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
@@ -79,7 +79,7 @@ export function WizardNavigation({
         </button>
 
         {/* Next / Submit button */}
-        {isLastStep ? (
+        {isLastStep && !onSubmit ? null : isLastStep ? (
           <button
             type="button"
             onClick={handleSubmit}

@@ -59,6 +59,31 @@ export const ClusterSettings: StoryObj<typeof DynamicForm> = {
   },
 }
 
+/** Inputs with a `width` (pixels, or a share of the row) sit side by side, label on top unless the
+ * form sets `labelPosition`; one that would be narrower than 16rem wraps to the next line. */
+export const WithWidths: StoryObj<typeof DynamicForm> = {
+  args: {
+    formJSONs: {
+      name: { type: 'string', label: 'Job name', default: 'train-resnet', width: '50%' },
+      queue: {
+        type: 'dropdown',
+        label: 'Queue',
+        default: 'gpu',
+        options: ['cpu', 'gpu', 'debug'],
+        width: '25%',
+      },
+      priority: { type: 'number', label: 'Priority', default: 5, width: '25%' },
+      dataset: { type: 'string', label: 'Dataset', default: 's3://datasets/images' },
+      epochs: { type: 'number', label: 'Epochs', default: 10, width: '33%' },
+      batch: { type: 'number', label: 'Batch size', default: 64, width: '33%' },
+      rate: { type: 'number', label: 'Learning rate', default: 0.001, width: '33%' },
+      seed: { type: 'number', label: 'Seed', default: 42, width: 160 },
+    },
+    initialValues: {},
+    skipValueParse: true,
+  },
+}
+
 export const CompactLabels: StoryObj<typeof DynamicForm> = {
   args: {
     formJSONs: FORM_JSONS,
@@ -66,5 +91,144 @@ export const CompactLabels: StoryObj<typeof DynamicForm> = {
     skipValueParse: true,
     labelPosition: 'top',
     spaceCompact: true,
+  },
+}
+
+// As a workflow's inputs convert: a list's template becomes its options.
+const CHOICE_JSONS = {
+  precision: {
+    type: 'radio',
+    label: 'Precision',
+    options: ['fp16', { label: 'Brain float', value: 'bf16' }],
+    default: 'bf16',
+  },
+  workers: { type: 'radio', label: 'Workers', options: [1, 2, 4], default: 2 },
+  features: {
+    type: 'checkbox-group',
+    label: 'Features',
+    options: [
+      { label: 'Logging', value: 'log' },
+      { label: 'Metrics', value: 'metrics', description: 'Sends usage numbers' },
+      'tracing',
+    ],
+    default: ['log'],
+  },
+  hosts: {
+    type: 'list',
+    label: 'Hosts',
+    default: [{ name: 'node-1' }, { name: 'node-2' }],
+    options: { name: { type: 'string', label: 'Name' } },
+  },
+}
+
+/** Options with labels of their own or numeric values, and a list starting from its default rows. */
+export const Choices: StoryObj<typeof DynamicForm> = {
+  args: {
+    formJSONs: CHOICE_JSONS,
+    initialValues: {},
+    skipValueParse: true,
+    workflowForm: true,
+  },
+}
+
+const WORKER_OPTIONS = {
+  nodes: { type: 'number', label: 'Nodes', default: 2, width: '50%' },
+  queue: {
+    type: 'dropdown',
+    label: 'Queue',
+    default: 'gpu',
+    options: ['gpu', 'cpu'],
+    width: '50%',
+  },
+}
+
+/** A page with `multi` repeats: each copy is a page, its values a row under the page's name, with Add after
+ * the last copy and Remove on each, inside its `min` and `max`. A title list gives each copy its own. */
+export const RepeatedPage: StoryObj<typeof DynamicForm> = {
+  args: {
+    formJSONs: {
+      $meta: { wizard: { mode: 'wizard', submitLabel: 'Launch', navigation: { allowJump: true } } },
+      workers: {
+        type: 'step',
+        title: ['GPU workers', 'CPU workers'],
+        description: 'One page per worker site.',
+        multi: true,
+        max: 3,
+        options: WORKER_OPTIONS,
+      },
+      review: {
+        type: 'step',
+        title: 'Review',
+        options: { notify: { type: 'boolean', label: 'Email me when it finishes', default: true } },
+      },
+    },
+    initialValues: {
+      workers: [
+        { nodes: 4, queue: 'gpu' },
+        { nodes: 8, queue: 'cpu' },
+      ],
+    },
+    skipValueParse: true,
+  },
+}
+
+/** Without a `min`, a repeated page starts with no copies, as a list starts with no rows: its page offers the first. */
+export const RepeatedPageEmpty: StoryObj<typeof DynamicForm> = {
+  args: {
+    formJSONs: {
+      $meta: { wizard: { mode: 'wizard', submitLabel: 'Launch' } },
+      workers: {
+        type: 'step',
+        title: 'Worker site',
+        description: 'One page per worker site.',
+        multi: true,
+        options: WORKER_OPTIONS,
+      },
+      review: {
+        type: 'step',
+        title: 'Review',
+        options: { notify: { type: 'boolean', label: 'Email me when it finishes', default: true } },
+      },
+    },
+    initialValues: {},
+    skipValueParse: true,
+  },
+}
+
+const WIZARD_IN_A_GROUP = {
+  name: { type: 'string', label: 'Job name', default: 'train-resnet' },
+  setup: {
+    type: 'group',
+    label: 'Cluster setup',
+    items: {
+      $meta: { wizard: { mode: 'wizard' } },
+      compute: {
+        type: 'step',
+        title: 'Compute',
+        options: {
+          partition: {
+            type: 'dropdown',
+            label: 'Partition',
+            default: 'gpu',
+            options: ['gpu', 'cpu'],
+          },
+          nodes: { type: 'number', label: 'Nodes', default: 2 },
+        },
+      },
+      storage: {
+        type: 'step',
+        title: 'Storage',
+        options: { scratch: { type: 'number', label: 'Scratch (GB)', default: 100 } },
+      },
+    },
+  },
+}
+
+/** A group's fields can be a wizard of their own, paged inside the form around it. */
+export const WizardInAGroup: StoryObj<typeof DynamicForm> = {
+  args: {
+    formJSONs: WIZARD_IN_A_GROUP,
+    initialValues: {},
+    skipValueParse: true,
   },
 }

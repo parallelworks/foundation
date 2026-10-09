@@ -9,8 +9,11 @@ import {
   useFormikContext,
 } from 'formik'
 import React, {
+  type CSSProperties,
+  createContext,
   type SetStateAction,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -27,7 +30,7 @@ import type { WorkflowVariables } from '../engine'
 import { AngleRightIcon, TrashIcon } from '../icons'
 import { useFieldControlProps, useFieldRequired } from './fieldContext'
 import { type FieldComponent, FieldRegistryContext, Registry } from './fieldRegistry'
-import { resolvedFlag } from './lib'
+import { inputWidth, resolvedFlag } from './lib'
 import { useParsedOpts } from './useParsedOpts'
 import { usePrevious } from './usePrevious'
 import { getParentValue } from './utils/getParentValue'
@@ -54,6 +57,8 @@ interface SchemaField {
   noCollapse?: boolean
   computeOn?: boolean
   tooltip?: string | string[]
+  width?: number | string
+  'anchor-below'?: boolean
   template?: Record<string, unknown>
   items?: Record<string, unknown>
   options?: Record<string, unknown>
@@ -81,6 +86,15 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function flagValue(value: unknown, fallback: string | boolean): string | boolean {
   return value && (typeof value === 'string' || typeof value === 'boolean') ? value : fallback
+}
+
+/** The `$meta.labelPosition` a workflow set, which nested lists inherit; undefined when none did. */
+const ChosenLabelPosition = createContext<'left' | 'top' | undefined>(undefined)
+
+function useChosenLabelPosition(options: Record<string, unknown>): 'left' | 'top' | undefined {
+  const inherited = useContext(ChosenLabelPosition)
+  const position = asRecord(options['$meta'])['labelPosition']
+  return position === 'left' || position === 'top' ? position : inherited
 }
 
 /** Applies `$meta` overrides for `labelPosition` / `spaceCompact`. */
@@ -112,7 +126,7 @@ export function listLengthsSignature(
       continue
     }
     const fullName = prefix ? `${prefix}${fieldName}` : fieldName
-    if (field.type === 'list') {
+    if (field.type === 'list' || repeatsPage(field)) {
       const items = values?.[fieldName]
       const len = Array.isArray(items) ? items.length : 0
       parts.push(`${fullName}:${len}`)
@@ -187,7 +201,7 @@ export function collectFieldsWithDefaults(
       continue
     }
 
-    if (field.type === 'list') {
+    if (field.type === 'list' || repeatsPage(field)) {
       const listTemplate = field.template || field.options
       const listValues = values?.[fieldName]
       if (listTemplate && Array.isArray(listValues)) {
@@ -1054,7 +1068,36 @@ export function FieldsFromOptions({
   /** Prevents deletion of hidden+ignored field values (workflow forms filter at submit time) */
   workflowForm?: boolean | undefined
 }) {
-  return Object.keys(options).map((fieldName) => (
+  const chosen = useChosenLabelPosition(options)
+  // A group's fields can be a wizard of their own, paged inside the form around it.
+  const wizard = parseWizardConfig(options)
+  if (wizard) {
+    return (
+      <ChosenLabelPosition.Provider value={chosen}>
+        <WizardContainer
+          wizardConfig={wizard}
+          values={values}
+          className="w-full"
+          labelPosition={labelPosition}
+          missingFields={missingFields}
+          spaceCompact={spaceCompact}
+          workflowForm={workflowForm}
+          nested
+          fieldNamePrefix={parentInfo?.fieldNamePrefix}
+          setFieldValue={setFieldValue}
+          setFieldTouched={setFieldTouched}
+        />
+      </ChosenLabelPosition.Provider>
+    )
+  }
+  const names = Object.keys(options)
+  // Without a width or an `anchor-below` in the list, the fields stack exactly as they always have.
+  const flows = names.some((name) => {
+    const field = asRecord(options[name])
+    return inputWidth(field['width']) !== undefined || field['anchor-below'] === true
+  })
+  const columns = flows ? columnsOf(options, names) : []
+  const fieldOf = (fieldName: string, width: string | undefined) => (
     <FormField
       key={fieldName}
       optionsField={options[fieldName]}
@@ -1064,15 +1107,99 @@ export function FieldsFromOptions({
       setFieldValue={setFieldValue}
       setFieldTouched={setFieldTouched}
       parentInfo={parentInfo}
-      labelPosition={labelPosition}
+      // A side label would squeeze a field that shares its row, unless the workflow chose one.
+      labelPosition={width === undefined || width === '100%' ? labelPosition : (chosen ?? 'top')}
       missingFields={missingFields}
       spaceCompact={spaceCompact}
       workflowForm={workflowForm}
     />
-  ))
+  )
+  return (
+    <ChosenLabelPosition.Provider value={chosen}>
+      {flows ? (
+        // Below 24rem the list is too narrow for rows: shares of it go full width, pixels stay.
+        <div className="@container/inputs -mx-2 flex flex-wrap items-start">
+          {columns.map((column) => {
+            const width = inputWidth(asRecord(options[column.head])['width'])
+            return (
+              // The editor lists a column of hidden inputs after the shown ones, so it never splits a row.
+              <div
+                key={column.head}
+                data-input-cell
+                className="flex w-(--input-narrow) max-w-full flex-col px-2 empty:hidden @min-[24rem]/inputs:w-(--input-width) [&:not(:has(>:not([data-input-hidden])))]:order-1 [&:not(:has(>:not([data-input-hidden])))]:w-full"
+                style={widthVars(width, width)}
+              >
+                {column.names.map((name) => {
+                  const own =
+                    name === column.head ? undefined : inputWidth(asRecord(options[name])['width'])
+                  return own === undefined ? (
+                    fieldOf(name, width)
+                  ) : (
+                    // A share of the list, less the gutter a column of that share keeps.
+                    <div
+                      key={name}
+                      data-input-member
+                      className="w-(--input-narrow) max-w-full @min-[24rem]/inputs:w-(--input-width)"
+                      style={widthVars(
+                        own,
+                        own.endsWith('%') ? `calc(${parseFloat(own)}cqw - 1rem)` : own,
+                      )}
+                    >
+                      {fieldOf(name, width)}
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        names.map((name) => fieldOf(name, undefined))
+      )}
+    </ChosenLabelPosition.Provider>
+  )
 }
 
 const noop = () => {}
+
+// A wizard page the form repeats keeps its values as a list, one row per copy, like a list input.
+function repeatsPage(field: { type?: unknown; multi?: unknown }): boolean {
+  return field.type === 'step' && field.multi === true
+}
+
+interface Column {
+  head: string
+  names: string[]
+}
+
+// A field marked `anchor-below` goes under the shown field before it, in that one's column; any other
+// field heads a column of its own, and columns follow the list's order.
+function columnsOf(options: Record<string, unknown>, names: string[]): Column[] {
+  const columns: Column[] = []
+  let shown: Column | undefined
+  for (const name of names) {
+    const field = asRecord(options[name])
+    const hidden = name.startsWith('$') || field['hidden'] === true
+    if (shown && !hidden && field['anchor-below'] === true) {
+      shown.names.push(name)
+      continue
+    }
+    const column = { head: name, names: [name] }
+    columns.push(column)
+    if (!hidden) {
+      shown = column
+    }
+  }
+  return columns
+}
+
+// A width as written applies once the list has room for rows; before that only pixels hold.
+function widthVars(width: string | undefined, wide: string | undefined): CSSProperties {
+  return {
+    '--input-width': wide ?? '100%',
+    '--input-narrow': width?.endsWith('px') ? width : '100%',
+  } as CSSProperties
+}
 
 interface DynamicFormContentProps {
   options: Record<string, unknown>
@@ -1127,9 +1254,11 @@ function DynamicFormContent({
 
   const wizardConfig = parseWizardConfig(opts)
   const meta = resolveMetaOverrides(options, labelPosition, spaceCompact)
+  // A wizard's steps hold their own fields, so they learn the form's choice from here.
+  const chosen = useChosenLabelPosition(options)
 
   return (
-    <>
+    <ChosenLabelPosition.Provider value={chosen}>
       <DirtyStateBridge setFormDirty={setFormDirty} />
       <FormikStateBridge onChange={handleChange} />
       <DynamicDefaultsSync key={contextKey ?? ''} options={opts} />
@@ -1165,7 +1294,7 @@ function DynamicFormContent({
           )}
         </>
       )}
-    </>
+    </ChosenLabelPosition.Provider>
   )
 }
 
