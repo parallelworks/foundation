@@ -17,6 +17,7 @@ import * as messageList from './components/ChatMessageList.stories'
 import * as sidebar from './components/ChatSidebar.stories'
 import * as thread from './components/ChatThread.stories'
 import * as shareDialog from './components/ShareDialog.stories'
+import * as notices from './ui/Notice.stories'
 
 // jsdom lacks these; the thread relies on them for scroll plumbing.
 global.ResizeObserver = class {
@@ -34,6 +35,7 @@ const SUITES = {
   composer,
   emptyState,
   shareDialog,
+  notices,
 } as const
 
 afterEach(cleanup)
