@@ -102,6 +102,8 @@ export interface ChatStrings {
     sharedWithYou: string
     openSidebar: string
     closeSidebar: string
+    /** Names the drawer the list opens in on a narrow layout. */
+    drawerLabel: string
     resizeLabel: string
     resizeHint: string
     newChat: string
@@ -299,6 +301,7 @@ export const defaultChatStrings: ChatStrings = {
     sharedWithYou: 'Shared with you',
     openSidebar: 'Open sidebar',
     closeSidebar: 'Close sidebar',
+    drawerLabel: 'Conversations',
     resizeLabel: 'Resize conversation list',
     resizeHint: 'Drag to resize; double-click to reset',
     newChat: 'New chat',

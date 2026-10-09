@@ -6,7 +6,7 @@ import type { ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import type { ChatAdapter, StreamHandlers } from '../adapter/types'
 import type { ComposerPastes, PasteUploadResult } from '../components/usePasteCards'
-import { ChatProvider } from '../core/ChatProvider'
+import { ChatProvider, type ChatProviderProps } from '../core/ChatProvider'
 import type { ChatLinkProps, ChatUIConfig } from '../core/config'
 import { countLines, utf8Bytes } from '../core/pastes'
 import type {
@@ -725,12 +725,17 @@ export function StoryChat({
   config,
   conversationId = 'conv-1',
   onNavigate,
+  sidebarControl,
   children,
 }: {
   adapter?: ChatAdapter
   config?: ChatUIConfig
   conversationId?: string | null
   onNavigate?: (id: string | null) => void
+  /** The host owning the sidebar, as ChatProvider takes it. */
+  sidebarControl?:
+    | Pick<ChatProviderProps, 'sidebar' | 'onSidebarChange' | 'drawerOpen' | 'onDrawerOpenChange'>
+    | undefined
   children: ReactNode
 }) {
   const resolved = useMemo(() => adapter ?? makeStaticAdapter(), [adapter])
@@ -756,6 +761,7 @@ export function StoryChat({
       notify={consoleNotify}
       activeConversationId={conversationId}
       config={resolvedConfig}
+      {...sidebarControl}
     >
       {children}
     </ChatProvider>

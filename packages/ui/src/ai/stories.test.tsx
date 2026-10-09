@@ -13,6 +13,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import * as agentParts from './components/agent/AgentMessageParts.stories'
 import * as emptyState from './components/ChatEmptyState.stories'
 import * as composer from './components/ChatInput.stories'
+import * as layout from './components/ChatLayout.stories'
 import * as messageList from './components/ChatMessageList.stories'
 import * as sidebar from './components/ChatSidebar.stories'
 import * as thread from './components/ChatThread.stories'
@@ -38,6 +39,7 @@ const SUITES = {
   shareDialog,
   notices,
   conversationSidebar,
+  layout,
 } as const
 
 afterEach(cleanup)
