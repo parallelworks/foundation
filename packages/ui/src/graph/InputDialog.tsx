@@ -1274,6 +1274,7 @@ function ValuesField({
   if (draft.expression === undefined) {
     return (
       <StringListEditor
+        label={label}
         values={draft.values}
         onChange={(values) => onChange({ ...draft, values })}
         addLabel={t.addValue}
