@@ -151,6 +151,30 @@ const WORKER_OPTIONS = {
   },
 }
 
+/** A repeated page with more copies than the row of step dots holds: the dots scroll, the current one in
+ * view. */
+export const RepeatedPageMany: StoryObj<typeof DynamicForm> = {
+  args: {
+    formJSONs: {
+      $meta: { wizard: { mode: 'wizard', navigation: { allowJump: true } } },
+      sites: {
+        type: 'step',
+        title: 'Site',
+        multi: true,
+        options: WORKER_OPTIONS,
+      },
+      review: {
+        type: 'step',
+        title: 'Review',
+        options: { note: { type: 'string', label: 'Note' } },
+      },
+    },
+    initialValues: { sites: Array.from({ length: 9 }, () => ({ nodes: 2, queue: 'gpu' })) },
+    skipValueParse: true,
+    workflowForm: true,
+  },
+}
+
 /** A page with `multi` repeats: each copy is a page, its values a row under the page's name, with Add after
  * the last copy and Remove on each, inside its `min` and `max`. A title list gives each copy its own. */
 export const RepeatedPage: StoryObj<typeof DynamicForm> = {
