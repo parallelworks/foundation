@@ -95,3 +95,21 @@ export const EditAsYaml: StoryObj<typeof InputDialog> = {
     },
   },
 }
+
+/** A wizard page that repeats: a title per copy, and the fewest and most copies a person can have. */
+export const EditRepeatablePage: StoryObj<typeof InputDialog> = {
+  args: {
+    name: 'workers',
+    allowStep: true,
+    definition: {
+      type: 'step',
+      title: ['GPU workers', 'CPU workers'],
+      description: 'One page per worker site.',
+      multi: true,
+      min: 1,
+      max: 3,
+      options: { nodes: { type: 'number', label: 'Nodes', default: 2 } },
+    },
+    inputs: INPUTS,
+  },
+}

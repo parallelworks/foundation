@@ -130,3 +130,94 @@ export const Choices: StoryObj<typeof DynamicForm> = {
     workflowForm: true,
   },
 }
+
+const WORKER_OPTIONS = {
+  nodes: { type: 'number', label: 'Nodes', default: 2, width: '50%' },
+  queue: { type: 'dropdown', label: 'Queue', default: 'gpu', options: ['gpu', 'cpu'], width: '50%' },
+}
+
+/** A page with `multi` repeats: each copy is a page, its values a row under the page's name, with Add after
+ * the last copy and Remove on each, inside its `min` and `max`. A title list gives each copy its own. */
+export const RepeatedPage: StoryObj<typeof DynamicForm> = {
+  args: {
+    formJSONs: {
+      $meta: { wizard: { mode: 'wizard', submitLabel: 'Launch', navigation: { allowJump: true } } },
+      workers: {
+        type: 'step',
+        title: ['GPU workers', 'CPU workers'],
+        description: 'One page per worker site.',
+        multi: true,
+        max: 3,
+        options: WORKER_OPTIONS,
+      },
+      review: {
+        type: 'step',
+        title: 'Review',
+        options: { notify: { type: 'boolean', label: 'Email me when it finishes', default: true } },
+      },
+    },
+    initialValues: {
+      workers: [
+        { nodes: 4, queue: 'gpu' },
+        { nodes: 8, queue: 'cpu' },
+      ],
+    },
+    skipValueParse: true,
+  },
+}
+
+/** Without a `min`, a repeated page starts with no copies, as a list starts with no rows: its page offers the first. */
+export const RepeatedPageEmpty: StoryObj<typeof DynamicForm> = {
+  args: {
+    formJSONs: {
+      $meta: { wizard: { mode: 'wizard', submitLabel: 'Launch' } },
+      workers: {
+        type: 'step',
+        title: 'Worker site',
+        description: 'One page per worker site.',
+        multi: true,
+        options: WORKER_OPTIONS,
+      },
+      review: {
+        type: 'step',
+        title: 'Review',
+        options: { notify: { type: 'boolean', label: 'Email me when it finishes', default: true } },
+      },
+    },
+    initialValues: {},
+    skipValueParse: true,
+  },
+}
+
+const WIZARD_IN_A_GROUP = {
+  name: { type: 'string', label: 'Job name', default: 'train-resnet' },
+  setup: {
+    type: 'group',
+    label: 'Cluster setup',
+    items: {
+      $meta: { wizard: { mode: 'wizard' } },
+      compute: {
+        type: 'step',
+        title: 'Compute',
+        options: {
+          partition: { type: 'dropdown', label: 'Partition', default: 'gpu', options: ['gpu', 'cpu'] },
+          nodes: { type: 'number', label: 'Nodes', default: 2 },
+        },
+      },
+      storage: {
+        type: 'step',
+        title: 'Storage',
+        options: { scratch: { type: 'number', label: 'Scratch (GB)', default: 100 } },
+      },
+    },
+  },
+}
+
+/** A group's fields can be a wizard of their own, paged inside the form around it. */
+export const WizardInAGroup: StoryObj<typeof DynamicForm> = {
+  args: {
+    formJSONs: WIZARD_IN_A_GROUP,
+    initialValues: {},
+    skipValueParse: true,
+  },
+}

@@ -181,6 +181,64 @@ export const SideBySide: StoryObj<typeof InputsFormEditor> = {
   render: () => <EditableForm source={SIDE_BY_SIDE_WORKFLOW} />,
 }
 
+const WIZARD_WORKFLOW = `on:
+  execute:
+    inputs:
+      $meta:
+        wizard:
+          mode: wizard
+          submitLabel: Launch
+          navigation:
+            allowJump: true
+      cluster:
+        type: step
+        title: Cluster
+        description: Where the job runs.
+        options:
+          partition:
+            type: dropdown
+            label: Partition
+            options: [gpu, cpu, debug]
+            default: gpu
+          nodes:
+            type: number
+            label: Nodes
+            default: 2
+      workers:
+        type: step
+        title: Worker site
+        description: One page per worker site.
+        multi: true
+        max: 3
+        options:
+          site:
+            type: string
+            label: Site
+            default: us-east
+          gpus:
+            type: number
+            label: GPUs per node
+            default: 4
+      review:
+        type: step
+        title: Review
+        options:
+          notify:
+            type: boolean
+            label: Email me when it finishes
+            default: true
+jobs:
+  train:
+    steps:
+      - run: python train.py
+`
+
+/** A wizard is built as it runs, one page at a time: turn pages with its own buttons or the bar's Page,
+ * add one with + Page, and split or unsplit a group's or list's inputs from its row. */
+export const Wizard: StoryObj<typeof InputsFormEditor> = {
+  render: () => <EditableForm source={WIZARD_WORKFLOW} />,
+}
+
 /** A workflow without inputs yet. */
 export const Empty: StoryObj<typeof InputsFormEditor> = {
   render: () => <EditableForm source={'jobs:\n  main:\n    steps:\n      - run: echo hi\n'} />,
