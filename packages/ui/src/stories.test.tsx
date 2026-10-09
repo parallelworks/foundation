@@ -14,6 +14,7 @@ import * as fileExplorer from './file-explorer/FileExplorer.stories'
 import * as form from './form/DynamicForm.stories'
 import * as workflow from './graph/DependencyGraph.stories'
 import * as inputDialog from './graph/InputDialog.stories'
+import * as inputsEditor from './graph/InputsEditor.stories'
 import * as problemsButton from './graph/ProblemsButton.stories'
 import * as appShell from './list/appShell.stories'
 import * as list from './list/ListTable.stories'
@@ -52,6 +53,7 @@ const SUITES = {
   form,
   workflow,
   inputDialog,
+  inputsEditor,
   problemsButton,
   fileExplorer,
 } as const
