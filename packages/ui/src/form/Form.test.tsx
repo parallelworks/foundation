@@ -369,7 +369,7 @@ describe('a wizard inside a group', () => {
 })
 
 describe('a repeated wizard page', () => {
-  it('shows a page per copy, adds one after the last, and removes any but the only one', async () => {
+  it('starts with no copy, adds the first from its empty page, and removes back to none', async () => {
     const seen = vi.fn()
     render(
       <DynamicForm
@@ -387,8 +387,13 @@ describe('a repeated wizard page', () => {
         }}
       />,
     )
-    await screen.findByRole('heading', { name: 'Host 1' })
+    await screen.findByRole('heading', { name: 'Host' })
     expect(screen.queryByRole('button', { name: 'Remove Host' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Host' }))
+    await screen.findByRole('heading', { name: 'Host 1' })
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith(expect.objectContaining({ hosts: [{ cpus: 2 }] })),
+    )
     fireEvent.click(screen.getByRole('button', { name: '+ Add Host' }))
     await screen.findByRole('heading', { name: 'Host 2' })
     await waitFor(() =>
@@ -398,9 +403,9 @@ describe('a repeated wizard page', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'Remove Host' }))
     await screen.findByRole('heading', { name: 'Host 1' })
-    await waitFor(() =>
-      expect(seen).toHaveBeenLastCalledWith(expect.objectContaining({ hosts: [{ cpus: 2 }] })),
-    )
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Host' }))
+    await screen.findByRole('heading', { name: 'Host' })
+    await waitFor(() => expect(seen).toHaveBeenLastCalledWith(expect.objectContaining({ hosts: [] })))
   })
 })
 

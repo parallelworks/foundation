@@ -323,6 +323,19 @@ describe('InputsFormEditor', () => {
     expect(within(row(['hosts', 'cpus'])).getByText('Number')).toBeInTheDocument()
   })
 
+  it('starts a repeated page with no copy, as the run form does, and adds the first from it', async () => {
+    renderForm(editor(), {
+      $meta: { wizard: { mode: 'wizard' } },
+      hosts: { type: 'step', title: 'Host', multi: true, options: { cpus: { type: 'number' } } },
+      done: { type: 'step', title: 'Done', options: { note: { type: 'string' } } },
+    } as unknown as typeof INPUTS)
+    expect(await screen.findByText('/ 2')).toBeInTheDocument()
+    expect(document.querySelector(`[data-input-path='${JSON.stringify(['hosts', 'cpus'])}']`)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Host' }))
+    expect(await screen.findByRole('heading', { name: 'Host 1' })).toBeInTheDocument()
+    expect(row(['hosts', 'cpus']).dataset['inputInstance']).toBe('hosts[0].cpus')
+  })
+
   it('offers the form’s inputs to a setting that reads one', () => {
     const e = editor()
     renderForm(e, {
@@ -1935,8 +1948,14 @@ describe('list templates', () => {
   const rowsOf = (path: string[]) =>
     document.querySelectorAll(`[data-input-path='${JSON.stringify(path)}']`)
 
-  it('edits a list’s template in place through its first row, a group in it too', async () => {
+  it('starts a list with no row, as the run form does', () => {
     renderList(editor())
+    expect(rowsOf(['hosts'])).toHaveLength(1)
+    expect(rowsOf(['hosts', 'name'])).toHaveLength(0)
+  })
+
+  it('edits a list’s template in place through a row, a group in it too', async () => {
+    renderList(editor(), { hosts: [{}] })
     await waitFor(() => expect(rowsOf(['hosts', 'name'])).toHaveLength(1))
     expect(rowsOf(['hosts', 'creds', 'user'])).toHaveLength(1)
     expect(within(row(['hosts', 'port'])).getByText('Number')).toBeInTheDocument()

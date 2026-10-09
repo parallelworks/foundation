@@ -16,7 +16,8 @@ import { WizardPagesContext } from './wizardPages'
 interface Page {
   step: string
   config: StepFieldConfig
-  /** A repeated step's copy, how many copies it has, and whether its `min`/`max` allow another or one fewer. */
+  /** A repeated step's copy (none on the page it shows while it has none), how many copies it has, and
+   * whether its `min`/`max` allow another or one fewer. */
   copy?: number
   count?: number
   canAdd?: boolean
@@ -72,7 +73,8 @@ export function WizardContainer({
     [engine, values, strings],
   )
 
-  // A repeated step shows a page per copy in its values, and at least its `min`.
+  // A repeated step shows a page per copy in its values, and at least its `min`; with none, one page
+  // its first copy is added from.
   const shown = useMemo(() => {
     const order: string[] = []
     const byKey: Record<string, Page> = {}
@@ -89,6 +91,22 @@ export function WizardContainer({
       const rows = getValueUsingPath(values, `${fieldNamePrefix}${step}`)
       const { lo, hi } = copyBounds(stepConfig.min, stepConfig.max)
       const count = Math.max(Array.isArray(rows) ? rows.length : 0, lo)
+      if (count === 0) {
+        order.push(step)
+        byKey[step] = {
+          step,
+          count,
+          canAdd: hi === undefined || hi > 0,
+          canRemove: false,
+          config: {
+            ...stepConfig,
+            title: perCopy(stepConfig.title, 0, false),
+            description: perCopy(stepConfig.description, 0, false),
+            options: {},
+          },
+        }
+        continue
+      }
       for (let copy = 0; copy < count; copy++) {
         const key = `${step}[${copy}]`
         order.push(key)
@@ -242,28 +260,31 @@ export function WizardContainer({
     return Array.isArray(rows) ? rows : []
   }
   const addCopy = (shownPage: Page) => {
-    const options = shownPage.config.options
+    const options = steps[shownPage.step]?.options
     const rows = copiesOf(shownPage.step)
-    const kept = rows.length > 0 ? rows : [initializeValues(options, {}) ?? {}]
+    const kept = Array.from(
+      { length: shownPage.count ?? rows.length },
+      (_, i) => rows[i] ?? initializeValues(options, {}) ?? {},
+    )
     setFieldValue(`${fieldNamePrefix}${shownPage.step}`, [
       ...kept,
       initializeValues(options, {}) ?? {},
     ])
-    show(`${shownPage.step}[${kept.length}]`, shown.order.indexOf(pageKey) + 1)
+    // The first copy takes the empty page's place.
+    const at = shown.order.indexOf(pageKey) + (shownPage.copy === undefined ? 0 : 1)
+    show(`${shownPage.step}[${kept.length}]`, at)
   }
   const removeCopy = (shownPage: Page) => {
     const copy = shownPage.copy ?? 0
-    setFieldValue(
-      `${fieldNamePrefix}${shownPage.step}`,
-      copiesOf(shownPage.step).filter((_, i) => i !== copy),
-    )
-    const before = Math.max(copy - 1, 0)
-    show(`${shownPage.step}[${before}]`, shown.order.indexOf(pageKey) - (copy > 0 ? 1 : 0))
+    const rows = copiesOf(shownPage.step).filter((_, i) => i !== copy)
+    setFieldValue(`${fieldNamePrefix}${shownPage.step}`, rows)
+    const at = shown.order.indexOf(pageKey) - (copy > 0 ? 1 : 0)
+    show(rows.length > 0 ? `${shownPage.step}[${Math.max(copy - 1, 0)}]` : shownPage.step, at)
   }
 
   const stepTitle = page ? stepText(steps[page.step]?.title) : ''
   const copies =
-    page?.copy !== undefined && page.count !== undefined && (page.canAdd || page.canRemove) ? (
+    page?.count !== undefined && (page.canAdd || page.canRemove) ? (
       <div className="mb-4 flex items-center justify-between gap-3">
         {page.canRemove ? (
           <button
@@ -276,7 +297,7 @@ export function WizardContainer({
         ) : (
           <span />
         )}
-        {page.canAdd && page.copy === page.count - 1 && (
+        {page.canAdd && (page.copy === undefined || page.copy === page.count - 1) && (
           <button
             type="button"
             onClick={() => addCopy(page)}

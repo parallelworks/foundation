@@ -998,8 +998,8 @@ describe('a repeated wizard page', () => {
     hosts: { type: 'step', multi: true, options: { cpus: { type: 'number', default: 2 } } },
   }
 
-  it('starts with one copy from the defaults, its values a list under the page’s name', () => {
-    expect(initializeValues(schema)).toEqual({ hosts: [{ cpus: 2 }] })
+  it('starts with no copy, as a list starts with no row, its values a list under the page’s name', () => {
+    expect(initializeValues(schema)).toEqual({ hosts: [] })
   })
 
   it('pads the saved copies up to its min from the defaults', () => {
