@@ -122,6 +122,8 @@ export interface UIStrings {
   fileExplorer: {
     preview: {
       shareFile: string
+      /** Label for copying an object's path within its storage. */
+      path: string
       open: string
       userType: string
       select: (name: string) => string
@@ -624,6 +626,7 @@ const DEFAULTS: UIProviderValue = {
     fileExplorer: {
       preview: {
         shareFile: 'Share file',
+        path: 'path',
         open: 'Open',
         userType: 'User',
         select: (name: string) => `Select ${name}`,

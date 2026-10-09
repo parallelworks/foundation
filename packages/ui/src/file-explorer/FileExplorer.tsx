@@ -1122,20 +1122,25 @@ export default function FileExplorer({
       },
     ]
 
-    const uriExtras = uris.map((value) => ({
-      label: `${getUriScheme(value).toUpperCase()} URI`,
-      value,
-      icon: <LinkIcon />,
-    }))
+    // The object's path within its storage; the storage root has none.
+    const path = node.root ? '' : getObjectKeyFromNode(node)
+    const copyExtras = [
+      ...(path ? [{ label: t.preview.path, value: path, icon: <FileTextIcon /> }] : []),
+      ...uris.map((value) => ({
+        label: `${getUriScheme(value).toUpperCase()} URI`,
+        value,
+        icon: <LinkIcon />,
+      })),
+    ]
 
     return assembleRowMenu({
       lead,
       actions,
       copy:
-        uriExtras.length > 0
+        copyExtras.length > 0
           ? copySubmenu({
               name: isFile ? node.name : undefined,
-              extra: uriExtras,
+              extra: copyExtras,
             })
           : undefined,
     })
