@@ -1,6 +1,7 @@
 import { Indicator } from '../components/Indicator'
-import { useWorkflowEngine } from '../components/Provider'
+import { useStrings, useWorkflowEngine } from '../components/Provider'
 import type { MatrixGroup, RunStatus } from '../engine'
+import { emptyRowsStyle } from './gridSpacing'
 import { type JobHandlers, Joblist } from './JobSummary'
 import { Reveal } from './Reveal'
 import type { WorkflowJob } from './types'
@@ -23,6 +24,7 @@ export function MatrixGroupSummaryItem({
   handlers: JobHandlers
   preview: boolean
 }) {
+  const { dag: t } = useStrings()
   return (
     <div className="py-1.5">
       <button
@@ -33,8 +35,10 @@ export function MatrixGroupSummaryItem({
       >
         <Indicator status={status} />
         <div className="font-semibold">
-          Matrix: {matrixGroup.originaljob}
-          <span className="font-normal text-sm ml-1">({matrixGroup.members.length} jobs)</span>
+          {t.matrixOf(matrixGroup.originaljob)}
+          <span className="font-normal text-sm ml-1">
+            ({t.jobCount(matrixGroup.members.length)})
+          </span>
         </div>
       </button>
       <Reveal open={isExpanded}>
@@ -62,6 +66,7 @@ export function MatrixGroupNode({
   zBase,
   handlers,
   preview,
+  rowsAbove = 0,
 }: {
   matrixGroup: MatrixGroup
   jobNames: string[]
@@ -77,12 +82,33 @@ export function MatrixGroupNode({
   zBase: number
   handlers: JobHandlers
   preview: boolean
+  /** Empty rows of its column above this node. */
+  rowsAbove?: number
 }) {
+  const { dag: t } = useStrings()
   const matrixName = matrixGroup.originaljob
   const first = jobNames[0] ?? ''
   const matrixMembers = matrixGroup.members
   const { aggStatus, statusLabel } = useWorkflowEngine().matrixStatus(
     matrixMembers.map((m) => jobs[m]?.status),
+  )
+  const header = (
+    <button
+      type="button"
+      aria-expanded={isExpanded}
+      className="cursor-pointer w-full text-left"
+      onClick={onToggle}
+    >
+      <div className="font-semibold text-md p-0.5">
+        {t.matrixOf(matrixName.length > 20 ? `${matrixName.slice(0, 20)}...` : matrixName)}
+      </div>
+      {!isExpanded && (
+        <div className="mt-1 border-t border-(--theme-border) pt-1 flex items-center gap-x-1">
+          {!preview && <Indicator status={aggStatus} />}
+          <span>{preview ? t.jobCount(matrixMembers.length) : statusLabel}</span>
+        </div>
+      )}
+    </button>
   )
 
   return (
@@ -92,6 +118,7 @@ export function MatrixGroupNode({
       className="relative m-24"
       style={{
         zIndex: (activeDists?.has(first) ? 25 : 1) + zBase,
+        ...emptyRowsStyle(rowsAbove),
       }}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
@@ -106,22 +133,7 @@ export function MatrixGroupNode({
           transition: `opacity ${animT}s`,
         }}
       >
-        <button
-          type="button"
-          aria-expanded={isExpanded}
-          className="cursor-pointer w-full text-left"
-          onClick={onToggle}
-        >
-          <div className="font-semibold text-md p-0.5">
-            Matrix: {matrixName.length > 20 ? `${matrixName.slice(0, 20)}...` : matrixName}
-          </div>
-          {!isExpanded && (
-            <div className="mt-1 border-t border-(--theme-border) pt-1 flex items-center gap-x-1">
-              <Indicator status={aggStatus} />
-              <span>{statusLabel}</span>
-            </div>
-          )}
-        </button>
+        {header}
         <Reveal open={isExpanded} growWidth={true}>
           <div className="mt-1 border-t border-(--theme-border) pt-1">
             <Joblist

@@ -369,7 +369,8 @@ export default function TreeView({ jobs, slug, expandedJobs, setExpandedJobs }: 
               continue
             }
             const matrixOrigin = job._matrix?.originaljob
-            if (matrixOrigin) {
+            // A matrix that ran as one job lists as that job.
+            if (matrixOrigin && (matrixGroups[matrixOrigin]?.members.length ?? 0) > 1) {
               if (seenMatrixGroups.has(matrixOrigin)) {
                 continue
               }

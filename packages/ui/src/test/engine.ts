@@ -1,8 +1,9 @@
-import { createWorkflowEngine } from '@parallelworks/workflow-parser'
+import * as parser from '@parallelworks/workflow-parser'
 import { vi } from 'vitest'
+import type { WorkflowEditing } from '../editing'
 import type { EvaluateOptions, WorkflowEngine } from '../engine'
 
-const real = createWorkflowEngine()
+const real = parser.createWorkflowEngine()
 const evaluate = vi.fn(({ obj }: EvaluateOptions<unknown>) => obj)
 
 /** The parser's engine with expressions left unevaluated, so form tests need no wasm. */
@@ -20,6 +21,8 @@ export const testEngine = {
     inputDeps: new Set<string>(),
     hasExpressions: false,
   })),
+  // The parser's own functions, as a host passes them, so its editing and ui's types can't drift.
+  editing: parser satisfies WorkflowEditing,
 } satisfies WorkflowEngine
 
 /** For `vi.mock('<path>/components/Provider', mockEngineHooks)`. */

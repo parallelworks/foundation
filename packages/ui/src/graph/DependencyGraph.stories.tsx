@@ -1,9 +1,21 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import type { GraphLayout } from '../editing'
 import { DependencyGraphPreview } from './DependencyGraph'
 
 const meta: Meta<typeof DependencyGraphPreview> = {
   title: 'UI/Workflow/DependencyGraphPreview',
   component: DependencyGraphPreview,
+  argTypes: {
+    height: {
+      control: 'text',
+      description: 'A fixed panel height; without one the panel is only as tall as the graph.',
+    },
+    layout: {
+      control: 'object',
+      description:
+        'Where each job sits on the grid, as a host stores it; rows and columns left out stay empty.',
+    },
+  },
 }
 export default meta
 
@@ -58,4 +70,75 @@ export const WithSubworkflow: StoryObj<typeof DependencyGraphPreview> = {
 
 export const WithMatrixGroup: StoryObj<typeof DependencyGraphPreview> = {
   args: { yml: MATRIX_YML },
+}
+
+/** A matrix as written: the preview lists each combination, as a run would. */
+export const MatrixFromYaml: StoryObj<typeof DependencyGraphPreview> = {
+  args: {
+    yml: {
+      jobs: {
+        test: {
+          strategy: { matrix: { os: ['linux', 'mac'], python: ['3.12', '3.13'] } },
+          steps: [{ name: 'test', run: 'pytest' }],
+        },
+        report: { needs: ['test'], steps: [{ name: 'report', run: './report.sh' }] },
+      },
+    },
+  },
+}
+
+/** A matrix an expression gives: the preview evaluates it with the inputs' defaults, as a run would. */
+export const MatrixFromExpression: StoryObj<typeof DependencyGraphPreview> = {
+  args: {
+    yml: {
+      on: { execute: { inputs: { shards: { type: 'number', label: 'Shards', default: 4 } } } },
+      jobs: {
+        train: {
+          // biome-ignore lint/suspicious/noTemplateCurlyInString: a workflow expression
+          strategy: { matrix: { shard: '${{ 0 range inputs.shards }}' } },
+          // biome-ignore lint/suspicious/noTemplateCurlyInString: a workflow expression
+          steps: [{ name: 'train', run: 'python train.py --shard ${{ matrix.shard }}' }],
+        },
+        merge: { needs: ['train'], steps: [{ name: 'merge', run: 'python merge.py' }] },
+      },
+    },
+  },
+}
+
+/** A run's matrix that made one job draws as that job, under the job's own name. */
+export const MatrixOfOne: StoryObj<typeof DependencyGraphPreview> = {
+  args: {
+    yml: {
+      jobs: {
+        build_0: {
+          _matrix: { originaljob: 'build', index: 0, totalingroup: 1 },
+          steps: [{ name: 'compile', run: 'make' }],
+        },
+        ship: { needs: ['build_0'], steps: [{ name: 'ship', run: './ship.sh' }] },
+      },
+    },
+  },
+}
+
+/** A stored layout keeps its empty column and row, and puts two jobs in one node. */
+export const StoredLayout: StoryObj<typeof DependencyGraphPreview> = {
+  args: {
+    yml: {
+      jobs: {
+        lint: { steps: [{ name: 'lint', run: 'make lint' }] },
+        build: { steps: [{ name: 'compile', run: 'make' }] },
+        docs: { steps: [{ name: 'docs', run: 'make docs' }] },
+        release: {
+          needs: ['lint', 'build', 'docs'],
+          steps: [{ name: 'publish', run: './release.sh' }],
+        },
+      },
+    },
+    layout: {
+      lint: { column: 0, row: 0 },
+      build: { column: 0, row: 0 },
+      docs: { column: 0, row: 2 },
+      release: { column: 2, row: 1 },
+    } satisfies GraphLayout,
+  },
 }
