@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.31.0](https://github.com/parallelworks/foundation/compare/ui-v0.30.0...ui-v0.31.0) (2026-10-09)
+
+
+### Features
+
+* **ui:** the model picker names a provider's owner from the models when the adapter lists no providers ([#192](https://github.com/parallelworks/foundation/issues/192)) ([ff0c087](https://github.com/parallelworks/foundation/commit/ff0c08722bd22cbdaf3b38e3c89d135863ea59d5))
+
 ## [0.30.0](https://github.com/parallelworks/foundation/compare/ui-v0.29.0...ui-v0.30.0) (2026-10-09)
 
 
