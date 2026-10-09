@@ -41,9 +41,9 @@ const chatState = {
     attachments: undefined,
     conversations: { get: conversationsGet },
   },
-  navigation: { toNewChat: vi.fn() },
+  navigation: { toNewChat: vi.fn(), toConversation: vi.fn() },
   notify: { error: vi.fn() },
-  activeConversationId: null,
+  activeConversationId: null as string | null,
   conversations: [] as {
     id: string
     title?: string
@@ -101,7 +101,9 @@ beforeEach(() => {
   storage.clear()
   chatState.sidebarCollapsed = false
   chatState.conversations = []
+  chatState.activeConversationId = null
   chatState.toggleSidebar.mockClear()
+  chatState.navigation.toConversation.mockClear()
   conversationsGet.mockReset()
   downloadTextMock.mockClear()
 })
@@ -210,6 +212,16 @@ describe('ChatSidebar search', () => {
     document.dispatchEvent(new Event('aichat:focus-sidebar-search'))
     expect(chatState.toggleSidebar).toHaveBeenCalled()
     await new Promise((resolve) => requestAnimationFrame(resolve))
+  })
+})
+
+describe('ChatSidebar keyboard cycling', () => {
+  it('opens the next conversation in the list on ⌘⌥↓', () => {
+    chatState.conversations = [conversation('1', 'Alpha'), conversation('2', 'Beta')]
+    chatState.activeConversationId = '1'
+    render(<ChatSidebar />)
+    fireEvent.keyDown(document, { key: 'ArrowDown', metaKey: true, altKey: true })
+    expect(chatState.navigation.toConversation).toHaveBeenCalledWith('2')
   })
 })
 

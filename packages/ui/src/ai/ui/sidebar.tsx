@@ -37,7 +37,7 @@ export function SidebarPanel({
   width?: number
   railWidth?: number
   resizing?: boolean
-  label?: string
+  label?: string | undefined
   className?: string
   style?: CSSProperties
   children: ReactNode
@@ -96,7 +96,7 @@ export function SidebarGroupHeading({
   children: ReactNode
   /** 'attention' is for the group the reader is being asked to act on. */
   tone?: 'default' | 'attention'
-  testId?: string
+  testId?: string | undefined
 }) {
   return (
     <h4
