@@ -1,6 +1,5 @@
 import cx from 'classnames'
 import { useField, useFormikContext } from 'formik'
-import type React from 'react'
 import { useId } from 'react'
 import { FieldWrapper } from '../FieldWrapper'
 import type { FieldComponentProps } from '../types/fieldComponentTypes'
@@ -32,7 +31,7 @@ export default function RadioField(props: FieldComponentProps<IRadioField>) {
   const [fieldState] = useField(fieldName)
   const { setFieldValue, setFieldTouched } = useFormikContext()
 
-  const handleChange = (val: string) => {
+  const handleChange = (val: string | number) => {
     if (disabled) {
       return
     }
@@ -93,9 +92,7 @@ export default function RadioField(props: FieldComponentProps<IRadioField>) {
                     String(fieldState.value) === option.value
                   }
                   disabled={disabled}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                    handleChange(e.target.value)
-                  }}
+                  onChange={() => handleChange(option.raw)}
                 />
                 <span className={cx('theme-text', unlabelled && 'capitalize')}>{option.label}</span>
               </label>

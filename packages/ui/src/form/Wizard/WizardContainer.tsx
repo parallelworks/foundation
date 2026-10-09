@@ -1,5 +1,5 @@
 import { type FormikValues, useFormikContext } from 'formik'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useStrings, useWorkflowEngine } from '../../components/Provider'
 import { initializeValues } from '../lib'
 import { getValueUsingPath } from '../utils/getValueUsingPath'
@@ -126,7 +126,8 @@ export function WizardContainer({
   }, [stepOrder, steps, values, fieldNamePrefix, perCopy])
 
   // A repeated page's rows follow its bounds, as when the input they read changes: below its `min` it gets
-  // rows from the defaults, and past its `max` the rest go.
+  // rows from the defaults, and past its `max` the rest are set aside, to come back if the bounds allow them.
+  const setAside = useRef<Record<string, unknown[]>>({})
   useEffect(() => {
     for (const step of stepOrder) {
       const stepConfig = steps[step]
@@ -137,16 +138,22 @@ export function WizardContainer({
       const path = `${fieldNamePrefix}${step}`
       const rows = getValueUsingPath(values, path)
       const now = Array.isArray(rows) ? rows : []
+      setAside.current[path] ??= []
+      const aside = setAside.current[path]
       if (hi !== undefined && now.length > hi) {
+        now.slice(hi).forEach((row, i) => {
+          aside[hi + i] = row
+        })
         setFieldValue(path, now.slice(0, hi))
       } else if (now.length < lo) {
         setFieldValue(
           path,
           Array.from(
             { length: lo },
-            (_, i) => now[i] ?? initializeValues(stepConfig.options, {}) ?? {},
+            (_, i) => now[i] ?? aside[i] ?? initializeValues(stepConfig.options, {}) ?? {},
           ),
         )
+        aside.length = Math.min(aside.length, now.length)
       }
     }
   }, [stepOrder, steps, values, fieldNamePrefix, setFieldValue])
@@ -235,7 +242,14 @@ export function WizardContainer({
     await onSubmit?.(values)
   }, [isLastStep, validateForm, values, setTouched, touched, onSubmit])
 
-  const page = shown.byKey[currentStep]
+  // The page shown can go, as when saved inputs change a repeated page's copies: show the nearest one left.
+  const pageKey = shown.byKey[currentStep] ? currentStep : nearestPage(currentStep, shown.order)
+  useEffect(() => {
+    if (pageKey && pageKey !== currentStep) {
+      showStep(pageKey)
+    }
+  }, [pageKey, currentStep, showStep])
+  const page = shown.byKey[pageKey]
   const copiesOf = (step: string): unknown[] => {
     const rows = getValueUsingPath(values, `${fieldNamePrefix}${step}`)
     return Array.isArray(rows) ? rows : []
@@ -247,10 +261,13 @@ export function WizardContainer({
       { length: shownPage.count ?? rows.length },
       (_, i) => rows[i] ?? initializeValues(options, {}) ?? {},
     )
+    // A copy a lower `max` set aside comes back as it was.
+    const aside = setAside.current[`${fieldNamePrefix}${shownPage.step}`] ?? []
     setFieldValue(`${fieldNamePrefix}${shownPage.step}`, [
       ...kept,
-      initializeValues(options, {}) ?? {},
+      aside[kept.length] ?? initializeValues(options, {}) ?? {},
     ])
+    aside.length = Math.min(aside.length, kept.length)
     // A new copy goes after the step's last and is the page shown.
     showStep(`${shownPage.step}[${kept.length}]`)
   }
@@ -323,7 +340,7 @@ export function WizardContainer({
       {navigation.showSteps !== false && (
         <WizardStepIndicator
           stepOrder={shown.order}
-          currentStep={currentStep}
+          currentStep={pageKey}
           steps={configs}
           visitedSteps={visitedSteps}
           invalidSteps={invalidSteps}
@@ -340,7 +357,7 @@ export function WizardContainer({
       <WizardNavigation
         isLastStep={isLastStep}
         canGoBack={canGoBack}
-        isCurrentStepValid={!invalidSteps.has(currentStep)}
+        isCurrentStepValid={!invalidSteps.has(pageKey)}
         nextLabel={page?.config.nextLabel}
         prevLabel={page?.config.prevLabel}
         submitLabel={config.submitLabel || 'Execute'}
@@ -350,4 +367,14 @@ export function WizardContainer({
       />
     </div>
   )
+}
+
+// The page a key names once it's gone: the nearest copy of its step left, the step itself, or the first page.
+function nearestPage(key: string, order: string[]): string {
+  const [, step = key, index = '0'] = /^(.*)\[(\d+)\]$/.exec(key) ?? []
+  const copies = order.filter((other) => other.startsWith(`${step}[`))
+  if (copies.length > 0) {
+    return copies[Math.min(Number(index), copies.length - 1)] ?? copies[0] ?? ''
+  }
+  return order.includes(step) ? step : (order[0] ?? '')
 }
