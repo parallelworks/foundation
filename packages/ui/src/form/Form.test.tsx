@@ -798,6 +798,44 @@ describe('a repeated wizard page’s copies as its bounds change', () => {
     await screen.findByRole('heading', { name: 'Mid' })
   })
 
+  it('goes on to the next step’s first copy when one change takes the step shown and gives the next copies', async () => {
+    const formikRef = createRef<FormikProps<FormikValues>>()
+    const form = (max: number) => (
+      <DynamicForm
+        initialValues={{ hosts: [{ cpus: 1 }, { cpus: 2 }] }}
+        formikRef={formikRef}
+        formJSONs={{
+          $meta: { wizard: { mode: 'wizard', navigation: { allowJump: true } } },
+          start: { type: 'step', title: 'Start', options: { name: { type: 'string' } } },
+          hosts: {
+            type: 'step',
+            title: 'Host',
+            multi: true,
+            max,
+            options: { cpus: { type: 'number' } },
+          },
+          sites: {
+            type: 'step',
+            title: 'Site',
+            multi: true,
+            options: { zone: { type: 'string' } },
+          },
+          done: { type: 'step', title: 'Done', options: { note: { type: 'string' } } },
+        }}
+      />
+    )
+    const { rerender } = render(form(2))
+    await screen.findByRole('heading', { name: 'Start' })
+    fireEvent.click(screen.getByRole('button', { name: 'Go to next step' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Go to next step' }))
+    await screen.findByRole('heading', { name: 'Host 2' })
+    act(() => {
+      rerender(form(0))
+      formikRef.current?.resetForm({ values: { hosts: [], sites: [{ zone: 'a' }] } })
+    })
+    await screen.findByRole('heading', { name: 'Site 1' })
+  })
+
   it('shows the nearest page left when the one shown goes, as when saved inputs replace the copies', async () => {
     const formikRef = createRef<FormikProps<FormikValues>>()
     render(
