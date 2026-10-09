@@ -411,10 +411,15 @@ export function computeGraphLayout(
   const filteredDeps: Record<string, string[]> = {}
   for (const jobName of Object.keys(visibleJobs)) {
     const needs = visibleJobs[jobName]?.needs
+    // `build` and `build:any` name one job, which draws one connector.
     const oldNeeds: string[] = Array.isArray(needs)
-      ? needs.map((need) =>
-          typeof need === 'string' && engine.editing ? engine.editing.needTarget(need) : need,
-        )
+      ? [
+          ...new Set(
+            needs.map((need) =>
+              typeof need === 'string' && engine.editing ? engine.editing.needTarget(need) : need,
+            ),
+          ),
+        ]
       : []
     const filtered = oldNeeds.filter((dep) => {
       return !oldNeeds.some((other) => {
@@ -739,7 +744,7 @@ function intoView(start: number, end: number, low: number, high: number) {
 }
 // A held job outlives only the edit it was held for; a later fit, such as a resize, refits.
 const HOLD_MS = 2000
-// An exponent of the scale, so a press in and a press out land back where they started.
+// An exponent of the scale, so presses in and out change it by the same factor.
 const ZOOM_STEP = 0.25
 
 // One level of the dependency graph: lays out its own jobs into columns, draws
