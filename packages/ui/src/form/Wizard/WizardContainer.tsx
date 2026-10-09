@@ -47,7 +47,9 @@ export function WizardContainer({
   const { config, steps, stepOrder } = wizardConfig
 
   // A repeated page's title or description: one per copy when written as a list, read for each copy
-  // when it uses `[index]`, and otherwise the page's own, a title numbered by copy.
+  // when it uses `[index]`, and otherwise the page's own, a title numbered by copy. An expression is read
+  // again only when an input it reads changes, not on every keystroke in the form.
+  const reads = useRef(new Map<string, string>())
   const perCopy = useCallback(
     (value: string | string[] | undefined, copy: number, numbered: boolean): string => {
       if (Array.isArray(value)) {
@@ -55,13 +57,26 @@ export function WizardContainer({
       }
       const text = value ?? ''
       if (text.includes('${{')) {
-        const read = engine.evaluate<{ text: unknown }>({
-          inputs: values,
-          obj: { text },
-          orgVars: {},
-          index: copy,
-        })
-        return String(read.text ?? '')
+        const deps = [...engine.inputDependencies(text).inputDeps].map((dep) => [
+          dep,
+          getValueUsingPath(values, dep),
+        ])
+        const key = JSON.stringify([text, copy, deps])
+        let read = reads.current.get(key)
+        if (read === undefined) {
+          const result = engine.evaluate<{ text: unknown }>({
+            inputs: values,
+            obj: { text },
+            orgVars: {},
+            index: copy,
+          })
+          read = String(result.text ?? '')
+          if (reads.current.size >= 500) {
+            reads.current.clear()
+          }
+          reads.current.set(key, read)
+        }
+        return read
       }
       return numbered && text ? strings.copyTitle(text, copy + 1) : text
     },
