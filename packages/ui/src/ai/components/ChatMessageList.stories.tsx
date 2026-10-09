@@ -109,6 +109,25 @@ export const LongUrls: StoryObj = {
   render: () => <MessageList messages={longUrls} allMessages={longUrls} />,
 }
 
+const LONG_REPLY = Array.from(
+  { length: 12 },
+  (_, i) =>
+    `${i + 1}. **Cause ${i + 1}.** The request names a size or region the account cannot use, so the provider refuses it before a node starts.`,
+).join('\n\n')
+
+const longReplies: ChatMessage[] = [
+  makeMessage({ role: 'user', content: 'Why do clusters fail to start?' }),
+  makeMessage({ role: 'assistant', content: LONG_REPLY }),
+  makeMessage({ role: 'user', content: 'And why do they fail to stop?' }),
+  makeMessage({ role: 'assistant', content: LONG_REPLY }),
+]
+
+// An older long reply folds behind Show more; the latest stays open, so the
+// thread, scrolled to its end, ends on the answer's last line.
+export const LongReplies: StoryObj = {
+  render: () => <MessageList messages={longReplies} allMessages={longReplies} />,
+}
+
 const reasoned: ChatMessage[] = [
   makeMessage({ role: 'user', content: 'Which partition should the sweep run on?' }),
   makeMessage({

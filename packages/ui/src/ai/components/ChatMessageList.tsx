@@ -296,6 +296,9 @@ export default function ChatMessageList({
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messageCount, isStreaming])
 
+  // Pseudo messages render nothing, so the latest is the last one that shows.
+  const lastIndex = messages.findLastIndex((m) => !m.pseudo)
+
   // If no messages and no streaming, just return empty scrollable container
   // The parent page handles the welcome/empty state UI. Queued messages still
   // render — a cancelled first turn must keep them visible.
@@ -324,7 +327,7 @@ export default function ChatMessageList({
       className="chat-thread flex-1 overflow-y-auto theme-scrollbar flex flex-col bg-(--theme-panel-bg)"
     >
       <div className="w-full max-w-[50rem] mx-auto pt-4 pb-6 flex-1 px-4">
-        {messages.map((message) => {
+        {messages.map((message, i) => {
           // Recorded blocks flagged by an agent adapter are not the human
           // speaking; unflagged messages are untouched.
           if (message.pseudo) {
@@ -341,6 +344,7 @@ export default function ChatMessageList({
                 message={message}
                 allMessages={allMessages}
                 flush={flush}
+                latest={i === lastIndex && !streamingMessage}
                 isEditing={editingMessageId === message.id}
                 showAuthor={showAuthor}
                 currentUsername={currentUsername}
