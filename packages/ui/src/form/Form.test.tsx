@@ -783,6 +783,7 @@ describe('a repeated wizard page’s copies as its bounds change', () => {
             max,
             options: { cpus: { type: 'number' } },
           },
+          mid: { type: 'step', title: 'Mid', options: { size: { type: 'string' } } },
           done: { type: 'step', title: 'Done', options: { note: { type: 'string' } } },
         }}
       />
@@ -793,7 +794,8 @@ describe('a repeated wizard page’s copies as its bounds change', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Go to next step' }))
     await screen.findByRole('heading', { name: 'Host 2' })
     rerender(form(0))
-    await screen.findByRole('heading', { name: 'Done' })
+    // The page after the step's, not the one now where Host 2 was.
+    await screen.findByRole('heading', { name: 'Mid' })
   })
 
   it('shows the nearest page left when the one shown goes, as when saved inputs replace the copies', async () => {
