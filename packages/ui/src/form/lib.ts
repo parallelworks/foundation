@@ -151,7 +151,7 @@ export function initializeValues(
         return acc
       }
       const fieldSchema = schema[field] ?? EMPTY_ENTRY
-      // A repeated page keeps a row per copy: those saved, padded to its `min`, at least one.
+      // A repeated page keeps a row per copy: those saved, padded to its `min`.
       if (fieldSchema.type === 'step' && fieldSchema.multi === true) {
         const saved = data[field]
         const rows: unknown[] = Array.isArray(saved) ? saved : []
