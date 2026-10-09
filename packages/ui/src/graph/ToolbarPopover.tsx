@@ -9,13 +9,19 @@ interface Place {
 }
 
 const GAP = 8
+// The panel's `w-96`, for before it has been laid out.
+const PANEL_WIDTH = 384
 
-// Above the button when there's more room there, below it otherwise, and never past the window.
-function placeBy(anchor: HTMLElement): Place {
+// Above the button when there's more room there, below it otherwise, and never past the window: lined up
+// with the button's right edge, unless that puts its left edge off the window, as for a button at the left.
+function placeBy(anchor: HTMLElement, width: number): Place {
   const rect = anchor.getBoundingClientRect()
   const above = rect.top - GAP * 2
   const below = window.innerHeight - rect.bottom - GAP * 2
-  const right = Math.max(GAP, window.innerWidth - rect.right)
+  const right = Math.max(
+    GAP,
+    Math.min(window.innerWidth - rect.right, window.innerWidth - GAP - width),
+  )
   return above >= below
     ? { right, bottom: window.innerHeight - rect.top + GAP, maxHeight: above }
     : { right, top: rect.bottom + GAP, maxHeight: below }
@@ -41,7 +47,7 @@ export function ToolbarPopover({
   useLayoutEffect(() => {
     const update = () => {
       if (anchor.current) {
-        setPlace(placeBy(anchor.current))
+        setPlace(placeBy(anchor.current, panel.current?.offsetWidth || PANEL_WIDTH))
       }
     }
     update()
