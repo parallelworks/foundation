@@ -1,6 +1,15 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { cleanup, createEvent, fireEvent, render, screen } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  createEvent,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from '@testing-library/react'
+import type { ReactNode, Ref } from 'react'
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { testEngine } from '../test/engine'
 
@@ -21,11 +30,35 @@ vi.mock('../components/Provider', async (importOriginal) =>
   (await import('../test/engine')).mockEngineHooks(importOriginal),
 )
 
-vi.mock('react-zoom-pan-pinch', () => ({
-  TransformWrapper: ({ children }: { children: unknown }) =>
-    typeof children === 'function' ? (children as () => unknown)() : children,
-  TransformComponent: ({ children }: { children: unknown }) => children,
+// The view bar zooms through the library's handle and learns the scale from its onTransform.
+const panZoom = vi.hoisted(() => ({
+  onTransform: undefined as ((ref: unknown, state: { scale: number }) => void) | undefined,
+  setTransform: vi.fn(),
+  state: { positionX: 0, positionY: 0, scale: 0.6 },
 }))
+vi.mock('react-zoom-pan-pinch', async () => {
+  const { forwardRef, useImperativeHandle } = await import('react')
+  return {
+    TransformWrapper: forwardRef(function TransformWrapper(
+      {
+        children,
+        onTransform,
+      }: {
+        children: ReactNode | (() => ReactNode)
+        onTransform?: (ref: unknown, state: { scale: number }) => void
+      },
+      ref: Ref<unknown>,
+    ) {
+      panZoom.onTransform = onTransform
+      useImperativeHandle(ref, () => ({
+        instance: { state: panZoom.state },
+        setTransform: panZoom.setTransform,
+      }))
+      return typeof children === 'function' ? children() : children
+    }),
+    TransformComponent: ({ children }: { children: unknown }) => children,
+  }
+})
 vi.mock('framer-motion', () => ({
   AnimatePresence: ({ children }: { children: unknown }) => children,
   motion: new Proxy(
@@ -69,7 +102,7 @@ import DependencyGraph, {
   computeGraphLayout,
   DependencyGraphPreview,
 } from './DependencyGraph'
-import { SLOT_PITCH } from './gridSpacing'
+import { COLUMN_PITCH, SLOT_PITCH } from './gridSpacing'
 import type { WorkflowJob } from './types'
 
 const run = {
@@ -175,6 +208,38 @@ describe('DependencyGraph inline subworkflows', () => {
     expect(screen.queryByText('Notify')).not.toBeInTheDocument()
   })
 
+  it('places a subworkflow’s jobs by their position inline, as its own graph does', () => {
+    const placedRun = {
+      ...run,
+      executedJobs: {
+        build: {
+          status: 'completed',
+          steps: [
+            {
+              name: 'run-deploy',
+              status: 'completed',
+              subworkflow: {
+                jobs: {
+                  prep: { status: 'completed', position: { column: 1, row: 0 }, steps: [] },
+                  publish: { status: 'completed', position: { column: 0, row: 0 }, steps: [] },
+                },
+              },
+            },
+          ],
+        },
+      },
+    }
+    render(<DependencyGraph run={placedRun} preview />)
+    const jobsOf = (ids: string[]) => ids.map((id) => id.split('/').pop())
+    fireEvent.click(screen.getByRole('button', { name: 'Expand All' }))
+    expect(jobsOf(nodeIds().filter((id) => id.includes('subworkflows/')))).toEqual([
+      'publish',
+      'prep',
+    ])
+    fireEvent.click(screen.getByRole('button', { name: 'Open in new graph' }))
+    expect(jobsOf(nodeIds())).toEqual(['publish', 'prep'])
+  })
+
   it('reveals every nested subworkflow via "Expand All"', () => {
     render(<DependencyGraph run={run} preview />)
     // Nothing expanded initially.
@@ -220,6 +285,39 @@ describe('DependencyGraph inline subworkflows', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Expand All' }))
     // Expand All opened the matrix group, its member's steps, and the subworkflow.
     expect(screen.getByText('Inner')).toBeInTheDocument()
+  })
+})
+
+describe('DependencyGraph view bar', () => {
+  it('zooms by a step, and disables each zoom button at its limit', () => {
+    render(<DependencyGraph run={run} preview />)
+    const zoomIn = screen.getByRole('button', { name: 'Zoom in' })
+    const zoomOut = screen.getByRole('button', { name: 'Zoom out' })
+    // A graph opens at its closest zoom.
+    expect(zoomIn).toBeDisabled()
+    fireEvent.click(zoomOut)
+    expect(panZoom.setTransform).toHaveBeenLastCalledWith(
+      expect.any(Number),
+      expect.any(Number),
+      0.6 * Math.exp(-0.25),
+      expect.any(Number),
+      'easeOut',
+    )
+    act(() => panZoom.onTransform?.(null, { scale: 0.4 }))
+    expect(zoomIn).toBeEnabled()
+    expect(zoomOut).toBeEnabled()
+    act(() => panZoom.onTransform?.(null, { scale: 0.2 }))
+    expect(zoomOut).toBeDisabled()
+  })
+
+  it('goes back to the run from a subworkflow opened in its own graph on Reset View', () => {
+    render(<DependencyGraph run={run} preview />)
+    fireEvent.click(screen.getByText('Build'))
+    fireEvent.click(screen.getByRole('button', { name: 'Open in new graph' }))
+    expect(screen.queryByText('Notify')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Reset View' }))
+    expect(screen.getByText('Notify')).toBeInTheDocument()
+    expect(screen.queryByText('Prep')).not.toBeInTheDocument()
   })
 })
 
@@ -297,6 +395,60 @@ describe('DependencyGraph sidebar', () => {
     // Expanding the group reveals the members.
     fireEvent.click(screen.getByText('(2 jobs)'))
     expect(screen.getAllByText('Build (1/2)').length).toBeGreaterThan(0)
+  })
+
+  it('lists a matrix that ran as one job as that job, with its status and steps', () => {
+    const oneRun = {
+      id: 'o',
+      number: 1,
+      slug: 'o',
+      workflowName: 'wf',
+      status: 'error',
+      executedJobs: {
+        'build-0': {
+          status: 'error',
+          _matrix: { originaljob: 'build', index: 0, totalingroup: 1 },
+          steps: [{ name: 'compile', status: 'error' }],
+        },
+      },
+    }
+    render(<DependencyGraph run={oneRun} />)
+    // The sidebar comes first in the page.
+    const row = screen.getAllByText('Build')[0]?.closest('button') as HTMLElement
+    expect(within(row).getByTestId('failed-indicator')).toBeInTheDocument()
+    fireEvent.click(row)
+    expect(screen.getAllByTestId('compile').length).toBeGreaterThan(0)
+  })
+
+  it('places a run’s matrix by the position its jobs carry', () => {
+    const member = (index: number) => ({
+      status: 'completed',
+      needs: ['setup'],
+      position: { column: 1, row: 0 },
+      _matrix: { originaljob: 'build', index, totalingroup: 2 },
+      steps: [],
+    })
+    const placedRun = {
+      id: 'p',
+      number: 1,
+      slug: 'p',
+      workflowName: 'wf',
+      status: 'completed',
+      executedJobs: {
+        setup: { status: 'completed', position: { column: 0, row: 0 }, steps: [] },
+        'build-0': member(0),
+        'build-1': member(1),
+        lint: {
+          status: 'completed',
+          needs: ['setup'],
+          position: { column: 1, row: 1 },
+          steps: [],
+        },
+      },
+    }
+    render(<DependencyGraph run={placedRun} />)
+    expect(nodeIds()).toEqual(['node_setup', 'node_build', 'node_lint'])
+    expect(document.getElementById('node_lint')?.style.marginTop).toBe('')
   })
 
   it('draws a matrix that ran as one job as that job, in its stored slot', () => {
@@ -622,6 +774,24 @@ describe('DependencyGraphPreview', () => {
     }
     render(<DependencyGraphPreview yml={placed} />)
     expect(nodeIds()).toEqual(['node_b', 'node_a'])
+    cleanup()
+    // A host's layout that holds no job leaves them to their own.
+    render(<DependencyGraphPreview yml={placed} layout={emptyLayout()} />)
+    expect(nodeIds()).toEqual(['node_b', 'node_a'])
+  })
+
+  it('leaves the columns between nodes empty', () => {
+    const apart = {
+      jobs: {
+        a: { position: { column: 0, row: 0 }, steps: [{ run: 'a' }] },
+        b: { position: { column: 2, row: 0 }, steps: [{ run: 'b' }] },
+      },
+    }
+    render(<DependencyGraphPreview yml={apart} />)
+    expect(document.getElementById('node_a')?.parentElement?.style.marginLeft).toBe('')
+    expect(document.getElementById('node_b')?.parentElement?.style.marginLeft).toBe(
+      `${COLUMN_PITCH}px`,
+    )
   })
 
   /** Evaluates each object `evaluated` answers for, finding expressions wherever a `${{` is. */
@@ -695,6 +865,22 @@ describe('DependencyGraphPreview', () => {
     const waits = { jobs: { ...pipeline.jobs, mac: { needs: '${{ inputs.after }}', steps: [] } } }
     render(<DependencyGraphPreview yml={waits} />)
     expect(init).toHaveBeenCalled()
+  })
+
+  it('loads no expression runtime for a strategy when the engine expands no matrix', () => {
+    evaluatesTo(() => undefined)
+    const { editing } = testEngine
+    Object.assign(testEngine, { editing: undefined })
+    onTestFinished(() => {
+      Object.assign(testEngine, { editing })
+    })
+    const init = vi.mocked(testEngine.init)
+    init.mockClear()
+    const sharded = {
+      jobs: { train: { strategy: { matrix: { shard: '${{ 0 range inputs.n }}' } }, steps: [] } },
+    }
+    render(<DependencyGraphPreview yml={sharded} />)
+    expect(init).not.toHaveBeenCalled()
   })
 
   it('draws the jobs a needs expression names as a run waits on them', () => {
