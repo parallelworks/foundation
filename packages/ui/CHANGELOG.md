@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.32.0](https://github.com/parallelworks/foundation/compare/ui-v0.31.0...ui-v0.32.0) (2026-10-09)
+
+
+### Features
+
+* **ui:** the chat column grows with a wide window ([#196](https://github.com/parallelworks/foundation/issues/196)) ([9c1065f](https://github.com/parallelworks/foundation/commit/9c1065f4bd91c410d10f5c615908535d134ab6b5))
+
+
+### Bug Fixes
+
+* **ui:** the latest reply stays open, so opening a chat ends on its last line ([#195](https://github.com/parallelworks/foundation/issues/195)) ([971eb5e](https://github.com/parallelworks/foundation/commit/971eb5e7ea9e7be40900ffe1494ae271b1c65457))
+
 ## [0.31.0](https://github.com/parallelworks/foundation/compare/ui-v0.30.0...ui-v0.31.0) (2026-10-09)
 
 
