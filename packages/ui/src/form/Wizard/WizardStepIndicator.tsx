@@ -1,5 +1,6 @@
 import cx from 'classnames'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useStrings } from '../../components/Provider'
 import type { WizardStepIndicatorProps } from './types'
 import { stepText } from './utils'
 
@@ -13,10 +14,28 @@ export function WizardStepIndicator({
   allowJump = false,
   hideStepNumbers = false,
 }: WizardStepIndicatorProps) {
+  const { form: strings } = useStrings()
   const currentIndex = stepOrder.indexOf(currentStep)
   // Many pages, as a repeated page's copies make, scroll in this row instead of widening the form, and
   // the current one is brought into view within it without moving the page.
-  const row = useRef<HTMLDivElement>(null)
+  const row = useRef<HTMLOListElement>(null)
+  // A row that scrolls takes focus, so a keyboard can scroll it when none of its dots can be focused.
+  const [scrolls, setScrolls] = useState(false)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: more steps can overflow a row whose own size stays.
+  useEffect(() => {
+    const el = row.current
+    if (!el) {
+      return
+    }
+    const measure = () => setScrolls(el.scrollWidth > el.clientWidth)
+    measure()
+    if (typeof ResizeObserver === 'undefined') {
+      return
+    }
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [stepOrder.length])
   useEffect(() => {
     const el = row.current
     const step = el?.children[currentIndex]
@@ -41,8 +60,10 @@ export function WizardStepIndicator({
   }
 
   return (
-    <div
+    <ol
       ref={row}
+      aria-label={strings.steps}
+      tabIndex={scrolls ? 0 : undefined}
       className="flex items-start justify-between w-full mb-2 gap-4 py-2 overflow-x-auto"
     >
       {stepOrder.map((stepKey, index) => {
@@ -56,7 +77,7 @@ export function WizardStepIndicator({
         const isDotUpcoming = status === 'upcoming'
 
         return (
-          <div key={stepKey} className="flex flex-col items-center flex-1 relative">
+          <li key={stepKey} className="flex flex-col items-center flex-1 relative">
             {/* Step dot */}
             <button
               type="button"
@@ -155,9 +176,9 @@ export function WizardStepIndicator({
                 </div>
               )}
             </div>
-          </div>
+          </li>
         )
       })}
-    </div>
+    </ol>
   )
 }
