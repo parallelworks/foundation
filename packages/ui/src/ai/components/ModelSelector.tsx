@@ -15,6 +15,9 @@ import { useChatConfig } from '../core/config'
 import { providerIssueFor } from '../core/providerIssues'
 import type { ChatModel, CspKind, ProviderIssue } from '../types'
 
+// ProviderInfo.user for a provider the organization manages rather than a user.
+const ORG_OWNER = 'org'
+
 /** The search field plus the list's max-h-80, so the flip decision matches
  *  what renders. */
 const MAX_PANEL_HEIGHT_PX = 380
@@ -306,6 +309,8 @@ export default function ModelSelector({
         ref={buttonRef}
         type="button"
         onClick={() => setIsOpen(!isOpen)}
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
         disabled={models.length === 0 && !targetSessionStatus && unreachableSessions.length === 0}
         className={cx(
           boxClass,
@@ -496,6 +501,13 @@ export default function ModelSelector({
                       ? platform
                       : null
                   const isOwner = providerInfo?.user === currentUser.username
+                  // A provider shared with the reader can carry the same name as
+                  // one of their own; the owner tells the two apart.
+                  const sharedBy =
+                    providerInfo && !isOwner && providerInfo.user !== ORG_OWNER
+                      ? strings.modelPicker.sharedBy(providerInfo.user)
+                      : null
+                  const headerSuffix = [platformSuffix, sharedBy].filter(Boolean).join(' · ')
                   const settingsHref =
                     providerInfo && extraLinks.providerSettings
                       ? extraLinks.providerSettings(providerInfo.user, providerInfo.name)
@@ -512,7 +524,7 @@ export default function ModelSelector({
                             {providerName}
                           </span>
                           <span className="min-w-0 flex-1 truncate text-xs theme-muted-text">
-                            {platformSuffix ? `· ${platformSuffix}` : ''}
+                            {headerSuffix ? `· ${headerSuffix}` : ''}
                           </span>
                           <span className="text-xs theme-muted-text">
                             ({providerModels.length})

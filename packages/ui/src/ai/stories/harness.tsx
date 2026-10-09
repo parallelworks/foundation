@@ -17,6 +17,7 @@ import type {
   ConversationSummary,
   MessagePart,
   MessagePaste,
+  ProviderInfo,
   ProviderIssue,
   SubagentPart,
   TodoItem,
@@ -219,6 +220,8 @@ export function makeStaticAdapter(options?: {
   streaming?: StreamingKnobs
   sharing?: boolean
   providerIssues?: ProviderIssue[]
+  /** Each provider lists one model; omit for the single story provider. */
+  providers?: ProviderInfo[]
   attachments?: boolean
 }): ChatAdapter {
   const conversations = options?.conversations ?? [makeConversation()]
@@ -266,18 +269,29 @@ export function makeStaticAdapter(options?: {
     models: {
       async list() {
         return {
-          models: [
-            {
-              id: 'mock:story/streaming',
-              object: 'model' as const,
-              created: 0,
-              owned_by: 'story',
-              provider: 'Story Provider',
-              provider_name: 'story',
-              provider_owner: 'mock',
-              tool_calling_mode: 'none' as const,
-            },
-          ],
+          models: options?.providers
+            ? options.providers.map((p) => ({
+                id: `${p.user}:${p.name}/${p.name}-large`,
+                object: 'model' as const,
+                created: 0,
+                owned_by: p.user,
+                provider: p.displayName ?? p.name,
+                provider_name: p.name,
+                provider_owner: p.user,
+                tool_calling_mode: 'none' as const,
+              }))
+            : [
+                {
+                  id: 'mock:story/streaming',
+                  object: 'model' as const,
+                  created: 0,
+                  owned_by: 'story',
+                  provider: 'Story Provider',
+                  provider_name: 'story',
+                  provider_owner: 'mock',
+                  tool_calling_mode: 'none' as const,
+                },
+              ],
           unreachableSessions: [],
           providerIssues: options?.providerIssues ?? [],
         }
@@ -364,6 +378,15 @@ export function makeStaticAdapter(options?: {
       },
       async remove() {},
       downloadUrl: () => '#',
+    }
+  }
+
+  const providers = options?.providers
+  if (providers) {
+    adapter.providers = {
+      async list() {
+        return providers
+      },
     }
   }
   return adapter
