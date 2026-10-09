@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.30.0](https://github.com/parallelworks/foundation/compare/ui-v0.29.0...ui-v0.30.0) (2026-10-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* **ui:** hosts control the chat sidebar, and narrow layouts show it as a drawer ([#187](https://github.com/parallelworks/foundation/issues/187))
+
+### Features
+
+* **ui:** hosts control the chat sidebar, and narrow layouts show it as a drawer ([#187](https://github.com/parallelworks/foundation/issues/187)) ([9059f59](https://github.com/parallelworks/foundation/commit/9059f59e4e2a0354f9b23d858a75aaf5eb95f8c1))
+* **ui:** the model picker names who shared a provider with the reader ([#186](https://github.com/parallelworks/foundation/issues/186)) ([c5eb2a5](https://github.com/parallelworks/foundation/commit/c5eb2a50bbb5a247e613358ce42754675e08fc67))
+
 ## [0.29.0](https://github.com/parallelworks/foundation/compare/ui-v0.28.0...ui-v0.29.0) (2026-10-09)
 
 
