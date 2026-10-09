@@ -288,7 +288,15 @@ export function WizardContainer({
     show(rows.length > 0 ? `${shownPage.step}[${Math.max(copy - 1, 0)}]` : shownPage.step, at)
   }
 
-  const stepTitle = page ? stepText(steps[page.step]?.title) : ''
+  const rawTitle = page ? steps[page.step]?.title : undefined
+  // With a title per copy, Remove names the copy it removes and Add the one it would add.
+  const titledPerCopy =
+    Array.isArray(rawTitle) || (typeof rawTitle === 'string' && rawTitle.includes('${{'))
+  const removeTitle = titledPerCopy && page ? stepText(page.config.title) : stepText(rawTitle)
+  const addTitle =
+    titledPerCopy && page?.count !== undefined
+      ? perCopy(rawTitle, page.count, true)
+      : stepText(rawTitle)
   const copies =
     page?.count !== undefined && (page.canAdd || page.canRemove) ? (
       <div className="mb-4 flex items-center justify-between gap-3">
@@ -298,7 +306,7 @@ export function WizardContainer({
             onClick={() => removeCopy(page)}
             className="rounded-lg border theme-border px-4 py-2 text-sm theme-muted-text hover:text-(--theme-app)"
           >
-            {strings.removeCopy(stepTitle)}
+            {strings.removeCopy(removeTitle)}
           </button>
         ) : (
           <span />
@@ -309,7 +317,7 @@ export function WizardContainer({
             onClick={() => addCopy(page)}
             className="rounded-lg bg-(--theme-element) px-4 py-2 font-medium text-(--theme-element-text) text-sm"
           >
-            {strings.addCopy(stepTitle)}
+            {strings.addCopy(addTitle)}
           </button>
         )}
       </div>

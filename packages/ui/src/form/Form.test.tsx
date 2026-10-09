@@ -481,6 +481,32 @@ describe('a repeated wizard page’s copies', () => {
   })
 })
 
+describe('a repeated wizard page’s buttons', () => {
+  it('name the copy they remove or add when each copy has its own title', async () => {
+    render(
+      <DynamicForm
+        initialValues={{ workers: [{}, {}] }}
+        formJSONs={{
+          $meta: { wizard: { mode: 'wizard', navigation: { allowJump: true } } },
+          workers: {
+            type: 'step',
+            title: ['GPU workers', 'CPU workers'],
+            multi: true,
+            max: 3,
+            options: { nodes: { type: 'number' } },
+          },
+        }}
+      />,
+    )
+    await screen.findByRole('heading', { name: 'GPU workers' })
+    expect(screen.getByRole('button', { name: 'Remove GPU workers' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Go to next step' }))
+    await screen.findByRole('heading', { name: 'CPU workers' })
+    expect(screen.getByRole('button', { name: 'Remove CPU workers' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '+ Add GPU workers 3' })).toBeInTheDocument()
+  })
+})
+
 describe('a repeated wizard page’s bounds', () => {
   it('leaves out a page whose max allows no copy, as when the input its bounds read is empty', async () => {
     render(
