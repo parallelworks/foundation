@@ -2098,26 +2098,30 @@ function Dialogs({
         onViewChange={editor.onSettingsViewChange}
         openOnAdd={openOnAddOf(editor)}
         yaml={{
-          onSave: (name, text) =>
-            editor.onEdit({
-              type: 'batch',
-              edits: [
-                ...(placement?.edits ?? []),
-                {
-                  type: 'addInput',
-                  parent: dialog.parent,
-                  index,
-                  name,
-                  definition: asRecord(editing.loadYaml(text)),
-                },
-                // The text as written, comments included.
-                {
-                  type: 'setInputYaml',
-                  path: [...dialog.parent, name],
-                  yaml: text,
-                },
-              ],
-            }),
+          onSave: (name, text, created) =>
+            save(
+              {
+                type: 'batch',
+                edits: [
+                  ...(placement?.edits ?? []),
+                  {
+                    type: 'addInput',
+                    parent: dialog.parent,
+                    index: samePath(home.parent, dialog.parent) ? index + created.length : index,
+                    name,
+                    definition: asRecord(editing.loadYaml(text)),
+                  },
+                  // The text as written, comments included.
+                  {
+                    type: 'setInputYaml',
+                    path: [...dialog.parent, name],
+                    yaml: text,
+                  },
+                ],
+              },
+              created,
+              home,
+            ),
         }}
         onSave={(name, definition, _patch, created) => {
           const add: GraphEdit = {
@@ -2161,9 +2165,9 @@ function Dialogs({
       yaml={{
         source: editor.readSource?.(),
         path,
-        onSave: (next, text) => {
+        onSave: (next, text, created) => {
           const at = [...path.slice(0, -1), next]
-          editor.onEdit(
+          save(
             next === name
               ? { type: 'setInputYaml', path, yaml: text }
               : {
@@ -2173,6 +2177,8 @@ function Dialogs({
                     { type: 'setInputYaml', path: at, yaml: text },
                   ],
                 },
+            created,
+            home,
           )
         },
       }}

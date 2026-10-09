@@ -1,5 +1,5 @@
 import cx from 'classnames'
-import { type ReactNode, useId, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from 'react'
 import Dropdown from '../components/Dropdown'
 import { FilterPill } from '../components/FilterPill'
 import { IconButton } from '../components/IconButton'
@@ -243,6 +243,8 @@ const TEMPLATE: Prop = {
   help: 'template',
   required: true,
 }
+const LIST_DEFAULT: Prop = { key: 'default', kind: 'rows', help: 'listDefault' }
+const DURATION_DEFAULT: Prop = { key: 'default', kind: 'duration', help: 'durationDefault' }
 const DISABLE_LABEL: Prop = {
   key: 'disableLabel',
   kind: 'text',
@@ -268,6 +270,10 @@ const TYPE_PROPS: Record<string, Prop[]> = {
     PLACEHOLDER,
     { key: 'textarea', kind: 'bool', help: 'textarea' },
     { key: 'prefillDefault', kind: 'flag', help: 'prefillDefault' },
+    { key: 'minLength', kind: 'number', help: 'minLength' },
+    { key: 'maxLength', kind: 'number', help: 'maxLength' },
+    { key: 'lowercase', kind: 'bool', help: 'lowercase' },
+    { key: 'sanitize', kind: 'text', help: 'sanitize' },
   ],
   number: [
     { key: 'default', kind: 'number', help: 'default' },
@@ -297,7 +303,7 @@ const TYPE_PROPS: Record<string, Prop[]> = {
   ],
   'checkbox-group': [OPTIONS, DEFAULT_LIST, { key: 'implies', kind: 'implies', help: 'implies' }],
   duration: [
-    { key: 'default', kind: 'duration', help: 'durationDefault' },
+    DURATION_DEFAULT,
     PLACEHOLDER,
     { key: 'min', kind: 'duration', help: 'minDuration' },
     { key: 'max', kind: 'duration', help: 'maxDuration' },
@@ -307,7 +313,7 @@ const TYPE_PROPS: Record<string, Prop[]> = {
   group: [{ key: 'collapsed', kind: 'flag', help: 'collapsed', conditional: true }, FLATTEN],
   list: [
     TEMPLATE,
-    { key: 'default', kind: 'rows', help: 'listDefault' },
+    LIST_DEFAULT,
     { key: 'items-collapsible', kind: 'flag', help: 'itemsCollapsible' },
     { key: 'min', kind: 'number', help: 'minItems' },
     { key: 'max', kind: 'number', help: 'maxItems' },
@@ -523,8 +529,9 @@ function optionsValue(draft: OptionsDraft, labelled: boolean): unknown {
     if (row.bare && !row.label.trim() && !row.rest) {
       return value
     }
-    // A multi-select shows only labels, so it needs one on every option.
-    const label = row.label.trim() || (labelled ? row.value.trim() : '')
+    // A multi-select shows only labels, so it needs one on every option, as does a value that isn't text.
+    const label =
+      row.label.trim() || (labelled || typeof value !== 'string' ? row.value.trim() : '')
     return {
       value,
       ...(label ? { label } : {}),
@@ -585,7 +592,9 @@ function OptionsEditor({
   // JSON is offered only for options the list can't show; an expression has its own switch.
   const modes = [
     { value: 'list' as const, label: t.optionsList },
-    ...(keyed ? [{ value: 'byKey' as const, label: t.optionsByKey }] : []),
+    ...(keyed || draft.mode === 'byKey'
+      ? [{ value: 'byKey' as const, label: t.optionsByKey }]
+      : []),
     ...(draft.mode === 'json' ? [{ value: 'json' as const, label: t.optionsJson }] : []),
   ]
   return (
@@ -793,7 +802,7 @@ function OptOutCheckbox({
             description={t.help.disableLabel}
             value={label}
             error={errors.label}
-            placeholder="Unlimited"
+            placeholder={t.optOutPlaceholder}
             onChange={(e) => onLabel(e.target.value)}
           />
           <Input
@@ -928,7 +937,8 @@ function draftOf(kind: Kind, value: unknown): unknown {
             rows: Array.isArray(value) ? value.map(asRecord) : [],
           }
     case 'duration':
-      return typeof value === 'number' ? formatDuration(value) : text(value)
+      // A negative number is an opt-out value, such as -1, and shows as written.
+      return typeof value === 'number' && value >= 0 ? formatDuration(value) : text(value)
     case 'perCopy':
       return Array.isArray(value)
         ? { list: true, text: '', values: value.map(listItemText) }
@@ -1008,7 +1018,10 @@ function writtenValue(
       if (!raw) {
         return undefined
       }
-      return EXPRESSION.test(raw) ? raw : (parseDuration(raw) ?? raw)
+      if (EXPRESSION.test(raw)) {
+        return raw
+      }
+      return parseDuration(raw) ?? (/^-\d+$/.test(raw) ? Number(raw) : raw)
     }
     case 'ref':
     case 'choice':
@@ -1148,6 +1161,8 @@ function TemplateFields({
   inputs,
   adopt,
   home,
+  onDialog,
+  onFieldKey,
 }: {
   fields: Json
   onChange: (fields: Json) => void
@@ -1155,10 +1170,18 @@ function TemplateFields({
   inputs: Json
   adopt: (inputs: PendingInput[]) => void
   home: InputHome
+  /** Told when a field's dialog opens or closes, so the dialog holding the list stays put meanwhile. */
+  onDialog: (open: boolean) => void
+  /** Told when a field is renamed, or removed (`to` undefined), so the list's default rows follow. */
+  onFieldKey: (from: string, to: string | undefined) => void
 }) {
   const t = useInputsEditorStrings()
   const { freeName } = useWorkflowEditing()
   const [editing, setEditing] = useState<{ name: string } | { create: true } | null>(null)
+  const open = editing !== null
+  useEffect(() => {
+    onDialog(open)
+  }, [onDialog, open])
   const names = Object.keys(fields).filter((name) => name !== '$meta')
   const types = t.types as Record<string, string>
   const move = (from: number, to: number) => {
@@ -1212,9 +1235,10 @@ function TemplateFields({
               label={t.deleteInput}
               variant="ghost"
               size="sm"
-              onClick={() =>
+              onClick={() => {
                 onChange(Object.fromEntries(Object.entries(fields).filter(([key]) => key !== name)))
-              }
+                onFieldKey(name, undefined)
+              }}
             />
           </div>
         )
@@ -1244,6 +1268,9 @@ function TemplateFields({
                   ),
                 ),
               )
+              if (name !== editing.name) {
+                onFieldKey(editing.name, name)
+              }
             } else {
               onChange({ ...fields, [name]: definition })
             }
@@ -1377,6 +1404,8 @@ function PropField({
   home,
   template,
   inputLabel,
+  onDialog,
+  onFieldKey,
 }: {
   prop: Prop
   kind: Kind
@@ -1394,6 +1423,8 @@ function PropField({
   /** The list's template as edited so far, for its default rows. */
   template: Json
   inputLabel: string
+  onDialog: (open: boolean) => void
+  onFieldKey: (from: string, to: string | undefined) => void
 }) {
   const t = useInputsEditorStrings()
   const description = t.help[prop.help]
@@ -1608,6 +1639,8 @@ function PropField({
               inputs={allInputs}
               adopt={adopt}
               home={home}
+              onDialog={onDialog}
+              onFieldKey={onFieldKey}
             />
           )}
         </LabelledField>
@@ -1689,6 +1722,8 @@ function commonProp(key: CommonKey): Prop {
 }
 
 const COMMON_PROPS = ALL_COMMON.map(commonProp)
+// A page's description, like its title, can be one per copy when the page repeats.
+const STEP_DESCRIPTION: Prop = { ...commonProp('description'), kind: 'perCopy' }
 
 function isCommon(prop: Prop): boolean {
   return COMMON_PROPS.some((common) => draftKey(common) === draftKey(prop))
@@ -1701,7 +1736,10 @@ function draftKey(prop: Prop): string {
 
 const ALL_PROPS: Prop[] = [
   ...new Map(
-    [...COMMON_PROPS, ...Object.values(TYPE_PROPS).flat()].map((prop) => [draftKey(prop), prop]),
+    [...COMMON_PROPS, STEP_DESCRIPTION, ...Object.values(TYPE_PROPS).flat()].map((prop) => [
+      draftKey(prop),
+      prop,
+    ]),
   ).values(),
 ]
 
@@ -1811,11 +1849,7 @@ export function withCreatedInputs(
   ])
 }
 
-/** Inputs a dialog's fields can read, plus the ones it creates on save. */
-export function useNewInputs(
-  inputs: Json | undefined,
-  home?: InputHome,
-): {
+export interface NewInputs {
   source: InputSource
   all: Json
   home: InputHome
@@ -1824,7 +1858,10 @@ export function useNewInputs(
   dialog: ReactNode
   /** The form's edit with the inputs it made, or null when there's nothing to save. */
   save: (edit: GraphEdit | null) => GraphEdit | null
-} {
+}
+
+/** Inputs a dialog's fields can read, plus the ones it creates on save. */
+export function useNewInputs(inputs: Json | undefined, home?: InputHome): NewInputs {
   const editing = useWorkflowEditing()
   const root = asRecord(inputs)
   const place = home ?? defaultHome(root)
@@ -1899,7 +1936,8 @@ interface InputDialogProps {
 export interface InputYaml {
   source?: string | undefined
   path?: InputPath | undefined
-  onSave: (name: string, yaml: string) => void
+  /** `created` are the inputs the form made for its settings before switching to the YAML. */
+  onSave: (name: string, yaml: string, created: PendingInput[]) => void
 }
 
 /** An input's settings in a form, or as YAML when `yaml` says how to save it; switching carries the edits across. */
@@ -1916,7 +1954,10 @@ export function InputDialog({
   return yaml ? (
     <InputViews {...props} textual={yaml} view={view} onViewChange={onViewChange} />
   ) : (
-    <InputForm {...props} />
+    // Opened from another dialog, it keeps no memory of that one's sections.
+    <SectionMemory.Provider value={null}>
+      <InputForm {...props} />
+    </SectionMemory.Provider>
   )
 }
 
@@ -1945,6 +1986,8 @@ function InputViews({
   const g = useGraphEditorStrings()
   const editing = useWorkflowEditing()
   const sections = useSectionMemory()
+  // Kept here, as the form is drawn anew on each switch: the inputs it made for its settings.
+  const newInputs = useNewInputs(props.inputs, props.home)
   const [original] = useState(() => (props.isNew ? {} : props.definition))
   const [opening] = useState(() => startingYaml(editing, textual, props.definition))
   // The YAML as last shown, and the settings the form starts from.
@@ -1954,7 +1997,7 @@ function InputViews({
   const [name, setName] = useState(props.name)
   const [version, setVersion] = useState(0)
   const [problem, setProblem] = useState<string | undefined>()
-  const draft = useRef<{ name: string; written: Json } | null>(null)
+  const draft = useRef<{ name: string; next: Json } | null>(null)
   const toYaml = () => {
     const current = draft.current
     if (current) {
@@ -1962,9 +2005,9 @@ function InputViews({
     }
     // The form's settings are written out again only when it changed them, so the text keeps its comments.
     const text =
-      !current || isEmptyPatch(diffPatch(base, current.written))
+      !current || isEmptyPatch(diffPatch(base, current.next))
         ? shown
-        : editing.dumpYaml(current.written)
+        : editing.dumpYaml(withoutUndefined(current.next))
     setShown(text)
     setYaml(text)
     setProblem(undefined)
@@ -1993,11 +2036,13 @@ function InputViews({
           key={version}
           {...props}
           name={name}
+          originalName={props.name}
           definition={base}
           original={original}
+          newInputs={newInputs}
           headerEnd={switcher}
-          onDraft={(next, written) => {
-            draft.current = { name: next, written }
+          onDraft={(next, settings) => {
+            draft.current = { name: next, next: settings }
           }}
         />
       </SectionMemory.Provider>
@@ -2009,7 +2054,8 @@ function InputViews({
     : nextName !== props.name && props.siblings.includes(nextName)
       ? t.inputExists
       : undefined
-  const dirty = props.isNew || nextName !== props.name || yaml !== opening
+  const dirty =
+    props.isNew || nextName !== props.name || yaml !== opening || newInputs.pending.length > 0
   return (
     <DialogShell
       title={t.editInput}
@@ -2018,7 +2064,7 @@ function InputViews({
       saveDisabled={yamlProblem(yaml, g, editing) !== undefined || nameError !== undefined}
       onSubmit={() => {
         if (dirty) {
-          textual.onSave(nextName, yaml)
+          textual.onSave(nextName, yaml, newInputs.pending)
         }
         props.onClose()
       }}
@@ -2081,19 +2127,26 @@ function InputForm({
   onClose,
   openOnAdd,
   original: startOriginal,
+  originalName = name,
+  newInputs: shared,
   headerEnd,
   onDraft,
 }: InputDialogProps & {
   /** What Save diffs against, when the form starts from settings edited as YAML. */
   original?: Json | undefined
+  /** The input's name when the dialog opened, which a rename is measured from. */
+  originalName?: string | undefined
+  /** The inputs made for its settings, when a parent keeps them across views. */
+  newInputs?: NewInputs | undefined
   headerEnd?: ReactNode
-  /** Called on each render with the name and settings Save would write. */
-  onDraft?: ((name: string, written: Json) => void) | undefined
+  /** Called on each render with the name and settings Save would write; an unset key is undefined. */
+  onDraft?: ((name: string, next: Json) => void) | undefined
 }) {
   const t = useInputsEditorStrings()
   const g = useGraphEditorStrings()
   const editing = useWorkflowEditing()
-  const newInputs = useNewInputs(inputs, home)
+  const own = useNewInputs(inputs, home)
+  const newInputs = shared ?? own
   const [original] = useState(() => startOriginal ?? (isNew ? {} : definition))
   const [draftName, setDraftName] = useState(name)
   const [type, setType] = useState(() => text(definition['type']) || 'string')
@@ -2105,7 +2158,25 @@ function InputForm({
     return out
   })
   const [drafts, setDrafts] = useState<Drafts>(initial)
-  const originalType = text(definition['type'])
+  const [nested, setNested] = useState(false)
+  const rowsKey = draftKey(LIST_DEFAULT)
+  const onFieldKey = (from: string, to: string | undefined) =>
+    setDrafts((current) => {
+      const rows = current[rowsKey] as RowsDraft | undefined
+      if (!rows || rows.expression !== undefined) {
+        return current
+      }
+      const moved = rows.rows.map((row) => {
+        if (!Object.hasOwn(row, from)) {
+          return row
+        }
+        const { [from]: value, ...rest } = row
+        return to === undefined ? rest : { ...rest, [to]: value }
+      })
+      return { ...current, [rowsKey]: { ...rows, rows: moved } }
+    })
+  // The type the input had when the dialog opened; the YAML just shown may have changed it already.
+  const originalType = text(original['type'])
   const optionsDraftNow = drafts[draftKey(OPTIONS)] as OptionsDraft | undefined
   const optionRows = optionsDraftNow?.mode === 'list' ? optionsDraftNow.rows : []
   // The schema has two dropdowns: a list with placeholder and autoselect, or options keyed by option-key.
@@ -2127,12 +2198,9 @@ function InputForm({
             ? prop.key !== 'placeholder' && prop.key !== 'autoselect'
             : prop.key !== 'option-key' || optionsDraftNow?.mode === 'expression'
   const settingProps = (TYPE_PROPS[type] ?? []).filter(shown)
-  // A page's description, like its title, can be one per copy when the page repeats.
   const props = [
     ...commonKeys(type).map((key) =>
-      type === 'step' && key === 'description'
-        ? { ...commonProp(key), kind: 'perCopy' as const }
-        : commonProp(key),
+      type === 'step' && key === 'description' ? STEP_DESCRIPTION : commonProp(key),
     ),
     ...settingProps,
   ]
@@ -2163,6 +2231,8 @@ function InputForm({
         ? t.inputExists
         : undefined,
   }
+  // A value kept from before a type change may not suit the new type, so every setting is checked then.
+  const typeChanged = !isNew && type !== originalType
   for (const prop of props) {
     const key = draftKey(prop)
     const required =
@@ -2170,9 +2240,12 @@ function InputForm({
       (keyedDropdown && optionsDraftNow?.mode === 'byKey' && prop === OPTION_KEY) ||
       (slider && ['min', 'max', 'step'].includes(prop.key))
     errors[key] =
-      sameValue(drafts[key], initial[key]) && !required
+      sameValue(drafts[key], initial[key]) && !required && !typeChanged
         ? undefined
         : valueError({ ...prop, required }, kindOf(prop), drafts[key], t, g)
+  }
+  if (type !== 'dropdown' && optionsDraftNow?.mode === 'byKey' && props.includes(OPTIONS)) {
+    errors[draftKey(OPTIONS)] = t.optionsByKeyDropdownOnly
   }
   // A flattened group's fields sit beside it, so they can't share a name with its neighbours.
   const clash =
@@ -2184,21 +2257,37 @@ function InputForm({
   }
   if (type === 'duration') {
     const hasLabel = valueFor(DISABLE_LABEL) !== undefined
-    if (hasLabel !== (valueFor(DISABLE_VALUE) !== undefined)) {
+    const optOut = valueFor(DISABLE_VALUE)
+    if (hasLabel !== (optOut !== undefined)) {
       errors[draftKey(hasLabel ? DISABLE_VALUE : DISABLE_LABEL)] = t.disableNeedsBoth
+    }
+    // The opt-out value is sent as it is, so it can't be an expression.
+    if (typeof optOut === 'string') {
+      errors[draftKey(DISABLE_VALUE)] = t.invalidNumber
+    }
+    // A default of the opt-out value starts the form with its box ticked.
+    const defaultKey = draftKey(DURATION_DEFAULT)
+    if (optOut !== undefined && valueFor(DURATION_DEFAULT) === optOut) {
+      errors[defaultKey] = undefined
     }
   }
 
   const nextDefinition = (): Json => {
-    const next: Json = { type }
+    // Settings this dialog doesn't show are kept as they are; ones the YAML took out stay out.
+    const next: Json = { ...definition, type }
+    for (const key of Object.keys(original)) {
+      if (!Object.hasOwn(next, key)) {
+        next[key] = undefined
+      }
+    }
     for (const prop of props) {
       next[prop.key] = valueFor(prop)
     }
+    // A container's fields carry over from wherever the settings kept them.
     const childKey = editing.inputChildrenKey(type)
-    const previousKey = editing.inputChildrenKey(originalType)
+    const fromKey = editing.inputChildrenKey(text(definition['type']))
     if (childKey && childKey !== 'template') {
-      next[childKey] =
-        (previousKey ? definition[previousKey] : undefined) ?? definition[childKey] ?? {}
+      next[childKey] = (fromKey ? definition[fromKey] : undefined) ?? {}
     }
     // The schema takes one dropdown variant, so the other one's settings go.
     for (const prop of TYPE_PROPS[type] ?? []) {
@@ -2206,10 +2295,37 @@ function InputForm({
         next[prop.key] = undefined
       }
     }
-    // Settings this dialog doesn't show are kept, unless the type changed and they no longer apply.
+    const options = next['options']
+    // Links between options name options there are, so a renamed or removed one leaves none behind.
+    if (type === 'checkbox-group' && next['implies'] !== undefined) {
+      const values = new Set(
+        (Array.isArray(options) ? options : []).map((option) =>
+          String(isScalar(option) ? option : asRecord(option)['value']),
+        ),
+      )
+      const links = Object.entries(asRecord(next['implies']))
+        .filter(([from]) => values.has(from))
+        .map(([from, to]) => [
+          from,
+          (Array.isArray(to) ? to : []).filter((value) => values.has(String(value))),
+        ])
+        .filter(([, to]) => (to as unknown[]).length > 0)
+      next['implies'] = links.length > 0 ? Object.fromEntries(links) : undefined
+    }
+    // A default picks one of the options, so it takes the option's value as written: 4, not '4'.
+    if ((type === 'dropdown' || type === 'radio') && typeof next['default'] === 'string') {
+      const picked = (Array.isArray(options) ? options : [])
+        .map((option) => (isScalar(option) ? option : asRecord(option)['value']))
+        .find((value) => typeof value !== 'string' && String(value) === next['default'])
+      if (picked !== undefined) {
+        next['default'] = picked
+      }
+    }
+    // After a type change, the settings the new type doesn't take go too.
     if (type !== originalType) {
-      for (const key of Object.keys(original)) {
-        if (!Object.hasOwn(next, key) && KNOWN_KEYS.has(key)) {
+      const takes = new Set(offeredInputKeys(editing, type))
+      for (const key of Object.keys(next)) {
+        if (KNOWN_KEYS.has(key) && !takes.has(key)) {
           next[key] = undefined
         }
       }
@@ -2219,13 +2335,24 @@ function InputForm({
 
   const next = nextDefinition()
   const patch = diffPatch(original, next)
-  const renamed = trimmedName !== name
+  const renamed = trimmedName !== originalName
   const dirty = isNew || renamed || !isEmptyPatch(patch)
   const invalid = Object.values(errors).some(Boolean)
   const setDraft = (key: string, value: unknown) =>
     setDrafts((current) => ({ ...current, [key]: value }))
   const changeType = (next: string) => {
     setType(next)
+    // A group's or step's fields carry over as a list's template, as they do between those two.
+    const fromKey = editing.inputChildrenKey(text(definition['type']))
+    const templateKey = draftKey(TEMPLATE)
+    if (
+      next === 'list' &&
+      fromKey &&
+      fromKey !== 'template' &&
+      sameValue(drafts[templateKey], initial[templateKey])
+    ) {
+      setDraft(templateKey, draftOf('template', definition[fromKey]))
+    }
     if (!isNew) {
       return
     }
@@ -2256,6 +2383,8 @@ function InputForm({
       home={newInputs.home}
       template={asRecord(drafts[draftKey(TEMPLATE)])}
       inputLabel={String(drafts[draftKey(commonProp('label'))] ?? '').trim() || trimmedName}
+      onDialog={setNested}
+      onFieldKey={onFieldKey}
     />
   )
   const textProps = props.filter(
@@ -2263,7 +2392,7 @@ function InputForm({
       ((TEXT_FIELDS as readonly string[]).includes(prop.key) ||
         prop.key === 'width' ||
         prop.key === 'anchor-below') &&
-      isCommon(prop),
+      (isCommon(prop) || prop === STEP_DESCRIPTION),
   )
   const behaviorProps = props.filter(
     (prop) => (FLAG_FIELDS as readonly string[]).includes(prop.key) && isCommon(prop),
@@ -2275,14 +2404,14 @@ function InputForm({
   const settingsOpen = settingProps.some((prop) => prop.required || holds(prop))
 
   const written = withoutUndefined(next)
-  onDraft?.(trimmedName, written)
+  onDraft?.(trimmedName, next)
 
   return (
     <DialogShell
       title={t.editInput}
       onClose={onClose}
       dirty={dirty}
-      locked={newInputs.dialog !== null}
+      locked={newInputs.dialog !== null || nested}
       saveDisabled={invalid}
       onSubmit={() => {
         if (dirty) {
