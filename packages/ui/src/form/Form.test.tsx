@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { Form, Formik } from 'formik'
-import type { ReactNode } from 'react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { Form, Formik, type FormikProps, type FormikValues } from 'formik'
+import { createRef, type ReactNode } from 'react'
 
 // Polyfill structuredClone for Jest environment
 if (typeof structuredClone === 'undefined') {
@@ -558,6 +558,66 @@ describe('a repeated wizard page’s bounds', () => {
         expect.objectContaining({ hosts: [{ cpus: 1 }, { cpus: 2 }] }),
       ),
     )
+  })
+})
+
+describe('a repeated wizard page’s copies as its bounds change', () => {
+  const hosts = (bound: number) => ({
+    $meta: { wizard: { mode: 'wizard', navigation: { allowJump: true } } },
+    hosts: {
+      type: 'step',
+      title: 'Host',
+      multi: true,
+      min: bound,
+      max: bound,
+      options: { cpus: { type: 'number' } },
+    },
+  })
+
+  it('brings back what a copy held when a lower max set it aside and the bounds allow it again', async () => {
+    const seen = vi.fn()
+    const initialValues = { hosts: [{ cpus: 1 }, { cpus: 2 }, { cpus: 3 }] }
+    const { rerender } = render(
+      <DynamicForm initialValues={initialValues} setValues={seen} formJSONs={hosts(3)} />,
+    )
+    await screen.findByRole('heading', { name: 'Host 1' })
+    rerender(<DynamicForm initialValues={initialValues} setValues={seen} formJSONs={hosts(2)} />)
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith(
+        expect.objectContaining({ hosts: [{ cpus: 1 }, { cpus: 2 }] }),
+      ),
+    )
+    rerender(<DynamicForm initialValues={initialValues} setValues={seen} formJSONs={hosts(3)} />)
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith(
+        expect.objectContaining({ hosts: [{ cpus: 1 }, { cpus: 2 }, { cpus: 3 }] }),
+      ),
+    )
+  })
+
+  it('shows the nearest page left when the one shown goes, as when saved inputs replace the copies', async () => {
+    const formikRef = createRef<FormikProps<FormikValues>>()
+    render(
+      <DynamicForm
+        initialValues={{}}
+        formikRef={formikRef}
+        formJSONs={{
+          $meta: { wizard: { mode: 'wizard' } },
+          hosts: {
+            type: 'step',
+            title: 'Host',
+            multi: true,
+            options: { cpus: { type: 'number' } },
+          },
+          done: { type: 'step', title: 'Done', options: { note: { type: 'string' } } },
+        }}
+      />,
+    )
+    await screen.findByRole('heading', { name: 'Host' })
+    act(() => {
+      formikRef.current?.resetForm({ values: { hosts: [{ cpus: 4 }, { cpus: 8 }] } })
+    })
+    await screen.findByRole('heading', { name: 'Host 1' })
   })
 })
 
