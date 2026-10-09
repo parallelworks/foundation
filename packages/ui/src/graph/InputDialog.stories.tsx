@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import { expect, screen, userEvent } from 'storybook/test'
 import type { Json } from './editorFields'
 import { InputDialog } from './InputDialog'
 
@@ -46,8 +47,8 @@ export const EditString: StoryObj<typeof InputDialog> = {
       type: 'string',
       label: 'Dataset',
       description: 'Where the training data lives.',
-      default: 's3://datasets/images',
-      placeholder: 's3://bucket/path',
+      default: '/data/images',
+      placeholder: '/data/path',
     },
     inputs: INPUTS,
   },
@@ -111,5 +112,96 @@ export const EditRepeatablePage: StoryObj<typeof InputDialog> = {
       options: { nodes: { type: 'number', label: 'Nodes', default: 2 } },
     },
     inputs: INPUTS,
+  },
+}
+
+/** A dropdown whose options depend on another input: a list for each of its values. */
+export const EditKeyedDropdown: StoryObj<typeof InputDialog> = {
+  args: {
+    name: 'region',
+    definition: {
+      type: 'dropdown',
+      label: 'Region',
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: a workflow expression
+      'option-key': '${{ inputs.provider }}',
+      options: { east: ['east-1', 'east-2'], west: ['west-1'] },
+    },
+    inputs: { provider: { type: 'dropdown', options: ['east', 'west'] } },
+  },
+}
+
+/** A list repeats its template's fields per row, and can start with rows of its own. */
+export const EditList: StoryObj<typeof InputDialog> = {
+  args: {
+    name: 'hosts',
+    definition: {
+      type: 'list',
+      label: 'Hosts',
+      template: {
+        host: { type: 'string', label: 'Host' },
+        port: { type: 'number', label: 'Port' },
+      },
+      default: [{ host: 'one', port: 22 }],
+    },
+    inputs: INPUTS,
+  },
+}
+
+/** A length of time with a box that sends a set value instead, such as -1 for none. */
+export const EditDurationOptOut: StoryObj<typeof InputDialog> = {
+  args: {
+    name: 'idle',
+    definition: {
+      type: 'duration',
+      label: 'Suspend idle nodes after',
+      default: 600,
+      disableLabel: 'Never suspend idle nodes',
+      disableValue: -1,
+    },
+    inputs: INPUTS,
+  },
+}
+
+/** Checkboxes with a description each, and options that tick others along with them. */
+export const EditLinkedCheckboxes: StoryObj<typeof InputDialog> = {
+  args: {
+    name: 'features',
+    definition: {
+      type: 'checkbox-group',
+      label: 'Features',
+      options: [
+        { value: 'gpu', label: 'GPU', description: 'Adds GPU drivers.' },
+        { value: 'cuda', label: 'CUDA', description: 'Needs the GPU drivers.' },
+      ],
+      implies: { cuda: ['gpu'] },
+    },
+    inputs: INPUTS,
+  },
+}
+
+/** A new type: the settings the old one had that the new one doesn't take go, as the note says. */
+export const ChangingType: StoryObj<typeof InputDialog> = {
+  args: {
+    name: 'dataset',
+    definition: { type: 'string', label: 'Dataset', placeholder: '/data/path' },
+    inputs: INPUTS,
+  },
+  play: async () => {
+    const type = await screen.findByRole('combobox', { name: 'Type' })
+    await userEvent.clear(type)
+    await userEvent.type(type, 'Number')
+    await userEvent.click(await screen.findByRole('option', { name: 'Number' }))
+    await expect(await screen.findByText(/new type doesn/i)).toBeVisible()
+  },
+}
+
+/** With a delete button and the host's "open when adding" switch in its footer. */
+export const WithFooter: StoryObj<typeof InputDialog> = {
+  args: {
+    name: 'dataset',
+    definition: { type: 'string', label: 'Dataset' },
+    inputs: INPUTS,
+    onDelete: () => {},
+    openOnAdd: { open: true, onChange: () => {} },
   },
 }

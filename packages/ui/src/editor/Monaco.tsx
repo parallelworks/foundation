@@ -5,6 +5,7 @@ import { useCssIsDark } from '../components/useCssIsDark'
 import type { WorkflowEditing } from '../editing'
 import { holdListeners, modelFor } from './editorModel'
 import {
+  HOST_MARKER_OWNER,
   LINT_OWNER,
   type LintSources,
   lintContext,
@@ -57,9 +58,6 @@ function sameMarkers(
     )
   )
 }
-
-// The problems a host marks, kept apart from the lint's so neither replaces the other's.
-const HOST_OWNER = 'workflowmarkers'
 
 // Setting markers runs the check again through the marker listener; leaving equal ones stops the loop.
 function setMarkers(
@@ -145,11 +143,11 @@ export default function MonacoEditor({
 
   useEffect(() => {
     const model = monacoRef.current?.getModel()
-    if (model && markers) {
+    if (model) {
       setMarkers(
         model,
-        HOST_OWNER,
-        markers.map((marker) => lintMarker(model, marker)),
+        HOST_MARKER_OWNER,
+        (markers ?? []).map((marker) => lintMarker(model, marker)),
       )
     }
   }, [markers])
@@ -245,7 +243,7 @@ export default function MonacoEditor({
           // A refilled model may still hold the last editor's markers; the lint's come back once it runs.
           setMarkers(
             model,
-            HOST_OWNER,
+            HOST_MARKER_OWNER,
             (markers ?? []).map((marker) => lintMarker(model, marker)),
           )
           setMarkers(model, LINT_OWNER, [])
@@ -261,7 +259,7 @@ export default function MonacoEditor({
               .filter(
                 (marker) =>
                   marker.owner !== LINT_OWNER &&
-                  marker.owner !== HOST_OWNER &&
+                  marker.owner !== HOST_MARKER_OWNER &&
                   String(marker.code ?? '') !== SCHEMA_UNREADABLE,
               )
             const source = model.getValue()

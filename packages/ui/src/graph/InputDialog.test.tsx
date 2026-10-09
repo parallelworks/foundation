@@ -325,15 +325,15 @@ describe('InputDialog', () => {
     const [first, second] = screen.getAllByRole('combobox', { name: /, item \d+$/ })
     fireEvent.change(first as HTMLElement, { target: { value: 'b' } })
     fireEvent.change(second as HTMLElement, {
-      target: { value: 'pw://greybackup/mycluster' },
+      target: { value: 'clusters/mycluster' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(onSave).toHaveBeenCalledWith(
       'field',
       expect.objectContaining({
-        default: ['b', 'pw://greybackup/mycluster'],
+        default: ['b', 'clusters/mycluster'],
       }),
-      { set: { default: ['b', 'pw://greybackup/mycluster'] }, unset: [] },
+      { set: { default: ['b', 'clusters/mycluster'] }, unset: [] },
       [],
     )
   })
@@ -341,26 +341,26 @@ describe('InputDialog', () => {
   it('turns a cluster default into a list once several can be picked', () => {
     const onSave = open({
       type: 'compute-clusters',
-      default: 'pw://greybackup/one',
+      default: 'clusters/one',
     })
     fireEvent.click(screen.getByRole('checkbox', { name: 'Multiple choices' }))
     const add = screen.getByRole('button', { name: 'Add value' })
     fireEvent.click(add)
     const rows = screen.getAllByRole('combobox', { name: /, item \d+$/ })
-    expect(rows[0]).toHaveValue('pw://greybackup/one')
+    expect(rows[0]).toHaveValue('clusters/one')
     fireEvent.change(rows[1] as HTMLElement, {
-      target: { value: 'pw://greybackup/two' },
+      target: { value: 'clusters/two' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(onSave).toHaveBeenCalledWith(
       'field',
       expect.objectContaining({
         multi: true,
-        default: ['pw://greybackup/one', 'pw://greybackup/two'],
+        default: ['clusters/one', 'clusters/two'],
       }),
       {
         set: {
-          default: ['pw://greybackup/one', 'pw://greybackup/two'],
+          default: ['clusters/one', 'clusters/two'],
           multi: true,
         },
         unset: [],
@@ -475,7 +475,8 @@ describe('InputDialog', () => {
 
   it('gives a repeatable page a title per copy and its fewest and most copies from its dialog', () => {
     const onSave = open({ type: 'step', title: 'Host', multi: true, options: {} })
-    const [titlePerCopy] = screen.getAllByRole('checkbox', { name: 'One per copy' })
+    // The description's comes first, in the Field section.
+    const [, titlePerCopy] = screen.getAllByRole('checkbox', { name: 'One per copy' })
     fireEvent.click(titlePerCopy as HTMLElement)
     fireEvent.change(screen.getByLabelText('Minimum'), { target: { value: '1' } })
     fireEvent.change(screen.getByLabelText('Maximum'), { target: { value: '3' } })
@@ -484,6 +485,19 @@ describe('InputDialog', () => {
       'field',
       { type: 'step', title: ['Host'], multi: true, min: 1, max: 3, options: {} },
       { set: { title: ['Host'], min: 1, max: 3 }, unset: [] },
+      [],
+    )
+  })
+
+  it('shows a page’s description, and saves the one typed', () => {
+    const onSave = open({ type: 'step', title: 'Host', description: 'Pick a site', options: {} })
+    const description = screen.getByDisplayValue('Pick a site')
+    fireEvent.change(description, { target: { value: 'Pick a region' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith(
+      'field',
+      { type: 'step', title: 'Host', description: 'Pick a region', options: {} },
+      { set: { description: 'Pick a region' }, unset: [] },
       [],
     )
   })
@@ -612,5 +626,225 @@ describe('InputDialog', () => {
       },
       [],
     )
+  })
+})
+
+describe('InputDialog in two views', () => {
+  function openViews(definition: Record<string, unknown>, inputs?: Record<string, unknown>) {
+    const onSave = vi.fn()
+    const onYaml = vi.fn()
+    render(
+      <InputDialog
+        name="field"
+        definition={definition}
+        isNew={false}
+        siblings={[]}
+        allowStep
+        inputs={inputs}
+        onSave={onSave}
+        onClose={() => {}}
+        yaml={{ onSave: onYaml }}
+        view="form"
+      />,
+    )
+    return { onSave, onYaml }
+  }
+  const yamlText = async () =>
+    ((await screen.findByLabelText('file:///workflow-input.yaml')) as HTMLTextAreaElement).value
+  const toYaml = () => fireEvent.click(screen.getByRole('button', { name: 'YAML' }))
+  const toForm = () => fireEvent.click(screen.getByRole('button', { name: 'Form' }))
+
+  it('carries a setting the form cleared into the YAML', async () => {
+    openViews({ type: 'string', label: 'Dataset', hidden: true })
+    fireEvent.change(screen.getByLabelText('Label'), { target: { value: '' } })
+    toYaml()
+    expect(await yamlText()).not.toContain('Dataset')
+  })
+
+  it('keeps a rename across a trip to the YAML and back', () => {
+    const { onSave } = openViews({ type: 'string' })
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'renamed' } })
+    toYaml()
+    toForm()
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith('renamed', { type: 'string' }, expect.anything(), [])
+  })
+
+  it('drops the old type’s settings after a trip to the YAML and back', () => {
+    const { onSave } = openViews({ type: 'string', placeholder: 'Name' })
+    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'number' } })
+    toYaml()
+    toForm()
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith(
+      'field',
+      { type: 'number' },
+      { set: { type: 'number' }, unset: ['placeholder'] },
+      [],
+    )
+  })
+
+  it('drops a setting the type changed in the YAML no longer takes, once saved from the form', async () => {
+    const onSave = vi.fn()
+    render(
+      <InputDialog
+        name="field"
+        definition={{ type: 'string', placeholder: 'Name' }}
+        isNew={false}
+        siblings={[]}
+        allowStep
+        onSave={onSave}
+        onClose={() => {}}
+        yaml={{ onSave: () => {} }}
+        view="yaml"
+      />,
+    )
+    fireEvent.change(await screen.findByLabelText('file:///workflow-input.yaml'), {
+      target: { value: 'type: number\nplaceholder: Name\n' },
+    })
+    toForm()
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith(
+      'field',
+      { type: 'number' },
+      { set: { type: 'number' }, unset: ['placeholder'] },
+      [],
+    )
+  })
+
+  it('saves the inputs it made for a setting with the YAML', () => {
+    const { onYaml } = openViews({ type: 'slurm-accounts' }, {})
+    fireEvent.click(screen.getByRole('button', { name: 'New Cluster input…' }))
+    const dialogs = screen.getAllByRole('dialog')
+    fireEvent.click(
+      within(dialogs[dialogs.length - 1] as HTMLElement).getByRole('button', { name: 'Save' }),
+    )
+    toYaml()
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onYaml).toHaveBeenCalledWith('field', expect.stringContaining('inputs.cluster'), [
+      expect.objectContaining({ name: 'cluster' }),
+    ])
+  })
+})
+
+describe('InputDialog keeps what it does not show', () => {
+  function open(definition: Record<string, unknown>) {
+    const onSave = vi.fn()
+    render(
+      <InputDialog
+        name="field"
+        definition={definition}
+        isNew={false}
+        siblings={[]}
+        allowStep
+        onSave={onSave}
+        onClose={() => {}}
+      />,
+    )
+    return onSave
+  }
+
+  it('returns settings it has no field for along with the ones it changed', () => {
+    const onSave = open({ type: 'string', label: 'Host', 'x-note': 'kept' })
+    fireEvent.change(screen.getByLabelText('Label'), { target: { value: 'Hostname' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith(
+      'field',
+      { type: 'string', label: 'Hostname', 'x-note': 'kept' },
+      { set: { label: 'Hostname' }, unset: [] },
+      [],
+    )
+  })
+
+  it('offers a text field’s length, case and characters to strip', () => {
+    open({ type: 'string', minLength: 2, maxLength: 8, lowercase: true, sanitize: '[^a-z]' })
+    expect(screen.getByLabelText('Shortest')).toHaveValue('2')
+    expect(screen.getByLabelText('Longest')).toHaveValue('8')
+    expect(screen.getByLabelText('Characters to strip')).toHaveValue('[^a-z]')
+  })
+
+  it('checks a kept setting the new type can’t hold, as options keyed by another input', () => {
+    open({ type: 'dropdown', options: { aws: ['a'] }, 'option-key': '${{ inputs.csp }}' })
+    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'multi-dropdown' } })
+    expect(screen.getByText(INPUTS_EDITOR_STRINGS.optionsByKeyDropdownOnly)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  })
+
+  it('carries a group’s fields into a list’s template', () => {
+    const onSave = open({ type: 'group', items: { host: { type: 'string' } } })
+    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'list' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith(
+      'field',
+      { type: 'list', template: { host: { type: 'string' } } },
+      expect.anything(),
+      [],
+    )
+  })
+
+  it('labels a numeric option and saves a default picking it as the number', () => {
+    const onSave = open({ type: 'dropdown', options: [{ value: 'a', label: 'A' }] })
+    fireEvent.click(screen.getByRole('button', { name: 'Add option' }))
+    const values = screen.getAllByRole('textbox', { name: 'Value' })
+    fireEvent.change(values[values.length - 1] as HTMLElement, { target: { value: '4' } })
+    fireEvent.change(screen.getByLabelText('Default'), { target: { value: '4' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith(
+      'field',
+      expect.objectContaining({
+        options: [
+          { value: 'a', label: 'A' },
+          { value: 4, label: '4' },
+        ],
+        default: 4,
+      }),
+      expect.anything(),
+      [],
+    )
+  })
+
+  it('moves a renamed template field’s value in the default rows, and drops a removed one’s', () => {
+    const onSave = open({
+      type: 'list',
+      template: { host: { type: 'string' }, port: { type: 'number' } },
+      default: [{ host: 'a', port: 22 }],
+    })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit input' })[0] as HTMLElement)
+    const dialogs = screen.getAllByRole('dialog')
+    const nested = dialogs[dialogs.length - 1] as HTMLElement
+    fireEvent.change(within(nested).getByLabelText('Name'), { target: { value: 'hostname' } })
+    fireEvent.click(within(nested).getByRole('button', { name: 'Save' }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Delete input' })[1] as HTMLElement)
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith(
+      'field',
+      expect.objectContaining({ default: [{ hostname: 'a' }] }),
+      expect.anything(),
+      [],
+    )
+  })
+
+  it('leaves the list’s dialog open on Escape in a field’s dialog', () => {
+    const onClose = vi.fn()
+    render(
+      <InputDialog
+        name="field"
+        definition={{ type: 'list', template: { host: { type: 'string' } } }}
+        isNew={false}
+        siblings={[]}
+        allowStep
+        onSave={() => {}}
+        onClose={onClose}
+      />,
+    )
+    fireEvent.click(screen.getByText('Add field'))
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('takes the opt-out value as a duration’s default, and only a number for it', () => {
+    open({ type: 'duration', disableLabel: 'Never', disableValue: -1, default: -1 })
+    expect(screen.getByLabelText('Default')).toHaveValue('-1')
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
   })
 })

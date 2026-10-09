@@ -114,4 +114,26 @@ describe('lintContext over time', () => {
     lint(testEngine.editing, 'jobs: {}\n', { secrets }, onMore)
     expect(secrets).toHaveBeenCalledTimes(2)
   })
+
+  it('keeps the last target it read when a refresh fails, and tries again soon', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const lint = await fresh()
+    const resolve = vi.fn(async () => inputs('color'))
+    const onMore = vi.fn()
+    lint(testEngine.editing, usesChild('flaky'), { resolve }, onMore)
+    await vi.waitFor(() => expect(onMore).toHaveBeenCalledOnce())
+    resolve.mockImplementation(async () => {
+      throw new Error('offline')
+    })
+    vi.setSystemTime(Date.now() + 61_000)
+    lint(testEngine.editing, usesChild('flaky'), { resolve }, onMore)
+    await vi.waitFor(() => expect(onMore).toHaveBeenCalledTimes(2))
+    expect(lint(testEngine.editing, usesChild('flaky'), { resolve }, onMore).usesInputs).toEqual({
+      'workflow/flaky': { color: { type: 'string' } },
+    })
+    expect(resolve).toHaveBeenCalledTimes(2)
+    vi.setSystemTime(Date.now() + 11_000)
+    lint(testEngine.editing, usesChild('flaky'), { resolve }, onMore)
+    expect(resolve).toHaveBeenCalledTimes(3)
+  })
 })
