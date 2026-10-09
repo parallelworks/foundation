@@ -16,7 +16,7 @@ import {
   type UsesSources,
 } from '../graph/usesInputs'
 
-export { LINT_OWNER } from './lintOwner'
+export { HOST_MARKER_OWNER, LINT_OWNER } from './lintOwner'
 
 export interface LintSources extends UsesSources {
   secrets?: (() => Promise<string[]>) | undefined
@@ -36,6 +36,13 @@ interface Kept<T> {
 
 const stale = (kept: Kept<unknown> | undefined) =>
   !kept || Date.now() - kept.at > (kept.value === null ? KEEP_FAILED_MS : KEEP_MS)
+
+// A read that failed keeps what the last one brought, tried again as soon as a failure would be.
+function failed<T>(kept: Kept<T> | undefined): Kept<T> {
+  return kept?.value
+    ? { value: kept.value, at: Date.now() - KEEP_MS + KEEP_FAILED_MS }
+    : { value: null, at: Date.now() }
+}
 
 const targets = new Map<string, Kept<Record<string, unknown>>>()
 let secretNames: Kept<string[]> | undefined
@@ -118,7 +125,7 @@ export function lintContext(
             targets.set(key, { value: inputs, at: Date.now() })
           },
           () => {
-            targets.set(key, { value: null, at: Date.now() })
+            targets.set(key, failed(targets.get(key)))
           },
         ),
       )
@@ -132,7 +139,7 @@ export function lintContext(
           secretNames = { value: names, at: Date.now() }
         },
         () => {
-          secretNames = { value: null, at: Date.now() }
+          secretNames = failed(secretNames)
         },
       ),
     )
