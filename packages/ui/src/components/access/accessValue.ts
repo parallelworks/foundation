@@ -31,11 +31,11 @@ export interface Holder {
 
 const NONE: Record<string, boolean> = {}
 
-export function grants(value: AccessValue, subject: AccessSubject): Record<string, boolean> {
+function grants(value: AccessValue, subject: AccessSubject): Record<string, boolean> {
   return (subject === null ? value.organization : value.groups[subject]) ?? NONE
 }
 
-export function hasAccess(perms: Record<string, boolean>): boolean {
+function hasAccess(perms: Record<string, boolean>): boolean {
   return Object.values(perms).some(Boolean)
 }
 
@@ -110,22 +110,33 @@ export function revoke(value: AccessValue, subject: AccessSubject, key: string):
   return withGrants(value, subject, rest)
 }
 
+export type AccessPair = readonly [subject: AccessSubject, key: string]
+
+/** The subject/permission pairs not yet granted directly. */
+export function ungranted(
+  value: AccessValue,
+  subjects: readonly AccessSubject[],
+  keys: readonly string[],
+): AccessPair[] {
+  const pairs: AccessPair[] = []
+  for (const subject of subjects) {
+    const perms = grants(value, subject)
+    for (const key of keys) {
+      if (!perms[key]) {
+        pairs.push([subject, key])
+      }
+    }
+  }
+  return pairs
+}
+
 /** How many of the subject/permission pairs are already granted directly. */
 export function alreadyGranted(
   value: AccessValue,
   subjects: readonly AccessSubject[],
   keys: readonly string[],
 ): number {
-  let count = 0
-  for (const subject of subjects) {
-    const perms = grants(value, subject)
-    for (const key of keys) {
-      if (perms[key]) {
-        count++
-      }
-    }
-  }
-  return count
+  return subjects.length * keys.length - ungranted(value, subjects, keys).length
 }
 
 function granted(perms: Record<string, boolean>): Record<string, boolean> {

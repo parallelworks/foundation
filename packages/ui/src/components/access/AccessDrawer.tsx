@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { AddIcon, ChevronRightIcon, SearchIcon, TrashIcon, UsersIcon } from '../../icons'
 import { ConfirmModal } from '../ConfirmModal'
-import { Drawer } from '../Drawer'
+import { Drawer, shown } from '../Drawer'
 import EmptyState from '../EmptyState'
 import { dangerButtonClasses, ghostButtonClasses, primaryButtonClasses } from '../ghostButton'
 import { positionKeys } from '../keys'
@@ -19,6 +19,7 @@ import {
   type ImpliedPermissions,
   normalize,
   revoke,
+  ungranted,
 } from './accessValue'
 import { GrantAccessDrawer } from './GrantAccessDrawer'
 
@@ -57,11 +58,18 @@ export interface AccessDrawerProps {
 
 const NO_IMPLIED: ImpliedPermissions = {}
 const EMPTY: AccessValue = { organization: {}, groups: {} }
+const ORGANIZATION: { disabledReason?: ReactNode } = {}
+
+/**
+ * Runs on the grants as they are when the save starts, not when it was asked for, so a
+ * refetch that lands while a confirmation is open isn't overwritten. `undo` reverses just
+ * this change, keeping edits others made since.
+ */
+type Change = (value: AccessValue) => { next: AccessValue; undo?: Change }
 
 interface PendingSave {
-  next: AccessValue
+  change: Change
   notice: string
-  undoable: boolean
   onDone?: () => void
 }
 
@@ -76,7 +84,7 @@ export function AccessDrawer({
   value,
   loading = false,
   error,
-  organization = {},
+  organization = ORGANIZATION,
   readOnly = false,
   extra,
   emptyAction,
@@ -88,7 +96,7 @@ export function AccessDrawer({
   const strings = useStrings().access
   const [current, setCurrent] = useState(value)
   const [saving, setSaving] = useState(false)
-  const [notice, setNotice] = useState<{ text: string; previous?: AccessValue } | null>(null)
+  const [notice, setNotice] = useState<{ text: string; undo?: Change } | null>(null)
   const [query, setQuery] = useState(defaultQuery)
   const deferredQuery = useDeferredValue(query)
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
@@ -97,24 +105,33 @@ export function AccessDrawer({
   const [pending, setPending] = useState<PendingSave | null>(null)
   const filterRef = useRef<HTMLInputElement>(null)
   const savingRef = useRef(false)
+  const refetched = useRef<{ value: AccessValue | undefined } | null>(null)
+  const refocusFilter = useRef(false)
 
-  // While a save is in flight the shown grants are the ones being saved; a refetch that
-  // lands mid-save would briefly show the old grants again.
+  // A refetch that lands mid-save may predate it, so it waits: the saved grants replace it
+  // when the save succeeds, and it shows when the save fails.
   useEffect(() => {
-    if (!savingRef.current) {
+    if (savingRef.current) {
+      refetched.current = { value }
+    } else {
       setCurrent(value)
     }
   }, [value])
 
   useEffect(() => {
     if (open) {
-      setQuery(defaultQuery)
       setNotice(null)
       setExpanded(new Set())
     } else {
       setGranting(false)
       setPending(null)
       setRemoving(null)
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (open) {
+      setQuery(defaultQuery)
     }
   }, [open, defaultQuery])
 
@@ -134,6 +151,17 @@ export function AccessDrawer({
     () => holdersByPermission(current ?? EMPTY, permissions, implied),
     [current, permissions, implied],
   )
+
+  // A save can take away the row that had focus; keep focus in the drawer.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: new rows are the trigger, not an input
+  useEffect(() => {
+    if (refocusFilter.current) {
+      refocusFilter.current = false
+      if (document.activeElement === document.body) {
+        filterRef.current?.focus()
+      }
+    }
+  }, [holders])
 
   const sections = useMemo(() => {
     const needle = deferredQuery.trim().toLowerCase()
@@ -167,18 +195,23 @@ export function AccessDrawer({
     return result.filter((s) => s.rows.length > 0)
   }, [permissions, holders, deferredQuery, strings])
 
-  const save = async ({ next, notice: text, undoable, onDone }: PendingSave) => {
-    const previous = current
+  const save = async ({ change, notice: text, onDone }: PendingSave) => {
+    const { next, undo } = change(current ?? EMPTY)
     savingRef.current = true
     setSaving(true)
     try {
       await onSave(normalize(next))
       setCurrent(next)
-      setNotice(undoable && previous ? { text, previous } : { text })
+      setNotice(undo ? { text, undo } : { text })
+      refocusFilter.current = true
       onDone?.()
     } catch {
       // The host reports the failure; the shown grants stay as they were.
+      if (refetched.current) {
+        setCurrent(refetched.current.value)
+      }
     } finally {
+      refetched.current = null
       savingRef.current = false
       setSaving(false)
     }
@@ -193,11 +226,19 @@ export function AccessDrawer({
     }
   }
 
+  // Undo grants again, so it isn't offered where a grant to the organization isn't allowed.
+  const canGrantOrganization = organization !== false && !organization.disabledReason
+
   const removeHolder = (subject: AccessSubject, permission: AccessPermission) =>
     request({
-      next: revoke(current ?? EMPTY, subject, permission.key),
+      change: (base) => {
+        const next = revoke(base, subject, permission.key)
+        if (subject === null && !canGrantOrganization) {
+          return { next }
+        }
+        return { next, undo: (v) => ({ next: grant(v, [subject], [permission.key]) }) }
+      },
       notice: strings.removed(labelOf(subject), permission.label),
-      undoable: true,
     })
 
   const toolbar = (
@@ -222,7 +263,7 @@ export function AccessDrawer({
           <label className="relative flex min-w-48 flex-1 items-center">
             <SearchIcon
               aria-hidden="true"
-              className="pointer-events-none absolute left-3 h-3.5 w-3.5 text-(--theme-muted-text-color)"
+              className="pointer-events-none absolute start-3 h-3.5 w-3.5 text-(--theme-muted-text-color)"
             />
             <input
               ref={filterRef}
@@ -231,28 +272,29 @@ export function AccessDrawer({
               onChange={(e) => setQuery(e.target.value)}
               placeholder={strings.filter}
               aria-label={strings.filter}
-              className="h-9 w-full rounded-md border border-(--theme-border) bg-(--theme-input-bg) pr-3 pl-9 text-sm text-(--theme-input) placeholder:text-(--theme-muted-text-color) focus:border-(--theme-element) focus:outline-none"
+              className="h-9 w-full rounded-md border border-(--theme-border) bg-(--theme-input-bg) ps-9 pe-3 text-sm text-(--theme-input) placeholder:text-(--theme-muted-text-color) focus:border-(--theme-element) focus:outline-none"
             />
           </label>
           <span className="shrink-0 text-[13px] text-(--theme-muted-text-color)">
             {strings.grantedSummary(holders.size, permissions.length)}
           </span>
+          {/* Mounted before any notice: screen readers skip a live region added with its text. */}
+          <p role="status" className="sr-only">
+            {notice?.text}
+          </p>
         </div>
       )}
     </div>
   )
 
   const footer = notice ? (
-    <div role="status" className="flex items-center gap-2">
+    <div className="flex items-center gap-2">
       <p className="min-w-0 flex-1 text-[13px]">{notice.text}</p>
-      {notice.previous && !readOnly && (
+      {notice.undo && !readOnly && (
         <button
           type="button"
           disabled={saving}
-          onClick={() =>
-            notice.previous &&
-            request({ next: notice.previous, notice: strings.undone, undoable: false })
-          }
+          onClick={() => notice.undo && request({ change: notice.undo, notice: strings.undone })}
           className={cx(ghostButtonClasses, 'font-medium text-(--theme-link)')}
         >
           {strings.undo}
@@ -273,7 +315,7 @@ export function AccessDrawer({
         onClose={onClose}
         title={title ?? strings.title}
         description={description}
-        toolbar={extra !== undefined || ready ? toolbar : undefined}
+        toolbar={shown(extra) || ready ? toolbar : undefined}
         footer={footer}
         preventClose={granting || saving || pending !== null}
         width={width}
@@ -286,7 +328,7 @@ export function AccessDrawer({
           <div className="p-6">
             <EmptyState
               title={strings.noGrants}
-              description={strings.noGrantsHint}
+              {...(readOnly ? {} : { description: strings.noGrantsHint })}
               action={emptyAction}
             />
           </div>
@@ -350,9 +392,9 @@ export function AccessDrawer({
           ))
         )}
       </Drawer>
-      {current !== undefined && (
+      {granting && current !== undefined && (
         <GrantAccessDrawer
-          open={open && granting}
+          open={open}
           onClose={() => setGranting(false)}
           description={description}
           permissions={permissions}
@@ -364,14 +406,21 @@ export function AccessDrawer({
           width={width}
           onGrant={(subjects, keys) =>
             request({
-              next: grant(current, subjects, keys),
+              change: (base) => {
+                const added = ungranted(base, subjects, keys)
+                return {
+                  next: grant(base, subjects, keys),
+                  undo: (v) => ({
+                    next: added.reduce((acc, [subject, key]) => revoke(acc, subject, key), v),
+                  }),
+                }
+              },
               notice: strings.granted(
                 keys.length,
                 subjects.length === 1 && subjects[0] !== undefined
                   ? labelOf(subjects[0])
                   : strings.groupCount(subjects.length),
               ),
-              undoable: true,
               onDone: () => {
                 setGranting(false)
                 setExpanded((prev) => new Set([...prev, ...keys]))
@@ -427,16 +476,20 @@ function PermissionRow({
   onRemove: (subject: AccessSubject) => void
 }) {
   const strings = useStrings().access
+  const toggleRef = useRef<HTMLButtonElement>(null)
+  // The holder whose Remove button takes focus back from a cancelled confirmation.
+  const refocus = useRef<AccessSubject | undefined>(undefined)
   const names = holders.map((h) => (h.subject === null ? strings.everyone : h.subject))
   const preview =
     names.slice(0, 2).join(', ') + (names.length > 2 ? ` ${strings.more(names.length - 2)}` : '')
   return (
     <li className="border-b border-(--theme-border)">
       <button
+        ref={toggleRef}
         type="button"
         aria-expanded={expanded}
         onClick={onToggle}
-        className="flex min-h-13 w-full cursor-pointer items-center gap-2.5 px-6 py-1.5 text-left hover:bg-(--theme-hover)"
+        className="flex min-h-13 w-full cursor-pointer items-center gap-2.5 px-6 py-1.5 text-start hover:bg-(--theme-hover)"
       >
         <ChevronRightIcon
           aria-hidden="true"
@@ -468,7 +521,7 @@ function PermissionRow({
             return (
               <li
                 key={holder.subject ?? ''}
-                className="flex min-h-11 flex-wrap items-center gap-x-2.5 gap-y-1 py-1 pr-6 pl-12"
+                className="flex min-h-11 flex-wrap items-center gap-x-2.5 gap-y-1 py-1 ps-12 pe-6"
               >
                 <span
                   aria-hidden="true"
@@ -498,29 +551,26 @@ function PermissionRow({
                   </span>
                 </span>
                 {!readOnly && holder.via === null && confirming && (
-                  <span className="flex items-center gap-1.5">
-                    <span className="text-xs text-(--theme-muted-text-color)">
-                      {strings.confirmRemove}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={onCancelRemove}
-                      className={cx(ghostButtonClasses, 'h-7 px-2 text-xs')}
-                    >
-                      {strings.cancel}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onRemove(holder.subject)}
-                      disabled={saving}
-                      className={cx(dangerButtonClasses, 'disabled:opacity-50')}
-                    >
-                      {strings.remove}
-                    </button>
-                  </span>
+                  <ConfirmRemove
+                    saving={saving}
+                    onCancel={() => {
+                      refocus.current = holder.subject
+                      onCancelRemove()
+                    }}
+                    onRemove={() => {
+                      toggleRef.current?.focus()
+                      onRemove(holder.subject)
+                    }}
+                  />
                 )}
                 {!readOnly && holder.via === null && !confirming && (
                   <button
+                    ref={(button) => {
+                      if (button && refocus.current === holder.subject) {
+                        refocus.current = undefined
+                        button.focus()
+                      }
+                    }}
                     type="button"
                     onClick={() => onAskRemove(holder.subject)}
                     disabled={saving}
@@ -540,6 +590,44 @@ function PermissionRow({
         </ul>
       )}
     </li>
+  )
+}
+
+function ConfirmRemove({
+  saving,
+  onCancel,
+  onRemove,
+}: {
+  saving: boolean
+  onCancel: () => void
+  onRemove: () => void
+}) {
+  const strings = useStrings().access
+  const cancelRef = useRef<HTMLButtonElement>(null)
+  // It replaces the focused Remove button, so focus would otherwise fall out of the drawer.
+  useEffect(() => {
+    cancelRef.current?.focus()
+  }, [])
+  return (
+    <span className="flex items-center gap-1.5">
+      <span className="text-xs text-(--theme-muted-text-color)">{strings.confirmRemove}</span>
+      <button
+        ref={cancelRef}
+        type="button"
+        onClick={onCancel}
+        className={cx(ghostButtonClasses, 'h-7 px-2 text-xs')}
+      >
+        {strings.cancel}
+      </button>
+      <button
+        type="button"
+        onClick={onRemove}
+        disabled={saving}
+        className={cx(dangerButtonClasses, 'disabled:opacity-50')}
+      >
+        {strings.remove}
+      </button>
+    </span>
   )
 }
 

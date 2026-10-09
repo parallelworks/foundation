@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AccessDrawer, type AccessDrawerProps } from './AccessDrawer'
@@ -18,6 +18,10 @@ const GROUPS = [{ name: 'zeta', members: 3 }, { name: 'alpha', members: 1 }, { n
 const VALUE: AccessValue = {
   organization: {},
   groups: { zeta: { admin: true }, beta: { read: true } },
+}
+const REFRESHED: AccessValue = {
+  organization: {},
+  groups: { zeta: { admin: true }, beta: { read: true }, alpha: { login: true } },
 }
 
 function renderDrawer(props: Partial<AccessDrawerProps> = {}) {
@@ -111,7 +115,104 @@ describe('AccessDrawer', () => {
     await waitFor(() => expect(onSave).toHaveBeenCalled())
     await waitFor(() => expect(screen.getByRole('button', { name: 'Grant access' })).toBeEnabled())
     expect(holders('Admin').getByText('zeta')).toBeInTheDocument()
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toBeEmptyDOMElement()
+  })
+
+  it('shows grants refreshed while a save that then fails was in flight', async () => {
+    let fail: (error: Error) => void = () => {}
+    const onSave = vi.fn(() => new Promise<void>((_, reject) => (fail = reject)))
+    const props = {
+      open: true,
+      onClose: () => {},
+      permissions: PERMISSIONS,
+      groups: GROUPS,
+      onSave,
+    }
+    const { rerender } = render(<AccessDrawer {...props} value={VALUE} />)
+    fireEvent.click(permissionButton('Admin'))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove zeta from Admin' }))
+    fireEvent.click(holders('Admin').getByRole('button', { name: 'Remove' }))
+    rerender(<AccessDrawer {...props} value={REFRESHED} />)
+    await act(async () => fail(new Error('nope')))
+    expect(permissionButton('Login')).toBeInTheDocument()
+  })
+
+  it('saves a confirmed change on top of grants refreshed while confirming', async () => {
+    const onSave = vi.fn(async (_next: AccessValue) => {})
+    const props = {
+      open: true,
+      onClose: () => {},
+      permissions: PERMISSIONS,
+      groups: GROUPS,
+      onSave,
+      confirmSave: { title: 'Save access?' },
+    }
+    const { rerender } = render(<AccessDrawer {...props} value={VALUE} />)
+    fireEvent.click(permissionButton('Admin'))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove zeta from Admin' }))
+    rerender(<AccessDrawer {...props} value={REFRESHED} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Save' }))
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith({
+        organization: {},
+        groups: { beta: { read: true }, alpha: { login: true } },
+      }),
+    )
+  })
+
+  it('undoes only its own change, keeping grants refreshed since', async () => {
+    const onSave = vi.fn(async (_next: AccessValue) => {})
+    const props = {
+      open: true,
+      onClose: () => {},
+      permissions: PERMISSIONS,
+      groups: GROUPS,
+      onSave,
+    }
+    const { rerender } = render(<AccessDrawer {...props} value={VALUE} />)
+    fireEvent.click(permissionButton('Admin'))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove zeta from Admin' }))
+    fireEvent.click(holders('Admin').getByRole('button', { name: 'Remove' }))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Removed'))
+    rerender(
+      <AccessDrawer
+        {...props}
+        value={{ organization: {}, groups: { beta: { read: true }, alpha: { login: true } } }}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    await waitFor(() => expect(onSave).toHaveBeenLastCalledWith(REFRESHED))
+  })
+
+  it("doesn't offer to undo removing the organization when it can't be granted", async () => {
+    renderDrawer({
+      value: { organization: { read: true }, groups: {} },
+      organization: { disabledReason: 'Turned off by policy' },
+    })
+    fireEvent.click(permissionButton('Read buckets'))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Remove Everyone in the organization from Read buckets' }),
+    )
+    fireEvent.click(holders('Read buckets').getByRole('button', { name: 'Remove' }))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Removed'))
+    expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
+  })
+
+  it('keeps focus in the drawer while removing a holder', async () => {
+    renderDrawer()
+    fireEvent.click(permissionButton('Admin'))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove zeta from Admin' }))
+    expect(holders('Admin').getByRole('button', { name: 'Cancel' })).toHaveFocus()
+    fireEvent.click(holders('Admin').getByRole('button', { name: 'Cancel' }))
+    expect(screen.getByRole('button', { name: 'Remove zeta from Admin' })).toHaveFocus()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove zeta from Admin' }))
+    fireEvent.click(holders('Admin').getByRole('button', { name: 'Remove' }))
+    await waitFor(() =>
+      expect(
+        screen.getByRole('searchbox', { name: 'Filter by permission or group' }),
+      ).toHaveFocus(),
+    )
   })
 
   it('grants permissions to several groups from the grant drawer', async () => {
@@ -137,6 +238,21 @@ describe('AccessDrawer', () => {
     })
     expect(screen.getAllByRole('dialog')).toHaveLength(1)
     expect(holders('Read buckets').getByText('alpha')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Change undone'))
+    expect(onSave).toHaveBeenLastCalledWith(VALUE)
+  })
+
+  it('keeps the grant drawer and its picks while a save is in flight', () => {
+    renderDrawer({ onSave: vi.fn(() => new Promise<void>(() => {})) })
+    fireEvent.click(screen.getByRole('button', { name: 'Grant access' }))
+    const grantDialog = within(screen.getAllByRole('dialog').at(-1) as HTMLElement)
+    fireEvent.click(grantDialog.getByRole('checkbox', { name: /^alpha/ }))
+    fireEvent.click(grantDialog.getByRole('checkbox', { name: /^Read buckets/ }))
+    fireEvent.click(grantDialog.getByRole('button', { name: 'Save' }))
+    fireEvent.click(grantDialog.getByRole('button', { name: 'Close' }))
+    expect(screen.getAllByRole('dialog')).toHaveLength(2)
   })
 
   it('narrows the permission picker to one resource type', () => {
@@ -196,6 +312,12 @@ describe('AccessDrawer', () => {
     renderDrawer({ value: { organization: {}, groups: {} } })
     expect(screen.getByText('No one has access yet')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Grant access' })).toBeInTheDocument()
+  })
+
+  it("doesn't point a read-only viewer at Grant access when no one has access", () => {
+    renderDrawer({ value: { organization: {}, groups: {} }, readOnly: true })
+    expect(screen.getByText('No one has access yet')).toBeInTheDocument()
+    expect(screen.queryByText(/Use Grant access/)).not.toBeInTheDocument()
   })
 
   it('returns focus to the trigger and unlocks scrolling after both drawers close', async () => {

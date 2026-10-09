@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useEffect, useMemo, useState } from 'react'
+import { expect, screen, userEvent } from 'storybook/test'
 import {
   type Catalog,
   description,
@@ -156,3 +157,28 @@ export const WithExtraSetting: Story = { args: { withExtra: true, catalog: 'one'
 export const ConfirmBeforeSaving: Story = { args: { confirmSave: true } }
 
 export const SaveFails: Story = { args: { failSave: true } }
+
+/** Remove asks inline before it saves. */
+export const ConfirmingRemoval: Story = {
+  args: { catalog: 'few' },
+  play: async () => {
+    await userEvent.click(await screen.findByRole('button', { name: /^Admin \(/ }))
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Remove analytics-admins from Admin' }),
+    )
+    await expect(screen.getByText('Remove access?')).toBeVisible()
+  },
+}
+
+/** A saved change leaves a notice with Undo. */
+export const AfterRemoval: Story = {
+  args: { catalog: 'few' },
+  play: async () => {
+    await userEvent.click(await screen.findByRole('button', { name: /^Admin \(/ }))
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Remove analytics-admins from Admin' }),
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    await expect(await screen.findByRole('button', { name: 'Undo' })).toBeVisible()
+  },
+}

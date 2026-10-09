@@ -60,6 +60,7 @@ export function GrantAccessDrawer({
   const [permissionQuery, setPermissionQuery] = useState('')
   const [tab, setTab] = useState(ALL)
   const groupSearch = useRef<HTMLInputElement>(null)
+  const permissionSearch = useRef<HTMLInputElement>(null)
   const id = useId()
   const deferredGroupQuery = useDeferredValue(groupQuery)
   const deferredPermissionQuery = useDeferredValue(permissionQuery)
@@ -139,6 +140,13 @@ export function GrantAccessDrawer({
           ? strings.pickGroups(keys.length)
           : strings.pickBoth
 
+  // Like Cancel, the close button waits for the save, so a failed one keeps the picks to retry.
+  const close = () => {
+    if (!saving) {
+      onClose()
+    }
+  }
+
   const footer = (
     <div className="flex items-center gap-2">
       <p aria-live="polite" className="min-w-0 flex-1 text-[13px] text-(--theme-muted-text-color)">
@@ -165,7 +173,7 @@ export function GrantAccessDrawer({
   return (
     <Drawer
       open={open}
-      onClose={onClose}
+      onClose={close}
       title={strings.grantAccess}
       description={description}
       footer={footer}
@@ -185,7 +193,10 @@ export function GrantAccessDrawer({
             items={subjects.map((s) => ({
               id: s ?? '',
               label: label(s),
-              onRemove: () => setSubjects(toggled(subjects, s)),
+              onRemove: () => {
+                setSubjects(toggled(subjects, s))
+                groupSearch.current?.focus()
+              },
             }))}
           />
           <div className={boxClasses}>
@@ -259,11 +270,15 @@ export function GrantAccessDrawer({
             items={keys.map((key) => ({
               id: key,
               label: byKey.get(key)?.label ?? key,
-              onRemove: () => setKeys(toggled(keys, key)),
+              onRemove: () => {
+                setKeys(toggled(keys, key))
+                permissionSearch.current?.focus()
+              },
             }))}
           />
           <div className={boxClasses}>
             <SearchField
+              inputRef={permissionSearch}
               value={permissionQuery}
               onChange={setPermissionQuery}
               placeholder={strings.searchPermissions(permissions.length)}
@@ -272,7 +287,7 @@ export function GrantAccessDrawer({
               {categories.length > 0 && (
                 <nav
                   aria-label={strings.resourceTypes}
-                  className="flex shrink-0 gap-1 overflow-x-auto border-b border-(--theme-border) bg-(--theme-app-bg) p-1 sm:w-44 sm:flex-col sm:overflow-y-auto sm:border-r sm:border-b-0"
+                  className="flex shrink-0 gap-1 overflow-x-auto border-b border-(--theme-border) bg-(--theme-app-bg) p-1 sm:w-44 sm:flex-col sm:overflow-y-auto sm:border-e sm:border-b-0"
                 >
                   {[ALL, ...categories].map((name) => {
                     const inTab = permissions.filter(
@@ -290,7 +305,7 @@ export function GrantAccessDrawer({
                           setPermissionQuery('')
                         }}
                         className={cx(
-                          'flex h-8 shrink-0 cursor-pointer items-center gap-2 rounded-md px-2.5 text-left text-[13px] whitespace-nowrap',
+                          'flex h-8 shrink-0 cursor-pointer items-center gap-2 rounded-md px-2.5 text-start text-[13px] whitespace-nowrap',
                           current
                             ? 'bg-[color-mix(in_srgb,var(--theme-element)_14%,transparent)] font-semibold'
                             : 'hover:bg-(--theme-hover)',
@@ -365,7 +380,7 @@ function SearchField({
     <label className="relative flex items-center border-b border-(--theme-border)">
       <SearchIcon
         aria-hidden="true"
-        className="pointer-events-none absolute left-3 h-3 w-3 text-(--theme-muted-text-color)"
+        className="pointer-events-none absolute start-3 h-3 w-3 text-(--theme-muted-text-color)"
       />
       <input
         ref={inputRef}
@@ -374,13 +389,13 @@ function SearchField({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         aria-label={placeholder}
-        className="h-9 w-full bg-transparent pr-3 pl-8 text-[13px] text-(--theme-input) placeholder:text-(--theme-muted-text-color) focus:outline-none"
+        className="h-9 w-full bg-transparent ps-8 pe-3 text-[13px] text-(--theme-input) placeholder:text-(--theme-muted-text-color) focus:outline-none"
       />
     </label>
   )
 }
 
-export function Chips({
+function Chips({
   label,
   items,
 }: {
@@ -396,7 +411,7 @@ export function Chips({
       {items.map((item) => (
         <li
           key={item.id}
-          className="flex h-[26px] items-center gap-1 rounded-full border border-(--theme-element) bg-[color-mix(in_srgb,var(--theme-element)_14%,transparent)] pr-1.5 pl-2.5 text-xs font-medium"
+          className="flex h-[26px] items-center gap-1 rounded-full border border-(--theme-element) bg-[color-mix(in_srgb,var(--theme-element)_14%,transparent)] ps-2.5 pe-1.5 text-xs font-medium"
         >
           <span>{item.label}</span>
           {item.onRemove && (

@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useMemo, useState } from 'react'
+import { expect, screen, userEvent } from 'storybook/test'
 import { type Catalog, description, makeGroups, makeValue, PERMISSIONS } from '../../test/access'
 import { primaryButtonClasses } from '../ghostButton'
 import { GrantAccessDrawer } from './GrantAccessDrawer'
@@ -62,3 +63,13 @@ export const FewPermissions: Story = { args: { catalog: 'few' } }
 export const OrganizationDisabled: Story = { args: { organization: 'disabled' } }
 
 export const Saving: Story = { args: { saving: true } }
+
+/** Groups and permissions picked, two of the pairs already granted. */
+export const Picked: Story = {
+  play: async () => {
+    await userEvent.click(await screen.findByRole('checkbox', { name: /^analytics-admins/ }))
+    await userEvent.click(screen.getByRole('checkbox', { name: /^bio-admins/ }))
+    await userEvent.click(screen.getByRole('checkbox', { name: /^Login clusters/ }))
+    await expect(screen.getByText(/2 already granted/)).toBeVisible()
+  },
+}

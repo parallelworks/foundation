@@ -18,7 +18,7 @@ export interface DrawerProps {
   children: ReactNode
 }
 
-function shown(node: ReactNode): boolean {
+export function shown(node: ReactNode): boolean {
   return node !== undefined && node !== null && node !== false
 }
 
