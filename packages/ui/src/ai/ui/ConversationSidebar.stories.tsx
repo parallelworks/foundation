@@ -4,7 +4,7 @@ import { StatusDot } from '../../components/StatusBadge'
 import { useRowMenu } from '../../list/index'
 import { StoryViewport } from '../stories/harness'
 import { ConversationSidebar, type ConversationSidebarGroup } from './ConversationSidebar'
-import { SidebarRailItem, SidebarRow } from './sidebar'
+import { SidebarDrawer, SidebarRailItem, SidebarRow, SidebarToggle } from './sidebar'
 
 const meta: Meta = {
   title: 'Chat/Conversation sidebar',
@@ -46,7 +46,17 @@ function grouped(tasks: Task[]): ConversationSidebarGroup<Task>[] {
   ].filter((g) => g.items.length > 0)
 }
 
-function TaskSidebar({ tasks, startCollapsed }: { tasks: Task[]; startCollapsed: boolean }) {
+function TaskSidebar({
+  tasks,
+  startCollapsed,
+  fill = false,
+  onToggle,
+}: {
+  tasks: Task[]
+  startCollapsed: boolean
+  fill?: boolean
+  onToggle?: () => void
+}) {
   const [collapsed, setCollapsed] = useState(startCollapsed)
   const [openId, setOpenId] = useState<string | undefined>('t2')
   const { openMenu, contextMenu } = useRowMenu()
@@ -56,7 +66,8 @@ function TaskSidebar({ tasks, startCollapsed }: { tasks: Task[]; startCollapsed:
       <ConversationSidebar<Task>
         label="Tasks"
         collapsed={collapsed}
-        onToggle={() => setCollapsed((c) => !c)}
+        fill={fill}
+        onToggle={onToggle ?? (() => setCollapsed((c) => !c))}
         toggleLabels={{ open: 'Open sidebar', close: 'Close sidebar' }}
         resize={{
           storageKey: 'storyTaskSidebarWidth',
@@ -103,12 +114,64 @@ function TaskSidebar({ tasks, startCollapsed }: { tasks: Task[]; startCollapsed:
   )
 }
 
-export const Grouped: StoryObj<{ collapsed: boolean }> = {
-  args: { collapsed: false },
-  argTypes: { collapsed: { control: 'boolean' } },
+export const Grouped: StoryObj<{ collapsed: boolean; fill: boolean }> = {
+  args: { collapsed: false, fill: false },
+  argTypes: {
+    collapsed: { control: 'boolean' },
+    fill: {
+      control: 'boolean',
+      description: 'Take the container width, with no rail or drag handle (as in a drawer)',
+    },
+  },
   render: (args) => (
-    <TaskSidebar key={String(args.collapsed)} tasks={TASKS} startCollapsed={args.collapsed} />
+    <TaskSidebar
+      key={String(args.collapsed)}
+      tasks={TASKS}
+      startCollapsed={args.collapsed}
+      fill={args.fill}
+    />
   ),
+}
+
+// A host composing its own list puts it in a SidebarDrawer on a narrow
+// screen: the drawer covers its positioned container, a tap outside or
+// Escape closes it, and the list fills it.
+export const InDrawer: StoryObj<{ open: boolean }> = {
+  args: { open: true },
+  render: (args) => {
+    const Phone = () => {
+      const [open, setOpen] = useState(args.open)
+      return (
+        <div
+          style={{ position: 'relative', overflow: 'hidden', width: 390, height: '100dvh' }}
+          className="bg-(--theme-panel-bg)"
+        >
+          <div className="p-2">
+            <SidebarToggle
+              collapsed={!open}
+              onToggle={() => setOpen(!open)}
+              openLabel="Open sidebar"
+              closeLabel="Close sidebar"
+            />
+          </div>
+          <SidebarDrawer
+            open={open}
+            onClose={() => setOpen(false)}
+            label="Tasks"
+            closeLabel="Close sidebar"
+          >
+            <TaskSidebar
+              tasks={TASKS}
+              startCollapsed={false}
+              fill
+              onToggle={() => setOpen(false)}
+            />
+          </SidebarDrawer>
+        </div>
+      )
+    }
+    return <Phone key={String(args.open)} />
+  },
 }
 
 export const Rail: StoryObj = {

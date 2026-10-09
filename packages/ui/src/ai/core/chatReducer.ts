@@ -31,7 +31,6 @@ export interface ChatState {
   streamingReasoning: string // Accumulated reasoning content during streaming
   streamingParts: MessagePart[] // Tool calls etc. accumulated from onPart deltas
   thinkingStartTime: number | null // When thinking started (for duration tracking)
-  sidebarCollapsed: boolean
   queuedMessages: ChatMessage[] // Messages queued while AI is responding
 }
 
@@ -74,7 +73,6 @@ export type ChatAction =
       updates: Partial<ChatMessage>
       conversationId: string
     }
-  | { type: 'TOGGLE_SIDEBAR' }
   | { type: 'ADD_CONVERSATION'; conversation: ConversationSummary }
   | { type: 'REMOVE_CONVERSATION'; conversationId: string }
   | { type: 'SET_LOADING_CONVERSATION'; isLoadingConversation: boolean }
@@ -112,7 +110,6 @@ export const initialState: ChatState = {
   streamingReasoning: '',
   streamingParts: [],
   thinkingStartTime: null,
-  sidebarCollapsed: false,
   queuedMessages: [],
 }
 
@@ -277,8 +274,6 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
           ),
         },
       }
-    case 'TOGGLE_SIDEBAR':
-      return { ...state, sidebarCollapsed: !state.sidebarCollapsed }
     case 'ADD_CONVERSATION':
       // Check if conversation already exists to avoid duplicates
       if (state.conversations.some((c) => c.id === action.conversation.id)) {

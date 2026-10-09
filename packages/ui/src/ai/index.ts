@@ -25,7 +25,11 @@ export {
   type ChatInputHandle,
   default as ChatInput,
 } from './components/ChatInput'
-export { default as ChatLayout } from './components/ChatLayout'
+export {
+  DRAWER_BELOW_PX,
+  default as ChatLayout,
+  type SidebarMode,
+} from './components/ChatLayout'
 // Named ChatMessageView so it doesn't shadow the ChatMessage type from
 // './types' at the package entry point.
 export { default as ChatMessageView } from './components/ChatMessage'
@@ -82,6 +86,7 @@ export { KeyboardShortcutsProvider } from './core/KeyboardShortcutsProvider'
 export { applyPartDelta, finalizeParts } from './core/parts'
 export { pasteInlineMaxBytes } from './core/pastes'
 export { providerIssueFor } from './core/providerIssues'
+export type { SidebarPresentation, SidebarState } from './core/sidebarState'
 export { default as useDragDrop } from './core/useDragDrop'
 export { useKeyboardShortcuts } from './core/useKeyboardShortcuts'
 export { type ChatStrings, defaultChatStrings } from './strings'
@@ -96,6 +101,7 @@ export { NoticeBar, NoticeCard, type NoticeTone, OutputCard } from './ui/Notice'
 export {
   RenameDialog,
   type RowDialogStrings,
+  SidebarDrawer,
   SidebarGroupHeading,
   SidebarPanel,
   SidebarRailItem,

@@ -120,10 +120,11 @@ function useItemCycling<T>(
  *  decides what is listed, how it is grouped and how each row reads. */
 export function ConversationSidebar<T>({
   label,
-  collapsed,
+  collapsed: collapsedProp,
   onToggle,
   toggleLabels,
   resize,
+  fill = false,
   groups,
   getKey,
   renderRow,
@@ -142,6 +143,9 @@ export function ConversationSidebar<T>({
   toggleLabels: { open: string; close: string }
   /** Omit for a fixed width. */
   resize?: { storageKey: string; label: string; hint: string }
+  /** Takes the width of its container, as inside a drawer, with no rail and
+   *  no drag handle. */
+  fill?: boolean
   groups: ConversationSidebarGroup<T>[]
   getKey: (item: T) => string
   /** One `SidebarRow`. */
@@ -168,13 +172,16 @@ export function ConversationSidebar<T>({
     cycle,
   )
 
+  const collapsed = collapsedProp && !fill
+  const resizable = resize && !fill
   return (
     <SidebarPanel
       collapsed={collapsed}
       label={label}
-      {...(resize ? { width: sized.width, resizing: sized.resizing } : {})}
+      {...(resizable ? { width: sized.width, resizing: sized.resizing } : {})}
+      {...(fill ? { style: { width: '100%' } } : {})}
     >
-      {resize && !collapsed && (
+      {resizable && !collapsed && (
         // biome-ignore lint/a11y/useSemanticElements: a window splitter must be focusable and full height; <hr> is reset to height 0 and cannot host the drag surface.
         <div
           role="separator"
