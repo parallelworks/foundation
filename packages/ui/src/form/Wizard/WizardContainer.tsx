@@ -40,7 +40,7 @@ export function WizardContainer({
   setFieldValue: (field: string, value: unknown, shouldValidate?: boolean) => void
   setFieldTouched: (field: string, touched?: boolean, shouldValidate?: boolean) => void
 }) {
-  const { validateForm, setTouched, touched } = useFormikContext<FormikValues>()
+  const { validateForm, setTouched, touched, initialValues } = useFormikContext<FormikValues>()
   const { form: strings } = useStrings()
   const engine = useWorkflowEngine()
 
@@ -49,7 +49,7 @@ export function WizardContainer({
   // A repeated page's title or description: one per copy when written as a list, read for each copy
   // when it uses `[index]`, and otherwise the page's own, a title numbered by copy. An expression is read
   // again only when an input it reads changes, not on every keystroke in the form.
-  const reads = useRef(new Map<string, string>())
+  const reads = useRef(new Map<string, { inputs: string; read: string }>())
   const perCopy = useCallback(
     (value: string | string[] | undefined, copy: number, numbered: boolean): string => {
       if (Array.isArray(value)) {
@@ -57,25 +57,29 @@ export function WizardContainer({
       }
       const text = value ?? ''
       if (text.includes('${{')) {
-        const deps = [...engine.inputDependencies(text).inputDeps].map((dep) => [
-          dep,
-          getValueUsingPath(values, dep),
-        ])
-        const key = JSON.stringify([text, copy, deps])
-        let read = reads.current.get(key)
-        if (read === undefined) {
-          const result = engine.evaluate<{ text: unknown }>({
-            inputs: values,
-            obj: { text },
-            orgVars: {},
-            index: copy,
-          })
-          read = String(result.text ?? '')
-          if (reads.current.size >= 500) {
-            reads.current.clear()
-          }
-          reads.current.set(key, read)
+        const key = JSON.stringify([text, copy])
+        const inputs = JSON.stringify(
+          [...engine.inputDependencies(text).inputDeps].map((dep) => [
+            dep,
+            getValueUsingPath(values, dep),
+          ]),
+        )
+        const last = reads.current.get(key)
+        if (last?.inputs === inputs) {
+          return last.read
         }
+        const result = engine.evaluate<{ text: unknown }>({
+          inputs: values,
+          obj: { text },
+          orgVars: {},
+          index: copy,
+        })
+        const read = String(result.text ?? '')
+        // An expression edited a keystroke at a time leaves a read behind for each version.
+        if (reads.current.size >= 500) {
+          reads.current.clear()
+        }
+        reads.current.set(key, { inputs, read })
         return read
       }
       return numbered && text ? strings.copyTitle(text, copy + 1) : text
@@ -143,6 +147,11 @@ export function WizardContainer({
   // A repeated page's rows follow its bounds, as when the input they read changes: below its `min` it gets
   // rows from the defaults, and past its `max` the rest are set aside, to come back if the bounds allow them.
   const setAside = useRef<Record<string, unknown[]>>({})
+  // Saved inputs or a reset replace the values whole, and rows set aside belong to the values they left.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: new initial values are the trigger, not an input.
+  useEffect(() => {
+    setAside.current = {}
+  }, [initialValues])
   useEffect(() => {
     for (const step of stepOrder) {
       const stepConfig = steps[step]
@@ -165,10 +174,10 @@ export function WizardContainer({
           path,
           Array.from(
             { length: lo },
-            (_, i) => now[i] ?? aside[i] ?? initializeValues(stepConfig.options, {}) ?? {},
+            (_, i) =>
+              now[i] ?? takeAside(aside, i) ?? initializeValues(stepConfig.options, {}) ?? {},
           ),
         )
-        aside.length = Math.min(aside.length, now.length)
       }
     }
   }, [stepOrder, steps, values, fieldNamePrefix, setFieldValue])
@@ -258,7 +267,13 @@ export function WizardContainer({
   }, [isLastStep, validateForm, values, setTouched, touched, onSubmit])
 
   // The page shown can go, as when saved inputs change a repeated page's copies: show the nearest one left.
-  const pageKey = shown.byKey[currentStep] ? currentStep : nearestPage(currentStep, shown.order)
+  const shownBefore = useRef(shown.order)
+  useEffect(() => {
+    shownBefore.current = shown.order
+  })
+  const pageKey = shown.byKey[currentStep]
+    ? currentStep
+    : nearestPage(currentStep, shown.order, shownBefore.current)
   useEffect(() => {
     if (pageKey && pageKey !== currentStep) {
       showStep(pageKey)
@@ -280,9 +295,8 @@ export function WizardContainer({
     const aside = setAside.current[`${fieldNamePrefix}${shownPage.step}`] ?? []
     setFieldValue(`${fieldNamePrefix}${shownPage.step}`, [
       ...kept,
-      aside[kept.length] ?? initializeValues(options, {}) ?? {},
+      takeAside(aside, kept.length) ?? initializeValues(options, {}) ?? {},
     ])
-    aside.length = Math.min(aside.length, kept.length)
     // A new copy goes after the step's last and is the page shown.
     showStep(`${shownPage.step}[${kept.length}]`)
   }
@@ -384,12 +398,23 @@ export function WizardContainer({
   )
 }
 
-// The page a key names once it's gone: the nearest copy of its step left, the step itself, or the first page.
-function nearestPage(key: string, order: string[]): string {
+// The page a key names once it's gone: the nearest copy of its step left, the step itself, or, when the
+// step went whole, the page now where it was.
+function nearestPage(key: string, order: string[], before: string[]): string {
   const [, step = key, index = '0'] = /^(.*)\[(\d+)\]$/.exec(key) ?? []
   const copies = order.filter((other) => other.startsWith(`${step}[`))
   if (copies.length > 0) {
     return copies[Math.min(Number(index), copies.length - 1)] ?? copies[0] ?? ''
   }
-  return order.includes(step) ? step : (order[0] ?? '')
+  if (order.includes(step)) {
+    return step
+  }
+  return order[Math.min(Math.max(before.indexOf(key), 0), order.length - 1)] ?? ''
+}
+
+/** The row set aside at `index`, now taken back so it returns only once. */
+function takeAside(aside: unknown[], index: number): unknown {
+  const row = aside[index]
+  delete aside[index]
+  return row
 }
