@@ -25,6 +25,7 @@ import { TooltipInfo } from '../components/Tooltip'
 import { toAbsHumanDuration } from '../duration'
 import type { GraphLayout, LaidOutColumn, WorkflowEditing } from '../editing'
 import type { MatrixGroup, RunStatus, WorkflowEngine } from '../engine'
+import { initializeValues } from '../form/lib'
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -2572,6 +2573,64 @@ function positionsOf(jobs: Record<string, unknown>): GraphLayout | undefined {
   return any ? layout : undefined
 }
 
+/** Jobs as a run evaluates them before it starts: each `strategy`, and a `needs` expression, from the inputs' defaults. */
+function withRunExpressions(
+  engine: WorkflowEngine,
+  jobs: Record<string, WorkflowJob>,
+  workflowInputs: Record<string, unknown> | undefined,
+): Record<string, WorkflowJob> {
+  let values: Record<string, unknown> | undefined
+  const evaluate = (obj: Record<string, unknown>) => {
+    values ??= defaultInputValues(engine, workflowInputs)
+    return engine.evaluate({ inputs: values, obj })
+  }
+  const out: Record<string, WorkflowJob> = {}
+  for (const [name, job] of Object.entries(jobs)) {
+    const { strategy, needs } = job as unknown as Record<string, unknown>
+    const next: Record<string, unknown> = { ...job }
+    if (isJobRecord(strategy) && engine.inputDependencies(strategy).hasExpressions) {
+      next['strategy'] = evaluate(strategy)
+    }
+    if (typeof needs === 'string' && engine.inputDependencies(needs).hasExpressions) {
+      const evaluated = evaluate({ needs })['needs']
+      if (Array.isArray(evaluated) && evaluated.every((need) => typeof need === 'string')) {
+        next['needs'] = evaluated
+      }
+    }
+    out[name] = next as unknown as WorkflowJob
+  }
+  return out
+}
+
+/** The input values a run started without any gets: each one's default. */
+function defaultInputValues(
+  engine: WorkflowEngine,
+  workflowInputs: Record<string, unknown> | undefined,
+): Record<string, unknown> {
+  try {
+    const fields = prefilled(engine.convertInputs(workflowInputs ?? {})) as Record<string, unknown>
+    const initial = initializeValues(fields) ?? {}
+    return engine.evaluate({ inputs: initial, obj: initial })
+  } catch {
+    // Half-typed inputs, such as a dropdown option still null, can throw; expressions then see none.
+    return {}
+  }
+}
+
+// The form leaves a string's default for its field to show, where a run fills a blank input from it.
+function prefilled(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(prefilled)
+  }
+  if (!isJobRecord(value)) {
+    return value
+  }
+  const field: Record<string, unknown> = Object.fromEntries(
+    Object.entries(value).map(([key, entry]) => [key, prefilled(entry)]),
+  )
+  return 'type' in field && 'default' in field ? { ...field, prefillDefault: true } : field
+}
+
 export function DependencyGraphPreview(inputs: {
   yml?: Record<string, unknown>
   removeBorder?: boolean
@@ -2580,20 +2639,47 @@ export function DependencyGraphPreview(inputs: {
   /** A fixed panel height; without one the panel is only as tall as the graph. */
   height?: string | undefined
 }) {
-  const { editing } = useWorkflowEngine()
+  const engine = useWorkflowEngine()
+  const { editing } = engine
   const ymlJobs = inputs.yml?.['jobs']
   const jobs = isJobRecord(ymlJobs) ? ymlJobs : {}
-  const withCleanup = addCleanupSteps({ jobs })
+  // A page loads the expression runtime on first use, so only jobs a run evaluates first load it.
+  const evaluates = useMemo(
+    () =>
+      Object.values(jobs).some((job) => {
+        const { strategy, needs } = job as unknown as Record<string, unknown>
+        return engine.inputDependencies({ strategy, needs }).hasExpressions
+      }),
+    [engine, jobs],
+  )
+  const [ready, setReady] = useState(() => engine.isReady())
+  useEffect(() => {
+    if (!evaluates) {
+      return
+    }
+    engine.init()
+    const unsubscribe = engine.onReady(setReady)
+    setReady(engine.isReady())
+    return unsubscribe
+  }, [engine, evaluates])
   const on = inputs.yml?.['on']
   const execute = isJobRecord(on) ? (on as Record<string, unknown>)['execute'] : undefined
-  const workflowInputs = isJobRecord(execute)
+  const executeInputs = isJobRecord(execute)
     ? (execute as Record<string, unknown>)['inputs']
     : undefined
+  const workflowInputs = isJobRecord(executeInputs)
+    ? (executeInputs as Record<string, unknown>)
+    : undefined
+  const executedJobs = useMemo(() => {
+    const withCleanup = addCleanupSteps({ jobs })
+    const evaluated = ready ? withRunExpressions(engine, withCleanup, workflowInputs) : withCleanup
+    // A run lists a matrix's runs as jobs of their own; without an engine that edits, it stays one.
+    return editing ? editing.expandMatrixJobs(evaluated) : evaluated
+  }, [engine, editing, ready, jobs, workflowInputs])
   return (
     <DependencyGraph
       run={{
-        // A run lists a matrix's runs as jobs of their own; without an engine that edits, it stays one.
-        executedJobs: editing ? editing.expandMatrixJobs(withCleanup) : withCleanup,
+        executedJobs,
         number: 0,
         workflowName: '',
       }}
@@ -2602,7 +2688,7 @@ export function DependencyGraphPreview(inputs: {
       layout={inputs.layout}
       editor={inputs.editor}
       yamlJobs={jobs}
-      inputs={isJobRecord(workflowInputs) ? (workflowInputs as Record<string, unknown>) : undefined}
+      inputs={workflowInputs}
       workflow={inputs.yml}
       fixedHeight={inputs.height}
     />

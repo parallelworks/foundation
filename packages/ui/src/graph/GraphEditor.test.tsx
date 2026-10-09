@@ -448,6 +448,100 @@ describe('DependencyGraphPreview editor', () => {
     expect(screen.queryByText('matrix')).toBeNull()
   })
 
+  /** Evaluates each object `evaluated` answers for, finding expressions wherever a `${{` is. */
+  function evaluatesTo(
+    evaluated: (obj: Record<string, unknown>, inputs: Record<string, unknown>) => unknown,
+  ) {
+    const evaluate = vi.mocked(testEngine.evaluate)
+    const dependencies = vi.mocked(testEngine.inputDependencies)
+    onTestFinished(() => {
+      evaluate.mockImplementation(
+        (({ obj }: { obj: unknown }) => obj) as unknown as typeof testEngine.evaluate,
+      )
+      dependencies.mockImplementation(() => ({
+        inputDeps: new Set<string>(),
+        hasExpressions: false,
+      }))
+    })
+    dependencies.mockImplementation((obj?: unknown) => ({
+      inputDeps: new Set<string>(),
+      hasExpressions: JSON.stringify(obj).includes('${{'),
+    }))
+    evaluate.mockImplementation(
+      (({ inputs, obj }: { inputs: Record<string, unknown>; obj: Record<string, unknown> }) =>
+        evaluated(obj, inputs) ?? obj) as unknown as typeof testEngine.evaluate,
+    )
+  }
+
+  it('draws a matrix expressions give as a run expands it, from the inputs’ defaults', () => {
+    evaluatesTo((obj, inputs) =>
+      'matrix' in obj
+        ? {
+            matrix: {
+              os: String(inputs['oses']).split(','),
+              value: Array.from({ length: Number(inputs['count']) }, (_, i) => i),
+            },
+          }
+        : undefined,
+    )
+    const ranged = {
+      on: {
+        execute: {
+          inputs: {
+            count: { type: 'number', default: 3 },
+            oses: { type: 'string', default: 'linux,mac' },
+          },
+        },
+      },
+      jobs: {
+        build: {
+          strategy: {
+            matrix: {
+              os: "${{ split(inputs.oses, ',') }}",
+              value: '${{ 0 range inputs.count }}',
+            },
+          },
+          steps: [{ run: 'make' }],
+        },
+      },
+    }
+    render(<DependencyGraphPreview yml={ranged} editor={editor()} />)
+    expect(screen.getByText('6 jobs')).toBeInTheDocument()
+  })
+
+  it('loads the expression runtime only for a strategy or needs a run evaluates', () => {
+    evaluatesTo(() => undefined)
+    const init = vi.mocked(testEngine.init)
+    init.mockClear()
+    render(<DependencyGraphPreview yml={yml} editor={editor()} />)
+    expect(init).not.toHaveBeenCalled()
+    cleanup()
+    const waits = { jobs: { ...yml.jobs, mac: { needs: '${{ inputs.after }}', steps: [] } } }
+    render(<DependencyGraphPreview yml={waits} editor={editor()} />)
+    expect(init).toHaveBeenCalled()
+  })
+
+  it('draws the jobs a needs expression names as a run waits on them', () => {
+    evaluatesTo((obj, inputs) => ('needs' in obj ? { needs: inputs['after'] } : undefined))
+    const waits = {
+      on: {
+        execute: {
+          inputs: {
+            after: { type: 'multi-dropdown', options: ['build', 'lint'], default: ['build'] },
+          },
+        },
+      },
+      jobs: {
+        deploy: { needs: '${{ inputs.after }}', steps: [{ run: 'ship' }] },
+        build: { steps: [{ run: 'make' }] },
+      },
+    }
+    render(<DependencyGraphPreview yml={waits} editor={editor()} />)
+    expect(
+      [...document.querySelectorAll('[data-dag-job]')].map((el) => el.getAttribute('data-dag-job')),
+    ).toEqual(['build', 'deploy'])
+  })
+
   it('offers only Edit matrix for a matrix job and saves include entries', () => {
     const e = editor()
     const matrix = {
