@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.33.0](https://github.com/parallelworks/foundation/compare/ui-v0.32.0...ui-v0.33.0) (2026-10-09)
+
+
+### Features
+
+* **ui:** a chat host can put its own content at the top of the conversation list ([#198](https://github.com/parallelworks/foundation/issues/198)) ([d262051](https://github.com/parallelworks/foundation/commit/d26205156c0767da02afd6d849ebc127fd6a2095))
+
 ## [0.32.0](https://github.com/parallelworks/foundation/compare/ui-v0.31.0...ui-v0.32.0) (2026-10-09)
 
 
