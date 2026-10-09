@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.27.0](https://github.com/parallelworks/foundation/compare/ui-v0.26.0...ui-v0.27.0) (2026-10-09)
+
+
+### Features
+
+* **ui:** a storage whose root moves lists again from its new root ([#167](https://github.com/parallelworks/foundation/issues/167)) ([0726c4e](https://github.com/parallelworks/foundation/commit/0726c4e7e84801edbe973ae7fcabd646b65a717d))
+* **ui:** the chat takes the host's accent, keeps its controls in the composer, and shows reasoning in place ([#171](https://github.com/parallelworks/foundation/issues/171)) ([288da56](https://github.com/parallelworks/foundation/commit/288da561c6baacabb80712dfee633cf1181321c1))
+
 ## [0.26.0](https://github.com/parallelworks/foundation/compare/ui-v0.25.0...ui-v0.26.0) (2026-10-07)
 
 
