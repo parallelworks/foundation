@@ -285,9 +285,11 @@ export function WizardContainer({
     }
   }
   const drawn = shown.order.length
+  // Every row of a list holding a wizard shares its key, so only a change of count reports again.
+  const setCount = pages?.setCount
   useEffect(() => {
-    pages?.setCount(wizardKey, drawn)
-  }, [pages, wizardKey, drawn])
+    setCount?.(wizardKey, drawn)
+  }, [setCount, wizardKey, drawn])
   // The page shown can go, as when saved inputs change a repeated page's copies: show the nearest one left.
   const shownBefore = useRef(shown.order)
   useEffect(() => {

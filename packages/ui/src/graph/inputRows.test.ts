@@ -70,6 +70,25 @@ describe('dropChanges', () => {
     expect(changes(lines, ['a'], { parent: [], index: 3 })).toEqual({ a: { 'anchor-below': null } })
   })
 
+  it('takes the share off an input dropped as a line of its own beside a line it would join', () => {
+    // a and c are halves alone on their lines, as b and d after them take whole lines.
+    const at = (name: string, index: number): Line => ({
+      parent: [],
+      columns: [
+        { cell: null, rows: [{ ...(column(name).rows[0] as Column['rows'][number]), index }] },
+      ],
+    })
+    const lines = [at('a', 0), at('b', 1), at('c', 2), at('d', 3)]
+    const widths = { a: '50%', c: '50%' }
+    expect(changes(lines, ['c'], { parent: [], index: 1 }, widths)).toEqual({
+      c: { 'anchor-below': null, width: null },
+    })
+    // Below the whole-line b, nothing would take the other half, so c keeps its own.
+    expect(changes(lines, ['c'], { parent: [], index: 2 }, widths)).toEqual({
+      c: { 'anchor-below': null },
+    })
+  })
+
   it('stacks an input dropped below one in a column under it', () => {
     const lines = [one('a', 'b', 'c')]
     const drop = { parent: [], index: 2, stack: { path: ['b'], side: 'below' as const } }
