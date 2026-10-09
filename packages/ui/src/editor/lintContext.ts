@@ -8,7 +8,7 @@ import {
   useWorkflowJsonResolver,
 } from '../components/Provider'
 import type { WorkflowEditing, WorkflowLintContext } from '../editing'
-import { asRecord } from '../graph/editorFields'
+import { asRecord } from '../graph/records'
 import {
   DEFAULT_GITLAB_HOST,
   DEFAULT_REPO_YAML,
@@ -24,12 +24,40 @@ export interface LintSources extends UsesSources {
   actions?: Record<string, unknown> | undefined
 }
 
-// Fetched once per page and kept, since the checks run on every edit; null marks a target
-// that couldn't be read, which says nothing about the workflow reading it.
-const targets = new Map<string, Record<string, unknown> | null>()
-const pending = new Set<string>()
-let secretNames: string[] | undefined
-let secretsPending = false
+// The checks run on every edit, so what they read is kept a while and fetched again once stale: a minute
+// for what arrived, a few seconds for what couldn't be read (null), which says nothing about the workflow.
+const KEEP_MS = 60_000
+const KEEP_FAILED_MS = 10_000
+
+interface Kept<T> {
+  value: T | null
+  at: number
+}
+
+const stale = (kept: Kept<unknown> | undefined) =>
+  !kept || Date.now() - kept.at > (kept.value === null ? KEEP_FAILED_MS : KEEP_MS)
+
+const targets = new Map<string, Kept<Record<string, unknown>>>()
+let secretNames: Kept<string[]> | undefined
+// The checks waiting on each fetch under way, each told when it lands.
+const waiting = new Map<string, Set<() => void>>()
+const SECRETS = '\u0000secrets'
+
+function fetchOnce(key: string, onMore: () => void, load: () => Promise<void>) {
+  const waiters = waiting.get(key)
+  if (waiters) {
+    waiters.add(onMore)
+    return
+  }
+  const told = new Set([onMore])
+  waiting.set(key, told)
+  void load().finally(() => {
+    waiting.delete(key)
+    for (const tell of told) {
+      tell()
+    }
+  })
+}
 
 const text = (value: unknown, fallback: string) =>
   typeof value === 'string' && value ? value : fallback
@@ -50,7 +78,7 @@ export function lintContext(
   } catch {
     doc = undefined
   }
-  // The linter keys targets by `uses` alone, so one two steps read from different files is skipped.
+  // The linter keys targets by `uses` alone, so a target two steps read from different files is skipped.
   const wanted = new Map<string, Set<string>>()
   for (const job of Object.values(asRecord(asRecord(doc)['jobs']))) {
     const steps = asRecord(job)['steps']
@@ -75,41 +103,41 @@ export function lintContext(
   const usesInputs: Record<string, unknown> = {}
   for (const [uses, keys] of wanted) {
     const key = keys.size === 1 ? [...keys][0] : undefined
-    if (key === undefined || pending.has(key)) {
+    if (key === undefined) {
       continue
     }
-    if (targets.has(key)) {
-      const inputs = targets.get(key)
-      if (inputs) {
-        usesInputs[uses] = inputs
-      }
-      continue
+    const kept = targets.get(key)
+    if (kept?.value) {
+      usesInputs[uses] = kept.value
     }
-    pending.add(key)
-    const [, yamlPath = DEFAULT_REPO_YAML, host = DEFAULT_GITLAB_HOST] = key.split('\n')
-    loadUsesInputs(editing, uses, { yamlPath, host }, sources)
-      .then((inputs) => {
-        targets.set(key, inputs)
-        onMore()
-      })
-      // Left unfetched, so a later check tries again.
-      .catch(() => {})
-      .finally(() => pending.delete(key))
+    if (stale(kept)) {
+      const [, yamlPath = DEFAULT_REPO_YAML, host = DEFAULT_GITLAB_HOST] = key.split('\n')
+      fetchOnce(key, onMore, () =>
+        loadUsesInputs(editing, uses, { yamlPath, host }, sources).then(
+          (inputs) => {
+            targets.set(key, { value: inputs, at: Date.now() })
+          },
+          () => {
+            targets.set(key, { value: null, at: Date.now() })
+          },
+        ),
+      )
+    }
   }
-  if (!secretNames && !secretsPending && sources.secrets) {
-    secretsPending = true
-    sources
-      .secrets()
-      .then((names) => {
-        secretNames = names
-        onMore()
-      })
-      .catch(() => {})
-      .finally(() => {
-        secretsPending = false
-      })
+  const secrets = sources.secrets
+  if (secrets && stale(secretNames)) {
+    fetchOnce(SECRETS, onMore, () =>
+      secrets().then(
+        (names) => {
+          secretNames = { value: names, at: Date.now() }
+        },
+        () => {
+          secretNames = { value: null, at: Date.now() }
+        },
+      ),
+    )
   }
-  return { usesInputs, ...(secretNames ? { secretVars: secretNames } : {}) }
+  return { usesInputs, ...(secretNames?.value ? { secretVars: secretNames.value } : {}) }
 }
 
 export function useLintSources(): LintSources {

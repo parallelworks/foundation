@@ -303,6 +303,17 @@ function DropdownHelper({
     }
     setBoundaryEl(dialog as HTMLElement)
   }, [referenceElement])
+  // The combobox's input writes its own, empty aria-describedby over the one passed to it.
+  useEffect(() => {
+    if (!referenceElement) {
+      return
+    }
+    if (describedBy) {
+      referenceElement.setAttribute('aria-describedby', describedBy)
+    } else {
+      referenceElement.removeAttribute('aria-describedby')
+    }
+  }, [referenceElement, describedBy])
   const sameWidthModifier = useMemo(
     () => ({
       name: 'sameWidth',
