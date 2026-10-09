@@ -32,8 +32,11 @@ export function WizardStepIndicator({
     if (typeof ResizeObserver === 'undefined') {
       return
     }
+    // Its steps too: a title that resolves to a longer word widens one without resizing the row.
     const observer = new ResizeObserver(measure)
-    observer.observe(el)
+    for (const box of [el, ...el.children]) {
+      observer.observe(box)
+    }
     return () => observer.disconnect()
   }, [stepOrder.length])
   useEffect(() => {

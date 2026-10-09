@@ -399,7 +399,7 @@ export function WizardContainer({
 }
 
 // The page a key names once it's gone: the nearest copy of its step left, the step itself, or, when the
-// step went whole, the page now where it was.
+// step went whole, the next page that's left, else the one before it.
 function nearestPage(key: string, order: string[], before: string[]): string {
   const [, step = key, index = '0'] = /^(.*)\[(\d+)\]$/.exec(key) ?? []
   const copies = order.filter((other) => other.startsWith(`${step}[`))
@@ -409,7 +409,11 @@ function nearestPage(key: string, order: string[], before: string[]): string {
   if (order.includes(step)) {
     return step
   }
-  return order[Math.min(Math.max(before.indexOf(key), 0), order.length - 1)] ?? ''
+  const at = before.indexOf(key)
+  const left = (pages: string[]) => pages.find((page) => order.includes(page))
+  return (
+    left(before.slice(at + 1)) ?? left(before.slice(0, Math.max(at, 0)).reverse()) ?? order[0] ?? ''
+  )
 }
 
 /** The row set aside at `index`, now taken back so it returns only once. */
