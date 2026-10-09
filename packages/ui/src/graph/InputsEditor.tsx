@@ -2,6 +2,7 @@ import cx from 'classnames'
 import {
   createContext,
   type ReactNode,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -126,6 +127,8 @@ interface DragView {
 interface Edge {
   left: InputPath
   right: InputPath
+  /** The copies the edge sits between, when a list draws these inputs in each of its rows. */
+  copies: [left: string, right: string]
   x: number
   top: number
   bottom: number
@@ -145,6 +148,8 @@ interface UiState {
   selection: string[]
   /** The input the arrow keys move from: the one last pressed or reached. */
   cursor: string | null
+  /** Which copy of it, by instance, when a list draws it in each row. */
+  cursorCopy: string | null
   /** Rows whose toolbar is open, by instance: the hovered one, and each column's head on a line it shares. */
   open: string[]
   /** The box a shift + drag is drawing, in the page's coordinates. */
@@ -161,6 +166,7 @@ const createFormStore = () =>
     problems: [],
     selection: [],
     cursor: null,
+    cursorCopy: null,
     open: [],
     marquee: null,
   })
@@ -182,7 +188,6 @@ interface DragHow {
 interface InputsEditorApi {
   store: Store
   definition: (path: InputPath) => Json
-  indexOf: (path: InputPath) => number
   edit: (path: InputPath) => void
   remove: (path: InputPath) => void
   openMenu: (x: number, y: number, path: InputPath) => void
@@ -276,9 +281,14 @@ const CHROME = '[data-input-chrome], [data-input-add], [role="menu"], [role="dia
 const CONTROLS =
   'input, textarea, select, button, a[href], label, [contenteditable="true"], .monaco-editor, [role="button"], [role="checkbox"], [role="combobox"], [role="listbox"], [role="option"], [role="radio"], [role="slider"], [role="switch"], [role="tab"]'
 
+// Widgets that take the arrow and other keys for themselves while they have focus.
+const KEYED_WIDGETS =
+  '.monaco-editor, [role="combobox"], [role="listbox"], [role="option"], [role="radio"], [role="slider"], [role="switch"], [role="tab"]'
+
 function rowsIn(root: HTMLElement) {
   return [...root.querySelectorAll<HTMLElement>('[data-input-path]')].map((el) => ({
     path: pathOf(el.dataset['inputPath'] ?? '[]'),
+    copy: el.dataset['inputInstance'] ?? '',
     rect: el.getBoundingClientRect(),
   }))
 }
@@ -926,13 +936,13 @@ function dropGap(root: HTMLElement, client: { x: number; y: number }, mover: Mov
 const WIDTH_VAR = '--input-width'
 
 /** The cells two neighbouring columns sit in, by their heads, and the row of cells holding them. */
-function cellsAt(root: HTMLElement, edge: Pick<Edge, 'left' | 'right'>) {
-  const cellOf = (path: InputPath) =>
+function cellsAt(root: HTMLElement, edge: Pick<Edge, 'left' | 'right' | 'copies'>) {
+  const cellOf = (path: InputPath, copy: string) =>
     [...root.querySelectorAll<HTMLElement>('[data-input-path]')]
-      .find((el) => el.dataset['inputPath'] === key(path))
+      .find((el) => el.dataset['inputPath'] === key(path) && el.dataset['inputInstance'] === copy)
       ?.closest<HTMLElement>('[data-input-cell]')
-  const left = cellOf(edge.left)
-  const right = cellOf(edge.right)
+  const left = cellOf(edge.left, edge.copies[0])
+  const right = cellOf(edge.right, edge.copies[1])
   const flow = left?.parentElement
   return left && right && flow ? { left, right, flow } : null
 }
@@ -940,18 +950,21 @@ function cellsAt(root: HTMLElement, edge: Pick<Edge, 'left' | 'right'>) {
 function edgeOf(root: HTMLElement, before: Column, after: Column): Edge | null {
   const [leftHead] = before.rows
   const [rightHead] = after.rows
+  const copies: Edge['copies'] = [leftHead?.instance ?? '', rightHead?.instance ?? '']
   const cells =
-    leftHead && rightHead && cellsAt(root, { left: leftHead.path, right: rightHead.path })
+    leftHead && rightHead && cellsAt(root, { left: leftHead.path, right: rightHead.path, copies })
   const width = cells ? cells.flow.getBoundingClientRect().width : 0
   if (!leftHead || !rightHead || !cells || width <= 0) {
     return null
   }
+  // Floored, so a split of what they hold never comes to more than the line has room for.
   const share = (cell: HTMLElement) =>
-    Math.round((cell.getBoundingClientRect().width / width) * 100)
+    Math.floor((cell.getBoundingClientRect().width / width) * 100)
   const rows = [...before.rows, ...after.rows]
   return {
     left: leftHead.path,
     right: rightHead.path,
+    copies,
     x: cells.left.getBoundingClientRect().right,
     top: Math.min(...rows.map((row) => row.rect.top)),
     bottom: Math.max(...rows.map((row) => row.rect.bottom)),
@@ -1020,11 +1033,11 @@ const ARROWS: Record<string, Direction | undefined> = {
 
 /** The input an arrow key reaches from `from` as the form draws them: the nearest one starting
  * above or below it, or beside it, those in line with it first. */
-function neighbour(
-  rows: { path: InputPath; rect: DOMRect }[],
-  from: { path: InputPath; rect: DOMRect },
+function neighbour<Row extends { path: InputPath; rect: DOMRect }>(
+  rows: Row[],
+  from: Row,
   direction: Direction,
-): { path: InputPath; rect: DOMRect } | undefined {
+): Row | undefined {
   const r = from.rect
   const middle = (rect: DOMRect) => ({
     x: (rect.left + rect.right) / 2,
@@ -1057,7 +1070,7 @@ function neighbour(
           ? rect.left - r.right
           : r.left - rect.right
   const pool = inLine.length > 0 ? inLine : ahead
-  return pool.reduce<{ path: InputPath; rect: DOMRect } | undefined>(
+  return pool.reduce<Row | undefined>(
     (best, row) =>
       !best ||
       gap(row) < gap(best) ||
@@ -1147,15 +1160,24 @@ export function InputsFormEditor({
   // The page each wizard in the form shows, and how many it draws, by its list's path as JSON.
   const [pages, setPages] = useState<Record<string, number>>({})
   const [counts, setCounts] = useState<Record<string, number>>({})
+  // Kept the same across renders, so a wizard reporting its count doesn't run its report again.
+  const setPage = useCallback(
+    (wizard: string, index: number) => setPages((now) => ({ ...now, [wizard]: index })),
+    [],
+  )
+  const setCount = useCallback(
+    (wizard: string, count: number) =>
+      setCounts((now) => (now[wizard] === count ? now : { ...now, [wizard]: count })),
+    [],
+  )
   const wizardPages = useMemo<WizardPages>(
     () => ({
-      page: (wizard) => pages[wizard] ?? 0,
-      setPage: (wizard, index) => setPages((now) => ({ ...now, [wizard]: index })),
+      page: (wizard) => Math.min(pages[wizard] ?? 0, Math.max((counts[wizard] ?? 1) - 1, 0)),
+      setPage,
       count: (wizard) => counts[wizard],
-      setCount: (wizard, count) =>
-        setCounts((now) => (now[wizard] === count ? now : { ...now, [wizard]: count })),
+      setCount,
     }),
-    [pages, counts],
+    [pages, counts, setPage, setCount],
   )
   const containerRef = useRef<HTMLDivElement>(null)
   const latest = useRef({ editor, inputs })
@@ -1212,6 +1234,16 @@ export function InputsFormEditor({
         return
       }
       const container = containerAt(editing, inputs, parent)
+      // A wizard draws only its pages, so an input added beside one goes at the end of the page before.
+      if (type !== 'step' && isWizard(container)) {
+        const pages = namesIn(container)
+        const page = pages[Math.max(Math.min(index, pages.length) - 1, 0)]
+        if (page !== undefined) {
+          const into = [...parent, page]
+          create(into, namesIn(containerAt(editing, inputs, into)).length, type, placement)
+          return
+        }
+      }
       const ownWizard =
         type === 'step' && !isWizard(container)
           ? wizardGroupDefinition(t.stepsGroup, t.stepTitle(1))
@@ -1263,7 +1295,8 @@ export function InputsFormEditor({
     const addPage = (parent: InputPath) => {
       const list = listAt(parent)
       send(addPageEdit(editing, list, parent, t.stepTitle))
-      setPages((now) => ({ ...now, [key(parent)]: pagesIn(list).length }))
+      // It goes last, after any repeated page's copies; the page shown is clamped to the last drawn.
+      setPages((now) => ({ ...now, [key(parent)]: Number.MAX_SAFE_INTEGER }))
     }
     const unsplitPages = (parent: InputPath) =>
       sendAll(unsplitPagesEdits(listAt(parent), parent, childKeyAt(parent)))
@@ -1462,7 +1495,14 @@ export function InputsFormEditor({
           ...(how.holdText ? { holdText: how.holdText } : {}),
           onMove: (client) => {
             const root = containerRef.current
-            const gap = root ? dropGap(root, client, mover) : null
+            const found = root ? dropGap(root, client, mover) : null
+            // A wizard draws only its pages, so only pages go between them.
+            const pages = paths?.every((path) => definition(path)['type'] === 'step') ?? false
+            const gap =
+              found &&
+              (pages || !isWizard(containerAt(editing, latest.current.inputs, found.parent)))
+                ? found
+                : null
             store.set({ drag: { paths, label: shown, client, gap } })
           },
           onEnd,
@@ -1600,7 +1640,6 @@ export function InputsFormEditor({
     return {
       store,
       definition,
-      indexOf,
       edit,
       remove,
       openMenu: (x, y, path) => openMenu(x, y, menuFor(path)),
@@ -1616,10 +1655,18 @@ export function InputsFormEditor({
       navigate: (direction, extend) => {
         const root = containerRef.current
         const rows = root ? rowsIn(root) : []
-        const { cursor, selection } = store.get()
-        const from = rows.find((row) => key(row.path) === (cursor ?? selection.at(-1)))
+        const { cursor, cursorCopy, selection } = store.get()
+        const at = cursor ?? selection.at(-1)
+        const from =
+          rows.find((row) => row.copy === cursorCopy && key(row.path) === at) ??
+          rows.find((row) => key(row.path) === at)
+        // A list draws its template in each row; another copy of the same input isn't a step away.
         const to = from
-          ? neighbour(rows, from, direction)
+          ? neighbour(
+              rows.filter((row) => row === from || !samePath(row.path, from.path)),
+              from,
+              direction,
+            )
           : direction === 'up' || direction === 'left'
             ? rows.at(-1)
             : rows[0]
@@ -1631,6 +1678,7 @@ export function InputsFormEditor({
         const visited = from ? [key(from.path), reached] : [reached]
         store.set({
           cursor: reached,
+          cursorCopy: to.copy,
           selection: extend ? [...new Set([...selection, ...visited])] : [reached],
         })
         rowElement(reached)?.scrollIntoView?.({ block: 'nearest' })
@@ -1737,7 +1785,11 @@ export function InputsFormEditor({
         container.focus({ preventScroll: true })
         // Pressing a selected input keeps the whole selection, so a drag takes it all along.
         if (!selected) {
-          store.set({ selection: [rowKey], cursor: rowKey })
+          store.set({
+            selection: [rowKey],
+            cursor: rowKey,
+            cursorCopy: row?.dataset['inputInstance'] ?? null,
+          })
         }
         api.startDrag(e, path, name, { swallowClick: 'always', holdText: 'drag' })
         return
@@ -1771,6 +1823,7 @@ export function InputsFormEditor({
                 ? base.filter((other) => other !== rowKey)
                 : [...base, rowKey],
               cursor: rowKey,
+              cursorCopy: row?.dataset['inputInstance'] ?? null,
             })
           }
         },
@@ -1787,7 +1840,7 @@ export function InputsFormEditor({
       return
     }
     const onKey = (e: KeyboardEvent) => {
-      if (typing(e.target)) {
+      if (typing(e.target) || (e.target instanceof Element && e.target.closest(KEYED_WIDGETS))) {
         return
       }
       const arrow = ARROWS[e.key]
