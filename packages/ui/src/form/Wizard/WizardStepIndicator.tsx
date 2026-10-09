@@ -1,4 +1,5 @@
 import cx from 'classnames'
+import { useEffect, useRef } from 'react'
 import type { WizardStepIndicatorProps } from './types'
 import { stepText } from './utils'
 
@@ -13,6 +14,21 @@ export function WizardStepIndicator({
   hideStepNumbers = false,
 }: WizardStepIndicatorProps) {
   const currentIndex = stepOrder.indexOf(currentStep)
+  // Many pages, as a repeated page's copies make, scroll in this row instead of widening the form, and
+  // the current one is brought into view within it without moving the page.
+  const row = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = row.current
+    const step = el?.children[currentIndex]
+    if (!el || !step || el.scrollWidth <= el.clientWidth) {
+      return
+    }
+    const box = el.getBoundingClientRect()
+    const at = step.getBoundingClientRect()
+    if (at.left < box.left || at.right > box.right) {
+      el.scrollLeft += at.left - box.left - (box.width - at.width) / 2
+    }
+  }, [currentIndex])
 
   const getStepStatus = (stepKey: string, index: number) => {
     if (stepKey === currentStep) {
@@ -25,7 +41,10 @@ export function WizardStepIndicator({
   }
 
   return (
-    <div className="flex items-start justify-between w-full mb-2 gap-4 py-2">
+    <div
+      ref={row}
+      className="flex items-start justify-between w-full mb-2 gap-4 py-2 overflow-x-auto"
+    >
       {stepOrder.map((stepKey, index) => {
         const stepConfig = steps[stepKey]
         const status = getStepStatus(stepKey, index)
@@ -43,6 +62,7 @@ export function WizardStepIndicator({
               type="button"
               onClick={() => onStepClick(stepKey)}
               disabled={!isClickable}
+              aria-current={isDotActive ? 'step' : undefined}
               className={cx(
                 'w-12 h-12 rounded-full border-3 flex items-center justify-center font-bold text-base transition-all duration-300 flex-shrink-0 relative',
                 {
