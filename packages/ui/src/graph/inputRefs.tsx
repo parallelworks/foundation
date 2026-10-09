@@ -72,7 +72,6 @@ export function inputRefs(editing: WorkflowEditing, inputs: Json | undefined): I
 }
 
 const REF = /^\$\{\{\s*(!?)\s*inputs\.([A-Za-z0-9_.-]+?)\s*\}\}$/
-const EQUALS = /^\$\{\{\s*inputs\.([A-Za-z0-9_.-]+?)\s*(==|!=)\s*'([^']*)'\s*\}\}$/
 
 export function refExpression(path: string[], suffix?: string): string {
   return `\${{ inputs.${[...path, ...(suffix ? [suffix] : [])].join('.')} }}`
@@ -91,33 +90,14 @@ export function readRef(value: unknown, suffix?: string): string[] | null {
   return parts
 }
 
-/** A switch read from a boolean input, possibly negated. */
-export function readFlagRef(value: unknown): { path: string[]; negated: boolean } | null {
-  const match = typeof value === 'string' ? REF.exec(value.trim()) : null
-  return match ? { path: (match[2] ?? '').split('.'), negated: match[1] === '!' } : null
-}
-
 export function flagExpression(path: string[], negated: boolean): string {
   return `\${{ ${negated ? '!' : ''}inputs.${path.join('.')} }}`
 }
 
-/** A condition comparing an input to one of its values. */
-export function readEqualsRef(
-  value: unknown,
-): { path: string[]; value: string; negated: boolean } | null {
-  const match = typeof value === 'string' ? EQUALS.exec(value.trim()) : null
-  return match
-    ? {
-        path: (match[1] ?? '').split('.'),
-        value: match[3] ?? '',
-        negated: match[2] === '!=',
-      }
-    : null
-}
-
+// A quote inside an expression's string is written twice.
 export function equalsExpression(path: string[], value: string, negated = false): string {
   const operator = negated ? '!=' : '=='
-  return `\${{ inputs.${path.join('.')} ${operator} '${value.replace(/'/g, '')}' }}`
+  return `\${{ inputs.${path.join('.')} ${operator} '${value.replace(/'/g, "''")}' }}`
 }
 
 const pathKey = (path: string[]) => path.join('.')

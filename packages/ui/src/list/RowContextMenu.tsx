@@ -1,5 +1,5 @@
 import cx from 'classnames'
-import type { ComponentType, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
+import type { ComponentType, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { keyedByContent } from '../components/keys'
@@ -212,9 +212,18 @@ export function useRowMenuActive(openMenu: OpenMenu): {
 } {
   const [active, setActive] = useState(false)
   const wrapped = useCallback<OpenMenu>(
-    (x, y, items) => {
+    (x, y, items, onClose, search) => {
       setActive(true)
-      openMenu(x, y, items, () => setActive(false))
+      openMenu(
+        x,
+        y,
+        items,
+        () => {
+          setActive(false)
+          onClose?.()
+        },
+        search,
+      )
     },
     [openMenu],
   )
@@ -248,21 +257,27 @@ function RowContextMenu({
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
 
   useLayoutEffect(() => {
-    if (!state || !ref.current) {
+    const menu = ref.current
+    if (!state || !menu) {
       setPos(null)
       return
     }
-    const { width, height } = ref.current.getBoundingClientRect()
-    const pad = MENU_EDGE
-    // Open upward when the menu won't fit below the anchor but fits above, so a
-    // row near the viewport bottom doesn't push the menu off-screen or onto it.
-    const spaceBelow = window.innerHeight - pad - state.y
-    const openUp = height > spaceBelow && state.y - height - pad >= 0
-    const top = openUp ? state.y - height : Math.min(state.y, window.innerHeight - height - pad)
-    setPos({
-      left: Math.max(pad, Math.min(state.x, window.innerWidth - width - pad)),
-      top: Math.max(pad, top),
-    })
+    const place = () => {
+      const { width, height } = menu.getBoundingClientRect()
+      const pad = MENU_EDGE
+      // Open upward when the menu won't fit below the anchor but fits above, so a
+      // row near the viewport bottom doesn't push the menu off-screen or onto it.
+      const spaceBelow = window.innerHeight - pad - state.y
+      const openUp = height > spaceBelow && state.y - height - pad >= 0
+      const top = openUp ? state.y - height : Math.min(state.y, window.innerHeight - height - pad)
+      setPos({
+        left: Math.max(pad, Math.min(state.x, window.innerWidth - width - pad)),
+        top: Math.max(pad, top),
+      })
+    }
+    place()
+    // A search grows and shrinks the menu as it narrows it.
+    return watchSize(menu, place)
   }, [state])
 
   // Focus goes in once the menu is placed, since a hidden element can't take it: to the search field,
@@ -292,7 +307,12 @@ function RowContextMenu({
     if (!state) {
       return
     }
-    const close = () => onClose()
+    // A scroll inside the menu, as through a long search's list, leaves it open.
+    const close = (e: Event) => {
+      if (!(e.target instanceof Node && ref.current?.contains(e.target))) {
+        onClose()
+      }
+    }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose()
@@ -366,9 +386,8 @@ function RowContextMenu({
           e.preventDefault()
           const items = [...ref.current.querySelectorAll<HTMLElement>(MENU_ITEMS)]
           const at = items.indexOf(document.activeElement as HTMLElement)
-          items[(at + step + items.length) % items.length]?.focus({
-            preventScroll: true,
-          })
+          const next = at < 0 ? (step > 0 ? 0 : items.length - 1) : at + step
+          focusItem(items[(next + items.length) % items.length])
         }}
       >
         <MenuItemList items={state.items} search={state.search} onClose={onClose} side={side} />
@@ -383,20 +402,53 @@ function RowContextMenu({
 // How far a menu keeps from the window's edges.
 const MENU_EDGE = 8
 
+// Calls `onResize` whenever `el` changes size; returns the unsubscribe.
+function watchSize(el: Element, onResize: () => void): (() => void) | undefined {
+  if (typeof ResizeObserver === 'undefined') {
+    return undefined
+  }
+  const observer = new ResizeObserver(onResize)
+  observer.observe(el)
+  return () => observer.disconnect()
+}
+
+// Focus without scrolling the page, which closes the menu, but with the item in its scrolling list's view.
+function focusItem(item: HTMLElement | null | undefined) {
+  item?.focus({ preventScroll: true })
+  item?.scrollIntoView?.({ block: 'nearest' })
+}
+
 // A submenu opens level with its item, lifted by as much as would run past the window's bottom.
-function SubmenuPanel({ side, children }: { side: 'left' | 'right'; children: ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null)
+function SubmenuPanel({
+  side,
+  panelRef,
+  children,
+}: {
+  side: 'left' | 'right'
+  panelRef: RefObject<HTMLDivElement | null>
+  children: ReactNode
+}) {
   const [lift, setLift] = useState(0)
+  const lifted = useRef(0)
   useLayoutEffect(() => {
-    const rect = ref.current?.getBoundingClientRect()
-    if (rect) {
-      const over = rect.bottom - (window.innerHeight - MENU_EDGE)
-      setLift(Math.max(0, Math.min(over, rect.top - MENU_EDGE)))
+    const panel = panelRef.current
+    if (!panel) {
+      return
     }
-  }, [])
+    // Measured where it would sit unlifted, as a search can grow or shrink it once open.
+    const place = () => {
+      const rect = panel.getBoundingClientRect()
+      const top = rect.top + lifted.current
+      const over = rect.bottom + lifted.current - (window.innerHeight - MENU_EDGE)
+      lifted.current = Math.max(0, Math.min(over, top - MENU_EDGE))
+      setLift(lifted.current)
+    }
+    place()
+    return watchSize(panel, place)
+  }, [panelRef])
   return (
     <div
-      ref={ref}
+      ref={panelRef}
       className={cx(
         'absolute -top-1 z-10 min-w-44 rounded-lg border border-(--theme-border) bg-(--theme-panel-bg) py-1 shadow-lg',
         side === 'left' ? 'right-full' : 'left-full',
@@ -468,9 +520,7 @@ function MenuSearchField({
             onEnter()
           } else if (e.key === 'ArrowDown') {
             e.preventDefault()
-            e.currentTarget.parentElement?.parentElement
-              ?.querySelector<HTMLElement>('button:not([disabled]), a')
-              ?.focus()
+            focusItem(e.currentTarget.parentElement?.parentElement?.querySelector(MENU_ITEMS))
           }
         }}
         className="w-full rounded-md border border-(--theme-border) bg-(--theme-muted-panel-bg) px-2 py-1 text-[13px] text-(--theme-app) placeholder:text-(--theme-muted-text-color) focus:border-(--theme-element) focus:outline-none"
@@ -492,28 +542,31 @@ function MenuItemList({
 }) {
   const [query, setQuery] = useState('')
   const needle = query.trim().toLowerCase()
-  const shown: RowMenuItem[] = search && needle ? searchMatches(items, needle) : items
+  const searching = !!search && !!needle
+  const shown: RowMenuItem[] = searching ? searchMatches(items, needle) : items
+  const run = useRunItem(onClose)
   const pickFirst = () => {
     const first = shown.find((item) => item.kind === 'action' && !item.disabled)
     if (first?.kind === 'action') {
-      first.onSelect?.()
-      onClose()
+      run(first)
     }
   }
+  // A search lists the matches of every submenu, so its list scrolls; none of them opens a submenu to clip.
+  const rows = keyedByContent(shown, (it) => (it.kind === 'divider' ? 'divider' : it.label)).map(
+    ({ key, item }) =>
+      item.kind === 'divider' ? (
+        <div key={key} aria-hidden="true" className="my-1 h-px bg-(--theme-border)" />
+      ) : (
+        <MenuRow key={key} item={item} onClose={onClose} side={side} />
+      ),
+  )
   return (
     <>
       {search && (
         <MenuSearchField search={search} query={query} onQuery={setQuery} onEnter={pickFirst} />
       )}
-      {keyedByContent(shown, (it) => (it.kind === 'divider' ? 'divider' : it.label)).map(
-        ({ key, item }) =>
-          item.kind === 'divider' ? (
-            <div key={key} aria-hidden="true" className="my-1 h-px bg-(--theme-border)" />
-          ) : (
-            <MenuRow key={key} item={item} onClose={onClose} side={side} />
-          ),
-      )}
-      {search && needle && shown.length === 0 && (
+      {searching ? <div className="max-h-[min(20rem,60vh)] overflow-y-auto">{rows}</div> : rows}
+      {searching && shown.length === 0 && (
         <div className="px-3 py-1.5 text-[13px] text-(--theme-muted-text-color)">
           {search.empty}
         </div>
@@ -532,10 +585,10 @@ function MenuRow({
   side: 'left' | 'right'
 }) {
   const Link = useLink()
-  const notify = useNotify()
-  const { list: t } = useStrings()
+  const run = useRunItem(onClose)
   const [openSub, setOpenSub] = useState(false)
   const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const panel = useRef<HTMLDivElement>(null)
 
   if (item.kind === 'submenu') {
     const open = () => {
@@ -551,9 +604,18 @@ function MenuRow({
         className="relative"
         role="none"
         onMouseEnter={open}
-        onMouseLeave={close}
+        // Typing in its search, or keys moving through it, keep a submenu open when the pointer wanders off.
+        onMouseLeave={() => {
+          if (!panel.current?.contains(document.activeElement)) {
+            close()
+          }
+        }}
         onFocus={open}
-        onBlur={close}
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+            close()
+          }
+        }}
       >
         <button
           type="button"
@@ -569,7 +631,7 @@ function MenuRow({
           <ChevronRightIcon className="h-3 w-3 shrink-0 opacity-60" />
         </button>
         {openSub && (
-          <SubmenuPanel side={side}>
+          <SubmenuPanel side={side} panelRef={panel}>
             <MenuItemList items={item.items} search={item.search} onClose={onClose} side={side} />
           </SubmenuPanel>
         )}
@@ -611,20 +673,7 @@ function MenuRow({
             'data-tooltip-content': item.tooltip,
           }
         : {})}
-      onClick={() => {
-        if (item.disabled) {
-          return
-        }
-        if (item.copy) {
-          const { text, label } = item.copy
-          navigator.clipboard?.writeText(text).then(
-            () => notify.success(t.copied(label)),
-            () => notify.error(t.couldntCopy(label)),
-          )
-        }
-        item.onSelect?.()
-        onClose()
-      }}
+      onClick={() => run(item)}
       className={cx(
         MENU_ITEM_CLASSES,
         item.destructive ? 'text-red-500' : 'text-(--theme-app)',
@@ -636,6 +685,26 @@ function MenuRow({
       {item.selected && <CheckIcon className="ml-auto opacity-80" />}
     </button>
   )
+}
+
+// What choosing an item does, by a click or by Enter in a search: its copy, then its action.
+function useRunItem(onClose: () => void) {
+  const notify = useNotify()
+  const { list: t } = useStrings()
+  return (item: Extract<RowMenuItem, { kind: 'action' }>) => {
+    if (item.disabled) {
+      return
+    }
+    if (item.copy) {
+      const { text, label } = item.copy
+      navigator.clipboard?.writeText(text).then(
+        () => notify.success(t.copied(label)),
+        () => notify.error(t.couldntCopy(label)),
+      )
+    }
+    item.onSelect?.()
+    onClose()
+  }
 }
 
 export interface CopyFields {
