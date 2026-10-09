@@ -133,7 +133,13 @@ export const Choices: StoryObj<typeof DynamicForm> = {
 
 const WORKER_OPTIONS = {
   nodes: { type: 'number', label: 'Nodes', default: 2, width: '50%' },
-  queue: { type: 'dropdown', label: 'Queue', default: 'gpu', options: ['gpu', 'cpu'], width: '50%' },
+  queue: {
+    type: 'dropdown',
+    label: 'Queue',
+    default: 'gpu',
+    options: ['gpu', 'cpu'],
+    width: '50%',
+  },
 }
 
 /** A page with `multi` repeats: each copy is a page, its values a row under the page's name, with Add after
@@ -200,7 +206,12 @@ const WIZARD_IN_A_GROUP = {
         type: 'step',
         title: 'Compute',
         options: {
-          partition: { type: 'dropdown', label: 'Partition', default: 'gpu', options: ['gpu', 'cpu'] },
+          partition: {
+            type: 'dropdown',
+            label: 'Partition',
+            default: 'gpu',
+            options: ['gpu', 'cpu'],
+          },
           nodes: { type: 'number', label: 'Nodes', default: 2 },
         },
       },

@@ -405,7 +405,9 @@ describe('a repeated wizard page', () => {
     await screen.findByRole('heading', { name: 'Host 1' })
     fireEvent.click(screen.getByRole('button', { name: 'Remove Host' }))
     await screen.findByRole('heading', { name: 'Host' })
-    await waitFor(() => expect(seen).toHaveBeenLastCalledWith(expect.objectContaining({ hosts: [] })))
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith(expect.objectContaining({ hosts: [] })),
+    )
   })
 })
 

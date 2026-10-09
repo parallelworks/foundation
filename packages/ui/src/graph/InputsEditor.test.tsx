@@ -330,7 +330,9 @@ describe('InputsFormEditor', () => {
       done: { type: 'step', title: 'Done', options: { note: { type: 'string' } } },
     } as unknown as typeof INPUTS)
     expect(await screen.findByText('/ 2')).toBeInTheDocument()
-    expect(document.querySelector(`[data-input-path='${JSON.stringify(['hosts', 'cpus'])}']`)).toBeNull()
+    expect(
+      document.querySelector(`[data-input-path='${JSON.stringify(['hosts', 'cpus'])}']`),
+    ).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '+ Add Host' }))
     expect(await screen.findByRole('heading', { name: 'Host 1' })).toBeInTheDocument()
     expect(row(['hosts', 'cpus']).dataset['inputInstance']).toBe('hosts[0].cpus')
