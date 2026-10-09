@@ -13,6 +13,11 @@ export type SidebarMode = 'inline' | 'drawer' | 'auto'
 
 export const DRAWER_BELOW_PX = 768
 
+/** Put on the element the thread and composer sit in: their shared column
+ *  grows with it, from 50rem to 64rem, instead of staying 50rem on a wide
+ *  screen. */
+export const CHAT_COLUMN_SCOPE = '@container [--chat-column:clamp(50rem,60cqi,64rem)]'
+
 // Measured on the chat's own box rather than the window, because a chat
 // embedded in a panel can be narrow on a wide screen.
 function useSidebarPresentation(
@@ -71,7 +76,10 @@ export default function ChatLayout({
     <KeyboardShortcutsProvider>
       <div ref={ref} className={cx('flex h-full', drawer && 'relative overflow-hidden')}>
         <ChatSidebar actions={sidebarActions} />
-        <main inert={drawer && drawerOpen} className="flex-1 flex flex-col min-w-0">
+        <main
+          inert={drawer && drawerOpen}
+          className={cx('flex min-w-0 flex-1 flex-col', CHAT_COLUMN_SCOPE)}
+        >
           {drawer && drawerToggle && (
             <div className="flex shrink-0 items-center bg-(--theme-panel-bg) px-2 pt-2">
               <SidebarToggle

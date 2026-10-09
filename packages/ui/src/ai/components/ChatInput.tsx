@@ -428,7 +428,7 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput
     >
       {/* Drag overlay */}
       {isDragging && <DragOverlay className="rounded-2xl" />}
-      <div className={cx(!flush && 'w-full max-w-[50rem] mx-auto px-4')}>
+      <div className={cx(!flush && 'w-full max-w-[var(--chat-column,50rem)] mx-auto px-4')}>
         {context && <ComposerContext>{context}</ComposerContext>}
 
         {cards.length > 0 && (

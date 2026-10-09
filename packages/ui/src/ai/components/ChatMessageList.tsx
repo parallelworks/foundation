@@ -307,7 +307,9 @@ export default function ChatMessageList({
       <div className="chat-thread flex-1 overflow-y-auto flex flex-col bg-(--theme-panel-bg)">
         <div className="flex-1" />
         {footer && (
-          <div className={cx('w-full max-w-[50rem] mx-auto', !flush && 'px-4')}>{footer}</div>
+          <div className={cx('w-full max-w-[var(--chat-column,50rem)] mx-auto', !flush && 'px-4')}>
+            {footer}
+          </div>
         )}
         {inputElement && <div className="sticky bottom-0 z-10">{inputElement}</div>}
       </div>
@@ -326,7 +328,7 @@ export default function ChatMessageList({
         : {})}
       className="chat-thread flex-1 overflow-y-auto theme-scrollbar flex flex-col bg-(--theme-panel-bg)"
     >
-      <div className="w-full max-w-[50rem] mx-auto pt-4 pb-6 flex-1 px-4">
+      <div className="w-full max-w-[var(--chat-column,50rem)] mx-auto pt-4 pb-6 flex-1 px-4">
         {messages.map((message, i) => {
           // Recorded blocks flagged by an agent adapter are not the human
           // speaking; unflagged messages are untouched.
