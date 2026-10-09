@@ -14,9 +14,11 @@ import {
 const SIDEBAR_RAIL_WIDTH_PX = 48
 export const SIDEBAR_DEFAULT_WIDTH_PX = 256
 
-// Tints of the ink rather than the theme's hover, which is a shade off this
-// surface and would not read as a highlight on it.
-const HIGHLIGHT_SELECTED = 'bg-[color-mix(in_oklab,var(--theme-panel)_8%,transparent)]'
+// Tints rather than the theme's hover, which is a shade off this surface and
+// would not read as a highlight on it: the accent for the open row, so the
+// conversation on screen is marked in the chat's own colour, and the ink for
+// a passing pointer.
+const HIGHLIGHT_SELECTED = 'bg-[color-mix(in_oklab,var(--theme-accent)_12%,transparent)]'
 const HIGHLIGHT_HOVER = 'hover:bg-[color-mix(in_oklab,var(--theme-panel)_5%,transparent)]'
 
 /** The column a conversation list lives in: it animates between its width
@@ -100,7 +102,7 @@ export function SidebarGroupHeading({
     <h4
       data-testid={testId}
       className={cx(
-        'mt-4 mb-1 whitespace-nowrap px-2 text-xs font-medium',
+        'mt-5 mb-1 whitespace-nowrap px-2 text-xs font-medium',
         tone === 'attention' ? 'text-amber-700 dark:text-amber-300' : 'theme-muted-text',
       )}
     >
@@ -128,7 +130,7 @@ export function SidebarRow({
   return (
     <li
       className={cx(
-        'group relative flex items-center justify-between rounded-lg px-2 py-1 transition-colors duration-150',
+        'group relative flex items-center justify-between rounded-lg px-2 py-[3px] transition-colors duration-150',
         selected || active ? HIGHLIGHT_SELECTED : HIGHLIGHT_HOVER,
         className,
       )}

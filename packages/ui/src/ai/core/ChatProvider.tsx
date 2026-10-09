@@ -700,6 +700,9 @@ export function ChatProvider({
         // duration excludes request setup — the response only became readable
         // at the first chunk before the transport moved behind the adapter.
         let thinkingStart: number | null = null
+        // The last reasoning chunk, so "Thought for" stops where the thinking
+        // did rather than running on through the answer.
+        let thinkingEnd: number | null = null
         const markStreamStart = () => {
           if (thinkingStart === null) {
             thinkingStart = Date.now()
@@ -735,6 +738,7 @@ export function ChatProvider({
             },
             onReasoning: (reasoning: string) => {
               markStreamStart()
+              thinkingEnd = Date.now()
               dispatch({
                 type: 'APPEND_STREAMING_REASONING',
                 reasoning,
@@ -770,7 +774,9 @@ export function ChatProvider({
         )
 
         const thinkingDuration =
-          assistantReasoning && thinkingStart !== null ? Date.now() - thinkingStart : null
+          assistantReasoning && thinkingStart !== null
+            ? (thinkingEnd ?? Date.now()) - thinkingStart
+            : null
 
         const assistantMessage: Message = {
           id: assistantMessageId || crypto.randomUUID(),

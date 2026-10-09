@@ -10,7 +10,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { ArrowUpIcon, AttachmentIcon, StopSolidIcon } from '../../icons'
+import { ArrowUpIcon, PlusOutlineIcon, StopSolidIcon } from '../../icons'
 import { useChat } from '../core/ChatProvider'
 import { useChatConfig } from '../core/config'
 import useDragDrop from '../core/useDragDrop'
@@ -152,14 +152,18 @@ function AttachButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
+      aria-expanded={open}
       className={cx(
-        'flex-shrink-0 p-3 ml-1 mb-1 rounded-xl transition-colors',
-        open ? 'text-blue-600' : 'theme-muted-text hover:theme-text',
+        'flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition-colors',
+        open ? 'theme-text chat-tint-strong' : 'theme-muted-text hover:theme-text hover:chat-tint',
         'disabled:opacity-50 disabled:cursor-not-allowed',
       )}
       aria-label={label}
+      title={label}
     >
-      <AttachmentIcon className="h-5 w-5" />
+      <PlusOutlineIcon
+        className={cx('h-5 w-5 transition-transform duration-200', open && 'rotate-45')}
+      />
     </button>
   )
 }
@@ -184,9 +188,9 @@ function SendButton({
       disabled={!enabled}
       data-testid={testId}
       className={cx(
-        'p-2.5 rounded-xl transition-all duration-200',
-        emphasised ? 'theme-element hover:opacity-90' : 'theme-muted-panel theme-muted-text',
-        !enabled && 'cursor-not-allowed',
+        'flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition-[background-color,color,transform] duration-150 active:scale-95',
+        emphasised ? 'theme-element hover:opacity-90' : 'chat-send-idle',
+        !enabled && 'cursor-not-allowed active:scale-100',
       )}
       aria-label={label}
       title={label}
@@ -391,27 +395,40 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput
     onFilesDropped: handleFilesDropped,
   })
 
+  const toolbar = attachmentsAvailable || (!flush && !!settingsRight)
+  const action =
+    isStreaming && !input.trim() ? (
+      <button
+        type="button"
+        onClick={stopStreaming}
+        disabled={turn?.stopping}
+        className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-(--theme-panel) text-(--theme-panel-bg) transition-opacity hover:opacity-85 disabled:opacity-50"
+        aria-label={t.stopGenerating}
+        title={t.stopGenerating}
+      >
+        <StopSolidIcon className="h-3 w-3" />
+      </button>
+    ) : (
+      <SendButton
+        onClick={handleSubmit}
+        enabled={canSend}
+        emphasised={emphasised}
+        label={sendLabel ?? t.sendMessage}
+        testId={sendTestId}
+      />
+    )
+
   return (
     <div
-      className={cx('relative', !flush && 'px-4 pb-6 pt-2 bg-(--theme-panel-bg)')}
+      className={cx(
+        'relative',
+        !flush && 'chat-composer-dock px-4 pb-5 pt-2 bg-(--theme-panel-bg)',
+      )}
       {...(attachmentsAvailable ? dragHandlers : {})}
     >
       {/* Drag overlay */}
       {isDragging && <DragOverlay className="rounded-2xl" />}
       <div className={cx(!flush && 'w-full max-w-[50rem] mx-auto px-4')}>
-        {/* Attachment Upload Area */}
-        {showAttachments && attachmentsAvailable && (
-          <div className="mb-3 p-3 rounded-2xl border theme-border shadow-sm bg-(--theme-panel-bg)">
-            <AttachmentUpload
-              ref={attachmentUploadRef}
-              conversationId={conversationId}
-              attachments={attachments}
-              onAttachmentsChange={setAttachments}
-              maxFiles={10}
-            />
-          </div>
-        )}
-
         {context && <ComposerContext>{context}</ComposerContext>}
 
         {cards.length > 0 && (
@@ -442,30 +459,27 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput
               }}
             />
           )}
-          {/* Main Input Container */}
-          <div
-            className={cx(
-              'relative flex items-end gap-2',
-              'rounded-3xl border shadow-sm',
-              'px-2 overflow-hidden',
-              'transition-all duration-200',
-              'focus-within:shadow-md',
-              'theme-border',
-              'bg-(--theme-panel-bg)',
-            )}
-          >
-            {attachmentsAvailable && (
-              <AttachButton
-                open={showAttachments}
-                disabled={disabled}
-                label={t.attachFiles}
-                onClick={() => setShowAttachments(!showAttachments)}
-              />
+          {/* One box holds the text and everything that acts on it: what is
+              attached above, the attach and send controls in a toolbar
+              under the text, and (outside flush) the model on that toolbar's
+              right, so the eye never leaves the box to see where it goes. */}
+          <div className="chat-composer flex flex-col rounded-[1.25rem] bg-(--theme-panel-bg)">
+            {showAttachments && attachmentsAvailable && (
+              <div className="px-3 pt-3">
+                <AttachmentUpload
+                  ref={attachmentUploadRef}
+                  conversationId={conversationId}
+                  attachments={attachments}
+                  onAttachmentsChange={setAttachments}
+                  maxFiles={10}
+                />
+              </div>
             )}
 
-            {/* Text Input with Send Button */}
-            <div className="flex-1 relative max-h-[200px] overflow-y-auto">
-              <div className="flex items-end">
+            {/* With nothing to put beside it, send sits at the end of the
+                text's own row rather than alone on an empty toolbar. */}
+            <div className={cx(!toolbar && 'flex items-end gap-2 pr-2 pb-2')}>
+              <div className="max-h-[200px] min-w-0 flex-1 overflow-y-auto">
                 <textarea
                   ref={textareaRef}
                   value={input}
@@ -473,54 +487,43 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
                   placeholder={effectivePlaceholder}
-                  aria-label={inputLabel}
+                  aria-label={inputLabel ?? effectivePlaceholder}
                   disabled={disabled}
                   rows={1}
                   className={cx(
-                    'theme-text',
-                    'flex-1 resize-none py-3.5 px-2 pr-3',
-                    'bg-transparent border-0',
+                    'theme-text block w-full resize-none overflow-hidden',
+                    'bg-transparent border-0 px-4',
+                    toolbar ? 'pt-3.5 pb-1' : 'pt-3 pb-1',
                     'placeholder:theme-muted-text',
                     'focus:outline-none focus:ring-0',
                     'disabled:opacity-50 disabled:cursor-not-allowed',
-                    'text-base leading-relaxed',
-                    'overflow-hidden',
+                    'text-[1rem] leading-relaxed',
                   )}
                 />
-                {/* Send/Stop Button */}
-                <div className="flex-shrink-0 p-1.5 mr-1 sticky bottom-1 flex items-center">
-                  {isStreaming && !input.trim() ? (
-                    <button
-                      type="button"
-                      onClick={stopStreaming}
-                      disabled={turn?.stopping}
-                      className={cx(
-                        'p-2.5 rounded-xl',
-                        'theme-muted-panel',
-                        'hover:theme-hover',
-                        'transition-colors',
-                      )}
-                      aria-label={t.stopGenerating}
-                      title={t.stopGenerating}
-                    >
-                      <StopSolidIcon className="h-4 w-4" />
-                    </button>
-                  ) : (
-                    <SendButton
-                      onClick={handleSubmit}
-                      enabled={canSend}
-                      emphasised={emphasised}
-                      label={sendLabel ?? t.sendMessage}
-                      testId={sendTestId}
-                    />
-                  )}
+              </div>
+              {!toolbar && action}
+            </div>
+
+            {toolbar && (
+              <div className="flex items-center gap-1 px-2 pb-2">
+                {attachmentsAvailable && (
+                  <AttachButton
+                    open={showAttachments}
+                    disabled={disabled}
+                    label={t.attachFiles}
+                    onClick={() => setShowAttachments(!showAttachments)}
+                  />
+                )}
+                <div className="ml-auto flex min-w-0 items-center gap-1">
+                  {!flush && settingsRight}
+                  {action}
                 </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
 
-        {!flush && (
+        {!flush && (settingsLeft || uploadedCount > 0) && (
           <ComposerSettings
             left={
               <>
@@ -532,9 +535,7 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput
                 )}
               </>
             }
-          >
-            {settingsRight}
-          </ComposerSettings>
+          />
         )}
       </div>
     </div>

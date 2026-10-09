@@ -1,13 +1,37 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useMemo } from 'react'
-import { makeComposerPastes, makePasteText, pasteIntoComposer, StoryChat } from '../stories/harness'
+import {
+  makeComposerPastes,
+  makePasteText,
+  makeStaticAdapter,
+  pasteIntoComposer,
+  StoryChat,
+} from '../stories/harness'
 import type { MessagePaste } from '../types'
 import ChatInput from './ChatInput'
+import { ComposerControls, ConnectToolsLink } from './ComposerChrome'
 
 const meta: Meta = {
   title: 'Chat/Composer',
   component: ChatInput,
-  parameters: { layout: 'padded' },
+  parameters: { layout: 'fullscreen' },
+  // Docked at the foot of the panel, the way a thread shows it, so the dock
+  // and its fade read against the surface they belong to.
+  decorators: [
+    (Story) => (
+      <div
+        style={{
+          minHeight: '100dvh',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'flex-end',
+          background: 'var(--theme-panel-bg)',
+        }}
+      >
+        <Story />
+      </div>
+    ),
+  ],
 }
 
 export default meta
@@ -19,7 +43,7 @@ export const Idle: StoryObj<{ disabled: boolean; placeholder: string }> = {
   args: { disabled: false, placeholder: 'Ask anything' },
   render: (args) => (
     <StoryChat>
-      <div className="max-w-2xl mx-auto">
+      <div>
         <ChatInput
           onSend={send}
           disabled={args.disabled}
@@ -29,6 +53,36 @@ export const Idle: StoryObj<{ disabled: boolean; placeholder: string }> = {
       </div>
     </StoryChat>
   ),
+}
+
+// The box as a thread docks it: attach on the left of its toolbar, the model
+// and send on the right, and the surface's own links under it. The play opens
+// the attach tray inside the box.
+export const Toolbar: StoryObj<{ attachOpen: boolean }> = {
+  args: { attachOpen: false },
+  render: () => {
+    const Composer = () => {
+      const adapter = useMemo(() => makeStaticAdapter({ attachments: true }), [])
+      return (
+        <StoryChat adapter={adapter}>
+          <div>
+            <ChatInput
+              onSend={send}
+              conversationId="conv-toolbar"
+              settingsLeft={<ConnectToolsLink />}
+              settingsRight={<ComposerControls />}
+            />
+          </div>
+        </StoryChat>
+      )
+    }
+    return <Composer />
+  },
+  play: async ({ canvasElement, args }) => {
+    if (args.attachOpen) {
+      canvasElement.querySelector<HTMLButtonElement>('button[aria-expanded]')?.click()
+    }
+  },
 }
 
 // Text over inlineMaxBytes becomes a card. The play pastes three logs: the
@@ -55,7 +109,7 @@ export const LargePastes: StoryObj<{ inlineMaxBytes: number; uploadMs: number }>
       )
       return (
         <StoryChat>
-          <div className="max-w-2xl mx-auto">
+          <div>
             <ChatInput onSend={send} conversationId="conv-pastes" pastes={pastes} />
           </div>
         </StoryChat>

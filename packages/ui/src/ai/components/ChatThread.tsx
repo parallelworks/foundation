@@ -1,11 +1,8 @@
-import cx from 'classnames'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { CloseIcon, ThinkingIcon } from '../../icons'
 import { useChat } from '../core/ChatProvider'
 import { useChatConfig } from '../core/config'
 import useDragDrop from '../core/useDragDrop'
 import type { AttachmentMeta, ChatMessage as Message } from '../types'
-import Markdown from '../ui/Markdown'
 import BlockedGroupBanner from './BlockedGroupBanner'
 import ChatInput, { type ChatInputHandle } from './ChatInput'
 import ChatMessageList from './ChatMessageList'
@@ -22,26 +19,6 @@ interface EditingState {
 export default function ChatThread({ conversationId }: { conversationId: string }) {
   const chatInputRef = useRef<ChatInputHandle>(null)
   const [editingState, setEditingState] = useState<EditingState | null>(null)
-
-  // Reasoning drawer state
-  const [reasoningDrawerOpen, setReasoningDrawerOpen] = useState(false)
-  const [selectedReasoning, setSelectedReasoning] = useState<{
-    content: string
-    duration: number | null
-  } | null>(null)
-
-  const handleOpenReasoning = useCallback(
-    (reasoning: string, duration: number | null) => {
-      // Toggle if already open with same content
-      if (reasoningDrawerOpen && selectedReasoning?.content === reasoning) {
-        setReasoningDrawerOpen(false)
-      } else {
-        setSelectedReasoning({ content: reasoning, duration })
-        setReasoningDrawerOpen(true)
-      }
-    },
-    [reasoningDrawerOpen, selectedReasoning?.content],
-  )
 
   const {
     adapter,
@@ -244,7 +221,6 @@ export default function ChatThread({ conversationId }: { conversationId: string 
           }
           onSaveEdit={handleSaveEdit}
           onCancelEdit={handleCancelEdit}
-          onOpenReasoning={handleOpenReasoning}
           inputElement={
             <ChatInput
               ref={chatInputRef}
@@ -272,51 +248,6 @@ export default function ChatThread({ conversationId }: { conversationId: string 
             />
           }
         />
-      </div>
-
-      {/* Reasoning Side Panel */}
-      <div
-        className={cx(
-          'flex-shrink-0 border-l theme-border flex flex-col h-full transition-[width] duration-300 ease-in-out overflow-hidden bg-(--theme-panel-bg)',
-          reasoningDrawerOpen ? 'w-[400px]' : 'w-0 border-l-0',
-        )}
-      >
-        <div className="w-[400px] h-full flex flex-col">
-          {/* Panel Header */}
-          <div className="flex items-center justify-between p-3 border-b theme-border">
-            <div className="flex items-center gap-2">
-              <ThinkingIcon className="w-5 h-5 theme-muted-text" />
-              <span className="font-medium">{strings.thinking.activity}</span>
-              {selectedReasoning?.duration && (
-                <span className="text-sm theme-muted-text">
-                  · {Math.round(selectedReasoning.duration / 1000)}s
-                </span>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={() => setReasoningDrawerOpen(false)}
-              className="p-1 rounded hover:theme-hover transition-colors"
-            >
-              <CloseIcon className="w-5 h-5 theme-muted-text" />
-            </button>
-          </div>
-
-          {/* Panel Content */}
-          <div className="flex-1 overflow-y-auto p-4">
-            {selectedReasoning?.content && (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-sm font-medium theme-text">
-                  <div className="w-2 h-2 rounded-full bg-blue-500" />
-                  <span>{strings.thinking.label}</span>
-                </div>
-                <div className="text-sm theme-muted-text leading-relaxed pl-4 border-l-2 theme-border">
-                  <Markdown>{selectedReasoning.content}</Markdown>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
       </div>
     </div>
   )

@@ -3,7 +3,7 @@
 // state without a backend; new features add a factory (or a factory knob)
 // here and a story that calls it. See ../../.storybook/CONTRIBUTING.md.
 import type { ReactNode } from 'react'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ChatAdapter, StreamHandlers } from '../adapter/types'
 import type { ComposerPastes, PasteUploadResult } from '../components/usePasteCards'
 import { ChatProvider } from '../core/ChatProvider'
@@ -41,6 +41,15 @@ function words(count: number): string {
   }
   return out.join(' ')
 }
+
+// What the streaming adapter thinks aloud: paragraphs, so the tail scrolls
+// and a reader who opens it mid-stream has something to read.
+const REASONING_SCRIPT = [
+  'The question is about the build, so start with the log rather than the config.',
+  '\n\nThe log stops at step 380. That step allocates nodes, and the gpu partition only has four, so a request for more would hang there rather than fail outright.',
+  '\n\nCompute has twelve idle nodes. If the job does not need GPU kernels it should run there instead; check the job spec for a gpu constraint before suggesting it.',
+  '\n\nNo constraint in the spec. Answer: move it to compute, and say why the log looks like a hang.',
+].join(' ')
 
 let idCounter = 0
 function nextId(prefix: string): string {
@@ -278,11 +287,18 @@ export function makeStaticAdapter(options?: {
       const reasoningMs = knobs.reasoningMs ?? 1200
       const wordDelayMs = knobs.wordDelayMs ?? 120
       const replyWords = knobs.replyWords ?? 40
+      let reasoning = ''
       if (reasoningMs > 0) {
-        const steps = Math.max(1, Math.floor(reasoningMs / 200))
-        for (let i = 0; i < steps; i++) {
-          handlers.onReasoning?.('considering the canned options… ')
-          await sleep(200, signal)
+        // Real sentences at a steady pace across reasoningMs, so the live
+        // tail, its fade and the fold into "Thought for" all show.
+        const thought = REASONING_SCRIPT.split(' ')
+        const steps = Math.max(1, Math.min(thought.length, Math.floor(reasoningMs / 60)))
+        const perStep = Math.ceil(thought.length / steps)
+        for (let i = 0; i < thought.length; i += perStep) {
+          const chunk = `${thought.slice(i, i + perStep).join(' ')} `
+          reasoning += chunk
+          handlers.onReasoning?.(chunk)
+          await sleep(reasoningMs / steps, signal)
         }
       }
       await streamToolCalls(knobs, handlers, signal)
@@ -299,7 +315,7 @@ export function makeStaticAdapter(options?: {
         toolCalls: [],
         finishReason: 'stop',
         model: req.model,
-        reasoning: '',
+        reasoning: reasoning.trim(),
         responsesOutput: [],
       }
     },
@@ -623,6 +639,18 @@ export function makeComposerPastes(options?: {
   }
 }
 
+// Types into the story's composer and sends, the way a reader would.
+export function sendFromComposer(canvasElement: HTMLElement, text: string) {
+  const textarea = canvasElement.querySelector('textarea')
+  if (!textarea) {
+    return
+  }
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
+  setter?.call(textarea, text)
+  textarea.dispatchEvent(new Event('input', { bubbles: true }))
+  textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+}
+
 // Untrusted paste events never insert text, so only pastes the composer turns
 // into cards show up.
 export function pasteIntoComposer(canvasElement: HTMLElement, text: string) {
@@ -732,4 +760,31 @@ export function StoryChat({
       {children}
     </ChatProvider>
   )
+}
+
+/** Reveals text a few words at a time over durationMs, the way a stream
+ *  delivers it, and reports when it is all in. Starts again whenever the
+ *  text, duration or run changes. */
+export function useStreamedText(
+  text: string,
+  durationMs: number,
+  run = 0,
+): { text: string; done: boolean } {
+  const words = useMemo(() => text.split(' '), [text])
+  const [shown, setShown] = useState(0)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: run restarts the stream
+  useEffect(() => {
+    setShown(0)
+    const step = Math.max(16, durationMs / words.length)
+    const timer = setInterval(() => {
+      setShown((n) => {
+        if (n + 1 >= words.length) {
+          clearInterval(timer)
+        }
+        return Math.min(words.length, n + 1)
+      })
+    }, step)
+    return () => clearInterval(timer)
+  }, [words, durationMs, run])
+  return { text: words.slice(0, shown).join(' '), done: shown >= words.length }
 }

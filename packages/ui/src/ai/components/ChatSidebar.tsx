@@ -344,15 +344,11 @@ export default function ChatSidebar({
           />
         )}
         {actions && (
-          <div className="flex flex-col gap-1 p-1.5">
+          <div className="flex flex-col gap-0.5 px-2 pt-2 pb-1">
             <button
               type="button"
               onClick={handleNewChat}
-              className={cx(
-                'flex items-center h-9 px-2 gap-3 rounded-lg hover:theme-muted-panel',
-                'transition-colors',
-                !sidebarCollapsed && 'border theme-border',
-              )}
+              className="flex items-center h-9 px-2 gap-3 rounded-lg font-medium transition-colors hover:chat-tint"
               title={tSidebar.newChat}
             >
               <NewChatIcon className={cx('flex-shrink-0', 'w-4 h-4')} />
@@ -369,7 +365,7 @@ export default function ChatSidebar({
             {attachmentsAvailable && (
               <LinkComponent
                 target={{ kind: 'attachments' }}
-                className="flex items-center h-9 px-2 gap-3 rounded-lg hover:theme-muted-panel"
+                className="flex items-center h-9 px-2 gap-3 rounded-lg transition-colors hover:chat-tint"
                 title={tSidebar.attachments}
               >
                 <ImageIcon className="flex-shrink-0 w-4 h-4" />
@@ -387,7 +383,7 @@ export default function ChatSidebar({
         )}
 
         {actions && !sidebarCollapsed && conversations.length > 0 && (
-          <div className="px-2 pb-1">
+          <div className="px-2 pb-2">
             <div className="relative">
               <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 theme-muted-text pointer-events-none" />
               <input
@@ -403,7 +399,7 @@ export default function ChatSidebar({
                 }}
                 placeholder={strings.chrome.searchPlaceholder}
                 aria-label={strings.chrome.searchLabel}
-                className="w-full h-8 pl-8 pr-2 text-sm rounded-lg border theme-border bg-(--theme-input-bg) placeholder:theme-muted-text focus:outline-none focus:border-(--theme-element)"
+                className="w-full h-9 pl-8 pr-2 text-sm rounded-lg border border-transparent chat-tint theme-text placeholder:theme-muted-text transition-colors focus:outline-none focus:border-(--theme-border) focus:bg-(--theme-panel-bg)"
               />
             </div>
           </div>
@@ -470,7 +466,7 @@ export default function ChatSidebar({
           {!sidebarCollapsed && extraLinks.manageProviders && (
             <LinkComponent
               target={{ kind: 'external', href: extraLinks.manageProviders }}
-              className="flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-xs theme-muted-text hover:theme-hover"
+              className="flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-xs theme-muted-text transition-colors hover:chat-tint hover:theme-text"
               title={tSidebar.manageProviders}
             >
               <SettingsIcon className="h-3.5 w-3.5 shrink-0" />
