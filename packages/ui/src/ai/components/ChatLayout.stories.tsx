@@ -144,3 +144,69 @@ export const Auto: StoryObj<{ width: number; drawerBelowPx: number; sidebarMode:
     return <Sized />
   },
 }
+
+// A host that lists more than chats puts its own switch above the list. It is
+// told when the list is the rail, so it can shrink to icons there. Styled
+// inline: story-only utility classes are not compiled.
+export const HostTop: StoryObj = {
+  render: () => {
+    const Host = () => {
+      const adapter = useStoryAdapter()
+      const [side, setSide] = useState<'chats' | 'tasks'>('chats')
+      const sides = [
+        { key: 'chats' as const, label: 'Chats', short: 'C' },
+        { key: 'tasks' as const, label: 'Tasks', short: 'T' },
+      ]
+      return (
+        <StoryChat adapter={adapter} conversationId="conv-1">
+          <Frame>
+            <ChatLayout
+              sidebarActions={false}
+              sidebarTop={({ collapsed }) => (
+                <div
+                  style={{
+                    display: collapsed ? 'flex' : 'grid',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: 2,
+                    margin: collapsed ? '8px 6px 4px' : '8px 8px 4px',
+                    padding: collapsed ? 0 : 2,
+                    borderRadius: 8,
+                    background: collapsed ? undefined : 'var(--theme-muted-panel-bg)',
+                  }}
+                >
+                  {sides.map((s) => (
+                    <button
+                      key={s.key}
+                      type="button"
+                      aria-pressed={side === s.key}
+                      onClick={() => setSide(s.key)}
+                      style={{
+                        height: 28,
+                        minWidth: 28,
+                        padding: '0 8px',
+                        borderRadius: 6,
+                        fontSize: 13,
+                        fontWeight: 500,
+                        background: side === s.key ? 'var(--theme-panel-bg)' : 'transparent',
+                        color:
+                          side === s.key ? 'var(--theme-app)' : 'var(--theme-muted-text-color)',
+                        boxShadow: side === s.key ? '0 0 0 1px var(--theme-border)' : undefined,
+                      }}
+                    >
+                      {collapsed ? s.short : s.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            >
+              <ChatEmptyState />
+            </ChatLayout>
+          </Frame>
+        </StoryChat>
+      )
+    }
+    return <Host />
+  },
+}

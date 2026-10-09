@@ -1,6 +1,6 @@
 import cx from 'classnames'
 import { DateTime } from 'luxon'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import {
   DownloadIcon,
   EditIcon,
@@ -140,9 +140,12 @@ function ConversationRow({
 
 export default function ChatSidebar({
   actions = true,
+  top,
 }: {
   /** False when the host's page header carries new chat, attachments and search. */
   actions?: boolean
+  /** The host's own content above the list, given whether it is the rail. */
+  top?: ((state: { collapsed: boolean }) => ReactNode) | undefined
 }) {
   const { extraLinks, LinkComponent, strings } = useChatConfig()
   const tSidebar = strings.sidebar
@@ -301,67 +304,72 @@ export default function ChatSidebar({
         onSelect: (conv) => navigation.toConversation(conv.id),
       }}
       top={
-        actions && (
+        (top || actions) && (
           <>
-            <div className="flex flex-col gap-0.5 px-2 pt-2 pb-1">
-              <button
-                type="button"
-                onClick={handleNewChat}
-                className="flex items-center h-9 px-2 gap-3 rounded-lg font-medium transition-colors hover:chat-tint"
-                title={tSidebar.newChat}
-              >
-                <NewChatIcon className={cx('flex-shrink-0', 'w-4 h-4')} />
-                <span
-                  className={cx(
-                    'text-sm transition-opacity duration-200',
-                    sidebarCollapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100',
-                  )}
-                >
-                  {tSidebar.newChat}
-                </span>
-              </button>
-
-              {attachmentsAvailable && (
-                <LinkComponent
-                  target={{ kind: 'attachments' }}
-                  className="flex items-center h-9 px-2 gap-3 rounded-lg transition-colors hover:chat-tint"
-                  title={tSidebar.attachments}
-                  onClick={closeDrawer}
-                >
-                  <ImageIcon className="flex-shrink-0 w-4 h-4" />
-                  <span
-                    className={cx(
-                      'text-sm transition-opacity duration-200',
-                      sidebarCollapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100',
-                    )}
+            {top?.({ collapsed: sidebarCollapsed })}
+            {actions && (
+              <>
+                <div className="flex flex-col gap-0.5 px-2 pt-2 pb-1">
+                  <button
+                    type="button"
+                    onClick={handleNewChat}
+                    className="flex items-center h-9 px-2 gap-3 rounded-lg font-medium transition-colors hover:chat-tint"
+                    title={tSidebar.newChat}
                   >
-                    {tSidebar.attachments}
-                  </span>
-                </LinkComponent>
-              )}
-            </div>
+                    <NewChatIcon className={cx('flex-shrink-0', 'w-4 h-4')} />
+                    <span
+                      className={cx(
+                        'text-sm transition-opacity duration-200',
+                        sidebarCollapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100',
+                      )}
+                    >
+                      {tSidebar.newChat}
+                    </span>
+                  </button>
 
-            {!sidebarCollapsed && conversations.length > 0 && (
-              <div className="px-2 pb-2">
-                <div className="relative">
-                  <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 theme-muted-text pointer-events-none" />
-                  <input
-                    ref={searchInputRef}
-                    type="text"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape' && search) {
-                        e.stopPropagation()
-                        setSearch('')
-                      }
-                    }}
-                    placeholder={strings.chrome.searchPlaceholder}
-                    aria-label={strings.chrome.searchLabel}
-                    className="w-full h-9 pl-8 pr-2 text-sm rounded-lg border border-transparent chat-tint theme-text placeholder:theme-muted-text transition-colors focus:outline-none focus:border-(--theme-border) focus:bg-(--theme-panel-bg)"
-                  />
+                  {attachmentsAvailable && (
+                    <LinkComponent
+                      target={{ kind: 'attachments' }}
+                      className="flex items-center h-9 px-2 gap-3 rounded-lg transition-colors hover:chat-tint"
+                      title={tSidebar.attachments}
+                      onClick={closeDrawer}
+                    >
+                      <ImageIcon className="flex-shrink-0 w-4 h-4" />
+                      <span
+                        className={cx(
+                          'text-sm transition-opacity duration-200',
+                          sidebarCollapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100',
+                        )}
+                      >
+                        {tSidebar.attachments}
+                      </span>
+                    </LinkComponent>
+                  )}
                 </div>
-              </div>
+
+                {!sidebarCollapsed && conversations.length > 0 && (
+                  <div className="px-2 pb-2">
+                    <div className="relative">
+                      <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 theme-muted-text pointer-events-none" />
+                      <input
+                        ref={searchInputRef}
+                        type="text"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape' && search) {
+                            e.stopPropagation()
+                            setSearch('')
+                          }
+                        }}
+                        placeholder={strings.chrome.searchPlaceholder}
+                        aria-label={strings.chrome.searchLabel}
+                        className="w-full h-9 pl-8 pr-2 text-sm rounded-lg border border-transparent chat-tint theme-text placeholder:theme-muted-text transition-colors focus:outline-none focus:border-(--theme-border) focus:bg-(--theme-panel-bg)"
+                      />
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </>
         )

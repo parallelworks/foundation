@@ -55,12 +55,15 @@ function useSidebarPresentation(
 export default function ChatLayout({
   children,
   sidebarActions = true,
+  sidebarTop,
   sidebarMode = 'inline',
   drawerBelowPx = DRAWER_BELOW_PX,
   drawerToggle = true,
 }: {
   children: ReactNode
   sidebarActions?: boolean
+  /** Above the conversation list, given whether it is collapsed to the rail. */
+  sidebarTop?: ((state: { collapsed: boolean }) => ReactNode) | undefined
   sidebarMode?: SidebarMode
   /** The chat's width under which 'auto' shows the drawer. */
   drawerBelowPx?: number
@@ -75,7 +78,7 @@ export default function ChatLayout({
   return (
     <KeyboardShortcutsProvider>
       <div ref={ref} className={cx('flex h-full', drawer && 'relative overflow-hidden')}>
-        <ChatSidebar actions={sidebarActions} />
+        <ChatSidebar actions={sidebarActions} top={sidebarTop} />
         <main
           inert={drawer && drawerOpen}
           className={cx('flex min-w-0 flex-1 flex-col', CHAT_COLUMN_SCOPE)}
