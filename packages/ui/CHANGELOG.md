@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.28.0](https://github.com/parallelworks/foundation/compare/ui-v0.27.0...ui-v0.28.0) (2026-10-09)
+
+
+### Features
+
+* **ui:** agent transcripts stream text through applyPartDelta, and OutputCard shows what a command printed ([#173](https://github.com/parallelworks/foundation/issues/173)) ([8885432](https://github.com/parallelworks/foundation/commit/8885432b9ceb9b63d99389e238d17dc581717968))
+
 ## [0.27.0](https://github.com/parallelworks/foundation/compare/ui-v0.26.0...ui-v0.27.0) (2026-10-09)
 
 
