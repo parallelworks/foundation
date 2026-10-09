@@ -254,54 +254,60 @@ function RowContextMenu({
   zClassName: string
 }) {
   const ref = useRef<HTMLDivElement>(null)
-  const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
+  const [pos, setPos] = useState<{ left: number; top: number; maxHeight: number } | null>(null)
+  // What had focus when the menu opened, before the menu takes it.
+  const opener = useRef<Element | null>(null)
 
+  // Placed once per opening: a search then grows and shrinks its list inside the room it was given,
+  // so its field never moves under the typing.
   useLayoutEffect(() => {
     const menu = ref.current
     if (!state || !menu) {
       setPos(null)
       return
     }
-    const place = () => {
-      const { width, height } = menu.getBoundingClientRect()
-      const pad = MENU_EDGE
-      // Open upward when the menu won't fit below the anchor but fits above, so a
-      // row near the viewport bottom doesn't push the menu off-screen or onto it.
-      const spaceBelow = window.innerHeight - pad - state.y
-      const openUp = height > spaceBelow && state.y - height - pad >= 0
-      const top = openUp ? state.y - height : Math.min(state.y, window.innerHeight - height - pad)
-      setPos({
-        left: Math.max(pad, Math.min(state.x, window.innerWidth - width - pad)),
-        top: Math.max(pad, top),
-      })
-    }
-    place()
-    // A search grows and shrinks the menu as it narrows it.
-    return watchSize(menu, place)
+    opener.current = document.activeElement
+    const { width, height } = menu.getBoundingClientRect()
+    const pad = MENU_EDGE
+    // Open upward when the menu won't fit below the anchor but fits above, so a
+    // row near the viewport bottom doesn't push the menu off-screen or onto it.
+    const spaceBelow = window.innerHeight - pad - state.y
+    const openUp = height > spaceBelow && state.y - height - pad >= 0
+    const top = Math.max(
+      pad,
+      openUp ? state.y - height : Math.min(state.y, window.innerHeight - height - pad),
+    )
+    setPos({
+      left: Math.max(pad, Math.min(state.x, window.innerWidth - width - pad)),
+      top,
+      // Above its anchor an upward menu stops short of it; below, it stops at the window's edge.
+      maxHeight: (openUp ? state.y : window.innerHeight - pad) - top,
+    })
   }, [state])
 
   // Focus goes in once the menu is placed, since a hidden element can't take it: to the search field,
   // or to the first item when the menu was opened from the keyboard. It returns to the opener on close.
+  const placed = pos !== null
   useEffect(() => {
     const menu = ref.current
-    if (!pos || !menu) {
+    if (!placed || !menu) {
       return
     }
-    const opener = document.activeElement
+    const from = opener.current
     const target =
       menu.querySelector<HTMLElement>(':scope > div > input[type="search"]') ??
-      (focusVisible(opener) ? menu.querySelector<HTMLElement>(MENU_ITEMS) : null)
+      (focusVisible(from) ? menu.querySelector<HTMLElement>(MENU_ITEMS) : null)
     if (!target) {
       return
     }
     target.focus({ preventScroll: true })
     return () => {
       // Unless the item that closed the menu moved focus on, such as into a dialog.
-      if (opener instanceof HTMLElement && document.activeElement === document.body) {
-        opener.focus({ preventScroll: true })
+      if (from instanceof HTMLElement && document.activeElement === document.body) {
+        from.focus({ preventScroll: true })
       }
     }
-  }, [pos])
+  }, [placed])
 
   useEffect(() => {
     if (!state) {
@@ -372,10 +378,11 @@ function RowContextMenu({
       <div
         ref={ref}
         role="menu"
-        className="absolute min-w-44 rounded-lg border border-(--theme-border) bg-(--theme-panel-bg) py-1 shadow-lg backdrop-blur-xl"
+        className="absolute flex min-w-44 flex-col rounded-lg border border-(--theme-border) bg-(--theme-panel-bg) py-1 shadow-lg backdrop-blur-xl"
         style={{
           left: pos?.left ?? state.x,
           top: pos?.top ?? state.y,
+          maxHeight: pos?.maxHeight,
           visibility: pos ? 'visible' : 'hidden',
         }}
         onKeyDown={(e) => {
@@ -402,16 +409,6 @@ function RowContextMenu({
 // How far a menu keeps from the window's edges.
 const MENU_EDGE = 8
 
-// Calls `onResize` whenever `el` changes size; returns the unsubscribe.
-function watchSize(el: Element, onResize: () => void): (() => void) | undefined {
-  if (typeof ResizeObserver === 'undefined') {
-    return undefined
-  }
-  const observer = new ResizeObserver(onResize)
-  observer.observe(el)
-  return () => observer.disconnect()
-}
-
 // Focus without scrolling the page, which closes the menu, but with the item in its scrolling list's view.
 function focusItem(item: HTMLElement | null | undefined) {
   item?.focus({ preventScroll: true })
@@ -428,32 +425,31 @@ function SubmenuPanel({
   panelRef: RefObject<HTMLDivElement | null>
   children: ReactNode
 }) {
-  const [lift, setLift] = useState(0)
-  const lifted = useRef(0)
+  const [place, setPlace] = useState<{ lift: number; maxHeight: number } | null>(null)
+  // Placed once, like the menu, so a search in it keeps its field still as its list changes.
   useLayoutEffect(() => {
-    const panel = panelRef.current
-    if (!panel) {
-      return
+    const rect = panelRef.current?.getBoundingClientRect()
+    if (rect) {
+      const bottom = window.innerHeight - MENU_EDGE
+      const lift = Math.max(0, Math.min(rect.bottom - bottom, rect.top - MENU_EDGE))
+      setPlace({ lift, maxHeight: bottom - (rect.top - lift) })
     }
-    // Measured where it would sit unlifted, as a search can grow or shrink it once open.
-    const place = () => {
-      const rect = panel.getBoundingClientRect()
-      const top = rect.top + lifted.current
-      const over = rect.bottom + lifted.current - (window.innerHeight - MENU_EDGE)
-      lifted.current = Math.max(0, Math.min(over, top - MENU_EDGE))
-      setLift(lifted.current)
-    }
-    place()
-    return watchSize(panel, place)
   }, [panelRef])
   return (
     <div
       ref={panelRef}
       className={cx(
-        'absolute -top-1 z-10 min-w-44 rounded-lg border border-(--theme-border) bg-(--theme-panel-bg) py-1 shadow-lg',
+        'absolute -top-1 z-10 flex min-w-44 flex-col rounded-lg border border-(--theme-border) bg-(--theme-panel-bg) py-1 shadow-lg',
         side === 'left' ? 'right-full' : 'left-full',
       )}
-      style={lift > 0 ? { transform: `translateY(-${lift}px)` } : undefined}
+      style={
+        place
+          ? {
+              maxHeight: place.maxHeight,
+              ...(place.lift > 0 ? { transform: `translateY(-${place.lift}px)` } : {}),
+            }
+          : undefined
+      }
     >
       {children}
     </div>
@@ -565,7 +561,11 @@ function MenuItemList({
       {search && (
         <MenuSearchField search={search} query={query} onQuery={setQuery} onEnter={pickFirst} />
       )}
-      {searching ? <div className="max-h-[min(20rem,60vh)] overflow-y-auto">{rows}</div> : rows}
+      {searching ? (
+        <div className="max-h-[min(20rem,60vh)] min-h-0 overflow-y-auto">{rows}</div>
+      ) : (
+        rows
+      )}
       {searching && shown.length === 0 && (
         <div className="px-3 py-1.5 text-[13px] text-(--theme-muted-text-color)">
           {search.empty}
@@ -589,6 +589,7 @@ function MenuRow({
   const [openSub, setOpenSub] = useState(false)
   const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const panel = useRef<HTMLDivElement>(null)
+  const hovered = useRef(false)
 
   if (item.kind === 'submenu') {
     const open = () => {
@@ -603,16 +604,21 @@ function MenuRow({
       <div
         className="relative"
         role="none"
-        onMouseEnter={open}
+        onMouseEnter={() => {
+          hovered.current = true
+          open()
+        }}
         // Typing in its search, or keys moving through it, keep a submenu open when the pointer wanders off.
         onMouseLeave={() => {
+          hovered.current = false
           if (!panel.current?.contains(document.activeElement)) {
             close()
           }
         }}
         onFocus={open}
+        // A click on its empty space blurs to nothing, while the pointer is still on it.
         onBlur={(e) => {
-          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null) && !hovered.current) {
             close()
           }
         }}

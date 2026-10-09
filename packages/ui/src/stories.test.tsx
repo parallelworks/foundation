@@ -2,7 +2,7 @@
 // Portable-stories smoke test: every composed story must render under the
 // provider defaults the preview decorator supplies. The Editor stories are
 // excluded — monaco does not run in jsdom; the editor's own tests cover it —
-// and the workflow dialogs' YAML views draw a stand-in for it.
+// and the workflow dialogs' YAML views render nothing in its place.
 import '@testing-library/jest-dom/vitest'
 import { composeStories } from '@storybook/react-vite'
 import { cleanup, render } from '@testing-library/react'

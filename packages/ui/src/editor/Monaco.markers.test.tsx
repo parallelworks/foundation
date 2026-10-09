@@ -112,6 +112,15 @@ test('keeps the host’s marks when the lint runs, each under its own owner', ()
   vi.useRealTimers()
 })
 
+test('drops the host’s marks once it passes none', () => {
+  const { rerender } = render(
+    <MonacoEditor value="jobs: {}" markers={[{ line: 1, message: 'host' }]} />,
+  )
+  expect(messages('workflowmarkers')).toEqual(['host'])
+  rerender(<MonacoEditor value="jobs: {}" />)
+  expect(messages('workflowmarkers')).toEqual([])
+})
+
 test('lints once turned on, and drops its marks once turned off', () => {
   vi.useFakeTimers()
   const { rerender } = render(<MonacoEditor value="jobs: {}" />)
