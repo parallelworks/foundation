@@ -58,12 +58,17 @@ function sameMarkers(
   )
 }
 
+// The problems a host marks, kept apart from the lint's so neither replaces the other's.
+const HOST_OWNER = 'workflowmarkers'
+
 // Setting markers runs the check again through the marker listener; leaving equal ones stops the loop.
-function setLintMarkers(model: monaco.editor.ITextModel, wanted: monaco.editor.IMarkerData[]) {
-  if (
-    !sameMarkers(monaco.editor.getModelMarkers({ resource: model.uri, owner: LINT_OWNER }), wanted)
-  ) {
-    monaco.editor.setModelMarkers(model, LINT_OWNER, wanted)
+function setMarkers(
+  model: monaco.editor.ITextModel,
+  owner: string,
+  wanted: monaco.editor.IMarkerData[],
+) {
+  if (!sameMarkers(monaco.editor.getModelMarkers({ resource: model.uri, owner }), wanted)) {
+    monaco.editor.setModelMarkers(model, owner, wanted)
   }
 }
 
@@ -122,12 +127,18 @@ export default function MonacoEditor({
   nestedRef.current = nested
   const isNested = nested !== undefined
 
-  // The checks load with the engine, on demand; the text is checked again once they have.
+  // The checks load with the engine, on demand; the text is checked again once they have, and
+  // cleared when they're turned off.
   const lintEditing = useLintEditing(lint)
   const lintEditingRef = useRef<WorkflowEditing | undefined>(lintEditing)
   lintEditingRef.current = lintEditing
+  const lintRef = useRef(lint)
+  lintRef.current = lint
   useEffect(() => {
-    if (lint && lintEditing) {
+    const model = monacoRef.current?.getModel()
+    if (!lint && model) {
+      setMarkers(model, LINT_OWNER, [])
+    } else if (lint && lintEditing) {
       runLintRef.current?.()
     }
   }, [lint, lintEditing])
@@ -135,8 +146,9 @@ export default function MonacoEditor({
   useEffect(() => {
     const model = monacoRef.current?.getModel()
     if (model && markers) {
-      setLintMarkers(
+      setMarkers(
         model,
+        HOST_OWNER,
         markers.map((marker) => lintMarker(model, marker)),
       )
     }
@@ -230,27 +242,32 @@ export default function MonacoEditor({
             },
           })
 
-          // A refilled model may still hold the last editor's lint markers.
-          setLintMarkers(
+          // A refilled model may still hold the last editor's markers; the lint's come back once it runs.
+          setMarkers(
             model,
+            HOST_OWNER,
             (markers ?? []).map((marker) => lintMarker(model, marker)),
           )
+          setMarkers(model, LINT_OWNER, [])
           // The cross-reference checks read a shape they can only take for granted once the
           // schema is satisfied, so the schema's problems come first and alone.
           const runLint = () => {
             const editing = lintEditingRef.current
-            if (!lint || !editing || model.isDisposed()) {
+            if (!lintRef.current || !editing || model.isDisposed()) {
               return
             }
             const schema = monaco.editor
               .getModelMarkers({ resource: model.uri })
               .filter(
                 (marker) =>
-                  marker.owner !== LINT_OWNER && String(marker.code ?? '') !== SCHEMA_UNREADABLE,
+                  marker.owner !== LINT_OWNER &&
+                  marker.owner !== HOST_OWNER &&
+                  String(marker.code ?? '') !== SCHEMA_UNREADABLE,
               )
             const source = model.getValue()
-            setLintMarkers(
+            setMarkers(
               model,
+              LINT_OWNER,
               schema.length > 0
                 ? []
                 : editing
@@ -269,7 +286,7 @@ export default function MonacoEditor({
           }
           const modelListeners = [
             model.onDidChangeContent(() => {
-              if (lint) {
+              if (lintRef.current) {
                 window.clearTimeout(lintTimer)
                 lintTimer = window.setTimeout(runLint, 300)
               }

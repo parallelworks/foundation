@@ -229,6 +229,7 @@ export function ExpressionInput({
   placeholder,
   error,
   describedBy,
+  required,
 }: {
   id?: string
   label: string
@@ -238,6 +239,7 @@ export function ExpressionInput({
   placeholder?: string | undefined
   error?: string | undefined
   describedBy?: string
+  required?: boolean
 }) {
   return (
     <>
@@ -245,6 +247,7 @@ export function ExpressionInput({
         id={id}
         ariaLabel={label}
         aria-describedby={describedBy}
+        required={required}
         value={value}
         placeholder={placeholder}
         suggestions={suggestions}
@@ -476,12 +479,15 @@ export function ValueOrInputField({
       label={required ? `${label} *` : label}
       yamlKey={yamlKey}
       description={description}
+      descriptionId={`${id}-help`}
     >
       <div className="flex items-center gap-2">
         <div className="flex-1">
           <ExpressionInput
             id={id}
             label={label}
+            describedBy={`${id}-help`}
+            required={required}
             value={value}
             placeholder={placeholder ?? (literal ? undefined : t.chooseInput)}
             suggestions={offered}

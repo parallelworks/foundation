@@ -146,6 +146,8 @@ export const GRAPH_EDITOR_STRINGS = {
   value: 'Value',
   addRow: 'Add',
   removeRow: 'Remove',
+  /** A list's row, by the list's name and its place in it. */
+  listItem: (list: string, n: number) => `${list}, item ${n}`,
   stepRun: 'Run commands',
   stepUses: 'Use a workflow or action',
   required: 'Required.',
@@ -364,7 +366,7 @@ export const GRAPH_EDITOR_STRINGS = {
       'Shown in the graph and the run logs. If empty, the step’s command or workflow is shown.',
     stepKind: 'Run shell commands, or run another workflow or a built-in action.',
     run: 'The commands to run, as a shell script.',
-    uses: 'What the step runs: a built-in action, one of your workflows, a marketplace workflow, or a workflow in a GitHub or GitLab repository. Pick one from the list or type your own.',
+    uses: 'What the step runs: a built-in action, one of your workflows, a marketplace workflow, or a workflow in a github/ or gitlab/ repository. Pick one from the list or type your own.',
     view: 'Edit these settings in the form, or as the YAML the workflow stores. Changes carry over when you switch.',
     with: 'The values passed to the workflow or action this step runs.',
     withInputs: 'The inputs that workflow asks for, by the names its form uses.',
