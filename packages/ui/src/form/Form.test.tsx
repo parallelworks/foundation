@@ -47,29 +47,29 @@ vi.mock('react-tooltip', () => ({
 
 vi.mock('./infraFieldRegistry', () => ({ INFRA_FIELD_COMPONENTS: {} }))
 
-vi.mock('./fieldRegistry', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./fieldRegistry')>()),
-  Registry: ({
-    field,
-    label,
-    labelPosition,
-  }: {
-    field: { name: string; type: string; optional?: unknown }
-    label: string
-    labelPosition: string
-  }) => (
-    // data-optional surfaces the resolved flag; FieldWrapper renders the required
-    // asterisk from it, but the real field components are mocked out here.
-    <div
-      data-testid={`field-${field.name}`}
-      data-optional={String(field.optional)}
-      data-label-position={labelPosition}
-    >
-      <label htmlFor={field.name}>{label}</label>
-      <input id={field.name} name={field.name} type="text" />
-    </div>
-  ),
-}))
+vi.mock('./fieldRegistry', async (importOriginal) => {
+  const original = await importOriginal<typeof import('./fieldRegistry')>()
+  return {
+    ...original,
+    Registry: (props: Parameters<typeof original.Registry>[0]) => {
+      const { field, label, labelPosition } = props
+      // A group that keeps its own values renders for real, so the fields inside it can be found.
+      if (field.type === 'object') return <original.Registry {...props} />
+      return (
+        // data-optional surfaces the resolved flag; FieldWrapper renders the required
+        // asterisk from it, but the real field components are mocked out here.
+        <div
+          data-testid={`field-${field.name}`}
+          data-optional={String(field.optional)}
+          data-label-position={labelPosition}
+        >
+          <label htmlFor={field.name}>{label}</label>
+          <input id={field.name} name={field.name} type="text" />
+        </div>
+      )
+    },
+  }
+})
 
 // Mock ResizeObserver
 global.ResizeObserver = vi.fn().mockImplementation(() => ({
@@ -366,6 +366,42 @@ describe('a wizard inside a group', () => {
     expect(screen.getByRole('button', { name: 'Go to previous step' })).toBeEnabled()
     expect(screen.getAllByRole('button').some((b) => b.textContent === 'Execute')).toBe(false)
   })
+
+  it('keeps its values under a group that keeps its own, a repeated page’s copies included', async () => {
+    const seen = vi.fn()
+    render(
+      <DynamicForm
+        initialValues={{}}
+        setValues={seen}
+        formJSONs={{
+          // A group that isn't flattened converts to an object, so its fields' values sit under its name.
+          setup: {
+            type: 'object',
+            label: 'Setup',
+            options: {
+              $meta: { wizard: { mode: 'wizard' } },
+              hosts: {
+                type: 'step',
+                title: 'Host',
+                multi: true,
+                options: { cpus: { type: 'number', default: 2 } },
+              },
+              name: { type: 'step', title: 'Name', options: { label: { type: 'string' } } },
+            },
+          },
+        }}
+      />,
+    )
+    fireEvent.click(await screen.findByRole('button', { name: '+ Add Host' }))
+    await screen.findByTestId('field-setup.hosts[0].cpus')
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith(
+        expect.objectContaining({ setup: expect.objectContaining({ hosts: [{ cpus: 2 }] }) }),
+      ),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Go to next step' }))
+    await screen.findByTestId('field-setup.label')
+  })
 })
 
 describe('a repeated wizard page', () => {
@@ -416,6 +452,68 @@ describe('a repeated wizard page’s copies', () => {
     vi.mocked(testEngine.evaluate).mockImplementation(
       (({ obj }: { obj: unknown }) => obj) as unknown as typeof testEngine.evaluate,
     )
+    vi.mocked(testEngine.inputDependencies).mockImplementation(() => ({
+      inputDeps: new Set<string>(),
+      hasExpressions: false,
+    }))
+  })
+
+  it('reads a copy’s title again when an input it reads changes, and not for another input', async () => {
+    const title = '${{ inputs.clusters[index].name }}'
+    vi.mocked(testEngine.inputDependencies).mockImplementation(((obj: unknown) => ({
+      inputDeps: new Set<string>(obj === title ? ['clusters'] : []),
+      hasExpressions: obj === title,
+    })) as unknown as typeof testEngine.inputDependencies)
+    vi.mocked(testEngine.evaluate).mockImplementation((({
+      inputs,
+      obj,
+      index,
+    }: {
+      inputs: { clusters?: { name: string }[] }
+      obj: { text?: unknown }
+      index?: number
+    }) =>
+      obj?.text === title
+        ? { text: `Cluster ${inputs.clusters?.[index ?? 0]?.name}` }
+        : obj) as unknown as typeof testEngine.evaluate)
+    const titleReads = () =>
+      vi
+        .mocked(testEngine.evaluate)
+        .mock.calls.filter(([options]) => (options.obj as { text?: unknown })?.text === title)
+        .length
+    const formikRef = createRef<FormikProps<FormikValues>>()
+    const seen = vi.fn()
+    render(
+      <DynamicForm
+        initialValues={{ clusters: [{ name: 'a' }, { name: 'b' }], other: '' }}
+        formikRef={formikRef}
+        setValues={seen}
+        formJSONs={{
+          $meta: { wizard: { mode: 'wizard' } },
+          hosts: {
+            type: 'step',
+            title,
+            multi: true,
+            min: 2,
+            max: 2,
+            options: { cpus: { type: 'number' } },
+          },
+        }}
+      />,
+    )
+    await screen.findByRole('heading', { name: 'Cluster a' })
+    const before = titleReads()
+    act(() => {
+      formikRef.current?.setFieldValue('other', 'typed')
+    })
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith(expect.objectContaining({ other: 'typed' })),
+    )
+    expect(titleReads()).toBe(before)
+    act(() => {
+      formikRef.current?.setFieldValue('clusters', [{ name: 'c' }, { name: 'b' }])
+    })
+    await screen.findByRole('heading', { name: 'Cluster c' })
   })
 
   it('takes each copy’s title by reading [index] and its description from a list, fixed when min is max', async () => {
