@@ -84,7 +84,7 @@ export function WizardNavigation({
             type="button"
             onClick={handleSubmit}
             disabled={!isCurrentStepValid || isLoading}
-            className="px-8 py-3 rounded-lg font-medium transition-all duration-200 text-white flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
+            className="px-8 py-3 rounded-lg font-medium transition-all duration-200 text-(--theme-element-text) flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
             style={{
               backgroundColor: 'var(--theme-element)',
             }}
@@ -106,7 +106,7 @@ export function WizardNavigation({
             type="button"
             onClick={handleNext}
             disabled={isLoading}
-            className="px-8 py-3 rounded-lg font-medium transition-all duration-200 text-white flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
+            className="px-8 py-3 rounded-lg font-medium transition-all duration-200 text-(--theme-element-text) flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
             style={{
               backgroundColor: 'var(--theme-element)',
             }}

@@ -1,14 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { testEngine } from '../test/engine'
-import {
-  equalsExpression,
-  flagExpression,
-  inputRefs,
-  readEqualsRef,
-  readFlagRef,
-  readRef,
-  refExpression,
-} from './inputRefs'
+import { equalsExpression, flagExpression, inputRefs, readRef, refExpression } from './inputRefs'
 
 describe('inputRefs', () => {
   it('lists inputs where a run reads them', () => {
@@ -55,29 +47,13 @@ describe('input expressions', () => {
     expect(readRef('${{ inputs.a || inputs.b }}')).toBeNull()
   })
 
-  it('reads a switch and its negation', () => {
-    expect(readFlagRef(flagExpression(['on'], true))).toEqual({
-      path: ['on'],
-      negated: true,
-    })
-    expect(readFlagRef('${{ inputs.on }}')).toEqual({
-      path: ['on'],
-      negated: false,
-    })
+  it('writes a switch and its negation', () => {
+    expect(flagExpression(['on'], true)).toBe('${{ !inputs.on }}')
+    expect(flagExpression(['on'], false)).toBe('${{ inputs.on }}')
   })
 
-  it('compares an input to a value it offers', () => {
-    const expression = equalsExpression(['mode'], "it's", true)
-    expect(expression).toBe("${{ inputs.mode != 'its' }}")
-    expect(readEqualsRef(expression)).toEqual({
-      path: ['mode'],
-      value: 'its',
-      negated: true,
-    })
-    expect(readEqualsRef("${{ inputs.mode == 'fast' }}")).toEqual({
-      path: ['mode'],
-      value: 'fast',
-      negated: false,
-    })
+  it('compares an input to a value it offers, a quote in it written twice', () => {
+    expect(equalsExpression(['mode'], "it's on", true)).toBe("${{ inputs.mode != 'it''s on' }}")
+    expect(equalsExpression(['mode'], 'fast')).toBe("${{ inputs.mode == 'fast' }}")
   })
 })

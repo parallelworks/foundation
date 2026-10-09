@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import '@testing-library/jest-dom/vitest'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import type { StepFieldConfig } from './types'
 import { WizardStepIndicator } from './WizardStepIndicator'
 
@@ -54,5 +54,31 @@ describe('WizardStepIndicator', () => {
   it('takes no focus of its own when its steps fit', () => {
     render(indicator('site[1]'))
     expect(screen.getByRole('list', { name: 'Steps' })).not.toHaveAttribute('tabindex')
+  })
+
+  it('takes focus once a step widens past the row, though the row keeps its size', () => {
+    const watched: Element[] = []
+    let resized = () => {}
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: () => void) {
+          resized = callback
+        }
+        observe(box: Element) {
+          watched.push(box)
+        }
+        disconnect() {}
+      },
+    )
+    const width = vi.spyOn(Element.prototype, 'scrollWidth', 'get').mockReturnValue(300)
+    vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(300)
+    render(indicator('site[1]'))
+    const row = screen.getByRole('list', { name: 'Steps' })
+    expect(watched).toEqual(expect.arrayContaining([row, ...row.children]))
+    width.mockReturnValue(1000)
+    act(() => resized())
+    expect(row).toHaveAttribute('tabindex', '0')
+    vi.unstubAllGlobals()
   })
 })
