@@ -290,7 +290,8 @@ export const THEME_PRESETS: readonly ThemePreset[] = [
       sidebar: { accent: '#06354f', background: '#06354f' },
     },
   },
-  // White on the blue accents, as the app's own light and dark themes have it.
+  // White on the blue accents, as an app's own light and dark themes have it; Dark takes the deeper blue
+  // such themes fill buttons with, so white text keeps 4.5:1 contrast.
   {
     name: 'light',
     label: 'Light',
@@ -300,7 +301,7 @@ export const THEME_PRESETS: readonly ThemePreset[] = [
     name: 'dark',
     label: 'Dark',
     seed: {
-      interface: { accent: '#2f81f7', background: '#0d1117', accentText: '#ffffff' },
+      interface: { accent: '#1f6feb', background: '#0d1117', accentText: '#ffffff' },
       sidebar: { accent: '#2f81f7', background: '#161b22' },
     },
   },

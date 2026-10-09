@@ -8,7 +8,9 @@ import { fieldOption } from './fieldOption'
 
 export interface ICheckboxGroupField extends BaseField {
   type: 'checkbox-group'
-  options?: Array<string | { label?: string; value: string; description?: string }>
+  options?: Array<
+    string | number | { label?: string; value: string | number; description?: string }
+  >
   /**
    * Maps a value to the values it forces on. While the key is selected, each
    * listed value is checked and locked (disabled) to show the implication.
@@ -45,9 +47,15 @@ export default function CheckboxGroupField({
 }: FieldComponentProps<ICheckboxGroupField>) {
   // The form names every field before it renders one.
   const fieldName = field.name ?? ''
-  const [fieldState] = useField<string[]>(fieldName)
+  const [fieldState] = useField<Array<string | number>>(fieldName)
   const { setFieldValue, setFieldTouched } = useFormikContext()
   const implies = field.implies
+  const rawOf = new Map(
+    (field.options ?? []).map((choice) => {
+      const option = fieldOption(choice)
+      return [option.value, option.raw] as const
+    }),
+  )
 
   // Track only the user's direct picks; implied values are derived from these.
   // This lets us drop an implied value when its trigger is unchecked, while
@@ -67,7 +75,8 @@ export default function CheckboxGroupField({
     const nextManual = manual.includes(value)
       ? manual.filter((v) => v !== value)
       : [...manual, value]
-    const next = union(nextManual, impliedFrom(nextManual, implies))
+    // Picks match as text; the value keeps each option's own type, so a numeric option stays a number.
+    const next = union(nextManual, impliedFrom(nextManual, implies)).map((v) => rawOf.get(v) ?? v)
     setManual(nextManual)
     setFieldTouched(fieldName, true)
     setFieldValue(fieldName, next)
