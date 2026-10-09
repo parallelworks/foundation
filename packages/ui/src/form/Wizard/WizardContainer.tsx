@@ -73,8 +73,8 @@ export function WizardContainer({
     [engine, values, strings],
   )
 
-  // A repeated step shows a page per copy in its values, and at least its `min`; with none, one page
-  // its first copy is added from.
+  // A repeated step shows a page per copy in its values, within its `min` and `max`; with none, one page
+  // its first copy is added from, unless its `max` allows none.
   const shown = useMemo(() => {
     const order: string[] = []
     const byKey: Record<string, Page> = {}
@@ -90,8 +90,11 @@ export function WizardContainer({
       }
       const rows = getValueUsingPath(values, `${fieldNamePrefix}${step}`)
       const { lo, hi } = copyBounds(stepConfig.min, stepConfig.max)
-      const count = Math.max(Array.isArray(rows) ? rows.length : 0, lo)
+      const count = Math.min(Math.max(Array.isArray(rows) ? rows.length : 0, lo), hi ?? Infinity)
       if (count === 0) {
+        if (hi === 0) {
+          continue
+        }
         order.push(step)
         byKey[step] = {
           step,
@@ -127,18 +130,21 @@ export function WizardContainer({
     return { order, byKey }
   }, [stepOrder, steps, values, fieldNamePrefix, perCopy])
 
-  // A repeated page below its `min` gets rows up to it from the defaults, as a list pads to its own.
+  // A repeated page's rows follow its bounds, as when the input they read changes: below its `min` it gets
+  // rows from the defaults, and past its `max` the rest go.
   useEffect(() => {
     for (const step of stepOrder) {
       const stepConfig = steps[step]
       if (stepConfig?.multi !== true) {
         continue
       }
-      const { lo } = copyBounds(stepConfig.min, stepConfig.max)
+      const { lo, hi } = copyBounds(stepConfig.min, stepConfig.max)
       const path = `${fieldNamePrefix}${step}`
       const rows = getValueUsingPath(values, path)
       const now = Array.isArray(rows) ? rows : []
-      if (now.length < lo) {
+      if (hi !== undefined && now.length > hi) {
+        setFieldValue(path, now.slice(0, hi))
+      } else if (now.length < lo) {
         setFieldValue(
           path,
           Array.from(

@@ -155,8 +155,9 @@ export function initializeValues(
       if (fieldSchema.type === 'step' && fieldSchema.multi === true) {
         const saved = data[field]
         const rows: unknown[] = Array.isArray(saved) ? saved : []
-        const { lo } = copyBounds(fieldSchema.min, fieldSchema.max)
-        const sized = Array.from({ length: Math.max(rows.length, lo) }, (_, i) => rows[i] ?? {})
+        const { lo, hi } = copyBounds(fieldSchema.min, fieldSchema.max)
+        const length = Math.min(Math.max(rows.length, lo), hi ?? Number.POSITIVE_INFINITY)
+        const sized = Array.from({ length }, (_, i) => rows[i] ?? {})
         acc[field] = sized.map((row) => initializeValues(fieldSchema.options, asRecord(row)))
         return acc
       }

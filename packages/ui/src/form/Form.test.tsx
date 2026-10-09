@@ -481,6 +481,58 @@ describe('a repeated wizard page’s copies', () => {
   })
 })
 
+describe('a repeated wizard page’s bounds', () => {
+  it('leaves out a page whose max allows no copy, as when the input its bounds read is empty', async () => {
+    render(
+      <DynamicForm
+        initialValues={{}}
+        formJSONs={{
+          $meta: { wizard: { mode: 'wizard' } },
+          settings: {
+            type: 'step',
+            title: 'Settings',
+            multi: true,
+            min: 0,
+            max: 0,
+            options: { version: { type: 'string' } },
+          },
+          done: { type: 'step', title: 'Done', options: { note: { type: 'string' } } },
+        }}
+      />,
+    )
+    await screen.findByRole('heading', { name: 'Done' })
+    expect(screen.queryByText('Settings')).toBeNull()
+  })
+
+  it('drops the copies past its max, as when the input its bounds read gets smaller', async () => {
+    const seen = vi.fn()
+    render(
+      <DynamicForm
+        initialValues={{ hosts: [{ cpus: 1 }, { cpus: 2 }, { cpus: 3 }] }}
+        setValues={seen}
+        formJSONs={{
+          $meta: { wizard: { mode: 'wizard', navigation: { allowJump: true } } },
+          hosts: {
+            type: 'step',
+            title: 'Host',
+            multi: true,
+            max: 2,
+            options: { cpus: { type: 'number' } },
+          },
+        }}
+      />,
+    )
+    await screen.findByRole('heading', { name: 'Host 1' })
+    expect(screen.getAllByText('Host 2').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Host 3')).toBeNull()
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith(
+        expect.objectContaining({ hosts: [{ cpus: 1 }, { cpus: 2 }] }),
+      ),
+    )
+  })
+})
+
 describe('FieldsFromOptions workflowForm prop', () => {
   const mockSetFormDirty = vi.fn()
 

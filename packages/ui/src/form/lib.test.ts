@@ -1002,6 +1002,13 @@ describe('a repeated wizard page', () => {
     expect(initializeValues(schema)).toEqual({ hosts: [] })
   })
 
+  it('keeps no more saved copies than its max', () => {
+    const bounded = { hosts: { ...schema.hosts, max: 1 } }
+    expect(initializeValues(bounded, { hosts: [{ cpus: 8 }, { cpus: 4 }] })).toEqual({
+      hosts: [{ cpus: 8 }],
+    })
+  })
+
   it('pads the saved copies up to its min from the defaults', () => {
     const bounded = { hosts: { ...schema.hosts, min: 3 } }
     expect(initializeValues(bounded, { hosts: [{ cpus: 8 }] })).toEqual({
