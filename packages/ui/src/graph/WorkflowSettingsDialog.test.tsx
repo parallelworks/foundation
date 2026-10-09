@@ -165,9 +165,9 @@ describe('WorkflowSettingsDialog', () => {
   it('adds permissions and required variables', () => {
     const onEdit = open({ jobs: {} })
     fireEvent.click(screen.getByText('Add permission'))
-    type(screen.getByLabelText('Add permission'), '*')
+    type(screen.getByLabelText('Permissions, item 1'), '*')
     fireEvent.click(screen.getByText('Add organization variable'))
-    type(screen.getByLabelText('Add organization variable'), 'API_KEY')
+    type(screen.getByLabelText('Organization variables, item 1'), 'API_KEY')
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(onEdit).toHaveBeenCalledWith({
       type: 'updateWorkflow',

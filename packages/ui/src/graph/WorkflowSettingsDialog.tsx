@@ -497,6 +497,7 @@ function SettingsForm({
         alert={!!errors.permissions}
       >
         <StringListEditor
+          label={t.sectionPermissions}
           values={permissions}
           onChange={setPermissions}
           addLabel={t.addPermission}
@@ -689,6 +690,7 @@ function SettingsForm({
           description={t.help.organizationVariables}
         />
         <StringListEditor
+          label={t.fields.organizationVariables}
           values={orgVariables}
           onChange={setOrgVariables}
           addLabel={t.addOrganizationVariable}
