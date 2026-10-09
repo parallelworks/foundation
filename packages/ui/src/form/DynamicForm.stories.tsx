@@ -60,7 +60,7 @@ export const ClusterSettings: StoryObj<typeof DynamicForm> = {
 }
 
 /** Inputs with a `width` (pixels, or a share of the row) sit side by side, label on top unless the
- * form sets `labelPosition`; one that would be narrower than 16rem wraps to the next line. */
+ * form sets `labelPosition`; below 24rem each share takes the whole row and a pixel width stays. */
 export const WithWidths: StoryObj<typeof DynamicForm> = {
   args: {
     formJSONs: {
@@ -73,11 +73,27 @@ export const WithWidths: StoryObj<typeof DynamicForm> = {
         width: '25%',
       },
       priority: { type: 'number', label: 'Priority', default: 5, width: '25%' },
-      dataset: { type: 'string', label: 'Dataset', default: 's3://datasets/images' },
+      dataset: { type: 'string', label: 'Dataset', default: '/data/images' },
       epochs: { type: 'number', label: 'Epochs', default: 10, width: '33%' },
       batch: { type: 'number', label: 'Batch size', default: 64, width: '33%' },
       rate: { type: 'number', label: 'Learning rate', default: 0.001, width: '33%' },
       seed: { type: 'number', label: 'Seed', default: 42, width: 160 },
+    },
+    initialValues: {},
+    skipValueParse: true,
+  },
+}
+
+/** `anchor-below` stacks an input under the one shown before it, in that one's column, and the form's own
+ * `$meta.labelPosition` holds for inputs in rows too. */
+export const AnchoredBelow: StoryObj<typeof DynamicForm> = {
+  args: {
+    formJSONs: {
+      $meta: { labelPosition: 'left' },
+      cluster: { type: 'string', label: 'Cluster', default: 'gpu-cluster', width: '50%' },
+      partition: { type: 'string', label: 'Partition', default: 'batch', width: '50%' },
+      account: { type: 'string', label: 'Account', default: 'research', 'anchor-below': true },
+      notes: { type: 'string', label: 'Notes' },
     },
     initialValues: {},
     skipValueParse: true,
@@ -94,7 +110,6 @@ export const CompactLabels: StoryObj<typeof DynamicForm> = {
   },
 }
 
-// As a workflow's inputs convert: a list's template becomes its options.
 const CHOICE_JSONS = {
   precision: {
     type: 'radio',
@@ -113,19 +128,13 @@ const CHOICE_JSONS = {
     ],
     default: ['log'],
   },
-  hosts: {
-    type: 'list',
-    label: 'Hosts',
-    default: [{ name: 'node-1' }, { name: 'node-2' }],
-    options: { name: { type: 'string', label: 'Name' } },
-  },
 }
 
-/** Options with labels of their own or numeric values, and a list starting from its default rows. */
+/** Options with labels of their own or numeric values, each picked by its default. */
 export const Choices: StoryObj<typeof DynamicForm> = {
   args: {
     formJSONs: CHOICE_JSONS,
-    initialValues: {},
+    initialValues: { precision: 'bf16', workers: 2, features: ['log'] },
     skipValueParse: true,
     workflowForm: true,
   },
