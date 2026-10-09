@@ -2,11 +2,12 @@ import cx from 'classnames'
 import type { ReactNode } from 'react'
 import { TOOLTIP_ID } from '../components/Tooltip'
 import { AddIcon, AlertIcon, DragHandleIcon, MoreIcon } from '../icons'
+import type { EditorProblem } from './editorApi'
+import { MarqueeBox, type Point, place } from './editorPrimitives'
 import {
   type DragPayload,
   EDITOR_HANDLE_CLASS,
   type EdgeSelection,
-  type EditorProblem,
   type GraphEditorApi,
   labelsOf,
   NO_SELECTION,
@@ -18,8 +19,7 @@ import {
   useGraphEditor,
   useSelectedEdges,
   useUi,
-} from './editorApi'
-import { MarqueeBox, type Point, place } from './editorPrimitives'
+} from './graphEditorState'
 
 /** Drop indicators, the connection line and the selection, drawn in the graph's own coordinates. */
 export function GraphEditorCanvas() {

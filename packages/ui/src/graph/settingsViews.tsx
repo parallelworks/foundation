@@ -10,6 +10,9 @@ import { ProblemList, type ScopedProblem } from './fieldProblems'
 
 const MonacoEditor = lazy(() => import('../editor/Monaco'))
 
+/** Which view the job, step, input and settings dialogs open in. */
+export type SettingsView = 'form' | 'yaml'
+
 export function yamlProblem(
   yaml: string,
   t: Strings,

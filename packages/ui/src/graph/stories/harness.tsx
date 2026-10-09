@@ -3,7 +3,7 @@ import { useWorkflowEditing } from '../../components/Provider'
 import type { GraphEdit, GraphEditResult, GraphLayout } from '../../editing'
 import type { DependencyGraphEditor } from '../editorApi'
 import { asRecord, type Json } from '../editorFields'
-import type { SettingsView } from '../GraphEditorDialogs'
+import type { SettingsView } from '../settingsViews'
 
 interface Snapshot {
   yml: string

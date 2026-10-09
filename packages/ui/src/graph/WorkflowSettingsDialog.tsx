@@ -40,10 +40,11 @@ import {
 } from './editorFields'
 import { useGraphEditorStrings, useInputsEditorStrings } from './editorStrings'
 import { expressionRefs } from './expressionRefs'
-import { type SettingsFormHooks, type SettingsView, useSettingsViews } from './GraphEditorDialogs'
+import { type SettingsFormHooks, useSettingsViews } from './GraphEditorDialogs'
 import { useNewInputs } from './InputDialog'
 import { firstPageEdits, pagesBackEdits } from './inputPages'
 import { FlagField, refSuggestions } from './inputRefs'
+import type { SettingsView } from './settingsViews'
 
 const LINK_NAME = /^[a-z0-9_-]*[a-z0-9]$/
 const ORG_VARIABLE = /^[A-Z][A-Z0-9_]*$/

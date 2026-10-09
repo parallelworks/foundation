@@ -52,9 +52,9 @@ import {
   useGraphEditorStrings,
   useInputsEditorStrings,
 } from './editorStrings'
-import type { SettingsView } from './GraphEditorDialogs'
 import { FlagField, type InputSource, inputRefs, ValueOrInputField } from './inputRefs'
 import { FIELD_TEXT_BOX, SuggestionInput } from './SuggestionInput'
+import type { SettingsView } from './settingsViews'
 import { NO_SCOPED, ViewSwitch, YamlPane, yamlProblem } from './settingsViews'
 
 type Help = keyof InputsEditorStrings['help']

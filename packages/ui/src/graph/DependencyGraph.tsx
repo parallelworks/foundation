@@ -38,16 +38,7 @@ import {
 import { LogViewer } from '../logviewer'
 import { AnnotationBanner } from './AnnotationBanner'
 import { Collapse } from './Collapse'
-import {
-  type DependencyGraphEditor,
-  EDITOR_HANDLE_CLASS,
-  emptyColumnsStyle,
-  emptyRowsStyle,
-  type GraphEditorApi,
-  GraphEditorProvider,
-  useGraphEditor,
-  useSelectedEdges,
-} from './editorApi'
+import type { DependencyGraphEditor } from './editorApi'
 import {
   BoxGrip,
   EdgeEnds,
@@ -56,6 +47,14 @@ import {
   GraphEditorCanvas,
   NodePorts,
 } from './editorRows'
+import {
+  EDITOR_HANDLE_CLASS,
+  type GraphEditorApi,
+  GraphEditorProvider,
+  useGraphEditor,
+  useSelectedEdges,
+} from './graphEditorState'
+import { emptyColumnsStyle, emptyRowsStyle } from './gridSpacing'
 import { type JobHandlers, Joblist } from './JobSummary'
 import { MatrixGroupNode, MatrixGroupSummaryItem } from './MatrixGroup'
 import { Reveal } from './Reveal'

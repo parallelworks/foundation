@@ -31,34 +31,7 @@ import {
   TrashIcon,
 } from '../icons'
 import { type RowMenuItem, useRowMenu } from '../list/RowContextMenu'
-import {
-  COLUMN_PITCH,
-  type ConnectPayload,
-  contentBox,
-  type DependencyGraphEditor,
-  type DragPayload,
-  type DropTarget,
-  EDITOR_HANDLE_CLASS,
-  type EdgeSelection,
-  type GraphEditorApi,
-  type GraphGrid,
-  type GraphView,
-  labelsOf,
-  NO_EDGES,
-  NO_PROBLEMS,
-  NO_SELECTION,
-  NO_STEPS,
-  overlaps,
-  type PortSide,
-  SLOT_PITCH,
-  sameEdge,
-  sameStep,
-  selectionBounds,
-  toContent,
-  typing,
-  type UiState,
-  useUi,
-} from './editorApi'
+import { type DependencyGraphEditor, overlaps, typing } from './editorApi'
 import { AddChip, BarDivider, DragLabel, EditorBar } from './editorChrome'
 import { asRecord, openOnAddOf } from './editorFields'
 import {
@@ -73,6 +46,30 @@ import {
 } from './editorPrimitives'
 import { type GraphEditorStrings, useGraphEditorStrings } from './editorStrings'
 import { JobDialog, StepDialog } from './GraphEditorDialogs'
+import {
+  type ConnectPayload,
+  contentBox,
+  type DragPayload,
+  type DropTarget,
+  EDITOR_HANDLE_CLASS,
+  type EdgeSelection,
+  type GraphEditorApi,
+  type GraphGrid,
+  type GraphView,
+  labelsOf,
+  NO_EDGES,
+  NO_PROBLEMS,
+  NO_SELECTION,
+  NO_STEPS,
+  type PortSide,
+  sameEdge,
+  sameStep,
+  selectionBounds,
+  toContent,
+  type UiState,
+  useUi,
+} from './graphEditorState'
+import { COLUMN_PITCH, SLOT_PITCH } from './gridSpacing'
 import { refusalText } from './refusalText'
 import { MOD_KEY, type ShortcutGroup } from './ShortcutsButton'
 import type { WorkflowJob } from './types'

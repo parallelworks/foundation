@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useWorkflowEditing } from '../components/Provider'
 import { asRecord } from './editorFields'
-import type { SettingsView } from './GraphEditorDialogs'
+import type { SettingsView } from './settingsViews'
 import { WorkflowSettingsDialog } from './WorkflowSettingsDialog'
 
 const meta: Meta<typeof WorkflowSettingsDialog> = {

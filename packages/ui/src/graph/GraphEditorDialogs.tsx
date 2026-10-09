@@ -75,7 +75,14 @@ import {
   ValueOrInputField,
 } from './inputRefs'
 import { editErrorText } from './refusalText'
-import { NO_SCOPED, type ScopedProblems, ViewSwitch, YamlPane, yamlProblem } from './settingsViews'
+import {
+  NO_SCOPED,
+  type ScopedProblems,
+  type SettingsView,
+  ViewSwitch,
+  YamlPane,
+  yamlProblem,
+} from './settingsViews'
 import { UsesPicker, usesKind, WithEditor, withDraftFrom, withError, withValue } from './stepWith'
 
 const SHELL = /^$|^(\/?([^/ ]+\/)*)?(bash|sh)( .*)?$/
@@ -1732,9 +1739,6 @@ function StepForm({
   }
   return renderShell ? renderShell(shellProps) : <DialogShell {...shellProps} />
 }
-
-/** Which view the job and step dialogs open in. */
-export type SettingsView = 'form' | 'yaml'
 
 interface ViewProps {
   source?: string | undefined

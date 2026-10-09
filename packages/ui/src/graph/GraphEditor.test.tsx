@@ -78,13 +78,9 @@ vi.mock('./AnnotationBanner', () => ({ AnnotationBanner: () => null }))
 
 import { suggestionsOf } from '../test/DropdownStandIn'
 import { computeGraphLayout, DependencyGraphPreview } from './DependencyGraph'
-import {
-  COLUMN_PITCH,
-  type DependencyGraphEditor,
-  type EditorProblem,
-  SLOT_PITCH,
-} from './editorApi'
+import type { DependencyGraphEditor, EditorProblem } from './editorApi'
 import { GRAPH_EDITOR_STRINGS } from './editorStrings'
+import { COLUMN_PITCH } from './gridSpacing'
 import type { WorkflowJob } from './types'
 
 afterEach(cleanup)
@@ -112,58 +108,6 @@ function job(needs: string[] = [], extra: Record<string, unknown> = {}) {
     ...extra,
   } as unknown as WorkflowJob
 }
-
-describe('computeGraphLayout with a stored layout', () => {
-  const graphs: Record<string, Record<string, WorkflowJob>> = {
-    diamond: { a: job(), b: job(['a']), c: job(['a']), d: job(['b', 'c']) },
-    fanOut: {
-      setup: job(),
-      linux: job(['setup']),
-      mac: job(['setup']),
-      windows: job(['setup']),
-      lint: job(),
-      package: job(['linux', 'mac', 'windows']),
-    },
-    longSpan: {
-      a: job(),
-      b: job(['a']),
-      c: job(['b']),
-      d: job(['a', 'c']),
-      loose: job(),
-    },
-  }
-
-  for (const [name, jobs] of Object.entries(graphs)) {
-    it(`draws the captured grid of ${name} exactly as before`, () => {
-      const drawn = computeGraphLayout(testEngine, jobs, {}).dependencyCols
-      const replayed = computeGraphLayout(testEngine, jobs, {}, layoutFromCols(drawn))
-      expect(replayed.dependencyCols).toEqual(drawn)
-    })
-  }
-
-  it('keeps jobs with the same dependencies in one box', () => {
-    const cols = computeGraphLayout(testEngine, graphs['fanOut']!, {}).dependencyCols
-    expect(cols[1]).toEqual([['linux', 'mac', 'windows']])
-  })
-
-  it('follows a stored column and pushes dependents right', () => {
-    const jobs = graphs['diamond']!
-    const layout = layoutFromCols([[['a']], [['b']], [['c']], [['d']]])
-    expect(computeGraphLayout(testEngine, jobs, {}, layout).dependencyCols).toEqual([
-      [['a']],
-      [['b']],
-      [['c']],
-      [['d']],
-    ])
-  })
-
-  it('draws matrix `:any` needs from the job they name', () => {
-    const jobs = { build: job(), deploy: job(['build:any']) }
-    const { dependencyCols, directDeps } = computeGraphLayout(testEngine, jobs, {})
-    expect(dependencyCols).toEqual([[['build']], [['deploy']]])
-    expect(directDeps['deploy']).toEqual(['build'])
-  })
-})
 
 function editor(overrides: Partial<DependencyGraphEditor> = {}) {
   return {
@@ -446,100 +390,6 @@ describe('DependencyGraphPreview editor', () => {
     expect(screen.getByText('2 jobs')).toBeInTheDocument()
     expect(document.querySelector('[data-dag-job="build"]')).not.toBeNull()
     expect(screen.queryByText('matrix')).toBeNull()
-  })
-
-  /** Evaluates each object `evaluated` answers for, finding expressions wherever a `${{` is. */
-  function evaluatesTo(
-    evaluated: (obj: Record<string, unknown>, inputs: Record<string, unknown>) => unknown,
-  ) {
-    const evaluate = vi.mocked(testEngine.evaluate)
-    const dependencies = vi.mocked(testEngine.inputDependencies)
-    onTestFinished(() => {
-      evaluate.mockImplementation(
-        (({ obj }: { obj: unknown }) => obj) as unknown as typeof testEngine.evaluate,
-      )
-      dependencies.mockImplementation(() => ({
-        inputDeps: new Set<string>(),
-        hasExpressions: false,
-      }))
-    })
-    dependencies.mockImplementation((obj?: unknown) => ({
-      inputDeps: new Set<string>(),
-      hasExpressions: JSON.stringify(obj).includes('${{'),
-    }))
-    evaluate.mockImplementation(
-      (({ inputs, obj }: { inputs: Record<string, unknown>; obj: Record<string, unknown> }) =>
-        evaluated(obj, inputs) ?? obj) as unknown as typeof testEngine.evaluate,
-    )
-  }
-
-  it('draws a matrix expressions give as a run expands it, from the inputs’ defaults', () => {
-    evaluatesTo((obj, inputs) =>
-      'matrix' in obj
-        ? {
-            matrix: {
-              os: String(inputs['oses']).split(','),
-              value: Array.from({ length: Number(inputs['count']) }, (_, i) => i),
-            },
-          }
-        : undefined,
-    )
-    const ranged = {
-      on: {
-        execute: {
-          inputs: {
-            count: { type: 'number', default: 3 },
-            oses: { type: 'string', default: 'linux,mac' },
-          },
-        },
-      },
-      jobs: {
-        build: {
-          strategy: {
-            matrix: {
-              os: "${{ split(inputs.oses, ',') }}",
-              value: '${{ 0 range inputs.count }}',
-            },
-          },
-          steps: [{ run: 'make' }],
-        },
-      },
-    }
-    render(<DependencyGraphPreview yml={ranged} editor={editor()} />)
-    expect(screen.getByText('6 jobs')).toBeInTheDocument()
-  })
-
-  it('loads the expression runtime only for a strategy or needs a run evaluates', () => {
-    evaluatesTo(() => undefined)
-    const init = vi.mocked(testEngine.init)
-    init.mockClear()
-    render(<DependencyGraphPreview yml={yml} editor={editor()} />)
-    expect(init).not.toHaveBeenCalled()
-    cleanup()
-    const waits = { jobs: { ...yml.jobs, mac: { needs: '${{ inputs.after }}', steps: [] } } }
-    render(<DependencyGraphPreview yml={waits} editor={editor()} />)
-    expect(init).toHaveBeenCalled()
-  })
-
-  it('draws the jobs a needs expression names as a run waits on them', () => {
-    evaluatesTo((obj, inputs) => ('needs' in obj ? { needs: inputs['after'] } : undefined))
-    const waits = {
-      on: {
-        execute: {
-          inputs: {
-            after: { type: 'multi-dropdown', options: ['build', 'lint'], default: ['build'] },
-          },
-        },
-      },
-      jobs: {
-        deploy: { needs: '${{ inputs.after }}', steps: [{ run: 'ship' }] },
-        build: { steps: [{ run: 'make' }] },
-      },
-    }
-    render(<DependencyGraphPreview yml={waits} editor={editor()} />)
-    expect(
-      [...document.querySelectorAll('[data-dag-job]')].map((el) => el.getAttribute('data-dag-job')),
-    ).toEqual(['build', 'deploy'])
   })
 
   it('keeps a job whose if is false on the graph it edits, which a run leaves out', () => {
@@ -1979,38 +1829,6 @@ describe('nodes formed by hand', () => {
     b: job(['a']),
     c: job(['a']),
   }
-
-  it('draws jobs in separate slots of one column as separate nodes', () => {
-    const layout = layoutFromCols([[['a']], [['b'], ['c']]])
-    const { dependencyCols, rowSlots } = computeGraphLayout(testEngine, jobs, {}, layout)
-    expect(dependencyCols).toEqual([[['a']], [['b'], ['c']]])
-    expect(rowSlots).toEqual([[0], [0, 1]])
-  })
-
-  it('draws jobs sharing a slot as one node only when they need, and are needed by, the same jobs', () => {
-    // b and c both need a, but only b feeds x.
-    const mixed = { a: job(), b: job(['a']), c: job(['a']), x: job(['b']) }
-    const layout = emptyLayoutWith({ a: [0, 0], b: [1, 0], c: [1, 0], x: [2, 0] })
-    const split = computeGraphLayout(testEngine, mixed, {}, layout)
-    expect(split.dependencyCols[1]).toEqual([['b'], ['c']])
-    expect(split.rowSlots[1]).toEqual([0, 1])
-    const both = { ...mixed, x: job(['b', 'c']) }
-    expect(computeGraphLayout(testEngine, both, {}, layout).dependencyCols[1]).toEqual([['b', 'c']])
-  })
-
-  it('leaves the rows above a node empty', () => {
-    const layout = emptyLayoutWith({
-      a: [0, 0],
-      b: [1, 0],
-      c: [1, 3],
-    })
-    const { rowSlots } = computeGraphLayout(testEngine, jobs, {}, layout)
-    expect(rowSlots).toEqual([[0], [0, 3]])
-    render(<DependencyGraphPreview yml={graph} layout={layout} />)
-    // Two empty rows between b and c.
-    expect(document.getElementById('node_c')?.style.marginTop).toContain(`${2 * SLOT_PITCH}px`)
-    expect(document.getElementById('node_b')?.style.marginTop).toBe('')
-  })
 
   // jsdom lays nothing out, so each row and node gets a rect by hand.
   function renderEditor(

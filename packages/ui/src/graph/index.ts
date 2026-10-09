@@ -14,7 +14,6 @@ export {
   JOB_FIELDS,
   RETRY_FIELDS,
   RUNS_ON_FIELDS,
-  type SettingsView,
   SSH_KEYS,
   STEP_FIELDS,
   STRATEGY_FIELDS,
@@ -22,6 +21,7 @@ export {
 export { inputTypes, offeredInputKeys } from './InputDialog'
 export { InputsFormEditor } from './InputsEditor'
 export { type ListedProblem, ProblemsButton } from './ProblemsButton'
+export type { SettingsView } from './settingsViews'
 export { type WorkflowActions, withFields } from './stepWith'
 export type { RunLink } from './types'
 export {

@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useWorkflowEditing } from '../components/Provider'
 import { asRecord } from './editorFields'
-import { JobDialog, type SettingsView, StepDialog } from './GraphEditorDialogs'
+import { JobDialog, StepDialog } from './GraphEditorDialogs'
+import type { SettingsView } from './settingsViews'
 import { SAMPLE_WORKFLOW } from './stories/harness'
 
 const meta: Meta = {
