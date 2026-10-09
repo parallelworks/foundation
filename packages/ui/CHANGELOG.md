@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.29.0](https://github.com/parallelworks/foundation/compare/ui-v0.28.0...ui-v0.29.0) (2026-10-09)
+
+
+### Features
+
+* **ui:** ConversationSidebar lists any kind of conversation in resizable groups with a rail and keyboard cycling ([#175](https://github.com/parallelworks/foundation/issues/175)) ([bec45c9](https://github.com/parallelworks/foundation/commit/bec45c95703c2945291acc139aabbca609fa9462))
+
 ## [0.28.0](https://github.com/parallelworks/foundation/compare/ui-v0.27.0...ui-v0.28.0) (2026-10-09)
 
 
