@@ -129,6 +129,48 @@ describe('applyPartDelta', () => {
     ])
   })
 
+  it('grows the last text or reasoning part and starts a new one when the kind changes', () => {
+    let parts = applyPartDelta([], { type: 'reasoning', text: 'Look' })
+    parts = applyPartDelta(parts, { type: 'reasoning', text: 'ing' })
+    parts = applyPartDelta(parts, { type: 'text', text: 'Found ' })
+    parts = applyPartDelta(parts, { type: 'text', text: 'it' })
+    parts = applyPartDelta(parts, { type: 'tool_start', id: 't1', name: 'x', args: '' })
+    parts = applyPartDelta(parts, { type: 'text', text: 'Done' })
+    expect(parts).toEqual([
+      { kind: 'reasoning', text: 'Looking' },
+      { kind: 'text', text: 'Found it' },
+      { kind: 'tool_call', id: 't1', name: 'x', args: '', status: 'running' },
+      { kind: 'text', text: 'Done' },
+    ])
+  })
+
+  it('keeps the rest of the last part when appending text to it', () => {
+    const parts = applyPartDelta([{ kind: 'reasoning', text: 'a', durationMs: 5 }], {
+      type: 'reasoning',
+      text: 'b',
+    })
+    expect(parts).toEqual([{ kind: 'reasoning', text: 'ab', durationMs: 5 }])
+  })
+
+  it('retracts the trailing text and reasoning, back to the last other part', () => {
+    const before: MessagePart[] = [
+      { kind: 'text', text: 'kept' },
+      runningTool(),
+      { kind: 'reasoning', text: 'gone' },
+      { kind: 'text', text: 'gone too' },
+    ]
+    expect(applyPartDelta(before, { type: 'retract' })).toEqual([
+      { kind: 'text', text: 'kept' },
+      runningTool(),
+    ])
+    expect(before).toHaveLength(4)
+  })
+
+  it('retracts nothing when the timeline does not end in text', () => {
+    const parts: MessagePart[] = [runningTool()]
+    expect(applyPartDelta(parts, { type: 'retract' })).toBe(parts)
+  })
+
   it('appends notices and warnings', () => {
     let parts = applyPartDelta([], { type: 'notice', text: 'heads up' })
     parts = applyPartDelta(parts, { type: 'warning', text: 'careful' })

@@ -87,7 +87,7 @@ export { useKeyboardShortcuts } from './core/useKeyboardShortcuts'
 export { type ChatStrings, defaultChatStrings } from './strings'
 export * from './types'
 export { type DropdownOption, default as Dropdown } from './ui/Dropdown'
-export { NoticeBar, NoticeCard, type NoticeTone } from './ui/Notice'
+export { NoticeBar, NoticeCard, type NoticeTone, OutputCard } from './ui/Notice'
 export {
   RenameDialog,
   type RowDialogStrings,
