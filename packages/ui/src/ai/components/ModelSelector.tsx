@@ -13,10 +13,20 @@ import {
 import { useChat } from '../core/ChatProvider'
 import { useChatConfig } from '../core/config'
 import { providerIssueFor } from '../core/providerIssues'
-import type { ChatModel, CspKind, ProviderIssue } from '../types'
+import type { ChatModel, CspKind, ProviderInfo, ProviderIssue } from '../types'
 
 // ProviderInfo.user for a provider the organization manages rather than a user.
 const ORG_OWNER = 'org'
+
+/** Who registered a provider: the provider list's owner when the adapter
+ *  lists providers, otherwise the owner each model carries. Empty means the
+ *  organization, which is nobody to name. */
+function providerOwner(info: ProviderInfo | undefined, model: ChatModel | undefined): string {
+  if (info) {
+    return info.user === ORG_OWNER ? '' : info.user
+  }
+  return model?.provider_owner ?? ''
+}
 
 /** The search field plus the list's max-h-80, so the flip decision matches
  *  what renders. */
@@ -503,9 +513,10 @@ export default function ModelSelector({
                   const isOwner = providerInfo?.user === currentUser.username
                   // A provider shared with the reader can carry the same name as
                   // one of their own; the owner tells the two apart.
+                  const owner = providerOwner(providerInfo, providerModels[0])
                   const sharedBy =
-                    providerInfo && !isOwner && providerInfo.user !== ORG_OWNER
-                      ? strings.modelPicker.sharedBy(providerInfo.user)
+                    owner && owner !== currentUser.username
+                      ? strings.modelPicker.sharedBy(owner)
                       : null
                   const headerSuffix = [platformSuffix, sharedBy].filter(Boolean).join(' · ')
                   const settingsHref =

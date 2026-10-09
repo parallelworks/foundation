@@ -87,10 +87,17 @@ export const Toolbar: StoryObj<{ attachOpen: boolean }> = {
 
 // Alice's own provider and one Bob shared with her carry the same name; the
 // picker names Bob as the owner of his. The organization's provider has no
-// owner to name. The play opens the picker.
-export const SharedProviders: StoryObj<{ pickerOpen: boolean }> = {
-  args: { pickerOpen: true },
-  render: () => {
+// owner to name. An adapter that lists models only gets the same labels from
+// each model's owner. The play opens the picker.
+export const SharedProviders: StoryObj<{ pickerOpen: boolean; listProviders: boolean }> = {
+  args: { pickerOpen: true, listProviders: true },
+  argTypes: {
+    listProviders: {
+      control: 'boolean',
+      description: 'Adapter lists providers; off reads owners from the models',
+    },
+  },
+  render: (args) => {
     const Composer = () => {
       const adapter = useMemo(
         () =>
@@ -100,6 +107,7 @@ export const SharedProviders: StoryObj<{ pickerOpen: boolean }> = {
               { id: 'p-2', name: 'gateway', user: 'bob', cspKind: 'openai', status: 'active' },
               { id: 'p-3', name: 'shared-pool', user: 'org', cspKind: 'other', status: 'active' },
             ],
+            listProviders: args.listProviders,
           }),
         [],
       )
@@ -115,7 +123,7 @@ export const SharedProviders: StoryObj<{ pickerOpen: boolean }> = {
         </StoryChat>
       )
     }
-    return <Composer />
+    return <Composer key={String(args.listProviders)} />
   },
   play: async ({ canvasElement, args }) => {
     if (!args.pickerOpen) {
