@@ -13,6 +13,7 @@ import * as primitives from './components/primitives.stories'
 import * as fileExplorer from './file-explorer/FileExplorer.stories'
 import * as form from './form/DynamicForm.stories'
 import * as workflow from './graph/DependencyGraph.stories'
+import * as editorDialogs from './graph/GraphEditorDialogs.stories'
 import * as inputDialog from './graph/InputDialog.stories'
 import * as inputsEditor from './graph/InputsEditor.stories'
 import * as problemsButton from './graph/ProblemsButton.stories'
@@ -52,6 +53,7 @@ const SUITES = {
   userHoverCard,
   form,
   workflow,
+  editorDialogs,
   inputDialog,
   inputsEditor,
   problemsButton,
