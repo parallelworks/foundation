@@ -253,13 +253,13 @@ export default function ModelSelector({
   // The placeholders share the trigger's box so swapping them in and out
   // never moves the toolbar.
   const boxClass = bare
-    ? 'flex items-center gap-1.5 rounded-full h-8 px-2.5 max-w-[280px]'
+    ? 'flex items-center gap-1.5 rounded-full h-8 px-2.5 min-w-0 max-w-[280px]'
     : 'flex items-center gap-2 px-3 h-8 rounded-lg min-w-[180px] max-w-[280px]'
   const textClass = bare ? 'text-[13px]' : 'text-sm'
 
   if (isLoadingModels && models.length === 0 && !targetSession) {
     return (
-      <div ref={containerRef} className="relative">
+      <div ref={containerRef} className="relative min-w-0">
         <div className={boxClass}>
           {!bare && <RobotIcon className="h-4 w-4 text-purple-500 flex-shrink-0 animate-pulse" />}
           <span className={cx(textClass, 'theme-muted-text')}>Loading models...</span>
@@ -270,7 +270,7 @@ export default function ModelSelector({
 
   if (modelsError && models.length === 0) {
     return (
-      <div ref={containerRef} className="relative">
+      <div ref={containerRef} className="relative min-w-0">
         <div className={boxClass}>
           {!bare && <RobotIcon className="h-4 w-4 text-red-500 flex-shrink-0" />}
           <span className={cx(textClass, 'text-red-600')}>Failed to load models</span>
@@ -294,7 +294,7 @@ export default function ModelSelector({
     unreachableSessions.length === 0
   ) {
     return (
-      <div ref={containerRef} className="relative">
+      <div ref={containerRef} className="relative min-w-0">
         <div className={boxClass}>
           {!bare && <RobotIcon className="h-4 w-4 theme-muted-text flex-shrink-0" />}
           <span className={cx(textClass, 'theme-muted-text')}>No models available</span>
@@ -313,7 +313,7 @@ export default function ModelSelector({
         : 'Select a model'
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className="relative min-w-0">
       {/* Trigger Button */}
       <button
         ref={buttonRef}

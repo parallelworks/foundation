@@ -463,7 +463,7 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput
               attached above, the attach and send controls in a toolbar
               under the text, and (outside flush) the model on that toolbar's
               right, so the eye never leaves the box to see where it goes. */}
-          <div className="chat-composer flex flex-col rounded-[1.25rem] bg-(--theme-panel-bg)">
+          <div className="chat-composer @container flex flex-col rounded-[1.25rem] bg-(--theme-panel-bg)">
             {showAttachments && attachmentsAvailable && (
               <div className="px-3 pt-3">
                 <AttachmentUpload
@@ -514,9 +514,15 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput
                     onClick={() => setShowAttachments(!showAttachments)}
                   />
                 )}
+                {/* Send stays in the box however wide the host's controls
+                    are; they give up their room first. */}
                 <div className="ml-auto flex min-w-0 items-center gap-1">
-                  {!flush && settingsRight}
-                  {action}
+                  {!flush && (
+                    <div className="flex min-w-0 items-center justify-end gap-1">
+                      {settingsRight}
+                    </div>
+                  )}
+                  <div className="shrink-0">{action}</div>
                 </div>
               </div>
             )}

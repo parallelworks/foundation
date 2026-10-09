@@ -9,7 +9,7 @@ import {
 } from '../stories/harness'
 import type { MessagePaste } from '../types'
 import ChatInput from './ChatInput'
-import { ComposerControls, ConnectToolsLink } from './ComposerChrome'
+import { ComposerControls, ComposerUsage, ConnectToolsLink } from './ComposerChrome'
 
 const meta: Meta = {
   title: 'Chat/Composer',
@@ -141,6 +141,38 @@ export const SharedProviders: StoryObj<{ pickerOpen: boolean; listProviders: boo
       await new Promise((resolve) => setTimeout(resolve, 50))
     }
   },
+}
+
+// A phone-width composer with a host's usage meter: the meter gives way, the
+// model name truncates, and send stays inside the box.
+export const NarrowToolbar: StoryObj<{ width: number; usage: boolean }> = {
+  args: { width: 360, usage: true },
+  argTypes: {
+    width: { control: { type: 'range', min: 280, max: 900, step: 10 } },
+    usage: { control: 'boolean', description: 'Host supplies a usage meter' },
+  },
+  render: (args) => (
+    <StoryChat adapter={makeStaticAdapter({ attachments: true })}>
+      <div style={{ width: args.width, margin: '0 auto' }}>
+        <ChatInput
+          onSend={send}
+          conversationId="conv-narrow"
+          settingsRight={
+            <>
+              {args.usage && (
+                <ComposerUsage>
+                  <span style={{ whiteSpace: 'nowrap', fontSize: 10 }}>
+                    1-day limit 34.2% used · 30-day limit 36.8% used
+                  </span>
+                </ComposerUsage>
+              )}
+              <ComposerControls />
+            </>
+          }
+        />
+      </div>
+    </StoryChat>
+  ),
 }
 
 // Text over inlineMaxBytes becomes a card. The play pastes three logs: the
