@@ -64,6 +64,16 @@ describe('ChatLayout inline', () => {
     expect(storage.get('aiChatSidebar')).toBe('collapsed')
   })
 
+  it('puts the host content above the list and tells it when the list is the rail', async () => {
+    renderLayout({
+      sidebarActions: false,
+      sidebarTop: ({ collapsed }) => <p>{collapsed ? 'top: rail' : 'top: list'}</p>,
+    })
+    expect(await screen.findByText('top: list')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Close sidebar' }))
+    expect(screen.getByText('top: rail')).toBeInTheDocument()
+  })
+
   it('reads the rail from the earlier storage key', async () => {
     storage.set('aiChatSidebarCollapsed', '1')
     renderLayout()
