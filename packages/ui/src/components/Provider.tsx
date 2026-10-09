@@ -361,6 +361,8 @@ export interface UIStrings {
     copied: (label: string) => string
     couldntCopy: (label: string) => string
     moreActions: string
+    /** A toolbar toggle's name in the overflow menu, where a row can't be pressed. */
+    toggleState: (label: string, on: boolean) => string
     labelName: string
     labelEmail: string
     labelUsername: string
@@ -909,6 +911,7 @@ const DEFAULTS: UIProviderValue = {
       copied: (label) => `Copied ${label}`,
       couldntCopy: (label) => `Couldn't copy ${label}`,
       moreActions: 'More actions',
+      toggleState: (label, on) => `${label}, ${on ? 'on' : 'off'}`,
       labelName: 'name',
       labelEmail: 'email',
       labelUsername: 'username',
