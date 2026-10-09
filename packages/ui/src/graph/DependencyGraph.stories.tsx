@@ -94,6 +94,24 @@ export const MatrixFromYaml: StoryObj<typeof DependencyGraphPreview> = {
   },
 }
 
+/** A matrix an expression gives: the preview evaluates it with the inputs' defaults, as a run would. */
+export const MatrixFromExpression: StoryObj<typeof DependencyGraphPreview> = {
+  args: {
+    yml: {
+      on: { execute: { inputs: { shards: { type: 'number', label: 'Shards', default: 4 } } } },
+      jobs: {
+        train: {
+          // biome-ignore lint/suspicious/noTemplateCurlyInString: a workflow expression
+          strategy: { matrix: { shard: '${{ 0 range inputs.shards }}' } },
+          // biome-ignore lint/suspicious/noTemplateCurlyInString: a workflow expression
+          steps: [{ name: 'train', run: 'python train.py --shard ${{ matrix.shard }}' }],
+        },
+        merge: { needs: ['train'], steps: [{ name: 'merge', run: 'python merge.py' }] },
+      },
+    },
+  },
+}
+
 /** A run's matrix that made one job draws as that job, under the job's own name. */
 export const MatrixOfOne: StoryObj<typeof DependencyGraphPreview> = {
   args: {
