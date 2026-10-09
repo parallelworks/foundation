@@ -71,12 +71,12 @@ vi.mock('./fieldRegistry', async (importOriginal) => {
   }
 })
 
-// Mock ResizeObserver
-global.ResizeObserver = vi.fn().mockImplementation(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-}))
+// A class, as the step row constructs one.
+global.ResizeObserver = class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+} as unknown as typeof ResizeObserver
 
 import { testEngine } from '../test/engine'
 
@@ -460,10 +460,10 @@ describe('a repeated wizard page’s copies', () => {
 
   it('reads a copy’s title again when an input it reads changes, and not for another input', async () => {
     const title = '${{ inputs.clusters[index].name }}'
-    vi.mocked(testEngine.inputDependencies).mockImplementation(((obj: unknown) => ({
+    vi.mocked(testEngine.inputDependencies).mockImplementation((obj?: unknown) => ({
       inputDeps: new Set<string>(obj === title ? ['clusters'] : []),
       hasExpressions: obj === title,
-    })) as unknown as typeof testEngine.inputDependencies)
+    }))
     vi.mocked(testEngine.evaluate).mockImplementation((({
       inputs,
       obj,
@@ -691,6 +691,109 @@ describe('a repeated wizard page’s copies as its bounds change', () => {
         expect.objectContaining({ hosts: [{ cpus: 1 }, { cpus: 2 }, { cpus: 3 }] }),
       ),
     )
+  })
+
+  const upTo = (max: number) => ({
+    $meta: { wizard: { mode: 'wizard', navigation: { allowJump: true } } },
+    hosts: {
+      type: 'step',
+      title: 'Host',
+      multi: true,
+      max,
+      options: { cpus: { type: 'number', default: 2 } },
+    },
+  })
+
+  it('brings back every copy a lower max set aside, one for each Add', async () => {
+    const seen = vi.fn()
+    const initialValues = { hosts: [{ cpus: 1 }, { cpus: 2 }, { cpus: 3 }, { cpus: 4 }] }
+    const form = (max: number) => (
+      <DynamicForm initialValues={initialValues} setValues={seen} formJSONs={upTo(max)} />
+    )
+    const { rerender } = render(form(4))
+    await screen.findByRole('heading', { name: 'Host 1' })
+    rerender(form(2))
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith({ hosts: [{ cpus: 1 }, { cpus: 2 }] }),
+    )
+    rerender(form(4))
+    fireEvent.click(screen.getByRole('button', { name: 'Go to next step' }))
+    fireEvent.click(await screen.findByRole('button', { name: '+ Add Host' }))
+    await screen.findByRole('heading', { name: 'Host 3' })
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Host' }))
+    await waitFor(() => expect(seen).toHaveBeenLastCalledWith(initialValues))
+  })
+
+  it('brings back every copy a lower bound set aside as the bound rises a step at a time', async () => {
+    const seen = vi.fn()
+    const initialValues = { hosts: [{ cpus: 1 }, { cpus: 2 }, { cpus: 3 }, { cpus: 4 }] }
+    const form = (bound: number) => (
+      <DynamicForm initialValues={initialValues} setValues={seen} formJSONs={hosts(bound)} />
+    )
+    const { rerender } = render(form(4))
+    await screen.findByRole('heading', { name: 'Host 1' })
+    for (const bound of [2, 3, 4]) {
+      rerender(form(bound))
+      await waitFor(() =>
+        expect(seen).toHaveBeenLastCalledWith({ hosts: initialValues.hosts.slice(0, bound) }),
+      )
+    }
+  })
+
+  it('drops what a lower max set aside once saved inputs replace the values', async () => {
+    const formikRef = createRef<FormikProps<FormikValues>>()
+    const seen = vi.fn()
+    const initialValues = { hosts: [{ cpus: 1 }, { cpus: 2 }, { cpus: 3 }] }
+    const form = (max: number) => (
+      <DynamicForm
+        initialValues={initialValues}
+        formikRef={formikRef}
+        setValues={seen}
+        formJSONs={upTo(max)}
+      />
+    )
+    const { rerender } = render(form(3))
+    await screen.findByRole('heading', { name: 'Host 1' })
+    rerender(form(2))
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith({ hosts: [{ cpus: 1 }, { cpus: 2 }] }),
+    )
+    act(() => {
+      formikRef.current?.resetForm({ values: { hosts: [{ cpus: 7 }, { cpus: 8 }] } })
+    })
+    rerender(form(3))
+    fireEvent.click(screen.getByRole('button', { name: 'Go to next step' }))
+    fireEvent.click(await screen.findByRole('button', { name: '+ Add Host' }))
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith({ hosts: [{ cpus: 7 }, { cpus: 8 }, { cpus: 2 }] }),
+    )
+  })
+
+  it('keeps the person’s place when the step shown goes whole', async () => {
+    const form = (max: number) => (
+      <DynamicForm
+        initialValues={{ hosts: [{ cpus: 1 }, { cpus: 2 }] }}
+        formJSONs={{
+          $meta: { wizard: { mode: 'wizard', navigation: { allowJump: true } } },
+          start: { type: 'step', title: 'Start', options: { name: { type: 'string' } } },
+          hosts: {
+            type: 'step',
+            title: 'Host',
+            multi: true,
+            max,
+            options: { cpus: { type: 'number' } },
+          },
+          done: { type: 'step', title: 'Done', options: { note: { type: 'string' } } },
+        }}
+      />
+    )
+    const { rerender } = render(form(2))
+    await screen.findByRole('heading', { name: 'Start' })
+    fireEvent.click(screen.getByRole('button', { name: 'Go to next step' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Go to next step' }))
+    await screen.findByRole('heading', { name: 'Host 2' })
+    rerender(form(0))
+    await screen.findByRole('heading', { name: 'Done' })
   })
 
   it('shows the nearest page left when the one shown goes, as when saved inputs replace the copies', async () => {
