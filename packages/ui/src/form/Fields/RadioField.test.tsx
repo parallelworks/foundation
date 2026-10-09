@@ -44,8 +44,7 @@ describe('RadioField', () => {
     expect(form?.values.precision).toBe('fp64')
   })
 
-  it('checks and picks numeric options by their text', () => {
-    // The picked value comes back as text, whatever the default's type.
+  it('checks numeric options by their text and picks them as numbers', () => {
     let form: FormikProps<{ workers: number | string }> | undefined
     render(
       <Formik<{ workers: number | string }> initialValues={{ workers: 4 }} onSubmit={vi.fn()}>
@@ -65,7 +64,7 @@ describe('RadioField', () => {
     )
     expect(screen.getByRole('radio', { name: '4' })).toBeChecked()
     fireEvent.click(screen.getByRole('radio', { name: '2' }))
-    expect(form?.values.workers).toBe('2')
+    expect(form?.values.workers).toBe(2)
     expect(screen.getByRole('radio', { name: '2' })).toBeChecked()
   })
 })
