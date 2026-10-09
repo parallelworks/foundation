@@ -17,6 +17,7 @@ import * as editorDialogs from './graph/GraphEditorDialogs.stories'
 import * as inputDialog from './graph/InputDialog.stories'
 import * as inputsEditor from './graph/InputsEditor.stories'
 import * as problemsButton from './graph/ProblemsButton.stories'
+import * as settingsDialog from './graph/WorkflowSettingsDialog.stories'
 import * as appShell from './list/appShell.stories'
 import * as list from './list/ListTable.stories'
 import * as listControls from './list/listControls.stories'
@@ -57,6 +58,7 @@ const SUITES = {
   inputDialog,
   inputsEditor,
   problemsButton,
+  settingsDialog,
   fileExplorer,
 } as const
 
