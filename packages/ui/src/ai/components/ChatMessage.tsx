@@ -28,6 +28,8 @@ interface ChatMessageProps {
   message: Message
   allMessages: Message[]
   isStreaming?: boolean
+  /** The thread's newest message: a long reply stays open, so opening a chat ends on its last line. */
+  latest?: boolean | undefined
   isEditing?: boolean
   showAuthor?: boolean | undefined
   currentUsername?: string | undefined
@@ -83,6 +85,7 @@ function ChatMessage({
   message,
   allMessages,
   isStreaming = false,
+  latest = false,
   isEditing = false,
   showAuthor = false,
   currentUsername,
@@ -132,7 +135,8 @@ function ChatMessage({
   const [reasoningOpen, setReasoningOpen] = useState(false)
 
   // Long finished assistant replies clamp with a fade; streaming replies never
-  // clamp so the tail stays readable while it grows.
+  // clamp so the tail stays readable while it grows, and the latest reply never
+  // clamps so the thread, scrolled to its end, ends on the answer's last line.
   useEffect(() => {
     if (isUser || isStreaming || !contentRef.current) {
       return
@@ -221,7 +225,7 @@ function ChatMessage({
 
   const timestamp = parseTimestamp(message.timestamp)
   const totalTokens = message.tokensUsed?.total_tokens
-  const collapsed = !isUser && collapsible && !expanded && !isStreaming
+  const collapsed = !isUser && collapsible && !expanded && !isStreaming && !latest
 
   const copyToClipboard = async () => {
     if (message.content) {
@@ -370,7 +374,7 @@ function ChatMessage({
               )
             ) : null}
 
-            {!isUser && collapsible && !isStreaming && (
+            {!isUser && collapsible && !isStreaming && !latest && (
               <button
                 type="button"
                 onClick={() => setExpanded((e) => !e)}
