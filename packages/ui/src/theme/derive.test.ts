@@ -91,6 +91,17 @@ describe('deriveTheme', () => {
     )
   })
 
+  it('keeps every preset readable in its accent and on it', () => {
+    for (const { seed } of THEME_PRESETS) {
+      const vars = deriveTheme(seed)
+      const accent = vars['--theme-element']
+      expect(contrastRatio(vars['--theme-element-text'], accent)).toBeGreaterThanOrEqual(4.5)
+      // The accent is also a text colour, as on a wizard's current step.
+      expect(contrastRatio(accent, vars['--theme-app-bg'])).toBeGreaterThanOrEqual(4.5)
+      expect(contrastRatio(accent, vars['--theme-panel-bg'])).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
   it('puts the seed text on accent fills over its own pick', () => {
     const seed = { accent: '#0d6efd', background: '#ffffff' }
     expect(deriveTheme(seed)['--theme-element-text']).toBe('#000000')

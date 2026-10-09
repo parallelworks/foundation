@@ -345,6 +345,8 @@ export interface UIStrings {
     copyTitle: (title: string, number: number) => string
     addCopy: (title: string) => string
     removeCopy: (title: string) => string
+    /** A wizard's row of step dots. */
+    steps: string
   }
   time: {
     now: string
@@ -926,6 +928,7 @@ const DEFAULTS: UIProviderValue = {
       copyTitle: (title, number) => `${title} ${number}`,
       addCopy: (title) => `+ Add ${title}`,
       removeCopy: (title) => `Remove ${title}`,
+      steps: 'Steps',
     },
     time: {
       now: 'now',

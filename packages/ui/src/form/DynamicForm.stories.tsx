@@ -154,6 +154,14 @@ const WORKER_OPTIONS = {
 /** A repeated page with more copies than the row of step dots holds: the dots scroll, the current one in
  * view. */
 export const RepeatedPageMany: StoryObj<typeof DynamicForm> = {
+  // A phone's width, where ten steps overflow.
+  decorators: [
+    (Story) => (
+      <div className="max-w-[360px]">
+        <Story />
+      </div>
+    ),
+  ],
   args: {
     formJSONs: {
       $meta: { wizard: { mode: 'wizard', navigation: { allowJump: true } } },

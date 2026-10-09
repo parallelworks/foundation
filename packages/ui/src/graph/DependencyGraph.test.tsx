@@ -703,6 +703,11 @@ describe('computeGraphLayout with a stored layout', () => {
     expect(dependencyCols).toEqual([[['build']], [['deploy']]])
     expect(directDeps['deploy']).toEqual(['build'])
   })
+
+  it('draws a need on a job once, however many ways it is named', () => {
+    const jobs = { build: job(), deploy: job(['build', 'build:any']) }
+    expect(computeGraphLayout(testEngine, jobs, {}).directDeps['deploy']).toEqual(['build'])
+  })
 })
 
 describe('nodes a stored layout forms', () => {
@@ -879,8 +884,11 @@ describe('DependencyGraphPreview', () => {
     const sharded = {
       jobs: { train: { strategy: { matrix: { shard: '${{ 0 range inputs.n }}' } }, steps: [] } },
     }
+    const evaluate = vi.mocked(testEngine.evaluate)
+    evaluate.mockClear()
     render(<DependencyGraphPreview yml={sharded} />)
     expect(init).not.toHaveBeenCalled()
+    expect(evaluate).not.toHaveBeenCalled()
   })
 
   it('draws the jobs a needs expression names as a run waits on them', () => {

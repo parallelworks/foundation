@@ -47,5 +47,12 @@ describe('WizardStepIndicator', () => {
     rerender(indicator('site[8]'))
     expect(scrolled).toHaveBeenLastCalledWith(800 - (300 - 80) / 2)
     expect(screen.getByRole('button', { name: /^Step 9:/ })).toHaveAttribute('aria-current', 'step')
+    // With no dot to focus, the keyboard scrolls the row itself.
+    expect(screen.getByRole('list', { name: 'Steps' })).toHaveAttribute('tabindex', '0')
+  })
+
+  it('takes no focus of its own when its steps fit', () => {
+    render(indicator('site[1]'))
+    expect(screen.getByRole('list', { name: 'Steps' })).not.toHaveAttribute('tabindex')
   })
 })
