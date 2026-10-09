@@ -1,6 +1,6 @@
 import type { UIData, WorkflowJsonRef } from '../components/Provider'
 import type { WorkflowEditing } from '../editing'
-import { asRecord, type Json } from './editorFields'
+import { asRecord, type Json } from './records'
 
 /** The file a repository `uses` reads when its step names no `$yaml`. */
 export const DEFAULT_REPO_YAML = 'workflow.yaml'
