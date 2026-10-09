@@ -79,18 +79,21 @@ function ViewToggle({
 const VIEW_BAR =
   'flex max-w-full flex-wrap items-center justify-end gap-0.5 rounded-md border theme-border bg-(--theme-panel-bg) p-0.5'
 
-/** The graph's view buttons, the same on the build page, a run and a marketplace preview. */
+/** The graph's view buttons, the same wherever a graph is drawn. */
 function GraphViewControls({
   history,
   expand,
   onReset,
   onZoom,
+  zoomedAll,
 }: {
   /** Back and forward between the graphs a run's subworkflows were opened in. */
   history?: { back?: (() => void) | undefined; forward?: (() => void) | undefined } | undefined
   expand?: { label: string; onClick: () => void } | undefined
   onReset: () => void
   onZoom: (direction: 1 | -1) => void
+  /** The way the view can zoom no further, if it is at a limit. */
+  zoomedAll: 'in' | 'out' | null
 }) {
   const { dag } = useStrings()
   const chip =
@@ -132,6 +135,7 @@ function GraphViewControls({
         label={dag.zoomOut}
         size="sm"
         variant="ghost"
+        disabled={zoomedAll === 'out'}
         onClick={() => onZoom(-1)}
       />
       <IconButton
@@ -139,6 +143,7 @@ function GraphViewControls({
         label={dag.zoomIn}
         size="sm"
         variant="ghost"
+        disabled={zoomedAll === 'in'}
         onClick={() => onZoom(1)}
       />
     </div>
@@ -286,7 +291,6 @@ function parsePrefixToPath(prefix: string): (string | number)[] {
   return path
 }
 
-// A matrix that ran as one job draws as that job, in the slot stored for its YAML job.
 // Jobs sharing a slot form one node only when they need, and are needed by, the same jobs, as a
 // layout drawn afresh would group them; the rest take the rows below, the largest group staying.
 function unitsOnly(
@@ -320,6 +324,7 @@ function unitsOnly(
   })
 }
 
+// A matrix that ran as one job draws as that job, in the slot stored for its YAML job.
 function withLoneMatrixSlots(
   { layoutPosition, mapLayout }: WorkflowEditing,
   layout: GraphLayout,
@@ -690,7 +695,7 @@ function sizingTransitions(el: HTMLElement) {
     )
 }
 
-// Each zoom button press scales the graph by e^0.25, about a quarter.
+// An exponent of the scale, so a press in and a press out land back where they started.
 const ZOOM_STEP = 0.25
 
 // One level of the dependency graph: lays out its own jobs into columns, draws
@@ -744,6 +749,12 @@ function Subgraph({
   const retractPathLensRef = useRef<Map<string, number>>(new Map())
 
   const matrixGroups = useMemo(() => engine.matrixGroups(jobs), [engine, jobs])
+  // A subworkflow drawn inside another graph places its jobs by their `position`, as its own graph
+  // does.
+  const placed = useMemo(
+    () => layout ?? (depth > 0 ? positionsOf(jobs) : undefined),
+    [layout, depth, jobs],
+  )
   const {
     dependencyCols,
     rowSlots,
@@ -753,8 +764,8 @@ function Subgraph({
     ancestorDists,
     descendantDists,
   } = useMemo(
-    () => computeGraphLayout(engine, jobs, matrixGroups, layout),
-    [engine, jobs, matrixGroups, layout],
+    () => computeGraphLayout(engine, jobs, matrixGroups, placed),
+    [engine, jobs, matrixGroups, placed],
   )
 
   // Map of job → hop distance from hovered node (union of ancestors + descendants)
@@ -1030,26 +1041,9 @@ function Subgraph({
         // Y position where connectors attach to a node
         const nodeConnectorY = (el: HTMLElement) => offsetWithin(el, wrapper).y + NODE_CONNECTOR_Y
 
-        // A need draws from the box its job sits in, and a box formed by hand draws all its members' needs.
-        const headOf = new Map<string, string>()
-        for (const [head = '', ...rest] of dependencyCols.flat()) {
-          for (const job of [head, ...rest]) {
-            headOf.set(job, head)
-          }
-        }
-        const boxDeps = new Map(
-          dependencyCols
-            .flat()
-            .map((box) => [
-              box[0] ?? '',
-              [
-                ...new Set(
-                  box.flatMap((job) => directDeps[job] ?? []).map((dep) => headOf.get(dep) ?? dep),
-                ),
-              ].filter((dep) => !box.includes(dep)),
-            ]),
-        )
-        const depsOf = (head: string) => boxDeps.get(head) ?? []
+        // A box's jobs share their needs and dependents, so its first job's needs are the box's, and a
+        // need on a job further down a box is also one on its first, which draws it.
+        const depsOf = (head: string) => directDeps[head] ?? []
 
         // Compute column gap (static distance between adjacent column edges)
         let colGap = 32 // fallback
@@ -1387,11 +1381,12 @@ function SidebarJobs({
 
   // Matrix members are keyed `originaljob-N`, but the collapsed group node is keyed
   // by the bare originaljob; fold members onto their group key so each matrix
-  // renders once as a group (like the graph), not one row per member.
+  // renders once as a group (like the graph), not one row per member. A matrix that
+  // ran as one job has no group, so its job is listed as it is.
   const seenMatrixGroups = new Set<string>()
   const orderedKeys = Object.keys(jobs).flatMap((jobName) => {
     const originaljob = jobs[jobName]?._matrix?.originaljob
-    if (!originaljob) {
+    if (!originaljob || !displayJobs[originaljob]?._matrixGroup) {
       return [jobName]
     }
     if (seenMatrixGroups.has(originaljob)) {
@@ -1629,10 +1624,14 @@ export default function DependencyGraph({
   const currentPath = executedJobsPath[executedJobsPathIdx] ?? []
   const jobs = walkJobPath(rootJobs, currentPath)
   const root = currentPath.length === 0
-  // Jobs keep their place on the graph in their own `position`; a host's layout is the root's.
+  // Jobs keep their place on the graph in their own `position`; a host's layout, when it holds any,
+  // is the root's.
   const placed = useMemo(
-    () => (root && layout) || positionsOf(root ? (yamlJobs ?? jobs) : jobs),
-    [root, layout, yamlJobs, jobs],
+    () =>
+      root && engine.editing?.hasLayout(layout)
+        ? layout
+        : positionsOf(root ? (yamlJobs ?? jobs) : jobs),
+    [engine, root, layout, yamlJobs, jobs],
   )
 
   const resetGraph = useCallback(() => {
@@ -1795,6 +1794,16 @@ export default function DependencyGraph({
     invalidateConnectors()
     fitGraph(FIT_ANIMATION_MS)
   }, [fitGraph, invalidateConnectors, preview, fixedHeight])
+
+  // The view opens at its closest zoom, which a fit never passes.
+  const [zoomedAll, setZoomedAll] = useState<'in' | 'out' | null>('in')
+  const onTransform = useCallback(
+    (_: unknown, { scale }: { scale: number }) => {
+      setZoomedAll(scale >= maxScale - 0.001 ? 'in' : scale <= minScale + 0.001 ? 'out' : null)
+      invalidateConnectors()
+    },
+    [invalidateConnectors],
+  )
 
   // The transform's wrapper grows with the graph, so zoom about the middle of what the panel shows.
   const zoomBy = useCallback((step: number) => {
@@ -2147,7 +2156,7 @@ export default function DependencyGraph({
               }}
               onPanning={invalidateConnectors}
               onPinch={invalidateConnectors}
-              onTransform={invalidateConnectors}
+              onTransform={onTransform}
               onWheel={invalidateConnectors}
               onZoom={invalidateConnectors}
             >
@@ -2185,6 +2194,7 @@ export default function DependencyGraph({
                       }
                       onReset={resetView}
                       onZoom={(direction) => zoomBy(direction * ZOOM_STEP)}
+                      zoomedAll={zoomedAll}
                     />
                   </div>
                   <TransformComponent>
@@ -2280,10 +2290,16 @@ function positionsOf(jobs: Record<string, unknown>): GraphLayout | undefined {
   const layout: GraphLayout = Object.create(null)
   let any = false
   for (const [name, job] of Object.entries(jobs)) {
-    const position = isJobRecord(job) ? (job as Record<string, unknown>)['position'] : undefined
+    const { position, _matrix } = isJobRecord(job) ? (job as Record<string, unknown>) : {}
     const { column, row } = isJobRecord(position) ? (position as Record<string, unknown>) : {}
-    if (isSlot(column) && isSlot(row)) {
-      layout[name] = { column, row }
+    // A run copies a matrix job's `position` into each of its runs, which draw as one node under
+    // the job's own name.
+    const original = isJobRecord(_matrix)
+      ? (_matrix as Record<string, unknown>)['originaljob']
+      : undefined
+    const key = typeof original === 'string' && original ? original : name
+    if (isSlot(column) && isSlot(row) && !(key in layout)) {
+      layout[key] = { column, row }
       any = true
     }
   }
@@ -2305,7 +2321,11 @@ function withRunExpressions(
   for (const [name, job] of Object.entries(jobs)) {
     const { strategy, needs } = job as unknown as Record<string, unknown>
     const next: Record<string, unknown> = { ...job }
-    if (isJobRecord(strategy) && engine.inputDependencies(strategy).hasExpressions) {
+    if (
+      engine.editing &&
+      isJobRecord(strategy) &&
+      engine.inputDependencies(strategy).hasExpressions
+    ) {
       next['strategy'] = evaluate(strategy)
     }
     if (typeof needs === 'string' && engine.inputDependencies(needs).hasExpressions) {
@@ -2359,14 +2379,16 @@ export function DependencyGraphPreview(inputs: {
   const { editing } = engine
   const ymlJobs = inputs.yml?.['jobs']
   const jobs = isJobRecord(ymlJobs) ? ymlJobs : {}
-  // A page loads the expression runtime on first use, so only jobs a run evaluates first load it.
+  // A page loads the expression runtime on first use, so only jobs a run evaluates first load it. Only
+  // an engine that edits expands a matrix, so a strategy needs evaluating only with one.
   const evaluates = useMemo(
     () =>
       Object.values(jobs).some((job) => {
         const { strategy, needs } = job as unknown as Record<string, unknown>
-        return engine.inputDependencies({ strategy, needs }).hasExpressions
+        return engine.inputDependencies({ strategy: editing ? strategy : undefined, needs })
+          .hasExpressions
       }),
-    [engine, jobs],
+    [engine, editing, jobs],
   )
   const [ready, setReady] = useState(() => engine.isReady())
   useEffect(() => {

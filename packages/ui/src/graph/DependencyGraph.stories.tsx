@@ -142,3 +142,29 @@ export const StoredLayout: StoryObj<typeof DependencyGraphPreview> = {
     } satisfies GraphLayout,
   },
 }
+
+/** Jobs placed by their own `position` in the YAML: the empty column and row stay. */
+export const YamlPositions: StoryObj<typeof DependencyGraphPreview> = {
+  args: {
+    yml: {
+      jobs: {
+        checkout: { position: { column: 0, row: 0 }, steps: [{ name: 'clone', run: 'git clone' }] },
+        build: {
+          needs: ['checkout'],
+          position: { column: 2, row: 0 },
+          steps: [{ name: 'compile', run: 'make' }],
+        },
+        lint: {
+          needs: ['checkout'],
+          position: { column: 2, row: 2 },
+          steps: [{ name: 'lint', run: 'make lint' }],
+        },
+        release: {
+          needs: ['build', 'lint'],
+          position: { column: 3, row: 0 },
+          steps: [{ name: 'publish', run: './release.sh' }],
+        },
+      },
+    },
+  },
+}
