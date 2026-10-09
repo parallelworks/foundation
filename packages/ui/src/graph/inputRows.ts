@@ -197,8 +197,45 @@ export function dropChanges(
     }
     return changes
   }
+  // A line of its own, as the drop showed: a share of a line that would join the line before or
+  // after it goes, while one that would still stand alone keeps its width.
+  const percentOf = (path: InputPath): number | null => {
+    const width = widthNow(path)
+    if (width === undefined || width === null) {
+      return 100
+    }
+    const share = typeof width === 'string' ? /^(\d+(?:\.\d+)?)%$/.exec(width.trim()) : null
+    return share ? Number(share[1]) : null
+  }
+  const headShare = (column: Column) => {
+    const head = column.rows.find(stays)
+    return head ? (percentOf(head.path) ?? 100) : 0
+  }
+  const listed = lines
+    .filter((other) => samePath(other.parent, drop.parent))
+    .flatMap(rowsOf)
+    .filter(stays)
+  const before = listed.filter((row) => row.index < drop.index).at(-1)
+  const after = listed.find((row) => row.index >= drop.index)
+  const joins = (share: number) => {
+    const last = before && holding(before.path)
+    if (
+      last &&
+      last.line.columns.at(-1) === last.column &&
+      last.line.columns.reduce((sum, column) => sum + headShare(column), 0) + share <= 100
+    ) {
+      return true
+    }
+    const next = after && holding(after.path)
+    return !!next && next.line.columns[0] === next.column && share + headShare(next.column) <= 100
+  }
   for (const path of moving) {
-    set(path, { 'anchor-below': null, ...(shared.has(key(path)) ? { width: null } : {}) })
+    const share = percentOf(path)
+    const joined = share !== null && share < 100 && joins(share)
+    set(path, {
+      'anchor-below': null,
+      ...(shared.has(key(path)) || joined ? { width: null } : {}),
+    })
   }
   return changes
 }

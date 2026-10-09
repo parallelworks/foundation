@@ -1374,6 +1374,41 @@ describe('list templates', () => {
   const rowsOf = (path: string[]) =>
     document.querySelectorAll(`[data-input-path='${JSON.stringify(path)}']`)
 
+  it('draws a wizard in each row of a list, though the rows hold different copies', async () => {
+    const WIZARDS = {
+      hosts: {
+        type: 'list',
+        label: 'Hosts',
+        template: {
+          $meta: { wizard: { mode: 'wizard' } },
+          sites: {
+            type: 'step',
+            title: 'Site',
+            multi: true,
+            options: { zone: { type: 'string', label: 'Zone' } },
+          },
+          done: {
+            type: 'step',
+            title: 'Done',
+            options: { note: { type: 'string', label: 'Note' } },
+          },
+        },
+      },
+    }
+    render(
+      <InputsFormEditor editor={editor()} inputs={WIZARDS}>
+        <DynamicForm
+          formJSONs={convertToDynamicForm(WIZARDS)}
+          initialValues={{ hosts: [{ sites: [{}, {}] }, {}] }}
+          workflowForm
+          fields={{ list: ListStandIn }}
+        />
+      </InputsFormEditor>,
+    )
+    // Each row's wizard reports how many pages it draws; differing counts must settle.
+    await waitFor(() => expect(screen.getAllByRole('heading', { name: /^Site/ })).toHaveLength(2))
+  })
+
   it('starts a list with no row, as the run form does', () => {
     renderList(editor())
     expect(rowsOf(['hosts'])).toHaveLength(1)
