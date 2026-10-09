@@ -85,6 +85,56 @@ export const Toolbar: StoryObj<{ attachOpen: boolean }> = {
   },
 }
 
+// Alice's own provider and one Bob shared with her carry the same name; the
+// picker names Bob as the owner of his. The organization's provider has no
+// owner to name. The play opens the picker.
+export const SharedProviders: StoryObj<{ pickerOpen: boolean }> = {
+  args: { pickerOpen: true },
+  render: () => {
+    const Composer = () => {
+      const adapter = useMemo(
+        () =>
+          makeStaticAdapter({
+            providers: [
+              { id: 'p-1', name: 'gateway', user: 'alice', cspKind: 'openai', status: 'active' },
+              { id: 'p-2', name: 'gateway', user: 'bob', cspKind: 'openai', status: 'active' },
+              { id: 'p-3', name: 'shared-pool', user: 'org', cspKind: 'other', status: 'active' },
+            ],
+          }),
+        [],
+      )
+      return (
+        <StoryChat adapter={adapter}>
+          <div>
+            <ChatInput
+              onSend={send}
+              conversationId="conv-shared-providers"
+              settingsRight={<ComposerControls />}
+            />
+          </div>
+        </StoryChat>
+      )
+    }
+    return <Composer />
+  },
+  play: async ({ canvasElement, args }) => {
+    if (!args.pickerOpen) {
+      return
+    }
+    // The models load after mount; the trigger stays disabled until they do.
+    for (let i = 0; i < 50; i++) {
+      const trigger = canvasElement.querySelector<HTMLButtonElement>(
+        'button[aria-haspopup="dialog"]:not([disabled])',
+      )
+      if (trigger) {
+        trigger.click()
+        return
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+  },
+}
+
 // Text over inlineMaxBytes becomes a card. The play pastes three logs: the
 // host saves the first, is still saving the second and refuses the third.
 // Pastes of your own are saved.

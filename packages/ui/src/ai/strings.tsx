@@ -38,6 +38,10 @@ export interface ChatStrings {
     bannerKeyRejected: (provider: string) => string
     bannerUnreachable: (provider: string) => string
   }
+  modelPicker: {
+    /** Beside a provider another user registered and shared with the reader. */
+    sharedBy: (owner: string) => string
+  }
   queue: {
     remove: string
     /** Under a message that goes out once the running reply finishes. */
@@ -246,6 +250,9 @@ export const defaultChatStrings: ChatStrings = {
       'The provider\u2019s endpoint did not respond. Check the endpoint URL and network access.',
     bannerKeyRejected: (provider) => `API key rejected for \u201c${provider}\u201d`,
     bannerUnreachable: (provider) => `\u201c${provider}\u201d is unreachable`,
+  },
+  modelPicker: {
+    sharedBy: (owner) => `Shared by ${owner}`,
   },
   activity: {
     tokens: (input, output) => `↑${input} ↓${output} tokens`,
