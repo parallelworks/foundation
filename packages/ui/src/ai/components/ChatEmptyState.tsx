@@ -156,7 +156,7 @@ export default function ChatEmptyState({
             <div className="w-full">
               {/* Welcome message - hidden when no providers configured */}
               {!(hasLoadedModels && models.length === 0) && (
-                <div className="mx-auto mb-6 max-w-[50rem] px-8 text-center">
+                <div className="mx-auto mb-6 max-w-[var(--chat-column,50rem)] px-8 text-center">
                   <h1 className="text-[1.75rem] leading-tight font-medium tracking-[-0.02em] text-balance text-(--theme-panel)">
                     {greeting}
                   </h1>
@@ -205,7 +205,7 @@ export default function ChatEmptyState({
               />
 
               {prompts.length > 0 && !(hasLoadedModels && models.length === 0) && (
-                <ul className="mx-auto max-w-[50rem] px-8">
+                <ul className="mx-auto max-w-[var(--chat-column,50rem)] px-8">
                   {keyedByContent(prompts, (p) => p).map(({ key, item: prompt }) => (
                     <li key={key} className="border-b theme-border last:border-b-0">
                       <button
