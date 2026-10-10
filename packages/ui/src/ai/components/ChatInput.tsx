@@ -88,6 +88,9 @@ interface ChatInputProps {
   activity?: ReactNode
   /** Pills naming where the turn runs, rendered above the input. */
   context?: ReactNode
+  /** Keeps the row of pills above the box even with none, so the box sits
+   *  where it does on a surface that has them. */
+  reserveContext?: boolean
   /** Under the box, on the left. */
   settingsLeft?: ReactNode
   /** In the box beside send. Defaults to the model and allocation pickers. */
@@ -238,6 +241,7 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput
     notices,
     activity,
     context,
+    reserveContext = false,
     settingsLeft,
     settingsRight = <ComposerControls />,
     hint,
@@ -435,7 +439,7 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput
         {notices}
         <div>
           {activity && <div className="mb-2">{activity}</div>}
-          {context && <ComposerContext>{context}</ComposerContext>}
+          {(context || reserveContext) && <ComposerContext>{context}</ComposerContext>}
 
           {cards.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-2" data-testid="composer-pastes">

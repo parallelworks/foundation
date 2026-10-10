@@ -7,7 +7,7 @@ import ModelSelector from './ModelSelector'
 /** Where the turn runs, sitting above the composer the way the terminal shows
  *  it: the machine, the workspace, and whatever else names the place. */
 export function ComposerContext({ children }: { children: ReactNode }) {
-  return <div className="mb-1.5 flex flex-wrap items-center gap-1.5">{children}</div>
+  return <div className="mb-1.5 flex min-h-7 flex-wrap items-center gap-1.5">{children}</div>
 }
 
 /** What the turn runs as, sitting under the composer: the surface's own

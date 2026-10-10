@@ -171,6 +171,7 @@ export default function ChatEmptyState({
 
             <ChatInput
               ref={inputRef}
+              reserveContext
               onSend={handleSendMessage}
               disabled={isLoading || isLoadingModels || models.length === 0}
               placeholder={
