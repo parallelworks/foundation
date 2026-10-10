@@ -73,3 +73,20 @@ describe('searchable filter facet', () => {
     expect(fireEvent.mouseDown(screen.getByRole('button', { name: 'bob' }))).toBe(false)
   })
 })
+
+describe('filter popover', () => {
+  beforeEach(() => {
+    Object.defineProperty(window, 'localStorage', { value: memoryStorage(), configurable: true })
+  })
+
+  it('opens a dialog named by its button and says whether it is open', () => {
+    render(<Harness />)
+    const button = screen.getByRole('button', { name: 'Filter' })
+    expect(button).toHaveAttribute('aria-haspopup', 'dialog')
+    expect(button).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(button)
+    expect(button).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('dialog', { name: 'Filter' })).toBeInTheDocument()
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+})
