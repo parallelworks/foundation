@@ -87,6 +87,18 @@ The engine converts input definitions into the form's field tree, resolves
 grouping, step labels and log paths. The form and graph throw without one; the
 editor and log viewer fall back to plain behavior.
 
+An engine can also carry `editing` (`WorkflowEditing`), the workflow model the
+graph defers to for where jobs go: each job's slot from its `position` or a
+stored layout, a matrix drawn as a run lists its jobs, and needs that wait for
+any one of a matrix's jobs. A host built on a workflow package passes that
+package's functions of the same names:
+
+```tsx
+const engine = { ...createWorkflowEngine(), editing: workflowPackage }
+```
+
+Without `editing`, the graph lays its jobs out by their needs alone.
+
 ## AI chat
 
 `@parallelworks/ui/ai` is a chat interface (thread, composer, streaming,
