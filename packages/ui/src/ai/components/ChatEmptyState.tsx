@@ -1,4 +1,3 @@
-import cx from 'classnames'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { keyedByContent } from '../../components/keys'
 import { AddIcon, CloudIcon, TimesIcon, WarningTriangleIcon } from '../../icons'
@@ -110,7 +109,7 @@ export default function ChatEmptyState({
   const attachmentsAvailable = !!adapter.attachments
 
   return (
-    <div className="flex h-full bg-(--theme-panel-bg)">
+    <div className="chat-empty flex h-full bg-(--theme-panel-bg)">
       {/* Main chat area */}
       <div className="flex-1 flex flex-col min-w-0">
         <BlockedGroupBanner />
@@ -150,82 +149,79 @@ export default function ChatEmptyState({
           {/* Page-wide drag overlay */}
           {isDragging && attachmentsAvailable && <DragOverlay className="rounded-2xl m-4" />}
 
-          {/* Empty state with input */}
-          <div className="flex-1 flex flex-col items-center justify-center p-8">
-            <div className="max-w-2xl w-full">
+          {/* The new chat starts where the eye already is: the greeting and
+              the composer together, a little above centre, with starters
+              under the box as plain rows rather than cards to choose among. */}
+          <div className="flex-1 flex flex-col items-center justify-center pt-8 pb-[12vh]">
+            <div className="w-full">
               {/* Welcome message - hidden when no providers configured */}
               {!(hasLoadedModels && models.length === 0) && (
-                <div className="text-center mb-10">
-                  <h1
-                    className={cx('text-2xl font-semibold text-(--theme-panel)', 'tracking-tight')}
-                  >
+                <div className="mx-auto mb-6 max-w-[var(--chat-column,50rem)] px-8 text-center">
+                  <h1 className="text-[1.75rem] leading-tight font-medium tracking-[-0.02em] text-balance text-(--theme-panel)">
                     {greeting}
                   </h1>
-                  {<p className="mt-2 text-sm theme-muted-text">{t.modernSubtitle}</p>}
+                  <p className="mt-2 text-sm theme-muted-text">{t.modernSubtitle}</p>
                 </div>
               )}
 
-              {hasLoadedModels && models.length === 0 ? (
-                <div className="flex flex-col items-center justify-center gap-4 py-8">
-                  <CloudIcon className="h-16 w-16 theme-muted-text opacity-50" />
-                  <p className="text-lg theme-muted-text">{t.noProvidersTitle}</p>
-                  <p className="text-sm theme-muted-text text-center max-w-md">
-                    {t.noProvidersBody}
-                  </p>
+              {hasLoadedModels && models.length === 0 && (
+                <div className="mx-auto mb-6 flex max-w-md flex-col items-center gap-3 px-8 text-center">
+                  <CloudIcon className="h-10 w-10 theme-muted-text opacity-60" />
+                  <p className="text-lg font-medium theme-text">{t.noProvidersTitle}</p>
+                  <p className="text-sm theme-muted-text">{t.noProvidersBody}</p>
                   {extraLinks.addProvider && (
                     <LinkComponent
                       target={{
                         kind: 'external',
                         href: extraLinks.addProvider,
                       }}
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm font-medium theme-element hover:opacity-90"
+                      className="mt-1 inline-flex items-center gap-2 px-4 py-2 rounded-full transition-opacity text-sm font-medium theme-element hover:opacity-90"
                     >
                       <AddIcon className="h-3 w-3" />
                       {t.addProvider}
                     </LinkComponent>
                   )}
                 </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              )}
+
+              <ChatInput
+                ref={inputRef}
+                onSend={handleSendMessage}
+                disabled={isLoading || isLoadingModels || models.length === 0}
+                placeholder={
+                  isLoadingModels
+                    ? tInput.placeholderLoading
+                    : hasLoadedModels && models.length === 0
+                      ? tInput.placeholderNoProviders
+                      : tInput.placeholder
+                }
+                settingsLeft={<ConnectToolsLink />}
+                settingsRight={
+                  <>
+                    {slots.composerUsage}
+                    <ComposerControls targetSession={targetSession} />
+                  </>
+                }
+              />
+
+              {prompts.length > 0 && !(hasLoadedModels && models.length === 0) && (
+                <ul className="mx-auto max-w-[var(--chat-column,50rem)] px-8">
                   {keyedByContent(prompts, (p) => p).map(({ key, item: prompt }) => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => handleSuggestedPrompt(prompt)}
-                      disabled={isLoading || isLoadingModels || models.length === 0}
-                      className="text-left p-4 rounded-2xl border theme-border
-                          hover:opacity-80 transition-all duration-200 cursor-pointer
-                          disabled:opacity-50 disabled:cursor-not-allowed
-                          text-sm shadow-sm bg-(--theme-panel-bg) text-(--theme-panel)"
-                    >
-                      {prompt}
-                    </button>
+                    <li key={key} className="border-b theme-border last:border-b-0">
+                      <button
+                        type="button"
+                        onClick={() => handleSuggestedPrompt(prompt)}
+                        disabled={isLoading || isLoadingModels || models.length === 0}
+                        className="-mx-3 my-1 block w-[calc(100%+1.5rem)] text-pretty rounded-lg px-3 py-2 text-left text-sm theme-muted-text transition-colors hover:chat-tint hover:theme-text disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {prompt}
+                      </button>
+                    </li>
                   ))}
-                </div>
+                </ul>
               )}
             </div>
           </div>
-
-          {/* Input at bottom */}
-          <ChatInput
-            ref={inputRef}
-            onSend={handleSendMessage}
-            disabled={isLoading || isLoadingModels || models.length === 0}
-            placeholder={
-              isLoadingModels
-                ? tInput.placeholderLoading
-                : hasLoadedModels && models.length === 0
-                  ? tInput.placeholderNoProviders
-                  : tInput.placeholder
-            }
-            settingsLeft={<ConnectToolsLink />}
-            settingsRight={
-              <>
-                {slots.composerUsage}
-                <ComposerControls targetSession={targetSession} />
-              </>
-            }
-          />
         </div>
       </div>
     </div>

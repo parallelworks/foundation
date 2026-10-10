@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.0](https://github.com/parallelworks/foundation/compare/dev/v0.13.0...dev/v0.14.0) (2026-10-08)
+
+
+### Features
+
+* **dev:** w wraps long lines in the log view ([#168](https://github.com/parallelworks/foundation/issues/168)) ([ee0023e](https://github.com/parallelworks/foundation/commit/ee0023e2a1ea6304cae3a8614ffaa79c67f046ce))
+
 ## [0.13.0](https://github.com/parallelworks/foundation/compare/dev/v0.12.0...dev/v0.13.0) (2026-10-08)
 
 

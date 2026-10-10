@@ -2,8 +2,10 @@ import cx from 'classnames'
 import { Fragment } from 'react'
 import { FileIcon, RunningIcon, XIcon } from '../../icons'
 import { useChatConfig } from '../core/config'
+import { fencePaste } from '../core/pasteLanguage'
 import { splitPastes } from '../core/pastes'
 import type { MessagePaste } from '../types'
+import Markdown from '../ui/Markdown'
 import { formatFileSize } from '../utils'
 
 /** A paste sent, or about to be sent, as its saved file. */
@@ -28,9 +30,9 @@ export function PasteFileCard({
     <div
       data-testid="paste-file-card"
       className={cx(
-        'inline-flex max-w-full items-center gap-2.5 rounded-xl border px-3 py-2 align-top whitespace-normal',
-        'bg-(--theme-muted-panel-bg)',
-        error ? 'border-red-500' : 'theme-border',
+        'inline-flex max-w-full items-center gap-2.5 rounded-xl px-3 py-2 align-top whitespace-normal',
+        'bg-(--theme-panel-bg)',
+        error ? 'border border-red-500' : 'chat-hairline',
       )}
     >
       <FileIcon className="h-5 w-5 flex-shrink-0 theme-muted-text" />
@@ -60,7 +62,9 @@ export function PasteFileCard({
   )
 }
 
-/** A user message as typed: an inline paste as its text, one sent as its file as a card. */
+/** A user message as typed: an inline paste as a code block in the language
+ *  it reads as, one sent as its file as a card. The blank lines the composer puts around a
+ *  paste would stack on the block's own spacing, so they are dropped. */
 export function UserMessageText({
   content,
   pastes,
@@ -71,20 +75,42 @@ export function UserMessageText({
   if (!pastes?.length) {
     return <>{content}</>
   }
+  const segments = splitPastes(content, pastes)
+  // A block keeps its margin wherever something sits on that side of it. CSS
+  // first/last selectors cannot do this: they skip the text nodes around it.
+  const shows = (seg: (typeof segments)[number]) => typeof seg !== 'string' || seg.trim() !== ''
+  const blockSpacing = (i: number) =>
+    cx(
+      segments.slice(0, i).some(shows) ? 'mt-2.5' : 'mt-0',
+      segments.slice(i + 1).some(shows) ? 'mb-2.5' : 'mb-0',
+    )
   return (
     <>
-      {splitPastes(content, pastes).map((segment, i) => {
+      {segments.map((segment, i) => {
         if (typeof segment === 'string') {
+          let text = segment
+          if (i > 0) {
+            text = text.replace(/^\n+/, '')
+          }
+          if (i < segments.length - 1) {
+            text = text.replace(/\n+$/, '')
+          }
           // biome-ignore lint/suspicious/noArrayIndexKey: segments are positional
-          return <Fragment key={i}>{segment}</Fragment>
+          return text ? <Fragment key={i}>{text}</Fragment> : null
         }
         if (segment.inline && segment.text !== undefined) {
-          // biome-ignore lint/suspicious/noArrayIndexKey: segments are positional
-          return <Fragment key={i}>{segment.text}</Fragment>
+          // Rendered as the assistant's code is, in the language the paste
+          // reads as, so a config reads as that config rather than as type.
+          return (
+            // biome-ignore lint/suspicious/noArrayIndexKey: segments are positional
+            <span key={i} className={cx('chat-paste-code block', blockSpacing(i))}>
+              <Markdown>{fencePaste(segment.text)}</Markdown>
+            </span>
+          )
         }
         return (
           // biome-ignore lint/suspicious/noArrayIndexKey: segments are positional
-          <span key={i} className="my-1 block">
+          <span key={i} className={cx('flex [&>*]:flex-1', blockSpacing(i))}>
             <PasteFileCard id={segment.id} lines={segment.lines} bytes={segment.bytes} />
           </span>
         )

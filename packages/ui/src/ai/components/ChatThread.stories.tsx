@@ -8,6 +8,7 @@ import {
   makeStaticAdapter,
   StoryChat,
   StoryViewport,
+  sendFromComposer,
 } from '../stories/harness'
 import ChatEmptyState from './ChatEmptyState'
 import ChatLayout from './ChatLayout'
@@ -90,17 +91,48 @@ export const StreamingSimulation: StoryObj<{
     return <Adapterized />
   },
   play: async ({ canvasElement }) => {
-    const textarea = canvasElement.querySelector('textarea')
-    if (!textarea) {
-      return
+    sendFromComposer(canvasElement, 'Stream me a reply, slowly.')
+  },
+}
+
+// A turn as the reader lives it: the reasoning streams in under a shimmering
+// "Thinking" label with its latest lines fading in, then folds into "Thought
+// for" while the answer streams below it. Remount to replay.
+export const LiveReasoning: StoryObj<{
+  reasoningMs: number
+  wordDelayMs: number
+  replyWords: number
+}> = {
+  args: { reasoningMs: 6000, wordDelayMs: 70, replyWords: 80 },
+  argTypes: {
+    reasoningMs: { control: { type: 'range', min: 1000, max: 20000, step: 500 } },
+    wordDelayMs: { control: { type: 'range', min: 10, max: 300 } },
+    replyWords: { control: { type: 'range', min: 5, max: 400 } },
+  },
+  render: (args) => {
+    const Adapterized = () => {
+      const { reasoningMs, wordDelayMs, replyWords } = args
+      const adapter = useMemo(
+        () =>
+          makeStaticAdapter({
+            conversations: [makeConversation({ id: 'conv-live', title: 'Build', messages: [] })],
+            streaming: { reasoningMs, wordDelayMs, replyWords },
+          }),
+        // Adapterized is rebuilt whenever the story's args change.
+        [],
+      )
+      return (
+        <StoryChat adapter={adapter} conversationId="conv-live">
+          <StoryViewport>
+            <ChatThread conversationId="conv-live" />
+          </StoryViewport>
+        </StoryChat>
+      )
     }
-    const setter = Object.getOwnPropertyDescriptor(
-      window.HTMLTextAreaElement.prototype,
-      'value',
-    )?.set
-    setter?.call(textarea, 'Stream me a reply, slowly.')
-    textarea.dispatchEvent(new Event('input', { bubbles: true }))
-    textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    return <Adapterized />
+  },
+  play: async ({ canvasElement }) => {
+    sendFromComposer(canvasElement, 'Why does the build hang at step 380?')
   },
 }
 
@@ -179,17 +211,7 @@ export const StreamingToolCalls: StoryObj<{
     return <Adapterized />
   },
   play: async ({ canvasElement }) => {
-    const textarea = canvasElement.querySelector('textarea')
-    if (!textarea) {
-      return
-    }
-    const setter = Object.getOwnPropertyDescriptor(
-      window.HTMLTextAreaElement.prototype,
-      'value',
-    )?.set
-    setter?.call(textarea, 'Check the server tests before answering.')
-    textarea.dispatchEvent(new Event('input', { bubbles: true }))
-    textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    sendFromComposer(canvasElement, 'Check the server tests before answering.')
   },
 }
 
