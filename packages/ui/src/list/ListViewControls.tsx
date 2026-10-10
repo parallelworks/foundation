@@ -37,8 +37,11 @@ function pillClass(on: boolean) {
 const SECTION_LABEL =
   'mb-2 text-[11px] font-medium uppercase tracking-wide text-(--theme-muted-text-color)'
 
-/** Portals into .ds-root so the panel escapes the toolbar's overflow clipping. */
-function AnchoredPopover({
+/** A header-strip button that opens a panel under it. The panel is a
+ *  non-modal dialog named by the button, not a menu: it holds switches,
+ *  pills and text rather than menu items. Portals into .ds-root so the panel
+ *  escapes the toolbar's overflow clipping. */
+export function AnchoredPopover({
   icon,
   label,
   active,
@@ -122,6 +125,8 @@ function AnchoredPopover({
         type="button"
         onClick={() => (pos ? close() : open())}
         aria-label={label}
+        aria-haspopup="dialog"
+        aria-expanded={pos !== null}
         data-tooltip-id={TOOLTIP_ID}
         data-tooltip-content={label}
         data-tooltip-shortcut={shortcut ? shortcut.toUpperCase() : undefined}
@@ -148,7 +153,8 @@ function AnchoredPopover({
           >
             <div
               ref={panelRef}
-              role="menu"
+              role="dialog"
+              aria-label={label}
               onMouseDown={(e) => e.stopPropagation()}
               className={cx(
                 'absolute rounded-lg border border-(--theme-border) bg-(--theme-app-bg) shadow-lg',
