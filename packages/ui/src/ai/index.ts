@@ -45,6 +45,7 @@ export {
   ComposerSettings,
   ComposerUsage,
   ConnectToolsLink,
+  ManageProvidersLink,
 } from './components/ComposerChrome'
 export {
   type ConversationGroupKey,
@@ -112,6 +113,7 @@ export {
   SidebarDrawer,
   SidebarGroupHeading,
   SidebarPanel,
+  SidebarPlaceholder,
   SidebarRailItem,
   SidebarRow,
   SidebarToggle,

@@ -1,13 +1,14 @@
 import cx from 'classnames'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
-import { ImageIcon, NewChatIcon, SearchIcon, SettingsIcon, SharingIcon } from '../../icons'
+import { ImageIcon, NewChatIcon, SearchIcon, SharingIcon } from '../../icons'
 import type { OpenMenu, RowMenuItem } from '../../list/index'
 import { useChat } from '../core/ChatProvider'
 import { useChatConfig } from '../core/config'
 import { FOCUS_SIDEBAR_SEARCH_EVENT } from '../core/events'
 import type { ConversationSummary } from '../types'
 import { ConversationSidebar } from '../ui/ConversationSidebar'
-import { SidebarRow } from '../ui/sidebar'
+import { SidebarPlaceholder, SidebarRow } from '../ui/sidebar'
+import { ManageProvidersLink } from './ComposerChrome'
 import { groupConversationsByDate, useConversationActions } from './conversationActions'
 
 function ConversationRow({
@@ -53,7 +54,7 @@ export default function ChatSidebar({
   /** The host's own content above the list, given whether it is the rail. */
   top?: ((state: { collapsed: boolean }) => ReactNode) | undefined
 }) {
-  const { extraLinks, LinkComponent, strings } = useChatConfig()
+  const { LinkComponent, strings } = useChatConfig()
   const tSidebar = strings.sidebar
   const {
     adapter,
@@ -166,13 +167,9 @@ export default function ChatSidebar({
       )}
       loading={isLoading}
       placeholder={
-        conversations.length === 0 ? (
-          <p className="theme-muted-text text-sm px-2 whitespace-nowrap">
-            {tSidebar.noConversations}
-          </p>
-        ) : (
-          <p className="theme-muted-text text-sm px-2">{strings.chrome.noMatches}</p>
-        )
+        <SidebarPlaceholder>
+          {conversations.length === 0 ? tSidebar.noConversations : strings.chrome.noMatches}
+        </SidebarPlaceholder>
       }
       cycle={{
         current: filteredConversations.find((conv) => conv.id === activeConversationId),
@@ -249,18 +246,7 @@ export default function ChatSidebar({
           </>
         )
       }
-      footer={
-        extraLinks.manageProviders && (
-          <LinkComponent
-            target={{ kind: 'external', href: extraLinks.manageProviders }}
-            className="flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-xs theme-muted-text transition-colors hover:chat-tint hover:theme-text"
-            title={tSidebar.manageProviders}
-          >
-            <SettingsIcon className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">{tSidebar.manageProviders}</span>
-          </LinkComponent>
-        )
-      }
+      footer={<ManageProvidersLink />}
     />
   )
 

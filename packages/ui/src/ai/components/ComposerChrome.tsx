@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ConnectIcon } from '../../icons'
+import { ConnectIcon, SettingsIcon } from '../../icons'
 import { useChatConfig } from '../core/config'
 import AllocationSelector from './AllocationSelector'
 import ModelSelector from './ModelSelector'
@@ -40,6 +40,25 @@ export function ComposerControls({ targetSession }: { targetSession?: string | n
       <ModelSelector variant="bare" targetSession={targetSession} />
       <AllocationSelector variant="bare" />
     </>
+  )
+}
+
+/** Where the reader manages the providers behind the model picker, at the
+ *  foot of a conversation list. */
+export function ManageProvidersLink() {
+  const { extraLinks, LinkComponent, strings } = useChatConfig()
+  if (!extraLinks.manageProviders) {
+    return null
+  }
+  return (
+    <LinkComponent
+      target={{ kind: 'external', href: extraLinks.manageProviders }}
+      className="flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-xs theme-muted-text transition-colors hover:chat-tint hover:theme-text"
+      title={strings.sidebar.manageProviders}
+    >
+      <SettingsIcon className="h-3.5 w-3.5 shrink-0" />
+      <span className="truncate">{strings.sidebar.manageProviders}</span>
+    </LinkComponent>
   )
 }
 

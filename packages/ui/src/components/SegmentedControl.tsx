@@ -48,7 +48,7 @@ export function SegmentedControl<T extends string>({
     const className = cx(
       itemBase,
       current ? itemCurrent : itemIdle,
-      iconOnly ? 'h-8 w-8' : 'h-7 gap-1.5 px-2.5 text-[13px]',
+      iconOnly ? 'h-8 w-8' : cx('h-7 gap-1.5 text-[13px]', fill ? 'px-1.5' : 'px-2.5'),
     )
     const content = (
       <>
