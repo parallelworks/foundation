@@ -28,7 +28,7 @@ export default function ComposerFrame({
 }) {
   return (
     <div className={cx('shrink-0 px-6 pb-6 pt-2', className)}>
-      <div className="mx-auto w-full max-w-[50rem] space-y-2">
+      <div className="mx-auto w-full max-w-[var(--chat-column,50rem)] space-y-2">
         {notices}
         <div>
           {activity && <div className="mb-2">{activity}</div>}

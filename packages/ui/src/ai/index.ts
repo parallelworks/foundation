@@ -25,7 +25,13 @@ export {
   type ChatInputHandle,
   default as ChatInput,
 } from './components/ChatInput'
-export { default as ChatLayout } from './components/ChatLayout'
+export {
+  CHAT_COLUMN_SCOPE,
+  ConversationLayout,
+  DRAWER_BELOW_PX,
+  default as ChatLayout,
+  type SidebarMode,
+} from './components/ChatLayout'
 // Named ChatMessageView so it doesn't shadow the ChatMessage type from
 // './types' at the package entry point.
 export { default as ChatMessageView } from './components/ChatMessage'
@@ -36,6 +42,7 @@ export {
   ComposerContext,
   ComposerControls,
   ComposerSettings,
+  ComposerUsage,
   ConnectToolsLink,
 } from './components/ComposerChrome'
 export { default as ComposerFrame } from './components/ComposerFrame'
@@ -82,15 +89,22 @@ export { KeyboardShortcutsProvider } from './core/KeyboardShortcutsProvider'
 export { applyPartDelta, finalizeParts } from './core/parts'
 export { pasteInlineMaxBytes } from './core/pastes'
 export { providerIssueFor } from './core/providerIssues'
+export type { SidebarPresentation, SidebarState } from './core/sidebarState'
 export { default as useDragDrop } from './core/useDragDrop'
 export { useKeyboardShortcuts } from './core/useKeyboardShortcuts'
 export { type ChatStrings, defaultChatStrings } from './strings'
 export * from './types'
+export {
+  ConversationSidebar,
+  type ConversationSidebarGroup,
+  useResizableSidebarWidth,
+} from './ui/ConversationSidebar'
 export { type DropdownOption, default as Dropdown } from './ui/Dropdown'
-export { NoticeBar, NoticeCard, type NoticeTone } from './ui/Notice'
+export { NoticeBar, NoticeCard, type NoticeTone, OutputCard } from './ui/Notice'
 export {
   RenameDialog,
   type RowDialogStrings,
+  SidebarDrawer,
   SidebarGroupHeading,
   SidebarPanel,
   SidebarRailItem,

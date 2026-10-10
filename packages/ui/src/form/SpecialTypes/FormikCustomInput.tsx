@@ -52,6 +52,7 @@ export default function FormikCustomInput({
   const [localValue, setLocalValue] = useState<string | number | undefined>(value ?? field.value)
   const isFocused = useRef(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
+  const pendingRef = useRef<{ value: InputValue } | null>(null)
 
   // Sync from external sources when not focused (Formik updates, parent-computed
   // `value` from expressions/defaults, show_if transitions).
@@ -85,11 +86,21 @@ export default function FormikCustomInput({
 
   const flushToFormik = useCallback(
     (val: InputValue) => {
+      pendingRef.current = null
       onChange?.(val)
       setFieldTouched(name, true)
       setFieldValue(name, val)
     },
     [name, onChange, setFieldTouched, setFieldValue],
+  )
+
+  useEffect(
+    () => () => {
+      clearTimeout(debounceRef.current ?? undefined)
+      // Moving a field between layout containers can unmount it before its debounce fires.
+      if (pendingRef.current) flushToFormik(pendingRef.current.value)
+    },
+    [flushToFormik],
   )
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -110,6 +121,7 @@ export default function FormikCustomInput({
 
     // Debounce the Formik update
     clearTimeout(debounceRef.current ?? undefined)
+    pendingRef.current = { value: val }
     debounceRef.current = setTimeout(() => flushToFormik(val), DEBOUNCE_MS)
   }
 

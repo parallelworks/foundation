@@ -502,6 +502,42 @@ describe('streamed parts', () => {
     ])
   })
 
+  it('times the thinking to its last reasoning chunk, not to the end of the answer', async () => {
+    let handlers!: import('../adapter/types').StreamHandlers
+    const done = deferred<StreamResult>()
+    const adapter = makeAdapter({
+      streamCompletion: vi.fn((_req, h) => {
+        handlers = h
+        return done.promise
+      }),
+    })
+    await renderProvider(adapter)
+    await act(async () => {
+      void chat.sendMessage('why does it hang')
+      await flush()
+    })
+
+    const now = vi.spyOn(Date, 'now')
+    await act(async () => {
+      now.mockReturnValue(1_000)
+      handlers.onReasoning?.('checking the log ')
+      now.mockReturnValue(4_000)
+      handlers.onReasoning?.('step 380 allocates nodes')
+      now.mockReturnValue(9_000)
+      handlers.onContent('It waits for nodes.')
+      done.resolve({
+        ...emptyStreamResult(),
+        content: 'It waits for nodes.',
+        reasoning: 'checking the log step 380 allocates nodes',
+      })
+      await flush()
+    })
+    now.mockRestore()
+
+    const assistant = chat.currentConversation?.messages.find((m) => m.role === 'assistant')
+    expect(assistant?.reasoningDuration).toBe(3_000)
+  })
+
   it('closes out a tool call the stream never resolved', async () => {
     const adapter = makeAdapter({
       streamCompletion: vi.fn(async (_req, handlers) => {

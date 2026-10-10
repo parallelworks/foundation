@@ -10,7 +10,6 @@ import type { FieldPatch, GraphEdit, InputPath, WorkflowEditing } from '../editi
 import { INPUT_YAML_PATH } from '../editor/settingsYaml'
 import { DynamicForm } from '../form/Form'
 import { FormEditingContext } from '../form/formEditing'
-import { inputWidth } from '../form/lib'
 import { formatDuration, parseDuration } from '../form/utils/duration'
 import { ArrowDownIcon, ArrowUpIcon, CloseIcon, EditIcon, TrashIcon } from '../icons'
 import {
@@ -75,7 +74,6 @@ type Kind =
   | 'ref'
   | 'implies'
   | 'choice'
-  | 'width'
   | 'perCopy'
 
 interface Prop {
@@ -387,19 +385,15 @@ const TYPE_PROPS: Record<string, Prop[]> = {
 
 const TEXT_FIELDS = ['label', 'description', 'tooltip'] as const
 const FLAG_FIELDS = ['optional', 'hidden', 'disabled', 'ignore'] as const
-type CommonKey =
-  | (typeof TEXT_FIELDS)[number]
-  | 'width'
-  | 'anchor-below'
-  | (typeof FLAG_FIELDS)[number]
+type CommonKey = (typeof TEXT_FIELDS)[number] | (typeof FLAG_FIELDS)[number]
 
 // Which shared keys each type takes, per the workflow schema.
 const COMMON_KEYS: Record<string, CommonKey[]> = {
-  group: ['label', 'description', 'tooltip', 'width', 'anchor-below', 'hidden', 'ignore'],
-  header: ['label', 'description', 'tooltip', 'width', 'anchor-below', 'hidden'],
+  group: ['label', 'description', 'tooltip', 'hidden', 'ignore'],
+  header: ['label', 'description', 'tooltip', 'hidden'],
   step: ['description'],
 }
-const ALL_COMMON: CommonKey[] = [...TEXT_FIELDS, 'width', 'anchor-below', ...FLAG_FIELDS]
+const ALL_COMMON: CommonKey[] = [...TEXT_FIELDS, ...FLAG_FIELDS]
 
 // Keys this dialog manages; anything else on an input is left untouched.
 const KNOWN_KEYS = new Set<string>([
@@ -1033,13 +1027,6 @@ function writtenValue(
       }
       return EXPRESSION.test(raw) ? raw : Number(raw)
     }
-    case 'width': {
-      const raw = String(draft ?? '').trim()
-      if (!raw) {
-        return undefined
-      }
-      return /^\d+(\.\d+)?$/.test(raw) ? Number(raw) : raw
-    }
     case 'implies': {
       const entries = Object.entries(draft as ImpliesDraft).filter(
         ([, values]) => values.length > 0,
@@ -1118,8 +1105,6 @@ function valueError(
         ? t.invalidNumber
         : undefined
     }
-    case 'width':
-      return value !== undefined && inputWidth(value) === undefined ? t.invalidWidth : undefined
     case 'flag':
       return flagError(draft as Flag, g)
     case 'options':
@@ -1600,18 +1585,6 @@ function PropField({
           onChange={(e) => onChange(e.target.value)}
         />
       )
-    case 'width':
-      return (
-        <Input
-          mono
-          {...labelled(name, prop.key)}
-          description={description}
-          value={String(draft ?? '')}
-          placeholder="50%"
-          error={error}
-          onChange={(e) => onChange(e.target.value)}
-        />
-      )
     case 'template':
       return (
         <LabelledField
@@ -1705,12 +1678,6 @@ function PropField({
 }
 
 function commonProp(key: CommonKey): Prop {
-  if (key === 'width') {
-    return { key, kind: 'width', help: 'width' }
-  }
-  if (key === 'anchor-below') {
-    return { key, kind: 'bool', help: 'anchor-below' }
-  }
   const flag = (FLAG_FIELDS as readonly string[]).includes(key)
   return {
     key,
@@ -2389,9 +2356,7 @@ function InputForm({
   )
   const textProps = props.filter(
     (prop) =>
-      ((TEXT_FIELDS as readonly string[]).includes(prop.key) ||
-        prop.key === 'width' ||
-        prop.key === 'anchor-below') &&
+      (TEXT_FIELDS as readonly string[]).includes(prop.key) &&
       (isCommon(prop) || prop === STEP_DESCRIPTION),
   )
   const behaviorProps = props.filter(

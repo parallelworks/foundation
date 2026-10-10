@@ -205,3 +205,19 @@ export const WithFooter: StoryObj<typeof InputDialog> = {
     openOnAdd: { open: true, onChange: () => {} },
   },
 }
+
+export const LegacyLayoutHints: StoryObj<typeof InputDialog> = {
+  args: {
+    name: 'dataset',
+    definition: { type: 'string', label: 'Dataset', width: '50%', 'anchor-below': true },
+    inputs: INPUTS,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Existing layout hints survive edits. New layout is authored on the input container through $meta.layout.',
+      },
+    },
+  },
+}

@@ -1,5 +1,72 @@
 # Changelog
 
+## [0.34.0](https://github.com/parallelworks/foundation/compare/ui-v0.33.0...ui-v0.34.0) (2026-10-10)
+
+
+### Features
+
+* **ui:** any conversation list can share the chat layout and its drawer ([#200](https://github.com/parallelworks/foundation/issues/200)) ([4f9b45f](https://github.com/parallelworks/foundation/commit/4f9b45f53406e133dc988a893789691d4f0313e1))
+
+## [0.33.0](https://github.com/parallelworks/foundation/compare/ui-v0.32.0...ui-v0.33.0) (2026-10-09)
+
+
+### Features
+
+* **ui:** a chat host can put its own content at the top of the conversation list ([#198](https://github.com/parallelworks/foundation/issues/198)) ([d262051](https://github.com/parallelworks/foundation/commit/d26205156c0767da02afd6d849ebc127fd6a2095))
+
+## [0.32.0](https://github.com/parallelworks/foundation/compare/ui-v0.31.0...ui-v0.32.0) (2026-10-09)
+
+
+### Features
+
+* **ui:** the chat column grows with a wide window ([#196](https://github.com/parallelworks/foundation/issues/196)) ([9c1065f](https://github.com/parallelworks/foundation/commit/9c1065f4bd91c410d10f5c615908535d134ab6b5))
+
+
+### Bug Fixes
+
+* **ui:** the latest reply stays open, so opening a chat ends on its last line ([#195](https://github.com/parallelworks/foundation/issues/195)) ([971eb5e](https://github.com/parallelworks/foundation/commit/971eb5e7ea9e7be40900ffe1494ae271b1c65457))
+
+## [0.31.0](https://github.com/parallelworks/foundation/compare/ui-v0.30.0...ui-v0.31.0) (2026-10-09)
+
+
+### Features
+
+* **ui:** the model picker names a provider's owner from the models when the adapter lists no providers ([#192](https://github.com/parallelworks/foundation/issues/192)) ([ff0c087](https://github.com/parallelworks/foundation/commit/ff0c08722bd22cbdaf3b38e3c89d135863ea59d5))
+
+## [0.30.0](https://github.com/parallelworks/foundation/compare/ui-v0.29.0...ui-v0.30.0) (2026-10-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* **ui:** hosts control the chat sidebar, and narrow layouts show it as a drawer ([#187](https://github.com/parallelworks/foundation/issues/187))
+
+### Features
+
+* **ui:** hosts control the chat sidebar, and narrow layouts show it as a drawer ([#187](https://github.com/parallelworks/foundation/issues/187)) ([9059f59](https://github.com/parallelworks/foundation/commit/9059f59e4e2a0354f9b23d858a75aaf5eb95f8c1))
+* **ui:** the model picker names who shared a provider with the reader ([#186](https://github.com/parallelworks/foundation/issues/186)) ([c5eb2a5](https://github.com/parallelworks/foundation/commit/c5eb2a50bbb5a247e613358ce42754675e08fc67))
+
+## [0.29.0](https://github.com/parallelworks/foundation/compare/ui-v0.28.0...ui-v0.29.0) (2026-10-09)
+
+
+### Features
+
+* **ui:** ConversationSidebar lists any kind of conversation in resizable groups with a rail and keyboard cycling ([#175](https://github.com/parallelworks/foundation/issues/175)) ([bec45c9](https://github.com/parallelworks/foundation/commit/bec45c95703c2945291acc139aabbca609fa9462))
+
+## [0.28.0](https://github.com/parallelworks/foundation/compare/ui-v0.27.0...ui-v0.28.0) (2026-10-09)
+
+
+### Features
+
+* **ui:** agent transcripts stream text through applyPartDelta, and OutputCard shows what a command printed ([#173](https://github.com/parallelworks/foundation/issues/173)) ([8885432](https://github.com/parallelworks/foundation/commit/8885432b9ceb9b63d99389e238d17dc581717968))
+
+## [0.27.0](https://github.com/parallelworks/foundation/compare/ui-v0.26.0...ui-v0.27.0) (2026-10-09)
+
+
+### Features
+
+* **ui:** a storage whose root moves lists again from its new root ([#167](https://github.com/parallelworks/foundation/issues/167)) ([0726c4e](https://github.com/parallelworks/foundation/commit/0726c4e7e84801edbe973ae7fcabd646b65a717d))
+* **ui:** the chat takes the host's accent, keeps its controls in the composer, and shows reasoning in place ([#171](https://github.com/parallelworks/foundation/issues/171)) ([288da56](https://github.com/parallelworks/foundation/commit/288da561c6baacabb80712dfee633cf1181321c1))
+
 ## [0.26.0](https://github.com/parallelworks/foundation/compare/ui-v0.25.0...ui-v0.26.0) (2026-10-07)
 
 

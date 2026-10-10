@@ -38,8 +38,21 @@ export interface ChatStrings {
     bannerKeyRejected: (provider: string) => string
     bannerUnreachable: (provider: string) => string
   }
+  modelPicker: {
+    /** Beside a provider another user registered and shared with the reader. */
+    sharedBy: (owner: string) => string
+  }
   queue: {
     remove: string
+    /** Under a message that goes out once the running reply finishes. */
+    waiting: string
+    /** Under a message a steering host hands to the agent between steps. */
+    waitingNextStep: string
+    /** Under a message the host has already handed to the running turn. */
+    handedOver: string
+    /** The visible label of the remove control; `remove` names it for
+     *  assistive technology. */
+    removeShort: string
   }
   activity: {
     tokens: (input: string, output: string) => string
@@ -93,6 +106,10 @@ export interface ChatStrings {
     sharedWithYou: string
     openSidebar: string
     closeSidebar: string
+    /** Names the drawer the list opens in on a narrow layout. */
+    drawerLabel: string
+    resizeLabel: string
+    resizeHint: string
     newChat: string
     attachments: string
     connectTools: string
@@ -221,6 +238,10 @@ export const defaultChatStrings: ChatStrings = {
   },
   queue: {
     remove: 'Remove queued message',
+    waiting: 'Queued \u00b7 sends when this reply finishes',
+    waitingNextStep: 'Queued \u00b7 reaches the agent after its current step',
+    handedOver: 'Sent to the running turn',
+    removeShort: 'Remove',
   },
   providerIssue: {
     keyRejected: 'API key rejected',
@@ -231,6 +252,9 @@ export const defaultChatStrings: ChatStrings = {
       'The provider\u2019s endpoint did not respond. Check the endpoint URL and network access.',
     bannerKeyRejected: (provider) => `API key rejected for \u201c${provider}\u201d`,
     bannerUnreachable: (provider) => `\u201c${provider}\u201d is unreachable`,
+  },
+  modelPicker: {
+    sharedBy: (owner) => `Shared by ${owner}`,
   },
   activity: {
     tokens: (input, output) => `↑${input} ↓${output} tokens`,
@@ -284,6 +308,9 @@ export const defaultChatStrings: ChatStrings = {
     sharedWithYou: 'Shared with you',
     openSidebar: 'Open sidebar',
     closeSidebar: 'Close sidebar',
+    drawerLabel: 'Conversations',
+    resizeLabel: 'Resize conversation list',
+    resizeHint: 'Drag to resize; double-click to reset',
     newChat: 'New chat',
     attachments: 'Attachments',
     connectTools: 'Connect Tools',

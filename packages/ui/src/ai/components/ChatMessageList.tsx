@@ -10,13 +10,14 @@ import {
   useState,
 } from 'react'
 import { durationToAbsHumanDuration } from '../../duration'
-import { ChevronRightIcon, XIcon } from '../../icons'
+import { CheckIcon, ClockIcon } from '../../icons'
 import { useChat } from '../core/ChatProvider'
 import { useChatConfig } from '../core/config'
 import type { ApprovalAnswerValue, ChatMessage as Message } from '../types'
 import Markdown from '../ui/Markdown'
 import AgentMessageParts from './agent/AgentMessageParts'
 import ChatMessage from './ChatMessage'
+import { ReasoningBody, ReasoningToggle } from './Reasoning'
 
 interface ChatMessageListProps {
   messages: Message[]
@@ -24,8 +25,13 @@ interface ChatMessageListProps {
   streamingMessage?: Message | null
   queuedMessages?: Message[]
   onRemoveQueued?: (id: string) => void
-  /** Which queued messages can still be taken back; all of them when unset. */
+  /** Which queued messages can still be taken back; all of them when unset.
+   *  One that cannot has been handed to the running turn. */
   canRemoveQueued?: (id: string) => boolean
+  /** When a queued message reaches the model: once the running reply
+   *  finishes (the chat provider's queue), or between the agent's steps for a
+   *  host that steers the turn in progress. */
+  queueDelivery?: 'afterReply' | 'nextStep'
   editingMessageId?: string | null | undefined
   showAuthor?: boolean
   currentUsername?: string
@@ -59,6 +65,7 @@ export default function ChatMessageList({
   queuedMessages,
   onRemoveQueued,
   canRemoveQueued,
+  queueDelivery = 'afterReply',
   editingMessageId,
   showAuthor,
   currentUsername,
@@ -121,6 +128,7 @@ export default function ChatMessageList({
   // Calculate elapsed thinking time
   const [elapsedTime, setElapsedTime] = useState(0)
   const [finalThinkingDuration, setFinalThinkingDuration] = useState<number | null>(null)
+  const [reasoningOpen, setReasoningOpen] = useState(false)
 
   // Track when thinking finishes to capture the final duration
   const wasThinkingRef = useRef(false)
@@ -141,6 +149,7 @@ export default function ChatMessageList({
     if (!isStreaming) {
       wasThinkingRef.current = false
       setFinalThinkingDuration(null)
+      setReasoningOpen(false)
     }
   }, [isStreaming])
 
@@ -287,15 +296,20 @@ export default function ChatMessageList({
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messageCount, isStreaming])
 
+  // Pseudo messages render nothing, so the latest is the last one that shows.
+  const lastIndex = messages.findLastIndex((m) => !m.pseudo)
+
   // If no messages and no streaming, just return empty scrollable container
   // The parent page handles the welcome/empty state UI. Queued messages still
   // render — a cancelled first turn must keep them visible.
   if (messages.length === 0 && !streamingMessage && !hasQueuedMessages) {
     return (
-      <div className="flex-1 overflow-y-auto flex flex-col bg-(--theme-panel-bg)">
+      <div className="chat-thread flex-1 overflow-y-auto flex flex-col bg-(--theme-panel-bg)">
         <div className="flex-1" />
         {footer && (
-          <div className={cx('w-full max-w-[50rem] mx-auto', !flush && 'px-4')}>{footer}</div>
+          <div className={cx('w-full max-w-[var(--chat-column,50rem)] mx-auto', !flush && 'px-4')}>
+            {footer}
+          </div>
         )}
         {inputElement && <div className="sticky bottom-0 z-10">{inputElement}</div>}
       </div>
@@ -312,10 +326,10 @@ export default function ChatMessageList({
             'aria-label': label,
           }
         : {})}
-      className="flex-1 overflow-y-auto theme-scrollbar flex flex-col bg-(--theme-panel-bg)"
+      className="chat-thread flex-1 overflow-y-auto theme-scrollbar flex flex-col bg-(--theme-panel-bg)"
     >
-      <div className="w-full max-w-[50rem] mx-auto pt-10 pb-6 flex-1 px-4">
-        {messages.map((message) => {
+      <div className="w-full max-w-[var(--chat-column,50rem)] mx-auto pt-4 pb-6 flex-1 px-4">
+        {messages.map((message, i) => {
           // Recorded blocks flagged by an agent adapter are not the human
           // speaking; unflagged messages are untouched.
           if (message.pseudo) {
@@ -332,6 +346,7 @@ export default function ChatMessageList({
                 message={message}
                 allMessages={allMessages}
                 flush={flush}
+                latest={i === lastIndex && !streamingMessage}
                 isEditing={editingMessageId === message.id}
                 showAuthor={showAuthor}
                 currentUsername={currentUsername}
@@ -352,57 +367,50 @@ export default function ChatMessageList({
         {/* Thinking / "Thought for" section — visible during and after thinking */}
         {isStreaming && streamingReasoning && (
           <div key="thinking" className="animate-chat-enter">
-            <div className="py-3 px-4">
-              <div className="flex flex-col gap-2">
-                {/* Header — opens the reasoning drawer */}
-                <button
-                  type="button"
-                  onClick={() => onOpenReasoning?.(streamingReasoning, finalThinkingDuration)}
-                  className="flex items-center gap-x-2 text-left"
-                >
-                  {isThinking ? (
-                    <div className="animate-shimmer text-shimmer flex items-center gap-x-2">
-                      <span>
-                        {elapsedTime > 0
-                          ? `${tThinking.label} (${elapsedTime}s)`
-                          : tThinking.ellipsis}
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-x-1 text-sm theme-muted-text hover:theme-text transition-colors">
-                      <span>
-                        {tThinking.thoughtFor(
-                          finalThinkingDuration
-                            ? durationToAbsHumanDuration(Duration.fromMillis(finalThinkingDuration))
-                            : `${elapsedTime}s`,
-                        )}
-                      </span>
-                      <ChevronRightIcon className="w-3.5 h-3.5" />
-                    </div>
-                  )}
-                </button>
+            <div className={cx('pt-3', !flush && 'px-4')}>
+              <ReasoningToggle
+                open={reasoningOpen}
+                shimmer={isThinking}
+                onToggle={() =>
+                  onOpenReasoning
+                    ? onOpenReasoning(streamingReasoning, finalThinkingDuration)
+                    : setReasoningOpen((o) => !o)
+                }
+              >
+                {isThinking
+                  ? elapsedTime > 0
+                    ? `${tThinking.label} (${elapsedTime}s)`
+                    : tThinking.ellipsis
+                  : tThinking.thoughtFor(
+                      finalThinkingDuration
+                        ? durationToAbsHumanDuration(Duration.fromMillis(finalThinkingDuration))
+                        : `${elapsedTime}s`,
+                    )}
+              </ReasoningToggle>
 
-                {/* Inline reasoning preview — compact tail view while thinking */}
-                {isThinking && (
-                  <div className="relative ml-6 pl-3 border-l-2 theme-border">
-                    <div className="absolute inset-x-0 top-0 h-3 bg-gradient-to-b from-(--theme-app-bg) to-transparent pointer-events-none z-[1]" />
-                    <div
-                      ref={reasoningScrollRef}
-                      className="text-sm theme-muted-text max-h-20 overflow-y-hidden pt-1"
-                    >
+              {/* Open: the whole reasoning. Closed while thinking: its tail,
+                    faded at the top, so the work shows without taking the page. */}
+              {reasoningOpen ? (
+                <ReasoningBody>
+                  <Markdown isStreaming={isThinking}>{streamingReasoning}</Markdown>
+                </ReasoningBody>
+              ) : (
+                isThinking && (
+                  <ReasoningBody className="chat-reasoning-tail">
+                    <div ref={reasoningScrollRef} className="max-h-20 overflow-y-hidden">
                       <Markdown isStreaming>{streamingReasoning}</Markdown>
                     </div>
-                  </div>
-                )}
-              </div>
+                  </ReasoningBody>
+                )
+              )}
             </div>
           </div>
         )}
         {/* Tool calls and other parts streamed this turn, between the
-            thinking header and the answer — mirrors the stored-message
-            layout where parts precede content. */}
+              thinking header and the answer — mirrors the stored-message
+              layout where parts precede content. */}
         {isStreaming && streamingParts.length > 0 && (
-          <div key="streaming-parts" className="animate-chat-enter py-1 px-4">
+          <div key="streaming-parts" className={cx('animate-chat-enter py-1', !flush && 'px-4')}>
             <AgentMessageParts
               message={{
                 id: 'streaming-parts',
@@ -416,8 +424,8 @@ export default function ChatMessageList({
         {/* Working indicator — until the answer starts streaming */}
         {showWorkingIndicator && (
           <div key="waiting" className="animate-chat-enter">
-            <div className="py-3 px-4">
-              <div className="animate-shimmer text-shimmer">{tThinking.ellipsis}</div>
+            <div className={cx('py-3', !flush && 'px-4')}>
+              <div className="animate-shimmer text-shimmer text-sm">{tThinking.ellipsis}</div>
             </div>
           </div>
         )}
@@ -434,28 +442,51 @@ export default function ChatMessageList({
             />
           </div>
         )}
-        {queuedMessages?.map((msg) => (
-          <div key={msg.id} className="group/queued relative animate-chat-enter opacity-60">
-            <ChatMessage
-              message={msg}
-              allMessages={allMessages}
-              flush={flush}
-              attachmentDownloadUrl={attachmentDownloadUrl}
-              onOpenAttachment={onOpenAttachment}
-            />
-            {onRemoveQueued && (canRemoveQueued?.(msg.id) ?? true) && (
-              <button
-                type="button"
-                aria-label={strings.queue.remove}
-                title={strings.queue.remove}
-                onClick={() => onRemoveQueued(msg.id)}
-                className="absolute top-1 right-1 rounded p-1 opacity-0 transition-opacity group-hover/queued:opacity-100 focus-visible:opacity-100 hover:bg-(--theme-hover) text-(--theme-muted-text-color)"
+        {queuedMessages?.map((msg) => {
+          const removable = canRemoveQueued?.(msg.id) ?? true
+          const status = !removable
+            ? strings.queue.handedOver
+            : queueDelivery === 'nextStep'
+              ? strings.queue.waitingNextStep
+              : strings.queue.waiting
+          return (
+            // Waiting, not faded: full-contrast text in an outline rather than
+            // a filled bubble, with a line saying when it reaches the model.
+            // One already handed to the running turn is sent, so it is filled.
+            <div key={msg.id} className={cx('animate-chat-enter', removable && 'chat-queued')}>
+              <ChatMessage
+                message={msg}
+                allMessages={allMessages}
+                flush={flush}
+                attachmentDownloadUrl={attachmentDownloadUrl}
+                onOpenAttachment={onOpenAttachment}
+              />
+              <div
+                data-testid="queued-status"
+                className={cx(
+                  '-mt-4 mb-2 flex items-center justify-end gap-2 text-xs theme-muted-text',
+                  !flush && 'px-4',
+                )}
               >
-                <XIcon className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
-        ))}
+                {removable ? <ClockIcon className="h-3 w-3" /> : <CheckIcon className="h-3 w-3" />}
+                <span>{status}</span>
+                {onRemoveQueued && removable && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <button
+                      type="button"
+                      aria-label={strings.queue.remove}
+                      onClick={() => onRemoveQueued(msg.id)}
+                      className="rounded font-medium underline-offset-2 hover:theme-text hover:underline"
+                    >
+                      {strings.queue.removeShort}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          )
+        })}
         {footer}
         <div ref={bottomRef} className="h-8" />
       </div>
@@ -464,7 +495,7 @@ export default function ChatMessageList({
           <button
             type="button"
             onClick={jumpToLatest}
-            className="-translate-y-full rounded-full border theme-border bg-(--theme-panel-bg) px-3 py-1 text-xs shadow-sm hover:theme-hover"
+            className="chat-composer -translate-y-full rounded-full bg-(--theme-panel-bg) px-3 py-1.5 text-xs font-medium theme-text transition-colors hover:bg-(--theme-muted-panel-bg)"
           >
             {strings.chrome.jumpToLatest}
           </button>
