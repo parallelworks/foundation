@@ -138,6 +138,16 @@ export const EditList: StoryObj<typeof InputDialog> = {
       type: 'list',
       label: 'Hosts',
       template: {
+        $meta: {
+          layout: {
+            type: 'grid',
+            columns: { base: 1, sm: [2, 1] },
+            children: [
+              { type: 'field', field: 'host' },
+              { type: 'field', field: 'port' },
+            ],
+          },
+        },
         host: { type: 'string', label: 'Host' },
         port: { type: 'number', label: 'Port' },
       },
@@ -203,5 +213,21 @@ export const WithFooter: StoryObj<typeof InputDialog> = {
     inputs: INPUTS,
     onDelete: () => {},
     openOnAdd: { open: true, onChange: () => {} },
+  },
+}
+
+export const LegacyLayoutHints: StoryObj<typeof InputDialog> = {
+  args: {
+    name: 'dataset',
+    definition: { type: 'string', label: 'Dataset', width: '50%', 'anchor-below': true },
+    inputs: INPUTS,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Existing layout hints survive edits. New layout is authored on the input container through $meta.layout.',
+      },
+    },
   },
 }

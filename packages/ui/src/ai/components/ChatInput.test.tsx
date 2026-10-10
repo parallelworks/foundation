@@ -7,7 +7,7 @@ import type { PasteUploadResult } from './usePasteCards'
 
 vi.mock('../../icons', () => ({
   ArrowUpIcon: () => <span />,
-  AttachmentIcon: () => <span />,
+  PlusOutlineIcon: () => <span />,
   FileIcon: () => <span />,
   RunningIcon: () => <span />,
   StopSolidIcon: () => <span />,

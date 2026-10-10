@@ -57,13 +57,13 @@ export default function AllocationSelector({
         variant={variant}
         textBoxClassName={
           bare
-            ? 'rounded-md px-1.5 py-0.5 text-[11px] hover:theme-muted-panel'
+            ? 'rounded-full h-8 px-2.5 text-[13px] hover:chat-tint'
             : 'h-8 rounded-lg border theme-border text-xs px-2'
         }
         placeholder="Select allocation"
       />
       {selected && (
-        <span className="text-[10px] theme-muted-text whitespace-nowrap">
+        <span className="text-xs tabular-nums theme-muted-text whitespace-nowrap">
           ${(selected.used ?? 0).toFixed(2)} / ${selected.total.toFixed(2)}
         </span>
       )}

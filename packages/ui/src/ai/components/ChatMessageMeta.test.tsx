@@ -151,6 +151,13 @@ describe('long message collapse', () => {
     expect(screen.queryByRole('button', { name: 'Show more' })).not.toBeInTheDocument()
   })
 
+  it('never clamps the latest reply', () => {
+    mockScrollHeight(2000)
+    const { container } = render(<ChatMessage {...defaultProps} message={message()} latest />)
+    expect(container.querySelector('.chat-message-clamp')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Show more' })).not.toBeInTheDocument()
+  })
+
   it('does not clamp short replies', () => {
     mockScrollHeight(300)
     const { container } = render(<ChatMessage {...defaultProps} message={message()} />)
