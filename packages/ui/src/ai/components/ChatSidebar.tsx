@@ -19,7 +19,7 @@ import { FOCUS_SIDEBAR_SEARCH_EVENT } from '../core/events'
 import { conversationToMarkdown, downloadText, exportFilename } from '../core/exportConversation'
 import type { ConversationSummary } from '../types'
 import { ConversationSidebar } from '../ui/ConversationSidebar'
-import { SidebarDrawer, SidebarRow, useRowDialogs } from '../ui/sidebar'
+import { SidebarRow, useRowDialogs } from '../ui/sidebar'
 import ShareDialog from './ShareDialog'
 
 const SIDEBAR_WIDTH_STORAGE_KEY = 'aiChatSidebarWidth'
@@ -266,7 +266,16 @@ export default function ChatSidebar({
   const list = (
     <ConversationSidebar
       collapsed={sidebarCollapsed}
-      fill={drawer}
+      drawer={
+        drawer
+          ? {
+              open: drawerOpen,
+              onClose: closeDrawer,
+              label: tSidebar.drawerLabel,
+              closeLabel: tSidebar.closeSidebar,
+            }
+          : undefined
+      }
       onToggle={toggleSidebar}
       toggleLabels={{ open: tSidebar.openSidebar, close: tSidebar.closeSidebar }}
       resize={{
@@ -391,18 +400,7 @@ export default function ChatSidebar({
 
   return (
     <>
-      {drawer ? (
-        <SidebarDrawer
-          open={drawerOpen}
-          onClose={closeDrawer}
-          label={tSidebar.drawerLabel}
-          closeLabel={tSidebar.closeSidebar}
-        >
-          {list}
-        </SidebarDrawer>
-      ) : (
-        sidebar !== 'hidden' && list
-      )}
+      {(drawer || sidebar !== 'hidden') && list}
 
       {contextMenu}
       {dialogs}

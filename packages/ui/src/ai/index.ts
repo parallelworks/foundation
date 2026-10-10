@@ -27,6 +27,7 @@ export {
 } from './components/ChatInput'
 export {
   CHAT_COLUMN_SCOPE,
+  ConversationLayout,
   DRAWER_BELOW_PX,
   default as ChatLayout,
   type SidebarMode,

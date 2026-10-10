@@ -108,7 +108,15 @@ export const Drawer: StoryObj<{ drawerOpen: boolean; drawerToggle: boolean }> = 
           sidebarControl={{ drawerOpen, onDrawerOpenChange: setDrawerOpen }}
         >
           <Frame width={390}>
-            <ChatLayout sidebarMode="drawer" drawerToggle={args.drawerToggle}>
+            <ChatLayout
+              sidebarMode="drawer"
+              drawerToggle={args.drawerToggle}
+              drawerBar={
+                <span style={{ fontSize: 13, color: 'var(--theme-muted-text-color)' }}>
+                  Kept in view while the list is a drawer
+                </span>
+              }
+            >
               <ChatEmptyState />
             </ChatLayout>
           </Frame>
