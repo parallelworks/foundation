@@ -99,7 +99,12 @@ const createUiStore = () =>
   })
 const ROW_GAP = 96
 
-// Needs as they'd be without `refs`.
+function forgetSteps(api: GraphEditorApi) {
+  if (api.store.get().steps.length > 0) {
+    api.store.set({ steps: NO_STEPS })
+  }
+}
+
 function withoutRefs(needs: Record<string, string[]>, refs: NeedRef[]): Record<string, string[]> {
   if (refs.length === 0) {
     return needs
@@ -334,6 +339,20 @@ function slotAt(
 
 // Where steps dropped or pasted at `client` land: among the steps of the job under the pointer,
 // or after them over the job's name or over a node holding only that job.
+
+// A matrix job draws its steps once per run: the copy a step row is in is the largest box around it
+// holding no other copy of that step.
+function copyOf(stepRow: HTMLElement, wrapper: HTMLElement): HTMLElement {
+  const selector = `[data-dag-step-job="${CSS.escape(stepRow.dataset['dagStepJob'] ?? '')}"][data-dag-step="${CSS.escape(stepRow.dataset['dagStep'] ?? '')}"]`
+  let copy = stepRow
+  for (let el = stepRow.parentElement; el && el !== wrapper; el = el.parentElement) {
+    if (el.querySelectorAll(selector).length > 1) {
+      break
+    }
+    copy = el
+  }
+  return copy
+}
 function stepDropAt(
   grid: GraphGrid,
   client: Point,
@@ -353,7 +372,9 @@ function stepDropAt(
     return null
   }
   const rows = [
-    ...wrapper.querySelectorAll<HTMLElement>(`[data-dag-step-job="${CSS.escape(job)}"]`),
+    ...(stepRow ? copyOf(stepRow, wrapper) : wrapper).querySelectorAll<HTMLElement>(
+      `[data-dag-step-job="${CSS.escape(job)}"]`,
+    ),
   ]
     .map((row) => ({
       index: Number(row.dataset['dagStep']),
@@ -565,7 +586,8 @@ function useGraphEditorState({
       stepMoveProblem,
       stepsYaml,
     } = editing
-    // Other edits can renumber steps, so only step moves and pastes keep the step selection.
+    // Other edits can renumber steps, so only step moves and pastes keep the step selection;
+    // undo, redo and the dialogs' saves drop it too.
     const edit = (graphEdit: GraphEdit) => {
       const result = latest.current.editor?.onEdit(graphEdit)
       reclaimFocus(latest.current.container)
@@ -651,14 +673,13 @@ function useGraphEditorState({
         })
         return
       }
-      const result = edit(graphEdit)
-      if (result?.created) {
-        if (into) {
-          edit(join(result.created))
-        }
-        if (latest.current.editor?.openOnAdd !== false) {
-          editJob(result.created)
-        }
+      // Without the source to look ahead in, the job's name is the one the edit will give it,
+      // so joining the node goes in the same edit and can't be left half done.
+      const name = into ? editing.newJobName(Object.keys(latest.current.source)) : undefined
+      const result = edit(name ? { type: 'batch', edits: [graphEdit, join(name)] } : graphEdit)
+      const added = name ?? result?.created
+      if (result && added && latest.current.editor?.openOnAdd !== false) {
+        editJob(added)
       }
     }
     const addStep = (job: string) => {
@@ -1513,8 +1534,9 @@ function useGraphEditorState({
     }
   }, [container, active, store])
 
+  const editable = editor !== undefined
   useEffect(() => {
-    if (!container || !editor) {
+    if (!container || !editable) {
       return
     }
     // Cmd on a Mac and Ctrl elsewhere make the browser copy and paste; the other one is handled here.
@@ -1573,9 +1595,11 @@ function useGraphEditorState({
       const native = mac ? e.metaKey : e.ctrlKey
       if (key === 'z' && !e.shiftKey) {
         e.preventDefault()
+        forgetSteps(api)
         latest.current.editor?.onUndo()
       } else if ((key === 'z' && e.shiftKey) || key === 'y') {
         e.preventDefault()
+        forgetSteps(api)
         latest.current.editor?.onRedo()
       } else if (busy) {
         return
@@ -1594,8 +1618,13 @@ function useGraphEditorState({
         pending = window.setTimeout(pasteCopied, 100)
       }
     }
+    // On the document: a text selection elsewhere on the page would otherwise take a copy meant for the graph.
+    const ours = (e: ClipboardEvent) =>
+      container.contains(document.activeElement) &&
+      !typing(e.target) &&
+      !typing(document.activeElement)
     const onCopy = (e: ClipboardEvent) => {
-      const text = typing(e.target) ? null : api.copySelection()
+      const text = ours(e) ? api.copySelection() : null
       if (text) {
         e.preventDefault()
         e.clipboardData?.setData('text/plain', text)
@@ -1603,10 +1632,10 @@ function useGraphEditorState({
     }
     const onPaste = (e: ClipboardEvent) => {
       window.clearTimeout(pending)
-      if (typing(e.target)) {
+      if (!ours(e)) {
         return
       }
-      const text = e.clipboardData?.getData('text/plain') || copied?.text
+      const text = e.clipboardData ? e.clipboardData.getData('text/plain') : copied?.text
       if (text && api.paste(text, pointer)) {
         e.preventDefault()
       }
@@ -1624,21 +1653,21 @@ function useGraphEditorState({
       }
     }
     container.addEventListener('keydown', onKey)
-    container.addEventListener('copy', onCopy)
-    container.addEventListener('paste', onPaste)
+    document.addEventListener('copy', onCopy)
+    document.addEventListener('paste', onPaste)
     container.addEventListener('pointermove', onMove)
     container.addEventListener('pointerleave', onLeave)
     container.addEventListener('pointerdown', onDown)
     return () => {
       window.clearTimeout(pending)
       container.removeEventListener('keydown', onKey)
-      container.removeEventListener('copy', onCopy)
-      container.removeEventListener('paste', onPaste)
+      document.removeEventListener('copy', onCopy)
+      document.removeEventListener('paste', onPaste)
       container.removeEventListener('pointermove', onMove)
       container.removeEventListener('pointerleave', onLeave)
       container.removeEventListener('pointerdown', onDown)
     }
-  }, [container, editor, api])
+  }, [container, editable, api])
 
   return {
     api,
@@ -1722,6 +1751,17 @@ function EditorToolbar({
 }) {
   const t = useGraphEditorStrings()
   const editing = useWorkflowEditing()
+  const undoable: DependencyGraphEditor = {
+    ...editor,
+    onUndo: () => {
+      forgetSteps(api)
+      editor.onUndo()
+    },
+    onRedo: () => {
+      forgetSteps(api)
+      editor.onRedo()
+    },
+  }
   const chip = (matrix: boolean) => {
     const label = matrix ? t.addMatrixJob : t.addJob
     return (
@@ -1737,7 +1777,7 @@ function EditorToolbar({
   }
   return (
     <EditorBar
-      editor={editor}
+      editor={undoable}
       groups={graphShortcuts(t)}
       className={cx(EDITOR_HANDLE_CLASS, 'absolute bottom-2 right-2 z-10 max-w-[calc(100%-1rem)]')}
     >
@@ -1817,6 +1857,7 @@ function EditorDialogs({
   const dialog = useUi(api, (state) => state.dialog, null)
   const close = () => api.store.set({ dialog: null })
   const onEdit = (edit: GraphEdit) => {
+    forgetSteps(api)
     editor.onEdit(edit)
   }
   const openOnAdd = openOnAddOf(editor)

@@ -85,7 +85,6 @@ export interface UiState {
   edges: EdgeSelection[]
   dialog: Dialog | null
   selection: string[]
-  /** Selected steps. */
   steps: StepRef[]
   problems: EditorProblem[]
   /** The box being dragged out on empty space, in content coordinates. */
@@ -187,9 +186,8 @@ export function useUi<T>(
   select: (state: UiState) => T,
   fallback: T,
 ): T {
-  return useSyncExternalStore(api ? api.store.subscribe : noopSubscribe, () =>
-    api ? select(api.store.get()) : fallback,
-  )
+  const snapshot = () => (api ? select(api.store.get()) : fallback)
+  return useSyncExternalStore(api ? api.store.subscribe : noopSubscribe, snapshot, snapshot)
 }
 
 export function useSelectedEdges(api: GraphEditorApi | null): EdgeSelection[] {

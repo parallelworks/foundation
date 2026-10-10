@@ -1124,6 +1124,33 @@ describe('DependencyGraphPreview editor', () => {
     expect(e.onEdit).toHaveBeenCalledWith({ type: 'addJob' })
   })
 
+  it('takes undo and paste on the canvas of a graph without jobs, which holds the border choice', () => {
+    const e = editor()
+    render(<DependencyGraphPreview yml={{ jobs: {} }} editor={e} removeBorder />)
+    const canvas = screen.getByText('Job').closest('[tabindex="-1"]') as HTMLElement
+    expect(canvas).toHaveClass('border-none')
+    canvas.focus()
+    fireEvent.keyDown(canvas, { key: 'z', ctrlKey: true })
+    expect(e.onUndo).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the keys on the graph when deleting its last job empties it', () => {
+    const e = editor()
+    const one = { jobs: { only: { steps: [{ run: 'x' }] } } }
+    const { rerender } = render(<DependencyGraphPreview yml={one} editor={e} />)
+    const container = jobRow('only').closest('[tabindex="-1"]') as HTMLElement
+    container.focus()
+    fireEvent.click(jobRow('only'), { shiftKey: true })
+    jobRow('only').focus()
+    fireEvent.keyDown(jobRow('only'), { key: 'Delete' })
+    expect(e.onEdit).toHaveBeenCalledWith({ type: 'deleteJob', jobs: ['only'] })
+    rerender(<DependencyGraphPreview yml={{ jobs: {} }} editor={e} />)
+    const canvas = screen.getByText('Job').closest('[tabindex="-1"]') as HTMLElement
+    expect(document.activeElement).toBe(canvas)
+    fireEvent.keyDown(canvas, { key: 'z', ctrlKey: true })
+    expect(e.onUndo).toHaveBeenCalledOnce()
+  })
+
   it('adds a job only when its dialog is first saved', () => {
     const e = editor({ readSource: () => YML_TEXT })
     render(<DependencyGraphPreview yml={yml} editor={e} />)
@@ -1890,6 +1917,26 @@ describe('nodes formed by hand', () => {
     )
   })
 
+  it('adds a job dropped from the toolbar onto a node in one edit, though the host can’t read its source', () => {
+    const e = editor({ openOnAdd: false, onOpenOnAddChange: vi.fn() })
+    renderEditor(e)
+    const chip = screen.getByText('Job').closest('button') as HTMLElement
+    underPointer = document.getElementById('node_b')
+    fireEvent.pointerDown(chip, { button: 0, clientX: 600, clientY: 300 })
+    act(() => {
+      fireEvent.pointerMove(window, { clientX: 350, clientY: 30 })
+    })
+    release([350, 30])
+    expect(e.onEdit).toHaveBeenCalledOnce()
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'batch',
+      edits: [
+        { type: 'addJob' },
+        expect.objectContaining({ type: 'groupJobs', jobs: ['job_1'], into: 'b' }),
+      ],
+    })
+  })
+
   it('merges a job into a node that needs it, whose jobs then drop that need', () => {
     const e = editor()
     renderEditor(e)
@@ -2116,6 +2163,67 @@ describe('steps, the clipboard and the arrow keys', () => {
     expect(selected(jobRow('lint'))).toBe(false)
   })
 
+  it('drops a step between the steps of the matrix run under the pointer, with both runs open', () => {
+    const matrix = {
+      jobs: {
+        run: {
+          strategy: { matrix: { os: ['linux', 'mac'] } },
+          steps: [
+            { name: 'first', run: 'a' },
+            { name: 'second', run: 'b' },
+          ],
+        },
+        lint: { steps: [{ name: 'check', run: 'x' }] },
+      },
+    }
+    const e = editor({ readSource: () => dumpYaml(matrix) })
+    render(<DependencyGraphPreview yml={matrix} editor={e} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Expand All' }))
+    // The first run's steps sit above the second run's.
+    const copies = [...document.querySelectorAll<HTMLElement>('[data-dag-step-job="run"]')]
+    expect(copies).toHaveLength(4)
+    copies.forEach((row, i) => {
+      const top = [100, 130, 300, 330][i] ?? 0
+      row.getBoundingClientRect = () => new DOMRect(0, top, 200, 20)
+    })
+    underPointer = copies[1] ?? null
+    fireEvent.pointerDown(stepRow('lint', 0), { button: 0, clientX: 0, clientY: 0 })
+    act(() => {
+      fireEvent.pointerMove(window, { clientX: 50, clientY: 125 })
+    })
+    release([50, 125])
+    expect(e.onEdit).toHaveBeenCalledWith({
+      type: 'moveSteps',
+      steps: [{ job: 'lint', index: 0 }],
+      job: 'run',
+      index: 1,
+    })
+  })
+
+  it('lets go of the selected steps on undo, redo or a dialog’s save, which can renumber them', () => {
+    const e = editor({ readSource: () => text, canRedo: true, settingsView: 'form' })
+    const container = renderGraph(e)
+    openSteps('build', 'Build')
+    const pick = () => {
+      fireEvent.click(stepRow('build', 1), { shiftKey: true })
+      expect(selected(stepRow('build', 1))).toBe(true)
+    }
+    pick()
+    fireEvent.keyDown(container, { key: 'z', ctrlKey: true })
+    expect(e.onUndo).toHaveBeenCalledOnce()
+    expect(selected(stepRow('build', 1))).toBe(false)
+    pick()
+    fireEvent.click(screen.getByRole('button', { name: 'Redo' }))
+    expect(selected(stepRow('build', 1))).toBe(false)
+    pick()
+    fireEvent.click(screen.getByTestId('compile'))
+    fireEvent.change(screen.getByLabelText(GRAPH_EDITOR_STRINGS.stepName), {
+      target: { value: 'build it' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(selected(stepRow('build', 1))).toBe(false)
+  })
+
   it('drags the selected steps into another job as one edit', () => {
     const e = withSource()
     renderGraph(e)
@@ -2166,6 +2274,8 @@ describe('steps, the clipboard and the arrow keys', () => {
   it('copies the selected jobs and pastes them back as new jobs below them', () => {
     const e = withSource()
     const container = renderGraph(e)
+    // Picking a job with the pointer focuses the graph.
+    container.focus()
     fireEvent.click(jobRow('lint'), { shiftKey: true })
     const setData = vi.fn()
     fireEvent.copy(container, { clipboardData: { setData } })
@@ -2180,6 +2290,42 @@ describe('steps, the clipboard and the arrow keys', () => {
         to: expect.objectContaining({ column: 0 }),
       }),
     )
+  })
+
+  it('copies and pastes jobs while the graph has focus, though the page holds a text selection', () => {
+    const e = withSource()
+    const container = renderGraph(e)
+    const elsewhere = document.createElement('p')
+    elsewhere.textContent = 'some page text'
+    document.body.append(elsewhere)
+    onTestFinished(() => elsewhere.remove())
+    container.focus()
+    fireEvent.click(jobRow('lint'), { shiftKey: true })
+    // The browser sends the copy to where the page's text selection is, outside the graph.
+    const setData = vi.fn()
+    fireEvent.copy(elsewhere, { clipboardData: { setData } })
+    expect(setData).toHaveBeenCalledWith('text/plain', expect.stringContaining('lint:'))
+    fireEvent.paste(elsewhere, { clipboardData: { getData: () => setData.mock.calls[0]?.[1] } })
+    expect(e.onEdit).toHaveBeenCalledWith(expect.objectContaining({ type: 'pasteJobs' }))
+  })
+
+  it('pastes nothing when the clipboard holds no text, not what was copied before', () => {
+    const e = withSource()
+    const container = renderGraph(e)
+    container.focus()
+    fireEvent.click(jobRow('lint'), { shiftKey: true })
+    fireEvent.copy(container, { clipboardData: { setData: vi.fn() } })
+    fireEvent.paste(container, { clipboardData: { getData: () => '' } })
+    expect(e.onEdit).not.toHaveBeenCalled()
+  })
+
+  it('leaves a copy outside the graph to the page when the graph doesn’t have focus', () => {
+    const e = withSource()
+    renderGraph(e)
+    fireEvent.click(jobRow('lint'), { shiftKey: true })
+    const setData = vi.fn()
+    fireEvent.copy(document.body, { clipboardData: { setData } })
+    expect(setData).not.toHaveBeenCalled()
   })
 
   it('copies and pastes with Cmd and with Ctrl alike', () => {
