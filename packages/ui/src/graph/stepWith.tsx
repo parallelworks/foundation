@@ -21,6 +21,7 @@ import {
   KeyValueEditor,
   LabelledField,
   labelled,
+  parseJson,
   parseScalar,
   type Row,
   rowsError,
@@ -372,7 +373,7 @@ function SpecField({
 }
 
 /** Where a repository `uses` reads its workflow from, for the repository fields. */
-export function repositoryOf(uses: string, host: string): { repo: string; branch: string } {
+function repositoryOf(uses: string, host: string): { repo: string; branch: string } {
   if (!uses.startsWith('github/') && !uses.startsWith('gitlab/')) {
     return { repo: '', branch: '' }
   }
@@ -381,11 +382,8 @@ export function repositoryOf(uses: string, host: string): { repo: string; branch
   return { repo: path ? `https://${server}/${path}` : '', branch: ref }
 }
 
-/** The `uses` for a repository URL and branch, plus the $host a GitLab server needs. */
-export function usesOfRepository(
-  repo: string,
-  branch: string,
-): { uses: string; host: string } | null {
+/** The `uses` for a repository URL and branch, plus the $host a self-hosted server needs. */
+function usesOfRepository(repo: string, branch: string): { uses: string; host: string } | null {
   let url: URL
   try {
     url = new URL(repo.includes('://') ? repo : `https://${repo}`)
@@ -405,7 +403,7 @@ export function usesOfRepository(
       }
 }
 
-/** The repository fields the workflow import form uses, so branches and files come from GitHub or GitLab. */
+/** The repository fields the workflow import form uses, so branches and files come from the repository's host. */
 function RepositoryForm({
   uses,
   draft,
@@ -431,6 +429,11 @@ function RepositoryForm({
       labelPosition="top"
       workflowForm
       setValues={(values) => {
+        // The form reports its values as it opens; only a change the user makes is written.
+        const keys = ['repo', 'branch', 'yaml', 'thumbnail'] as const
+        if (keys.every((key) => String(values[key] ?? '') === initial[key])) {
+          return
+        }
         const next = usesOfRepository(String(values['repo'] ?? ''), String(values['branch'] ?? ''))
         if (next) {
           onUses(next.uses)
@@ -543,19 +546,23 @@ function useSubworkflowInputs(uses: string, draft: WithDraft): Json | null {
   useEffect(() => {
     let live = true
     setInputs(null)
-    loadUsesInputs(editing, uses, { yamlPath, host }, { resolve, repos })
-      .then((loaded) => {
-        if (live) {
-          setInputs(loaded)
-        }
-      })
-      .catch(() => {
-        if (live) {
-          setInputs(null)
-        }
-      })
+    // Read once typing pauses, not for every keystroke in the workflow's name or path.
+    const timer = window.setTimeout(() => {
+      loadUsesInputs(editing, uses, { yamlPath, host }, { resolve, repos })
+        .then((loaded) => {
+          if (live) {
+            setInputs(loaded)
+          }
+        })
+        .catch(() => {
+          if (live) {
+            setInputs(null)
+          }
+        })
+    }, 300)
     return () => {
       live = false
+      window.clearTimeout(timer)
     }
   }, [editing, uses, resolve, repos, yamlPath, host])
   return inputs
@@ -587,13 +594,15 @@ export function WithEditor({
   const subworkflow = useSubworkflowInputs(uses, draft)
   const known = subworkflow ? Object.entries(subworkflow).filter(([key]) => key !== '$meta') : []
   const knownKeys = new Set(known.map(([key]) => key))
+  // A list or object typed as JSON is written as one; anything else as the text typed.
   const setRow = (key: string, value: string) => {
+    const nested = /^[[{]/.test(value.trim()) && parseJson(value).ok
     const rows =
       value === ''
         ? draft.rows.filter((row) => row.key !== key)
         : draft.rows.some((row) => row.key === key)
-          ? draft.rows.map((row) => (row.key === key ? { ...row, value } : row))
-          : [...draft.rows, { key, value }]
+          ? draft.rows.map((row) => (row.key === key ? { ...row, value, nested } : row))
+          : [...draft.rows, { key, value, nested }]
     onChange({ ...draft, rows })
   }
   return (
