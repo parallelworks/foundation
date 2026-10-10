@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.35.0](https://github.com/parallelworks/foundation/compare/ui-v0.34.0...ui-v0.35.0) (2026-10-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* **ui:** one composer layout, a shared conversation stage and list pieces, and a segmented control ([#209](https://github.com/parallelworks/foundation/issues/209))
+
+### Features
+
+* **ui:** add graph controls and stored job positions ([#178](https://github.com/parallelworks/foundation/issues/178)) ([a4698dc](https://github.com/parallelworks/foundation/commit/a4698dccc290383404d9da019eb49eec1bd10555))
+* **ui:** declarative workflow form layouts with scoped appearance ([#202](https://github.com/parallelworks/foundation/issues/202)) ([76357f2](https://github.com/parallelworks/foundation/commit/76357f278691fa3a8e3ca2e104a07b293ce336b9))
+* **ui:** one composer layout, a shared conversation stage and list pieces, and a segmented control ([#209](https://github.com/parallelworks/foundation/issues/209)) ([2b648e7](https://github.com/parallelworks/foundation/commit/2b648e7c97756bb70f1c897534060e6e65fc2fc5))
+
 ## [0.34.0](https://github.com/parallelworks/foundation/compare/ui-v0.33.0...ui-v0.34.0) (2026-10-10)
 
 
