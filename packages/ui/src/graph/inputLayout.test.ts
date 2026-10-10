@@ -85,9 +85,134 @@ describe('layout editing', () => {
     )
     const result = apply(inputs, { type: 'batch', edits: [move, ...edits] })
     valid(result)
-    expect(asRecord(result['a'])['width']).toBeUndefined()
-    expect(JSON.stringify(layout(result))).toContain('"sm":3')
+    const [joined] = asRecord(layout(result))['children'] as Json[]
+    expect(joined?.['columns']).toEqual({ base: 1, sm: [2, 1.5, 1] })
     expect(asRecord(layout(result))['css']).toBe('padding: 1rem;')
+  })
+  it('keeps an authored breakpoint and its weights when a field joins the grid', () => {
+    const inputs = form()
+    const [grid] = asRecord(layout(inputs))['children'] as Json[]
+    asRecord(grid)['columns'] = { base: 1, md: [2, 1] }
+    const move: GraphEdit = { type: 'moveInputs', paths: [['c']], parent: [], index: 1 }
+    const edits = dropLayoutEdits(
+      editing,
+      inputs,
+      [['c']],
+      { parent: [], index: 1, beside: { path: ['b'], side: 'left' } },
+      move,
+    )
+    const result = apply(inputs, { type: 'batch', edits: [move, ...edits] })
+    valid(result)
+    const [joined] = asRecord(layout(result))['children'] as Json[]
+    expect(joined).toMatchObject({ columns: { base: 1, md: [2, 1.5, 1] } })
+    expect(JSON.stringify(joined?.['children'])).toMatch(/"a".*"c".*"b"/)
+  })
+  it('keeps phones stacked when a field swaps places within its grid', () => {
+    const inputs: Json = {
+      $meta: { layout: { type: 'grid', columns: { base: 1, sm: 2 }, children: [a, b] } },
+      a: { type: 'string' },
+      b: { type: 'string' },
+    }
+    const move: GraphEdit = { type: 'moveInputs', paths: [['b']], parent: [], index: 0 }
+    const edits = dropLayoutEdits(
+      editing,
+      inputs,
+      [['b']],
+      { parent: [], index: 0, beside: { path: ['a'], side: 'left' } },
+      move,
+    )
+    const result = apply(inputs, { type: 'batch', edits: [move, ...edits] })
+    valid(result)
+    expect(layout(result)).toMatchObject({
+      columns: { base: 1, sm: 2 },
+      children: [{ field: 'b' }, { field: 'a' }],
+    })
+  })
+  it("reorders a wizard's pages without a layout, root or nested, and keeps the wizard", () => {
+    const pages = (): Json => ({
+      $meta: { wizard: { mode: 'wizard' } },
+      step_1: { type: 'step', title: 'One', options: { a: { type: 'string' } } },
+      step_2: { type: 'step', title: 'Two', options: { b: { type: 'string' } } },
+    })
+    const root = pages()
+    const move: GraphEdit = { type: 'moveInputs', paths: [['step_2']], parent: [], index: 0 }
+    const drop = { parent: [], index: 0, stack: { path: ['step_1'], side: 'above' as const } }
+    const moved = apply(root, {
+      type: 'batch',
+      edits: [move, ...dropLayoutEdits(editing, root, [['step_2']], drop, move)],
+    })
+    expect(asRecord(moved['$meta'])).toEqual({ wizard: { mode: 'wizard' } })
+    expect(Object.keys(moved)).toEqual(['$meta', 'step_2', 'step_1'])
+
+    const nested: Json = { group: { type: 'group', items: pages() } }
+    const inner: GraphEdit = {
+      type: 'moveInputs',
+      paths: [['group', 'step_2']],
+      parent: ['group'],
+      index: 0,
+    }
+    const innerDrop = {
+      ...drop,
+      parent: ['group'],
+      stack: { ...drop.stack, path: ['group', 'step_1'] },
+    }
+    const group = asRecord(
+      asRecord(
+        apply(nested, {
+          type: 'batch',
+          edits: [
+            inner,
+            ...dropLayoutEdits(editing, nested, [['group', 'step_2']], innerDrop, inner),
+          ],
+        })['group'],
+      )['items'],
+    )
+    expect(asRecord(group['$meta'])).toEqual({ wizard: { mode: 'wizard' } })
+    expect(Object.keys(group)).toEqual(['$meta', 'step_2', 'step_1'])
+  })
+  it('drops the old row hints from the fields once their layout is written, root or nested', () => {
+    const legacy = (): Json => ({
+      a: { type: 'string', width: '50%' },
+      b: { type: 'string', 'anchor-below': true },
+      c: { type: 'string', width: '50%' },
+      d: { type: 'string' },
+    })
+    const hints = (list: Json) =>
+      ['a', 'b', 'c', 'd'].flatMap((name) =>
+        Object.keys(asRecord(list[name])).filter(
+          (key) => key === 'width' || key === 'anchor-below',
+        ),
+      )
+    const root = legacy()
+    const move: GraphEdit = { type: 'moveInputs', paths: [['d']], parent: [], index: 0 }
+    const drop = { parent: [], index: 0, stack: { path: ['a'], side: 'above' as const } }
+    const moved = apply(root, {
+      type: 'batch',
+      edits: [move, ...dropLayoutEdits(editing, root, [['d']], drop, move)],
+    })
+    valid(moved)
+    expect(JSON.stringify(layout(moved))).toContain('"sm":[50,50]')
+    expect(hints(moved)).toEqual([])
+
+    const nested: Json = { group: { type: 'group', items: legacy() } }
+    const inner: GraphEdit = {
+      type: 'moveInputs',
+      paths: [['group', 'd']],
+      parent: ['group'],
+      index: 0,
+    }
+    const innerDrop = { ...drop, parent: ['group'], stack: { ...drop.stack, path: ['group', 'a'] } }
+    const group = asRecord(
+      asRecord(
+        apply(nested, {
+          type: 'batch',
+          edits: [inner, ...dropLayoutEdits(editing, nested, [['group', 'd']], innerDrop, inner)],
+        })['group'],
+      )['items'],
+    )
+    valid(group)
+    expect(JSON.stringify(layout(group))).toContain('"sm":[50,50]')
+    expect(hints(group)).toEqual([])
   })
   it('resizes grid tracks while preserving mobile stacking and authored CSS', () => {
     const inputs = form()
