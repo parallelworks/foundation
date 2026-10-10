@@ -515,7 +515,7 @@ function optionsDraft(value: unknown): OptionsDraft {
 
 function optionsValue(
   draft: OptionsDraft,
-  { labelled = false, textValues = false, keys }: ValueContext,
+  { labelled = false, textValues = false }: ValueContext,
 ): unknown {
   if (draft.mode === 'expression') {
     return draft.text.trim() || undefined
@@ -528,9 +528,6 @@ function optionsValue(
       ? row.original
       : parseScalar(row.value.trim())
     const value = textValues && isScalar(written) ? String(written) : written
-    const rest = keys
-      ? Object.fromEntries(Object.entries(row.rest ?? {}).filter(([key]) => keys.includes(key)))
-      : row.rest
     if (row.bare && !row.label.trim() && !row.rest && typeof value === 'string') {
       return value
     }
@@ -540,7 +537,7 @@ function optionsValue(
     return {
       value,
       ...(label ? { label } : {}),
-      ...rest,
+      ...row.rest,
     }
   })
 }
@@ -987,12 +984,40 @@ interface ValueContext {
   labelled?: boolean
   /** Option values, and the defaults picking them, are text, as a radio's and a checkbox group's are. */
   textValues?: boolean
-  /** The keys an option takes besides its value and label; any when unset. */
-  keys?: string[]
 }
 
-// The keys an option of these types takes besides its value and label; other types' options take any.
+// The keys an option of these types takes besides its value and label, all text; other types' options take any.
 const OPTION_KEYS: Record<string, string[]> = { radio: [], 'checkbox-group': ['description'] }
+
+function textOption(option: unknown, keys: string[]): unknown {
+  if (isScalar(option)) {
+    return String(option)
+  }
+  const record = asRecord(option)
+  if (option !== record) {
+    return option
+  }
+  return Object.fromEntries(
+    Object.entries(record)
+      .filter(([key]) => key === 'value' || key === 'label' || keys.includes(key))
+      .map(([key, value]) => [key, isScalar(value) ? String(value) : value]),
+  )
+}
+
+function fitsTextOption(option: unknown, keys: string[]): boolean {
+  if (typeof option === 'string') {
+    return true
+  }
+  const record = asRecord(option)
+  return (
+    option === record &&
+    typeof record['value'] === 'string' &&
+    Object.entries(record).every(
+      ([key, value]) =>
+        (key === 'value' || key === 'label' || keys.includes(key)) && typeof value === 'string',
+    )
+  )
+}
 
 function writtenValue(kind: Kind, draft: unknown, context: ValueContext = {}): unknown {
   switch (kind) {
@@ -1733,6 +1758,17 @@ const COMMON_PROPS = ALL_COMMON.map(commonProp)
 // A page's description, like its title, can be one per copy when the page repeats.
 const STEP_DESCRIPTION: Prop = { ...commonProp('description'), kind: 'perCopy' }
 
+function commonPropsOf(type: string): Prop[] {
+  return commonKeys(type).map((key) =>
+    type === 'step' && key === 'description' ? STEP_DESCRIPTION : commonProp(key),
+  )
+}
+
+/** Every field a type has, as the type an input had before a type change read its settings. */
+function propsOf(type: string): Prop[] {
+  return [...commonPropsOf(type), ...(TYPE_PROPS[type] ?? [])]
+}
+
 function isCommon(prop: Prop): boolean {
   return COMMON_PROPS.some((common) => draftKey(common) === draftKey(prop))
 }
@@ -2226,22 +2262,14 @@ function InputForm({
             ? prop.key !== 'placeholder' && prop.key !== 'autoselect'
             : prop.key !== 'option-key' || optionsDraftNow?.mode === 'expression'
   const settingProps = (TYPE_PROPS[type] ?? []).filter(shown)
-  const props = [
-    ...commonKeys(type).map((key) =>
-      type === 'step' && key === 'description' ? STEP_DESCRIPTION : commonProp(key),
-    ),
-    ...settingProps,
-  ]
+  const props = [...commonPropsOf(type), ...settingProps]
   const kindOf = (prop: Prop) => effectiveKind(prop, definition[prop.key])
-  const context: ValueContext = {
-    labelled: type === 'multi-dropdown',
-    textValues: type === 'radio' || type === 'checkbox-group',
-    ...(OPTION_KEYS[type] ? { keys: OPTION_KEYS[type] } : {}),
-  }
+  const optionKeys = OPTION_KEYS[type]
+  const context: ValueContext = { labelled: type === 'multi-dropdown', textValues: !!optionKeys }
   // A value kept from before a type change may not suit the new type, so every setting is checked then.
   const typeChanged = !isNew && type !== originalType
-  // An untouched field keeps its YAML value exactly, so `5` isn't rewritten as '5', unless the type changed:
-  // then every setting is written as the new type reads it, the value its error check saw.
+  // An untouched field keeps its YAML value exactly, so `5` isn't rewritten as '5', unless the type it changed
+  // to reads the key differently, as a number default becoming text: then it's written as the new type reads it.
   const valueFor = (prop: Prop) => {
     const key = draftKey(prop)
     const kept = definition[prop.key]
@@ -2249,7 +2277,9 @@ function InputForm({
       kindOf(prop) === 'values' &&
       isScalar(kept) &&
       !(typeof kept === 'string' && EXPRESSION.test(kept.trim()))
-    return sameValue(drafts[key], initial[key]) && !becameList && !typeChanged
+    const readsAlike =
+      !typeChanged || propsOf(originalType).some((before) => draftKey(before) === key)
+    return sameValue(drafts[key], initial[key]) && !becameList && readsAlike
       ? kept
       : writtenValue(kindOf(prop), drafts[key], context)
   }
@@ -2387,10 +2417,33 @@ function InputForm({
         }
       }
     }
+    // A radio's and a checkbox group's options, and the defaults picking them, are text, however they were written.
+    if (optionKeys && Array.isArray(next['options']) && (typeChanged || edited('options'))) {
+      next['options'] = next['options'].map((option) => textOption(option, optionKeys))
+    }
+    if (optionKeys && typeChanged) {
+      const picked = next['default']
+      next['default'] = Array.isArray(picked)
+        ? picked.map((value) => (isScalar(value) ? String(value) : value))
+        : isScalar(picked)
+          ? String(picked)
+          : picked
+    }
     return next
   }
 
   const next = nextDefinition()
+  // Options written as JSON can still hold what these types' options can't, such as an object as a value.
+  const shaped = next['options']
+  if (
+    optionKeys &&
+    (typeChanged || edited('options')) &&
+    Array.isArray(shaped) &&
+    !shaped.every((option) => fitsTextOption(option, optionKeys)) &&
+    !errors[draftKey(OPTIONS)]
+  ) {
+    errors[draftKey(OPTIONS)] = type === 'radio' ? t.radioOptionShape : t.checkboxOptionShape
+  }
   const patch = diffPatch(original, next)
   const renamed = trimmedName !== originalName
   const dirty = isNew || renamed || !isEmptyPatch(patch)
