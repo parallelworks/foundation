@@ -108,6 +108,13 @@ export interface UIStrings {
     submitted: string
     expandAll: string
     collapseAll: string
+    zoomIn: string
+    zoomOut: string
+    resetView: string
+    previousGraph: string
+    nextGraph: string
+    matrixOf: (name: string) => string
+    jobCount: (count: number) => string
     loadingLogs: string
     noLogFound: string
     logLoadFailed: string
@@ -614,8 +621,15 @@ const DEFAULTS: UIProviderValue = {
       status: 'Status',
       runtime: 'Runtime',
       submitted: 'Submitted',
-      expandAll: 'Expand all',
-      collapseAll: 'Collapse all',
+      expandAll: 'Expand All',
+      collapseAll: 'Collapse All',
+      zoomIn: 'Zoom in',
+      zoomOut: 'Zoom out',
+      resetView: 'Reset View',
+      previousGraph: 'Back to the previous graph',
+      nextGraph: 'Forward to the next graph',
+      matrixOf: (name) => `Matrix: ${name}`,
+      jobCount: (count) => (count === 1 ? '1 job' : `${count} jobs`),
       loadingLogs: 'Loading logs',
       noLogFound: 'No log found',
       logLoadFailed: 'Log could not be loaded',

@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { DateTime } from 'luxon'
 import { useCallback, useId, useMemo, useState } from 'react'
 import { Indicator } from '../components/Indicator'
-import { useRunFile, useSlots, useWorkflowEngine } from '../components/Provider'
+import { useRunFile, useSlots, useStrings, useWorkflowEngine } from '../components/Provider'
 import { toAbsHumanDuration } from '../duration'
 import { ChevronRightIcon, LoaderIcon } from '../icons'
 import { LogViewer } from '../logviewer'
@@ -279,6 +279,7 @@ function StepRow({
 
 export default function TreeView({ jobs, slug, expandedJobs, setExpandedJobs }: TreeViewProps) {
   const engine = useWorkflowEngine()
+  const { dag } = useStrings()
   // Filter out jobs with if === false (same logic as DAG view)
   const visibleJobNames = useMemo(() => {
     return Object.keys(jobs).filter((jobName) => jobs[jobName]?.if !== false)
@@ -369,7 +370,8 @@ export default function TreeView({ jobs, slug, expandedJobs, setExpandedJobs }: 
               continue
             }
             const matrixOrigin = job._matrix?.originaljob
-            if (matrixOrigin) {
+            // A matrix that ran as one job lists as that job.
+            if (matrixOrigin && (matrixGroups[matrixOrigin]?.members.length ?? 0) > 1) {
               if (seenMatrixGroups.has(matrixOrigin)) {
                 continue
               }
@@ -396,7 +398,7 @@ export default function TreeView({ jobs, slug, expandedJobs, setExpandedJobs }: 
                     <Chevron open={isGroupExpanded} />
                     <Indicator status={aggStatus} />
                     <span className="font-mono text-sm text-[var(--theme-app)]">
-                      Matrix: {matrixOrigin} ({group.members.length} jobs)
+                      {dag.matrixOf(matrixOrigin)} ({dag.jobCount(group.members.length)})
                     </span>
                   </button>
                   <AnimatePresence>

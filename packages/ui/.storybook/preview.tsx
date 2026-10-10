@@ -5,7 +5,7 @@
 import '../dist/styles/fonts.css'
 import '../dist/styles.css'
 import '../dist/logviewer/logviewer.css'
-import { createWorkflowEngine } from '@parallelworks/workflow-parser'
+import * as parser from '@parallelworks/workflow-parser'
 import type { Decorator, Preview } from '@storybook/react-vite'
 import { type UILinkComponent, UIProvider } from '../src/components/Provider'
 import {
@@ -16,7 +16,8 @@ import {
   THEME_PRESETS,
 } from '../src/theme/index'
 
-const engine = createWorkflowEngine()
+// The parser's functions double as the editor's, the way a host passes them.
+const engine = { ...parser.createWorkflowEngine(), editing: parser }
 
 // Links render as anchors but never navigate away from the story.
 const StoryLink: UILinkComponent = ({ to, onClick, children, ...rest }) => (
