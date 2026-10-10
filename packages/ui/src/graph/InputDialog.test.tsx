@@ -781,7 +781,21 @@ describe('InputDialog keeps what it does not show', () => {
   it('moves a renamed template field’s value in the default rows, and drops a removed one’s', () => {
     const onSave = open({
       type: 'list',
-      template: { host: { type: 'string' }, port: { type: 'number' } },
+      template: {
+        $meta: {
+          layout: {
+            type: 'section',
+            label: 'Connection',
+            css: 'padding: 1rem;',
+            children: [
+              { type: 'field', field: 'host' },
+              { type: 'field', field: 'port' },
+            ],
+          },
+        },
+        host: { type: 'string' },
+        port: { type: 'number' },
+      },
       default: [{ host: 'a', port: 22 }],
     })
     fireEvent.click(screen.getAllByRole('button', { name: 'Edit input' })[0] as HTMLElement)
@@ -793,7 +807,20 @@ describe('InputDialog keeps what it does not show', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(onSave).toHaveBeenCalledWith(
       'field',
-      expect.objectContaining({ default: [{ hostname: 'a' }] }),
+      expect.objectContaining({
+        default: [{ hostname: 'a' }],
+        template: {
+          $meta: {
+            layout: {
+              type: 'section',
+              label: 'Connection',
+              css: 'padding: 1rem;',
+              children: [{ type: 'field', field: 'hostname' }],
+            },
+          },
+          hostname: { type: 'string' },
+        },
+      }),
       expect.anything(),
       [],
     )

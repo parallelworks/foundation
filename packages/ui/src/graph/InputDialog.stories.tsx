@@ -138,6 +138,16 @@ export const EditList: StoryObj<typeof InputDialog> = {
       type: 'list',
       label: 'Hosts',
       template: {
+        $meta: {
+          layout: {
+            type: 'grid',
+            columns: { base: 1, sm: [2, 1] },
+            children: [
+              { type: 'field', field: 'host' },
+              { type: 'field', field: 'port' },
+            ],
+          },
+        },
         host: { type: 'string', label: 'Host' },
         port: { type: 'number', label: 'Port' },
       },
