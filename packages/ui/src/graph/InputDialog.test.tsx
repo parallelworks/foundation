@@ -700,6 +700,47 @@ describe('InputDialog in two views', () => {
       expect.objectContaining({ name: 'cluster' }),
     ])
   })
+
+  it('refuses, in the YAML, the name of an input it made for a setting', () => {
+    openViews({ type: 'slurm-accounts' }, {})
+    fireEvent.click(screen.getByRole('button', { name: 'New Cluster input…' }))
+    const dialogs = screen.getAllByRole('dialog')
+    fireEvent.click(
+      within(dialogs[dialogs.length - 1] as HTMLElement).getByRole('button', { name: 'Save' }),
+    )
+    toYaml()
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'cluster' } })
+    expect(screen.getByText(INPUTS_EDITOR_STRINGS.inputExists)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  })
+
+  it('keeps a container’s fields when the YAML changes only its type', async () => {
+    const onSave = vi.fn()
+    render(
+      <InputDialog
+        name="field"
+        definition={{ type: 'group', items: { host: { type: 'string' } } }}
+        isNew={false}
+        siblings={[]}
+        allowStep
+        onSave={onSave}
+        onClose={() => {}}
+        yaml={{ onSave: () => {} }}
+        view="yaml"
+      />,
+    )
+    fireEvent.change(await screen.findByLabelText('file:///workflow-input.yaml'), {
+      target: { value: 'type: step\ntitle: Hosts\nitems:\n  host:\n    type: string\n' },
+    })
+    toForm()
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith(
+      'field',
+      { type: 'step', title: 'Hosts', options: { host: { type: 'string' } } },
+      expect.anything(),
+      [],
+    )
+  })
 })
 
 describe('InputDialog keeps what it does not show', () => {
@@ -848,5 +889,146 @@ describe('InputDialog keeps what it does not show', () => {
     open({ type: 'duration', disableLabel: 'Never', disableValue: -1, default: -1 })
     expect(screen.getByLabelText('Default')).toHaveValue('-1')
     expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
+  })
+
+  it('takes the opt-out value typed as a duration’s default', () => {
+    const onSave = open({ type: 'duration', disableLabel: 'Never', disableValue: -1 })
+    fireEvent.change(screen.getByLabelText('Default'), { target: { value: '-1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith(
+      'field',
+      expect.objectContaining({ default: -1 }),
+      expect.anything(),
+      [],
+    )
+  })
+
+  it('replaces an opt-out value written as text once the number is typed', () => {
+    const onSave = open({ type: 'duration', disableLabel: 'Never', disableValue: '-1' })
+    const value = screen.getByLabelText('Value when ticked')
+    expect(value).toHaveValue('"-1"')
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+    fireEvent.change(value, { target: { value: '-1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith(
+      'field',
+      expect.objectContaining({ disableValue: -1 }),
+      { set: { disableValue: -1 }, unset: [] },
+      [],
+    )
+  })
+
+  it('keeps the links of options set by an expression when the expression changes', () => {
+    const onSave = open({
+      type: 'checkbox-group',
+      options: '${{ inputs.features }}',
+      implies: { all: ['logs'] },
+    })
+    fireEvent.change(screen.getByLabelText('Options'), {
+      target: { value: '${{ inputs.flags }}' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith(
+      'field',
+      expect.objectContaining({ implies: { all: ['logs'] } }),
+      { set: { options: '${{ inputs.flags }}' }, unset: [] },
+      [],
+    )
+  })
+
+  it('changes nothing it wasn’t asked to, so it closes on Escape and saves nothing', () => {
+    const onClose = vi.fn()
+    const onSave = vi.fn()
+    const dialog = (definition: Record<string, unknown>) => (
+      <InputDialog
+        name="field"
+        definition={definition}
+        isNew={false}
+        siblings={[]}
+        allowStep
+        onSave={onSave}
+        onClose={onClose}
+      />
+    )
+    // A text default naming a numeric option, and a link naming an option there isn't.
+    render(dialog({ type: 'dropdown', options: [{ value: 2, label: 'Two' }], default: '2' }))
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
+    cleanup()
+    render(dialog({ type: 'checkbox-group', options: ['a', 'b'], implies: { a: ['b'], c: ['a'] } }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).not.toHaveBeenCalled()
+    expect(onClose).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps a radio’s default as text, the way the radio matches its options', () => {
+    const onSave = open({ type: 'radio', options: [{ value: 1, label: 'One' }] })
+    fireEvent.change(screen.getByLabelText('Default'), { target: { value: '1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith(
+      'field',
+      expect.objectContaining({ default: '1' }),
+      expect.anything(),
+      [],
+    )
+  })
+
+  it('writes a kept default as the new type reads it, and asks to change one it can’t hold', () => {
+    const onSave = open({ type: 'number', default: 5 })
+    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'string' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith(
+      'field',
+      { type: 'string', default: '5' },
+      expect.anything(),
+      [],
+    )
+    cleanup()
+    const listed = open({
+      type: 'multi-dropdown',
+      options: [
+        { value: 'a', label: 'A' },
+        { value: 'b', label: 'B' },
+      ],
+      default: ['a', 'b'],
+    })
+    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'dropdown' } })
+    expect(screen.getByText(INPUTS_EDITOR_STRINGS.keptValueDoesNotFit)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+    fireEvent.change(screen.getByLabelText('Default'), { target: { value: 'a' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(listed).toHaveBeenCalledWith(
+      'field',
+      expect.objectContaining({ type: 'dropdown', default: 'a' }),
+      expect.anything(),
+      [],
+    )
+  })
+
+  it('labels bare numbers among the options once the options are edited', () => {
+    const onSave = open({ type: 'dropdown', options: [1, 2] })
+    fireEvent.click(screen.getByRole('button', { name: 'Add option' }))
+    const values = screen.getAllByRole('textbox', { name: 'Value' })
+    fireEvent.change(values[values.length - 1] as HTMLElement, { target: { value: 'c' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith(
+      'field',
+      expect.objectContaining({
+        options: [{ value: 1, label: '1' }, { value: 2, label: '2' }, expect.anything()],
+      }),
+      expect.anything(),
+      [],
+    )
+  })
+
+  it('takes only whole numbers for a text’s length, and a pattern that compiles', () => {
+    open({ type: 'string' })
+    fireEvent.change(screen.getByLabelText('Shortest'), { target: { value: '1.5' } })
+    expect(screen.getByText(INPUTS_EDITOR_STRINGS.wholeNumberFrom(0))).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Longest'), { target: { value: '0' } })
+    expect(screen.getByText(INPUTS_EDITOR_STRINGS.wholeNumberFrom(1))).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Characters to strip'), { target: { value: '[a-' } })
+    expect(screen.getByText(INPUTS_EDITOR_STRINGS.invalidPattern)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
   })
 })
