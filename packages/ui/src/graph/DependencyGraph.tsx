@@ -735,12 +735,15 @@ function sizingTransitions(el: HTMLElement) {
     )
 }
 
-// The least shift that brings [start, end] inside [low, high], keeping the start in view when it can't all fit.
-function intoView(start: number, end: number, low: number, high: number) {
+// The least shift that brings [start, end] inside [low, high]; none when it can't all fit, so the view stays.
+export function intoView(start: number, end: number, low: number, high: number) {
+  if (end - start > high - low) {
+    return 0
+  }
   if (start < low) {
     return low - start
   }
-  return end > high ? Math.max(high - end, low - start) : 0
+  return end > high ? high - end : 0
 }
 // A held job outlives only the edit it was held for; a later fit, such as a resize, refits.
 const HOLD_MS = 2000
@@ -1886,6 +1889,8 @@ export default function DependencyGraph({
 
   // A job held for a connection, where it was on screen, which the next fit keeps it at instead.
   const held = useRef<{ job: string; x: number; y: number; at: number } | null>(null)
+  // Once the user pans or zooms the editor's view, its edits keep that view until Fit refits it.
+  const viewed = useRef(false)
   const nodeOf = useCallback((job: string) => {
     const row = [
       ...(containerRef.current?.querySelectorAll<HTMLElement>('[data-dag-job]') ?? []),
@@ -1947,13 +1952,14 @@ export default function DependencyGraph({
       held.current = null
       const kept = pending && performance.now() - pending.at < HOLD_MS
       const node = kept ? nodeOf(pending.job) : null
-      if (pending && node) {
-        const current = transform.instance.state.scale
-        const pos = offsetWithin(node, content)
-        const x = pending.x - pos.x * current
-        const y = pending.y - pos.y * current
+      const viewing = editor && viewed.current && animationMs === 0
+      if ((pending && node) || viewing) {
+        const { positionX, positionY, scale: current } = transform.instance.state
+        const pos = pending && node ? offsetWithin(node, content) : null
+        const x = pending && pos ? pending.x - pos.x * current : positionX
+        const y = pending && pos ? pending.y - pos.y * current : positionY
         transform.setTransform(x, y, current, 0)
-        // Held still unless that leaves part of the graph outside the panel; then the least pan that shows it.
+        // Kept still unless a graph that fits the panel is partly outside it; then the least pan that shows it.
         const dx = intoView(x + minX * current, x + maxX * current, margin, containerW - margin)
         const dy = intoView(y + minY * current, y + maxY * current, margin, containerH - margin)
         requestAnimationFrame(() => {
@@ -1989,7 +1995,7 @@ export default function DependencyGraph({
         invalidateConnectors()
       })
     },
-    [invalidateConnectors, nodeOf],
+    [invalidateConnectors, nodeOf, editor],
   )
 
   // Boxes open and close over CSS transitions, so a fit before they end measures them mid-way:
@@ -2018,7 +2024,6 @@ export default function DependencyGraph({
     fitGraph(FIT_ANIMATION_MS)
   }, [fitGraph, invalidateConnectors, preview, fixedHeight])
 
-  // Pans `el` to the middle of the panel, keeping the zoom.
   const centerOn = useCallback((el: HTMLElement) => {
     const container = containerRef.current
     const content = graphContentRef.current
@@ -2083,12 +2088,17 @@ export default function DependencyGraph({
   )
 
   // The transform's wrapper grows with the graph, so zoom about the middle of what the panel shows.
+  const moved = useCallback(() => {
+    viewed.current = true
+    invalidateConnectors()
+  }, [invalidateConnectors])
   const zoomBy = useCallback((step: number) => {
     const container = containerRef.current
     const transform = transformRef.current
     if (!container || !transform) {
       return
     }
+    viewed.current = true
     const { positionX, positionY, scale } = transform.instance.state
     const next = Math.min(maxScale, Math.max(minScale, scale * Math.exp(step)))
     const x = container.clientWidth / 2
@@ -2160,6 +2170,7 @@ export default function DependencyGraph({
       setExecutedJobsPath([[], ...executedJobsPath.slice(executedJobsPathIdx, 10)])
       setExecutedJobsPathIdx(0)
     } else {
+      viewed.current = false
       fitGraph(FIT_ANIMATION_MS)
     }
   }
@@ -2271,7 +2282,12 @@ export default function DependencyGraph({
   if (!dependencyCols[0]?.length) {
     return editor ? (
       <GraphEditorProvider value={editorApi}>
-        <EmptyGraphEditor overlays={editorOverlays} height={fixedHeight ?? '240px'} />
+        <EmptyGraphEditor
+          containerRef={setContainerElement}
+          overlays={editorOverlays}
+          height={fixedHeight ?? '240px'}
+          removeBorder={removeBorder}
+        />
       </GraphEditorProvider>
     ) : undefined
   }
@@ -2438,10 +2454,10 @@ export default function DependencyGraph({
               onInit={() => {
                 setTimeout(invalidateConnectors, 0)
               }}
-              onPanning={invalidateConnectors}
-              onPinch={invalidateConnectors}
+              onPanning={moved}
+              onPinch={moved}
               onTransform={onTransform}
-              onWheel={invalidateConnectors}
+              onWheel={moved}
               onZoom={invalidateConnectors}
             >
               {() => (

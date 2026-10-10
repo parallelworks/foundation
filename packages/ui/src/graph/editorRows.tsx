@@ -1,5 +1,5 @@
 import cx from 'classnames'
-import type { ReactNode } from 'react'
+import { type ReactNode, useEffect, useRef } from 'react'
 import { TOOLTIP_ID } from '../components/Tooltip'
 import { AddIcon, AlertIcon, DragHandleIcon, MoreIcon } from '../icons'
 import type { EditorProblem } from './editorApi'
@@ -663,9 +663,38 @@ export function EdgeEnds({
 }
 
 /** Shown in place of the graph when the workflow has no jobs yet. */
-export function EmptyGraphEditor({ overlays, height }: { overlays: ReactNode; height: string }) {
+/** The canvas of a graph with no jobs, which takes the graph's keys, so undo and paste still work. */
+export function EmptyGraphEditor({
+  containerRef,
+  overlays,
+  height,
+  removeBorder,
+}: {
+  containerRef: (el: HTMLDivElement | null) => void
+  overlays: ReactNode
+  height: string
+  removeBorder?: boolean | undefined
+}) {
+  const own = useRef<HTMLDivElement | null>(null)
+  // Deleting the last job takes focus with it; the canvas picks it up so the next key lands here.
+  useEffect(() => {
+    if (document.activeElement === document.body) {
+      own.current?.focus({ preventScroll: true })
+    }
+  }, [])
   return (
-    <div className="panel relative w-full overflow-hidden border" style={{ height }}>
+    <div
+      ref={(el) => {
+        own.current = el
+        containerRef(el)
+      }}
+      tabIndex={-1}
+      className={cx(
+        'panel relative w-full overflow-hidden outline-none',
+        removeBorder ? 'border-none' : 'border',
+      )}
+      style={{ height }}
+    >
       {overlays}
     </div>
   )
