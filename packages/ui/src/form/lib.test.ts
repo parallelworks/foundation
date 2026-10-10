@@ -4,6 +4,7 @@ import {
   flattenGroups,
   impureSetValueFromPath,
   initializeValues,
+  inputWidth,
 } from './lib'
 
 const MockSchema = {
@@ -42,6 +43,21 @@ const MockSchema = {
     label: 'field2',
   },
 }
+
+describe('inputWidth', () => {
+  it('reads a number as pixels and keeps a percentage', () => {
+    expect(inputWidth(320)).toBe('320px')
+    expect(inputWidth('50%')).toBe('50%')
+    expect(inputWidth('33.5%')).toBe('33.5%')
+    expect(inputWidth('100%')).toBe('100%')
+  })
+
+  it('ignores anything else', () => {
+    for (const value of [0, -5, Number.NaN, '50px', '320', '0%', '150%', 'abc', null, undefined]) {
+      expect(inputWidth(value)).toBeUndefined()
+    }
+  })
+})
 
 describe('flattenGroups', () => {
   it('should flatten schema', () => {
@@ -282,6 +298,28 @@ describe('initializeValues', () => {
       storages: [],
     }
     expect(result).toEqual(expectedResult)
+  })
+
+  it('starts a list from its default rows when nothing is saved', () => {
+    const schema = {
+      hosts: {
+        type: 'list',
+        default: [{ name: 'a' }, { name: 'b', port: 22 }],
+        options: {
+          name: { type: 'string' },
+          port: { type: 'number', default: 80 },
+        },
+      },
+    }
+    expect(initializeValues(schema, {})?.['hosts']).toEqual([
+      { name: 'a', port: 80 },
+      { name: 'b', port: 22 },
+    ])
+    // A saved value wins, even an empty one, so a rerun keeps what was run.
+    expect(initializeValues(schema, { hosts: [] })?.['hosts']).toEqual([])
+    expect(initializeValues(schema, { hosts: [{ name: 'c' }] })?.['hosts']).toEqual([
+      { name: 'c', port: 80 },
+    ])
   })
 
   it('restores secondary values for persisted grouped storage selections', () => {
@@ -951,5 +989,36 @@ describe('deepEqual', () => {
     const obj2 = [{ current: null }]
     const result = deepEqual(obj1, obj2)
     expect(result).toBe(false)
+  })
+})
+
+describe('a repeated wizard page', () => {
+  const schema = {
+    $meta: { wizard: { mode: 'wizard' } },
+    hosts: { type: 'step', multi: true, options: { cpus: { type: 'number', default: 2 } } },
+  }
+
+  it('starts with no copy, as a list starts with no row, its values a list under the page’s name', () => {
+    expect(initializeValues(schema)).toEqual({ hosts: [] })
+  })
+
+  it('keeps no more saved copies than its max', () => {
+    const bounded = { hosts: { ...schema.hosts, max: 1 } }
+    expect(initializeValues(bounded, { hosts: [{ cpus: 8 }, { cpus: 4 }] })).toEqual({
+      hosts: [{ cpus: 8 }],
+    })
+  })
+
+  it('pads the saved copies up to its min from the defaults', () => {
+    const bounded = { hosts: { ...schema.hosts, min: 3 } }
+    expect(initializeValues(bounded, { hosts: [{ cpus: 8 }] })).toEqual({
+      hosts: [{ cpus: 8 }, { cpus: 2 }, { cpus: 2 }],
+    })
+  })
+
+  it('keeps every saved copy, defaulting what one leaves out', () => {
+    expect(initializeValues(schema, { hosts: [{ cpus: 8 }, {}] })).toEqual({
+      hosts: [{ cpus: 8 }, { cpus: 2 }],
+    })
   })
 })

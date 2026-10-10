@@ -1,5 +1,8 @@
 import cx from 'classnames'
+import { useEffect, useRef, useState } from 'react'
+import { useStrings } from '../../components/Provider'
 import type { WizardStepIndicatorProps } from './types'
+import { stepText } from './utils'
 
 export function WizardStepIndicator({
   stepOrder,
@@ -11,7 +14,43 @@ export function WizardStepIndicator({
   allowJump = false,
   hideStepNumbers = false,
 }: WizardStepIndicatorProps) {
+  const { form: strings } = useStrings()
   const currentIndex = stepOrder.indexOf(currentStep)
+  // Many pages, as a repeated page's copies make, scroll in this row instead of widening the form, and
+  // the current one is brought into view within it without moving the page.
+  const row = useRef<HTMLOListElement>(null)
+  // A row that scrolls takes focus, so a keyboard can scroll it when none of its dots can be focused.
+  const [scrolls, setScrolls] = useState(false)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: more steps can overflow a row whose own size stays.
+  useEffect(() => {
+    const el = row.current
+    if (!el) {
+      return
+    }
+    const measure = () => setScrolls(el.scrollWidth > el.clientWidth)
+    measure()
+    if (typeof ResizeObserver === 'undefined') {
+      return
+    }
+    // Its steps too: a title that resolves to a longer word widens one without resizing the row.
+    const observer = new ResizeObserver(measure)
+    for (const box of [el, ...el.children]) {
+      observer.observe(box)
+    }
+    return () => observer.disconnect()
+  }, [stepOrder.length])
+  useEffect(() => {
+    const el = row.current
+    const step = el?.children[currentIndex]
+    if (!el || !step || el.scrollWidth <= el.clientWidth) {
+      return
+    }
+    const box = el.getBoundingClientRect()
+    const at = step.getBoundingClientRect()
+    if (at.left < box.left || at.right > box.right) {
+      el.scrollLeft += at.left - box.left - (box.width - at.width) / 2
+    }
+  }, [currentIndex])
 
   const getStepStatus = (stepKey: string, index: number) => {
     if (stepKey === currentStep) {
@@ -24,7 +63,12 @@ export function WizardStepIndicator({
   }
 
   return (
-    <div className="flex items-start justify-between w-full mb-2 gap-4 py-2">
+    <ol
+      ref={row}
+      aria-label={strings.steps}
+      tabIndex={scrolls ? 0 : undefined}
+      className="flex items-start justify-between w-full mb-2 gap-4 py-2 overflow-x-auto"
+    >
       {stepOrder.map((stepKey, index) => {
         const stepConfig = steps[stepKey]
         const status = getStepStatus(stepKey, index)
@@ -36,12 +80,13 @@ export function WizardStepIndicator({
         const isDotUpcoming = status === 'upcoming'
 
         return (
-          <div key={stepKey} className="flex flex-col items-center flex-1 relative">
+          <li key={stepKey} className="flex flex-col items-center flex-1 relative">
             {/* Step dot */}
             <button
               type="button"
               onClick={() => onStepClick(stepKey)}
               disabled={!isClickable}
+              aria-current={isDotActive ? 'step' : undefined}
               className={cx(
                 'w-12 h-12 rounded-full border-3 flex items-center justify-center font-bold text-base transition-all duration-300 flex-shrink-0 relative',
                 {
@@ -73,8 +118,8 @@ export function WizardStepIndicator({
                     }
                   : { zIndex: 10 }
               }
-              aria-label={`Step ${index + 1}: ${stepConfig?.title}`}
-              title={stepConfig?.title}
+              aria-label={`Step ${index + 1}: ${stepText(stepConfig?.title)}`}
+              title={stepText(stepConfig?.title)}
             >
               {!hideStepNumbers && (
                 <span className={cx({ hidden: status === 'completed' })}>{index + 1}</span>
@@ -126,17 +171,17 @@ export function WizardStepIndicator({
                 })}
                 style={isDotActive ? { color: 'var(--theme-element)' } : {}}
               >
-                {stepConfig?.title}
+                {stepText(stepConfig?.title)}
               </div>
               {stepConfig?.description && (
                 <div className="text-xs theme-muted-text mt-1 text-center max-w-30">
-                  {stepConfig.description}
+                  {stepText(stepConfig.description)}
                 </div>
               )}
             </div>
-          </div>
+          </li>
         )
       })}
-    </div>
+    </ol>
   )
 }

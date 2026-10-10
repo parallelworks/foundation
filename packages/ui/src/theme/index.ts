@@ -69,6 +69,8 @@ export interface ThemeSeed {
   background: string
   /** How far foregrounds and borders sit from the background. 1 is normal; sensible range is roughly 0.5–1.5. */
   contrast?: number
+  /** Text color on accent fills; white or black, whichever reads better, when unset. */
+  accentText?: string
 }
 
 export interface SurfaceSeeds {
@@ -208,7 +210,7 @@ export function deriveTheme(seed: ThemeSeed | SurfaceSeeds): ThemeVariables {
   const hover = dark ? mix(bg, '#ffffff', 0.08) : mix(bg, '#000000', 0.04)
   const inputBg = dark ? mix(bg, '#ffffff', 0.08) : mix(bg, '#ffffff', 0.65)
   const link = ensureReadable(accent, bg, 4.5)
-  const accentText = readableOn(accent)
+  const accentText = surfaces.interface.accentText ?? readableOn(accent)
   const accentHover = mix(accent, pole, 0.1)
   const cardBg = panelBg
   // Without its own seed the sidebar follows the interface: dark themes keep
@@ -288,10 +290,12 @@ export const THEME_PRESETS: readonly ThemePreset[] = [
       sidebar: { accent: '#06354f', background: '#06354f' },
     },
   },
+  // White on Light's blue accent, as an app's own light theme has it. Dark keeps dark text on its brighter
+  // blue: white on it falls below 4.5:1, and a blue deep enough for white is too dark to read as text.
   {
     name: 'light',
     label: 'Light',
-    seed: { interface: { accent: '#0d6efd', background: '#ffffff' } },
+    seed: { interface: { accent: '#0d6efd', background: '#ffffff', accentText: '#ffffff' } },
   },
   {
     name: 'dark',

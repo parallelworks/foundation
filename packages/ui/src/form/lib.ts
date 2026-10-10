@@ -1,5 +1,6 @@
 import type { DynamicFormSchema } from './types/fieldTypes'
 import { applySecondaryField, findSecondaryOption } from './utils/secondaryField'
+import { copyBounds } from './Wizard/utils'
 
 interface SchemaEntry {
   type?: string
@@ -9,6 +10,9 @@ interface SchemaEntry {
   default?: unknown
   autoselect?: unknown
   prefillDefault?: unknown
+  multi?: unknown
+  min?: unknown
+  max?: unknown
   wizard?: { flatten?: boolean }
 }
 
@@ -30,6 +34,16 @@ function asRecord(value: unknown): Record<string, unknown> {
  */
 export function resolvedFlag<T>(value: T): T | undefined {
   return typeof value === 'string' && value.includes('${{') ? undefined : value
+}
+
+const PERCENT_WIDTH = /^(100|[1-9]\d?(\.\d+)?)%$/
+
+/** An input's `width` as CSS: a number of pixels or a percentage; undefined for anything else. */
+export function inputWidth(value: unknown): string | undefined {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) && value > 0 ? `${value}px` : undefined
+  }
+  return typeof value === 'string' && PERCENT_WIDTH.test(value) ? value : undefined
 }
 
 export function enforceOneMustBeTrue(
@@ -137,6 +151,16 @@ export function initializeValues(
         return acc
       }
       const fieldSchema = schema[field] ?? EMPTY_ENTRY
+      // A repeated page keeps a row per copy: those saved, padded to its `min`.
+      if (fieldSchema.type === 'step' && fieldSchema.multi === true) {
+        const saved = data[field]
+        const rows: unknown[] = Array.isArray(saved) ? saved : []
+        const { lo, hi } = copyBounds(fieldSchema.min, fieldSchema.max)
+        const length = Math.min(Math.max(rows.length, lo), hi ?? Number.POSITIVE_INFINITY)
+        const sized = Array.from({ length }, (_, i) => rows[i] ?? {})
+        acc[field] = sized.map((row) => initializeValues(fieldSchema.options, asRecord(row)))
+        return acc
+      }
       // A group's fields, and a wizard step's unless the wizard keeps steps nested,
       // live at the level that holds the group.
       const flattenStep = fieldSchema.type === 'step' && schema['$meta']?.wizard?.flatten !== false
@@ -152,9 +176,10 @@ export function initializeValues(
         return acc
       }
       if (fieldSchema.type === 'list') {
+        // A list with nothing saved starts from its default rows, so a form run gets them as an API run does.
+        const listData = data[field] !== undefined ? data[field] : fieldSchema.default
         // String-list shorthand (options: 'string') stores raw strings,
         // so pass them through without recursing into each character.
-        const listData = data[field]
         if (fieldSchema.options === 'string') {
           acc[field] = Array.isArray(listData) ? [...listData] : []
           return acc

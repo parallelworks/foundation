@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { Form, Formik } from 'formik'
-import type { ReactNode } from 'react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { Form, Formik, type FormikProps, type FormikValues } from 'formik'
+import { createRef, type ReactNode } from 'react'
 
 // Polyfill structuredClone for Jest environment
 if (typeof structuredClone === 'undefined') {
@@ -36,6 +36,7 @@ vi.mock('@parallelworks/ui', async () => ({
 
 vi.mock('@parallelworks/ui/icons', () => ({
   AngleRightIcon: () => null,
+  LoaderIcon: () => null,
   SuccessCheckmark: () => null,
   TrashIcon: () => null,
 }))
@@ -46,30 +47,36 @@ vi.mock('react-tooltip', () => ({
 
 vi.mock('./infraFieldRegistry', () => ({ INFRA_FIELD_COMPONENTS: {} }))
 
-vi.mock('./fieldRegistry', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./fieldRegistry')>()),
-  Registry: ({
-    field,
-    label,
-  }: {
-    field: { name: string; type: string; optional?: unknown }
-    label: string
-  }) => (
-    // data-optional surfaces the resolved flag; FieldWrapper renders the required
-    // asterisk from it, but the real field components are mocked out here.
-    <div data-testid={`field-${field.name}`} data-optional={String(field.optional)}>
-      <label htmlFor={field.name}>{label}</label>
-      <input id={field.name} name={field.name} type="text" />
-    </div>
-  ),
-}))
+vi.mock('./fieldRegistry', async (importOriginal) => {
+  const original = await importOriginal<typeof import('./fieldRegistry')>()
+  return {
+    ...original,
+    Registry: (props: Parameters<typeof original.Registry>[0]) => {
+      const { field, label, labelPosition } = props
+      // A group that keeps its own values renders for real, so the fields inside it can be found.
+      if (field.type === 'object') return <original.Registry {...props} />
+      return (
+        // data-optional surfaces the resolved flag; FieldWrapper renders the required
+        // asterisk from it, but the real field components are mocked out here.
+        <div
+          data-testid={`field-${field.name}`}
+          data-optional={String(field.optional)}
+          data-label-position={labelPosition}
+        >
+          <label htmlFor={field.name}>{label}</label>
+          <input id={field.name} name={field.name} type="text" />
+        </div>
+      )
+    },
+  }
+})
 
-// Mock ResizeObserver
-global.ResizeObserver = vi.fn().mockImplementation(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-}))
+// A class, as the step row constructs one.
+global.ResizeObserver = class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+} as unknown as typeof ResizeObserver
 
 import { testEngine } from '../test/engine'
 
@@ -207,6 +214,651 @@ describe('DynamicForm workflowForm prop', () => {
       const lastValues = capturedValues[capturedValues.length - 1]!
       expect(lastValues).toHaveProperty('hiddenIgnoredField', 'default-value')
     })
+  })
+})
+
+describe('input widths', () => {
+  const cellOf = (name: string) => screen.getByTestId(`field-${name}`).closest('[data-input-cell]')
+  const labelOf = (name: string) =>
+    screen.getByTestId(`field-${name}`).getAttribute('data-label-position')
+
+  it('stacks a form without widths as it always has', async () => {
+    const { container } = render(
+      <DynamicForm
+        initialValues={{}}
+        formJSONs={{ a: { type: 'string' }, b: { type: 'string', width: '50px' } }}
+      />,
+    )
+    await screen.findByTestId('field-a')
+    expect(container.querySelector('[data-input-cell]')).toBeNull()
+  })
+
+  it('gives each input a cell as wide as its width, full width without one, and only pixels in a narrow list', async () => {
+    render(
+      <DynamicForm
+        initialValues={{}}
+        formJSONs={{
+          half: { type: 'string', width: '50%' },
+          fixed: { type: 'string', width: 320 },
+          whole: { type: 'string' },
+        }}
+      />,
+    )
+    await screen.findByTestId('field-half')
+    expect(cellOf('half')).toHaveStyle({ '--input-width': '50%', '--input-narrow': '100%' })
+    expect(cellOf('fixed')).toHaveStyle({ '--input-width': '320px', '--input-narrow': '320px' })
+    expect(cellOf('whole')).toHaveStyle({ '--input-width': '100%', '--input-narrow': '100%' })
+  })
+
+  it('puts an input marked anchor-below in the column of the shown one before it, at its own width', async () => {
+    render(
+      <DynamicForm
+        initialValues={{}}
+        formJSONs={{
+          a: { type: 'string', width: '50%' },
+          b: { type: 'string', width: '50%' },
+          h: { type: 'string', hidden: true },
+          c: { type: 'string', 'anchor-below': true, width: '25%' },
+          d: { type: 'string', 'anchor-below': true },
+        }}
+      />,
+    )
+    await screen.findByTestId('field-c')
+    expect(cellOf('c')).toBe(cellOf('b'))
+    expect(cellOf('d')).toBe(cellOf('b'))
+    expect(cellOf('a')).not.toBe(cellOf('b'))
+    expect(cellOf('b')).toHaveStyle({ '--input-width': '50%' })
+    expect(screen.getByTestId('field-c').closest('[data-input-member]')).toHaveStyle({
+      '--input-width': 'calc(25cqw - 1rem)',
+      '--input-narrow': '100%',
+    })
+    expect(screen.getByTestId('field-d').closest('[data-input-member]')).toBeNull()
+    expect(labelOf('c')).toBe('top')
+  })
+
+  it('gives the first input of a list a column of its own even when marked anchor-below', async () => {
+    render(
+      <DynamicForm
+        initialValues={{}}
+        formJSONs={{
+          a: { type: 'string', 'anchor-below': true, width: '50%' },
+          b: { type: 'string', width: '50%' },
+        }}
+      />,
+    )
+    await screen.findByTestId('field-a')
+    expect(cellOf('a')).not.toBe(cellOf('b'))
+    expect(cellOf('a')).toHaveStyle({ '--input-width': '50%' })
+  })
+
+  it('puts the label of an input sharing its row on top when the workflow chose no position', async () => {
+    render(
+      <DynamicForm
+        initialValues={{}}
+        formJSONs={{
+          half: { type: 'string', width: '50%' },
+          full: { type: 'string', width: '100%' },
+          whole: { type: 'string' },
+        }}
+      />,
+    )
+    await screen.findByTestId('field-half')
+    expect(labelOf('half')).toBe('top')
+    expect(labelOf('full')).toBe('left')
+    expect(labelOf('whole')).toBe('left')
+  })
+
+  it('follows the label position the workflow chose, in its groups too', async () => {
+    render(
+      <DynamicForm
+        initialValues={{}}
+        formJSONs={{
+          $meta: { labelPosition: 'left' },
+          half: { type: 'string', width: '50%' },
+          settings: {
+            type: 'group',
+            label: 'Settings',
+            options: { inner: { type: 'string', width: '50%' } },
+          },
+          chosen: {
+            type: 'group',
+            label: 'Chosen',
+            options: {
+              $meta: { labelPosition: 'top' },
+              own: { type: 'string' },
+            },
+          },
+        }}
+      />,
+    )
+    await screen.findByTestId('field-half')
+    expect(labelOf('half')).toBe('left')
+    expect(labelOf('inner')).toBe('left')
+    expect(labelOf('own')).toBe('top')
+  })
+})
+
+describe('a wizard inside a group', () => {
+  it('pages its fields inside the form, with no submit of its own', async () => {
+    render(
+      <DynamicForm
+        initialValues={{}}
+        formJSONs={{
+          before: { type: 'string' },
+          steps: {
+            type: 'group',
+            label: 'Steps',
+            options: {
+              $meta: { wizard: { mode: 'wizard' } },
+              one: { type: 'step', title: 'One', options: { a: { type: 'string' } } },
+              two: { type: 'step', title: 'Two', options: { b: { type: 'string' } } },
+            },
+          },
+        }}
+      />,
+    )
+    await screen.findByTestId('field-a')
+    expect(screen.getByTestId('field-before')).toBeInTheDocument()
+    expect(screen.queryByTestId('field-b')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Go to next step' }))
+    await screen.findByTestId('field-b')
+    expect(screen.queryByTestId('field-a')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Go to previous step' })).toBeEnabled()
+    expect(screen.getAllByRole('button').some((b) => b.textContent === 'Execute')).toBe(false)
+  })
+
+  it('keeps its values under a group that keeps its own, a repeated page’s copies included', async () => {
+    const seen = vi.fn()
+    render(
+      <DynamicForm
+        initialValues={{}}
+        setValues={seen}
+        formJSONs={{
+          // A group that isn't flattened converts to an object, so its fields' values sit under its name.
+          setup: {
+            type: 'object',
+            label: 'Setup',
+            options: {
+              $meta: { wizard: { mode: 'wizard' } },
+              hosts: {
+                type: 'step',
+                title: 'Host',
+                multi: true,
+                options: { cpus: { type: 'number', default: 2 } },
+              },
+              name: { type: 'step', title: 'Name', options: { label: { type: 'string' } } },
+            },
+          },
+        }}
+      />,
+    )
+    fireEvent.click(await screen.findByRole('button', { name: '+ Add Host' }))
+    await screen.findByTestId('field-setup.hosts[0].cpus')
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith(
+        expect.objectContaining({ setup: expect.objectContaining({ hosts: [{ cpus: 2 }] }) }),
+      ),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Go to next step' }))
+    await screen.findByTestId('field-setup.label')
+  })
+})
+
+describe('a repeated wizard page', () => {
+  it('starts with no copy, adds the first from its empty page, and removes back to none', async () => {
+    const seen = vi.fn()
+    render(
+      <DynamicForm
+        initialValues={{}}
+        setValues={seen}
+        formJSONs={{
+          $meta: { wizard: { mode: 'wizard' } },
+          hosts: {
+            type: 'step',
+            title: 'Host',
+            multi: true,
+            options: { cpus: { type: 'number', default: 2 } },
+          },
+          done: { type: 'step', title: 'Done', options: { note: { type: 'string' } } },
+        }}
+      />,
+    )
+    await screen.findByRole('heading', { name: 'Host' })
+    expect(screen.queryByRole('button', { name: 'Remove Host' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Host' }))
+    await screen.findByRole('heading', { name: 'Host 1' })
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith(expect.objectContaining({ hosts: [{ cpus: 2 }] })),
+    )
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Host' }))
+    await screen.findByRole('heading', { name: 'Host 2' })
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith(
+        expect.objectContaining({ hosts: [{ cpus: 2 }, { cpus: 2 }] }),
+      ),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Host' }))
+    await screen.findByRole('heading', { name: 'Host 1' })
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Host' }))
+    await screen.findByRole('heading', { name: 'Host' })
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith(expect.objectContaining({ hosts: [] })),
+    )
+  })
+})
+
+describe('a repeated wizard page’s copies', () => {
+  afterEach(() => {
+    vi.mocked(testEngine.evaluate).mockImplementation(
+      (({ obj }: { obj: unknown }) => obj) as unknown as typeof testEngine.evaluate,
+    )
+    vi.mocked(testEngine.inputDependencies).mockImplementation(() => ({
+      inputDeps: new Set<string>(),
+      hasExpressions: false,
+    }))
+  })
+
+  it('reads a copy’s title again when an input it reads changes, and not for another input', async () => {
+    const title = '${{ inputs.clusters[index].name }}'
+    vi.mocked(testEngine.inputDependencies).mockImplementation((obj?: unknown) => ({
+      inputDeps: new Set<string>(obj === title ? ['clusters'] : []),
+      hasExpressions: obj === title,
+    }))
+    vi.mocked(testEngine.evaluate).mockImplementation((({
+      inputs,
+      obj,
+      index,
+    }: {
+      inputs: { clusters?: { name: string }[] }
+      obj: { text?: unknown }
+      index?: number
+    }) =>
+      obj?.text === title
+        ? { text: `Cluster ${inputs.clusters?.[index ?? 0]?.name}` }
+        : obj) as unknown as typeof testEngine.evaluate)
+    const titleReads = () =>
+      vi
+        .mocked(testEngine.evaluate)
+        .mock.calls.filter(([options]) => (options.obj as { text?: unknown })?.text === title)
+        .length
+    const formikRef = createRef<FormikProps<FormikValues>>()
+    const seen = vi.fn()
+    render(
+      <DynamicForm
+        initialValues={{ clusters: [{ name: 'a' }, { name: 'b' }], other: '' }}
+        formikRef={formikRef}
+        setValues={seen}
+        formJSONs={{
+          $meta: { wizard: { mode: 'wizard' } },
+          hosts: {
+            type: 'step',
+            title,
+            multi: true,
+            min: 2,
+            max: 2,
+            options: { cpus: { type: 'number' } },
+          },
+        }}
+      />,
+    )
+    await screen.findByRole('heading', { name: 'Cluster a' })
+    const before = titleReads()
+    act(() => {
+      formikRef.current?.setFieldValue('other', 'typed')
+    })
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith(expect.objectContaining({ other: 'typed' })),
+    )
+    expect(titleReads()).toBe(before)
+    act(() => {
+      formikRef.current?.setFieldValue('clusters', [{ name: 'c' }, { name: 'b' }])
+    })
+    await screen.findByRole('heading', { name: 'Cluster c' })
+  })
+
+  it('takes each copy’s title by reading [index] and its description from a list, fixed when min is max', async () => {
+    const clusters = ['a', 'b', 'c']
+    vi.mocked(testEngine.evaluate).mockImplementation((({
+      obj,
+      index,
+    }: {
+      obj: { text?: unknown }
+      index?: number
+    }) =>
+      typeof obj?.text === 'string' && obj.text.includes('[index]')
+        ? { text: `Cluster ${clusters[index ?? 0]}` }
+        : obj) as unknown as typeof testEngine.evaluate)
+    render(
+      <DynamicForm
+        initialValues={{}}
+        formJSONs={{
+          $meta: { wizard: { mode: 'wizard' } },
+          hosts: {
+            type: 'step',
+            title: '${{ inputs.clusters.[index].name }}',
+            description: ['first', 'second', 'third'],
+            multi: true,
+            min: 3,
+            max: 3,
+            options: { cpus: { type: 'number' } },
+          },
+        }}
+      />,
+    )
+    await screen.findByRole('heading', { name: 'Cluster a' })
+    expect(screen.getAllByText('Cluster c').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('first').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('third').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: /Add/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Remove/ })).toBeNull()
+  })
+
+  it('starts at its min, removes no copy at it, and adds none past its max', async () => {
+    render(
+      <DynamicForm
+        initialValues={{}}
+        formJSONs={{
+          $meta: { wizard: { mode: 'wizard', navigation: { allowJump: true } } },
+          hosts: {
+            type: 'step',
+            title: 'Host',
+            multi: true,
+            min: 2,
+            max: 3,
+            options: { cpus: { type: 'number' } },
+          },
+        }}
+      />,
+    )
+    await screen.findByRole('heading', { name: 'Host 1' })
+    expect(screen.getAllByText('Host 2').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: 'Remove Host' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Go to next step' }))
+    fireEvent.click(await screen.findByRole('button', { name: '+ Add Host' }))
+    await screen.findByRole('heading', { name: 'Host 3' })
+    expect(screen.queryByRole('button', { name: '+ Add Host' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Remove Host' })).toBeInTheDocument()
+  })
+})
+
+describe('a repeated wizard page’s buttons', () => {
+  it('name the copy they remove or add when each copy has its own title', async () => {
+    render(
+      <DynamicForm
+        initialValues={{ workers: [{}, {}] }}
+        formJSONs={{
+          $meta: { wizard: { mode: 'wizard', navigation: { allowJump: true } } },
+          workers: {
+            type: 'step',
+            title: ['GPU workers', 'CPU workers'],
+            multi: true,
+            max: 3,
+            options: { nodes: { type: 'number' } },
+          },
+        }}
+      />,
+    )
+    await screen.findByRole('heading', { name: 'GPU workers' })
+    expect(screen.getByRole('button', { name: 'Remove GPU workers' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Go to next step' }))
+    await screen.findByRole('heading', { name: 'CPU workers' })
+    expect(screen.getByRole('button', { name: 'Remove CPU workers' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '+ Add GPU workers 3' })).toBeInTheDocument()
+  })
+})
+
+describe('a repeated wizard page’s bounds', () => {
+  it('leaves out a page whose max allows no copy, as when the input its bounds read is empty', async () => {
+    render(
+      <DynamicForm
+        initialValues={{}}
+        formJSONs={{
+          $meta: { wizard: { mode: 'wizard' } },
+          settings: {
+            type: 'step',
+            title: 'Settings',
+            multi: true,
+            min: 0,
+            max: 0,
+            options: { version: { type: 'string' } },
+          },
+          done: { type: 'step', title: 'Done', options: { note: { type: 'string' } } },
+        }}
+      />,
+    )
+    await screen.findByRole('heading', { name: 'Done' })
+    expect(screen.queryByText('Settings')).toBeNull()
+  })
+
+  it('drops the copies past its max, as when the input its bounds read gets smaller', async () => {
+    const seen = vi.fn()
+    render(
+      <DynamicForm
+        initialValues={{ hosts: [{ cpus: 1 }, { cpus: 2 }, { cpus: 3 }] }}
+        setValues={seen}
+        formJSONs={{
+          $meta: { wizard: { mode: 'wizard', navigation: { allowJump: true } } },
+          hosts: {
+            type: 'step',
+            title: 'Host',
+            multi: true,
+            max: 2,
+            options: { cpus: { type: 'number' } },
+          },
+        }}
+      />,
+    )
+    await screen.findByRole('heading', { name: 'Host 1' })
+    expect(screen.getAllByText('Host 2').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Host 3')).toBeNull()
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith(
+        expect.objectContaining({ hosts: [{ cpus: 1 }, { cpus: 2 }] }),
+      ),
+    )
+  })
+})
+
+describe('a repeated wizard page’s copies as its bounds change', () => {
+  const hosts = (bound: number) => ({
+    $meta: { wizard: { mode: 'wizard', navigation: { allowJump: true } } },
+    hosts: {
+      type: 'step',
+      title: 'Host',
+      multi: true,
+      min: bound,
+      max: bound,
+      options: { cpus: { type: 'number' } },
+    },
+  })
+
+  it('brings back what a copy held when a lower max set it aside and the bounds allow it again', async () => {
+    const seen = vi.fn()
+    const initialValues = { hosts: [{ cpus: 1 }, { cpus: 2 }, { cpus: 3 }] }
+    const { rerender } = render(
+      <DynamicForm initialValues={initialValues} setValues={seen} formJSONs={hosts(3)} />,
+    )
+    await screen.findByRole('heading', { name: 'Host 1' })
+    rerender(<DynamicForm initialValues={initialValues} setValues={seen} formJSONs={hosts(2)} />)
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith(
+        expect.objectContaining({ hosts: [{ cpus: 1 }, { cpus: 2 }] }),
+      ),
+    )
+    rerender(<DynamicForm initialValues={initialValues} setValues={seen} formJSONs={hosts(3)} />)
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith(
+        expect.objectContaining({ hosts: [{ cpus: 1 }, { cpus: 2 }, { cpus: 3 }] }),
+      ),
+    )
+  })
+
+  const upTo = (max: number) => ({
+    $meta: { wizard: { mode: 'wizard', navigation: { allowJump: true } } },
+    hosts: {
+      type: 'step',
+      title: 'Host',
+      multi: true,
+      max,
+      options: { cpus: { type: 'number', default: 2 } },
+    },
+  })
+
+  it('brings back every copy a lower max set aside, one for each Add', async () => {
+    const seen = vi.fn()
+    const initialValues = { hosts: [{ cpus: 1 }, { cpus: 2 }, { cpus: 3 }, { cpus: 4 }] }
+    const form = (max: number) => (
+      <DynamicForm initialValues={initialValues} setValues={seen} formJSONs={upTo(max)} />
+    )
+    const { rerender } = render(form(4))
+    await screen.findByRole('heading', { name: 'Host 1' })
+    rerender(form(2))
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith({ hosts: [{ cpus: 1 }, { cpus: 2 }] }),
+    )
+    rerender(form(4))
+    fireEvent.click(screen.getByRole('button', { name: 'Go to next step' }))
+    fireEvent.click(await screen.findByRole('button', { name: '+ Add Host' }))
+    await screen.findByRole('heading', { name: 'Host 3' })
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Host' }))
+    await waitFor(() => expect(seen).toHaveBeenLastCalledWith(initialValues))
+  })
+
+  it('brings back every copy a lower bound set aside as the bound rises a step at a time', async () => {
+    const seen = vi.fn()
+    const initialValues = { hosts: [{ cpus: 1 }, { cpus: 2 }, { cpus: 3 }, { cpus: 4 }] }
+    const form = (bound: number) => (
+      <DynamicForm initialValues={initialValues} setValues={seen} formJSONs={hosts(bound)} />
+    )
+    const { rerender } = render(form(4))
+    await screen.findByRole('heading', { name: 'Host 1' })
+    for (const bound of [2, 3, 4]) {
+      rerender(form(bound))
+      await waitFor(() =>
+        expect(seen).toHaveBeenLastCalledWith({ hosts: initialValues.hosts.slice(0, bound) }),
+      )
+    }
+  })
+
+  it('drops what a lower max set aside once saved inputs replace the values', async () => {
+    const formikRef = createRef<FormikProps<FormikValues>>()
+    const seen = vi.fn()
+    const initialValues = { hosts: [{ cpus: 1 }, { cpus: 2 }, { cpus: 3 }] }
+    const form = (max: number) => (
+      <DynamicForm
+        initialValues={initialValues}
+        formikRef={formikRef}
+        setValues={seen}
+        formJSONs={upTo(max)}
+      />
+    )
+    const { rerender } = render(form(3))
+    await screen.findByRole('heading', { name: 'Host 1' })
+    rerender(form(2))
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith({ hosts: [{ cpus: 1 }, { cpus: 2 }] }),
+    )
+    act(() => {
+      formikRef.current?.resetForm({ values: { hosts: [{ cpus: 7 }, { cpus: 8 }] } })
+    })
+    rerender(form(3))
+    fireEvent.click(screen.getByRole('button', { name: 'Go to next step' }))
+    fireEvent.click(await screen.findByRole('button', { name: '+ Add Host' }))
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith({ hosts: [{ cpus: 7 }, { cpus: 8 }, { cpus: 2 }] }),
+    )
+  })
+
+  it('keeps the person’s place when the step shown goes whole', async () => {
+    const form = (max: number) => (
+      <DynamicForm
+        initialValues={{ hosts: [{ cpus: 1 }, { cpus: 2 }] }}
+        formJSONs={{
+          $meta: { wizard: { mode: 'wizard', navigation: { allowJump: true } } },
+          start: { type: 'step', title: 'Start', options: { name: { type: 'string' } } },
+          hosts: {
+            type: 'step',
+            title: 'Host',
+            multi: true,
+            max,
+            options: { cpus: { type: 'number' } },
+          },
+          mid: { type: 'step', title: 'Mid', options: { size: { type: 'string' } } },
+          done: { type: 'step', title: 'Done', options: { note: { type: 'string' } } },
+        }}
+      />
+    )
+    const { rerender } = render(form(2))
+    await screen.findByRole('heading', { name: 'Start' })
+    fireEvent.click(screen.getByRole('button', { name: 'Go to next step' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Go to next step' }))
+    await screen.findByRole('heading', { name: 'Host 2' })
+    rerender(form(0))
+    // The page after the step's, not the one now where Host 2 was.
+    await screen.findByRole('heading', { name: 'Mid' })
+  })
+
+  it('goes on to the next step’s first copy when one change takes the step shown and gives the next copies', async () => {
+    const formikRef = createRef<FormikProps<FormikValues>>()
+    const form = (max: number) => (
+      <DynamicForm
+        initialValues={{ hosts: [{ cpus: 1 }, { cpus: 2 }] }}
+        formikRef={formikRef}
+        formJSONs={{
+          $meta: { wizard: { mode: 'wizard', navigation: { allowJump: true } } },
+          start: { type: 'step', title: 'Start', options: { name: { type: 'string' } } },
+          hosts: {
+            type: 'step',
+            title: 'Host',
+            multi: true,
+            max,
+            options: { cpus: { type: 'number' } },
+          },
+          sites: {
+            type: 'step',
+            title: 'Site',
+            multi: true,
+            options: { zone: { type: 'string' } },
+          },
+          done: { type: 'step', title: 'Done', options: { note: { type: 'string' } } },
+        }}
+      />
+    )
+    const { rerender } = render(form(2))
+    await screen.findByRole('heading', { name: 'Start' })
+    fireEvent.click(screen.getByRole('button', { name: 'Go to next step' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Go to next step' }))
+    await screen.findByRole('heading', { name: 'Host 2' })
+    act(() => {
+      rerender(form(0))
+      formikRef.current?.resetForm({ values: { hosts: [], sites: [{ zone: 'a' }] } })
+    })
+    await screen.findByRole('heading', { name: 'Site 1' })
+  })
+
+  it('shows the nearest page left when the one shown goes, as when saved inputs replace the copies', async () => {
+    const formikRef = createRef<FormikProps<FormikValues>>()
+    render(
+      <DynamicForm
+        initialValues={{}}
+        formikRef={formikRef}
+        formJSONs={{
+          $meta: { wizard: { mode: 'wizard' } },
+          hosts: {
+            type: 'step',
+            title: 'Host',
+            multi: true,
+            options: { cpus: { type: 'number' } },
+          },
+          done: { type: 'step', title: 'Done', options: { note: { type: 'string' } } },
+        }}
+      />,
+    )
+    await screen.findByRole('heading', { name: 'Host' })
+    act(() => {
+      formikRef.current?.resetForm({ values: { hosts: [{ cpus: 4 }, { cpus: 8 }] } })
+    })
+    await screen.findByRole('heading', { name: 'Host 1' })
   })
 })
 

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
+import { useState } from 'react'
 import Dropdown, { type IProps } from './Dropdown'
 
 // Mock ResizeObserver which is not available in jsdom
@@ -38,6 +39,32 @@ describe('Dropdown Component', () => {
       ...render(<Dropdown {...defaultProps} {...props} />),
     }
   }
+
+  it('keeps a typed custom value when the list closes before the field loses focus', () => {
+    const onChange = vi.fn()
+    function Field() {
+      const [value, setValue] = useState('')
+      return (
+        <Dropdown
+          allowCustomValue
+          options={mockOptions}
+          value={value}
+          onChange={(next) => {
+            setValue(next as string)
+            onChange(next)
+          }}
+        />
+      )
+    }
+    render(<Field />)
+    const input = screen.getByRole('combobox')
+    fireEvent.click(screen.getByTestId('combobox-button'))
+    fireEvent.change(input, { target: { value: 'custom' } })
+    // Tab closes the list first in a browser, the way Escape does here.
+    fireEvent.keyDown(input, { key: 'Escape' })
+    fireEvent.blur(input)
+    expect(onChange).toHaveBeenLastCalledWith('custom')
+  })
 
   it('renders correctly with default props', () => {
     setup()

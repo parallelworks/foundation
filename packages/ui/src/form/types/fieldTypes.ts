@@ -1,3 +1,6 @@
+import type { FormLayoutNode } from '../layout'
+import type { StepFieldConfig, WizardConfig } from '../Wizard/types'
+
 export type LabelPosition = 'left' | 'top'
 
 /** A flag a field may set literally or as an expression the engine resolves. */
@@ -32,40 +35,21 @@ export interface BaseField extends RuntimeFieldExtensions {
   collapsed?: boolean
   disabled?: boolean
   default?: unknown
+  /** Pixels, or a share of the row such as '50%'; inputs whose widths fit share a row. */
+  width?: number | string
+  /** Under the input before it, in that input's column. */
+  'anchor-below'?: boolean
 }
 
 type AnyField = BaseField
-
-interface WizardConfig {
-  /** Must be 'wizard' to activate wizard mode */
-  mode: 'wizard'
-  /** Navigation UI options */
-  navigation?: {
-    showSteps?: boolean
-    allowJump?: boolean
-    hideStepNumbers?: boolean
-  }
-  /** Label for the final submit button */
-  submitLabel?: string
-  /** Flatten step fields into top-level inputs (default: true). Set false to keep each step's fields under its key. */
-  flatten?: boolean
-}
-
-interface StepField extends BaseField {
-  type: 'step'
-  title: string
-  description?: string
-  options: Record<string, AnyField>
-  validateOnNext?: boolean
-  nextLabel?: string
-  prevLabel?: string
-}
+type StepField = Omit<BaseField, 'type' | 'description'> & StepFieldConfig
 
 export interface DynamicFormSchema {
   $meta?: {
     labelPosition?: LabelPosition
     spaceCompact?: boolean
     wizard?: WizardConfig
+    layout?: FormLayoutNode
   }
   [fieldName: string]: AnyField | StepField | DynamicFormSchema['$meta'] | undefined
 }

@@ -26,10 +26,10 @@ export interface WizardConfig {
 export interface StepFieldConfig {
   /** Must be 'step' */
   type: 'step'
-  /** Title shown in step indicator */
-  title: string
-  /** Optional description/subtitle shown below title */
-  description?: string
+  /** Title shown in step indicator; a repeated page's can be one per copy */
+  title: string | string[]
+  /** Optional description/subtitle shown below title; a repeated page's can be one per copy */
+  description?: string | string[]
   /** Schema for fields within this step */
   options: DynamicFormSchema
   /** Validate current step before proceeding to next (default: true) */
@@ -38,6 +38,11 @@ export interface StepFieldConfig {
   nextLabel?: string
   /** Custom label for previous button on this step */
   prevLabel?: string
+  /** The person running it can add copies of this page; its values are a list, one row per copy */
+  multi?: boolean
+  /** The fewest and most copies of a repeated page, as a list's rows: numbers or expressions */
+  min?: number | string
+  max?: number | string
 }
 
 /**
@@ -74,6 +79,10 @@ export interface WizardContainerProps {
   spaceCompact?: boolean
   /** Workflow form mode */
   workflowForm?: boolean
+  /** A wizard inside a group submits with the form around it, so its last step has no submit. */
+  nested?: boolean
+  /** Where the fields' values sit when the wizard is inside a group that keeps its own values. */
+  fieldNamePrefix?: string | undefined
 }
 
 /**
@@ -118,8 +127,8 @@ export interface WizardNavigationProps {
   onNext: () => Promise<boolean>
   /** Callback to go to previous step */
   onPrevious: () => void
-  /** Callback to submit wizard */
-  onSubmit: () => Promise<void>
+  /** Callback to submit wizard; without one the last step has no button of its own */
+  onSubmit?: (() => Promise<void>) | undefined
 }
 
 /**
@@ -140,4 +149,8 @@ export interface WizardStepContentProps {
   spaceCompact?: boolean
   /** Workflow form mode */
   workflowForm?: boolean
+  /** Where the fields' values sit when the wizard is inside a group that keeps its own values. */
+  fieldNamePrefix?: string | undefined
+  /** Which copy of a repeated page this is; its fields' values sit in that row of the page's list. */
+  copy?: number | undefined
 }

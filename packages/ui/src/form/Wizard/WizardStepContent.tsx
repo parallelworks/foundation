@@ -1,6 +1,7 @@
 import type { TSetFormDirty } from '../Form'
 import { FieldsFromOptions } from '../Form'
 import type { WizardStepContentProps } from './types'
+import { stepText } from './utils'
 
 export function WizardStepContent({
   currentStep,
@@ -10,6 +11,8 @@ export function WizardStepContent({
   setFormDirty,
   setFieldValue,
   setFieldTouched,
+  fieldNamePrefix = '',
+  copy,
   ...fieldsProps
 }: WizardStepContentProps & {
   setFormDirty: TSetFormDirty
@@ -20,34 +23,41 @@ export function WizardStepContent({
   if (!stepConfig.options) {
     return null
   }
+  // A repeated page's copy keeps its fields in its row of the page's list, and every copy edits them,
+  // as every row of a list edits its template.
+  const parentInfo =
+    copy !== undefined
+      ? {
+          parentName: currentStep,
+          fieldNamePrefix: `${fieldNamePrefix}${currentStep}[${copy}].`,
+          arrayIndex: copy,
+        }
+      : flatten === false
+        ? { parentName: currentStep, fieldNamePrefix: `${fieldNamePrefix}${currentStep}.` }
+        : fieldNamePrefix
+          ? { parentName: fieldNamePrefix.slice(0, -1), fieldNamePrefix }
+          : undefined
 
   return (
     <div className="mb-4 w-full">
-      {stepConfig.title && (
+      {stepText(stepConfig.title) && (
         <h2 className="text-2xl font-bold mb-2" style={{ color: 'var(--theme-app)' }}>
-          {stepConfig.title}
+          {stepText(stepConfig.title)}
         </h2>
       )}
-      {stepConfig.description && (
+      {stepText(stepConfig.description) && (
         <p className="mb-4 leading-relaxed" style={{ color: 'var(--theme-muted-text-color)' }}>
-          {stepConfig.description}
+          {stepText(stepConfig.description)}
         </p>
       )}
       <FieldsFromOptions
-        key={currentStep}
+        key={copy === undefined ? currentStep : `${currentStep}[${copy}]`}
         options={stepConfig.options}
         values={values}
         setFormDirty={setFormDirty}
         setFieldValue={setFieldValue}
         setFieldTouched={setFieldTouched}
-        {...(flatten === false
-          ? {
-              parentInfo: {
-                parentName: currentStep,
-                fieldNamePrefix: `${currentStep}.`,
-              },
-            }
-          : {})}
+        {...(parentInfo ? { parentInfo } : {})}
         {...fieldsProps}
       />
     </div>
