@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { convertToDynamicForm } from '@parallelworks/workflow-parser'
+import {
+  applyGraphEdit,
+  convertToDynamicForm,
+  dumpYaml,
+  loadYaml,
+  workflowInputsSchema,
+} from '@parallelworks/workflow-parser'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -41,13 +47,16 @@ vi.mock('../editor/Monaco', () => ({
 }))
 vi.mock('../components/Dropdown', () => import('../test/DropdownStandIn'))
 
+import type { GraphEdit } from '../editing'
 import { DynamicForm } from '../form/Form'
+import { resolveFormLayout } from '../form/layout'
 import { suggestionsOf } from '../test/DropdownStandIn'
 import ListStandIn from '../test/ListStandIn'
 import type { DependencyGraphEditor, EditorProblem } from './editorApi'
 import { GRAPH_EDITOR_STRINGS, INPUTS_EDITOR_STRINGS } from './editorStrings'
 import { INPUT_TYPE_GROUPS } from './InputDialog'
 import { InputsFormEditor } from './InputsEditor'
+import { asRecord } from './records'
 
 afterEach(cleanup)
 
@@ -72,6 +81,39 @@ function editor(overrides: Partial<DependencyGraphEditor> = {}): DependencyGraph
     settingsView: 'form',
     ...overrides,
   }
+}
+
+function editsOf(e: DependencyGraphEditor): GraphEdit[] {
+  const flatten = (edit: GraphEdit): GraphEdit[] =>
+    edit.type === 'batch' ? edit.edits.flatMap(flatten) : [edit]
+  return flatten(vi.mocked(e.onEdit).mock.lastCall?.[0] as GraphEdit)
+}
+
+function resultOf(e: DependencyGraphEditor, inputs: Record<string, unknown>) {
+  const edit = vi.mocked(e.onEdit).mock.lastCall?.[0]
+  if (!edit) throw new Error('No edit was submitted')
+  const result = applyGraphEdit(
+    { yml: dumpYaml({ on: { execute: { inputs } } }), layout: undefined },
+    edit,
+  )
+  const next = asRecord(workflowInputsSchema(asRecord(loadYaml(result.yml))))
+  const layout = asRecord(next['$meta'])['layout']
+  expect(
+    resolveFormLayout(
+      layout,
+      Object.keys(next).filter((name) => name !== '$meta'),
+    ).issues,
+  ).toEqual([])
+  return { inputs: next, layout }
+}
+
+function fieldsOf(value: unknown): string[] {
+  const node = asRecord(value)
+  return node['type'] === 'field'
+    ? [String(node['field'])]
+    : Array.isArray(node['children'])
+      ? node['children'].flatMap(fieldsOf)
+      : []
 }
 
 function renderForm(e: DependencyGraphEditor, inputs: Record<string, unknown> = INPUTS) {
@@ -598,6 +640,7 @@ describe('InputsFormEditor', () => {
         {
           type: 'updateWorkflow',
           inputsMeta: {
+            unset: ['layout'],
             set: {
               wizard: { mode: 'wizard', navigation: { allowJump: true }, submitLabel: 'Submit' },
             },
@@ -877,7 +920,7 @@ describe('selecting inputs', () => {
     shiftClick(['name'], [5, 5])
     const handle = row(['name']).querySelector('[data-drag-handle]') as HTMLElement
     drag(handle, [5, 5], [5, 112])
-    expect(e.onEdit).toHaveBeenCalledWith({
+    expect(editsOf(e)).toContainEqual({
       type: 'moveInputs',
       paths: [['name'], ['secret']],
       parent: ['settings'],
@@ -955,7 +998,7 @@ describe('selecting inputs', () => {
     renderForm(e)
     layOut()
     drag(titleOf(['name']), [5, 5], [5, 112])
-    expect(e.onEdit).toHaveBeenCalledWith({
+    expect(editsOf(e)).toContainEqual({
       type: 'moveInputs',
       paths: [['name']],
       parent: ['settings'],
@@ -972,7 +1015,7 @@ describe('selecting inputs', () => {
     clickLabel(['name'])
     expect(selected()).toEqual(['["name"]', '["secret"]'])
     drag(titleOf(['name']), [5, 5], [5, 112])
-    expect(e.onEdit).toHaveBeenCalledWith({
+    expect(editsOf(e)).toContainEqual({
       type: 'moveInputs',
       paths: [['name'], ['secret']],
       parent: ['settings'],
@@ -989,7 +1032,7 @@ describe('selecting inputs', () => {
     expect(clickLabel(['settings'])).toBe(true)
     expect(title).toHaveAttribute('aria-expanded', open === 'true' ? 'false' : 'true')
     drag(titleOf(['settings']), [5, 85], [5, 45])
-    expect(e.onEdit).toHaveBeenCalledWith({
+    expect(editsOf(e)).toContainEqual({
       type: 'moveInputs',
       paths: [['settings']],
       parent: [],
@@ -1006,7 +1049,7 @@ describe('selecting inputs', () => {
     renderForm(e)
     clickLabel(['name'])
     fireEvent.keyDown(form(), { key: 'ArrowDown', altKey: true })
-    expect(e.onEdit).toHaveBeenCalledWith({
+    expect(editsOf(e)).toContainEqual({
       type: 'moveInputs',
       paths: [['name']],
       parent: [],
@@ -1047,7 +1090,7 @@ describe('selecting inputs', () => {
     })
     expect(selected()).toEqual(['["name"]'])
     drag(strip, [5, 5], [5, 112])
-    expect(e.onEdit).toHaveBeenCalledWith({
+    expect(editsOf(e)).toContainEqual({
       type: 'moveInputs',
       paths: [['name']],
       parent: ['settings'],
@@ -1108,14 +1151,13 @@ describe('inputs side by side', () => {
     render(e, ROWS)
     layOut({ a: [0, 0, 600, 40], b: [0, 50, 600, 40], c: [0, 100, 600, 40] })
     drag(handleOf('c'), [480, 105], [590, 20])
-    expect(e.onEdit).toHaveBeenCalledWith({
-      type: 'batch',
-      edits: [
-        { type: 'moveInputs', paths: [['c']], parent: [], index: 1 },
-        { type: 'updateInput', path: ['a'], set: { width: '50%' } },
-        { type: 'updateInput', path: ['c'], set: { width: '50%' } },
-      ],
+    const result = resultOf(e, ROWS)
+    expect(fieldsOf(result.layout)).toEqual(['a', 'c', 'b'])
+    expect((asRecord(result.layout)['children'] as unknown[])[0]).toMatchObject({
+      type: 'grid',
+      columns: { base: 1, sm: 2 },
     })
+    expect(asRecord(result.inputs['c'])['width']).toBeUndefined()
   })
 
   it('drops above or below an input from the top or bottom half of its middle', () => {
@@ -1123,32 +1165,22 @@ describe('inputs side by side', () => {
     render(e, ROWS)
     layOut({ a: [0, 0, 600, 40], b: [0, 50, 600, 40], c: [0, 100, 600, 40] })
     drag(handleOf('c'), [480, 105], [300, 10])
-    expect(e.onEdit).toHaveBeenLastCalledWith({
-      type: 'moveInputs',
-      paths: [['c']],
-      parent: [],
-      index: 0,
-    })
+    expect(fieldsOf(resultOf(e, ROWS).layout)).toEqual(['c', 'a', 'b'])
     drag(handleOf('a'), [480, 5], [300, 70])
-    expect(e.onEdit).toHaveBeenLastCalledWith({
-      type: 'moveInputs',
-      paths: [['a']],
-      parent: [],
-      index: 2,
-    })
+    expect(fieldsOf(resultOf(e, ROWS).layout)).toEqual(['b', 'a', 'c'])
   })
 
-  it('keeps the width of an input that sat alone on its line when it moves', () => {
+  it('migrates a legacy field width to a responsive layout when it moves', () => {
     const e = editor()
     render(e, { a: { type: 'string', label: 'A', width: '50%' }, b: ROWS.b, c: ROWS.c })
     layOut({ a: [0, 0, 292, 40], b: [0, 50, 600, 40], c: [0, 100, 600, 40] })
     drag(handleOf('a'), [200, 5], [300, 130])
-    expect(e.onEdit).toHaveBeenCalledWith({
-      type: 'moveInputs',
-      paths: [['a']],
-      parent: [],
-      index: 3,
-    })
+    expect(
+      fieldsOf(
+        resultOf(e, { a: { type: 'string', label: 'A', width: '50%' }, b: ROWS.b, c: ROWS.c })
+          .layout,
+      ),
+    ).toEqual(['b', 'c', 'a'])
   })
 
   it('gives an input dragged out of a shared line, and the one left there, the full width', () => {
@@ -1156,13 +1188,11 @@ describe('inputs side by side', () => {
     render(e, HALVES)
     layOut({ a: [0, 0, 292, 40], b: [308, 0, 292, 40], c: [0, 50, 600, 40] })
     drag(handleOf('b'), [400, 5], [400, 95])
-    expect(e.onEdit).toHaveBeenCalledWith({
-      type: 'batch',
-      edits: [
-        { type: 'moveInputs', paths: [['b']], parent: [], index: 3 },
-        { type: 'updateInput', path: ['a'], unset: ['width'] },
-        { type: 'updateInput', path: ['b'], unset: ['width'] },
-      ],
+    const result = resultOf(e, HALVES)
+    expect(fieldsOf(result.layout)).toEqual(['a', 'c', 'b'])
+    expect((asRecord(result.layout)['children'] as unknown[])[0]).toMatchObject({
+      type: 'grid',
+      columns: { sm: [50] },
     })
   })
 
@@ -1172,20 +1202,14 @@ describe('inputs side by side', () => {
     layOut({ a: [0, 0, 600, 40], b: [0, 50, 600, 40], c: [0, 100, 600, 40] })
     drag(screen.getByText('Input').closest('button') as HTMLElement, [540, 300], [590, 20])
     pickType('Number')
-    expect(screen.getByLabelText('Width')).toHaveValue('50%')
+    expect(screen.queryByLabelText('Width')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    expect(e.onEdit).toHaveBeenCalledWith({
-      type: 'batch',
-      edits: [
-        { type: 'updateInput', path: ['a'], set: { width: '50%' } },
-        {
-          type: 'addInput',
-          parent: [],
-          index: 1,
-          name: 'input_1',
-          definition: { type: 'number', width: '50%' },
-        },
-      ],
+    const result = resultOf(e, ROWS)
+    expect(fieldsOf(result.layout)).toEqual(['a', 'input_1', 'b', 'c'])
+    expect(result.inputs['input_1']).toEqual({ type: 'number' })
+    expect((asRecord(result.layout)['children'] as unknown[])[0]).toMatchObject({
+      type: 'grid',
+      columns: { sm: 2 },
     })
   })
 
@@ -1198,12 +1222,9 @@ describe('inputs side by side', () => {
     const edge = screen.getByRole('separator', { name: INPUTS_EDITOR_STRINGS.resizeInputs })
     expect(edge).toHaveAttribute('aria-valuenow', '50')
     drag(edge, [300, 20], [176, 20])
-    expect(e.onEdit).toHaveBeenCalledWith({
-      type: 'batch',
-      edits: [
-        { type: 'updateInput', path: ['a'], set: { width: '30%' } },
-        { type: 'updateInput', path: ['b'], set: { width: '70%' } },
-      ],
+    expect((asRecord(resultOf(e, HALVES).layout)['children'] as unknown[])[0]).toMatchObject({
+      type: 'grid',
+      columns: { base: 1, sm: [30, 70] },
     })
   })
 
@@ -1234,14 +1255,9 @@ describe('inputs side by side', () => {
     render(e, SPLIT)
     layOut(SPLIT_LAYOUT)
     drag(handleOf('a'), [200, 5], [300, 108])
-    expect(e.onEdit).toHaveBeenCalledWith({
-      type: 'batch',
-      edits: [
-        { type: 'moveInputs', paths: [['a']], parent: [], index: 4 },
-        { type: 'updateInput', path: ['b'], unset: ['width'] },
-        { type: 'updateInput', path: ['a'], unset: ['width'] },
-      ],
-    })
+    const result = resultOf(e, SPLIT)
+    expect(fieldsOf(result.layout)).toContain('h')
+    expect(fieldsOf(result.layout).at(-1)).toBe('a')
   })
 
   it('never puts a hidden input beside another', () => {
@@ -1249,11 +1265,12 @@ describe('inputs side by side', () => {
     render(e, SPLIT)
     layOut(SPLIT_LAYOUT)
     drag(handleOf('h'), [300, 105], [280, 30])
-    expect(e.onEdit).toHaveBeenCalledWith({
-      type: 'moveInputs',
-      paths: [['h']],
-      parent: [],
-      index: 3,
+    expect(resultOf(e, SPLIT).layout).toMatchObject({
+      children: [
+        { type: 'grid', children: [{ field: 'a' }, { field: 'b' }] },
+        { field: 'h' },
+        { field: 'c' },
+      ],
     })
   })
 
@@ -1274,12 +1291,13 @@ describe('inputs side by side', () => {
     render(e, THIRDS)
     layOut(THIRDS_LAYOUT)
     drag(handleOf('c'), [500, 5], [300, 30])
-    expect(e.onEdit).toHaveBeenCalledWith({
-      type: 'batch',
-      edits: [
-        { type: 'updateInput', path: ['a'], set: { width: '50%' } },
-        { type: 'updateInput', path: ['b'], set: { width: '50%' } },
-        { type: 'updateInput', path: ['c'], set: { 'anchor-below': true }, unset: ['width'] },
+    expect(resultOf(e, THIRDS).layout).toMatchObject({
+      children: [
+        {
+          type: 'grid',
+          columns: { sm: [33, 33] },
+          children: [{ field: 'a' }, { type: 'stack', children: [{ field: 'b' }, { field: 'c' }] }],
+        },
       ],
     })
   })
@@ -1290,12 +1308,15 @@ describe('inputs side by side', () => {
     layOut({ a: [0, 0, 292, 40], b: [308, 0, 292, 40], c: [308, 50, 292, 40] })
     expect(row(['c']).parentElement).toBe(row(['b']).parentElement)
     drag(handleOf('b'), [400, 5], [300, 140])
-    expect(e.onEdit).toHaveBeenCalledWith({
-      type: 'batch',
-      edits: [
-        { type: 'moveInputs', paths: [['b']], parent: [], index: 3 },
-        { type: 'updateInput', path: ['c'], set: { width: '50%' }, unset: ['anchor-below'] },
-        { type: 'updateInput', path: ['b'], unset: ['width'] },
+    const result = resultOf(e, {
+      ...HALVES,
+      c: { type: 'string', label: 'C', 'anchor-below': true },
+    })
+    expect(fieldsOf(result.layout)).toEqual(['a', 'c', 'b'])
+    expect(result.layout).toMatchObject({
+      children: [
+        { type: 'grid', children: [{ field: 'a' }, { type: 'stack', children: [{ field: 'c' }] }] },
+        { field: 'b' },
       ],
     })
   })
@@ -1307,12 +1328,19 @@ describe('inputs side by side', () => {
     drag(screen.getByText('Input').closest('button') as HTMLElement, [540, 300], [450, 30])
     pickType('Number')
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    expect(e.onEdit).toHaveBeenCalledWith({
-      type: 'addInput',
-      parent: [],
-      index: 2,
-      name: 'input_1',
-      definition: { type: 'number', 'anchor-below': true },
+    const result = resultOf(e, HALVES)
+    expect(result.inputs['input_1']).toEqual({ type: 'number' })
+    expect(result.layout).toMatchObject({
+      children: [
+        {
+          type: 'grid',
+          children: [
+            { field: 'a' },
+            { type: 'stack', children: [{ field: 'b' }, { field: 'input_1' }] },
+          ],
+        },
+        { field: 'c' },
+      ],
     })
   })
 
@@ -1333,12 +1361,8 @@ describe('inputs side by side', () => {
     layOut({ a: [0, 0, 292, 40], b: [308, 0, 292, 40], c: [0, 50, 600, 40] })
     fireEvent.pointerMove(form(), { clientX: 300, clientY: 20 })
     fireEvent.keyDown(screen.getByRole('separator'), { key: 'ArrowLeft' })
-    expect(e.onEdit).toHaveBeenCalledWith({
-      type: 'batch',
-      edits: [
-        { type: 'updateInput', path: ['a'], set: { width: '45%' } },
-        { type: 'updateInput', path: ['b'], set: { width: '55%' } },
-      ],
+    expect((asRecord(resultOf(e, HALVES).layout)['children'] as unknown[])[0]).toMatchObject({
+      columns: { base: 1, sm: [45, 55] },
     })
   })
 })

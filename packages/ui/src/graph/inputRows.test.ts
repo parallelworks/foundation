@@ -1,121 +1,6 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
-import { type Column, dropChanges, evenWidth, type Line, snapSplit } from './inputRows'
-
-// Only the rows' paths matter to the changes; where they're drawn is the DOM's business.
-function column(...names: string[]): Column {
-  return {
-    cell: null,
-    rows: names.map((name, index) => ({
-      path: [name],
-      instance: JSON.stringify([name]),
-      index,
-      rect: {} as DOMRect,
-      el: {} as HTMLElement,
-      hidden: false,
-      trailing: false,
-    })),
-  }
-}
-const line = (...columns: Column[]): Line => ({ parent: [], columns })
-const one = (...names: string[]) => line(...names.map((name) => column(name)))
-
-const changes = (
-  lines: Line[],
-  moving: string[],
-  drop: Parameters<typeof dropChanges>[2],
-  widths: Record<string, unknown> = {},
-) =>
-  Object.fromEntries(
-    [
-      ...dropChanges(
-        lines,
-        moving.map((name) => [name]),
-        drop,
-        (path) => widths[path.join('.')],
-      ),
-    ].map(([rowKey, change]) => [JSON.parse(rowKey).join('.'), change]),
-  )
-
-describe('evenWidth', () => {
-  it('splits a line evenly in whole percents, and leaves a column alone on its line full width', () => {
-    expect(evenWidth(1)).toBeUndefined()
-    expect(evenWidth(2)).toBe('50%')
-    expect(evenWidth(3)).toBe('33%')
-    expect(evenWidth(4)).toBe('25%')
-  })
-})
-
-describe('dropChanges', () => {
-  it('shares the line of the column dropped beside, evenly', () => {
-    const lines = [one('a'), one('b'), one('c')]
-    const drop = { parent: [], index: 1, beside: { path: ['a'], side: 'right' as const } }
-    expect(changes(lines, ['c'], drop)).toEqual({
-      a: { width: '50%' },
-      c: { width: '50%', 'anchor-below': null },
-    })
-  })
-
-  it('gives the columns left on a line its width again, the last one all of it', () => {
-    const lines = [one('a', 'b', 'c'), one('d')]
-    const down = { parent: [], index: 4 }
-    expect(changes(lines, ['c'], down)).toEqual({
-      a: { width: '50%' },
-      b: { width: '50%' },
-      c: { 'anchor-below': null, width: null },
-    })
-  })
-
-  it('leaves an input that was alone on its line its width when it moves between lines', () => {
-    const lines = [one('a'), one('b'), one('c')]
-    expect(changes(lines, ['a'], { parent: [], index: 3 })).toEqual({ a: { 'anchor-below': null } })
-  })
-
-  it('takes the share off an input dropped as a line of its own beside a line it would join', () => {
-    // a and c are halves alone on their lines, as b and d after them take whole lines.
-    const at = (name: string, index: number): Line => ({
-      parent: [],
-      columns: [
-        { cell: null, rows: [{ ...(column(name).rows[0] as Column['rows'][number]), index }] },
-      ],
-    })
-    const lines = [at('a', 0), at('b', 1), at('c', 2), at('d', 3)]
-    const widths = { a: '50%', c: '50%' }
-    expect(changes(lines, ['c'], { parent: [], index: 1 }, widths)).toEqual({
-      c: { 'anchor-below': null, width: null },
-    })
-    // Below the whole-line b, nothing would take the other half, so c keeps its own.
-    expect(changes(lines, ['c'], { parent: [], index: 2 }, widths)).toEqual({
-      c: { 'anchor-below': null },
-    })
-  })
-
-  it('stacks an input dropped below one in a column under it', () => {
-    const lines = [one('a', 'b', 'c')]
-    const drop = { parent: [], index: 2, stack: { path: ['b'], side: 'below' as const } }
-    expect(changes(lines, ['c'], drop)).toEqual({
-      a: { width: '50%' },
-      b: { width: '50%' },
-      c: { width: null, 'anchor-below': true },
-    })
-  })
-
-  it('heads a column with an input dropped above its head, at the head’s width', () => {
-    const lines = [line(column('a'), column('b', 'c')), one('d')]
-    const drop = { parent: [], index: 1, stack: { path: ['b'], side: 'above' as const } }
-    expect(changes(lines, ['d'], drop, { a: '50%', b: '50%' })).toEqual({
-      d: { width: '50%', 'anchor-below': null },
-      b: { width: null, 'anchor-below': true },
-    })
-  })
-
-  it('moves the next input up to head a column its head leaves, at the head’s width', () => {
-    const lines = [line(column('a'), column('b', 'c'))]
-    expect(changes(lines, ['b'], { parent: [], index: 3 }, { a: '50%', b: '50%' })).toEqual({
-      c: { 'anchor-below': null, width: '50%' },
-      b: { 'anchor-below': null, width: null },
-    })
-  })
-})
+import { inputCell, linesIn, snapSplit } from './inputRows'
 
 describe('snapSplit', () => {
   it('splits at the pointer in 5% steps, keeping each side at least 10%', () => {
@@ -123,5 +8,20 @@ describe('snapSplit', () => {
     expect(snapSplit(100, 3)).toEqual([10, 90])
     expect(snapSplit(100, 99)).toEqual([90, 10])
     expect(snapSplit(66, 40)).toEqual([40, 26])
+  })
+})
+
+describe('layout grid geometry', () => {
+  it('groups fields by the grid track wrapper, including a stack within one track', () => {
+    const root = document.createElement('div')
+    root.innerHTML = `<div data-layout-boundary><div data-layout-grid><div>
+      <div data-layout-item id="left"><div data-input-path='["a"]'></div></div>
+      <div data-layout-item id="right"><div><div data-input-path='["b"]'></div><div data-input-path='["c"]'></div></div></div>
+    </div></div></div>`
+    const rows = [...root.querySelectorAll<HTMLElement>('[data-input-path]')]
+    expect(rows.map((row) => inputCell(row)?.id)).toEqual(['left', 'right', 'right'])
+    expect(
+      linesIn(root).map((line) => line.columns.map((column) => column.rows.map((row) => row.path))),
+    ).toEqual([[[['a']], [['b'], ['c']]]])
   })
 })

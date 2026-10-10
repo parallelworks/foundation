@@ -1206,7 +1206,6 @@ export function FieldsFromOptions({
           {names.map((name) => fieldOf(name, undefined))}
           {add}
         </>
-
       )}
     </ChosenLabelPosition.Provider>
   )

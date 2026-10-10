@@ -12,7 +12,7 @@ import {
 import { IconButton } from '../components/IconButton'
 import { useWorkflowEditing } from '../components/Provider'
 import { TOOLTIP_ID } from '../components/Tooltip'
-import type { FieldPatch, GraphEdit, InputPath, WorkflowEditing } from '../editing'
+import type { GraphEdit, InputPath, WorkflowEditing } from '../editing'
 import { type FormEditing, FormEditingContext } from '../form/formEditing'
 import { type WizardPages, WizardPagesContext } from '../form/Wizard/wizardPages'
 import {
@@ -62,6 +62,7 @@ import {
   TypeBadge,
   withCreatedInputs,
 } from './InputDialog'
+import { dropLayoutEdits, resizeLayout, withInputLayouts } from './inputLayout'
 import {
   addPageEdit,
   isWizard,
@@ -70,11 +71,10 @@ import {
   wizardGroupDefinition,
 } from './inputPages'
 import {
-  type Change,
   type Column,
   type DrawnRow,
   type Drop,
-  dropChanges,
+  inputCell,
   type Line,
   linesIn,
   rowsOf,
@@ -84,8 +84,7 @@ import { ALT_KEY, MOD_KEY, type ShortcutGroup } from './ShortcutsButton'
 
 /** A new input's keys from where it's dropped, and the edits that make room for it there. */
 interface Placement {
-  keys: Json
-  edits: GraphEdit[]
+  drop: Drop
 }
 
 type Dialog =
@@ -937,14 +936,16 @@ const WIDTH_VAR = '--input-width'
 
 /** The cells two neighbouring columns sit in, by their heads, and the row of cells holding them. */
 function cellsAt(root: HTMLElement, edge: Pick<Edge, 'left' | 'right' | 'copies'>) {
-  const cellOf = (path: InputPath, copy: string) =>
-    [...root.querySelectorAll<HTMLElement>('[data-input-path]')]
-      .find((el) => el.dataset['inputPath'] === key(path) && el.dataset['inputInstance'] === copy)
-      ?.closest<HTMLElement>('[data-input-cell]')
+  const cellOf = (path: InputPath, copy: string) => {
+    const el = [...root.querySelectorAll<HTMLElement>('[data-input-path]')].find(
+      (el) => el.dataset['inputPath'] === key(path) && el.dataset['inputInstance'] === copy,
+    )
+    return el ? inputCell(el) : null
+  }
   const left = cellOf(edge.left, edge.copies[0])
   const right = cellOf(edge.right, edge.copies[1])
   const flow = left?.parentElement
-  return left && right && flow ? { left, right, flow } : null
+  return left && right && flow && right.parentElement === flow ? { left, right, flow } : null
 }
 
 function edgeOf(root: HTMLElement, before: Column, after: Column): Edge | null {
@@ -1202,7 +1203,9 @@ export function InputsFormEditor({
 
   const api = useMemo<InputsEditorApi>(() => {
     const send = (edit: GraphEdit) => {
-      const result = latest.current.editor.onEdit(edit)
+      const result = latest.current.editor.onEdit(
+        withInputLayouts(editing, latest.current.inputs, edit),
+      )
       reclaimFocus(containerRef.current)
       return result
     }
@@ -1255,10 +1258,10 @@ export function InputsFormEditor({
           parent,
           index: Math.min(index, namesIn(container).length),
           name,
-          definition: { ...(ownWizard ?? newInputDefinition(type)), ...placement?.keys },
+          definition: ownWizard ?? newInputDefinition(type),
         }
         // The add goes last, so the batch reports the input it created.
-        send(placement?.edits.length ? { type: 'batch', edits: [...placement.edits, add] } : add)
+        send(placeNewInput(editing, inputs, add, parent, name, placement))
         return
       }
       store.set({
@@ -1339,54 +1342,8 @@ export function InputsFormEditor({
       ...(gap.beside ? { beside: { path: gap.beside.path, side: gap.beside.side } } : {}),
       ...(gap.stack ? { stack: gap.stack } : {}),
     })
-    const changesOf = (moving: InputPath[], drop: Drop) => {
-      const root = containerRef.current
-      return root
-        ? dropChanges(linesIn(root), moving, drop, (path) => definition(path)['width'])
-        : new Map<string, Change>()
-    }
-    // A drop's changes as edits, each at the path its input has once the drop has moved it.
-    const layoutEdits = (
-      changes: Map<string, Change>,
-      moving: InputPath[],
-      drop: Drop,
-    ): GraphEdit[] => {
-      const edits: GraphEdit[] = []
-      for (const [rowKey, change] of changes) {
-        const path = pathOf(rowKey)
-        const now = definition(path)
-        const patch: FieldPatch = {}
-        for (const [field, value] of Object.entries(change)) {
-          if (value === null && now[field] !== undefined) {
-            patch.unset = [...(patch.unset ?? []), field]
-          } else if (value !== null && value !== undefined && now[field] !== value) {
-            patch.set = { ...patch.set, [field]: value }
-          }
-        }
-        if (!patch.set && !patch.unset) {
-          continue
-        }
-        const at = moving.some((other) => samePath(other, path))
-          ? [...drop.parent, path.at(-1) ?? '']
-          : path
-        edits.push({ type: 'updateInput', path: at, ...patch })
-      }
-      return edits
-    }
-    // A new input dropped beside or into a column takes its keys there from the same rules.
-    const placementOf = (gap: Gap): Placement | undefined => {
-      if (!gap.beside && !gap.stack) {
-        return undefined
-      }
-      const drop = dropOf(gap)
-      // No input is named '', so it stands in for the one not made yet.
-      const placeholder = [...gap.parent, '']
-      const changes = changesOf([placeholder], drop)
-      const own = changes.get(key(placeholder)) ?? {}
-      changes.delete(key(placeholder))
-      const keys = Object.fromEntries(Object.entries(own).filter(([, value]) => value !== null))
-      return { keys, edits: layoutEdits(changes, [], drop) }
-    }
+    const placementOf = (gap: Gap): Placement | undefined =>
+      gap.beside || gap.stack ? { drop: dropOf(gap) } : undefined
     // Moved inputs, and the selected ones inside them, stay selected at their new paths.
     const followSelection = (moved: InputPath[], parent: InputPath) =>
       store.set({
@@ -1476,11 +1433,12 @@ export function InputsFormEditor({
         const root = containerRef.current
         root?.focus({ preventScroll: true })
         const drop = dropOf(gap)
+        const move: GraphEdit = staysPut(paths, gap)
+          ? { type: 'batch', edits: [] }
+          : { type: 'moveInputs', paths, parent: gap.parent, index: gap.index }
         const edits: GraphEdit[] = [
-          ...(staysPut(paths, gap)
-            ? []
-            : [{ type: 'moveInputs' as const, paths, parent: gap.parent, index: gap.index }]),
-          ...layoutEdits(changesOf(paths, drop), paths, drop),
+          move,
+          ...dropLayoutEdits(editing, latest.current.inputs, paths, drop, move),
         ]
         const [only] = edits
         if (only && send(edits.length === 1 ? only : { type: 'batch', edits })) {
@@ -1572,20 +1530,9 @@ export function InputsFormEditor({
       ]
     }
 
-    // Both sides of an edge get their share of the line as a percent, as one undo step.
     const resize = (edge: Edge, split: [number, number]) => {
-      const edits: GraphEdit[] = []
-      for (const [path, share] of [
-        [edge.left, split[0]],
-        [edge.right, split[1]],
-      ] as const) {
-        const width = `${share}%`
-        if (definition(path)['width'] !== width) {
-          edits.push({ type: 'updateInput', path, set: { width } })
-        }
-      }
-      const [only] = edits
-      return only ? Boolean(send(edits.length === 1 ? only : { type: 'batch', edits })) : false
+      const edit = resizeLayout(editing, latest.current.inputs, edge.left, edge.right, split)
+      return edit ? Boolean(send(edit)) : false
     }
     const startResize = (e: Press, edge: Edge) => {
       const root = containerRef.current
@@ -1597,13 +1544,28 @@ export function InputsFormEditor({
       const from = cells.left.getBoundingClientRect().left
       const width = cells.flow.getBoundingClientRect().width
       const total = edge.split[0] + edge.split[1]
+      const grid = cells.flow.parentElement?.hasAttribute('data-layout-grid')
+      const oldColumns = cells.flow.style.gridTemplateColumns
       const drawn = [cells.left, cells.right].map((cell) => cell.style.getPropertyValue(WIDTH_VAR))
-      // The cells show the new split while the drag lasts; the edit then sets it for good.
+      const children = [...cells.flow.children] as HTMLElement[]
+      const weights = children.map((cell) => Math.max(1, cell.getBoundingClientRect().width))
+      const leftIndex = children.indexOf(cells.left)
+      const rightIndex = children.indexOf(cells.right)
+      const combined = (weights[leftIndex] ?? 0) + (weights[rightIndex] ?? 0)
       const show = (split: [number, number]) => {
-        cells.left.style.setProperty(WIDTH_VAR, `${split[0]}%`)
-        cells.right.style.setProperty(WIDTH_VAR, `${split[1]}%`)
+        if (grid) {
+          weights[leftIndex] = (combined * split[0]) / total
+          weights[rightIndex] = (combined * split[1]) / total
+          cells.flow.style.gridTemplateColumns = weights
+            .map((weight) => `minmax(0, ${weight}fr)`)
+            .join(' ')
+        } else {
+          cells.left.style.setProperty(WIDTH_VAR, `${split[0]}%`)
+          cells.right.style.setProperty(WIDTH_VAR, `${split[1]}%`)
+        }
       }
       const restore = () => {
+        cells.flow.style.gridTemplateColumns = oldColumns
         cells.left.style.setProperty(WIDTH_VAR, drawn[0] ?? '')
         cells.right.style.setProperty(WIDTH_VAR, drawn[1] ?? '')
       }
@@ -1624,9 +1586,8 @@ export function InputsFormEditor({
           onEnd: () => {
             store.set({ resizing: false })
             root.focus({ preventScroll: true })
-            if (!resize(edge, split)) {
-              restore()
-            }
+            restore()
+            resize(edge, split)
           },
           onCancel: () => {
             store.set({ resizing: false })
@@ -1920,8 +1881,7 @@ export function InputsFormEditor({
               if (!root || state.drag || state.marquee || state.resizing || resizerFocused(root)) {
                 return
               }
-              // Only a form with widths draws inputs side by side.
-              const edge = root.querySelector('[data-input-cell]')
+              const edge = root.querySelector('[data-input-cell], [data-layout-grid]')
                 ? edgeAt(root, e.clientX, e.clientY)
                 : null
               if (!sameEdge(edge, state.edge)) {
@@ -2125,7 +2085,7 @@ function Dialogs({
   const save = (edit: GraphEdit, created: PendingInput[], home: InputHome) => {
     const merged = withCreatedInputs(editing, created, home, edit)
     if (merged) {
-      editor.onEdit(merged)
+      editor.onEdit(withInputLayouts(editing, inputs, merged))
     }
   }
   if (dialog.kind === 'create') {
@@ -2137,10 +2097,7 @@ function Dialogs({
       <InputDialog
         key={`create:${key(dialog.parent)}:${dialog.index}`}
         name={nextInputName(editing, inputs)}
-        definition={{
-          ...(dialog.definition ?? newInputDefinition(dialog.type)),
-          ...placement?.keys,
-        }}
+        definition={dialog.definition ?? newInputDefinition(dialog.type)}
         isNew
         siblings={siblings}
         allowStep={isWizard(containerAt(editing, inputs, dialog.parent))}
@@ -2153,25 +2110,31 @@ function Dialogs({
         yaml={{
           onSave: (name, text, created) =>
             save(
-              {
-                type: 'batch',
-                edits: [
-                  ...(placement?.edits ?? []),
-                  {
-                    type: 'addInput',
-                    parent: dialog.parent,
-                    index: samePath(home.parent, dialog.parent) ? index + created.length : index,
-                    name,
-                    definition: asRecord(editing.loadYaml(text)),
-                  },
-                  // The text as written, comments included.
-                  {
-                    type: 'setInputYaml',
-                    path: [...dialog.parent, name],
-                    yaml: text,
-                  },
-                ],
-              },
+              placeNewInput(
+                editing,
+                inputs,
+                {
+                  type: 'batch',
+                  edits: [
+                    {
+                      type: 'addInput',
+                      parent: dialog.parent,
+                      index: samePath(home.parent, dialog.parent) ? index + created.length : index,
+                      name,
+                      definition: asRecord(editing.loadYaml(text)),
+                    },
+                    // The text as written, comments included.
+                    {
+                      type: 'setInputYaml',
+                      path: [...dialog.parent, name],
+                      yaml: text,
+                    },
+                  ],
+                },
+                dialog.parent,
+                name,
+                placement,
+              ),
               created,
               home,
             ),
@@ -2184,11 +2147,7 @@ function Dialogs({
             name,
             definition,
           }
-          save(
-            placement?.edits.length ? { type: 'batch', edits: [...placement.edits, add] } : add,
-            created,
-            home,
-          )
+          save(placeNewInput(editing, inputs, add, dialog.parent, name, placement), created, home)
         }}
       />
     )
@@ -2211,7 +2170,9 @@ function Dialogs({
       inputs={inputs}
       home={home}
       onClose={close}
-      onDelete={() => editor.onEdit({ type: 'deleteInput', path })}
+      onDelete={() =>
+        editor.onEdit(withInputLayouts(editing, inputs, { type: 'deleteInput', path }))
+      }
       view={editor.settingsView}
       onViewChange={editor.onSettingsViewChange}
       openOnAdd={openOnAddOf(editor)}
@@ -2275,4 +2236,23 @@ function homeFor(
 
 function nextInputName(editing: WorkflowEditing, inputs: Json | undefined): string {
   return editing.newInputName(allNames(editing, asRecord(inputs), new Set()))
+}
+
+function placeNewInput(
+  editing: WorkflowEditing,
+  inputs: unknown,
+  edit: GraphEdit,
+  parent: InputPath,
+  name: string,
+  placement?: Placement,
+): GraphEdit {
+  return placement
+    ? {
+        type: 'batch',
+        edits: [
+          edit,
+          ...dropLayoutEdits(editing, inputs, [[...parent, name]], placement.drop, edit),
+        ],
+      }
+    : edit
 }
