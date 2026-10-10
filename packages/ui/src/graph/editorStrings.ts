@@ -510,6 +510,9 @@ export const INPUTS_EDITOR_STRINGS = {
   keptValueDoesNotFit: 'This value doesn’t suit the new type. Change it or clear it.',
   wholeNumberFrom: (least: number) => `Use a whole number of ${least} or more.`,
   invalidPattern: 'Use a valid regular expression.',
+  radioOptionShape: 'Each option is a text value, or a value and a label as text.',
+  checkboxOptionShape:
+    'Each option is a text value, or a value with a label and a description as text.',
   typeGroups: {
     basic: 'Basic',
     choices: 'Choices',
