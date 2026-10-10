@@ -706,6 +706,17 @@ describe('FileExplorer host extensions', () => {
   })
 })
 
+describe('FileExplorer copy path', () => {
+  it("offers the object's path in a row's Copy menu", async () => {
+    render(explorer(FOLDER_A, scriptedStorage(), [storage]))
+    await act(async () => {})
+
+    fireEvent.contextMenu(await findTreeItem('b'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Copy' }))
+    expect(await screen.findByRole('button', { name: 'Copy path' })).toBeInTheDocument()
+  })
+})
+
 describe('FileExplorer write without delete', () => {
   it('offers upload and new folder but no delete when the storage cannot delete', async () => {
     const script = scriptedStorage()
