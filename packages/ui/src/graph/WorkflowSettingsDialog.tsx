@@ -469,7 +469,7 @@ function SettingsForm({
   const saveEdit = newInputs.save(
     dirty ? (pages.length > 0 ? { type: 'batch', edits: [update, ...pages] } : update) : null,
   )
-  onDraft?.(saveEdit)
+  onDraft?.(saveEdit, invalid)
   const children = (
     <>
       {newInputs.dialog}
