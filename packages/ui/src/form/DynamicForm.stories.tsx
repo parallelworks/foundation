@@ -4,6 +4,13 @@ import { DynamicForm } from './Form'
 const meta: Meta<typeof DynamicForm> = {
   title: 'UI/Form/DynamicForm',
   component: DynamicForm,
+  argTypes: {
+    allowLayoutCSS: {
+      control: 'boolean',
+      description: 'Host opt-in for validated CSS declarations on layout nodes.',
+    },
+    formJSONs: { control: 'object', description: 'Input definitions and optional $meta.layout.' },
+  },
   parameters: {
     docs: {
       description: {
@@ -271,5 +278,383 @@ export const WizardInAGroup: StoryObj<typeof DynamicForm> = {
     formJSONs: WIZARD_IN_A_GROUP,
     initialValues: {},
     skipValueParse: true,
+  },
+}
+
+const LAYOUT_FIELDS = {
+  $meta: {
+    layout: {
+      type: 'stack',
+      gap: 'lg',
+      children: [
+        { type: 'field', field: 'name' },
+        {
+          type: 'grid',
+          columns: { base: 1, md: [2, 1] },
+          align: 'rows',
+          gap: 'lg',
+          children: [
+            {
+              type: 'section',
+              label: 'Resources',
+              description: 'Choose the capacity for this run.',
+              children: [
+                { type: 'field', field: 'queue' },
+                {
+                  type: 'grid',
+                  columns: { base: 1, sm: 2 },
+                  children: [
+                    { type: 'field', field: 'nodes' },
+                    { type: 'field', field: 'walltime' },
+                  ],
+                },
+              ],
+            },
+            {
+              type: 'section',
+              label: 'Accounting',
+              children: [
+                { type: 'field', field: 'account' },
+                { type: 'field', field: 'notify' },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  },
+  name: { type: 'string', label: 'Run name', default: 'Experiment 24' },
+  queue: { type: 'dropdown', label: 'Queue', options: ['cpu', 'gpu', 'debug'], default: 'gpu' },
+  nodes: { type: 'number', label: 'Nodes', default: 4 },
+  walltime: { type: 'duration', label: 'Walltime', default: 7200 },
+  account: { type: 'string', label: 'Account', default: 'research' },
+  notify: { type: 'boolean', label: 'Notify when complete', default: true },
+  notes: { type: 'string', label: 'Notes', optional: true },
+}
+
+export const ExplicitLayout: StoryObj<typeof DynamicForm> = {
+  args: {
+    formJSONs: LAYOUT_FIELDS,
+    initialValues: {
+      name: 'Experiment 24',
+      queue: 'gpu',
+      nodes: 4,
+      walltime: 7200,
+      account: 'research',
+      notify: true,
+    },
+    skipValueParse: true,
+    workflowForm: true,
+  },
+}
+
+export const ExplicitLayoutNarrow: StoryObj<typeof DynamicForm> = {
+  ...ExplicitLayout,
+  decorators: [
+    (Story) => (
+      <div style={{ maxWidth: 320 }}>
+        <Story />
+      </div>
+    ),
+  ],
+}
+
+export const TopLabelsInNarrowColumns: StoryObj<typeof DynamicForm> = {
+  args: {
+    initialValues: { workers: 8, retries: 3 },
+    skipValueParse: true,
+    formJSONs: {
+      $meta: {
+        layout: {
+          type: 'grid',
+          columns: 2,
+          children: [
+            { type: 'field', field: 'workers' },
+            { type: 'field', field: 'retries' },
+          ],
+        },
+      },
+      workers: { type: 'number', label: 'Maximum number of concurrent workers' },
+      retries: { type: 'number', label: 'Retry limit' },
+    },
+  },
+  decorators: [
+    (Story) => (
+      <div style={{ maxWidth: 360 }}>
+        <Story />
+      </div>
+    ),
+  ],
+}
+
+export const IndependentSections: StoryObj<typeof DynamicForm> = {
+  ...ExplicitLayout,
+  args: {
+    ...ExplicitLayout.args,
+    formJSONs: {
+      ...LAYOUT_FIELDS,
+      $meta: {
+        layout: {
+          ...LAYOUT_FIELDS.$meta.layout,
+          children: LAYOUT_FIELDS.$meta.layout.children.map((node) =>
+            node.type === 'grid' ? { ...node, align: 'independent' } : node,
+          ),
+        },
+      },
+    },
+  },
+}
+
+export const AlignedRowsLongDescription: StoryObj<typeof DynamicForm> = {
+  ...ExplicitLayout,
+  args: {
+    ...ExplicitLayout.args,
+    formJSONs: {
+      ...LAYOUT_FIELDS,
+      $meta: {
+        layout: {
+          ...LAYOUT_FIELDS.$meta.layout,
+          children: LAYOUT_FIELDS.$meta.layout.children.map((node) =>
+            node.type === 'grid'
+              ? {
+                  ...node,
+                  children: node.children?.map((section) =>
+                    section.label === 'Accounting'
+                      ? {
+                          ...section,
+                          description:
+                            'Choose the account to charge for this run. Check that it has enough capacity for the resources you selected.',
+                        }
+                      : section,
+                  ),
+                }
+              : node,
+          ),
+        },
+      },
+    },
+  },
+}
+
+export const AlignedRowsValidation: StoryObj<typeof DynamicForm> = {
+  ...ExplicitLayout,
+  args: {
+    ...ExplicitLayout.args,
+    formJSONs: {
+      ...LAYOUT_FIELDS,
+      walltime: { ...LAYOUT_FIELDS.walltime, min: 10000 },
+      project: { type: 'string', label: 'Project' },
+      $meta: {
+        layout: {
+          ...LAYOUT_FIELDS.$meta.layout,
+          children: LAYOUT_FIELDS.$meta.layout.children.map((node) =>
+            node.type === 'grid'
+              ? {
+                  ...node,
+                  children: node.children?.map((section) => ({
+                    ...section,
+                    children: [
+                      ...section.children,
+                      { type: 'field', field: section.label === 'Resources' ? 'notes' : 'project' },
+                    ],
+                  })),
+                }
+              : node,
+          ),
+        },
+      },
+    },
+  },
+}
+
+export const AlignedRowsConditional: StoryObj<typeof DynamicForm> = {
+  ...ExplicitLayout,
+  args: {
+    ...ExplicitLayout.args,
+    formJSONs: {
+      ...LAYOUT_FIELDS,
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: Workflow expressions are evaluated by the engine.
+      account: { ...LAYOUT_FIELDS.account, hidden: '${{ !inputs.notify }}' },
+    },
+  },
+}
+
+const CSS_LAYOUT_FIELDS = {
+  ...LAYOUT_FIELDS,
+  $meta: {
+    layout: {
+      type: 'grid',
+      columns: { base: 1, md: [2, 1] },
+      css: 'gap: 1.25rem; padding: 0.5rem;',
+      children: [
+        { type: 'field', field: 'name', css: 'max-width: 28rem;' },
+        { type: 'field', field: 'account' },
+      ],
+    },
+  },
+}
+
+export const CustomLayoutCSS: StoryObj<typeof DynamicForm> = {
+  ...ExplicitLayout,
+  args: { ...ExplicitLayout.args, allowLayoutCSS: true, formJSONs: CSS_LAYOUT_FIELDS },
+}
+
+export const CustomLayoutCSSDisabled: StoryObj<typeof DynamicForm> = {
+  ...CustomLayoutCSS,
+  args: { ...CustomLayoutCSS.args, allowLayoutCSS: false },
+}
+
+export const RejectedLayoutCSS: StoryObj<typeof DynamicForm> = {
+  ...CustomLayoutCSS,
+  args: {
+    ...CustomLayoutCSS.args,
+    formJSONs: {
+      ...CSS_LAYOUT_FIELDS,
+      $meta: {
+        layout: { ...CSS_LAYOUT_FIELDS.$meta.layout, css: 'gap: 1.25rem; position: fixed;' },
+      },
+    },
+  },
+}
+
+export const LayoutSpans: StoryObj<typeof DynamicForm> = {
+  args: {
+    initialValues: {},
+    skipValueParse: true,
+    formJSONs: {
+      ...LAYOUT_FIELDS,
+      $meta: {
+        layout: {
+          type: 'grid',
+          columns: { base: 1, sm: 2, lg: 3 },
+          gap: 'lg',
+          children: [
+            { type: 'field', field: 'name', span: { sm: 2, lg: 3 } },
+            { type: 'field', field: 'queue' },
+            { type: 'field', field: 'nodes' },
+            { type: 'field', field: 'walltime', span: { sm: 2, lg: 1 } },
+          ],
+        },
+      },
+    },
+  },
+}
+
+export const LayoutConditionalFields: StoryObj<typeof DynamicForm> = {
+  args: {
+    initialValues: { advanced: false, account: 'research', name: 'Experiment 24' },
+    skipValueParse: true,
+    workflowForm: true,
+    formJSONs: {
+      $meta: {
+        layout: {
+          type: 'stack',
+          children: [
+            { type: 'field', field: 'advanced' },
+            {
+              type: 'grid',
+              columns: { base: 1, sm: 2 },
+              children: [
+                { type: 'field', field: 'name' },
+                {
+                  type: 'section',
+                  label: 'Accounting',
+                  children: [{ type: 'field', field: 'account' }],
+                },
+              ],
+            },
+          ],
+        },
+      },
+      advanced: { type: 'boolean', label: 'Show accounting' },
+      name: { type: 'string', label: 'Run name' },
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: Workflow expressions are evaluated by the engine.
+      account: { type: 'string', label: 'Account', hidden: '${{ !inputs.advanced }}' },
+    },
+  },
+}
+
+export const LayoutInWizardPage: StoryObj<typeof DynamicForm> = {
+  args: {
+    initialValues: {},
+    skipValueParse: true,
+    formJSONs: {
+      $meta: { wizard: { mode: 'wizard' } },
+      setup: { type: 'step', title: 'Configure the run', options: LAYOUT_FIELDS },
+      review: {
+        type: 'step',
+        title: 'Review',
+        options: { comment: { type: 'string', label: 'Comment' } },
+      },
+    },
+  },
+}
+
+export const LayoutInGroup: StoryObj<typeof DynamicForm> = {
+  args: {
+    initialValues: {},
+    skipValueParse: true,
+    formJSONs: { settings: { type: 'group', label: 'Run settings', items: LAYOUT_FIELDS } },
+  },
+}
+
+export const InvalidLayoutFallback: StoryObj<typeof DynamicForm> = {
+  args: {
+    initialValues: {},
+    skipValueParse: true,
+    formJSONs: { ...LAYOUT_FIELDS, $meta: { layout: { type: 'field', field: 'removed_input' } } },
+  },
+}
+
+export const LayoutCSSBoundary: StoryObj<typeof DynamicForm> = {
+  args: {
+    allowLayoutCSS: true,
+    initialValues: { name: 'Oversized surface' },
+    skipValueParse: true,
+    formJSONs: {
+      $meta: {
+        layout: {
+          type: 'field',
+          field: 'name',
+          css: 'width: 256rem; max-width: 256rem; padding: 1rem; background-color: #d4ed7a;',
+        },
+      },
+      name: { type: 'string', label: 'Name' },
+    },
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Oversized authored content stays inside the form. The neighboring application control remains visible and interactive.',
+      },
+    },
+  },
+  render: (args) => (
+    <div
+      style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '1rem' }}
+    >
+      <DynamicForm {...args} />
+      <div>
+        <label htmlFor="outside-control">Application setting</label>
+        <input id="outside-control" defaultValue="Outside the form" style={{ width: '100%' }} />
+      </div>
+    </div>
+  ),
+}
+
+export const ExcessiveLayoutFallback: StoryObj<typeof DynamicForm> = {
+  args: {
+    initialValues: { name: 'Still editable' },
+    skipValueParse: true,
+    formJSONs: {
+      $meta: {
+        layout: {
+          type: 'stack',
+          children: Array.from({ length: 129 }, () => ({ type: 'stack', children: [] })),
+        },
+      },
+      name: { type: 'string', label: 'Name' },
+    },
   },
 }
