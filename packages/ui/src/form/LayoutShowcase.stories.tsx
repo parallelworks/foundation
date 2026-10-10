@@ -83,10 +83,11 @@ function WorkflowExample({ workflowYaml, allowLayoutCSS, showYaml }: ExampleProp
         </CopyToClipboard>
       </div>
       <div
-        className={
+        className={expanded ? 'grid items-start gap-6' : ''}
+        style={
           expanded
-            ? 'grid items-start gap-6 min-[1100px]:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]'
-            : ''
+            ? { gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 32rem), 1fr))' }
+            : undefined
         }
       >
         <section
@@ -107,6 +108,7 @@ function WorkflowExample({ workflowYaml, allowLayoutCSS, showYaml }: ExampleProp
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             spellCheck={false}
+            wrap="off"
             rows={28}
             maxLength={100_000}
             aria-invalid={invalid}
