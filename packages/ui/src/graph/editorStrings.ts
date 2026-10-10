@@ -507,6 +507,9 @@ export const INPUTS_EDITOR_STRINGS = {
   typeChangeNote: 'Settings the new type doesn’t use are removed when you save.',
   flattenClash: (name: string) => `${name} is also the name of an input beside this group.`,
   disableNeedsBoth: 'Fill in both the checkbox text and its value.',
+  keptValueDoesNotFit: 'This value doesn’t suit the new type. Change it or clear it.',
+  wholeNumberFrom: (least: number) => `Use a whole number of ${least} or more.`,
+  invalidPattern: 'Use a valid regular expression.',
   typeGroups: {
     basic: 'Basic',
     choices: 'Choices',

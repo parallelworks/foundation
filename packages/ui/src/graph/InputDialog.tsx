@@ -99,6 +99,10 @@ interface Prop {
   prose?: boolean
   /** The field's label where its key means something else on another type. */
   label?: keyof InputsEditorStrings['fields']
+  /** A whole number of at least this, never an expression, as the schema takes for a length. */
+  wholeFrom?: number
+  /** A regular expression, which the run form compiles. */
+  pattern?: boolean
 }
 
 /** Input types by menu group, in the order the add menu lists them. */
@@ -269,10 +273,10 @@ const TYPE_PROPS: Record<string, Prop[]> = {
     PLACEHOLDER,
     { key: 'textarea', kind: 'bool', help: 'textarea' },
     { key: 'prefillDefault', kind: 'flag', help: 'prefillDefault' },
-    { key: 'minLength', kind: 'number', help: 'minLength' },
-    { key: 'maxLength', kind: 'number', help: 'maxLength' },
+    { key: 'minLength', kind: 'number', help: 'minLength', wholeFrom: 0 },
+    { key: 'maxLength', kind: 'number', help: 'maxLength', wholeFrom: 1 },
     { key: 'lowercase', kind: 'bool', help: 'lowercase' },
-    { key: 'sanitize', kind: 'text', help: 'sanitize' },
+    { key: 'sanitize', kind: 'text', help: 'sanitize', pattern: true },
   ],
   number: [
     { key: 'default', kind: 'number', help: 'default' },
@@ -521,7 +525,7 @@ function optionsValue(draft: OptionsDraft, labelled: boolean): unknown {
     const value = unchangedValue(row.value, row.original)
       ? row.original
       : parseScalar(row.value.trim())
-    if (row.bare && !row.label.trim() && !row.rest) {
+    if (row.bare && !row.label.trim() && !row.rest && typeof value === 'string') {
       return value
     }
     // A multi-select shows only labels, so it needs one on every option, as does a value that isn't text.
@@ -866,20 +870,28 @@ function TypeSelect({
 
 type Drafts = Record<string, unknown>
 
+// Kinds that write one value, which a list or object kept from another type can't be.
+const SCALAR_KINDS = new Set<Kind>([
+  'text',
+  'textarea',
+  'number',
+  'flag',
+  'bool',
+  'language',
+  'duration',
+  'ref',
+  'choice',
+])
+
 function effectiveKind(prop: Prop, original: unknown): Kind {
-  if (original === undefined || original === null) {
+  if (original === null || typeof original !== 'object') {
     return prop.kind
   }
-  if (
-    typeof original === 'object' &&
-    prop.nested &&
-    prop.kind !== 'options' &&
-    prop.kind !== 'template' &&
-    prop.kind !== 'providers'
-  ) {
-    return 'json'
-  }
-  return prop.kind
+  // Only a shape the schema takes there is edited as JSON; a list where one value goes isn't one.
+  const takes = Array.isArray(original) ? prop.nested === 'any' : prop.nested !== undefined
+  return takes && prop.kind !== 'options' && prop.kind !== 'template' && prop.kind !== 'providers'
+    ? 'json'
+    : prop.kind
 }
 
 interface ValuesDraft {
@@ -934,6 +946,14 @@ function draftOf(kind: Kind, value: unknown): unknown {
     case 'duration':
       // A negative number is an opt-out value, such as -1, and shows as written.
       return typeof value === 'number' && value >= 0 ? formatDuration(value) : text(value)
+    case 'number':
+      // A number written as text shows quoted, so typing the number is an edit that replaces it.
+      return typeof value === 'string' &&
+        value.trim() !== '' &&
+        !EXPRESSION.test(value.trim()) &&
+        Number.isFinite(Number(value))
+        ? JSON.stringify(value)
+        : text(value)
     case 'perCopy':
       return Array.isArray(value)
         ? { list: true, text: '', values: value.map(listItemText) }
@@ -1102,6 +1122,11 @@ function valueError(
     }
     case 'number': {
       const raw = String(draft ?? '').trim()
+      if (raw && prop.wholeFrom !== undefined) {
+        return /^\d+$/.test(raw) && Number(raw) >= prop.wholeFrom
+          ? undefined
+          : t.wholeNumberFrom(prop.wholeFrom)
+      }
       return raw && !EXPRESSION.test(raw) && !Number.isFinite(Number(raw))
         ? t.invalidNumber
         : undefined
@@ -1133,6 +1158,13 @@ function valueError(
       }
       return Object.keys(asRecord(draft)).length === 0 ? t.needsFields : undefined
     default:
+      if (prop.pattern && typeof value === 'string' && !EXPRESSION.test(value)) {
+        try {
+          new RegExp(value, 'g')
+        } catch {
+          return t.invalidPattern
+        }
+      }
       return prop.choices && typeof value === 'string' && !prop.choices.includes(value)
         ? g.invalidChoice(prop.key)
         : undefined
@@ -2018,7 +2050,8 @@ function InputViews({
   const nextName = name.trim()
   const nameError = !editing.isValidInputName(nextName)
     ? t.invalidInputName
-    : nextName !== props.name && props.siblings.includes(nextName)
+    : (nextName !== props.name && props.siblings.includes(nextName)) ||
+        newInputs.pending.some((input) => input.name === nextName)
       ? t.inputExists
       : undefined
   const dirty =
@@ -2144,6 +2177,16 @@ function InputForm({
     })
   // The type the input had when the dialog opened; the YAML just shown may have changed it already.
   const originalType = text(original['type'])
+  // A container's fields sit under its type's key, or still under the old type's when the YAML changed only the type.
+  const childrenOf = (settings: Json, withTemplate = true) => {
+    for (const from of [text(settings['type']), originalType]) {
+      const key = editing.inputChildrenKey(from)
+      if (key && (withTemplate || key !== 'template') && settings[key] !== undefined) {
+        return settings[key]
+      }
+    }
+    return undefined
+  }
   const optionsDraftNow = drafts[draftKey(OPTIONS)] as OptionsDraft | undefined
   const optionRows = optionsDraftNow?.mode === 'list' ? optionsDraftNow.rows : []
   // The schema has two dropdowns: a list with placeholder and autoselect, or options keyed by option-key.
@@ -2173,7 +2216,10 @@ function InputForm({
   ]
   const kindOf = (prop: Prop) => effectiveKind(prop, definition[prop.key])
   const context = { labelled: type === 'multi-dropdown' }
-  // An untouched field keeps its YAML value exactly, so `5` isn't rewritten as '5'.
+  // A value kept from before a type change may not suit the new type, so every setting is checked then.
+  const typeChanged = !isNew && type !== originalType
+  // An untouched field keeps its YAML value exactly, so `5` isn't rewritten as '5', unless the type changed:
+  // then it's written as the new type reads it, the value its error check saw.
   const valueFor = (prop: Prop) => {
     const key = draftKey(prop)
     const kept = definition[prop.key]
@@ -2181,10 +2227,14 @@ function InputForm({
       kindOf(prop) === 'values' &&
       isScalar(kept) &&
       !(typeof kept === 'string' && EXPRESSION.test(kept.trim()))
-    return sameValue(drafts[key], initial[key]) && !becameList
+    return sameValue(drafts[key], initial[key]) && !becameList && !(typeChanged && isScalar(kept))
       ? kept
       : writtenValue(kindOf(prop), drafts[key], context)
   }
+  const edited = (key: string) =>
+    props.some(
+      (prop) => prop.key === key && !sameValue(drafts[draftKey(prop)], initial[draftKey(prop)]),
+    )
   const optionValues =
     type === 'dropdown' || type === 'radio' ? optionRows.map((row) => row.value) : []
   const slider = type === 'number' && valueFor(SLIDER) === true
@@ -2198,18 +2248,25 @@ function InputForm({
         ? t.inputExists
         : undefined,
   }
-  // A value kept from before a type change may not suit the new type, so every setting is checked then.
-  const typeChanged = !isNew && type !== originalType
   for (const prop of props) {
     const key = draftKey(prop)
     const required =
       prop.required ||
       (keyedDropdown && optionsDraftNow?.mode === 'byKey' && prop === OPTION_KEY) ||
       (slider && ['min', 'max', 'step'].includes(prop.key))
+    const untouched = sameValue(drafts[key], initial[key])
+    const kept = definition[prop.key]
+    // A list or object kept where the new type takes one value is written as it is, so it has to change.
     errors[key] =
-      sameValue(drafts[key], initial[key]) && !required && !typeChanged
-        ? undefined
-        : valueError({ ...prop, required }, kindOf(prop), drafts[key], t, g)
+      typeChanged &&
+      untouched &&
+      kept !== null &&
+      typeof kept === 'object' &&
+      SCALAR_KINDS.has(kindOf(prop))
+        ? t.keptValueDoesNotFit
+        : untouched && !required && !typeChanged
+          ? undefined
+          : valueError({ ...prop, required }, kindOf(prop), drafts[key], t, g)
   }
   if (type !== 'dropdown' && optionsDraftNow?.mode === 'byKey' && props.includes(OPTIONS)) {
     errors[draftKey(OPTIONS)] = t.optionsByKeyDropdownOnly
@@ -2252,9 +2309,8 @@ function InputForm({
     }
     // A container's fields carry over from wherever the settings kept them.
     const childKey = editing.inputChildrenKey(type)
-    const fromKey = editing.inputChildrenKey(text(definition['type']))
     if (childKey && childKey !== 'template') {
-      next[childKey] = (fromKey ? definition[fromKey] : undefined) ?? {}
+      next[childKey] = childrenOf(definition) ?? {}
     }
     // The schema takes one dropdown variant, so the other one's settings go.
     for (const prop of TYPE_PROPS[type] ?? []) {
@@ -2263,13 +2319,19 @@ function InputForm({
       }
     }
     const options = next['options']
+    // Only a list's values are known here; options by expression or by key leave the rules below alone.
+    const listed = Array.isArray(options)
+      ? options.map((option) => (isScalar(option) ? option : asRecord(option)['value']))
+      : []
+    const known = Array.isArray(options) && listed.every(isScalar)
     // Links between options name options there are, so a renamed or removed one leaves none behind.
-    if (type === 'checkbox-group' && next['implies'] !== undefined) {
-      const values = new Set(
-        (Array.isArray(options) ? options : []).map((option) =>
-          String(isScalar(option) ? option : asRecord(option)['value']),
-        ),
-      )
+    if (
+      type === 'checkbox-group' &&
+      next['implies'] !== undefined &&
+      known &&
+      (edited('options') || edited('implies'))
+    ) {
+      const values = new Set(listed.map(String))
       const links = Object.entries(asRecord(next['implies']))
         .filter(([from]) => values.has(from))
         .map(([from, to]) => [
@@ -2279,11 +2341,17 @@ function InputForm({
         .filter(([, to]) => (to as unknown[]).length > 0)
       next['implies'] = links.length > 0 ? Object.fromEntries(links) : undefined
     }
-    // A default picks one of the options, so it takes the option's value as written: 4, not '4'.
-    if ((type === 'dropdown' || type === 'radio') && typeof next['default'] === 'string') {
-      const picked = (Array.isArray(options) ? options : [])
-        .map((option) => (isScalar(option) ? option : asRecord(option)['value']))
-        .find((value) => typeof value !== 'string' && String(value) === next['default'])
+    // A dropdown's default picks one of its options by value, so it takes the value as written: 4, not '4'.
+    // A radio matches its options as text and keeps a text default.
+    if (
+      type === 'dropdown' &&
+      typeof next['default'] === 'string' &&
+      known &&
+      (typeChanged || edited('options') || edited('default'))
+    ) {
+      const picked = listed.find(
+        (value) => typeof value !== 'string' && String(value) === next['default'],
+      )
       if (picked !== undefined) {
         next['default'] = picked
       }
@@ -2310,15 +2378,10 @@ function InputForm({
   const changeType = (next: string) => {
     setType(next)
     // A group's or step's fields carry over as a list's template, as they do between those two.
-    const fromKey = editing.inputChildrenKey(text(definition['type']))
+    const fields = childrenOf(definition, false)
     const templateKey = draftKey(TEMPLATE)
-    if (
-      next === 'list' &&
-      fromKey &&
-      fromKey !== 'template' &&
-      sameValue(drafts[templateKey], initial[templateKey])
-    ) {
-      setDraft(templateKey, draftOf('template', definition[fromKey]))
+    if (next === 'list' && fields && sameValue(drafts[templateKey], initial[templateKey])) {
+      setDraft(templateKey, draftOf('template', fields))
     }
     if (!isNew) {
       return
