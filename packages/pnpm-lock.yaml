@@ -167,8 +167,8 @@ importers:
         specifier: ^0.18.5
         version: 0.18.5
       '@parallelworks/workflow-parser':
-        specifier: ^0.7.0
-        version: 0.7.0
+        specifier: ^0.8.0
+        version: 0.8.0
       '@storybook/addon-a11y':
         specifier: 10.6.1
         version: 10.6.1(storybook@10.6.1(@types/react@19.3.0)(prettier@3.9.9)(react@19.3.0))
@@ -1052,8 +1052,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@parallelworks/workflow-parser@0.7.0':
-    resolution: {integrity: sha512-3NkV1MUOTxlCaIurGgwuVa4AzkxSSlhbQYMLRAbSqXPkj90E7bQNSWVAN6G2YvXVHt1FPf4cnFANGNwTsTlw9A==}
+  '@parallelworks/workflow-parser@0.8.0':
+    resolution: {integrity: sha512-hloMQgc9o6hkV0k+1rMAuqTzBKu1iFhO0fFt/iUM5hfJ5zbrMd7q3IVNdqR57v6mm9RAamjNDHPSfxb6shaQrQ==}
 
   '@parcel/watcher-android-arm64@2.6.0':
     resolution: {integrity: sha512-trgpLSCKRC/huFjXX/Smh+0sWe4+YtKfktIToiMl59ghz7z+qkH6kMvNnUbLyRs9N11t8l4svSCs1+5B3rOAhA==}
@@ -4529,7 +4529,7 @@ snapshots:
   '@oxc-resolver/binding-win32-x64-msvc@11.21.2':
     optional: true
 
-  '@parallelworks/workflow-parser@0.7.0':
+  '@parallelworks/workflow-parser@0.8.0':
     dependencies:
       js-yaml: 5.4.3
       luxon: 3.7.2
