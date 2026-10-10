@@ -1004,6 +1004,51 @@ describe('InputDialog keeps what it does not show', () => {
     )
   })
 
+  it('turns kept options and a default into the text a radio or checkbox group takes', () => {
+    const onSave = open({
+      type: 'dropdown',
+      options: [{ value: 2, label: 'Two', description: 'Second' }],
+      default: 2,
+    })
+    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'radio' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith(
+      'field',
+      { type: 'radio', options: [{ value: '2', label: 'Two' }], default: '2' },
+      expect.anything(),
+      [],
+    )
+    cleanup()
+    const boxes = open({ type: 'dropdown', options: [{ value: 'a', description: 123 }] })
+    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'checkbox-group' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(boxes).toHaveBeenCalledWith(
+      'field',
+      { type: 'checkbox-group', options: [{ value: 'a', description: '123' }] },
+      expect.anything(),
+      [],
+    )
+  })
+
+  it('asks for text options when JSON ones a radio can’t hold carry over', () => {
+    open({ type: 'multi-dropdown', options: [{ value: { id: 1 }, label: 'One' }] })
+    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'radio' } })
+    expect(screen.getByText(INPUTS_EDITOR_STRINGS.radioOptionShape)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  })
+
+  it('keeps a setting both types read alike exactly across a type change', () => {
+    const onSave = open({ type: 'password', label: ' Secret ', default: '  passphrase  ' })
+    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'string' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith(
+      'field',
+      { type: 'string', label: ' Secret ', default: '  passphrase  ' },
+      { set: { type: 'string' }, unset: [] },
+      [],
+    )
+  })
+
   it('keeps a radio’s and a checkbox group’s values as text, which is all their options take', () => {
     const onSave = open({ type: 'radio', options: ['a'] })
     fireEvent.click(screen.getByRole('button', { name: 'Add option' }))
