@@ -1,13 +1,37 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useMemo } from 'react'
-import { makeComposerPastes, makePasteText, pasteIntoComposer, StoryChat } from '../stories/harness'
+import {
+  makeComposerPastes,
+  makePasteText,
+  makeStaticAdapter,
+  pasteIntoComposer,
+  StoryChat,
+} from '../stories/harness'
 import type { MessagePaste } from '../types'
 import ChatInput from './ChatInput'
+import { ComposerControls, ComposerUsage, ConnectToolsLink } from './ComposerChrome'
 
 const meta: Meta = {
   title: 'Chat/Composer',
   component: ChatInput,
-  parameters: { layout: 'padded' },
+  parameters: { layout: 'fullscreen' },
+  // Docked at the foot of the panel, the way a thread shows it, so the dock
+  // and its fade read against the surface they belong to.
+  decorators: [
+    (Story) => (
+      <div
+        style={{
+          minHeight: '100dvh',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'flex-end',
+          background: 'var(--theme-panel-bg)',
+        }}
+      >
+        <Story />
+      </div>
+    ),
+  ],
 }
 
 export default meta
@@ -19,12 +43,132 @@ export const Idle: StoryObj<{ disabled: boolean; placeholder: string }> = {
   args: { disabled: false, placeholder: 'Ask anything' },
   render: (args) => (
     <StoryChat>
-      <div className="max-w-2xl mx-auto">
+      <div>
         <ChatInput
           onSend={send}
           disabled={args.disabled}
           placeholder={args.placeholder}
           conversationId="conv-1"
+        />
+      </div>
+    </StoryChat>
+  ),
+}
+
+// The box as a thread docks it: attach on the left of its toolbar, the model
+// and send on the right, and the surface's own links under it. The play opens
+// the attach tray inside the box.
+export const Toolbar: StoryObj<{ attachOpen: boolean }> = {
+  args: { attachOpen: false },
+  render: () => {
+    const Composer = () => {
+      const adapter = useMemo(() => makeStaticAdapter({ attachments: true }), [])
+      return (
+        <StoryChat adapter={adapter}>
+          <div>
+            <ChatInput
+              onSend={send}
+              conversationId="conv-toolbar"
+              settingsLeft={<ConnectToolsLink />}
+              settingsRight={<ComposerControls />}
+            />
+          </div>
+        </StoryChat>
+      )
+    }
+    return <Composer />
+  },
+  play: async ({ canvasElement, args }) => {
+    if (args.attachOpen) {
+      canvasElement.querySelector<HTMLButtonElement>('button[aria-expanded]')?.click()
+    }
+  },
+}
+
+// Alice's own provider and one Bob shared with her carry the same name; the
+// picker names Bob as the owner of his. The organization's provider has no
+// owner to name. An adapter that lists models only gets the same labels from
+// each model's owner. The play opens the picker.
+export const SharedProviders: StoryObj<{ pickerOpen: boolean; listProviders: boolean }> = {
+  args: { pickerOpen: true, listProviders: true },
+  argTypes: {
+    listProviders: {
+      control: 'boolean',
+      description: 'Adapter lists providers; off reads owners from the models',
+    },
+  },
+  render: (args) => {
+    const Composer = () => {
+      const adapter = useMemo(
+        () =>
+          makeStaticAdapter({
+            providers: [
+              { id: 'p-1', name: 'gateway', user: 'alice', cspKind: 'openai', status: 'active' },
+              { id: 'p-2', name: 'gateway', user: 'bob', cspKind: 'openai', status: 'active' },
+              { id: 'p-3', name: 'shared-pool', user: 'org', cspKind: 'other', status: 'active' },
+            ],
+            listProviders: args.listProviders,
+          }),
+        [],
+      )
+      return (
+        <StoryChat adapter={adapter}>
+          <div>
+            <ChatInput
+              onSend={send}
+              conversationId="conv-shared-providers"
+              settingsRight={<ComposerControls />}
+            />
+          </div>
+        </StoryChat>
+      )
+    }
+    return <Composer key={String(args.listProviders)} />
+  },
+  play: async ({ canvasElement, args }) => {
+    if (!args.pickerOpen) {
+      return
+    }
+    // The models load after mount; the trigger stays disabled until they do.
+    for (let i = 0; i < 50; i++) {
+      const trigger = canvasElement.querySelector<HTMLButtonElement>(
+        'button[aria-haspopup="dialog"]:not([disabled])',
+      )
+      if (trigger) {
+        trigger.click()
+        return
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+  },
+}
+
+// A phone-width composer with a host's usage meter: the meter gives way, the
+// model name truncates, and send stays inside the box.
+export const NarrowToolbar: StoryObj<{ width: number; usage: boolean }> = {
+  args: { width: 360, usage: true },
+  argTypes: {
+    width: { control: { type: 'range', min: 280, max: 900, step: 10 } },
+    usage: { control: 'boolean', description: 'Host supplies a usage meter' },
+  },
+  render: (args) => (
+    <StoryChat adapter={makeStaticAdapter({ attachments: true })}>
+      <div style={{ width: args.width, margin: '0 auto' }}>
+        <ChatInput
+          onSend={send}
+          conversationId="conv-narrow"
+          settingsRight={
+            <>
+              {args.usage && (
+                <ComposerUsage>
+                  <span style={{ whiteSpace: 'nowrap', fontSize: 10 }}>
+                    1-day limit 34.2% used · 30-day limit 36.8% used
+                  </span>
+                </ComposerUsage>
+              )}
+              <ComposerControls />
+            </>
+          }
         />
       </div>
     </StoryChat>
@@ -55,7 +199,7 @@ export const LargePastes: StoryObj<{ inlineMaxBytes: number; uploadMs: number }>
       )
       return (
         <StoryChat>
-          <div className="max-w-2xl mx-auto">
+          <div>
             <ChatInput onSend={send} conversationId="conv-pastes" pastes={pastes} />
           </div>
         </StoryChat>
