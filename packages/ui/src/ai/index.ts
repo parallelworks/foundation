@@ -37,6 +37,7 @@ export {
 export { default as ChatMessageView } from './components/ChatMessage'
 export { default as ChatMessageList } from './components/ChatMessageList'
 export { default as ChatSidebar } from './components/ChatSidebar'
+export { default as ChatStage } from './components/ChatStage'
 export { default as ChatThread } from './components/ChatThread'
 export {
   ComposerContext,
@@ -44,8 +45,13 @@ export {
   ComposerSettings,
   ComposerUsage,
   ConnectToolsLink,
+  ManageProvidersLink,
 } from './components/ComposerChrome'
-export { default as ComposerFrame } from './components/ComposerFrame'
+export {
+  type ConversationGroupKey,
+  groupConversationsByDate,
+  useConversationActions,
+} from './components/conversationActions'
 export { default as DragOverlay } from './components/DragOverlay'
 export {
   default as ModelSelector,
@@ -107,6 +113,7 @@ export {
   SidebarDrawer,
   SidebarGroupHeading,
   SidebarPanel,
+  SidebarPlaceholder,
   SidebarRailItem,
   SidebarRow,
   SidebarToggle,

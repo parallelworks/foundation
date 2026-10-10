@@ -109,6 +109,7 @@ export {
 export { RequiredMark } from './components/RequiredMark'
 export { useRelativeTime } from './components/relativeTime'
 export { default as SectionHeader } from './components/SectionHeader'
+export { SegmentedControl, type SegmentedOption } from './components/SegmentedControl'
 export { SettingModeOption } from './components/SettingModeOption'
 export { SettingRow, SettingSection } from './components/SettingRow'
 export { default as SettingsCard } from './components/SettingsCard'

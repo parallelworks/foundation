@@ -149,6 +149,7 @@ export interface ChatStrings {
     download: string
     exportError: string
     jumpToLatest: string
+    dismiss: string
   }
   messageMeta: {
     stopped: string
@@ -350,6 +351,7 @@ export const defaultChatStrings: ChatStrings = {
     download: 'Download',
     exportError: 'Failed to export conversation',
     jumpToLatest: 'Jump to latest',
+    dismiss: 'Dismiss',
   },
   messageMeta: {
     stopped: 'Stopped',
