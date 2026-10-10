@@ -9,6 +9,7 @@ import { CreateModal, CreateModalField } from './CreateModal'
 import Dropdown from './Dropdown'
 import { Indicator } from './Indicator'
 import Loader from './Loader'
+import { SegmentedControl } from './SegmentedControl'
 import { StatusBadge, StatusDot } from './StatusBadge'
 import SwitchToggle from './SwitchToggle'
 import { CompactTable, Table } from './Table'
@@ -196,5 +197,45 @@ export const Inputs: StoryObj = {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByText('Advanced settings'))
     await expect(canvas.getByText('Panel body content.')).toBeVisible()
+  },
+}
+
+function SegmentedDemo({ fill, iconOnly }: { fill: boolean; iconOnly: boolean }) {
+  const [range, setRange] = useState<'day' | 'week' | 'month'>('week')
+  return (
+    <div className="flex w-64 flex-col gap-6">
+      <SegmentedControl
+        label="Range"
+        value={range}
+        onChange={setRange}
+        fill={fill}
+        iconOnly={iconOnly}
+        options={[
+          { value: 'day', label: 'Day', icon: <StatusDot variant="muted" size={6} /> },
+          {
+            value: 'week',
+            label: 'Week',
+            icon: <StatusDot variant="success" size={6} />,
+            badge: <StatusDot variant="warning" size={6} />,
+          },
+          { value: 'month', label: 'Month', icon: <StatusDot variant="error" size={6} /> },
+        ]}
+      />
+    </div>
+  )
+}
+
+// One choice among a few, always one current. The badge says the other side
+// is worth a look; with only icons it moves to the corner.
+export const Segmented: StoryObj<{ fill: boolean; iconOnly: boolean }> = {
+  args: { fill: true, iconOnly: false },
+  render: (args) => <SegmentedDemo {...args} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: 'Month' }))
+    await expect(canvas.getByRole('button', { name: 'Month' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
   },
 }

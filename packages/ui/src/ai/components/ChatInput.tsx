@@ -16,7 +16,7 @@ import { useChatConfig } from '../core/config'
 import useDragDrop from '../core/useDragDrop'
 import type { AttachmentMeta, MessagePaste } from '../types'
 import AttachmentUpload, { type Attachment, type AttachmentUploadHandle } from './AttachmentUpload'
-import { ComposerContext, ComposerSettings } from './ComposerChrome'
+import { ComposerContext, ComposerControls, ComposerSettings } from './ComposerChrome'
 import DragOverlay from './DragOverlay'
 import { PasteFileCard } from './PastedText'
 import { SlashMenu, type SlashMenuConfig, useSlashMenu } from './SlashMenu'
@@ -70,9 +70,6 @@ interface ChatInputProps {
   placeholder?: string | undefined
   conversationId?: string
   onEditLastMessage?: () => void
-  /** Only the box: no page padding, width cap, or settings row, for a host
-   *  that lays out its own controls around it. */
-  flush?: boolean
   /** Send with nothing typed, for a surface where the text is optional. */
   allowEmpty?: boolean
   /** Attach, paste, and drop files. Off for a target that takes text only. */
@@ -85,10 +82,18 @@ interface ChatInputProps {
   sendTestId?: string
   /** Offers the host's slash commands as the input starts with /. */
   slash?: SlashMenuConfig | undefined
+  /** Cards above everything else, such as a warning about this turn. */
+  notices?: ReactNode
+  /** Sits where a terminal's spinner line would, just above the box. */
+  activity?: ReactNode
   /** Pills naming where the turn runs, rendered above the input. */
   context?: ReactNode
+  /** Under the box, on the left. */
   settingsLeft?: ReactNode
+  /** In the box beside send. Defaults to the model and allocation pickers. */
   settingsRight?: ReactNode
+  /** One centered line under everything. */
+  hint?: string | undefined
   /** A turn the chat provider does not run, such as an agent session's: it
    *  drives the Stop button in place of the provider's stream and queue. */
   turn?: { running: boolean; onStop: () => void; stopping?: boolean }
@@ -223,7 +228,6 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput
     placeholder,
     conversationId,
     onEditLastMessage,
-    flush = false,
     allowEmpty = false,
     attachments: attachmentsWanted = true,
     requireModel = true,
@@ -231,9 +235,12 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput
     sendLabel,
     sendTestId,
     slash,
+    notices,
+    activity,
     context,
     settingsLeft,
-    settingsRight,
+    settingsRight = <ComposerControls />,
+    hint,
     turn,
     pastes,
   },
@@ -395,7 +402,7 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput
     onFilesDropped: handleFilesDropped,
   })
 
-  const toolbar = attachmentsAvailable || (!flush && !!settingsRight)
+  const toolbar = attachmentsAvailable || !!settingsRight
   const action =
     isStreaming && !input.trim() ? (
       <button
@@ -420,129 +427,128 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput
 
   return (
     <div
-      className={cx(
-        'relative',
-        !flush && 'chat-composer-dock px-4 pb-5 pt-2 bg-(--theme-panel-bg)',
-      )}
+      className="chat-composer-dock relative bg-(--theme-panel-bg) px-4 pt-2 pb-5"
       {...(attachmentsAvailable ? dragHandlers : {})}
     >
-      {/* Drag overlay */}
       {isDragging && <DragOverlay className="rounded-2xl" />}
-      <div className={cx(!flush && 'w-full max-w-[var(--chat-column,50rem)] mx-auto px-4')}>
-        {context && <ComposerContext>{context}</ComposerContext>}
+      <div className="mx-auto w-full max-w-[var(--chat-column,50rem)] space-y-2 px-4">
+        {notices}
+        <div>
+          {activity && <div className="mb-2">{activity}</div>}
+          {context && <ComposerContext>{context}</ComposerContext>}
 
-        {cards.length > 0 && (
-          <div className="mb-2 flex flex-wrap gap-2" data-testid="composer-pastes">
-            {cards.map((card) => (
-              <PasteFileCard
-                key={card.key}
-                id={card.paste?.id}
-                lines={card.lines}
-                bytes={card.bytes}
-                saving={!card.paste && !card.error}
-                error={card.error}
-                onRemove={() => removeCard(card.key)}
-              />
-            ))}
-          </div>
-        )}
-
-        <div className="relative">
-          {slash && slashMenu.open && (
-            <SlashMenu
-              label={slash.label}
-              matches={slashMenu.matches}
-              active={slashMenu.active}
-              onChoose={(name) => {
-                slashMenu.choose(name)
-                textareaRef.current?.focus()
-              }}
-            />
-          )}
-          {/* One box holds the text and everything that acts on it: what is
-              attached above, the attach and send controls in a toolbar
-              under the text, and (outside flush) the model on that toolbar's
-              right, so the eye never leaves the box to see where it goes. */}
-          <div className="chat-composer @container flex flex-col rounded-[1.25rem] bg-(--theme-panel-bg)">
-            {showAttachments && attachmentsAvailable && (
-              <div className="px-3 pt-3">
-                <AttachmentUpload
-                  ref={attachmentUploadRef}
-                  conversationId={conversationId}
-                  attachments={attachments}
-                  onAttachmentsChange={setAttachments}
-                  maxFiles={10}
+          {cards.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-2" data-testid="composer-pastes">
+              {cards.map((card) => (
+                <PasteFileCard
+                  key={card.key}
+                  id={card.paste?.id}
+                  lines={card.lines}
+                  bytes={card.bytes}
+                  saving={!card.paste && !card.error}
+                  error={card.error}
+                  onRemove={() => removeCard(card.key)}
                 />
-              </div>
-            )}
-
-            {/* With nothing to put beside it, send sits at the end of the
-                text's own row rather than alone on an empty toolbar. */}
-            <div className={cx(!toolbar && 'flex items-end gap-2 pr-2 pb-2')}>
-              <div className="max-h-[200px] min-w-0 flex-1 overflow-y-auto">
-                <textarea
-                  ref={textareaRef}
-                  value={input}
-                  onChange={(e) => setInputAndPersist(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  onPaste={handlePaste}
-                  placeholder={effectivePlaceholder}
-                  aria-label={inputLabel ?? effectivePlaceholder}
-                  disabled={disabled}
-                  rows={1}
-                  className={cx(
-                    'theme-text block w-full resize-none overflow-hidden',
-                    'bg-transparent border-0 px-4',
-                    toolbar ? 'pt-3.5 pb-1' : 'pt-3 pb-1',
-                    'placeholder:theme-muted-text',
-                    'focus:outline-none focus:ring-0',
-                    'disabled:opacity-50 disabled:cursor-not-allowed',
-                    'text-[1rem] leading-relaxed',
-                  )}
-                />
-              </div>
-              {!toolbar && action}
+              ))}
             </div>
+          )}
 
-            {toolbar && (
-              <div className="flex items-center gap-1 px-2 pb-2">
-                {attachmentsAvailable && (
-                  <AttachButton
-                    open={showAttachments}
-                    disabled={disabled}
-                    label={t.attachFiles}
-                    onClick={() => setShowAttachments(!showAttachments)}
+          <div className="relative">
+            {slash && slashMenu.open && (
+              <SlashMenu
+                label={slash.label}
+                matches={slashMenu.matches}
+                active={slashMenu.active}
+                onChoose={(name) => {
+                  slashMenu.choose(name)
+                  textareaRef.current?.focus()
+                }}
+              />
+            )}
+            {/* One box holds the text and everything that acts on it: what is
+              attached above, the attach and send controls in a toolbar
+              under the text, and the model on that toolbar's right, so the
+              eye never leaves the box to see where it goes. */}
+            <div className="chat-composer @container flex flex-col rounded-[1.25rem] bg-(--theme-panel-bg)">
+              {showAttachments && attachmentsAvailable && (
+                <div className="px-3 pt-3">
+                  <AttachmentUpload
+                    ref={attachmentUploadRef}
+                    conversationId={conversationId}
+                    attachments={attachments}
+                    onAttachmentsChange={setAttachments}
+                    maxFiles={10}
                   />
-                )}
-                {/* Send stays in the box however wide the host's controls
+                </div>
+              )}
+
+              {/* With nothing to put beside it, send sits at the end of the
+                text's own row rather than alone on an empty toolbar. */}
+              <div className={cx(!toolbar && 'flex items-end gap-2 pr-2 pb-2')}>
+                <div className="max-h-[200px] min-w-0 flex-1 overflow-y-auto">
+                  <textarea
+                    ref={textareaRef}
+                    value={input}
+                    onChange={(e) => setInputAndPersist(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    onPaste={handlePaste}
+                    placeholder={effectivePlaceholder}
+                    aria-label={inputLabel ?? effectivePlaceholder}
+                    disabled={disabled}
+                    rows={1}
+                    className={cx(
+                      'theme-text block w-full resize-none overflow-hidden',
+                      'bg-transparent border-0 px-4',
+                      toolbar ? 'pt-3.5 pb-1' : 'pt-3 pb-1',
+                      'placeholder:theme-muted-text',
+                      'focus:outline-none focus:ring-0',
+                      'disabled:opacity-50 disabled:cursor-not-allowed',
+                      'text-[1rem] leading-relaxed',
+                    )}
+                  />
+                </div>
+                {!toolbar && action}
+              </div>
+
+              {toolbar && (
+                <div className="flex items-center gap-1 px-2 pb-2">
+                  {attachmentsAvailable && (
+                    <AttachButton
+                      open={showAttachments}
+                      disabled={disabled}
+                      label={t.attachFiles}
+                      onClick={() => setShowAttachments(!showAttachments)}
+                    />
+                  )}
+                  {/* Send stays in the box however wide the host's controls
                     are; they give up their room first. */}
-                <div className="ml-auto flex min-w-0 items-center gap-1">
-                  {!flush && (
+                  <div className="ml-auto flex min-w-0 items-center gap-1">
                     <div className="flex min-w-0 items-center justify-end gap-1">
                       {settingsRight}
                     </div>
-                  )}
-                  <div className="shrink-0">{action}</div>
+                    <div className="shrink-0">{action}</div>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
 
-        {!flush && (settingsLeft || uploadedCount > 0) && (
-          <ComposerSettings
-            left={
-              <>
-                {settingsLeft}
-                {uploadedCount > 0 && (
-                  <span className="text-[11px] theme-muted-text">
-                    {t.filesAttached(uploadedCount)}
-                  </span>
-                )}
-              </>
-            }
-          />
-        )}
+          {(settingsLeft || uploadedCount > 0) && (
+            <ComposerSettings
+              left={
+                <>
+                  {settingsLeft}
+                  {uploadedCount > 0 && (
+                    <span className="text-[11px] theme-muted-text">
+                      {t.filesAttached(uploadedCount)}
+                    </span>
+                  )}
+                </>
+              }
+            />
+          )}
+          {hint && <p className="mt-1 text-center text-[11px] theme-muted-text">{hint}</p>}
+        </div>
       </div>
     </div>
   )

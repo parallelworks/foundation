@@ -449,6 +449,7 @@ export type UILinkComponent = React.ComponentType<{
   children: ReactNode
   title?: string | undefined
   'aria-label'?: string | undefined
+  'aria-current'?: 'page' | undefined
   [dataAttr: `data-${string}`]: string | undefined
 }>
 

@@ -10,6 +10,9 @@ import {
 } from './sidebar'
 
 export const SIDEBAR_MIN_WIDTH_PX = 200
+// Every list that takes turns beside the thread shares one width, so moving
+// between them leaves the thread where it was.
+const SHARED_WIDTH_STORAGE_KEY = 'aiChatSidebarWidth'
 export const SIDEBAR_MAX_WIDTH_PX = 480
 
 function clampSidebarWidth(width: number): number {
@@ -143,8 +146,9 @@ export function ConversationSidebar<T>({
   collapsed: boolean
   onToggle: () => void
   toggleLabels: { open: string; close: string }
-  /** Omit for a fixed width. */
-  resize?: { storageKey: string; label: string; hint: string }
+  /** Omit for a fixed width. A `storageKey` keeps this list's width apart
+   *  from the others'. */
+  resize?: { storageKey?: string; label: string; hint: string }
   /** Takes the width of its container, as inside a drawer, with no rail and
    *  no drag handle. */
   fill?: boolean
@@ -171,7 +175,7 @@ export function ConversationSidebar<T>({
   /** Dialogs and menus that belong to the list. */
   children?: ReactNode
 }) {
-  const sized = useResizableSidebarWidth(resize?.storageKey ?? '')
+  const sized = useResizableSidebarWidth(resize?.storageKey ?? SHARED_WIDTH_STORAGE_KEY)
   useItemCycling(
     groups.flatMap((g) => g.items),
     cycle,

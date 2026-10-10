@@ -1,124 +1,30 @@
 import cx from 'classnames'
-import { DateTime } from 'luxon'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
-import {
-  DownloadIcon,
-  EditIcon,
-  ImageIcon,
-  NewChatIcon,
-  SearchIcon,
-  SettingsIcon,
-  ShareIcon,
-  SharingIcon,
-  TrashIcon,
-} from '../../icons'
-import { type OpenMenu, type RowMenuItem, useRowMenu } from '../../list/index'
+import { ImageIcon, NewChatIcon, SearchIcon, SettingsIcon, SharingIcon } from '../../icons'
+import type { OpenMenu, RowMenuItem } from '../../list/index'
 import { useChat } from '../core/ChatProvider'
 import { useChatConfig } from '../core/config'
 import { FOCUS_SIDEBAR_SEARCH_EVENT } from '../core/events'
-import { conversationToMarkdown, downloadText, exportFilename } from '../core/exportConversation'
 import type { ConversationSummary } from '../types'
 import { ConversationSidebar } from '../ui/ConversationSidebar'
-import { SidebarRow, useRowDialogs } from '../ui/sidebar'
-import ShareDialog from './ShareDialog'
-
-const SIDEBAR_WIDTH_STORAGE_KEY = 'aiChatSidebarWidth'
-
-type ConversationGroupKey =
-  | 'groupToday'
-  | 'groupYesterday'
-  | 'groupThisWeek'
-  | 'groupThisMonth'
-  | 'groupOlder'
-
-function groupByDate<T extends { id: string; title?: string | null; createdAt: string }>(
-  conversations: T[],
-): [ConversationGroupKey, T[]][] {
-  const now = DateTime.now()
-  const groups: Record<ConversationGroupKey, T[]> = {
-    groupToday: [],
-    groupYesterday: [],
-    groupThisWeek: [],
-    groupThisMonth: [],
-    groupOlder: [],
-  }
-
-  for (const conv of conversations) {
-    const dt = DateTime.fromISO(conv.createdAt)
-    const diff = now.diff(dt, 'days').days
-
-    if (diff < 1) {
-      groups.groupToday.push(conv)
-    } else if (diff < 2) {
-      groups.groupYesterday.push(conv)
-    } else if (diff < 7) {
-      groups.groupThisWeek.push(conv)
-    } else if (diff < 30) {
-      groups.groupThisMonth.push(conv)
-    } else {
-      groups.groupOlder.push(conv)
-    }
-  }
-
-  return (Object.entries(groups) as [ConversationGroupKey, T[]][]).filter(
-    ([, items]) => items.length > 0,
-  )
-}
+import { SidebarRow } from '../ui/sidebar'
+import { groupConversationsByDate, useConversationActions } from './conversationActions'
 
 function ConversationRow({
   conv,
   isCurrent,
-  sharingAvailable,
+  menuItems,
   openMenu,
-  onRename,
-  onShare,
-  onDelete,
-  onExport,
   onOpen,
 }: {
   conv: ConversationSummary
   isCurrent: boolean
-  sharingAvailable: boolean
+  menuItems: RowMenuItem[]
   openMenu: OpenMenu
-  onRename: (conv: ConversationSummary) => void
-  onShare: (id: string) => void
-  onDelete: (conv: ConversationSummary) => void
-  onExport: (id: string) => void
   onOpen: () => void
 }) {
   const { LinkComponent, strings } = useChatConfig()
   const t = strings.sidebar
-  const menuItems: RowMenuItem[] = [
-    {
-      kind: 'action',
-      label: t.rename,
-      icon: <EditIcon />,
-      onSelect: () => onRename(conv),
-    },
-    ...(sharingAvailable
-      ? [
-          {
-            kind: 'action',
-            label: t.share,
-            icon: <ShareIcon />,
-            onSelect: () => onShare(conv.id),
-          } satisfies RowMenuItem,
-        ]
-      : []),
-    {
-      kind: 'action',
-      label: strings.chrome.download,
-      icon: <DownloadIcon />,
-      onSelect: () => onExport(conv.id),
-    },
-    {
-      kind: 'action',
-      label: t.delete,
-      icon: <TrashIcon />,
-      destructive: true,
-      onSelect: () => onDelete(conv),
-    },
-  ]
 
   return (
     <SidebarRow selected={isCurrent} menuItems={menuItems} openMenu={openMenu}>
@@ -152,7 +58,6 @@ export default function ChatSidebar({
   const {
     adapter,
     navigation,
-    notify,
     activeConversationId,
     conversations,
     sidebar,
@@ -163,30 +68,10 @@ export default function ChatSidebar({
     toggleSidebar,
     isLoading,
     loadConversations,
-    deleteConversation,
-    updateConversationTitle,
     clearCurrentConversation,
   } = useChat()
-  const sharingAvailable = !!adapter.sharing
   const attachmentsAvailable = !!adapter.attachments
-
-  const [shareDialogOpen, setShareDialogOpen] = useState(false)
-  const [conversationToShare, setConversationToShare] = useState<string | null>(null)
-  const { openMenu, contextMenu } = useRowMenu()
-  const { requestDelete, requestRename, dialogs } = useRowDialogs<ConversationSummary>({
-    strings: {
-      deleteTitle: tSidebar.deleteTitle,
-      deleteBody: () => tSidebar.deleteBody,
-      deleteAction: tSidebar.deleteAction,
-      renameTitle: tSidebar.renameTitle,
-      renameLabel: tSidebar.renameLabel,
-      renamePlaceholder: tSidebar.renamePlaceholder,
-      renameAction: tSidebar.renameAction,
-    },
-    nameOf: (conv) => conv.title || tSidebar.untitled,
-    onDelete: (conv) => deleteConversation(conv.id),
-    onRename: (conv, title) => updateConversationTitle(conv.id, title),
-  })
+  const { menuItems, openMenu, overlays } = useConversationActions()
 
   const drawer = sidebarPresentation === 'drawer'
   // The drawer always opens to the full list; the rail is for a column.
@@ -235,27 +120,13 @@ export default function ChatSidebar({
 
   const groups = useMemo(
     () =>
-      groupByDate(filteredConversations).map(([key, items]) => ({
+      groupConversationsByDate(filteredConversations).map(({ key, items }) => ({
         key,
         label: tSidebar[key],
         items,
       })),
     [filteredConversations, tSidebar],
   )
-
-  const handleExport = async (id: string) => {
-    try {
-      const conversation = await adapter.conversations.get(id)
-      downloadText(exportFilename(conversation.title), conversationToMarkdown(conversation))
-    } catch {
-      notify.error(strings.chrome.exportError)
-    }
-  }
-
-  const handleShareClick = (id: string) => {
-    setConversationToShare(id)
-    setShareDialogOpen(true)
-  }
 
   const handleNewChat = () => {
     closeDrawer()
@@ -279,7 +150,6 @@ export default function ChatSidebar({
       onToggle={toggleSidebar}
       toggleLabels={{ open: tSidebar.openSidebar, close: tSidebar.closeSidebar }}
       resize={{
-        storageKey: SIDEBAR_WIDTH_STORAGE_KEY,
         label: tSidebar.resizeLabel,
         hint: tSidebar.resizeHint,
       }}
@@ -289,12 +159,8 @@ export default function ChatSidebar({
         <ConversationRow
           conv={conv}
           isCurrent={activeConversationId === conv.id}
-          sharingAvailable={sharingAvailable}
+          menuItems={menuItems(conv)}
           openMenu={openMenu}
-          onRename={requestRename}
-          onShare={handleShareClick}
-          onDelete={requestDelete}
-          onExport={handleExport}
           onOpen={closeDrawer}
         />
       )}
@@ -402,19 +268,7 @@ export default function ChatSidebar({
     <>
       {(drawer || sidebar !== 'hidden') && list}
 
-      {contextMenu}
-      {dialogs}
-
-      {conversationToShare && (
-        <ShareDialog
-          conversationId={conversationToShare}
-          isOpen={shareDialogOpen}
-          onClose={() => {
-            setShareDialogOpen(false)
-            setConversationToShare(null)
-          }}
-        />
-      )}
+      {overlays}
     </>
   )
 }
