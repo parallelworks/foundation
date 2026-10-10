@@ -293,6 +293,7 @@ function RowContextMenu({
   // Focus goes in once the menu is placed, since a hidden element can't take it: to the search field,
   // or to the first item when the menu was opened from the keyboard. It returns to the opener on close.
   const placed = pos !== null
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a menu that replaces an open one takes focus again.
   useEffect(() => {
     const menu = ref.current
     if (!placed || !menu) {
