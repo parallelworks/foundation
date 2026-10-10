@@ -1945,7 +1945,7 @@ function useAddedGroups(start: string | undefined, committed: GraphEdit[]) {
   const [added, setAdded] = useState<AddedGroup[]>([])
   const nested: NestedWorkflowText = {
     inputs: () => {
-      const text = editedWorkflow(editing, start, committed)
+      const text = editedWorkflow(editing, start, committed).yml
       const on = asRecord(asRecord(text === undefined ? {} : editing.loadYaml(text))['on'])
       return {
         ...asRecord(asRecord(on['execute'])['inputs']),
@@ -1977,14 +1977,14 @@ function editedWorkflow(
   editing: WorkflowEditing,
   start: string | undefined,
   edits: GraphEdit[],
-): string | undefined {
+): { yml: string | undefined; error: unknown } {
   if (start === undefined) {
-    return undefined
+    return { yml: undefined, error: undefined }
   }
   try {
-    return applyAll(editing, start, edits)
-  } catch {
-    return undefined
+    return { yml: applyAll(editing, start, edits), error: undefined }
+  } catch (error) {
+    return { yml: undefined, error }
   }
 }
 
@@ -2061,7 +2061,13 @@ export function useSettingsViews(o: SettingsViewsOptions) {
   const edits = yaml !== null ? withYaml(yaml) : drafted()
   const editsKey = JSON.stringify(edits)
   // biome-ignore lint/correctness/useExhaustiveDependencies: the edits are compared by their content.
-  const whole = useMemo(() => editedWorkflow(editing, start, edits), [editing, start, editsKey])
+  const applied = useMemo(() => editedWorkflow(editing, start, edits), [editing, start, editsKey])
+  const whole = applied.yml
+  // YAML the workflow would refuse, such as a job under the settings, can't be saved or carried to the form.
+  const refused =
+    yaml !== null && applied.error !== undefined
+      ? editErrorText(t, editing, applied.error)
+      : undefined
   const scopeName = yaml !== null ? name : (o.rename?.from(draft.current) ?? name)
   const scoped = useScopedProblems(whole, o.scope(scopeName), yaml, o.exclude)
   // The workflow with what a switch to the form committed, for the form to start from.
@@ -2106,7 +2112,7 @@ export function useSettingsViews(o: SettingsViewsOptions) {
     if (yaml === null) {
       return
     }
-    const issue = problemOf(yaml) ?? nameError
+    const issue = problemOf(yaml) ?? nameError ?? refused
     if (issue) {
       setProblem(issue)
       return
@@ -2124,7 +2130,9 @@ export function useSettingsViews(o: SettingsViewsOptions) {
       title={title}
       onClose={o.onClose}
       dirty={committed.length > 0 || text !== yamlAtStart || nextName !== name}
-      saveDisabled={problemOf(text) !== undefined || nameError !== undefined}
+      saveDisabled={
+        problemOf(text) !== undefined || nameError !== undefined || refused !== undefined
+      }
       onSubmit={() => save(withRename(withYaml(text)))}
       headerEnd={switcher}
       openOnAdd={o.openOnAdd}
@@ -2147,7 +2155,7 @@ export function useSettingsViews(o: SettingsViewsOptions) {
           setYaml(next)
           setProblem(undefined)
         }}
-        problem={problem ?? problemOf(text)}
+        problem={problem ?? problemOf(text) ?? refused}
         scoped={scoped}
       />
     </DialogShell>

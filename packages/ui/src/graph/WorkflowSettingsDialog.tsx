@@ -1,7 +1,6 @@
 import { type ReactNode, useState } from 'react'
 import { IconButton } from '../components/IconButton'
 import { Input } from '../components/Input'
-import { withPositionKeys } from '../components/keys'
 import { useWorkflowEditing } from '../components/Provider'
 import type { GraphEdit } from '../editing'
 import { SETTINGS_YAML_PATH } from '../editor/settingsYaml'
@@ -79,7 +78,12 @@ export const INPUT_FORM_FIELDS = [
   'wizard.flatten',
 ]
 
+// A card's key, so a removed card's field state doesn't pass to the one after it.
+let cards = 0
+const cardKey = () => `card-${++cards}`
+
 interface SessionDraft {
+  key: string
   name: string
   original: unknown
   type: 'tunnel' | 'link'
@@ -93,6 +97,7 @@ function sessionsFrom(value: unknown): SessionDraft[] {
     const session = asRecord(raw)
     const prompt = session['prompt-for-name']
     return {
+      key: cardKey(),
       name,
       original: raw,
       type: session['type'] === 'link' ? 'link' : 'tunnel',
@@ -125,6 +130,7 @@ function sessionValue(draft: SessionDraft): unknown {
 }
 
 interface LinkDraft {
+  key: string
   name: string
   original: unknown
   target: 'endpoint' | 'url'
@@ -137,6 +143,7 @@ function linksFrom(value: unknown): LinkDraft[] {
     const link = asRecord(raw)
     const target = link['url'] !== undefined ? 'url' : 'endpoint'
     return {
+      key: cardKey(),
       name,
       original: raw,
       target,
@@ -243,7 +250,41 @@ function Card({
   )
 }
 
-/** Workflow-level YAML: env, timeout, permissions, sessions, links, variables and the input form layout. */
+// Leaving page names in or out changes every page input's path: each moves out to the form while the
+// wizard reads the old way, and back once it reads the new way, so references and saved inputs follow.
+function reflattenEdits(inputs: Json, update: GraphEdit): GraphEdit[] {
+  const names = Object.keys(inputs).filter((name) => !name.startsWith('$'))
+  const pages = names
+    .filter((name) => asRecord(inputs[name])['type'] === 'step')
+    .map((page) => ({
+      page,
+      fields: Object.keys(asRecord(asRecord(inputs[page])['options'])).filter(
+        (name) => !name.startsWith('$'),
+      ),
+    }))
+    .filter(({ fields }) => fields.length > 0)
+  if (pages.length === 0) {
+    return [update]
+  }
+  return [
+    {
+      type: 'moveInputs',
+      paths: pages.flatMap(({ page, fields }) => fields.map((name) => [page, name])),
+      parent: [],
+      index: names.length,
+    },
+    update,
+    ...pages.map(
+      ({ page, fields }): GraphEdit => ({
+        type: 'moveInputs',
+        paths: fields.map((name) => [name]),
+        parent: [page],
+        index: 0,
+      }),
+    ),
+  ]
+}
+
 interface SettingsDialogProps {
   workflow: Json
   onEdit: (edit: GraphEdit) => void
@@ -458,17 +499,23 @@ function SettingsForm({
 
   const update: GraphEdit = { type: 'updateWorkflow', ...patch, inputsMeta: metaPatch }
   // A wizard draws only its pages, so splitting puts the inputs outside one in a first page, and
-  // unsplitting puts every page's inputs back.
-  const inputs = editing.workflowInputsSchema(original)
-  const pages =
-    wizardOn === (wizard['mode'] === 'wizard')
-      ? []
-      : wizardOn
-        ? firstPageEdits(editing, inputs, inputStrings.stepTitle(1))
-        : pagesBackEdits(inputs, [])
-  const saveEdit = newInputs.save(
-    dirty ? (pages.length > 0 ? { type: 'batch', edits: [update, ...pages] } : update) : null,
-  )
+  // unsplitting puts every page's inputs back. Inputs this dialog made go along with the rest.
+  // An input's path follows the wizard's settings when it moves, and what reads it follows the
+  // move: the other settings go first, then the wizard's change is made on the side of the moves
+  // that reads the inputs where they are.
+  const inputs = newInputs.all
+  const wasWizard = wizard['mode'] === 'wizard'
+  const settings: GraphEdit[] = isEmptyPatch(patch) ? [] : [{ type: 'updateWorkflow', ...patch }]
+  const wizardEdit: GraphEdit = { type: 'updateWorkflow', inputsMeta: metaPatch }
+  const edits: GraphEdit[] =
+    wizardOn && !wasWizard
+      ? [...settings, wizardEdit, ...firstPageEdits(editing, inputs, inputStrings.stepTitle(1))]
+      : !wizardOn && wasWizard
+        ? [...settings, ...pagesBackEdits(inputs, []), wizardEdit]
+        : wizardOn && flatten !== (wizard['flatten'] !== false)
+          ? [...settings, ...reflattenEdits(inputs, wizardEdit)]
+          : [update]
+  const saveEdit = newInputs.save(dirty ? editing.batchOf(edits) : null)
   onDraft?.(saveEdit, invalid)
   const children = (
     <>
@@ -511,9 +558,9 @@ function SettingsForm({
         open={sessions.length > 0}
         alert={!!(errors.sessions || errors.redirect)}
       >
-        {withPositionKeys(sessions).map(({ key, item: session }, i) => (
+        {sessions.map((session, i) => (
           <Card
-            key={key}
+            key={session.key}
             removeLabel={t.removeRow}
             onRemove={() => setSessions(sessions.filter((_, j) => j !== i))}
           >
@@ -589,6 +636,7 @@ function SettingsForm({
             setSessions([
               ...sessions,
               {
+                key: cardKey(),
                 name: '',
                 original: null,
                 type: 'tunnel',
@@ -612,9 +660,9 @@ function SettingsForm({
         open={links.length > 0}
         alert={!!(errors.links || errors.redirect)}
       >
-        {withPositionKeys(links).map(({ key, item: link }, i) => (
+        {links.map((link, i) => (
           <Card
-            key={key}
+            key={link.key}
             removeLabel={t.removeRow}
             onRemove={() => setLinks(links.filter((_, j) => j !== i))}
           >
@@ -665,6 +713,7 @@ function SettingsForm({
             setLinks([
               ...links,
               {
+                key: cardKey(),
                 name: '',
                 original: undefined,
                 target: 'endpoint',
