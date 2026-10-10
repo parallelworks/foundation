@@ -6,11 +6,6 @@ type Json = Record<string, unknown>
 const asRecord = (value: unknown): Json =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as Json) : {}
 
-/** Whether a list of inputs is drawn as a wizard, one step at a time. */
-export function isWizard(list: unknown): boolean {
-  return asRecord(asRecord(asRecord(list)['$meta'])['wizard'])['mode'] === 'wizard'
-}
-
 const isStep = (definition: unknown) => asRecord(definition)['type'] === 'step'
 
 const inputNames = (list: Json) => Object.keys(list).filter((name) => !name.startsWith('$'))
