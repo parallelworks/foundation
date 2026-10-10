@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.1](https://github.com/parallelworks/foundation/compare/v0.14.0...v0.14.1) (2026-10-10)
+
+
+### Bug Fixes
+
+* **deps:** build with Go 1.27.2 for the standard library security fixes ([#205](https://github.com/parallelworks/foundation/issues/205)) ([577ef73](https://github.com/parallelworks/foundation/commit/577ef7309a0b3d9ccde21b4289b0fa32520c40cb))
+
 ## [0.14.0](https://github.com/parallelworks/foundation/compare/v0.13.0...v0.14.0) (2026-10-07)
 
 
