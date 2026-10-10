@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.34.0](https://github.com/parallelworks/foundation/compare/ui-v0.33.0...ui-v0.34.0) (2026-10-10)
+
+
+### Features
+
+* **ui:** any conversation list can share the chat layout and its drawer ([#200](https://github.com/parallelworks/foundation/issues/200)) ([4f9b45f](https://github.com/parallelworks/foundation/commit/4f9b45f53406e133dc988a893789691d4f0313e1))
+
 ## [0.33.0](https://github.com/parallelworks/foundation/compare/ui-v0.32.0...ui-v0.33.0) (2026-10-09)
 
 
