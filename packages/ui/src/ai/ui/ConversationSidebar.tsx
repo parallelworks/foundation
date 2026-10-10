@@ -3,6 +3,7 @@ import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react'
 import { positionKeys } from '../../components/keys'
 import {
   SIDEBAR_DEFAULT_WIDTH_PX,
+  SidebarDrawer,
   SidebarGroupHeading,
   SidebarPanel,
   SidebarToggle,
@@ -124,7 +125,8 @@ export function ConversationSidebar<T>({
   onToggle,
   toggleLabels,
   resize,
-  fill = false,
+  fill: fillProp = false,
+  drawer,
   groups,
   getKey,
   renderRow,
@@ -146,6 +148,9 @@ export function ConversationSidebar<T>({
   /** Takes the width of its container, as inside a drawer, with no rail and
    *  no drag handle. */
   fill?: boolean
+  /** Shows the list in a drawer over the page instead of beside it; it fills
+   *  the drawer. */
+  drawer?: { open: boolean; onClose: () => void; label: string; closeLabel: string } | undefined
   groups: ConversationSidebarGroup<T>[]
   getKey: (item: T) => string
   /** One `SidebarRow`. */
@@ -172,9 +177,10 @@ export function ConversationSidebar<T>({
     cycle,
   )
 
+  const fill = fillProp || !!drawer
   const collapsed = collapsedProp && !fill
   const resizable = resize && !fill
-  return (
+  const panel = (
     <SidebarPanel
       collapsed={collapsed}
       label={label}
@@ -268,5 +274,17 @@ export function ConversationSidebar<T>({
 
       {children}
     </SidebarPanel>
+  )
+  return drawer ? (
+    <SidebarDrawer
+      open={drawer.open}
+      onClose={drawer.onClose}
+      label={drawer.label}
+      closeLabel={drawer.closeLabel}
+    >
+      {panel}
+    </SidebarDrawer>
+  ) : (
+    panel
   )
 }

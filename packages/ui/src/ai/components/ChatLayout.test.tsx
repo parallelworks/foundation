@@ -82,6 +82,15 @@ describe('ChatLayout inline', () => {
 })
 
 describe('ChatLayout drawer', () => {
+  it('keeps the drawer bar beside the toggle, and only while the list is a drawer', async () => {
+    const { unmount } = renderLayout({ sidebarMode: 'drawer', drawerBar: <p>bar</p> })
+    expect(screen.getByText('bar')).toBeInTheDocument()
+    unmount()
+    renderLayout({ drawerBar: <p>bar</p> })
+    expect(await screen.findByText(FIRST)).toBeVisible()
+    expect(screen.queryByText('bar')).not.toBeInTheDocument()
+  })
+
   it('starts closed, opens from its toggle and closes once a conversation is picked', async () => {
     renderLayout({ sidebarMode: 'drawer' })
     const dialog = screen.getByRole('dialog', { hidden: true })

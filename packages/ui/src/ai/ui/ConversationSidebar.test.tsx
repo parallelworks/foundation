@@ -93,6 +93,25 @@ describe('ConversationSidebar', () => {
     expect(storage.get('itemsWidth')).toBe('316')
   })
 
+  it('opens in a drawer at full width, with no rail or handle, and closes from it', () => {
+    const onClose = vi.fn()
+    render(
+      <Sidebar
+        collapsed
+        rail={<li>dot</li>}
+        resize={{ storageKey: 'itemsWidth', label: 'Resize', hint: 'Drag' }}
+        drawer={{ open: true, onClose, label: 'Items drawer', closeLabel: 'Close items' }}
+      />,
+    )
+    expect(screen.getByRole('dialog', { name: 'Items drawer' })).toBeInTheDocument()
+    expect(screen.getByText('Item a')).toBeInTheDocument()
+    expect(screen.queryByText('dot')).not.toBeInTheDocument()
+    expect(screen.queryByRole('separator')).not.toBeInTheDocument()
+    expect(panel().style.width).toBe('100%')
+    fireEvent.keyDown(screen.getByRole('dialog', { name: 'Items drawer' }), { key: 'Escape' })
+    expect(onClose).toHaveBeenCalled()
+  })
+
   it('cycles through the items in list order and wraps', () => {
     const onSelect = vi.fn()
     const { rerender } = render(<Sidebar cycle={{ current: groups[1]?.items[1], onSelect }} />)
