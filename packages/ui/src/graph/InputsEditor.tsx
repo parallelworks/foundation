@@ -62,10 +62,9 @@ import {
   TypeBadge,
   withCreatedInputs,
 } from './InputDialog'
-import { dropLayoutEdits, resizeLayout, withInputLayouts } from './inputLayout'
+import { dropLayoutEdits, isWizard, resizeLayout, withInputLayouts } from './inputLayout'
 import {
   addPageEdit,
-  isWizard,
   splitIntoPagesEdits,
   unsplitPagesEdits,
   wizardGroupDefinition,

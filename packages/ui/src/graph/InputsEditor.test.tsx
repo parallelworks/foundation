@@ -56,6 +56,7 @@ import type { DependencyGraphEditor, EditorProblem } from './editorApi'
 import { GRAPH_EDITOR_STRINGS, INPUTS_EDITOR_STRINGS } from './editorStrings'
 import { INPUT_TYPE_GROUPS } from './InputDialog'
 import { InputsFormEditor } from './InputsEditor'
+import { inputCell } from './inputRows'
 import { asRecord } from './records'
 
 afterEach(cleanup)
@@ -703,6 +704,33 @@ describe('InputsFormEditor', () => {
     })
   })
 
+  it('shows the page “+ Page” adds, after a repeated page’s copies', async () => {
+    const REPEATED = {
+      $meta: { wizard: { mode: 'wizard' } },
+      hosts: {
+        type: 'step',
+        title: 'Host',
+        multi: true,
+        min: 2,
+        options: { cpus: { type: 'number' } },
+      },
+      done: { type: 'step', title: 'Done', options: { note: { type: 'string' } } },
+    }
+    const e = editor()
+    const { rerender } = renderForm(e, REPEATED)
+    expect(await screen.findByText('/ 3')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Page' }))
+    const added = resultOf(e, REPEATED).inputs
+    rerender(
+      <InputsFormEditor editor={e} inputs={added}>
+        <DynamicForm formJSONs={convertToDynamicForm(added)} initialValues={{}} workflowForm />
+      </InputsFormEditor>,
+    )
+    expect(await screen.findByText('/ 4')).toBeInTheDocument()
+    expect(screen.getByLabelText('Page shown')).toHaveValue(4)
+    expect(within(row(['step_3'])).getByText('Wizard step')).toBeInTheDocument()
+  })
+
   it('unsplits a wizard: each page’s inputs back where it was, in order, and no wizard', () => {
     const e = editor()
     renderForm(e, PAGED)
@@ -1157,7 +1185,6 @@ describe('inputs side by side', () => {
       type: 'grid',
       columns: { base: 1, sm: 2 },
     })
-    expect(asRecord(result.inputs['c'])['width']).toBeUndefined()
   })
 
   it('drops above or below an input from the top or bottom half of its middle', () => {
@@ -1172,15 +1199,13 @@ describe('inputs side by side', () => {
 
   it('migrates a legacy field width to a responsive layout when it moves', () => {
     const e = editor()
-    render(e, { a: { type: 'string', label: 'A', width: '50%' }, b: ROWS.b, c: ROWS.c })
+    const legacy = { a: { type: 'string', label: 'A', width: '50%' }, b: ROWS.b, c: ROWS.c }
+    render(e, legacy)
     layOut({ a: [0, 0, 292, 40], b: [0, 50, 600, 40], c: [0, 100, 600, 40] })
     drag(handleOf('a'), [200, 5], [300, 130])
-    expect(
-      fieldsOf(
-        resultOf(e, { a: { type: 'string', label: 'A', width: '50%' }, b: ROWS.b, c: ROWS.c })
-          .layout,
-      ),
-    ).toEqual(['b', 'c', 'a'])
+    const result = resultOf(e, legacy)
+    expect(fieldsOf(result.layout)).toEqual(['b', 'c', 'a'])
+    expect(result.inputs['a']).toEqual({ type: 'string', label: 'A' })
   })
 
   it('gives an input dragged out of a shared line, and the one left there, the full width', () => {
@@ -1194,6 +1219,10 @@ describe('inputs side by side', () => {
       type: 'grid',
       columns: { sm: [50] },
     })
+    expect([result.inputs['a'], result.inputs['b']]).toEqual([
+      { type: 'string', label: 'A' },
+      { type: 'string', label: 'B' },
+    ])
   })
 
   it('gives a new input dropped beside another an even share of its line', () => {
@@ -1355,11 +1384,13 @@ describe('inputs side by side', () => {
     expect([open('a'), open('b'), open('c')]).toEqual([true, true, false])
   })
 
-  it('moves the edge between two inputs with the arrow keys', () => {
+  it('moves the edge between two inputs with the arrow keys, their shares never over 100%', () => {
     const e = editor()
     render(e, HALVES)
-    layOut({ a: [0, 0, 292, 40], b: [308, 0, 292, 40], c: [0, 50, 600, 40] })
+    // Each cell is 50.6% of the line: rounded, the two would come to 102%.
+    layOut({ a: [0, 0, 296, 40], b: [304, 0, 296, 40], c: [0, 50, 600, 40] })
     fireEvent.pointerMove(form(), { clientX: 300, clientY: 20 })
+    expect(screen.getByRole('separator')).toHaveAttribute('aria-valuenow', '50')
     fireEvent.keyDown(screen.getByRole('separator'), { key: 'ArrowLeft' })
     expect((asRecord(resultOf(e, HALVES).layout)['children'] as unknown[])[0]).toMatchObject({
       columns: { base: 1, sm: [45, 55] },
@@ -1457,6 +1488,126 @@ describe('list templates', () => {
     const open = (el: HTMLElement | undefined) =>
       el?.querySelector('[data-input-chrome]')?.parentElement?.classList.contains('h-7')
     expect([open(first), open(second)]).toEqual([false, true])
+  })
+
+  // Gives each copy of a template input, by row, a rect; its cell spans 8px more each side.
+  function layOutCopies(rects: Record<string, [number, number, number, number][]>) {
+    for (const [name, copies] of Object.entries(rects)) {
+      copies.forEach(([x, y, w, h], index) => {
+        const el = rowsOf(['hosts', ...name.split('.')])[index] as HTMLElement
+        el.getBoundingClientRect = () => new DOMRect(x, y, w, h)
+        const cell = inputCell(el)
+        if (cell) {
+          cell.getBoundingClientRect = () => new DOMRect(x - 8, y, w + 16, h)
+          const flow = cell.parentElement as HTMLElement
+          flow.getBoundingClientRect = () => new DOMRect(-8, y, 616, h)
+        }
+      })
+    }
+  }
+  const container = () => row(['hosts']).closest('[tabindex="0"]') as HTMLElement
+  const selectedPaths = () => [
+    ...new Set(
+      [...document.querySelectorAll('[data-input-path][data-selected]')].map((el) =>
+        el.getAttribute('data-input-path'),
+      ),
+    ),
+  ]
+
+  it('steps with the arrow keys from the row an input was picked in, not the first row', () => {
+    renderList(editor(), { hosts: [{ name: 'a' }, { name: 'b' }] })
+    row(['hosts']).getBoundingClientRect = () => new DOMRect(0, 0, 600, 400)
+    layOutCopies({
+      name: [
+        [0, 50, 600, 40],
+        [0, 220, 600, 40],
+      ],
+      port: [
+        [0, 100, 600, 40],
+        [0, 270, 600, 40],
+      ],
+      creds: [
+        [0, 150, 600, 60],
+        [0, 320, 600, 60],
+      ],
+      'creds.user': [
+        [10, 160, 580, 40],
+        [10, 330, 580, 40],
+      ],
+    })
+    const label = rowsOf(['hosts', 'port'])[1]?.querySelector('[data-field-label]') as HTMLElement
+    fireEvent.pointerDown(label, { button: 0, clientX: 5, clientY: 275 })
+    act(() => {
+      fireEvent.pointerUp(window, { clientX: 5, clientY: 275 })
+    })
+    fireEvent.click(label)
+    fireEvent.keyDown(container(), { key: 'ArrowUp' })
+    expect(selectedPaths()).toEqual(['["hosts","name"]'])
+    // From the second row's Name, the input above is the first row's last, not the list.
+    fireEvent.keyDown(container(), { key: 'ArrowUp' })
+    expect(selectedPaths()).toEqual(['["hosts","creds","user"]'])
+  })
+
+  it('resizes side-by-side template inputs from the row whose edge is grabbed', () => {
+    const PAIRED = {
+      hosts: {
+        type: 'list',
+        label: 'Hosts',
+        template: {
+          $meta: {
+            layout: {
+              type: 'grid',
+              columns: { base: 1, sm: 2 },
+              children: [
+                { type: 'field', field: 'name' },
+                { type: 'field', field: 'port' },
+              ],
+            },
+          },
+          name: { type: 'string', label: 'Name' },
+          port: { type: 'number', label: 'Port' },
+        },
+      },
+    }
+    const e = editor()
+    render(
+      <InputsFormEditor editor={e} inputs={PAIRED}>
+        <DynamicForm
+          formJSONs={convertToDynamicForm(PAIRED)}
+          initialValues={{ hosts: [{}, {}] }}
+          workflowForm
+          fields={{ list: ListStandIn }}
+        />
+      </InputsFormEditor>,
+    )
+    // The first row splits its line evenly; the second, 31% to 68%.
+    layOutCopies({
+      name: [
+        [0, 50, 292, 40],
+        [0, 150, 176, 40],
+      ],
+      port: [
+        [308, 50, 292, 40],
+        [192, 150, 408, 40],
+      ],
+    })
+    fireEvent.pointerMove(container(), { clientX: 184, clientY: 170 })
+    const edge = screen.getByRole('separator')
+    expect(edge).toHaveAttribute('aria-valuenow', '31')
+    fireEvent.keyDown(edge, { key: 'ArrowLeft' })
+    const edit = vi.mocked(e.onEdit).mock.lastCall?.[0]
+    if (!edit) throw new Error('No edit was submitted')
+    const result = applyGraphEdit(
+      { yml: dumpYaml({ on: { execute: { inputs: PAIRED } } }), layout: undefined },
+      edit,
+    )
+    const template = asRecord(
+      asRecord(workflowInputsSchema(asRecord(loadYaml(result.yml))))['hosts'],
+    )['template']
+    const [left, right] = asRecord(
+      asRecord(asRecord(asRecord(template)['$meta'])['layout'])['columns'],
+    )['sm'] as number[]
+    expect((left ?? 0) / (right ?? 1)).toBeCloseTo(25 / 74)
   })
 
   it('moves a template field among the template’s own', () => {
