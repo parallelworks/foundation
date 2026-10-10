@@ -114,6 +114,15 @@ export function Chat() {
 }
 ```
 
+`ChatLayout sidebarMode="auto"` shows the conversation list as a drawer over
+the thread when the chat is narrower than `drawerBelowPx` (768 by default),
+measured on the chat's own box; `"drawer"` always does, and `"inline"` (the
+default) never does. The reader's toggle drives the list unless the host
+passes `sidebar` (`'expanded' | 'collapsed' | 'hidden'`) and `drawerOpen` to
+`ChatProvider`, with `onSidebarChange` and `onDrawerOpenChange` to hear the
+reader's requests. `useChat().toggleSidebar` opens or closes whichever the
+layout shows, for a host header's own button.
+
 Swap the mock for `createOpenAIChatAdapter({ baseUrl, apiKey })` from
 `@parallelworks/ui/ai/openai`, or implement `ChatAdapter` against your own
 backend. It requires `conversations`, `models` and `streamCompletion`; the

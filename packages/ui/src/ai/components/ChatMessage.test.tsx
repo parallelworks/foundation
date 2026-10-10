@@ -638,4 +638,24 @@ describe('turn duration row', () => {
     fireEvent.click(button!)
     expect(onOpenReasoning).toHaveBeenCalledWith('because of reasons', 4000)
   })
+
+  it('opens the reasoning in place when the host does not show it', () => {
+    const message = createMockMessage({
+      role: 'assistant',
+      content: 'the answer',
+      reasoning: 'because of reasons',
+      reasoningDuration: 4000,
+    })
+
+    render(<ChatMessage {...defaultProps} message={message} />)
+
+    const button = screen.getByText(/Thought for/).closest('button')!
+    expect(button).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('because of reasons')).not.toBeInTheDocument()
+    fireEvent.click(button)
+    expect(button).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('because of reasons')).toBeInTheDocument()
+    fireEvent.click(button)
+    expect(screen.queryByText('because of reasons')).not.toBeInTheDocument()
+  })
 })

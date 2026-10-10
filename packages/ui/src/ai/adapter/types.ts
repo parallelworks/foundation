@@ -60,6 +60,10 @@ export interface StreamHandlers {
 
 // Progressive events an agent adapter maps onto MessagePart timelines.
 export type PartDelta =
+  | { type: 'text' | 'reasoning'; text: string }
+  // Takes back the text and reasoning still streaming at the end of the
+  // timeline, for a provider that restarts a reply.
+  | { type: 'retract' }
   | {
       type: 'tool_start'
       id: string

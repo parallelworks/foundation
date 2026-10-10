@@ -7,6 +7,21 @@ import type { MessagePart, SubagentPart } from '../types'
  *  rather than invented — an end without a start has nothing to render. */
 export function applyPartDelta(parts: MessagePart[], delta: PartDelta): MessagePart[] {
   switch (delta.type) {
+    case 'text':
+    case 'reasoning': {
+      const last = parts.at(-1)
+      if (last?.kind === delta.type) {
+        return [...parts.slice(0, -1), { ...last, text: last.text + delta.text }]
+      }
+      return [...parts, { kind: delta.type, text: delta.text }]
+    }
+    case 'retract': {
+      let end = parts.length
+      while (end > 0 && isStreamedText(parts[end - 1])) {
+        end -= 1
+      }
+      return end === parts.length ? parts : parts.slice(0, end)
+    }
     case 'tool_start':
       return [
         ...parts,
@@ -93,6 +108,10 @@ export function applyPartDelta(parts: MessagePart[], delta: PartDelta): MessageP
     default:
       return parts
   }
+}
+
+function isStreamedText(part: MessagePart | undefined): boolean {
+  return part?.kind === 'text' || part?.kind === 'reasoning'
 }
 
 /** A turn can end (completed or stopped) with tool calls still marked
