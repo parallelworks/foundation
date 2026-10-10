@@ -1,29 +1,189 @@
+import {
+  convertToDynamicForm,
+  dumpYaml,
+  loadYaml,
+  workflowInputsSchema,
+} from '@parallelworks/workflow-parser'
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import { useId, useState } from 'react'
+import CopyToClipboard from '../components/CopyToClipboard'
 import { DynamicForm } from './Form'
 import type { FormLayoutNode } from './layout'
+import { initializeValues } from './lib'
 
-const meta: Meta<typeof DynamicForm> = {
+interface ExampleProps {
+  workflowYaml: string
+  allowLayoutCSS: boolean
+  showYaml: boolean
+}
+
+function parseExample(source: string) {
+  try {
+    if (source.length > 100_000) throw new Error('Keep playground YAML under 100,000 characters.')
+    const workflow = loadYaml(source)
+    // Bound traversal before the converter sees aliases or recursively nested input definitions.
+    let nodes = 0
+    const ancestors = new Set<object>()
+    function visit(value: unknown, depth: number) {
+      if (++nodes > 10_000 || depth > 64)
+        throw new Error('This example is too deeply nested or too large.')
+      if (!value || typeof value !== 'object') return
+      if (ancestors.has(value)) throw new Error('Recursive YAML aliases cannot be previewed.')
+      ancestors.add(value)
+      for (const child of Object.values(value)) visit(child, depth + 1)
+      ancestors.delete(value)
+    }
+    visit(workflow, 0)
+    const inputs = workflowInputsSchema(workflow as Record<string, unknown>)
+    if (!inputs) throw new Error('Define the form fields under on.execute.inputs.')
+    const formJSONs = convertToDynamicForm(inputs)
+    return { formJSONs, initialValues: initializeValues(formJSONs) ?? {}, error: '' }
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'Unable to read this workflow YAML.' }
+  }
+}
+
+function WorkflowExample({ workflowYaml, allowLayoutCSS, showYaml }: ExampleProps) {
+  const id = useId()
+  const [draft, setDraft] = useState(workflowYaml)
+  const [preview, setPreview] = useState(() => parseExample(workflowYaml))
+  const [revision, setRevision] = useState(0)
+  const [message, setMessage] = useState(preview.error)
+  const [invalid, setInvalid] = useState(!!preview.error)
+  const [expanded, setExpanded] = useState(showYaml)
+  const apply = (source: string) => {
+    const next = parseExample(source)
+    setInvalid(!!next.error)
+    if (next.error) {
+      setMessage(next.error)
+      return
+    }
+    setPreview(next)
+    setRevision((value) => value + 1)
+    setMessage('Preview updated. Field defaults reloaded.')
+  }
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <button
+          type="button"
+          className="inline-flex items-center gap-2 rounded border px-3 py-2 theme-hover"
+          aria-expanded={expanded}
+          aria-controls={id}
+          onClick={() => setExpanded(!expanded)}
+        >
+          {expanded ? 'Hide workflow YAML' : 'Edit workflow YAML'}
+        </button>
+        <CopyToClipboard
+          as="button"
+          text={draft}
+          className="inline-flex items-center gap-2 rounded border px-3 py-2 theme-hover"
+        >
+          Copy YAML
+        </CopyToClipboard>
+      </div>
+      <div
+        className={
+          expanded
+            ? 'grid items-start gap-6 min-[1100px]:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]'
+            : ''
+        }
+      >
+        <section
+          id={id}
+          hidden={!expanded}
+          className="min-w-0 space-y-3"
+          aria-label="Workflow YAML editor"
+        >
+          <label htmlFor={`${id}-source`} className="block font-semibold">
+            Workflow YAML
+          </label>
+          <p className="text-sm theme-muted-text">
+            Edit the fields, layout, or CSS, then apply your changes. Jobs are shown for context;
+            this preview never runs them.
+          </p>
+          <textarea
+            id={`${id}-source`}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            spellCheck={false}
+            rows={28}
+            maxLength={100_000}
+            aria-invalid={invalid}
+            aria-describedby={`${id}-status`}
+            className="block w-full min-w-0 resize-y rounded border p-3 font-mono text-sm"
+            style={{ tabSize: 2 }}
+          />
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="rounded border px-3 py-2 element"
+              onClick={() => apply(draft)}
+            >
+              Apply YAML
+            </button>
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 rounded border px-3 py-2 theme-hover"
+              onClick={() => {
+                setDraft(workflowYaml)
+                apply(workflowYaml)
+              }}
+            >
+              Reset example
+            </button>
+          </div>
+          <p id={`${id}-status`} role="status" className="whitespace-pre-wrap break-words text-sm">
+            {message || 'The preview is built from on.execute.inputs using the workflow parser.'}
+          </p>
+        </section>
+        <section className="min-w-0" aria-label="Form preview">
+          {preview.formJSONs ? (
+            <DynamicForm
+              key={revision}
+              formJSONs={preview.formJSONs}
+              initialValues={preview.initialValues}
+              allowLayoutCSS={allowLayoutCSS}
+              workflowForm
+              skipValueParse
+            />
+          ) : (
+            <p role="alert">{preview.error}</p>
+          )}
+        </section>
+      </div>
+    </div>
+  )
+}
+
+const meta: Meta<typeof WorkflowExample> = {
   title: 'UI/Form/LayoutShowcase',
-  component: DynamicForm,
+  component: WorkflowExample,
   tags: ['autodocs'],
   argTypes: {
     allowLayoutCSS: {
       control: 'boolean',
-      description: 'Toggle all authored styling to compare with the layout defaults.',
+      description: 'Host permission for scoped styling. Layout remains active when disabled.',
     },
-    formJSONs: {
-      control: 'object',
-      description: 'Edit the complete layout and CSS declarations here.',
+    workflowYaml: {
+      control: 'text',
+      description:
+        'Complete workflow YAML. The preview parses on.execute.inputs, including layout metadata and field defaults.',
+    },
+    showYaml: {
+      control: 'boolean',
+      description: 'Show the editable YAML next to the preview on wide screens.',
     },
   },
   parameters: {
     docs: {
       description: {
         component:
-          'Working forms composed entirely with layout metadata and validated CSS declarations. Columns, spans, and shared rows come from the layout. Scoped color seeds, typography, borders, and spacing come from validated CSS. Every visible surface is part of the form configuration, including the title. Toggle allowLayoutCSS to return to the host theme.',
+          'Real workflow YAML drives every example through the workflow parser. Expand the YAML editor to change fields, responsive layouts, or scoped CSS and apply the result. Storybook’s Show code view also contains the complete YAML. Layout CSS requires the host’s allowLayoutCSS permission; it cannot be enabled by the workflow itself.',
       },
     },
   },
+  render: (args) => <WorkflowExample key={`${args.workflowYaml}:${args.showYaml}`} {...args} />,
 }
 export default meta
 
@@ -40,32 +200,28 @@ function showcase(
   fields: Record<string, DemoField>,
   layout: FormLayoutNode,
   css: string,
-): StoryObj<typeof DynamicForm> {
-  const formJSONs = {
-    $meta: {
-      layout: { type: 'section' as const, label: title, description, css, children: [layout] },
+): StoryObj<typeof WorkflowExample> {
+  const workflowYaml = dumpYaml({
+    on: {
+      execute: {
+        inputs: {
+          $meta: {
+            layout: { type: 'section', label: title, description, css, children: [layout] },
+          },
+          ...fields,
+        },
+      },
     },
-    ...fields,
-  }
+    jobs: { preview: { steps: [{ run: 'echo "Example workflow"' }] } },
+  })
   return {
-    args: {
-      formJSONs,
-      initialValues: Object.fromEntries(
-        Object.entries(fields)
-          .filter(([, field]) => field.default !== undefined)
-          .map(([name, field]) => [name, field.default]),
-      ),
-      allowLayoutCSS: true,
-      workflowForm: true,
-      skipValueParse: true,
-    },
+    args: { workflowYaml, allowLayoutCSS: true, showYaml: false },
     parameters: {
       docs: {
         description: { story: description },
-        source: { code: JSON.stringify(formJSONs, null, 2), language: 'json' },
+        source: { code: workflowYaml, language: 'yaml', type: 'code' },
       },
     },
-    render: (args) => <DynamicForm {...args} />,
   }
 }
 
@@ -361,7 +517,7 @@ export const ResearchBrief = showcase(
   '--form-surface: #f7efe2; --form-accent: #733d38; padding: clamp(1rem, 4%, 3rem); border-top: 8px solid #733d38; font-family: serif; font-size: 3rem; font-weight: 400; line-height: 1.1;',
 )
 
-export const RenderStudioNarrow: StoryObj<typeof DynamicForm> = {
+export const RenderStudioNarrow: StoryObj<typeof WorkflowExample> = {
   ...RenderStudio,
   decorators: [
     (Story) => (
@@ -370,4 +526,27 @@ export const RenderStudioNarrow: StoryObj<typeof DynamicForm> = {
       </div>
     ),
   ],
+}
+
+export const YamlPlayground: StoryObj<typeof WorkflowExample> = {
+  ...ResearchBrief,
+  args: { ...ResearchBrief.args, showYaml: true },
+  parameters: {
+    ...ResearchBrief.parameters,
+    docs: {
+      ...ResearchBrief.parameters?.['docs'],
+      description: {
+        story:
+          'Edit real workflow YAML and apply it to rebuild the preview. Invalid YAML keeps the last working form visible. Copy YAML to use the same input definitions in a workflow.',
+      },
+    },
+  },
+}
+
+export const InvalidYaml: StoryObj<typeof WorkflowExample> = {
+  args: {
+    workflowYaml: 'on:\n  execute:\n    inputs: [unfinished',
+    allowLayoutCSS: true,
+    showYaml: true,
+  },
 }
