@@ -1,5 +1,11 @@
 import type { GraphEdit, InputPath, WorkflowEditing } from '../editing'
-import { type FormLayoutNode, resolveFormLayout, responsiveLayoutValues } from '../form/layout'
+import {
+  type FormLayoutNode,
+  type LayoutTracks,
+  type ResponsiveLayout,
+  resolveFormLayout,
+  responsiveLayoutValues,
+} from '../form/layout'
 import { asRecord, type Json } from './records'
 
 interface Drop {
@@ -15,6 +21,13 @@ const namesIn = (list: Json) => Object.keys(list).filter((name) => !name.startsW
 const field = (name: string): Node => ({ type: 'field', field: name })
 const stack = (children: Node[]): Container => ({ type: 'stack', children })
 const same = (a: InputPath, b: InputPath) => JSON.stringify(a) === JSON.stringify(b)
+// The row hints a layout replaces, dropped with it so they can't come back if the layout goes.
+const legacyKeys = ['width', 'anchor-below']
+
+/** Whether a list of inputs is drawn as a wizard, one step at a time. */
+export function isWizard(list: unknown): boolean {
+  return asRecord(asRecord(asRecord(list)['$meta'])['wizard'])['mode'] === 'wizard'
+}
 
 export function layoutList(editing: WorkflowEditing, inputs: unknown, path: InputPath): Json {
   let list = asRecord(inputs)
@@ -83,6 +96,27 @@ function trail(node: Node, name: string, parents: Container[] = []): Node[] | un
   return undefined
 }
 
+// Breakpoints with a track per child follow the children; a breakpoint that wraps them stays.
+function retrack(
+  columns: ResponsiveLayout<LayoutTracks>,
+  count: number,
+  change: (weights: number[]) => number[],
+): ResponsiveLayout<LayoutTracks> {
+  const responsive = typeof columns === 'object' && !Array.isArray(columns)
+  const resize = (tracks: LayoutTracks, key?: string) => {
+    const weights = Array.isArray(tracks) ? tracks : Array.from({ length: tracks }, () => 1)
+    if (weights.length !== count) return tracks
+    // A one-column phone breakpoint stacks the grid; it isn't one track for a lone child.
+    if (tracks === 1 && key === 'base' && responsive && Object.keys(columns).length > 1)
+      return tracks
+    const changed = change(weights)
+    return Array.isArray(tracks) ? changed : changed.length
+  }
+  return responsive
+    ? Object.fromEntries(Object.entries(columns).map(([key, tracks]) => [key, resize(tracks, key)]))
+    : resize(columns)
+}
+
 function remove(node: Node, names: Set<string>): Node | undefined {
   if (node.type === 'field') return names.has(node.field) ? undefined : node
   const previous = node.children
@@ -92,22 +126,10 @@ function remove(node: Node, names: Set<string>): Node | undefined {
     if (kept) retained.push(index)
     return kept ? [kept] : []
   })
-  if (node.type === 'grid' && previous.length !== node.children.length && node.children.length) {
-    const resize = (tracks: number | number[]) => {
-      const count = Array.isArray(tracks) ? tracks.length : tracks
-      return count === previous.length
-        ? Array.isArray(tracks)
-          ? retained.map((index) => tracks[index] ?? 1)
-          : node.children.length
-        : tracks
-    }
-    node.columns =
-      typeof node.columns === 'object' && !Array.isArray(node.columns)
-        ? Object.fromEntries(
-            Object.entries(node.columns).map(([key, tracks]) => [key, resize(tracks)]),
-          )
-        : resize(node.columns)
-  }
+  if (node.type === 'grid' && previous.length !== node.children.length && node.children.length)
+    node.columns = retrack(node.columns, previous.length, (weights) =>
+      retained.map((index) => weights[index] ?? 1),
+    )
   return node.children.length || node.type === 'section' || node.css ? node : undefined
 }
 
@@ -151,8 +173,12 @@ function insert(
       (!beside && parent.type === 'stack'))
   ) {
     const index = parent.children.indexOf(target) + (before ? 0 : 1)
+    if (parent.type === 'grid')
+      parent.columns = retrack(parent.columns, parent.children.length, (weights) => {
+        const share = weights.reduce((a, b) => a + b, 0) / weights.length
+        return [...weights.slice(0, index), ...nodes.map(() => share), ...weights.slice(index)]
+      })
     parent.children.splice(index, 0, ...nodes)
-    if (parent.type === 'grid') parent.columns = { base: 1, sm: parent.children.length }
     return root
   }
   const children = before ? [...nodes, target] : [target, ...nodes]
@@ -171,20 +197,40 @@ export function layoutEdit(
   layout: Node | undefined,
 ): GraphEdit {
   const list = layoutList(editing, inputs, parent)
-  if (!parent.length)
-    return {
+  const legacy = layout
+    ? namesIn(list).filter((name) => legacyKeys.some((key) => key in asRecord(list[name])))
+    : []
+  if (!parent.length) {
+    const meta: GraphEdit = {
       type: 'updateWorkflow',
-      inputsMeta: layout ? { set: { layout }, unset: ['wizard'] } : { unset: ['layout'] },
+      inputsMeta: layout ? { set: { layout } } : { unset: ['layout'] },
     }
+    return legacy.length
+      ? {
+          type: 'batch',
+          edits: [
+            meta,
+            ...legacy.map(
+              (name): GraphEdit => ({ type: 'updateInput', path: [name], unset: legacyKeys }),
+            ),
+          ],
+        }
+      : meta
+  }
   const definition = asRecord(layoutList(editing, inputs, parent.slice(0, -1))[parent.at(-1) ?? ''])
   const { layout: _layout, ...meta } = asRecord(list['$meta'])
-  if (layout) delete meta['wizard']
+  const fields = { ...list }
+  for (const name of legacy) {
+    fields[name] = Object.fromEntries(
+      Object.entries(asRecord(list[name])).filter(([key]) => !legacyKeys.includes(key)),
+    )
+  }
   return {
     type: 'updateInput',
     path: parent,
     set: {
       [editing.inputChildrenKey(definition['type']) ?? 'options']: {
-        ...list,
+        ...fields,
         $meta: { ...meta, ...(layout ? { layout } : {}) },
       },
     },
@@ -246,6 +292,8 @@ export function dropLayoutEdits(
     namesIn(destination)
       .slice(drop.index)
       .find((name) => !names.includes(name))
+  // A wizard draws only its pages, in order, so the move alone places a page.
+  if (isWizard(destination)) return edits
   const layout = insert(root, nodes, anchor, drop.beside?.side ?? drop.stack?.side ?? 'above')
   edits.push(layoutEdit(editing, after, drop.parent, layout))
   return edits
