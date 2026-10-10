@@ -255,8 +255,9 @@ function RowContextMenu({
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ left: number; top: number; maxHeight: number } | null>(null)
-  // What had focus when the menu opened, before the menu takes it.
+  // What had focus when the menu opened, before the menu takes it; a menu that replaces an open one keeps it.
   const opener = useRef<Element | null>(null)
+  const wasOpen = useRef(false)
 
   // Placed once per opening: a search then grows and shrinks its list inside the room it was given,
   // so its field never moves under the typing.
@@ -264,9 +265,13 @@ function RowContextMenu({
     const menu = ref.current
     if (!state || !menu) {
       setPos(null)
+      wasOpen.current = false
       return
     }
-    opener.current = document.activeElement
+    if (!wasOpen.current) {
+      opener.current = document.activeElement
+      wasOpen.current = true
+    }
     const { width, height } = menu.getBoundingClientRect()
     const pad = MENU_EDGE
     // Open upward when the menu won't fit below the anchor but fits above, so a
@@ -307,7 +312,7 @@ function RowContextMenu({
         from.focus({ preventScroll: true })
       }
     }
-  }, [placed])
+  }, [placed, state])
 
   useEffect(() => {
     if (!state) {
@@ -382,7 +387,8 @@ function RowContextMenu({
         style={{
           left: pos?.left ?? state.x,
           top: pos?.top ?? state.y,
-          maxHeight: pos?.maxHeight,
+          // Only a search's list scrolls; a menu without one grows with its items, as it always has.
+          maxHeight: state.search ? pos?.maxHeight : undefined,
           visibility: pos ? 'visible' : 'hidden',
         }}
         onKeyDown={(e) => {
@@ -419,10 +425,12 @@ function focusItem(item: HTMLElement | null | undefined) {
 function SubmenuPanel({
   side,
   panelRef,
+  searchable,
   children,
 }: {
   side: 'left' | 'right'
   panelRef: RefObject<HTMLDivElement | null>
+  searchable: boolean
   children: ReactNode
 }) {
   const [place, setPlace] = useState<{ lift: number; maxHeight: number } | null>(null)
@@ -445,7 +453,7 @@ function SubmenuPanel({
       style={
         place
           ? {
-              maxHeight: place.maxHeight,
+              ...(searchable ? { maxHeight: place.maxHeight } : {}),
               ...(place.lift > 0 ? { transform: `translateY(-${place.lift}px)` } : {}),
             }
           : undefined
@@ -616,9 +624,11 @@ function MenuRow({
           }
         }}
         onFocus={open}
-        // A click on its empty space blurs to nothing, while the pointer is still on it.
+        // A click on its empty space blurs to nothing, while the pointer is still on it; keys moving
+        // focus to another item close it though the pointer rests on it.
         onBlur={(e) => {
-          if (!e.currentTarget.contains(e.relatedTarget as Node | null) && !hovered.current) {
+          const to = e.relatedTarget as Node | null
+          if (!e.currentTarget.contains(to) && (to !== null || !hovered.current)) {
             close()
           }
         }}
@@ -637,7 +647,7 @@ function MenuRow({
           <ChevronRightIcon className="h-3 w-3 shrink-0 opacity-60" />
         </button>
         {openSub && (
-          <SubmenuPanel side={side} panelRef={panel}>
+          <SubmenuPanel side={side} panelRef={panel} searchable={!!item.search}>
             <MenuItemList items={item.items} search={item.search} onClose={onClose} side={side} />
           </SubmenuPanel>
         )}

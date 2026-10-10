@@ -186,6 +186,95 @@ describe('a row menu', () => {
     expect(opener).toHaveAttribute('data-active', 'false')
   })
 
+  it('returns focus to the first opener after its menu was replaced by another row’s', () => {
+    function TwoRows() {
+      const { openMenu, contextMenu } = useRowMenu()
+      return (
+        <>
+          <button
+            type="button"
+            onClick={() => openMenu(10, 10, [action('Text')], undefined, SEARCH)}
+          >
+            First
+          </button>
+          <button
+            type="button"
+            onClick={() => openMenu(10, 40, [action('Number')], undefined, SEARCH)}
+          >
+            Second
+          </button>
+          {contextMenu}
+        </>
+      )
+    }
+    render(<TwoRows />)
+    const first = openFrom('First')
+    // Focus is in the first menu's search when the second row swaps the menu.
+    fireEvent.click(screen.getByRole('button', { name: 'Second' }))
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(first).toHaveFocus()
+  })
+
+  it('focuses the search of a menu that replaces an open one', () => {
+    function TwoRows() {
+      const { openMenu, contextMenu } = useRowMenu()
+      return (
+        <>
+          <button type="button" onClick={() => openMenu(10, 10, [action('Text')])}>
+            First
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              openMenu(10, 40, [action('Number')], undefined, { ...SEARCH, placeholder: 'Find' })
+            }
+          >
+            Second
+          </button>
+          {contextMenu}
+        </>
+      )
+    }
+    render(<TwoRows />)
+    const first = openFrom('First')
+    expect(screen.getByRole('button', { name: 'Text' })).toBeInTheDocument()
+    // A right-click on another row swaps the menu without closing it.
+    fireEvent.click(screen.getByRole('button', { name: 'Second' }))
+    expect(screen.getByRole('searchbox', { name: 'Find' })).toHaveFocus()
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(first).toHaveFocus()
+  })
+
+  it('closes a submenu the keys leave, though the pointer rests on it', () => {
+    vi.useFakeTimers()
+    render(
+      <Menu
+        items={[
+          { kind: 'submenu', label: 'Add', items: [action('Text')] },
+          { kind: 'submenu', label: 'Move', items: [action('Up')] },
+        ]}
+      />,
+    )
+    openFrom()
+    const add = screen.getByRole('button', { name: 'Add' })
+    fireEvent.mouseEnter(add.parentElement as HTMLElement)
+    add.focus()
+    const text = screen.getByRole('button', { name: 'Text' })
+    text.focus()
+    const move = screen.getByRole('button', { name: 'Move' })
+    fireEvent.blur(text, { relatedTarget: move })
+    move.focus()
+    act(() => vi.advanceTimersByTime(500))
+    expect(screen.queryByRole('button', { name: 'Text' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Up' })).toBeInTheDocument()
+  })
+
+  it('caps only a menu with a search, so one without grows with its items', () => {
+    render(<Menu items={[action('Text'), action('Number')]} at={500} />)
+    openFrom()
+    expect(screen.getByRole('menu').style.maxHeight).toBe('')
+  })
+
   it('keeps its search field where it opened as its list grows', () => {
     // The menu measures 100px tall until the search lists more, in a 768px window.
     let tall = 100
