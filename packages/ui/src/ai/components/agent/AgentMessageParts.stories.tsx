@@ -8,6 +8,7 @@ import {
   makeTodoSnapshot,
   makeToolCallPart,
   makeWriteFilePart,
+  useStreamedText,
 } from '../../stories/harness'
 import type { ToolCallStatus } from '../../types'
 import ActivityLine, { activityWords } from './ActivityLine'
@@ -16,7 +17,18 @@ import AgentMessageParts from './AgentMessageParts'
 const meta: Meta = {
   title: 'Chat/Agent transcript',
   component: AgentMessageParts,
-  parameters: { layout: 'padded' },
+  parameters: { layout: 'fullscreen' },
+  // The transcript reads on the thread's panel and in its column, not across
+  // the whole canvas.
+  decorators: [
+    (Story) => (
+      <div style={{ minHeight: '100dvh', background: 'var(--theme-panel-bg)' }}>
+        <div style={{ maxWidth: '50rem', margin: '0 auto', padding: '2.5rem 2rem' }}>
+          <Story />
+        </div>
+      </div>
+    ),
+  ],
 }
 
 export default meta
@@ -165,9 +177,18 @@ const longThought = [
   'Wrap at the label edge and indent continuation lines.',
 ].join('\n\n')
 
-export const Reasoning: StoryObj<{ streaming: boolean; headings: boolean }> = {
-  args: { streaming: false, headings: true },
-  render: ({ streaming, headings }) => (
+function LiveReasoning({
+  text,
+  live,
+  streamMs,
+}: {
+  text: string
+  live: boolean
+  streamMs: number
+}) {
+  const streamed = useStreamedText(text, live ? streamMs : 1)
+  const streaming = live && !streamed.done
+  return (
     <AgentMessageParts
       message={makeMessage({
         role: 'assistant',
@@ -175,14 +196,35 @@ export const Reasoning: StoryObj<{ streaming: boolean; headings: boolean }> = {
         parts: [
           {
             kind: 'reasoning',
-            text: headings
-              ? longThought
-              : 'The locator resolves but stays invisible. Checking what gates the form.',
-            ...(streaming ? {} : { durationMs: 41_000 }),
+            text: live ? streamed.text : text,
+            ...(streaming ? {} : { durationMs: streamMs }),
           },
+          ...(streaming
+            ? []
+            : [{ kind: 'text' as const, text: 'Wrapped the labels and indented continuations.' }]),
         ],
       })}
       isStreaming={streaming}
+    />
+  )
+}
+
+// The thought streams in under a shimmering label, showing its latest lines,
+// then folds to the label once the answer starts. Remount to replay.
+export const Reasoning: StoryObj<{ live: boolean; headings: boolean; streamMs: number }> = {
+  args: { live: true, headings: true, streamMs: 6000 },
+  argTypes: { streamMs: { control: { type: 'range', min: 1000, max: 20000, step: 500 } } },
+  render: ({ live, headings, streamMs }) => (
+    <LiveReasoning
+      // Remounts on any change so the stream starts over.
+      key={`${live}-${headings}-${streamMs}`}
+      live={live}
+      streamMs={streamMs}
+      text={
+        headings
+          ? longThought
+          : 'The locator resolves but stays invisible. Checking what gates the form.'
+      }
     />
   ),
 }

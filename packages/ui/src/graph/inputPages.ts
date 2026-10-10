@@ -1,4 +1,5 @@
 import type { GraphEdit, InputPath, WorkflowEditing } from '../editing'
+import { inputLayout } from './inputLayout'
 
 type Json = Record<string, unknown>
 
@@ -43,6 +44,7 @@ export function firstPageEdits(
     return []
   }
   const page = editing.nextName(names, 'step_1')
+  const layout = asRecord(asRecord(inputs)['$meta'])['layout']
   return [
     { type: 'addInput', parent: [], index: 0, name: page, definition: newStep(title) },
     ...(loose.length > 0
@@ -52,6 +54,20 @@ export function firstPageEdits(
             paths: loose.map((name) => [name]),
             parent: [page],
             index: 0,
+          },
+        ]
+      : []),
+    ...(layout !== undefined
+      ? [
+          {
+            type: 'updateInput' as const,
+            path: [page],
+            set: {
+              options: {
+                ...Object.fromEntries(loose.map((name) => [name, asRecord(inputs)[name]])),
+                $meta: { layout },
+              },
+            },
           },
         ]
       : []),
@@ -75,7 +91,7 @@ export function splitIntoPagesEdits(
     return [
       {
         type: 'updateWorkflow',
-        inputsMeta: { set: { wizard: wizardSettings(list, submitLabel) } },
+        inputsMeta: { set: { wizard: wizardSettings(list, submitLabel) }, unset: ['layout'] },
       },
       ...firstPageEdits(editing, list, title),
     ]
@@ -91,11 +107,17 @@ export function splitIntoPagesEdits(
       ? {
           [editing.nextName(names, 'step_1')]: {
             ...newStep(title),
-            options: Object.fromEntries(loose.map((name) => [name, record[name]])),
+            options: {
+              ...Object.fromEntries(loose.map((name) => [name, record[name]])),
+              ...(asRecord(record['$meta'])['layout'] !== undefined
+                ? { $meta: { layout: asRecord(record['$meta'])['layout'] } }
+                : {}),
+            },
           },
         }
       : {}
-  const meta = { ...asRecord(record['$meta']), wizard: wizardSettings(record) }
+  const { layout: _layout, ...previousMeta } = asRecord(record['$meta'])
+  const meta = { ...previousMeta, wizard: wizardSettings(record) }
   return [
     {
       type: 'updateInput',
@@ -153,14 +175,24 @@ export function unsplitPagesEdits(
   parent: InputPath,
   childKey: string | undefined,
 ): GraphEdit[] {
+  const record = asRecord(list)
+  const pageLayouts = inputNames(record)
+    .filter((name) => isStep(record[name]))
+    .map((name) => asRecord(asRecord(record[name])['options']))
+  const layout = pageLayouts.some((options) => asRecord(options['$meta'])['layout'] !== undefined)
+    ? { type: 'stack', children: pageLayouts.map(inputLayout) }
+    : undefined
   if (parent.length === 0) {
     return [
       ...pagesBackEdits(list, []),
-      { type: 'updateWorkflow', inputsMeta: { unset: ['wizard'] } },
+      {
+        type: 'updateWorkflow',
+        inputsMeta: { unset: ['wizard'], ...(layout ? { set: { layout } } : {}) },
+      },
     ]
   }
-  const record = asRecord(list)
   const { wizard: _wizard, ...meta } = asRecord(record['$meta'])
+  if (layout) meta['layout'] = layout
   const unpaged: Json = Object.keys(meta).length > 0 ? { $meta: meta } : {}
   for (const name of inputNames(record)) {
     if (isStep(record[name])) {

@@ -13,7 +13,20 @@ import {
 import { useChat } from '../core/ChatProvider'
 import { useChatConfig } from '../core/config'
 import { providerIssueFor } from '../core/providerIssues'
-import type { ChatModel, CspKind, ProviderIssue } from '../types'
+import type { ChatModel, CspKind, ProviderInfo, ProviderIssue } from '../types'
+
+// ProviderInfo.user for a provider the organization manages rather than a user.
+const ORG_OWNER = 'org'
+
+/** Who registered a provider: the provider list's owner when the adapter
+ *  lists providers, otherwise the owner each model carries. Empty means the
+ *  organization, which is nobody to name. */
+function providerOwner(info: ProviderInfo | undefined, model: ChatModel | undefined): string {
+  if (info) {
+    return info.user === ORG_OWNER ? '' : info.user
+  }
+  return model?.provider_owner ?? ''
+}
 
 /** The search field plus the list's max-h-80, so the flip decision matches
  *  what renders. */
@@ -240,13 +253,13 @@ export default function ModelSelector({
   // The placeholders share the trigger's box so swapping them in and out
   // never moves the toolbar.
   const boxClass = bare
-    ? 'flex items-center gap-1 rounded-md px-1.5 py-0.5 max-w-[280px]'
+    ? 'flex items-center gap-1.5 rounded-full h-8 px-2.5 min-w-0 max-w-[280px]'
     : 'flex items-center gap-2 px-3 h-8 rounded-lg min-w-[180px] max-w-[280px]'
-  const textClass = bare ? 'text-[11px]' : 'text-sm'
+  const textClass = bare ? 'text-[13px]' : 'text-sm'
 
   if (isLoadingModels && models.length === 0 && !targetSession) {
     return (
-      <div ref={containerRef} className="relative">
+      <div ref={containerRef} className="relative min-w-0">
         <div className={boxClass}>
           {!bare && <RobotIcon className="h-4 w-4 text-purple-500 flex-shrink-0 animate-pulse" />}
           <span className={cx(textClass, 'theme-muted-text')}>Loading models...</span>
@@ -257,17 +270,14 @@ export default function ModelSelector({
 
   if (modelsError && models.length === 0) {
     return (
-      <div ref={containerRef} className="relative">
+      <div ref={containerRef} className="relative min-w-0">
         <div className={boxClass}>
           {!bare && <RobotIcon className="h-4 w-4 text-red-500 flex-shrink-0" />}
           <span className={cx(textClass, 'text-red-600')}>Failed to load models</span>
           <button
             type="button"
             onClick={() => refreshModels()}
-            className={cx(
-              'flex items-center gap-1 text-blue-600 hover:underline ml-1',
-              bare ? 'text-[11px]' : 'text-xs',
-            )}
+            className="flex items-center gap-1 text-xs text-blue-600 hover:underline ml-1"
           >
             <RetryIcon className="h-2.5 w-2.5" />
             Retry
@@ -284,7 +294,7 @@ export default function ModelSelector({
     unreachableSessions.length === 0
   ) {
     return (
-      <div ref={containerRef} className="relative">
+      <div ref={containerRef} className="relative min-w-0">
         <div className={boxClass}>
           {!bare && <RobotIcon className="h-4 w-4 theme-muted-text flex-shrink-0" />}
           <span className={cx(textClass, 'theme-muted-text')}>No models available</span>
@@ -303,19 +313,21 @@ export default function ModelSelector({
         : 'Select a model'
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className="relative min-w-0">
       {/* Trigger Button */}
       <button
         ref={buttonRef}
         type="button"
         onClick={() => setIsOpen(!isOpen)}
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
         disabled={models.length === 0 && !targetSessionStatus && unreachableSessions.length === 0}
         className={cx(
           boxClass,
           'transition-all cursor-pointer bg-transparent',
           'focus:outline-none',
           'disabled:opacity-50 disabled:cursor-not-allowed',
-          bare ? 'hover:theme-muted-panel' : 'border theme-border hover:theme-hover',
+          bare ? 'hover:chat-tint' : 'border theme-border hover:theme-hover',
         )}
       >
         {!bare && (
@@ -336,7 +348,7 @@ export default function ModelSelector({
                 className={cx(
                   'truncate',
                   bare
-                    ? 'text-[11px] theme-muted-text'
+                    ? 'text-[13px] font-medium theme-text'
                     : 'text-sm font-medium text-(--theme-panel)',
                 )}
               >
@@ -345,10 +357,7 @@ export default function ModelSelector({
               {selectedProviderName && (
                 <span
                   title={selectedProviderName}
-                  className={cx(
-                    'theme-muted-text truncate flex-shrink-0 max-w-[45%]',
-                    bare ? 'text-[10px]' : 'text-xs',
-                  )}
+                  className="theme-muted-text truncate flex-shrink-0 max-w-[45%] text-xs"
                 >
                   {selectedProviderName}
                 </span>
@@ -363,7 +372,7 @@ export default function ModelSelector({
           ) : (
             <span
               className={cx(
-                bare ? 'text-[11px]' : 'text-sm',
+                textClass,
                 targetSessionStatus === 'connecting' ? 'text-amber-600' : 'theme-muted-text',
               )}
             >
@@ -502,6 +511,14 @@ export default function ModelSelector({
                       ? platform
                       : null
                   const isOwner = providerInfo?.user === currentUser.username
+                  // A provider shared with the reader can carry the same name as
+                  // one of their own; the owner tells the two apart.
+                  const owner = providerOwner(providerInfo, providerModels[0])
+                  const sharedBy =
+                    owner && owner !== currentUser.username
+                      ? strings.modelPicker.sharedBy(owner)
+                      : null
+                  const headerSuffix = [platformSuffix, sharedBy].filter(Boolean).join(' · ')
                   const settingsHref =
                     providerInfo && extraLinks.providerSettings
                       ? extraLinks.providerSettings(providerInfo.user, providerInfo.name)
@@ -518,7 +535,7 @@ export default function ModelSelector({
                             {providerName}
                           </span>
                           <span className="min-w-0 flex-1 truncate text-xs theme-muted-text">
-                            {platformSuffix ? `· ${platformSuffix}` : ''}
+                            {headerSuffix ? `· ${headerSuffix}` : ''}
                           </span>
                           <span className="text-xs theme-muted-text">
                             ({providerModels.length})

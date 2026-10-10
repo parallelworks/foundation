@@ -428,36 +428,23 @@ describe('InputDialog', () => {
     )
   })
 
-  it('reads a width as pixels or a share of the row, and nothing else', () => {
-    const onSave = open({ type: 'string', width: 320 })
-    expect(screen.getByLabelText('Width')).toHaveValue('320')
-    fireEvent.change(screen.getByLabelText('Width'), { target: { value: '50px' } })
-    expect(screen.getByText(INPUTS_EDITOR_STRINGS.invalidWidth)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
-    fireEvent.change(screen.getByLabelText('Width'), { target: { value: '50%' } })
+  it('keeps legacy layout hints when editing a field without offering them as controls', () => {
+    const onSave = open({ type: 'string', label: 'Before', width: '50%', 'anchor-below': true })
+    expect(screen.queryByLabelText('Width')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('checkbox', { name: 'Below the input before it' }),
+    ).not.toBeInTheDocument()
+    fireEvent.change(screen.getByDisplayValue('Before'), { target: { value: 'After' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(onSave).toHaveBeenCalledWith(
       'field',
-      { type: 'string', width: '50%' },
-      { set: { width: '50%' }, unset: [] },
+      { type: 'string', label: 'After', width: '50%', 'anchor-below': true },
+      { set: { label: 'After' }, unset: [] },
       [],
     )
-    cleanup()
-    const cleared = open({ type: 'string', width: '50%' })
-    fireEvent.change(screen.getByLabelText('Width'), { target: { value: '' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    expect(cleared).toHaveBeenCalledWith(
-      'field',
-      { type: 'string' },
-      { set: {}, unset: ['width'] },
-      [],
-    )
-  })
-
-  it('offers a width, and a place below the input before, on every input but a wizard step', () => {
     for (const type of inputTypes()) {
-      expect(offeredInputKeys(parser, type).includes('width')).toBe(type !== 'step')
-      expect(offeredInputKeys(parser, type).includes('anchor-below')).toBe(type !== 'step')
+      expect(offeredInputKeys(parser, type)).not.toContain('width')
+      expect(offeredInputKeys(parser, type)).not.toContain('anchor-below')
     }
   })
 
@@ -498,18 +485,6 @@ describe('InputDialog', () => {
       'field',
       { type: 'step', title: 'Host', description: 'Pick a region', options: {} },
       { set: { description: 'Pick a region' }, unset: [] },
-      [],
-    )
-  })
-
-  it('puts an input below the one before it from its dialog', () => {
-    const onSave = open({ type: 'string' })
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Below the input before it' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    expect(onSave).toHaveBeenCalledWith(
-      'field',
-      { type: 'string', 'anchor-below': true },
-      { set: { 'anchor-below': true }, unset: [] },
       [],
     )
   })
@@ -806,7 +781,21 @@ describe('InputDialog keeps what it does not show', () => {
   it('moves a renamed template field’s value in the default rows, and drops a removed one’s', () => {
     const onSave = open({
       type: 'list',
-      template: { host: { type: 'string' }, port: { type: 'number' } },
+      template: {
+        $meta: {
+          layout: {
+            type: 'section',
+            label: 'Connection',
+            css: 'padding: 1rem;',
+            children: [
+              { type: 'field', field: 'host' },
+              { type: 'field', field: 'port' },
+            ],
+          },
+        },
+        host: { type: 'string' },
+        port: { type: 'number' },
+      },
       default: [{ host: 'a', port: 22 }],
     })
     fireEvent.click(screen.getAllByRole('button', { name: 'Edit input' })[0] as HTMLElement)
@@ -818,7 +807,20 @@ describe('InputDialog keeps what it does not show', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(onSave).toHaveBeenCalledWith(
       'field',
-      expect.objectContaining({ default: [{ hostname: 'a' }] }),
+      expect.objectContaining({
+        default: [{ hostname: 'a' }],
+        template: {
+          $meta: {
+            layout: {
+              type: 'section',
+              label: 'Connection',
+              css: 'padding: 1rem;',
+              children: [{ type: 'field', field: 'hostname' }],
+            },
+          },
+          hostname: { type: 'string' },
+        },
+      }),
       expect.anything(),
       [],
     )

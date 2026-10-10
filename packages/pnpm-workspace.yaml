@@ -29,3 +29,7 @@ overrides:
   # unpatched denial-of-service advisory; 2.6 drops braces for picomatch.
   # Remove once a tailwind release depends on 2.6.
   '@parcel/watcher@<2.6.0': '^2.6.0'
+  # The math renderer and its markdown plugins still ask for katex 0.16, which
+  # has a prototype-pollution advisory fixed in 0.18.2. Remove once they
+  # depend on 0.18. Exact, because 0.18.11 shipped breaking changes by mistake.
+  'katex@<0.18.2': '0.18.10'

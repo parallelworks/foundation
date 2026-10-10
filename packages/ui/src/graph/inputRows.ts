@@ -34,12 +34,6 @@ export interface Drop {
   stack?: { path: InputPath; side: 'above' | 'below' }
 }
 
-/** What a drop writes on an input; null removes the key. */
-export interface Change {
-  width?: unknown
-  'anchor-below'?: true | null
-}
-
 const key = (path: InputPath) => JSON.stringify(path)
 
 const samePath = (a: InputPath, b: InputPath) =>
@@ -50,17 +44,24 @@ export const rowsOf = (line: Line) => line.columns.flatMap((column) => column.ro
 const topOf = (column: Column) => Math.min(...column.rows.map((row) => row.rect.top))
 const leftOf = (column: Column) => Math.min(...column.rows.map((row) => row.rect.left))
 
+export function inputCell(el: HTMLElement): HTMLElement | null {
+  let child = el
+  for (let parent = el.parentElement; parent; parent = parent.parentElement) {
+    if (parent.hasAttribute('data-input-path')) return null
+    if (parent.hasAttribute('data-input-cell')) return parent
+    if (parent.parentElement?.hasAttribute('data-layout-grid')) return child
+    if (parent.hasAttribute('data-layout-boundary')) return null
+    child = parent
+  }
+  return null
+}
+
 /** The form's lines: a column is the rows one cell draws, and columns at one height share a line. */
 export function linesIn(root: HTMLElement): Line[] {
   const columns = new Map<HTMLElement, { parent: InputPath; column: Column }>()
   for (const el of root.querySelectorAll<HTMLElement>('[data-input-path]')) {
     const path = JSON.parse(el.dataset['inputPath'] ?? '[]') as InputPath
-    // An input narrower than its column sits in a wrapper of its own width inside the cell.
-    const holder =
-      el.parentElement?.dataset['inputMember'] !== undefined
-        ? el.parentElement.parentElement
-        : el.parentElement
-    const cell = holder?.dataset['inputCell'] !== undefined ? holder : null
+    const cell = inputCell(el)
     const owner = cell ?? el
     const entry = columns.get(owner) ?? { parent: path.slice(0, -1), column: { rows: [], cell } }
     columns.set(owner, entry)
@@ -97,147 +98,6 @@ export function linesIn(root: HTMLElement): Line[] {
     line.columns.sort((a, b) => leftOf(a) - leftOf(b))
   }
   return lines
-}
-
-/** The width each of `count` columns sharing a line gets; none for a column alone on its line. */
-export function evenWidth(count: number): string | undefined {
-  return count > 1 ? `${Math.floor(100 / count)}%` : undefined
-}
-
-/** What a drop writes on each input it touches, by row key: columns sharing a line split it evenly,
- * a column's next input takes a leaving head's place and width, and an input that was alone keeps its own. */
-export function dropChanges(
-  lines: Line[],
-  moving: InputPath[],
-  drop: Drop,
-  widthOf: (path: InputPath) => unknown,
-): Map<string, Change> {
-  const movingKeys = new Set(moving.map(key))
-  const stays = (row: DrawnRow) => !movingKeys.has(key(row.path))
-  const changes = new Map<string, Change>()
-  const set = (path: InputPath, change: Change) =>
-    changes.set(key(path), { ...changes.get(key(path)), ...change })
-  const widthNow = (path: InputPath) => {
-    const change = changes.get(key(path))
-    return change && 'width' in change ? change.width : widthOf(path)
-  }
-  // Leaving: a column whose head goes is headed by its next input at the head's width, and a line
-  // that loses a column is shared again by those left.
-  const shared = new Set<string>()
-  for (const line of lines) {
-    if (rowsOf(line).every(stays)) {
-      continue
-    }
-    for (const column of line.columns) {
-      const [head] = column.rows
-      if (!head || column.rows.every(stays)) {
-        continue
-      }
-      if (line.columns.length > 1 || column.rows.length > 1) {
-        for (const row of column.rows.filter((row) => !stays(row))) {
-          shared.add(key(row.path))
-        }
-      }
-      const next = column.rows.find(stays)
-      if (!stays(head) && next) {
-        set(next.path, { 'anchor-below': null, width: widthOf(head.path) ?? null })
-      }
-    }
-    const kept = line.columns.filter((column) => column.rows.some(stays))
-    if (kept.length < line.columns.length) {
-      for (const column of kept) {
-        const head = column.rows.find(stays)
-        if (head) {
-          set(head.path, { width: evenWidth(kept.length) ?? null })
-        }
-      }
-    }
-  }
-  const holding = (path: InputPath) => {
-    for (const line of lines) {
-      for (const column of line.columns) {
-        if (column.rows.some((row) => samePath(row.path, path))) {
-          return { line, column }
-        }
-      }
-    }
-    return null
-  }
-  // Beside a column, the dropped inputs are columns sharing its line evenly with the others.
-  const beside = drop.beside && holding(drop.beside.path)
-  if (beside) {
-    const kept = beside.line.columns.filter((column) => column.rows.some(stays))
-    const count = kept.length + moving.length
-    for (const column of kept) {
-      const head = column.rows.find(stays)
-      if (head) {
-        set(head.path, { width: evenWidth(count) ?? null })
-      }
-    }
-    for (const path of moving) {
-      set(path, { width: evenWidth(count) ?? null, 'anchor-below': null })
-    }
-    return changes
-  }
-  const stack = drop.stack
-  const into = stack && holding(stack.path)
-  if (stack && into) {
-    const head = into.column.rows.find(stays)
-    const [first, ...rest] = moving
-    // Above a column's head, the first dropped input heads the column in its place.
-    if (stack.side === 'above' && head && first && samePath(head.path, stack.path)) {
-      set(first, { width: widthNow(head.path) ?? null, 'anchor-below': null })
-      for (const path of [head.path, ...rest]) {
-        set(path, { width: null, 'anchor-below': true })
-      }
-      return changes
-    }
-    for (const path of moving) {
-      set(path, { width: null, 'anchor-below': true })
-    }
-    return changes
-  }
-  // A line of its own, as the drop showed: a share of a line that would join the line before or
-  // after it goes, while one that would still stand alone keeps its width.
-  const percentOf = (path: InputPath): number | null => {
-    const width = widthNow(path)
-    if (width === undefined || width === null) {
-      return 100
-    }
-    const share = typeof width === 'string' ? /^(\d+(?:\.\d+)?)%$/.exec(width.trim()) : null
-    return share ? Number(share[1]) : null
-  }
-  const headShare = (column: Column) => {
-    const head = column.rows.find(stays)
-    return head ? (percentOf(head.path) ?? 100) : 0
-  }
-  const listed = lines
-    .filter((other) => samePath(other.parent, drop.parent))
-    .flatMap(rowsOf)
-    .filter(stays)
-  const before = listed.filter((row) => row.index < drop.index).at(-1)
-  const after = listed.find((row) => row.index >= drop.index)
-  const joins = (share: number) => {
-    const last = before && holding(before.path)
-    if (
-      last &&
-      last.line.columns.at(-1) === last.column &&
-      last.line.columns.reduce((sum, column) => sum + headShare(column), 0) + share <= 100
-    ) {
-      return true
-    }
-    const next = after && holding(after.path)
-    return !!next && next.line.columns[0] === next.column && share + headShare(next.column) <= 100
-  }
-  for (const path of moving) {
-    const share = percentOf(path)
-    const joined = share !== null && share < 100 && joins(share)
-    set(path, {
-      'anchor-below': null,
-      ...(shared.has(key(path)) || joined ? { width: null } : {}),
-    })
-  }
-  return changes
 }
 
 /** Neighbours on one line, split at `pointer` (a percent of their list's width), in 5% steps. */

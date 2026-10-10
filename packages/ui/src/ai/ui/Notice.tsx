@@ -73,6 +73,45 @@ export function NoticeBar({
   )
 }
 
+/** What a command printed, kept verbatim under the command that printed it. */
+export function OutputCard({
+  title,
+  text,
+  onDismiss,
+  dismissLabel,
+  testId,
+}: {
+  title: string
+  text: string
+  onDismiss?: () => void
+  dismissLabel?: string
+  testId?: string
+}) {
+  return (
+    <section
+      data-testid={testId}
+      aria-label={title}
+      className="relative my-3 rounded-lg border theme-border theme-muted-panel px-3 py-2"
+    >
+      <p className={cx('font-mono text-[11px] theme-muted-text', onDismiss && 'pr-6')}>{title}</p>
+      <pre className="mt-1 whitespace-pre-wrap break-words font-mono text-xs theme-text">
+        {text}
+      </pre>
+      {onDismiss && (
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label={dismissLabel}
+          title={dismissLabel}
+          className="absolute top-1.5 right-1.5 rounded p-1 theme-muted-text hover:theme-hover"
+        >
+          <CloseIcon className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </section>
+  )
+}
+
 /** An inline notice next to the composer. One with no dismiss states a fact
  *  that is still true; one with a dismiss is a message the reader can put away. */
 export function NoticeCard({
