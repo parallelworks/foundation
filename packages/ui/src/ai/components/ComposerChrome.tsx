@@ -21,6 +21,17 @@ export function ComposerSettings({ left, children }: { left?: ReactNode; childre
   )
 }
 
+/** A host's meter beside the model, such as usage against a limit. It gives
+ *  up its room before the model does, ending in an ellipsis, and below a
+ *  composer width that fits it beside the model and send it hides: the model
+ *  and send matter more on a phone. */
+export function ComposerUsage({ children }: { children: ReactNode }) {
+  if (!children) {
+    return null
+  }
+  return <div className="hidden min-w-0 shrink-[10] truncate @md:block">{children}</div>
+}
+
 /** The two selectors every surface carries, bare so they read as text beside
  *  whatever the surface puts next to them. */
 export function ComposerControls({ targetSession }: { targetSession?: string | null | undefined }) {

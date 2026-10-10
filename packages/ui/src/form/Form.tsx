@@ -28,8 +28,10 @@ import { Table } from '../components/Table'
 import { TooltipInfo } from '../components/Tooltip'
 import type { WorkflowVariables } from '../engine'
 import { AngleRightIcon, TrashIcon } from '../icons'
+import { FormLayout, LayoutCSSContext } from './FormLayout'
 import { useFieldControlProps, useFieldRequired } from './fieldContext'
 import { type FieldComponent, FieldRegistryContext, Registry } from './fieldRegistry'
+import { resolveFormLayout } from './layout'
 import { inputWidth, resolvedFlag } from './lib'
 import { useParsedOpts } from './useParsedOpts'
 import { usePrevious } from './usePrevious'
@@ -1097,7 +1099,7 @@ export function FieldsFromOptions({
     return inputWidth(field['width']) !== undefined || field['anchor-below'] === true
   })
   const columns = flows ? columnsOf(options, names) : []
-  const fieldOf = (fieldName: string, width: string | undefined) => (
+  const fieldOf = (fieldName: string, compactLabels = false) => (
     <FormField
       key={fieldName}
       optionsField={options[fieldName]}
@@ -1108,12 +1110,26 @@ export function FieldsFromOptions({
       setFieldTouched={setFieldTouched}
       parentInfo={parentInfo}
       // A side label would squeeze a field that shares its row, unless the workflow chose one.
-      labelPosition={width === undefined || width === '100%' ? labelPosition : (chosen ?? 'top')}
+      labelPosition={compactLabels ? (chosen ?? 'top') : labelPosition}
       missingFields={missingFields}
       spaceCompact={spaceCompact}
       workflowForm={workflowForm}
     />
   )
+  const layout = resolveFormLayout(
+    asRecord(options['$meta'])['layout'],
+    names.filter((name) => !name.startsWith('$') && asSchemaField(options[name])),
+  )
+  if (layout.layout) {
+    return (
+      <ChosenLabelPosition.Provider value={chosen}>
+        <div className="flex min-w-0 flex-col gap-4">
+          <FormLayout layout={layout.layout} renderField={(name) => fieldOf(name, true)} />
+          {layout.remaining.map((name) => fieldOf(name, true))}
+        </div>
+      </ChosenLabelPosition.Provider>
+    )
+  }
   return (
     <ChosenLabelPosition.Provider value={chosen}>
       {flows ? (
@@ -1133,7 +1149,7 @@ export function FieldsFromOptions({
                   const own =
                     name === column.head ? undefined : inputWidth(asRecord(options[name])['width'])
                   return own === undefined ? (
-                    fieldOf(name, width)
+                    fieldOf(name, width !== undefined && width !== '100%')
                   ) : (
                     // A share of the list, less the gutter a column of that share keeps.
                     <div
@@ -1145,7 +1161,7 @@ export function FieldsFromOptions({
                         own.endsWith('%') ? `calc(${parseFloat(own)}cqw - 1rem)` : own,
                       )}
                     >
-                      {fieldOf(name, width)}
+                      {fieldOf(name, width !== undefined && width !== '100%')}
                     </div>
                   )
                 })}
@@ -1154,7 +1170,7 @@ export function FieldsFromOptions({
           })}
         </div>
       ) : (
-        names.map((name) => fieldOf(name, undefined))
+        names.map((name) => fieldOf(name))
       )}
     </ChosenLabelPosition.Provider>
   )
@@ -1299,6 +1315,8 @@ function DynamicFormContent({
 }
 
 export interface DynamicFormProps {
+  /** Enables validated layout-only CSS declarations on authored layout nodes. */
+  allowLayoutCSS?: boolean
   formJSONs: Record<string, unknown>
   reinitialize?: boolean
   setFormDirty?: (dirty: boolean) => void
@@ -1349,6 +1367,7 @@ export function DynamicForm({
   contextKey,
   skipValueParse = false,
   fields = NO_FIELDS,
+  allowLayoutCSS = false,
 }: DynamicFormProps) {
   const engine = useWorkflowEngine()
   const [parseReady, setParseReady] = useState(() => engine.isReady())
@@ -1370,39 +1389,41 @@ export function DynamicForm({
       })
   return (
     <FieldRegistryContext.Provider value={fields}>
-      <div className={className}>
-        {(!needsOrganizationVariables || organizationVariables) && initialValues && (
-          <Formik
-            enableReinitialize={reinitialize}
-            initialValues={parsedInitVals}
-            onSubmit={onSubmit ?? (() => {})}
-            onReset={() => {
-              setFormDirty(false)
-            }}
-            {...(formikRef ? { innerRef: formikRef } : {})}
-          >
-            {({ values }) => (
-              <Form className="w-full text-[13px]">
-                <DynamicFormContent
-                  values={values}
-                  options={options}
-                  setValues={setValues}
-                  setFormDirty={setFormDirty}
-                  labelPosition={labelPosition}
-                  missingFields={missingFields}
-                  spaceCompact={spaceCompact}
-                  organizationVariables={organizationVariables}
-                  remoteVars={remoteVars}
-                  workflowForm={workflowForm}
-                  onSubmit={onSubmit}
-                  submitLabel={submitLabel}
-                  contextKey={contextKey}
-                />
-              </Form>
-            )}
-          </Formik>
-        )}
-      </div>
+      <LayoutCSSContext.Provider value={allowLayoutCSS}>
+        <div className={className}>
+          {(!needsOrganizationVariables || organizationVariables) && initialValues && (
+            <Formik
+              enableReinitialize={reinitialize}
+              initialValues={parsedInitVals}
+              onSubmit={onSubmit ?? (() => {})}
+              onReset={() => {
+                setFormDirty(false)
+              }}
+              {...(formikRef ? { innerRef: formikRef } : {})}
+            >
+              {({ values }) => (
+                <Form className="w-full text-[13px]">
+                  <DynamicFormContent
+                    values={values}
+                    options={options}
+                    setValues={setValues}
+                    setFormDirty={setFormDirty}
+                    labelPosition={labelPosition}
+                    missingFields={missingFields}
+                    spaceCompact={spaceCompact}
+                    organizationVariables={organizationVariables}
+                    remoteVars={remoteVars}
+                    workflowForm={workflowForm}
+                    onSubmit={onSubmit}
+                    submitLabel={submitLabel}
+                    contextKey={contextKey}
+                  />
+                </Form>
+              )}
+            </Formik>
+          )}
+        </div>
+      </LayoutCSSContext.Provider>
     </FieldRegistryContext.Provider>
   )
 }

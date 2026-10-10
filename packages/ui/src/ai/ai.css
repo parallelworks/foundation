@@ -105,9 +105,10 @@
   border-radius: 0.5rem;
 }
 
-/* Streamdown tables: the body's own type,
- * hairlines at a tenth of the ink, a header on a five-percent tint, and the
- * copy/download controls only while the pointer is over the table. */
+/* Streamdown tables: the body's own type, open rows on hairlines at a tenth
+ * of the ink under a firmer rule for the header (no frame, no fill, so a
+ * table reads as part of the answer rather than a widget dropped into it),
+ * and the copy/download controls only while the pointer is over the table. */
 .markdown [data-streamdown="table-wrapper"] {
   --table-line: color-mix(in oklab, var(--theme-panel, #000) 10%, transparent);
   position: relative;
@@ -136,8 +137,8 @@
 }
 .markdown [data-streamdown="table-wrapper"] > div:last-child {
   padding: 0;
-  border: 1px solid var(--table-line);
-  border-radius: 0.5rem;
+  border: 0;
+  border-radius: 0;
   background: transparent;
 }
 .markdown [data-streamdown="table-wrapper"] table {
@@ -148,10 +149,10 @@
 .markdown [data-streamdown="table"] th {
   padding: 0.4375rem 0.75rem;
   font-size: 1rem;
-  font-weight: 500;
+  font-weight: 600;
   color: inherit;
-  background: color-mix(in oklab, var(--theme-panel, #000) 5%, transparent);
-  border-bottom: 1px solid var(--table-line);
+  background: transparent;
+  border-bottom: 1px solid color-mix(in oklab, var(--theme-panel, #000) 28%, transparent);
 }
 .markdown [data-streamdown="table"] td {
   padding: 0.4375rem 0.75rem;
@@ -162,6 +163,16 @@
   color: inherit;
   /* A prose column keeps enough room to read; a wide table scrolls instead. */
   min-width: 9rem;
+}
+.markdown [data-streamdown="table"] thead {
+  background: transparent;
+}
+/* Unframed, the outer columns line up with the prose around the table. */
+.markdown [data-streamdown="table"] :is(th, td):first-child {
+  padding-left: 0;
+}
+.markdown [data-streamdown="table"] :is(th, td):last-child {
+  padding-right: 0;
 }
 .markdown [data-streamdown="table"] tbody tr {
   border-bottom: 1px solid var(--table-line);
@@ -175,24 +186,54 @@
   }
 }
 
-/* Streamdown code blocks — tighten spacing, remove inner double-border */
+/* Streamdown code blocks: one surface, not a frame around an inset panel.
+ * A wash of the ink with a hairline edge holds the language on its top edge,
+ * the copy and download controls quiet beside it, and the code on the same
+ * ground, so the block reads as part of the answer. */
 .markdown [data-streamdown="code-block"] {
-  padding: 0.375rem 0.5rem 0;
-  margin: 0.5em 0;
   gap: 0;
+  margin: 0.875rem 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--theme-panel, #000) 4%, var(--theme-panel-bg, #fff));
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--theme-panel, #000) 8%, transparent);
 }
 .markdown [data-streamdown="code-block-header"] {
-  padding: 0.25rem 0.25rem;
+  height: 2.25rem;
+  padding: 0 0.75rem 0 0.75rem;
+  font-size: 0.75rem;
+  color: var(--theme-muted-text-color, #6a7282);
+}
+.markdown [data-streamdown="code-block-actions"] {
+  gap: 0.125rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  backdrop-filter: none;
+}
+.markdown [data-streamdown="code-block-actions"] button {
+  padding: 0.3125rem;
+  border-radius: 0.375rem;
+  color: var(--theme-muted-text-color, #6a7282);
+  transition:
+    background-color 150ms ease-out,
+    color 150ms ease-out;
+}
+.markdown [data-streamdown="code-block-actions"] button:hover {
+  color: var(--theme-panel, #000);
+  background: color-mix(in oklab, var(--theme-panel, #000) 7%, transparent);
 }
 .markdown [data-streamdown="code-block-body"] {
-  border: none;
-  border-radius: 0 0 0.5rem 0.5rem;
+  border: 0;
+  border-radius: 0;
   padding: 0;
+  background: transparent;
 }
-/* Remove prose pre margin and code block body inner pre margin */
 .markdown [data-streamdown="code-block-body"] pre {
   margin: 0;
-  padding: 0.75rem 1rem;
+  padding: 0.125rem 1rem 0.875rem;
   overflow-x: auto;
   /* Code reads looser than prose; Streamdown's text-sm line is too tight. */
   line-height: 1.6;
@@ -206,20 +247,21 @@
    explicitly to ensure correct colors in all modes.
    See: https://shiki.style/guide/dual-themes#class-based-dark-mode */
 
-/* Light mode: use the primary Shiki theme (--sdm-bg/--sdm-c) */
+/* Light mode: the primary Shiki theme's colours (--sdm-c) on the block's own
+   surface, which stands in for the theme's background. */
 .markdown [data-streamdown="code-block-body"] pre {
   /* biome-ignore lint/complexity/noImportantStyles: the highlighter sets the background as an inline style */
-  background-color: var(--sdm-bg, inherit) !important;
+  background-color: transparent !important;
   color: var(--sdm-fg, inherit);
 }
 .markdown [data-streamdown="code-block-body"] pre code > span > span {
   color: var(--sdm-c, inherit);
 }
 
-/* Dark mode: switch to --shiki-dark variants */
+/* Dark mode: the --shiki-dark colours, again on the block's surface. */
 .dark .markdown [data-streamdown="code-block-body"] pre {
   /* biome-ignore lint/complexity/noImportantStyles: the highlighter sets the background as an inline style */
-  background-color: var(--shiki-dark-bg, var(--sdm-bg, inherit)) !important;
+  background-color: transparent !important;
   color: var(--shiki-dark, var(--sdm-fg, inherit));
 }
 .dark .markdown [data-streamdown="code-block-body"] pre code > span > span {
@@ -301,7 +343,7 @@
   background-image: linear-gradient(
     90deg,
     var(--theme-muted-text-color, #6a7282) 0%,
-    var(--theme-app, #d1d5db) 20%,
+    var(--theme-accent, #06354f) 20%,
     var(--theme-muted-text-color, #6a7282) 40%
   );
   -webkit-background-clip: text;
@@ -327,4 +369,138 @@
   .animate-chat-enter {
     animation: none;
   }
+}
+
+/* Tints of the ink for controls that sit on the panel: the theme's hover is a
+ * shade off another surface and would not read as a highlight here. */
+@utility chat-tint {
+  background-color: color-mix(in oklab, var(--theme-panel, #000) 6%, transparent);
+}
+@utility chat-tint-strong {
+  background-color: color-mix(in oklab, var(--theme-panel, #000) 10%, transparent);
+}
+
+/* The composer is one surface lifted off the page: a hairline of the ink for
+ * its edge, and a short, soft shadow that deepens while it has focus. The
+ * shadow is black on every scheme; an ink-coloured one would glow on dark. */
+.chat-composer {
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--theme-panel, #000) 12%, transparent),
+    0 1px 2px rgb(0 0 0 / 0.04),
+    0 6px 16px -8px rgb(0 0 0 / 0.12);
+  transition: box-shadow 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.chat-composer:focus-within {
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--theme-panel, #000) 22%, transparent),
+    0 1px 2px rgb(0 0 0 / 0.05),
+    0 10px 24px -10px rgb(0 0 0 / 0.18);
+}
+
+/* The thread runs under the docked composer and fades out above it, so the
+ * last lines dissolve rather than cut off at the dock's edge. */
+.chat-composer-dock::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  bottom: 100%;
+  height: 1.5rem;
+  background: linear-gradient(to top, var(--theme-panel-bg, #fff), transparent);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-composer {
+    transition: none;
+  }
+}
+
+/* The tail of the reasoning while it streams fades in from the top, so the
+ * lines scrolling out read as more above rather than as cut off. */
+.chat-reasoning-tail {
+  mask-image: linear-gradient(to bottom, transparent, black 1.25rem);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black 1.25rem);
+}
+
+/* An edge drawn from the ink rather than the theme's border, so a card reads
+ * the same on the panel and on a tinted bubble. */
+.chat-hairline {
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--theme-panel, #000) 10%, transparent);
+}
+
+/* A bubble carrying pastes would shrink to its shortest line and squeeze
+ * its cards and blocks into a column; give it room for them to read. */
+.chat-bubble-roomy {
+  min-width: min(100%, 24rem);
+}
+
+/* ---- Accent ---------------------------------------------------------------
+ * The host's accent is the chat's signature: the send button, the caret, the
+ * focus ring, the thinking shimmer and the tint on what the reader wrote. Everything else stays ink, so the accent always means "this is the
+ * conversation's own voice or the reader's next move". */
+.chat-thread,
+.chat-composer,
+.chat-empty,
+.chat-reasoning-body {
+  --chat-accent: var(--theme-accent, var(--theme-element, #06354f));
+}
+
+/* What the reader wrote carries a wash of the accent: theirs, not the
+ * assistant's, at a glance. */
+.chat-bubble-user {
+  background-color: color-mix(
+    in oklab,
+    var(--theme-accent, #06354f) 9%,
+    var(--theme-panel-bg, #fff)
+  );
+}
+
+/* The reader's next move is the accent: the caret in the box, its ring on
+ * focus, and (in ChatInput) the filled send button. */
+.chat-composer textarea {
+  caret-color: var(--chat-accent);
+}
+.chat-composer:focus-within {
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--chat-accent) 55%, transparent),
+    0 0 0 4px color-mix(in oklab, var(--chat-accent) 12%, transparent),
+    0 10px 24px -10px rgb(0 0 0 / 0.18);
+}
+@utility chat-send-idle {
+  background-color: color-mix(in oklab, var(--theme-accent, #06354f) 14%, transparent);
+  color: color-mix(in oklab, var(--theme-accent, #06354f) 70%, var(--theme-panel-bg, #fff));
+}
+
+/* The reply being written ends in the accent's caret. */
+.chat-thread [style*="--streamdown-caret"] > :last-child::after {
+  color: var(--chat-accent);
+}
+
+/* Selected text inside the chat takes the accent too. */
+.chat-thread ::selection,
+.chat-composer ::selection {
+  background-color: color-mix(in oklab, var(--chat-accent) 22%, transparent);
+}
+
+/* A thought hangs off a line of the accent rather than a gray rule. */
+.chat-reasoning-body {
+  border-left: 1px solid color-mix(in oklab, var(--theme-accent, #06354f) 35%, transparent);
+}
+
+/* A paste in the reader's bubble is a code block like the assistant's, set on
+ * the panel so it stands off the bubble's tint, with the bubble's spacing
+ * rather than the answer's. */
+.chat-paste-code .markdown [data-streamdown="code-block"] {
+  margin: 0;
+  background: var(--theme-panel-bg, #fff);
+  white-space: normal;
+}
+
+/* A queued message is written but not yet sent: its own outline, dashed,
+ * where a sent one has its fill, so it reads as pending without the text
+ * losing contrast. */
+.chat-queued .chat-bubble-user {
+  background: transparent;
+  outline: 1px dashed color-mix(in oklab, var(--theme-panel, #000) 30%, transparent);
+  outline-offset: -1px;
 }
