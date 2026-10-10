@@ -1,3 +1,4 @@
+import { dumpYaml, loadYaml } from '@parallelworks/workflow-parser'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useMemo } from 'react'
 import { useWorkflowEditing, useWorkflowEngine } from '../components/Provider'
@@ -5,6 +6,7 @@ import { DynamicForm } from '../form/Form'
 import { initializeValues } from '../form/lib'
 import type { EditorProblem } from './editorApi'
 import { InputsFormEditor } from './InputsEditor'
+import { asRecord } from './records'
 import { useStoryWorkflow } from './stories/harness'
 
 const meta: Meta<typeof InputsFormEditor> = {
@@ -65,7 +67,15 @@ jobs:
       - run: python train.py --epochs \${{ inputs.epochs }}
 `
 
-function EditableForm({ source, problems }: { source: string; problems?: EditorProblem[] }) {
+function EditableForm({
+  source,
+  problems,
+  allowLayoutCSS = false,
+}: {
+  source: string
+  problems?: EditorProblem[]
+  allowLayoutCSS?: boolean
+}) {
   const story = useStoryWorkflow(source)
   const editing = useWorkflowEditing()
   const engine = useWorkflowEngine()
@@ -91,6 +101,7 @@ function EditableForm({ source, problems }: { source: string; problems?: EditorP
         inputs={inputs}
       >
         <DynamicForm
+          allowLayoutCSS={allowLayoutCSS}
           formJSONs={formJSONs}
           initialValues={initialValues}
           reinitialize
@@ -126,7 +137,7 @@ export const WithProblems: StoryObj<typeof InputsFormEditor> = {
   ),
 }
 
-const SIDE_BY_SIDE_WORKFLOW = `on:
+const LEGACY_WIDTHS_WORKFLOW = `on:
   execute:
     inputs:
       dataset:
@@ -175,10 +186,97 @@ jobs:
       - run: python train.py --epochs \${{ inputs.epochs }}
 `
 
-/** Dataset beside Epochs over Batch size (`anchor-below`). Drop on an input's side for a column beside it, on
- * its lower half to go under it; drag the edge between columns to resize. Hidden Seed is listed last. */
+const columnsWorkflow = asRecord(loadYaml(LEGACY_WIDTHS_WORKFLOW))
+const columnsInputs = asRecord(asRecord(asRecord(columnsWorkflow['on'])['execute'])['inputs'])
+for (const value of Object.values(columnsInputs)) {
+  const definition = asRecord(value)
+  delete definition['width']
+  delete definition['anchor-below']
+}
+columnsInputs['$meta'] = {
+  layout: {
+    type: 'stack',
+    children: [
+      {
+        type: 'grid',
+        columns: { base: 1, sm: [1, 1] },
+        children: [
+          { type: 'field', field: 'dataset' },
+          {
+            type: 'stack',
+            children: [
+              { type: 'field', field: 'epochs' },
+              { type: 'field', field: 'batch' },
+            ],
+          },
+        ],
+      },
+      { type: 'field', field: 'precision' },
+      { type: 'field', field: 'resources' },
+    ],
+  },
+}
+const resourceInputs = asRecord(asRecord(columnsInputs['resources'])['items'])
+for (const value of Object.values(resourceInputs)) delete asRecord(value)['width']
+resourceInputs['$meta'] = {
+  layout: {
+    type: 'grid',
+    columns: { base: 1, sm: 2 },
+    children: [
+      { type: 'field', field: 'gpus' },
+      { type: 'field', field: 'walltime' },
+    ],
+  },
+}
+
+/** Drag and resize responsive grids; stacked fields stay in their column. Every edit writes $meta.layout. */
 export const SideBySide: StoryObj<typeof InputsFormEditor> = {
-  render: () => <EditableForm source={SIDE_BY_SIDE_WORKFLOW} />,
+  render: () => <EditableForm source={dumpYaml(columnsWorkflow)} />,
+}
+
+export const LegacyWidths: StoryObj<typeof InputsFormEditor> = {
+  render: () => <EditableForm source={LEGACY_WIDTHS_WORKFLOW} />,
+}
+
+const sectionsWorkflow = structuredClone(columnsWorkflow)
+const sectionsInputs = asRecord(asRecord(asRecord(sectionsWorkflow['on'])['execute'])['inputs'])
+sectionsInputs['$meta'] = {
+  layout: {
+    type: 'section',
+    label: 'Training setup',
+    description: 'Prepare a repeatable experiment.',
+    css: '--form-surface: #f7efe2; --form-accent: #733d38; padding: 1.5rem; border-radius: 1rem;',
+    children: [
+      {
+        type: 'grid',
+        columns: { base: 1, md: [2, 1] },
+        align: 'rows',
+        children: [
+          {
+            type: 'section',
+            label: 'Data and model',
+            children: [
+              { type: 'field', field: 'dataset' },
+              { type: 'field', field: 'precision' },
+            ],
+          },
+          {
+            type: 'section',
+            label: 'Training limits',
+            description: 'Shared rows keep the controls aligned.',
+            children: [
+              { type: 'field', field: 'epochs' },
+              { type: 'field', field: 'batch' },
+            ],
+          },
+        ],
+      },
+      { type: 'field', field: 'resources' },
+    ],
+  },
+}
+export const StyledSections: StoryObj<typeof InputsFormEditor> = {
+  render: () => <EditableForm source={dumpYaml(sectionsWorkflow)} allowLayoutCSS />,
 }
 
 const WIZARD_WORKFLOW = `on:

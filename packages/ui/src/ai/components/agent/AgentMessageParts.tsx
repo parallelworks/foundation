@@ -36,6 +36,7 @@ import type {
 } from '../../types'
 import Markdown from '../../ui/Markdown'
 import { chatProseClasses } from '../../ui/prose'
+import { ReasoningBody, ReasoningToggle } from '../Reasoning'
 
 const COLLAPSED_RESULT_LINES = 12
 
@@ -681,9 +682,9 @@ function formatThinkingDuration(ms: number): string {
   return `${Math.floor(s / 60)}m ${s % 60}s`
 }
 
-/** The TUI's thought: the body shows while it streams, then folds to its
- *  label and opens on request. The composer's activity line carries the
- *  live signal, so nothing here animates. */
+/** The TUI's thought, drawn like a chat reply's: while it streams its label
+ *  shimmers over the latest lines, then it folds to the label and opens in
+ *  place on request. */
 function ReasoningBlock({ part, isStreaming }: { part: ReasoningPart; isStreaming?: boolean }) {
   const { strings } = useChatConfig()
   const t = strings.thinking
@@ -692,40 +693,41 @@ function ReasoningBlock({ part, isStreaming }: { part: ReasoningPart; isStreamin
     thinkingHeading(part.text) ||
     (part.durationMs ? t.thoughtFor(formatThinkingDuration(part.durationMs)) : t.label)
   const hasBody = part.text.trim() !== ''
-  const body = hasBody && (
-    <div
-      className="ml-1 border-l theme-border pl-3 text-sm theme-muted-text"
-      data-testid="reasoning-body"
-    >
-      <Markdown isStreaming={isStreaming ?? false}>{part.text}</Markdown>
-    </div>
-  )
+  const markdown = <Markdown isStreaming={isStreaming ?? false}>{part.text}</Markdown>
   if (isStreaming) {
     return (
       <div className="py-1.5" data-testid="reasoning-part">
-        {body}
+        <div className="animate-shimmer text-shimmer text-sm">{label}</div>
+        {hasBody && (
+          <ReasoningBody className="chat-reasoning-tail">
+            <div
+              className="flex max-h-20 flex-col justify-end overflow-hidden"
+              data-testid="reasoning-body"
+            >
+              {markdown}
+            </div>
+          </ReasoningBody>
+        )}
+      </div>
+    )
+  }
+  if (!hasBody) {
+    return (
+      <div className="py-1.5 text-sm theme-muted-text" data-testid="reasoning-part">
+        {label}
       </div>
     )
   }
   return (
     <div className="py-1.5" data-testid="reasoning-part">
-      <button
-        type="button"
-        onClick={() => hasBody && setExpanded((v) => !v)}
-        aria-expanded={expanded}
-        className={cx(
-          'flex min-h-6 items-center gap-x-1 text-sm theme-muted-text transition-colors',
-          hasBody && 'hover:theme-text',
-        )}
-      >
-        <span>{label}</span>
-        {hasBody && (
-          <ChevronRightIcon
-            className={cx('w-3.5 h-3.5 transition-transform', expanded && 'rotate-90')}
-          />
-        )}
-      </button>
-      {expanded && <div className="mt-1.5">{body}</div>}
+      <ReasoningToggle open={expanded} onToggle={() => setExpanded((v) => !v)}>
+        {label}
+      </ReasoningToggle>
+      {expanded && (
+        <ReasoningBody>
+          <div data-testid="reasoning-body">{markdown}</div>
+        </ReasoningBody>
+      )}
     </div>
   )
 }

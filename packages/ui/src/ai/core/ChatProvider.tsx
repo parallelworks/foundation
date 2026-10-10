@@ -8,6 +8,7 @@ import {
   useMemo,
   useReducer,
   useRef,
+  useState,
 } from 'react'
 import type { CompletionMessage } from '../adapter/openai/wire'
 import type { ChatAdapter, PartDelta } from '../adapter/types'
@@ -30,26 +31,17 @@ import { chatReducer, initialState } from './chatReducer'
 import { ChatConfigProvider, type ChatUIConfig, resolveChatConfig } from './config'
 import { applyPartDelta, finalizeParts } from './parts'
 import { providerIssueFor } from './providerIssues'
+import {
+  ReportSidebarPresentationContext,
+  readStoredSidebar,
+  type SidebarPresentation,
+  type SidebarState,
+  storeSidebar,
+  useControllable,
+} from './sidebarState'
 import { useSSEStream } from './useSSEStream'
 
 const SELECTED_MODEL_STORAGE_KEY = 'aiChatSelectedModel'
-const SIDEBAR_COLLAPSED_STORAGE_KEY = 'aiChatSidebarCollapsed'
-
-function readStoredSidebarCollapsed(): boolean {
-  try {
-    return globalThis.localStorage?.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === '1'
-  } catch {
-    return false
-  }
-}
-
-function storeSidebarCollapsed(collapsed: boolean) {
-  try {
-    globalThis.localStorage?.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, collapsed ? '1' : '0')
-  } catch {
-    // Storage unavailable: the sidebar still toggles, it just does not remember.
-  }
-}
 
 function readStoredModel(): string | null {
   try {
@@ -167,7 +159,11 @@ interface ChatContextValue {
   streamingReasoning: string
   streamingParts: MessagePart[]
   thinkingStartTime: number | null
+  sidebar: SidebarState
+  /** True unless the sidebar is expanded. */
   sidebarCollapsed: boolean
+  sidebarPresentation: SidebarPresentation
+  drawerOpen: boolean
   queuedMessages: Message[]
 
   loadConversations: () => Promise<void>
@@ -189,6 +185,10 @@ interface ChatContextValue {
   stopStreaming: () => void
   removeQueuedMessage: (id: string) => void
   flushQueuedMessages: () => void
+  setSidebar: (sidebar: SidebarState) => void
+  setDrawerOpen: (open: boolean) => void
+  /** Opens or closes the drawer while the layout shows one; otherwise moves
+   *  between expanded and the rail. */
   toggleSidebar: () => void
   updateConversationTitle: (id: string, title: string) => Promise<boolean>
   navigateToBranch: (messageId: string) => void
@@ -212,6 +212,14 @@ export interface ChatProviderProps {
   notify: ChatNotify
   activeConversationId?: string | null
   config?: ChatUIConfig
+  /** Owns the sidebar's state. Omit to leave it to the reader, remembered
+   *  per browser. */
+  sidebar?: SidebarState
+  onSidebarChange?: (sidebar: SidebarState) => void
+  /** Owns whether the drawer is open while the layout shows the sidebar as
+   *  one. Omit to leave it to the reader; it starts closed. */
+  drawerOpen?: boolean
+  onDrawerOpenChange?: (open: boolean) => void
   children: ReactNode
 }
 
@@ -222,12 +230,13 @@ export function ChatProvider({
   notify,
   activeConversationId = null,
   config,
+  sidebar: sidebarProp,
+  onSidebarChange,
+  drawerOpen: drawerOpenProp,
+  onDrawerOpenChange,
   children,
 }: ChatProviderProps) {
-  const [state, dispatch] = useReducer(chatReducer, initialState, (seed) => ({
-    ...seed,
-    sidebarCollapsed: readStoredSidebarCollapsed(),
-  }))
+  const [state, dispatch] = useReducer(chatReducer, initialState)
   const hasLoadedConversationsRef = useRef(false)
 
   const {
@@ -700,6 +709,9 @@ export function ChatProvider({
         // duration excludes request setup — the response only became readable
         // at the first chunk before the transport moved behind the adapter.
         let thinkingStart: number | null = null
+        // The last reasoning chunk, so "Thought for" stops where the thinking
+        // did rather than running on through the answer.
+        let thinkingEnd: number | null = null
         const markStreamStart = () => {
           if (thinkingStart === null) {
             thinkingStart = Date.now()
@@ -735,6 +747,7 @@ export function ChatProvider({
             },
             onReasoning: (reasoning: string) => {
               markStreamStart()
+              thinkingEnd = Date.now()
               dispatch({
                 type: 'APPEND_STREAMING_REASONING',
                 reasoning,
@@ -770,7 +783,9 @@ export function ChatProvider({
         )
 
         const thinkingDuration =
-          assistantReasoning && thinkingStart !== null ? Date.now() - thinkingStart : null
+          assistantReasoning && thinkingStart !== null
+            ? (thinkingEnd ?? Date.now()) - thinkingStart
+            : null
 
         const assistantMessage: Message = {
           id: assistantMessageId || crypto.randomUUID(),
@@ -1046,12 +1061,40 @@ export function ChatProvider({
     state.thinkingStartTime,
   ])
 
-  const sidebarCollapsedRef = useRef(state.sidebarCollapsed)
-  sidebarCollapsedRef.current = state.sidebarCollapsed
+  const [sidebar, setSidebar, sidebarRef] = useControllable(
+    sidebarProp,
+    readStoredSidebar,
+    onSidebarChange,
+    storeSidebar,
+  )
+  const [drawerOpen, setDrawerOpen, drawerOpenRef] = useControllable(
+    drawerOpenProp,
+    () => false,
+    onDrawerOpenChange,
+  )
+  const [sidebarPresentation, setSidebarPresentation] = useState<SidebarPresentation>('inline')
+  const presentationRef = useRef(sidebarPresentation)
+  presentationRef.current = sidebarPresentation
+
+  const reportSidebarPresentation = useCallback(
+    (presentation: SidebarPresentation) => {
+      setSidebarPresentation(presentation)
+      // A drawer left open while the layout widened would be open again the
+      // moment it narrows.
+      if (presentation === 'inline') {
+        setDrawerOpen(false)
+      }
+    },
+    [setDrawerOpen],
+  )
+
   const toggleSidebar = useCallback(() => {
-    storeSidebarCollapsed(!sidebarCollapsedRef.current)
-    dispatch({ type: 'TOGGLE_SIDEBAR' })
-  }, [])
+    if (presentationRef.current === 'drawer') {
+      setDrawerOpen(!drawerOpenRef.current.value)
+    } else {
+      setSidebar(sidebarRef.current.value === 'expanded' ? 'collapsed' : 'expanded')
+    }
+  }, [setDrawerOpen, drawerOpenRef, setSidebar, sidebarRef])
 
   const navigateToBranch = useCallback(
     (messageId: string) => {
@@ -1133,7 +1176,10 @@ export function ChatProvider({
       streamingReasoning: state.streamingReasoning,
       streamingParts: state.streamingParts,
       thinkingStartTime: state.thinkingStartTime,
-      sidebarCollapsed: state.sidebarCollapsed,
+      sidebar,
+      sidebarCollapsed: sidebar !== 'expanded',
+      sidebarPresentation,
+      drawerOpen,
       queuedMessages: state.queuedMessages,
       loadConversations,
       loadConversation,
@@ -1149,6 +1195,8 @@ export function ChatProvider({
       stopStreaming,
       removeQueuedMessage,
       flushQueuedMessages,
+      setSidebar,
+      setDrawerOpen,
       toggleSidebar,
       updateConversationTitle,
       navigateToBranch,
@@ -1161,6 +1209,9 @@ export function ChatProvider({
       notify,
       activeConversationId,
       state,
+      sidebar,
+      sidebarPresentation,
+      drawerOpen,
       isSelectedModelAvailable,
       loadConversations,
       loadConversation,
@@ -1176,6 +1227,8 @@ export function ChatProvider({
       stopStreaming,
       removeQueuedMessage,
       flushQueuedMessages,
+      setSidebar,
+      setDrawerOpen,
       toggleSidebar,
       updateConversationTitle,
       navigateToBranch,
@@ -1185,7 +1238,9 @@ export function ChatProvider({
 
   return (
     <ChatConfigProvider value={resolvedConfig}>
-      <ChatContext.Provider value={value}>{children}</ChatContext.Provider>
+      <ReportSidebarPresentationContext.Provider value={reportSidebarPresentation}>
+        <ChatContext.Provider value={value}>{children}</ChatContext.Provider>
+      </ReportSidebarPresentationContext.Provider>
     </ChatConfigProvider>
   )
 }

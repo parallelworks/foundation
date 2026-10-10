@@ -250,6 +250,8 @@ export interface ChatModel {
   name?: string
   provider?: string
   provider_name?: string
+  // Username that registered the provider; empty for an organization
+  // provider. The picker names the owner when it is someone else.
   provider_owner?: string
   provider_type?: string
   context_window?: number
