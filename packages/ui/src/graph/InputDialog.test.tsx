@@ -714,6 +714,34 @@ describe('InputDialog in two views', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
   })
 
+  it('carries a group’s fields into the template of a list the YAML made of it', async () => {
+    const onSave = vi.fn()
+    render(
+      <InputDialog
+        name="field"
+        definition={{ type: 'group', items: { host: { type: 'string' } } }}
+        isNew={false}
+        siblings={[]}
+        allowStep
+        onSave={onSave}
+        onClose={() => {}}
+        yaml={{ onSave: () => {} }}
+        view="yaml"
+      />,
+    )
+    fireEvent.change(await screen.findByLabelText('file:///workflow-input.yaml'), {
+      target: { value: 'type: list\nitems:\n  host:\n    type: string\n' },
+    })
+    toForm()
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith(
+      'field',
+      { type: 'list', template: { host: { type: 'string' } } },
+      expect.anything(),
+      [],
+    )
+  })
+
   it('keeps a container’s fields when the YAML changes only its type', async () => {
     const onSave = vi.fn()
     render(
@@ -961,13 +989,42 @@ describe('InputDialog keeps what it does not show', () => {
     expect(onClose).toHaveBeenCalledTimes(2)
   })
 
-  it('keeps a radio’s default as text, the way the radio matches its options', () => {
-    const onSave = open({ type: 'radio', options: [{ value: 1, label: 'One' }] })
-    fireEvent.change(screen.getByLabelText('Default'), { target: { value: '1' } })
+  it('writes options the way a radio takes them once a checkbox group becomes one', () => {
+    const onSave = open({
+      type: 'checkbox-group',
+      options: [{ value: 'cuda', label: 'CUDA', description: 'Needs the GPU drivers' }],
+    })
+    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'radio' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(onSave).toHaveBeenCalledWith(
       'field',
-      expect.objectContaining({ default: '1' }),
+      { type: 'radio', options: [{ value: 'cuda', label: 'CUDA' }] },
+      expect.anything(),
+      [],
+    )
+  })
+
+  it('keeps a radio’s and a checkbox group’s values as text, which is all their options take', () => {
+    const onSave = open({ type: 'radio', options: ['a'] })
+    fireEvent.click(screen.getByRole('button', { name: 'Add option' }))
+    const values = screen.getAllByRole('textbox', { name: 'Value' })
+    fireEvent.change(values[values.length - 1] as HTMLElement, { target: { value: '1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith(
+      'field',
+      expect.objectContaining({ options: ['a', { value: '1' }] }),
+      expect.anything(),
+      [],
+    )
+    cleanup()
+    const ticked = open({ type: 'checkbox-group', options: ['1', '2'] })
+    fireEvent.click(screen.getByRole('button', { name: 'Add value' }))
+    const [first] = screen.getAllByRole('combobox', { name: /, item \d+$/ })
+    fireEvent.change(first as HTMLElement, { target: { value: '2' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(ticked).toHaveBeenCalledWith(
+      'field',
+      expect.objectContaining({ default: ['2'] }),
       expect.anything(),
       [],
     )
