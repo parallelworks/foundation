@@ -704,6 +704,22 @@ describe('InputsFormEditor', () => {
     })
   })
 
+  it('never drops an input between a wizard’s pages, where the wizard wouldn’t draw it', () => {
+    const e = editor()
+    renderForm(e, PAGED)
+    row(['step_1']).getBoundingClientRect = () => new DOMRect(0, 0, 600, 120)
+    row(['step_1', 'a']).getBoundingClientRect = () => new DOMRect(10, 40, 580, 40)
+    const grip = row(['step_1', 'a']).querySelector('[data-drag-handle]') as HTMLElement
+    fireEvent.pointerDown(grip, { button: 0, clientX: 300, clientY: 45 })
+    act(() => {
+      fireEvent.pointerMove(window, { clientX: 300, clientY: 140 })
+    })
+    act(() => {
+      fireEvent.pointerUp(window, { clientX: 300, clientY: 140 })
+    })
+    expect(e.onEdit).not.toHaveBeenCalled()
+  })
+
   it('shows the page “+ Page” adds, after a repeated page’s copies', async () => {
     const REPEATED = {
       $meta: { wizard: { mode: 'wizard' } },
@@ -1132,6 +1148,26 @@ describe('selecting inputs', () => {
     clickLabel(['name'])
     fireEvent.pointerDown(document.body, { button: 0 })
     expect(selected()).toEqual([])
+  })
+})
+
+describe('keys in a focused field', () => {
+  it('leaves keys pressed in a focused switch to the switch, not the selection', () => {
+    const e = editor()
+    renderForm(e, {
+      flag: { type: 'boolean', label: 'Flag' },
+      other: { type: 'string', label: 'Other' },
+    } as unknown as typeof INPUTS)
+    const label = row(['flag']).querySelector('[data-field-label]') as HTMLElement
+    fireEvent.pointerDown(label, { button: 0, clientX: 5, clientY: 5 })
+    act(() => {
+      fireEvent.pointerUp(window, { clientX: 5, clientY: 5 })
+    })
+    fireEvent.click(label)
+    expect(row(['flag'])).toHaveAttribute('data-selected')
+    fireEvent.keyDown(within(row(['flag'])).getByRole('switch'), { key: 'Delete' })
+    expect(e.onEdit).not.toHaveBeenCalled()
+    expect(row(['flag'])).toHaveAttribute('data-selected')
   })
 })
 

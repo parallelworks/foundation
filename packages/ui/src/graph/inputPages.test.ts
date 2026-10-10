@@ -38,6 +38,38 @@ describe('layout through wizard transitions', () => {
     expect(asRecord(restored['$meta'])['layout']).toEqual({ type: 'stack', children: [appearance] })
     expect(resolveFormLayout(asRecord(restored['$meta'])['layout'], ['queue']).issues).toEqual([])
   })
+  it('stacks each page’s own layout when pages are removed, and pages them again whole', () => {
+    const one = {
+      type: 'section',
+      label: 'One',
+      css: 'padding: 1rem;',
+      children: [
+        { type: 'field', field: 'a' },
+        { type: 'field', field: 'b' },
+      ],
+    }
+    const two = {
+      type: 'grid',
+      columns: { base: 1, md: [2, 1] },
+      children: [
+        { type: 'field', field: 'c' },
+        { type: 'field', field: 'd' },
+      ],
+    }
+    const field = { type: 'string' }
+    const inputs: Json = {
+      $meta: { wizard: { mode: 'wizard' } },
+      one: { type: 'step', title: 'One', options: { $meta: { layout: one }, a: field, b: field } },
+      two: { type: 'step', title: 'Two', options: { $meta: { layout: two }, c: field, d: field } },
+    }
+    const restored = apply(inputs, unsplitPagesEdits(inputs, [], undefined))
+    expect(Object.keys(restored)).toEqual(['$meta', 'a', 'b', 'c', 'd'])
+    expect(restored['$meta']).toEqual({ layout: { type: 'stack', children: [one, two] } })
+    const paged = apply(restored, splitIntoPagesEdits(editing, restored, [], undefined, 'Settings'))
+    const options = asRecord(asRecord(paged['step_1'])['options'])
+    expect(Object.keys(options)).toEqual(['a', 'b', 'c', 'd', '$meta'])
+    expect(options['$meta']).toEqual({ layout: { type: 'stack', children: [one, two] } })
+  })
   it('keeps nested group layouts and field definitions through both transitions', () => {
     const inputs = { group: { type: 'group', items: form() } }
     const paged = apply(
