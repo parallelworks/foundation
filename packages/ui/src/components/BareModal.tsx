@@ -14,6 +14,25 @@ export const modalPanelClasses =
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
 
+// Stacked modals can close in any order (a confirm over a drawer the host closes first), so
+// the first lock saves the body's overflow and only the last unlock restores it.
+let scrollLocks = 0
+let unlockedOverflow = ''
+
+function lockBodyScroll(): () => void {
+  if (scrollLocks === 0) {
+    unlockedOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+  }
+  scrollLocks++
+  return () => {
+    scrollLocks--
+    if (scrollLocks === 0) {
+      document.body.style.overflow = unlockedOverflow
+    }
+  }
+}
+
 export function BareModal({
   open,
   onClose,
@@ -31,8 +50,8 @@ export function BareModal({
   className?: string
   onPanelKeyDown?: (e: ReactKeyboardEvent<HTMLDivElement>) => void
   onPanelMouseDown?: (e: ReactMouseEvent<HTMLDivElement>) => void
-  /** Vertical placement of the panel. Defaults to the ds top-anchored position. */
-  align?: 'top' | 'center'
+  /** Placement of the panel: top-anchored (default), centered, or a full-height side panel at the inline end. */
+  align?: 'top' | 'center' | 'end'
   /** Block the accidental-dismiss paths (backdrop click, Escape) so typed
    * input isn't lost. The explicit close controls still work. */
   preventClose?: boolean
@@ -59,10 +78,9 @@ export function BareModal({
       return
     }
     const previouslyFocused = document.activeElement as HTMLElement | null
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const unlock = lockBodyScroll()
     return () => {
-      document.body.style.overflow = previousOverflow
+      unlock()
       previouslyFocused?.focus?.()
     }
   }, [open])
@@ -105,9 +123,13 @@ export function BareModal({
       data-testid="modal-backdrop"
       role="none"
       className={cx(
-        // pb keeps tall panels (max-h-full) off the viewport's bottom edge.
-        'fixed inset-0 z-[9990] flex justify-center px-4 pb-8',
-        align === 'center' ? 'items-center' : 'items-start pt-[14vh]',
+        'fixed inset-0 z-[9990] flex',
+        align === 'end'
+          ? 'items-stretch justify-end'
+          : // pb keeps tall panels (max-h-full) off the viewport's bottom edge.
+            'justify-center px-4 pb-8',
+        align === 'center' && 'items-center',
+        align === 'top' && 'items-start pt-[14vh]',
       )}
       style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}
       onClick={preventClose ? undefined : onClose}

@@ -6,6 +6,16 @@ export {
   type AvatarStatus,
   avatarInitials,
 } from './components/Avatar'
+export {
+  AccessDrawer,
+  type AccessDrawerProps,
+} from './components/access/AccessDrawer'
+export type {
+  AccessGroup,
+  AccessPermission,
+  AccessValue,
+  ImpliedPermissions,
+} from './components/access/accessValue'
 export { BareModal, modalPanelClasses } from './components/BareModal'
 export {
   BreadcrumbProvider,
@@ -37,6 +47,7 @@ export {
   CreateModalTextarea,
 } from './components/CreateModal'
 export { DescriptionListItem, default as DescriptionList } from './components/DescriptionList'
+export { Drawer, type DrawerProps } from './components/Drawer'
 export type { IProps as DropdownProps } from './components/Dropdown'
 export { default as Dropdown } from './components/Dropdown'
 export type { ICategory, IOptions } from './components/dropdownUtils'

@@ -392,6 +392,58 @@ export interface UIStrings {
     paginationShowing: (name: string, start: number | string, end: number | string) => ReactNode
     paginationShowingTimeRange: (name: string, startTime: string, endTime: string) => ReactNode
   }
+  access: {
+    title: string
+    grantAccess: string
+    filter: string
+    grantedSummary: (granted: number, total: number) => string
+    holderCount: (count: number) => string
+    more: (count: number) => string
+    everyone: string
+    organization: string
+    organizationMeta: string
+    members: (count: number) => string
+    holdersOf: (permission: string) => string
+    categoryGranted: (count: number) => string
+    includedBy: (permission: string) => string
+    remove: string
+    removeFrom: (name: string, permission: string) => string
+    confirmRemove: string
+    cancel: string
+    removed: (name: string, permission: string) => string
+    granted: (permissions: number, to: string) => string
+    groupCount: (count: number) => string
+    undo: string
+    undone: string
+    dismiss: string
+    noGrants: string
+    noGrantsHint: string
+    noMatches: (query: string) => string
+    noMatchesHint: string
+    clearFilter: string
+    groupsLabel: string
+    groupsHint: string
+    searchGroups: (total: number) => string
+    noGroups: string
+    noGroupsMatch: (query: string) => string
+    selectedGroups: string
+    permissionsLabel: string
+    permissionsHint: string
+    searchPermissions: (total: number) => string
+    allTypes: string
+    otherType: string
+    resourceTypes: string
+    selectedPermissions: string
+    selectedCount: (count: number) => string
+    removeChip: (name: string) => string
+    noPermissionsMatch: (query: string) => string
+    pickBoth: string
+    pickPermissions: (groups: number) => string
+    pickGroups: (permissions: number) => string
+    grantSummary: (permissions: number, groups: number, already: number) => string
+    save: string
+    saving: string
+  }
 }
 
 export interface UINavigation {
@@ -936,6 +988,63 @@ const DEFAULTS: UIProviderValue = {
         </>
       ),
     },
+    access: {
+      title: 'Manage access',
+      grantAccess: 'Grant access',
+      filter: 'Filter by permission or group',
+      grantedSummary: (granted, total) =>
+        `${granted} of ${total} ${total === 1 ? 'permission' : 'permissions'} granted`,
+      holderCount: (count) => `(${count})`,
+      more: (count) => `+${count}`,
+      everyone: 'Everyone',
+      organization: 'Everyone in the organization',
+      organizationMeta: 'All members, including new ones',
+      members: (count) => (count === 1 ? '1 member' : `${count} members`),
+      holdersOf: (permission) => `Who has ${permission}`,
+      categoryGranted: (count) => (count === 1 ? '1 granted' : `${count} granted`),
+      includedBy: (permission) => `Included by ${permission}`,
+      remove: 'Remove',
+      removeFrom: (name, permission) => `Remove ${name} from ${permission}`,
+      confirmRemove: 'Remove access?',
+      cancel: 'Cancel',
+      removed: (name, permission) => `Removed ${name} from ${permission}`,
+      granted: (permissions, to) =>
+        `Granted ${permissions === 1 ? '1 permission' : `${permissions} permissions`} to ${to}`,
+      groupCount: (count) => (count === 1 ? '1 group' : `${count} groups`),
+      undo: 'Undo',
+      undone: 'Change undone',
+      dismiss: 'Dismiss',
+      noGrants: 'No one has access yet',
+      noGrantsHint: 'Use Grant access to give groups permissions.',
+      noMatches: (query) => `Nothing matches “${query}”`,
+      noMatchesHint: 'Search by a permission name, its key, or a group name.',
+      clearFilter: 'Clear filter',
+      groupsLabel: 'Groups',
+      groupsHint: 'Who gets the permissions. Pick one or more.',
+      searchGroups: (total) => `Search ${total} groups`,
+      noGroups: 'No groups yet',
+      noGroupsMatch: (query) => `No groups match “${query}”`,
+      selectedGroups: 'Selected groups',
+      permissionsLabel: 'Permissions',
+      permissionsHint: 'What they can do, by type of resource.',
+      searchPermissions: (total) => `Search ${total} permissions`,
+      allTypes: 'All',
+      otherType: 'Other',
+      resourceTypes: 'Resource types',
+      selectedPermissions: 'Selected permissions',
+      selectedCount: (count) => `${count} selected`,
+      removeChip: (name) => `Remove ${name}`,
+      noPermissionsMatch: (query) => `No permissions match “${query}”`,
+      pickBoth: 'Pick at least one group and one permission',
+      pickPermissions: (groups) =>
+        `${groups === 1 ? '1 group' : `${groups} groups`} picked, now choose permissions`,
+      pickGroups: (permissions) =>
+        `${permissions === 1 ? '1 permission' : `${permissions} permissions`} picked, now choose groups`,
+      grantSummary: (permissions, groups, already) =>
+        `Grants ${permissions === 1 ? '1 permission' : `${permissions} permissions`} to ${groups === 1 ? '1 group' : `${groups} groups`}${already ? ` · ${already} already granted` : ''}`,
+      save: 'Save',
+      saving: 'Saving…',
+    },
   },
   navigation: {
     goTo: (to) => {
@@ -1106,6 +1215,7 @@ export function UIProvider({
         form: { ...DEFAULTS.strings.form, ...strings?.form },
         time: { ...DEFAULTS.strings.time, ...strings?.time },
         list: { ...DEFAULTS.strings.list, ...strings?.list },
+        access: { ...DEFAULTS.strings.access, ...strings?.access },
       },
       navigation: { ...DEFAULTS.navigation, ...navigation },
       data: { ...DEFAULTS.data, ...data },
