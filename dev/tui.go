@@ -12,6 +12,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/lmittmann/tint"
 )
 
@@ -137,7 +138,8 @@ type model struct {
 	ext      extension
 	rows     []Row     // the app's own rows, as last fetched
 	rowsAt   time.Time // when they were fetched
-	scroll   int       // lines up from the bottom of a log
+	scroll   int       // rows up from the bottom of a log
+	wrap     bool      // a log's long lines wrap instead of being cut off
 	width    int
 	height   int
 	quitting bool
@@ -283,6 +285,8 @@ func (m *model) key(k string) (tea.Model, tea.Cmd) {
 			m.scroll = max(m.scroll-m.pageSize(), 0)
 		case "end", "G":
 			m.scroll = 0
+		case "w":
+			m.wrap = !m.wrap
 		case "home", "g":
 			m.scroll = m.maxScroll()
 		case "r":
@@ -303,7 +307,20 @@ func (m *model) maxScroll() int {
 		services := m.sup.statuses()
 		name = services[min(m.cursor, len(services)-1)].Name
 	}
-	return max(len(m.sup.lines(name))-m.pageSize(), 0)
+	return max(len(m.screenRows(m.sup.lines(name)))-m.pageSize(), 0)
+}
+
+// screenRows is a log's lines as the screen shows them: wrapped, a long line
+// takes as many rows as it needs, and scrolling counts rows.
+func (m *model) screenRows(lines []string) []string {
+	if !m.wrap || m.width <= 0 {
+		return lines
+	}
+	rows := make([]string, 0, len(lines))
+	for _, line := range lines {
+		rows = append(rows, strings.Split(ansi.Wrap(line, m.width, ""), "\n")...)
+	}
+	return rows
 }
 
 // act runs a start, stop or restart off the UI's goroutine: stopping waits
@@ -338,6 +355,14 @@ func (m *model) quitHelp() string {
 	return "q quit"
 }
 
+// wrapHelp is the key that switches how long lines show, for the help line.
+func (m *model) wrapHelp() string {
+	if m.wrap {
+		return "w unwrap · "
+	}
+	return "w wrap · "
+}
+
 func (m *model) pageSize() int { return max(m.height-4, 1) }
 
 var (
@@ -370,11 +395,11 @@ func (m *model) View() tea.View {
 	case viewLogs:
 		services := m.sup.statuses()
 		name := services[min(m.cursor, len(services)-1)].Name
-		m.log(&b, name, m.sup.lines(name), "esc back · r restart · ↑↓ scroll · ctrl+u/d page · g top · G follow · "+m.quitHelp())
+		m.log(&b, name, m.sup.lines(name), "esc back · r restart · ↑↓ scroll · ctrl+u/d page · g top · G follow · "+m.wrapHelp()+m.quitHelp())
 	case viewProfiles:
 		m.profiles(&b)
 	case viewAll:
-		m.log(&b, "all output", m.sup.lines(""), "esc back · ↑↓ scroll · ctrl+u/d page · g top · G follow · "+m.quitHelp())
+		m.log(&b, "all output", m.sup.lines(""), "esc back · ↑↓ scroll · ctrl+u/d page · g top · G follow · "+m.wrapHelp()+m.quitHelp())
 	}
 	v := tea.NewView(b.String())
 	v.AltScreen = true
@@ -528,6 +553,7 @@ func (m *model) log(b *strings.Builder, title string, lines []string, help strin
 		b.WriteString(dimStyle.Render(fmt.Sprintf("   %d lines up", m.scroll)))
 	}
 	b.WriteString("\n")
+	lines = m.screenRows(lines)
 	page := m.pageSize()
 	m.scroll = min(m.scroll, max(len(lines)-page, 0))
 	end := len(lines) - m.scroll

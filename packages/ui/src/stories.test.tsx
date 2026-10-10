@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as primitives from './components/primitives.stories'
 import * as fileExplorer from './file-explorer/FileExplorer.stories'
 import * as form from './form/DynamicForm.stories'
+import * as layoutShowcase from './form/LayoutShowcase.stories'
 import * as workflow from './graph/DependencyGraph.stories'
 import * as appShell from './list/appShell.stories'
 import * as list from './list/ListTable.stories'
@@ -45,6 +46,7 @@ const SUITES = {
   appShell,
   userHoverCard,
   form,
+  layoutShowcase,
   workflow,
   fileExplorer,
 } as const
