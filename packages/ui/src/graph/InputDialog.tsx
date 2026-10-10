@@ -513,7 +513,10 @@ function optionsDraft(value: unknown): OptionsDraft {
   return { mode: 'list', rows: [], text: '' }
 }
 
-function optionsValue(draft: OptionsDraft, labelled: boolean): unknown {
+function optionsValue(
+  draft: OptionsDraft,
+  { labelled = false, textValues = false, keys }: ValueContext,
+): unknown {
   if (draft.mode === 'expression') {
     return draft.text.trim() || undefined
   }
@@ -521,9 +524,13 @@ function optionsValue(draft: OptionsDraft, labelled: boolean): unknown {
     return draft.text.trim() ? parseJson(draft.text).value : undefined
   }
   return draft.rows.map((row) => {
-    const value = unchangedValue(row.value, row.original)
+    const written = unchangedValue(row.value, row.original)
       ? row.original
       : parseScalar(row.value.trim())
+    const value = textValues && isScalar(written) ? String(written) : written
+    const rest = keys
+      ? Object.fromEntries(Object.entries(row.rest ?? {}).filter(([key]) => keys.includes(key)))
+      : row.rest
     if (row.bare && !row.label.trim() && !row.rest && typeof value === 'string') {
       return value
     }
@@ -533,7 +540,7 @@ function optionsValue(draft: OptionsDraft, labelled: boolean): unknown {
     return {
       value,
       ...(label ? { label } : {}),
-      ...row.rest,
+      ...rest,
     }
   })
 }
@@ -978,13 +985,16 @@ function draftOf(kind: Kind, value: unknown): unknown {
 interface ValueContext {
   /** Options need labels, as a multi-select's do. */
   labelled?: boolean
+  /** Option values, and the defaults picking them, are text, as a radio's and a checkbox group's are. */
+  textValues?: boolean
+  /** The keys an option takes besides its value and label; any when unset. */
+  keys?: string[]
 }
 
-function writtenValue(
-  kind: Kind,
-  draft: unknown,
-  { labelled = false }: ValueContext = {},
-): unknown {
+// The keys an option of these types takes besides its value and label; other types' options take any.
+const OPTION_KEYS: Record<string, string[]> = { radio: [], 'checkbox-group': ['description'] }
+
+function writtenValue(kind: Kind, draft: unknown, context: ValueContext = {}): unknown {
   switch (kind) {
     case 'flag':
     case 'bool':
@@ -994,7 +1004,7 @@ function writtenValue(
       return raw ? parseJson(raw).value : undefined
     }
     case 'options':
-      return optionsValue(draft as OptionsDraft, labelled)
+      return optionsValue(draft as OptionsDraft, context)
     case 'perCopy': {
       const perCopy = draft as PerCopyDraft
       const values = perCopy.values.map((value) => value.trim()).filter(Boolean)
@@ -1010,7 +1020,10 @@ function writtenValue(
         return list.expression.trim() || undefined
       }
       const values = list.values.map((value) => value.trim()).filter(Boolean)
-      return values.length > 0 ? values.map(parseScalar) : undefined
+      if (values.length === 0) {
+        return undefined
+      }
+      return context.textValues ? values : values.map(parseScalar)
     }
     case 'rows': {
       const list = draft as RowsDraft
@@ -2144,6 +2157,18 @@ function InputForm({
   const own = useNewInputs(inputs, home)
   const newInputs = shared ?? own
   const [original] = useState(() => startOriginal ?? (isNew ? {} : definition))
+  // The type the input had when the dialog opened; the YAML just shown may have changed it already.
+  const originalType = text(original['type'])
+  // A container's fields sit under its type's key, or still under the old type's when the YAML changed only the type.
+  const childrenOf = (settings: Json, withTemplate = true) => {
+    for (const from of [text(settings['type']), originalType]) {
+      const key = editing.inputChildrenKey(from)
+      if (key && (withTemplate || key !== 'template') && settings[key] !== undefined) {
+        return settings[key]
+      }
+    }
+    return undefined
+  }
   const [draftName, setDraftName] = useState(name)
   const [type, setType] = useState(() => text(definition['type']) || 'string')
   const [initial] = useState(() => {
@@ -2153,7 +2178,16 @@ function InputForm({
     }
     return out
   })
-  const [drafts, setDrafts] = useState<Drafts>(initial)
+  // A list the YAML made of a group or step starts with its fields as the template, as the type menu does.
+  const [drafts, setDrafts] = useState<Drafts>(() => {
+    const fields =
+      text(definition['type']) === 'list' && definition['template'] === undefined
+        ? childrenOf(definition, false)
+        : undefined
+    return fields === undefined
+      ? initial
+      : { ...initial, [draftKey(TEMPLATE)]: draftOf('template', fields) }
+  })
   const [nested, setNested] = useState(false)
   const rowsKey = draftKey(LIST_DEFAULT)
   const onFieldKey = (from: string, to: string | undefined) =>
@@ -2171,18 +2205,6 @@ function InputForm({
       })
       return { ...current, [rowsKey]: { ...rows, rows: moved } }
     })
-  // The type the input had when the dialog opened; the YAML just shown may have changed it already.
-  const originalType = text(original['type'])
-  // A container's fields sit under its type's key, or still under the old type's when the YAML changed only the type.
-  const childrenOf = (settings: Json, withTemplate = true) => {
-    for (const from of [text(settings['type']), originalType]) {
-      const key = editing.inputChildrenKey(from)
-      if (key && (withTemplate || key !== 'template') && settings[key] !== undefined) {
-        return settings[key]
-      }
-    }
-    return undefined
-  }
   const optionsDraftNow = drafts[draftKey(OPTIONS)] as OptionsDraft | undefined
   const optionRows = optionsDraftNow?.mode === 'list' ? optionsDraftNow.rows : []
   // The schema has two dropdowns: a list with placeholder and autoselect, or options keyed by option-key.
@@ -2211,11 +2233,15 @@ function InputForm({
     ...settingProps,
   ]
   const kindOf = (prop: Prop) => effectiveKind(prop, definition[prop.key])
-  const context = { labelled: type === 'multi-dropdown' }
+  const context: ValueContext = {
+    labelled: type === 'multi-dropdown',
+    textValues: type === 'radio' || type === 'checkbox-group',
+    ...(OPTION_KEYS[type] ? { keys: OPTION_KEYS[type] } : {}),
+  }
   // A value kept from before a type change may not suit the new type, so every setting is checked then.
   const typeChanged = !isNew && type !== originalType
   // An untouched field keeps its YAML value exactly, so `5` isn't rewritten as '5', unless the type changed:
-  // then it's written as the new type reads it, the value its error check saw.
+  // then every setting is written as the new type reads it, the value its error check saw.
   const valueFor = (prop: Prop) => {
     const key = draftKey(prop)
     const kept = definition[prop.key]
@@ -2223,7 +2249,7 @@ function InputForm({
       kindOf(prop) === 'values' &&
       isScalar(kept) &&
       !(typeof kept === 'string' && EXPRESSION.test(kept.trim()))
-    return sameValue(drafts[key], initial[key]) && !becameList && !(typeChanged && isScalar(kept))
+    return sameValue(drafts[key], initial[key]) && !becameList && !typeChanged
       ? kept
       : writtenValue(kindOf(prop), drafts[key], context)
   }
