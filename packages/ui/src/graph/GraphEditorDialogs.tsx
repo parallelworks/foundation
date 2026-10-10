@@ -48,8 +48,10 @@ import {
   Section,
   SectionMemory,
   type Strings,
+  sameValue,
   ToggleField,
   text,
+  unchangedValue,
   updateAt,
   useSectionMemory,
 } from './editorFields'
@@ -155,10 +157,11 @@ function sshFrom(value: unknown): SshFields {
   return Object.fromEntries(SSH_KEYS.map((key) => [key, text(record[key])])) as SshFields
 }
 
-function sshTo(fields: SshFields): Json | undefined {
+function sshTo(fields: SshFields, original: unknown): Json | undefined {
+  const written = asRecord(original)
   const entries = SSH_KEYS.flatMap((key) => {
     const value = fields[key].trim()
-    return value ? [[key, value] as const] : []
+    return value ? [[key, unchangedValue(value, written[key]) ? written[key] : value] as const] : []
   })
   return entries.length > 0 ? Object.fromEntries(entries) : undefined
 }
@@ -370,6 +373,8 @@ interface OutputRow {
   step: string
   output: string
   custom?: string
+  /** The text it was read from, written back while it still names the same step output. */
+  original?: string
 }
 
 const OUTPUT_REF =
@@ -379,7 +384,7 @@ function outputRowsFrom(value: unknown, job: string): OutputRow[] {
   return Object.entries(asRecord(value)).map(([name, raw]) => {
     const match = typeof raw === 'string' ? OUTPUT_REF.exec(raw.trim()) : null
     return match && match[1] === job
-      ? { name, step: match[2] ?? '', output: match[3] ?? '' }
+      ? { name, step: match[2] ?? '', output: match[3] ?? '', original: String(raw) }
       : { name, step: '', output: '', custom: text(raw) }
   })
 }
@@ -389,10 +394,11 @@ function outputsTo(rows: OutputRow[], job: string): Json | undefined {
     return undefined
   }
   return Object.fromEntries(
-    rows.map((row) => [
-      row.name.trim(),
-      row.custom ?? `\${{ needs.${job}.steps.${row.step}.outputs.${row.output.trim()} }}`,
-    ]),
+    rows.map((row) => {
+      const written = `\${{ needs.${job}.steps.${row.step}.outputs.${row.output.trim()} }}`
+      const same = row.original?.replace(/\s/g, '') === written.replace(/\s/g, '')
+      return [row.name.trim(), row.custom ?? (same ? row.original : written)]
+    }),
   )
 }
 
@@ -873,10 +879,10 @@ function JobForm({
     runsOn: runsOnTyped
       ? !runsOnText.trim()
         ? undefined
-        : sshTo(ssh)
+        : sshTo(ssh, original['ssh'])
           ? t.runsOnWithSsh
           : expressionError(runsOnText, t)
-      : runsOnError(runsOn, !!sshTo(ssh), t),
+      : runsOnError(runsOn, !!sshTo(ssh, original['ssh']), t),
     timeout: durationError(timeout, t),
     env: rowsError(env, ENV_KEY, t.invalidEnvKey, t),
     outputs: outputsError(outputs, t),
@@ -892,7 +898,7 @@ function JobForm({
         ? expressionError(excludeText, t)
         : entriesError(exclude, t),
     failFast: matrixOn ? flagError(failFast, t) : undefined,
-    maxParallel: countError(maxParallel, 1, t.invalidMaxParallel),
+    maxParallel: matrixOn ? countError(maxParallel, 1, t.invalidMaxParallel) : undefined,
   }
 
   const nextStrategy = (): unknown => {
@@ -924,7 +930,7 @@ function JobForm({
   const patch = diffPatch(original, {
     needs: needsTyped ? orUndefined(needsText) : needs.length > 0 ? needs : undefined,
     if: parseCondition(condition),
-    ssh: sshTo(ssh),
+    ssh: sshTo(ssh, original['ssh']),
     'runs-on': runsOnTyped ? orUndefined(runsOnText) : runsOnTo(runsOn),
     'working-directory': orUndefined(workingDirectory),
     timeout: orUndefined(timeout),
@@ -950,7 +956,7 @@ function JobForm({
         }
       : null,
   )
-  onDraft?.(saveEdit)
+  onDraft?.(saveEdit, invalid)
   const children = (
     <>
       {newInputs.dialog}
@@ -1038,7 +1044,7 @@ function JobForm({
       <Section
         title={t.sectionRemoteHost}
         description={t.runsInWorkspace}
-        open={!!sshTo(ssh)}
+        open={!!sshTo(ssh, original['ssh'])}
         alert={!!errors.ssh}
       >
         <SshEditor fields={ssh} onChange={setSsh} error={errors.ssh} source={source} />
@@ -1469,7 +1475,8 @@ function StepForm({
     cleanup: cleanup.trim() ? cleanup : undefined,
     retry: nextRetry(),
     env: rowsTo(env, (value) => value),
-    ssh: sshMode === 'inherit' ? undefined : sshMode === 'none' ? null : sshTo(ssh),
+    ssh:
+      sshMode === 'inherit' ? undefined : sshMode === 'none' ? null : sshTo(ssh, original['ssh']),
   } satisfies Record<(typeof STEP_FIELDS)[number], unknown>)
   const dirty = !isEmptyPatch(patch)
   const invalid = Object.values(errors).some(Boolean)
@@ -1478,8 +1485,15 @@ function StepForm({
     onClose()
   }
 
-  const saveEdit = newInputs.save(dirty ? { type: 'updateStep', job, index, ...patch } : null)
-  onDraft?.(saveEdit)
+  const fromId = text(original['id']).trim()
+  const references =
+    fromId && id.trim() && id.trim() !== fromId
+      ? stepIdEdits(workflow, steps, job, index, fromId, id.trim())
+      : []
+  const saveEdit = newInputs.save(
+    dirty ? editing.batchOf([{ type: 'updateStep', job, index, ...patch }, ...references]) : null,
+  )
+  onDraft?.(saveEdit, invalid)
   const children = (
     <>
       {newInputs.dialog}
@@ -1789,12 +1803,68 @@ interface StepDialogProps {
 /** What a job or step form hands the dialog around it, so the same settings can be edited as YAML. */
 export interface SettingsFormHooks {
   renderShell?: ((props: DialogShellProps) => ReactNode) | undefined
-  /** Called on each render with the edit Save would send. */
-  onDraft?: ((edit: GraphEdit | null) => void) | undefined
+  /** Called on each render with the edit Save would send, and whether a field is invalid. */
+  onDraft?: ((edit: GraphEdit | null, invalid: boolean) => void) | undefined
   /** Edits made in the YAML view are waiting to be saved. */
   pending?: boolean
   /** The step exists only once saved, so deleting it just closes the dialog. */
   adding?: boolean
+}
+
+// A step's ID is read as `steps.<id>` within its job, and as `needs.<job>.steps.<id>` anywhere.
+function stepIdEdits(
+  workflow: Json | undefined,
+  steps: unknown[],
+  job: string,
+  index: number,
+  from: string,
+  to: string,
+): GraphEdit[] {
+  const id = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const own = new RegExp(`(?<![A-Za-z0-9_.-])steps\\.${id}(?![A-Za-z0-9_-])`, 'g')
+  const needed = new RegExp(
+    `(?<![A-Za-z0-9_.-])needs\\.${job}\\.steps\\.${id}(?![A-Za-z0-9_-])`,
+    'g',
+  )
+  const rewrite = (value: unknown, inJob: boolean): unknown => {
+    if (typeof value === 'string') {
+      return value.replace(/\$\{\{[\s\S]*?\}\}/g, (expression) => {
+        const outside = expression.replace(needed, `needs.${job}.steps.${to}`)
+        return inJob ? outside.replace(own, `steps.${to}`) : outside
+      })
+    }
+    if (Array.isArray(value)) {
+      return value.map((item) => rewrite(item, inJob))
+    }
+    return value && typeof value === 'object'
+      ? Object.fromEntries(Object.entries(value).map(([key, item]) => [key, rewrite(item, inJob)]))
+      : value
+  }
+  const changed = (record: Json, inJob: boolean) => {
+    const set: Json = {}
+    for (const [key, value] of Object.entries(record)) {
+      const next = rewrite(value, inJob)
+      if (!sameValue(next, value)) {
+        set[key] = next
+      }
+    }
+    return set
+  }
+  const jobs = workflow ? asRecord(workflow['jobs']) : { [job]: { steps } }
+  return Object.entries(jobs).flatMap(([name, value]): GraphEdit[] => {
+    const { steps: own = [], ...fields } = asRecord(value)
+    const inJob = name === job
+    const jobSet = changed(fields, inJob)
+    return [
+      ...(Object.keys(jobSet).length > 0
+        ? [{ type: 'updateJob' as const, job: name, set: jobSet }]
+        : []),
+      ...(Array.isArray(own) ? own : []).flatMap((step, i): GraphEdit[] => {
+        const set = inJob && i === index ? {} : changed(asRecord(step), inJob)
+        return Object.keys(set).length > 0 ? [{ type: 'updateStep', job: name, index: i, set }] : []
+      }),
+    ]
+  })
 }
 
 function applyAll(editing: WorkflowEditing, text: string, edits: GraphEdit[]): string {
@@ -1958,16 +2028,24 @@ export function useSettingsViews(o: SettingsViewsOptions) {
   const [problem, setProblem] = useState<string | undefined>()
   const [version, setVersion] = useState(0)
   const draft = useRef<GraphEdit | null>(null)
+  // The draft leaves out what an invalid field can't write yet, so the YAML would lose it.
+  const invalidDraft = useRef(false)
   const [, setDrafts] = useState(0)
   const lastDraft = useRef('')
   // The form reports its draft while it renders, so the problems follow it on a later turn,
   // and only when the draft changed.
-  const trackDraft = (edit: GraphEdit | null) => {
+  const trackDraft = (edit: GraphEdit | null, invalid: boolean) => {
     draft.current = edit
-    const seen = JSON.stringify(edit)
+    invalidDraft.current = invalid
+    const seen = JSON.stringify([edit, invalid])
     if (seen !== lastDraft.current) {
       lastDraft.current = seen
-      window.setTimeout(() => setDrafts((n) => n + 1), 0)
+      window.setTimeout(() => {
+        setDrafts((n) => n + 1)
+        if (!invalid) {
+          setProblem(undefined)
+        }
+      }, 0)
     }
   }
   const groups = useAddedGroups(start, committed)
@@ -2003,6 +2081,10 @@ export function useSettingsViews(o: SettingsViewsOptions) {
   }
   const toYaml = () => {
     if (start === undefined) {
+      return
+    }
+    if (invalidDraft.current) {
+      setProblem(t.fixFieldsFirst)
       return
     }
     const edits = drafted()
@@ -2111,7 +2193,7 @@ export function JobDialog(props: JobDialogProps & ViewProps) {
       error: (next, current) =>
         !editing.isValidJobName(next)
           ? t.invalidJobName
-          : next !== current && Object.hasOwn(props.jobs, next)
+          : next !== current && next !== props.job && Object.hasOwn(props.jobs, next)
             ? t.jobExists
             : undefined,
       edit: (job, name) => ({ type: 'updateJob', job, name }),
