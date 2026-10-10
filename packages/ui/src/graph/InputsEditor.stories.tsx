@@ -307,6 +307,7 @@ const WIZARD_WORKFLOW = `on:
         title: Worker site
         description: One page per worker site.
         multi: true
+        min: 2
         max: 3
         options:
           site:
@@ -335,6 +336,86 @@ jobs:
  * add one with + Page, and split or unsplit a group's or list's inputs from its row. */
 export const Wizard: StoryObj<typeof InputsFormEditor> = {
   render: () => <EditableForm source={WIZARD_WORKFLOW} />,
+}
+
+const GROUP_PAGES_WORKFLOW = `on:
+  execute:
+    inputs:
+      dataset:
+        type: string
+        label: Dataset
+        default: s3://datasets/images
+      resources:
+        type: group
+        label: Resources
+        items:
+          $meta:
+            wizard:
+              mode: wizard
+          compute:
+            type: step
+            title: Compute
+            options:
+              gpus:
+                type: number
+                label: GPUs
+                default: 2
+          limits:
+            type: step
+            title: Limits
+            options:
+              walltime:
+                type: duration
+                label: Time limit
+                default: 3600
+      tuning:
+        type: group
+        label: Tuning
+        hidden: true
+        items:
+          seed:
+            type: number
+            label: Seed
+            default: 42
+          warmup:
+            type: number
+            label: Warmup steps
+            default: 500
+jobs:
+  train:
+    steps:
+      - run: python train.py
+`
+
+/** A group's inputs paged inside the form, and a hidden group the form leaves out but the editor lists last. */
+export const GroupPages: StoryObj<typeof InputsFormEditor> = {
+  render: () => <EditableForm source={GROUP_PAGES_WORKFLOW} />,
+}
+
+const weightedWorkflow = structuredClone(columnsWorkflow)
+const weightedInputs = asRecord(asRecord(asRecord(weightedWorkflow['on'])['execute'])['inputs'])
+weightedInputs['$meta'] = {
+  layout: {
+    type: 'stack',
+    children: [
+      {
+        type: 'grid',
+        columns: { base: 1, md: [2, 1] },
+        children: [
+          { type: 'field', field: 'dataset' },
+          { type: 'field', field: 'epochs' },
+        ],
+      },
+      { type: 'field', field: 'batch' },
+      { type: 'field', field: 'precision' },
+      { type: 'field', field: 'resources' },
+    ],
+  },
+}
+
+/** A grid wider than a phone at `md`, two to one: an input dropped beside it adds a track and keeps both. */
+export const WeightedGrid: StoryObj<typeof InputsFormEditor> = {
+  render: () => <EditableForm source={dumpYaml(weightedWorkflow)} />,
 }
 
 /** A workflow without inputs yet. */
