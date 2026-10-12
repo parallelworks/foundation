@@ -9,6 +9,11 @@ describe('PermissionPicker', () => {
     expect(screen.getByRole('button')).toHaveTextContent('Plan')
   })
 
+  it('offers auto up to an auto ceiling', () => {
+    render(<PermissionPicker mode="auto" ceiling="auto" onPick={vi.fn()} />)
+    expect(screen.getByRole('button')).toHaveTextContent('Auto')
+  })
+
   it('shows an unrecognised mode verbatim', () => {
     render(<PermissionPicker mode="custom-mode" ceiling="accept-edits" onPick={vi.fn()} />)
     expect(screen.getByRole('button')).toHaveTextContent('custom-mode')

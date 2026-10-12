@@ -10,10 +10,11 @@ import Dropdown from '../../ui/Dropdown'
 
 const LABEL_KEY: Record<
   NamedPermissionMode,
-  'readOnly' | 'acceptEdits' | 'bypassPermissions' | 'plan'
+  'readOnly' | 'acceptEdits' | 'auto' | 'bypassPermissions' | 'plan'
 > = {
   'read-only': 'readOnly',
   'accept-edits': 'acceptEdits',
+  auto: 'auto',
   'bypass-permissions': 'bypassPermissions',
   plan: 'plan',
 }
