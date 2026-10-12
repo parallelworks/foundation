@@ -32,6 +32,7 @@ export {
   RowSelectCheckbox,
 } from './ListTable'
 export {
+  AnchoredPopover,
   ListDisplayMenu,
   ListFilterMenu,
   listControlButtonClasses,
