@@ -2,6 +2,7 @@ import * as editing from '@parallelworks/workflow-parser'
 import { describe, expect, it } from 'vitest'
 import type { GraphEdit } from '../editing'
 import { resolveFormLayout } from '../form/layout'
+import { resolveLayoutCSS } from '../form/layoutCSS'
 import { dropLayoutEdits, inputLayout, resizeLayout, withInputLayouts } from './inputLayout'
 import { asRecord, type Json } from './records'
 
@@ -240,6 +241,74 @@ describe('layout editing', () => {
           columns: { base: 1, sm: [50, 50] },
           children: [{ type: 'stack', children: [{ field: 'a' }, { field: 'b' }] }, { field: 'c' }],
         },
+      ],
+    })
+  })
+  it('migrates pixel widths and anchored fields’ own widths onto their fields', () => {
+    const result = inputLayout({
+      seed: { type: 'number', width: 160 },
+      a: { type: 'string', width: '50%' },
+      b: { type: 'string', 'anchor-below': true, width: '25%' },
+      c: { type: 'string', width: '50%' },
+      d: { type: 'string', 'anchor-below': true, width: 96 },
+      e: { type: 'string', width: 4800 },
+      f: { type: 'string', 'anchor-below': true },
+    })
+    expect(resolveFormLayout(result, ['seed', 'a', 'b', 'c', 'd', 'e', 'f']).issues).toEqual([])
+    expect(result).toEqual({
+      type: 'stack',
+      children: [
+        { type: 'field', field: 'seed', css: 'width: 10rem;' },
+        {
+          type: 'grid',
+          columns: { base: 1, sm: [50, 50] },
+          children: [
+            {
+              type: 'stack',
+              children: [
+                { type: 'field', field: 'a' },
+                { type: 'field', field: 'b', css: 'width: 50%;' },
+              ],
+            },
+            {
+              type: 'stack',
+              children: [
+                { type: 'field', field: 'c' },
+                { type: 'field', field: 'd', css: 'width: 6rem;' },
+              ],
+            },
+          ],
+        },
+        {
+          type: 'stack',
+          children: [
+            { type: 'field', field: 'e', css: 'width: 256rem;' },
+            { type: 'field', field: 'f', css: 'width: 256rem;' },
+          ],
+        },
+      ],
+    })
+    for (const css of ['width: 10rem;', 'width: 50%;', 'width: 6rem;', 'width: 256rem;']) {
+      expect(resolveLayoutCSS(css).issues).toEqual([])
+    }
+  })
+  it('keeps a pixel width through an unrelated move that writes the layout', () => {
+    const inputs: Json = { seed: { type: 'number', width: 160 }, name: { type: 'string' } }
+    const move: GraphEdit = { type: 'moveInputs', paths: [['name']], parent: [], index: 0 }
+    const moved = apply(inputs, {
+      type: 'batch',
+      edits: [
+        move,
+        ...dropLayoutEdits(editing, inputs, [['name']], { parent: [], index: 0 }, move),
+      ],
+    })
+    valid(moved)
+    expect(asRecord(moved['seed'])['width']).toBeUndefined()
+    expect(layout(moved)).toEqual({
+      type: 'stack',
+      children: [
+        { type: 'field', field: 'name' },
+        { type: 'field', field: 'seed', css: 'width: 10rem;' },
       ],
     })
   })
