@@ -23,6 +23,11 @@ vi.mock('./AttachmentUpload', () => ({
   }),
 }))
 
+vi.mock('./ComposerChrome', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./ComposerChrome')>()),
+  ComposerControls: () => null,
+}))
+
 vi.mock('./DragOverlay', () => ({
   __esModule: true,
   default: () => null,

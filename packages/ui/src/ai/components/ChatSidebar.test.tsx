@@ -38,7 +38,7 @@ vi.mock('./ShareDialog', () => ({
 const conversationsGet = vi.fn()
 const chatState = {
   adapter: {
-    sharing: undefined,
+    sharing: undefined as object | undefined,
     attachments: undefined,
     conversations: { get: conversationsGet },
   },
@@ -130,6 +130,7 @@ beforeEach(() => {
   chatState.toggleSidebar.mockClear()
   chatState.navigation.toConversation.mockClear()
   conversationsGet.mockReset()
+  chatState.adapter.sharing = undefined
   downloadTextMock.mockClear()
 })
 
@@ -349,5 +350,23 @@ describe('ChatSidebar export', () => {
     fireEvent.click(await screen.findByText('Download'))
     await vi.waitFor(() => expect(chatState.notify.error).toHaveBeenCalled())
     expect(downloadTextMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('ChatSidebar sharing', () => {
+  it('offers sharing on the conversations the reader owns only', async () => {
+    chatState.adapter.sharing = {}
+    chatState.conversations = [
+      conversation('1', 'Mine'),
+      { ...conversation('2', 'Theirs'), isOwner: false },
+    ]
+    render(<ChatSidebar />)
+    const [mine, theirs] = screen.getAllByLabelText('More actions')
+    fireEvent.click(mine as HTMLElement)
+    expect(await screen.findByText('Share')).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    fireEvent.click(theirs as HTMLElement)
+    await screen.findAllByText('Download')
+    expect(screen.queryByText('Share')).not.toBeInTheDocument()
   })
 })
