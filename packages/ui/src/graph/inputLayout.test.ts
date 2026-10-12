@@ -386,6 +386,27 @@ describe('layout editing', () => {
       ],
     })
   })
+  it('keeps a field in equal columns as wide when more fields drop beside it than tracks are free', () => {
+    const inputs: Json = {
+      $meta: { layout: { type: 'grid', columns: 3, children: [{ type: 'field', field: 'z' }] } },
+      z: { type: 'string' },
+      a: { type: 'string' },
+      b: { type: 'string' },
+      c: { type: 'string' },
+    }
+    const paths = [['a'], ['b'], ['c']]
+    const move: GraphEdit = { type: 'moveInputs', paths, parent: [], index: 1 }
+    const drop = { parent: [], index: 1, beside: { path: ['z'], side: 'right' as const } }
+    const moved = apply(inputs, {
+      type: 'batch',
+      edits: [move, ...dropLayoutEdits(editing, inputs, paths, drop, move)],
+    })
+    valid(moved)
+    expect(layout(moved)).toMatchObject({
+      type: 'stack',
+      children: [{ type: 'grid', columns: [1, 2 / 3, 2 / 3, 2 / 3] }],
+    })
+  })
   it('keeps a pixel width through an unrelated move that writes the layout', () => {
     const inputs: Json = { seed: { type: 'number', width: 160 }, name: { type: 'string' } }
     const move: GraphEdit = { type: 'moveInputs', paths: [['name']], parent: [], index: 0 }
