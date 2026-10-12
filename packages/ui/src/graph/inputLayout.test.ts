@@ -367,6 +367,24 @@ describe('layout editing', () => {
       type: 'stack',
       children: [{ type: 'grid', columns: [25, 75], children: [z, w] }],
     })
+    const three: Json = { ...inputs, v: { type: 'string' } }
+    const move: GraphEdit = { type: 'moveInputs', paths: [['w'], ['v']], parent: [], index: 0 }
+    const drop = { parent: [], index: 0, beside: { path: ['z'], side: 'left' as const } }
+    const both = apply(three, {
+      type: 'batch',
+      edits: [move, ...dropLayoutEdits(editing, three, [['w'], ['v']], drop, move)],
+    })
+    valid(both)
+    expect(layout(both)).toEqual({
+      type: 'stack',
+      children: [
+        {
+          type: 'grid',
+          columns: [37.5, 37.5, 25],
+          children: [w, { type: 'field', field: 'v' }, z],
+        },
+      ],
+    })
   })
   it('keeps a pixel width through an unrelated move that writes the layout', () => {
     const inputs: Json = { seed: { type: 'number', width: 160 }, name: { type: 'string' } }
