@@ -45,8 +45,8 @@ export function inputLayout(list: Json): Node {
     const layout = structuredClone(resolved.layout)
     return resolved.remaining.length ? stack([layout, ...resolved.remaining.map(field)]) : layout
   }
-  // Existing rows migrate once they are edited; subsequent edits use only the tree. Shares of the list
-  // become grid tracks; a width no track holds stays on its field as CSS.
+  // Existing rows migrate once they are edited; later edits use only the tree. Shares of the list
+  // become grid tracks; a width in pixels, which no track holds, stays on its field as CSS.
   const columns: { head: string; width: string | undefined; members: Node[] }[] = []
   const hidden: Node[] = []
   for (const name of namesIn(list)) {
@@ -58,7 +58,7 @@ export function inputLayout(list: Json): Node {
     const width = inputWidth(definition['width'])
     const last = columns.at(-1)
     if (definition['anchor-below'] === true && last) {
-      last.members.push(sized(field(name), memberWidth(width, last.width)))
+      last.members.push(member(name, width, last.width))
       continue
     }
     columns.push({ head: name, width, members: [] })
@@ -69,13 +69,17 @@ export function inputLayout(list: Json): Node {
   const flush = () => {
     if (row.length)
       rows.push(
-        row.length === 1
-          ? (row[0] ?? stack([]))
-          : {
-              type: 'grid',
-              columns: { base: 1, sm: shares },
-              children: row,
-            },
+        within(
+          row.length === 1
+            ? (row[0] ?? stack([]))
+            : {
+                type: 'grid',
+                columns: { base: 1, sm: shares },
+                children: row,
+              },
+          shares.reduce((a, b) => a + b, 0),
+          false,
+        ),
       )
     row = []
     shares = []
@@ -100,23 +104,32 @@ export function inputLayout(list: Json): Node {
   return stack([...rows, ...hidden])
 }
 
-// An anchored field's own width was a share of the whole list, held to its column's width; it is now
-// its share of that column, and in a column some pixels wide, the narrower of the two.
-function memberWidth(own: string | undefined, column: string | undefined): string | undefined {
-  if (column?.endsWith('px'))
-    return own?.endsWith('px') && Number.parseFloat(own) < Number.parseFloat(column) ? own : column
-  if (!own || own.endsWith('px')) return own
-  const share = (Number.parseFloat(own) / (column ? Number.parseFloat(column) : 100)) * 100
-  return share < 100 ? `${Math.round(share * 100) / 100}%` : undefined
+// A row short of the form, beyond rounding such as thirds at 33%, leaves the rest an empty track;
+// wrapped, each of its fields takes the row's whole share. Anchored fields then fill their column.
+function within(node: Node, share: number, wraps: boolean): Node {
+  if (share >= 99) return node
+  const tracks = [Math.round(share * 100) / 100, Math.round((100 - share) * 100) / 100]
+  return { type: 'grid', columns: wraps ? { base: 1, sm: tracks } : tracks, children: [node] }
 }
 
-// Layout CSS takes lengths up to 256 of a unit, so pixels go as rem; a field never outgrows its row.
-function sized(node: Node, width: string | undefined): Node {
-  if (!width) return node
-  const css = width.endsWith('px')
-    ? `width: ${Math.min(Number.parseFloat(width) / 16, 256)}rem;`
-    : `width: ${width};`
-  return { ...node, css }
+// An anchored field's own width was a share of the list, held to its column's width: it is now
+// its share of that column, and in a column some pixels wide, the narrower of the two.
+function member(name: string, own: string | undefined, column: string | undefined): Node {
+  if (column?.endsWith('px'))
+    return sized(
+      field(name),
+      own?.endsWith('px') && Number.parseFloat(own) < Number.parseFloat(column) ? own : column,
+    )
+  if (!own || own.endsWith('px')) return sized(field(name), own)
+  const share = (Number.parseFloat(own) / (column ? Number.parseFloat(column) : 100)) * 100
+  return within(field(name), share, true)
+}
+
+// Layout CSS takes lengths up to 256 of a unit, so pixels go as rem; no field outgrows its row.
+function sized(node: Node, pixels: string | undefined): Node {
+  return pixels
+    ? { ...node, css: `width: ${Math.min(Number.parseFloat(pixels) / 16, 256)}rem;` }
+    : node
 }
 
 function trail(node: Node, name: string, parents: Container[] = []): Node[] | undefined {

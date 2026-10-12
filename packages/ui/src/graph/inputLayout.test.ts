@@ -244,7 +244,7 @@ describe('layout editing', () => {
       ],
     })
   })
-  it('migrates pixel widths and anchored fields’ own widths onto their fields', () => {
+  it('migrates pixel widths and anchored fields’ own widths', () => {
     const result = inputLayout({
       seed: { type: 'number', width: 160 },
       a: { type: 'string', width: '50%' },
@@ -267,7 +267,11 @@ describe('layout editing', () => {
               type: 'stack',
               children: [
                 { type: 'field', field: 'a' },
-                { type: 'field', field: 'b', css: 'width: 50%;' },
+                {
+                  type: 'grid',
+                  columns: { base: 1, sm: [50, 50] },
+                  children: [{ type: 'field', field: 'b' }],
+                },
               ],
             },
             {
@@ -288,9 +292,57 @@ describe('layout editing', () => {
         },
       ],
     })
-    for (const css of ['width: 10rem;', 'width: 50%;', 'width: 6rem;', 'width: 256rem;']) {
+    for (const css of ['width: 10rem;', 'width: 6rem;', 'width: 256rem;']) {
       expect(resolveLayoutCSS(css).issues).toEqual([])
     }
+  })
+  it('keeps the shares of a row short of the form, each taking the row’s total when it wraps', () => {
+    const result = inputLayout({
+      x: { type: 'string', width: '30%' },
+      y: { type: 'string', width: '60%' },
+      z: { type: 'string', width: '25%' },
+    })
+    expect(resolveFormLayout(result, ['x', 'y', 'z']).issues).toEqual([])
+    expect(result).toEqual({
+      type: 'stack',
+      children: [
+        {
+          type: 'grid',
+          columns: [90, 10],
+          children: [
+            {
+              type: 'grid',
+              columns: { base: 1, sm: [30, 60] },
+              children: [
+                { type: 'field', field: 'x' },
+                { type: 'field', field: 'y' },
+              ],
+            },
+          ],
+        },
+        { type: 'grid', columns: [25, 75], children: [{ type: 'field', field: 'z' }] },
+      ],
+    })
+    expect(
+      inputLayout({
+        p: { type: 'string', width: '33%' },
+        q: { type: 'string', width: '33%' },
+        r: { type: 'string', width: '33%' },
+      }),
+    ).toEqual({
+      type: 'stack',
+      children: [
+        {
+          type: 'grid',
+          columns: { base: 1, sm: [33, 33, 33] },
+          children: [
+            { type: 'field', field: 'p' },
+            { type: 'field', field: 'q' },
+            { type: 'field', field: 'r' },
+          ],
+        },
+      ],
+    })
   })
   it('keeps a pixel width through an unrelated move that writes the layout', () => {
     const inputs: Json = { seed: { type: 'number', width: 160 }, name: { type: 'string' } }
