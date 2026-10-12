@@ -226,15 +226,20 @@ function insert(
         count,
         (weights) => {
           const used = weights.slice(0, count)
-          // Tracks past the children are space a migrated share left empty; dropped fields fill it.
+          // Tracks past the children are room a migrated share left; dropped fields take them, and
+          // split their room when there are more fields than tracks, so no other field narrows.
           const spare = weights.slice(count)
+          const room = spare.reduce((a, b) => a + b, 0)
           const share = used.reduce((a, b) => a + b, 0) / used.length
-          const added = nodes.map((_, i) => spare[i] ?? share)
+          const fits = nodes.length <= spare.length
+          const added = fits
+            ? spare.slice(0, nodes.length)
+            : nodes.map(() => (spare.length ? room / nodes.length : share))
           return [
             ...used.slice(0, index),
             ...added,
             ...used.slice(index),
-            ...spare.slice(nodes.length),
+            ...(fits ? spare.slice(nodes.length) : []),
           ]
         },
         true,
