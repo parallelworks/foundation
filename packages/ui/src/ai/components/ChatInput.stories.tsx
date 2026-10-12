@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useMemo } from 'react'
+import { StatusBadge } from '../../components/StatusBadge'
+import { DEFAULT_PERMISSION_MODE } from '../agent/permissions'
 import {
   makeComposerPastes,
   makePasteText,
@@ -8,6 +10,8 @@ import {
   StoryChat,
 } from '../stories/harness'
 import type { MessagePaste } from '../types'
+import { NoticeCard } from '../ui/Notice'
+import PermissionPicker from './agent/PermissionPicker'
 import ChatInput from './ChatInput'
 import { ComposerControls, ComposerUsage, ConnectToolsLink } from './ComposerChrome'
 
@@ -83,6 +87,47 @@ export const Toolbar: StoryObj<{ attachOpen: boolean }> = {
       canvasElement.querySelector<HTMLButtonElement>('button[aria-expanded]')?.click()
     }
   },
+}
+
+// An agent's composer: a notice above, where the turn runs as chips, what the
+// agent is doing just above the box, the agent's own setting under it, and a
+// hint. The model stays in the box as it does in a chat.
+export const AgentComposer: StoryObj<{ notice: boolean; hint: string }> = {
+  args: { notice: true, hint: 'Enter sends, Shift+Enter adds a line' },
+  render: (args) => (
+    <StoryChat>
+      <div>
+        <ChatInput
+          onSend={send}
+          attachments={false}
+          requireModel={false}
+          conversationId="agent-1"
+          notices={
+            args.notice && <NoticeCard tone="warning">This folder is not trusted yet.</NoticeCard>
+          }
+          activity={<span className="text-xs theme-muted-text">Reading files…</span>}
+          context={
+            <>
+              <StatusBadge size="md" dot variant="success">
+                build-01
+              </StatusBadge>
+              <StatusBadge size="md" className="font-mono">
+                ~/src/app
+              </StatusBadge>
+            </>
+          }
+          settingsLeft={
+            <PermissionPicker
+              mode={DEFAULT_PERMISSION_MODE}
+              ceiling={undefined}
+              onPick={() => {}}
+            />
+          }
+          hint={args.hint || undefined}
+        />
+      </div>
+    </StoryChat>
+  ),
 }
 
 // Alice's own provider and one Bob shared with her carry the same name; the
