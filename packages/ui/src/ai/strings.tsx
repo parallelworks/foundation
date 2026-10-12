@@ -386,7 +386,8 @@ export const defaultChatStrings: ChatStrings = {
     readOnlyHint: 'The workspace can be read but not changed.',
     acceptEditsHint:
       'File edits are applied without asking. The workspace can be changed without your review.',
-    autoHint: 'An automatic reviewer approves or denies each action that would ask you.',
+    autoHint:
+      'File edits are applied without asking. An automatic reviewer approves or denies most actions that would ask you.',
     bypassPermissionsHint:
       'Every action is taken without asking, including commands that change the system.',
     planHint: 'The workspace is left unchanged while a plan is drafted.',
