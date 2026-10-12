@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.38.0](https://github.com/parallelworks/foundation/compare/ui-v0.37.0...ui-v0.38.0) (2026-10-12)
+
+
+### Features
+
+* **ui:** edit workflow inputs with declarative layouts ([#181](https://github.com/parallelworks/foundation/issues/181)) ([8736344](https://github.com/parallelworks/foundation/commit/8736344cfc05613a29484dbd75455be0db7914c5))
+* **ui:** every conversation list row says when it last changed ([#215](https://github.com/parallelworks/foundation/issues/215)) ([7baa347](https://github.com/parallelworks/foundation/commit/7baa3474c745e258c95ea2a492d97218b4ea78f1))
+
+## [0.37.0](https://github.com/parallelworks/foundation/compare/ui-v0.36.0...ui-v0.37.0) (2026-10-12)
+
+
+### Features
+
+* **ui:** add shared workflow editor fields and YAML views ([#179](https://github.com/parallelworks/foundation/issues/179)) ([600516c](https://github.com/parallelworks/foundation/commit/600516ce1a6c668221687f859f062632adce2f68))
+* **ui:** edit input settings and preserve layout references ([#180](https://github.com/parallelworks/foundation/issues/180)) ([a9a33e6](https://github.com/parallelworks/foundation/commit/a9a33e6a1ed2dcf2acad304d2cf1e0f9fb2bc37d))
+* **ui:** the agent permission picker offers an auto mode ([#213](https://github.com/parallelworks/foundation/issues/213)) ([31dbe24](https://github.com/parallelworks/foundation/commit/31dbe24015413173da4bf094375b685fa22b51ab))
+
 ## [0.36.0](https://github.com/parallelworks/foundation/compare/ui-v0.35.0...ui-v0.36.0) (2026-10-11)
 
 
