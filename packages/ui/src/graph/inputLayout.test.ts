@@ -344,6 +344,30 @@ describe('layout editing', () => {
       ],
     })
   })
+  it('gives a field dropped beside a migrated share the empty track, on the side it lands', () => {
+    const inputs: Json = { z: { type: 'string', width: '25%' }, w: { type: 'string' } }
+    const beside = (side: 'left' | 'right') => {
+      const index = side === 'left' ? 0 : 1
+      const move: GraphEdit = { type: 'moveInputs', paths: [['w']], parent: [], index }
+      const drop = { parent: [], index, beside: { path: ['z'], side } }
+      const moved = apply(inputs, {
+        type: 'batch',
+        edits: [move, ...dropLayoutEdits(editing, inputs, [['w']], drop, move)],
+      })
+      valid(moved)
+      return layout(moved)
+    }
+    const w = { type: 'field', field: 'w' }
+    const z = { type: 'field', field: 'z' }
+    expect(beside('left')).toEqual({
+      type: 'stack',
+      children: [{ type: 'grid', columns: [75, 25], children: [w, z] }],
+    })
+    expect(beside('right')).toEqual({
+      type: 'stack',
+      children: [{ type: 'grid', columns: [25, 75], children: [z, w] }],
+    })
+  })
   it('keeps a pixel width through an unrelated move that writes the layout', () => {
     const inputs: Json = { seed: { type: 'number', width: 160 }, name: { type: 'string' } }
     const move: GraphEdit = { type: 'moveInputs', paths: [['name']], parent: [], index: 0 }
