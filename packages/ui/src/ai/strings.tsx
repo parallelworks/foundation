@@ -149,6 +149,7 @@ export interface ChatStrings {
     download: string
     exportError: string
     jumpToLatest: string
+    dismiss: string
   }
   messageMeta: {
     stopped: string
@@ -190,6 +191,12 @@ export interface ChatStrings {
     allowOnce: string
     allowDirectory: string
     deny: string
+    allowCode: string
+    denyCode: string
+    allowPath: string
+    denyPath: string
+    allowCall: string
+    denyCall: string
     denyWithFeedback: string
     feedbackPlaceholder: string
     send: string
@@ -350,6 +357,7 @@ export const defaultChatStrings: ChatStrings = {
     download: 'Download',
     exportError: 'Failed to export conversation',
     jumpToLatest: 'Jump to latest',
+    dismiss: 'Dismiss',
   },
   messageMeta: {
     stopped: 'Stopped',
@@ -392,6 +400,12 @@ export const defaultChatStrings: ChatStrings = {
     allowOnce: 'Yes, allow this command',
     allowDirectory: 'Yes, and allow this directory for the session',
     deny: 'No, deny this command',
+    allowCode: 'Yes, run this code',
+    denyCode: "No, don't run this code",
+    allowPath: 'Yes, allow this once',
+    denyPath: 'No, deny',
+    allowCall: 'Yes, allow this call',
+    denyCall: 'No, deny this call',
     denyWithFeedback: 'No, and provide feedback to the agent',
     feedbackPlaceholder: 'Tell the agent what to do instead…',
     send: 'Send',
