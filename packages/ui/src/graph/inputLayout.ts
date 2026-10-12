@@ -146,11 +146,12 @@ function retrack(
   columns: ResponsiveLayout<LayoutTracks>,
   count: number,
   change: (weights: number[]) => number[],
+  spare = false,
 ): ResponsiveLayout<LayoutTracks> {
   const responsive = typeof columns === 'object' && !Array.isArray(columns)
   const resize = (tracks: LayoutTracks, key?: string) => {
     const weights = Array.isArray(tracks) ? tracks : Array.from({ length: tracks }, () => 1)
-    if (weights.length !== count) return tracks
+    if (spare ? weights.length < count : weights.length !== count) return tracks
     // A one-column phone breakpoint stacks the grid; it isn't one track for a lone child.
     if (tracks === 1 && key === 'base' && responsive && Object.keys(columns).length > 1)
       return tracks
@@ -218,11 +219,26 @@ function insert(
       (!beside && parent.type === 'stack'))
   ) {
     const index = parent.children.indexOf(target) + (before ? 0 : 1)
+    const count = parent.children.length
     if (parent.type === 'grid')
-      parent.columns = retrack(parent.columns, parent.children.length, (weights) => {
-        const share = weights.reduce((a, b) => a + b, 0) / weights.length
-        return [...weights.slice(0, index), ...nodes.map(() => share), ...weights.slice(index)]
-      })
+      parent.columns = retrack(
+        parent.columns,
+        count,
+        (weights) => {
+          const used = weights.slice(0, count)
+          // Tracks past the children are space a migrated share left empty; dropped fields fill it.
+          const spare = weights.slice(count)
+          const share = used.reduce((a, b) => a + b, 0) / used.length
+          const added = nodes.map((_, i) => spare[i] ?? share)
+          return [
+            ...used.slice(0, index),
+            ...added,
+            ...used.slice(index),
+            ...spare.slice(nodes.length),
+          ]
+        },
+        true,
+      )
     parent.children.splice(index, 0, ...nodes)
     return root
   }
