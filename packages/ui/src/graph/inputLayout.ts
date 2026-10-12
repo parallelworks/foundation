@@ -156,7 +156,10 @@ function retrack(
     if (tracks === 1 && key === 'base' && responsive && Object.keys(columns).length > 1)
       return tracks
     const changed = change(weights)
-    return Array.isArray(tracks) ? changed : changed.length
+    // A count is equal tracks, so tracks that no longer match stay as weights.
+    return Array.isArray(tracks) || changed.some((weight) => weight !== changed[0])
+      ? changed
+      : changed.length
   }
   return responsive
     ? Object.fromEntries(Object.entries(columns).map(([key, tracks]) => [key, resize(tracks, key)]))
