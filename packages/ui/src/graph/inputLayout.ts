@@ -6,6 +6,7 @@ import {
   resolveFormLayout,
   responsiveLayoutValues,
 } from '../form/layout'
+import { inputWidth } from '../form/lib'
 import { asRecord, type Json } from './records'
 
 interface Drop {
@@ -44,24 +45,9 @@ export function inputLayout(list: Json): Node {
     const layout = structuredClone(resolved.layout)
     return resolved.remaining.length ? stack([layout, ...resolved.remaining.map(field)]) : layout
   }
-  // Existing percent rows migrate once they are edited; subsequent edits use only the tree.
-  const rows: Node[] = []
-  let columns: Node[] = []
-  let widths: number[] = []
-  const flush = () => {
-    if (columns.length)
-      rows.push(
-        columns.length === 1
-          ? (columns[0] ?? stack([]))
-          : {
-              type: 'grid',
-              columns: { base: 1, sm: widths },
-              children: columns,
-            },
-      )
-    columns = []
-    widths = []
-  }
+  // Existing rows migrate once they are edited; subsequent edits use only the tree. Shares of the list
+  // become grid tracks; a width no track holds stays on its field as CSS.
+  const columns: { head: string; width: string | undefined; members: Node[] }[] = []
   const hidden: Node[] = []
   for (const name of namesIn(list)) {
     const definition = asRecord(list[name])
@@ -69,22 +55,68 @@ export function inputLayout(list: Json): Node {
       hidden.push(field(name))
       continue
     }
-    if (definition['anchor-below'] === true && columns.length) {
-      const last = columns.at(-1)
-      if (!last) continue
-      if (last.type === 'stack') last.children.push(field(name))
-      else columns[columns.length - 1] = stack([last, field(name)])
+    const width = inputWidth(definition['width'])
+    const last = columns.at(-1)
+    if (definition['anchor-below'] === true && last) {
+      last.members.push(sized(field(name), memberWidth(width, last.width)))
       continue
     }
-    const raw = definition['width']
-    const width =
-      typeof raw === 'string' && /^(\d+(\.\d+)?)%$/.test(raw) ? Number.parseFloat(raw) : 100
-    if (widths.reduce((a, b) => a + b, 0) + width > 100 || columns.length >= 12) flush()
-    columns.push(field(name))
-    widths.push(Math.max(1, width))
+    columns.push({ head: name, width, members: [] })
+  }
+  const rows: Node[] = []
+  let row: Node[] = []
+  let shares: number[] = []
+  const flush = () => {
+    if (row.length)
+      rows.push(
+        row.length === 1
+          ? (row[0] ?? stack([]))
+          : {
+              type: 'grid',
+              columns: { base: 1, sm: shares },
+              children: row,
+            },
+      )
+    row = []
+    shares = []
+  }
+  for (const { head, width, members } of columns) {
+    const pixels = width?.endsWith('px') ? width : undefined
+    const node = members.length
+      ? stack([sized(field(head), pixels), ...members])
+      : sized(field(head), pixels)
+    // A track is a share of the row, so a column some pixels wide is a row of its own.
+    if (pixels) {
+      flush()
+      rows.push(node)
+      continue
+    }
+    const share = width ? Number.parseFloat(width) : 100
+    if (shares.reduce((a, b) => a + b, 0) + share > 100 || row.length >= 12) flush()
+    row.push(node)
+    shares.push(share)
   }
   flush()
   return stack([...rows, ...hidden])
+}
+
+// An anchored field's own width was a share of the whole list, held to its column's width; it is now
+// its share of that column, and in a column some pixels wide, the narrower of the two.
+function memberWidth(own: string | undefined, column: string | undefined): string | undefined {
+  if (column?.endsWith('px'))
+    return own?.endsWith('px') && Number.parseFloat(own) < Number.parseFloat(column) ? own : column
+  if (!own || own.endsWith('px')) return own
+  const share = (Number.parseFloat(own) / (column ? Number.parseFloat(column) : 100)) * 100
+  return share < 100 ? `${Math.round(share * 100) / 100}%` : undefined
+}
+
+// Layout CSS takes lengths up to 256 of a unit, so pixels go as rem; a field never outgrows its row.
+function sized(node: Node, width: string | undefined): Node {
+  if (!width) return node
+  const css = width.endsWith('px')
+    ? `width: ${Math.min(Number.parseFloat(width) / 16, 256)}rem;`
+    : `width: ${width};`
+  return { ...node, css }
 }
 
 function trail(node: Node, name: string, parents: Container[] = []): Node[] | undefined {
