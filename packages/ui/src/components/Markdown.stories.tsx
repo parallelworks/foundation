@@ -6,6 +6,7 @@ const meta: Meta<typeof Markdown> = {
   component: Markdown,
   argTypes: {
     httpsImagesOnly: { control: 'boolean' },
+    compact: { control: 'boolean' },
   },
 }
 export default meta
