@@ -310,14 +310,9 @@ export function FlagField({
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between gap-3">
         <FieldLabel label={label} yamlKey={yamlKey} description={description} />
+        {/* The switch keeps the end of the row, as on a row without an expression, and its room
+            while one is typed, so neither the switch nor this button moves. */}
         <div className="flex shrink-0 items-center gap-1">
-          {!typed && (
-            <Switch
-              checked={checked}
-              onCheckedChange={(on) => onChange(flagValue(on, fallback, original))}
-              aria-label={label}
-            />
-          )}
           <ExpressionToggle
             active={typed}
             onChange={(on) => {
@@ -325,6 +320,15 @@ export function FlagField({
               onChange(undefined)
             }}
           />
+          {typed ? (
+            <span aria-hidden="true" className="w-11" />
+          ) : (
+            <Switch
+              checked={checked}
+              onCheckedChange={(on) => onChange(flagValue(on, fallback, original))}
+              aria-label={label}
+            />
+          )}
         </div>
       </div>
       {typed && (

@@ -24,6 +24,7 @@ import {
   useWatch,
 } from 'react-hook-form'
 import { Button } from '../components/Button'
+import { FieldRowContext } from '../components/Field'
 import { InfoTip } from '../components/InfoTip'
 import { Loader } from '../components/Loader'
 import { useStrings, useWorkflowEngine } from '../components/Provider'
@@ -603,6 +604,7 @@ const FormField = memo(function FormField({
   const { control, getValues, setValue, unregister } = useFormContext<FormValues>()
   const { workflowForm } = useContext(FormOptionsContext)
   const { form: strings } = useStrings()
+  const inRow = useContext(FieldRowContext)
   const editing = useFormEditing()
   const parse = useFieldParse(optionsField, nested ? arrayIndex : undefined)
   // The row a field's `[index]` paths read: its own list's, or the nearest list's around it.
@@ -678,12 +680,15 @@ const FormField = memo(function FormField({
     const group = (
       <Section title={field.label} collapsible={!field.noCollapse} defaultOpen={!field.collapsed}>
         <EditingScope editing={editing} path={path}>
-          <FieldsFromOptions
-            options={field.options ?? {}}
-            parentInfo={parentInfo}
-            labelPosition={meta.labelPosition}
-            spaceCompact={meta.spaceCompact}
-          />
+          {/* A group's fields flow on their own, outside the row the group sits in. */}
+          <FieldRowContext value={false}>
+            <FieldsFromOptions
+              options={field.options ?? {}}
+              parentInfo={parentInfo}
+              labelPosition={meta.labelPosition}
+              spaceCompact={meta.spaceCompact}
+            />
+          </FieldRowContext>
         </EditingScope>
       </Section>
     )
@@ -747,7 +752,15 @@ const FormField = memo(function FormField({
   const required =
     !fieldObj.optional && !fieldObj.disabled && fieldObj.type !== 'boolean' && !editing
   const input = (
-    <div className={cx('flex w-full', labelPosition === 'left' ? 'mb-[15px]' : 'mb-[5px]')}>
+    <div
+      className={
+        inRow
+          ? // Passes the row's label and control tracks to the field; a field that doesn't take
+            // them, such as a group or one with its label beside it, spans both.
+            'grid grid-rows-subgrid [&>:not([data-field-row])]:row-span-2'
+          : cx('flex w-full', labelPosition === 'left' ? 'mb-[15px]' : 'mb-[5px]')
+      }
+    >
       <RequiredFieldContext value={required ? { name, message: strings.required } : null}>
         <Registry
           field={fieldObj}

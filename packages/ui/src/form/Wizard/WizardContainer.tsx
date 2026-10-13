@@ -8,6 +8,7 @@ import {
   useState,
 } from 'react'
 import { useFormContext, useWatch } from 'react-hook-form'
+import { Button } from '../../components/Button'
 import { useStrings, useWorkflowEngine } from '../../components/Provider'
 import { useFormEditing } from '../formEditing'
 import { initializeValues } from '../lib'
@@ -382,24 +383,16 @@ export function WizardContainer({
     page?.count !== undefined && (page.canAdd || page.canRemove) ? (
       <div className="mb-4 flex items-center justify-between gap-3">
         {page.canRemove ? (
-          <button
-            type="button"
-            onClick={() => removeCopy(page)}
-            className="rounded-lg border theme-border px-4 py-2 text-sm theme-muted-text hover:text-(--theme-app)"
-          >
+          <Button size="sm" variant="ghost" onClick={() => removeCopy(page)}>
             {strings.removeCopy(removeTitle)}
-          </button>
+          </Button>
         ) : (
           <span />
         )}
         {page.canAdd && (page.copy === undefined || page.copy === page.count - 1) && (
-          <button
-            type="button"
-            onClick={() => addCopy(page)}
-            className="rounded-lg bg-(--theme-element) px-4 py-2 font-medium text-(--theme-element-text) text-sm"
-          >
+          <Button size="sm" variant="secondary" onClick={() => addCopy(page)}>
             {strings.addCopy(addTitle)}
-          </button>
+          </Button>
         )}
       </div>
     ) : null

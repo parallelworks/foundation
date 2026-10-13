@@ -404,15 +404,23 @@ export interface UIStrings {
     copyTitle: (title: string, number: number) => string
     addCopy: (title: string) => string
     removeCopy: (title: string) => string
-    /** A wizard's row of step dots. */
+    /** A wizard's steps: what its list of them is called. */
     steps: string
+    /** Where a wizard is, numbered from 1. */
+    stepOf: (number: number, total: number) => string
+    /** The button that opens the list of a wizard's steps. */
+    allSteps: string
+    /** A step before the current one. */
+    stepDone: string
+    /** A step with a value to fix. */
+    stepNeedsAttention: string
     previousStep: string
     nextStep: string
     /** A wizard's last button, unless its config names its own. */
     runWizard: string
     fixErrorsToContinue: string
     stepFailed: string
-    /** A step dot's name, numbered from 1. */
+    /** A step's name in the list of steps, numbered from 1. */
     stepLabel: (number: number, title: string) => string
   }
   time: {
@@ -999,6 +1007,10 @@ const DEFAULTS: UIProviderValue = {
       addCopy: (title) => `+ Add ${title}`,
       removeCopy: (title) => `Remove ${title}`,
       steps: 'Steps',
+      stepOf: (number, total) => `Step ${number} of ${total}`,
+      allSteps: 'All steps',
+      stepDone: 'Done',
+      stepNeedsAttention: 'Needs a fix',
       previousStep: 'Go to previous step',
       nextStep: 'Go to next step',
       runWizard: 'Execute',

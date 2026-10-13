@@ -406,7 +406,10 @@ clamped to the current grid's column count. `gap` accepts `none`, `sm`, `md`
 `$meta.labelPosition` still overrides them.
 
 A grid defaults to `align: independent`: its children start at the top and their
-contents flow independently. Set `align: rows` when every immediate child is a
+contents flow independently, except that fields side by side line up their
+controls. A label that wraps to two lines sits at the foot of a label row the
+fields in that row share, so its control stays level with its neighbors'.
+Set `align: rows` when every immediate child is a
 section. Adjacent sections then share a header row and one row per direct child.
 A description, help text, or validation message increases the shared row height,
 so the following rows stay aligned. A nested grid counts as one child row.

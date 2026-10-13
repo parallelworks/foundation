@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { Loader } from '../../components/Loader'
+import { Button } from '../../components/Button'
 import { useStrings } from '../../components/Provider'
+import { AlertIcon } from '../../icons'
 import type { WizardNavigationProps } from './types'
 
 export function WizardNavigation({
@@ -48,84 +49,40 @@ export function WizardNavigation({
 
   return (
     <div>
-      {/* Error message */}
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+        <p role="alert" className="mb-3 flex items-center gap-1.5 text-sm text-(--theme-error)">
+          <AlertIcon aria-hidden="true" className="size-4 shrink-0" />
           {error}
-        </div>
+        </p>
       )}
-
-      {/* Navigation buttons */}
-      <div className="flex gap-3 justify-between pt-4">
-        {/* Previous button */}
-        <button
-          type="button"
+      <div className="flex justify-between gap-3 pt-4">
+        <Button
+          variant="secondary"
           onClick={onPrevious}
           disabled={!canGoBack || isLoading}
-          className="px-6 py-3 rounded-lg font-medium transition-all duration-200 border flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{
-            color: 'var(--theme-app)',
-            borderColor: 'var(--theme-border)',
-            backgroundColor: 'var(--theme-app-bg)',
-          }}
-          onMouseEnter={(e) => {
-            if (canGoBack && !isLoading) {
-              e.currentTarget.style.backgroundColor = 'var(--theme-hover)'
-            }
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'var(--theme-app-bg)'
-          }}
           aria-label={t.previousStep}
         >
           {prevLabel || common.previous}
-        </button>
-
-        {/* Next / Submit button */}
+        </Button>
         {isLastStep && !onSubmit ? null : isLastStep ? (
-          <button
-            type="button"
+          <Button
+            variant="primary"
             onClick={handleSubmit}
-            disabled={!isCurrentStepValid || isLoading}
-            className="px-8 py-3 rounded-lg font-medium transition-all duration-200 text-(--theme-element-text) flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
-            style={{
-              backgroundColor: 'var(--theme-element)',
-            }}
-            onMouseEnter={(e) => {
-              if (isCurrentStepValid && !isLoading) {
-                e.currentTarget.style.filter = 'brightness(0.9)'
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.filter = 'brightness(1)'
-            }}
+            disabled={!isCurrentStepValid}
+            loading={isLoading}
             aria-label={submitLabel}
           >
-            {isLoading && <Loader size={16} inline color="currentColor" />}
             {submitLabel}
-          </button>
+          </Button>
         ) : (
-          <button
-            type="button"
+          <Button
+            variant="primary"
             onClick={handleNext}
-            disabled={isLoading}
-            className="px-8 py-3 rounded-lg font-medium transition-all duration-200 text-(--theme-element-text) flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
-            style={{
-              backgroundColor: 'var(--theme-element)',
-            }}
-            onMouseEnter={(e) => {
-              if (!isLoading) {
-                e.currentTarget.style.filter = 'brightness(0.9)'
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.filter = 'brightness(1)'
-            }}
+            loading={isLoading}
             aria-label={t.nextStep}
           >
-            {isLoading && <Loader size={16} inline color="currentColor" />}
             {nextLabel || common.next}
-          </button>
+          </Button>
         )}
       </div>
     </div>

@@ -295,17 +295,9 @@ const WORKER_OPTIONS = {
   },
 }
 
-/** A repeated page with more copies than the row of step dots holds: the dots scroll, the current one in
- * view. */
+/** A repeated page with many copies: the wizard says which page it's on, a bar marks every page,
+ *  and the list of them jumps back to one already seen. */
 export const RepeatedPageMany: StoryObj<typeof DynamicForm> = {
-  // A phone's width, where ten steps overflow. Inline, as story files don't feed the compiled classes.
-  decorators: [
-    (Story) => (
-      <div style={{ maxWidth: 360 }}>
-        <Story />
-      </div>
-    ),
-  ],
   args: {
     formJSONs: {
       $meta: { wizard: { mode: 'wizard', navigation: { allowJump: true } } },
@@ -321,10 +313,37 @@ export const RepeatedPageMany: StoryObj<typeof DynamicForm> = {
         options: { note: { type: 'string', label: 'Note' } },
       },
     },
-    initialValues: { sites: Array.from({ length: 9 }, () => ({ nodes: 2, queue: 'gpu' })) },
+    initialValues: { sites: Array.from({ length: 24 }, () => ({ nodes: 2, queue: 'gpu' })) },
     skipValueParse: true,
     workflowForm: true,
   },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const steps = await canvas.findByRole('navigation', { name: 'Steps' }, { timeout: 5000 })
+    await expect(steps).toHaveTextContent('Step 1 of 25')
+    await userEvent.click(canvas.getByRole('button', { name: 'Go to next step' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Go to next step' }))
+    await waitFor(() => expect(steps).toHaveTextContent('Step 3 of 25'))
+    await userEvent.click(within(steps).getByRole('button', { name: 'All steps' }))
+    const list = within(await screen.findByRole('dialog', { name: 'Steps' }))
+    await userEvent.click(list.getByRole('button', { name: /Step 1: Site 1/ }))
+    await waitFor(() => expect(steps).toHaveTextContent('Step 1 of 25'))
+    // However many pages, nothing scrolls sideways.
+    const page = canvasElement.ownerDocument.documentElement
+    await expect(page.scrollWidth).toBeLessThanOrEqual(page.clientWidth)
+  },
+}
+
+/** The same at a small phone's width. Inline, as story files don't feed the compiled classes. */
+export const RepeatedPageManyNarrow: StoryObj<typeof DynamicForm> = {
+  ...RepeatedPageMany,
+  decorators: [
+    (Story) => (
+      <div style={{ maxWidth: 320 }}>
+        <Story />
+      </div>
+    ),
+  ],
 }
 
 /** A page with `multi` repeats: each copy is a page, its values a row under the page's name, with Add after
@@ -522,6 +541,22 @@ export const TopLabelsInNarrowColumns: StoryObj<typeof DynamicForm> = {
       </div>
     ),
   ],
+  // A label that wraps moves neither its required mark off its last word nor its control below
+  // its neighbor's.
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const workers = await canvas.findByRole(
+      'textbox',
+      { name: /Maximum number of concurrent workers/ },
+      { timeout: 5000 },
+    )
+    const retries = canvas.getByRole('textbox', { name: /Retry limit/ })
+    for (const input of [workers, retries]) {
+      const label = canvasElement.querySelector(`label[for="${input.id}"]`)
+      await expect(label?.querySelector('[aria-hidden="true"]')).toHaveTextContent('*')
+    }
+    await expect(workers.getBoundingClientRect().top).toBe(retries.getBoundingClientRect().top)
+  },
 }
 
 export const IndependentSections: StoryObj<typeof DynamicForm> = {

@@ -3,12 +3,30 @@ import '@testing-library/jest-dom/vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
 import { Checkbox } from './Checkbox'
-import { Field, FieldOption, RevealToggle } from './Field'
+import { Field, FieldOption, FieldRowContext, RevealToggle } from './Field'
 import { fieldBox } from './fieldBox'
 import { Radio, RadioGroup } from './Radio'
 import { Slider } from './Slider'
 
 describe('Field', () => {
+  it('in a row of fields, puts its label and control on the row’s two tracks', () => {
+    render(
+      <FieldRowContext value>
+        <Field label="Maximum number of concurrent workers" required>
+          {(control) => <input {...control} />}
+        </Field>
+      </FieldRowContext>,
+    )
+    const box = screen.getByRole('textbox', { name: /Maximum number of concurrent workers/ })
+    const label = document.querySelector(`label[for="${box.id}"]`)
+    // The required mark follows the label's last word, inside the label itself.
+    expect(label?.lastElementChild).toHaveTextContent('*')
+    expect(label?.parentElement).toHaveClass('row-start-1')
+    expect(box.closest('.row-start-2')).not.toBeNull()
+    // Its own box steps aside, so its label and control sit in the row's grid.
+    expect(label?.closest('[data-field-row]')).toHaveClass('contents')
+  })
+
   it('names the control by its label and describes it by its description and error', () => {
     render(
       <Field label="Cluster" description="Where it runs." error="Pick a cluster.">

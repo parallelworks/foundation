@@ -19,6 +19,11 @@ export interface FieldControlProps {
 
 const ControlContext = createContext<FieldControlProps | null>(null)
 
+/** Set by a layout that lines up the fields in a row, as a form's grid does: a stacked field's
+ *  label and control take the row's label and control tracks, so controls under labels of
+ *  different lengths line up. The layout makes the field's box a subgrid of two rows. */
+export const FieldRowContext = createContext(false)
+
 /** The surrounding Field's control props, for a control drawn further down than the Field's
  *  own children. Null outside a Field. */
 export function useFieldControl(): FieldControlProps | null {
@@ -90,9 +95,13 @@ export function Field({
   }
 
   const inline = layout === 'inline'
+  // In a row of fields, the label and the control take the row's two tracks, the label at the
+  // foot of its track so it stays by its control.
+  const inRow = use(FieldRowContext) && !inline && !group
   const labelBox = cx(
     labelClassName,
     inline && cx('min-h-9 shrink-0', compact ? 'mr-2 w-fit' : 'w-52 pr-3'),
+    inRow && 'row-start-1 self-end',
   )
   const labelContent = (
     <>
@@ -104,10 +113,13 @@ export function Field({
     </>
   )
   const body = (
-    <div className="flex w-full min-w-0 flex-col gap-1">
-      <ControlContext value={control}>
-        {typeof children === 'function' ? children(control) : children}
-      </ControlContext>
+    <div className={cx('flex w-full min-w-0 flex-col gap-1', inRow && 'row-start-2')}>
+      {/* A field inside this one, such as in a group, starts its own row. */}
+      <FieldRowContext value={false}>
+        <ControlContext value={control}>
+          {typeof children === 'function' ? children(control) : children}
+        </ControlContext>
+      </FieldRowContext>
       {description && (
         <BaseField.Description
           id={descriptionId}
@@ -129,7 +141,9 @@ export function Field({
       )}
     </div>
   )
-  const frame = cx('flex w-full', inline ? 'items-start' : 'flex-col gap-1.5', className)
+  const frame = inRow
+    ? cx('contents', className)
+    : cx('flex w-full', inline ? 'items-start' : 'flex-col gap-1.5', className)
 
   if (group) {
     return (
@@ -154,7 +168,12 @@ export function Field({
     )
   }
   return (
-    <BaseField.Root invalid={isInvalid} disabled={disabled} className={frame}>
+    <BaseField.Root
+      invalid={isInvalid}
+      disabled={disabled}
+      className={frame}
+      data-field-row={inRow || undefined}
+    >
       {/* The hint sits beside the label rather than in it, so a help button doesn't name the control. */}
       <div className={labelBox}>
         <BaseField.Label htmlFor={id} id={labelId} data-field-label>
