@@ -521,6 +521,10 @@ function SelectPreviewDemo() {
   const shown = previewing ?? theme
   return (
     <div className="flex max-w-xs flex-col gap-3 text-sm">
+      {/* Above the Select, so the open list doesn't cover it. */}
+      <span data-testid="applied">
+        {previewing ? 'Previewing' : 'Applied'}: {THEMES.find((t) => t.value === shown)?.label}
+      </span>
       <Select
         aria-label="Theme"
         items={THEMES}
@@ -528,9 +532,6 @@ function SelectPreviewDemo() {
         onValueChange={setTheme}
         onItemHighlighted={setPreviewing}
       />
-      <span data-testid="applied">
-        {previewing ? 'Previewing' : 'Applied'}: {THEMES.find((t) => t.value === shown)?.label}
-      </span>
     </div>
   )
 }
