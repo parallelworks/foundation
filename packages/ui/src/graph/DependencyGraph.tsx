@@ -2115,13 +2115,10 @@ export default function DependencyGraph({
               {stepBar}
             </div>
           ) : sublogIsStep ? (
-            <div className="flex flex-col gap-y-3">
+            <div className="flex flex-col gap-y-3" style={{ width: windowSize.w / 1.2 }}>
               {stepHeader}
               {sublogTab === 'summary' ? (
-                <div
-                  className="flex flex-col gap-y-2"
-                  style={{ height: stepBodyHeight, width: windowSize.w / 1.2 }}
-                >
+                <div className="flex flex-col gap-y-2" style={{ height: stepBodyHeight }}>
                   <StepSummary runSlug={runSlug} path={`${sublogDir}summary.md`} />
                   {stepBar}
                 </div>
@@ -2129,7 +2126,7 @@ export default function DependencyGraph({
                 // The header stays while a tab's file loads, so the tabs never vanish under the pointer.
                 <div
                   className="flex items-center justify-center"
-                  style={{ height: stepBodyHeight, width: windowSize.w / 1.2 }}
+                  style={{ height: stepBodyHeight }}
                 >
                   {sublogLoader}
                 </div>
