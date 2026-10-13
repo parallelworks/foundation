@@ -410,7 +410,7 @@ export function WizardContainer({
           isCurrentStepValid
           nextLabel={page?.config.nextLabel}
           prevLabel={page?.config.prevLabel}
-          submitLabel={config.submitLabel || 'Execute'}
+          submitLabel={config.submitLabel || strings.runWizard}
           onNext={async () => {
             turn(editIndex + 1)
             return true

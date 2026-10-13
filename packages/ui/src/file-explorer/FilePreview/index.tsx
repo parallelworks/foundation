@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useLocalStorage } from 'usehooks-ts'
 import { Modal } from '../../components/Modal'
 import { useStrings } from '../../components/Provider'
+import { formatBytes } from '../../format'
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -14,7 +15,6 @@ import {
   ZoomOutIcon,
 } from '../../icons'
 import type { TreeNode, TStorage } from '../lib/types'
-import { formatFileSize } from '../lib/utils'
 import { getPreviewKind, type PreviewKind } from './previewType'
 import { StreamedBadge } from './StreamedBadge'
 import { usePresignedUrl } from './usePresignedUrl'
@@ -161,7 +161,7 @@ export function FilePreview({
       )}
     >
       <span className={cx('text-xs', !floatingChrome && 'theme-muted-text')}>
-        {typeof node.size === 'number' && formatFileSize(node.size)}
+        {typeof node.size === 'number' && formatBytes(node.size)}
         {node.contentType && ` · ${node.contentType}`}
       </span>
       <div className="flex items-center gap-3">

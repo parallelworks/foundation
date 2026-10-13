@@ -193,6 +193,7 @@ export function ListActionsHeader({
   actionCount?: number
   className?: string
 }) {
+  const { common } = useStrings()
   // No actions shown → no header (ListRow drops its matching cell too).
   if (view && !view.showActions) {
     return null
@@ -207,7 +208,7 @@ export function ListActionsHeader({
         className,
       )}
     >
-      <span className="sr-only">Actions</span>
+      <span className="sr-only">{common.actions}</span>
     </Table.Header>
   )
 }

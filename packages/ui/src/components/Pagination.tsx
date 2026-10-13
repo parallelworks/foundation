@@ -36,7 +36,7 @@ function Pagination({
         roundedBottom && 'rounded-b-2xl',
         'theme-muted-panel flex items-center justify-between border-t theme-border  px-4 py-1 sm:px-6',
       )}
-      aria-label="Pagination"
+      aria-label={t.pagination}
     >
       <div
         className={cx(

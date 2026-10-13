@@ -10,7 +10,7 @@ import type { FieldPatch, GraphEdit, InputPath, WorkflowEditing } from '../editi
 import { INPUT_YAML_PATH } from '../editor/settingsYaml'
 import { DynamicForm } from '../form/Form'
 import { FormEditingContext } from '../form/formEditing'
-import { formatDuration, parseDuration } from '../form/utils/duration'
+import { formatDurationText, parseDurationText } from '../form/utils/duration'
 import { ArrowDownIcon, ArrowUpIcon, CloseIcon, EditIcon, TrashIcon } from '../icons'
 import {
   AddRowButton,
@@ -947,7 +947,7 @@ function draftOf(kind: Kind, value: unknown): unknown {
           }
     case 'duration':
       // A negative number is an opt-out value, such as -1, and shows as written.
-      return typeof value === 'number' && value >= 0 ? formatDuration(value) : text(value)
+      return typeof value === 'number' && value >= 0 ? formatDurationText(value) : text(value)
     case 'number':
       // A number written as text shows quoted, so typing the number is an edit that replaces it.
       return typeof value === 'string' &&
@@ -1072,7 +1072,7 @@ function writtenValue(kind: Kind, draft: unknown, context: ValueContext = {}): u
       if (EXPRESSION.test(raw)) {
         return raw
       }
-      return parseDuration(raw) ?? (/^-\d+$/.test(raw) ? Number(raw) : raw)
+      return parseDurationText(raw) ?? (/^-\d+$/.test(raw) ? Number(raw) : raw)
     }
     case 'ref':
     case 'choice':
@@ -1152,7 +1152,7 @@ function valueError(
     }
     case 'duration': {
       const raw = String(draft ?? '').trim()
-      return raw && !EXPRESSION.test(raw) && parseDuration(raw) === null
+      return raw && !EXPRESSION.test(raw) && parseDurationText(raw) === null
         ? t.invalidDurationText
         : undefined
     }

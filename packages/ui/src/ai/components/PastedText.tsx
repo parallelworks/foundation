@@ -1,12 +1,12 @@
 import { clsx as cx } from 'clsx'
 import { Fragment } from 'react'
+import { formatBytes } from '../../format'
 import { FileIcon, RunningIcon, XIcon } from '../../icons'
 import { useChatConfig } from '../core/config'
 import { fencePaste } from '../core/pasteLanguage'
 import { splitPastes } from '../core/pastes'
 import type { MessagePaste } from '../types'
 import Markdown from '../ui/Markdown'
-import { formatFileSize } from '../utils'
 
 /** A paste sent, or about to be sent, as its saved file. */
 export function PasteFileCard({
@@ -25,7 +25,7 @@ export function PasteFileCard({
   onRemove?: (() => void) | undefined
 }) {
   const t = useChatConfig().strings.paste
-  const detail = error ?? (saving ? t.saving : `${t.lines(lines)} · ${formatFileSize(bytes)}`)
+  const detail = error ?? (saving ? t.saving : `${t.lines(lines)} · ${formatBytes(bytes)}`)
   return (
     <div
       data-testid="paste-file-card"

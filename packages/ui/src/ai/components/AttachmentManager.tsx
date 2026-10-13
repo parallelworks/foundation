@@ -1,12 +1,12 @@
 import { clsx as cx } from 'clsx'
-import { DateTime } from 'luxon'
 import { useCallback, useMemo, useState } from 'react'
 import useSWRInfinite from 'swr/infinite'
+import { RelativeTime } from '../../components/relativeTime'
+import { formatBytes } from '../../format'
 import { DownloadFileIcon, FileIcon, TrashIcon } from '../../icons'
 import { safeUrl } from '../../safeUrl'
 import { useChat } from '../core/ChatProvider'
 import { useChatConfig } from '../core/config'
-import { formatFileSize } from '../utils'
 import { ATTACHMENTS_PAGE_SIZE, attachmentsPageKey } from './attachmentKeys'
 
 function triggerDownload(url: string, filename: string) {
@@ -146,11 +146,11 @@ export default function AttachmentManager() {
                               {att.filename || 'File'}
                             </p>
                             <p className="truncate theme-muted-text">
-                              {att.size ? formatFileSize(att.size) : ''}
+                              {att.size ? formatBytes(att.size) : ''}
                               {att.uploadedAt && (
                                 <>
                                   {att.size ? ' · ' : ''}
-                                  {DateTime.fromISO(att.uploadedAt).toRelative()}
+                                  <RelativeTime value={att.uploadedAt} />
                                 </>
                               )}
                             </p>

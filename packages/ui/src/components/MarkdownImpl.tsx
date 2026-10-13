@@ -2,6 +2,7 @@ import { code } from '@streamdown/code'
 import { math } from '@streamdown/math'
 import { clsx as cx } from 'clsx'
 import { type BundledTheme, type PluginConfig, Streamdown } from 'streamdown'
+import { ExternalLink } from './ExternalLink'
 import type { MarkdownProps } from './Markdown'
 
 const plugins: PluginConfig = {
@@ -22,12 +23,7 @@ export default function Markdown({ children, isStreaming, controls }: MarkdownPr
         shikiTheme={shikiTheme}
         components={{
           a: ({ node, ...props }) => (
-            <a
-              {...props}
-              className={cx('link wrap-break-word', props.className)}
-              target="_blank"
-              rel="noopener noreferrer"
-            />
+            <ExternalLink {...props} className={cx('link wrap-break-word', props.className)} />
           ),
         }}
       >

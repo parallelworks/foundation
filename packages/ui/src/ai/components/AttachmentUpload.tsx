@@ -9,10 +9,10 @@ import {
   useState,
 } from 'react'
 import { mutate } from 'swr'
+import { formatBytes } from '../../format'
 import { AddIcon, FileSolidIcon, ImageSolidIcon, PdfSolidIcon, TrashIcon } from '../../icons'
 import { useChat } from '../core/ChatProvider'
 import { useChatConfig } from '../core/config'
-import { formatFileSize } from '../utils'
 import { ATTACHMENTS_INFINITE_KEY } from './attachmentKeys'
 
 export interface AttachmentUploadHandle {
@@ -76,7 +76,7 @@ const AttachmentUpload = forwardRef<AttachmentUploadHandle, AttachmentUploadProp
     const validateFile = useCallback(
       (file: File): string | null => {
         if (file.size > maxFileSize) {
-          return t.fileTooLarge(formatFileSize(maxFileSize))
+          return t.fileTooLarge(formatBytes(maxFileSize))
         }
         if (attachments.length >= maxFiles) {
           return t.maxFilesAllowed(maxFiles)
@@ -243,9 +243,7 @@ const AttachmentUpload = forwardRef<AttachmentUploadHandle, AttachmentUploadProp
                     <span className="text-sm truncate max-w-[150px] text-(--theme-app)">
                       {attachment.filename}
                     </span>
-                    <span className="text-xs theme-muted-text">
-                      {formatFileSize(attachment.size)}
-                    </span>
+                    <span className="text-xs theme-muted-text">{formatBytes(attachment.size)}</span>
                     {attachment.uploading && (
                       <span className="text-xs text-blue-500 animate-pulse">Uploading...</span>
                     )}
@@ -287,7 +285,7 @@ const AttachmentUpload = forwardRef<AttachmentUploadHandle, AttachmentUploadProp
               <span>{isDragging ? t.dropFilesHere : t.addFiles}</span>
             </span>
             <span className="block text-xs theme-muted-text mt-1">
-              Max {formatFileSize(maxFileSize)} per file
+              {t.maxSizePerFile(formatBytes(maxFileSize))}
             </span>
           </button>
         </div>

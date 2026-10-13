@@ -3,6 +3,7 @@ import { math } from '@streamdown/math'
 import { clsx as cx } from 'clsx'
 import { useEffect, useState } from 'react'
 import { type BundledTheme, defaultRehypePlugins, type PluginConfig, Streamdown } from 'streamdown'
+import { ExternalLink } from '../../components/ExternalLink'
 import { useChatConfig } from '../core/config'
 import { rehypeCodeBreaks } from './codeBreaks'
 
@@ -93,12 +94,7 @@ export default function Markdown({ children, isStreaming }: MarkdownProps) {
         shikiTheme={shikiTheme}
         components={{
           a: ({ node, ...props }) => (
-            <a
-              {...props}
-              className={cx('link wrap-break-word', props.className)}
-              target="_blank"
-              rel="noopener noreferrer"
-            />
+            <ExternalLink {...props} className={cx('link wrap-break-word', props.className)} />
           ),
           // Host overrides win per tag, including `a` when supplied.
           ...markdownComponents,

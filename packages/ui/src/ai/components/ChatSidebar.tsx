@@ -2,7 +2,7 @@ import { clsx as cx } from 'clsx'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import type { OpenMenu } from '../../components/ContextMenu'
 import type { MenuEntry } from '../../components/MenuEntries'
-import { useRelativeTime } from '../../components/relativeTime'
+import { RelativeTime } from '../../components/relativeTime'
 import { ImageIcon, NewChatIcon, SearchIcon, SharingIcon } from '../../icons'
 import { useChat } from '../core/ChatProvider'
 import { useChatConfig } from '../core/config'
@@ -16,15 +16,12 @@ import { groupConversationsByDate, useConversationActions } from './conversation
 function ConversationRow({
   conv,
   isCurrent,
-  updated,
   menuItems,
   openMenu,
   onOpen,
 }: {
   conv: ConversationSummary
   isCurrent: boolean
-  /** When it last changed, already abbreviated. */
-  updated: string
   menuItems: MenuEntry[]
   openMenu: OpenMenu
   onOpen: () => void
@@ -42,7 +39,11 @@ function ConversationRow({
         {conv.isOwner === false && (
           <SharingIcon className="h-3 w-3 shrink-0 theme-muted-text" title={t.sharedWithYou} />
         )}
-        <SidebarRowTitle time={updated}>{conv.title || t.untitled}</SidebarRowTitle>
+        <SidebarRowTitle
+          time={<RelativeTime value={conv.updatedAt ?? conv.createdAt} format="compact" />}
+        >
+          {conv.title || t.untitled}
+        </SidebarRowTitle>
       </LinkComponent>
     </SidebarRow>
   )
@@ -76,7 +77,6 @@ export default function ChatSidebar({
   } = useChat()
   const attachmentsAvailable = !!adapter.attachments
   const { menuItems, openMenu, overlays } = useConversationActions()
-  const { compact } = useRelativeTime()
 
   const drawer = sidebarPresentation === 'drawer'
   // The drawer always opens to the full list; the rail is for a column.
@@ -163,7 +163,6 @@ export default function ChatSidebar({
         <ConversationRow
           conv={conv}
           isCurrent={activeConversationId === conv.id}
-          updated={compact(conv.updatedAt ?? conv.createdAt)}
           menuItems={menuItems(conv)}
           openMenu={openMenu}
           onOpen={closeDrawer}

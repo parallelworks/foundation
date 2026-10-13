@@ -107,6 +107,8 @@ export interface ChatStrings {
     label: string
     ellipsis: string
     thoughtFor: (duration: string) => string
+    /** A finished reasoning toggle's label when its duration is unknown. */
+    thoughtProcess: string
     activity: string
   }
   thread: {
@@ -147,7 +149,9 @@ export interface ChatStrings {
     maxFilesAllowed: (max: number) => string
     remove: string
     dropFilesHere: string
+    releaseToUpload: string
     addFiles: string
+    maxSizePerFile: (size: string) => string
   }
   attachmentManager: {
     title: string
@@ -333,6 +337,7 @@ export const defaultChatStrings: ChatStrings = {
     label: 'Thinking',
     ellipsis: 'Thinking...',
     thoughtFor: (duration) => `Thought for ${duration}`,
+    thoughtProcess: 'Thought process',
     activity: 'Activity',
   },
   thread: {
@@ -372,7 +377,9 @@ export const defaultChatStrings: ChatStrings = {
     maxFilesAllowed: (max) => `Maximum ${max} files allowed`,
     remove: 'Remove',
     dropFilesHere: 'Drop files here',
+    releaseToUpload: 'Release to upload',
     addFiles: 'Add files (drag or click)',
+    maxSizePerFile: (size) => `Max ${size} per file`,
   },
   attachmentManager: {
     title: 'Attachments',

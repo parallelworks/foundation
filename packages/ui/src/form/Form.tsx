@@ -23,7 +23,7 @@ import {
 } from 'react-hook-form'
 import { InfoTip } from '../components/InfoTip'
 import { Loader } from '../components/Loader'
-import { useWorkflowEngine } from '../components/Provider'
+import { useStrings, useWorkflowEngine } from '../components/Provider'
 import { Section } from '../components/Section'
 import type { WorkflowVariables } from '../engine'
 import { FormLayout, LayoutCSSContext } from './FormLayout'
@@ -1061,7 +1061,7 @@ function DynamicFormBody({
   remoteVars,
   needsOrganizationVariables = false,
   onSubmit,
-  submitLabel = 'Submit',
+  submitLabel,
   className = 'w-full',
   workflowForm = false,
   contextKey,
@@ -1069,6 +1069,7 @@ function DynamicFormBody({
   fields = NO_FIELDS,
   allowLayoutCSS = false,
 }: DynamicFormProps & { form: UseFormReturn<FormValues> }) {
+  const { common } = useStrings()
   const engine = useWorkflowEngine()
   const [parseReady, setParseReady] = useState(() => engine.isReady())
   useEffect(() => {
@@ -1148,7 +1149,7 @@ function DynamicFormBody({
                       organizationVariables={organizationVariables}
                       remoteVars={remoteVars}
                       onSubmit={onSubmit}
-                      submitLabel={submitLabel}
+                      submitLabel={submitLabel ?? common.submit}
                       contextKey={contextKey}
                     />
                   </form>

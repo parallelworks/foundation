@@ -7,7 +7,7 @@ import Markdown from './Markdown'
 describe('Markdown host component overrides', () => {
   it('renders the built-in safe link without any config', () => {
     render(<Markdown>[docs](https://example.com)</Markdown>)
-    const link = screen.getByRole('link', { name: 'docs' })
+    const link = screen.getByRole('link', { name: /^docs/ })
     expect(link).toHaveAttribute('target', '_blank')
     expect(link).toHaveAttribute('rel', 'noopener noreferrer')
   })

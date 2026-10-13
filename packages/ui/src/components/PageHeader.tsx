@@ -91,18 +91,17 @@ export function HeaderAddButton({
 }
 
 /** The header's "…" menu of actions on the page's subject. */
-export function HeaderActionMenu({
-  items,
-  label = 'Actions',
-}: {
-  items: MenuEntry[]
-  label?: string
-}) {
+export function HeaderActionMenu({ items, label }: { items: MenuEntry[]; label?: string }) {
+  const { common } = useStrings()
   if (items.length === 0) {
     return null
   }
   return (
-    <ActionMenu items={items} label={label} triggerClassName={headerActionButtonClasses}>
+    <ActionMenu
+      items={items}
+      label={label ?? common.actions}
+      triggerClassName={headerActionButtonClasses}
+    >
       <MoreIcon className="w-3.5 h-3.5" />
     </ActionMenu>
   )
@@ -111,7 +110,7 @@ export function HeaderActionMenu({
 export function HeaderEditButton({
   href,
   onClick,
-  label = 'Edit',
+  label: labelProp,
   disabled,
   tooltip,
 }: {
@@ -122,6 +121,8 @@ export function HeaderEditButton({
   tooltip?: string | undefined
 }) {
   const Link = useLink()
+  const { common } = useStrings()
+  const label = labelProp ?? common.edit
   return (
     <Tooltip content={tooltip ?? label}>
       {href && !disabled ? (
@@ -236,6 +237,7 @@ export function PageHeader({
   const { setHidden } = useBreadcrumb()
   const Link = useLink()
   const { breadcrumbPin, navToggle } = useSlots()
+  const { common } = useStrings()
   // This header is the page's own breadcrumb trail, so keep the global strip out
   // of the way while it's mounted — pages no longer need useClearBreadcrumbs().
   useLayoutEffect(() => {
@@ -251,7 +253,7 @@ export function PageHeader({
 
   const crumbRow = crumbs.length > 0 && (
     <div className="flex items-center gap-1.5 min-w-0">
-      <nav aria-label="Breadcrumb" className="flex items-center gap-2 min-w-0 text-[13px]">
+      <nav aria-label={common.breadcrumb} className="flex items-center gap-2 min-w-0 text-[13px]">
         {keyedByContent(
           crumbs,
           (c) => c.href ?? (typeof c.label === 'string' ? c.label : 'crumb'),

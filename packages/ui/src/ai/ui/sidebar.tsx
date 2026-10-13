@@ -4,6 +4,7 @@ import { ConfirmModal } from '../../components/ConfirmModal'
 import type { OpenMenu } from '../../components/ContextMenu'
 import { focusOnMount } from '../../components/focus'
 import type { MenuEntry } from '../../components/MenuEntries'
+import { Tooltip } from '../../components/Tooltip'
 import { SidebarIcon } from '../../icons'
 import { MoreButton, rowContextMenuProps, useRowMenuActive } from '../../list/index'
 
@@ -130,7 +131,8 @@ export function SidebarRowTitle({
   time,
 }: {
   children: ReactNode
-  time?: string | undefined
+  /** When it last changed, short: a compact `RelativeTime`. */
+  time?: ReactNode
 }) {
   return (
     <span className="flex min-w-0 flex-1 items-baseline gap-2">
@@ -180,33 +182,33 @@ export function SidebarRailItem({
   label,
   onSelect,
   testId,
-  tooltipProps,
   children,
 }: {
   selected: boolean
+  /** Names the icon-only button, and shows beside it on hover. */
   label: string
   onSelect: () => void
   testId?: string
-  tooltipProps?: Record<string, string>
   children: ReactNode
 }) {
   return (
     <li>
-      <button
-        type="button"
-        data-testid={testId}
-        aria-label={label}
-        aria-current={selected ? 'page' : undefined}
-        onClick={onSelect}
-        {...tooltipProps}
-        className={cx(
-          'flex h-7 w-7 items-center justify-center rounded-md transition-colors',
-          HIGHLIGHT_HOVER,
-          selected && HIGHLIGHT_SELECTED,
-        )}
-      >
-        {children}
-      </button>
+      <Tooltip content={label} side="right">
+        <button
+          type="button"
+          data-testid={testId}
+          aria-label={label}
+          aria-current={selected ? 'page' : undefined}
+          onClick={onSelect}
+          className={cx(
+            'flex h-7 w-7 items-center justify-center rounded-md transition-colors',
+            HIGHLIGHT_HOVER,
+            selected && HIGHLIGHT_SELECTED,
+          )}
+        >
+          {children}
+        </button>
+      </Tooltip>
     </li>
   )
 }

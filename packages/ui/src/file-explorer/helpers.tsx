@@ -1,16 +1,20 @@
 import { clsx as cx } from 'clsx'
-import { type JSX, useEffect, useState, useTransition } from 'react'
+import { type JSX, useState, useTransition } from 'react'
 import { useLocalStorage } from 'usehooks-ts'
 import Callout from '../components/Callout'
+import { ProgressBar } from '../components/Meter'
 import {
   type UIData,
   type UINotify,
   type UIStrings,
   useNotify,
   useProvisionCorsRules,
+  useSlots,
   useStrings,
 } from '../components/Provider'
+import { useClock } from '../components/relativeTime'
 import { Skeleton } from '../components/Skeleton'
+import { formatBytes } from '../format'
 import {
   AlertIcon,
   CustomizeIcon,
@@ -31,7 +35,7 @@ import {
 import { ListSkeleton } from '../list/index'
 import { CorsError } from './lib/errors'
 import type { TreeNode, TStorage, UploadNode } from './lib/types'
-import { formatFileSize, getFileExtension } from './lib/utils'
+import { getFileExtension } from './lib/utils'
 
 const SIDEBAR_WIDTH_STORAGE_KEY = 'fileExplorerSidebarWidth'
 const SIDEBAR_WIDTH_DEFAULT = 300
@@ -96,13 +100,32 @@ const extensionIconMap = [
   },
 ]
 
-type StorageIconUrlResolver = (args: { type: string }) => string | undefined
+// A storage's own image, or the host's for its type, falling back to the host's if its own fails.
+function StorageImage({ node }: { node: TreeNode }) {
+  const { storageIconUrl } = useSlots()
+  const alt = useStrings().fileExplorer.chrome.storageIconAlt
+  const fallbackSrc = node.storageNodeIcon
+    ? storageIconUrl?.({ type: node.storageNodeIcon })
+    : undefined
+  const src = node.storageImageUrl || fallbackSrc
+  if (!src) {
+    return <DiskIcon className="h-4 w-4 mr-2" />
+  }
+  return (
+    <img
+      className="h-4 w-4 mr-2"
+      src={src}
+      alt={alt}
+      onError={(e) => {
+        if (fallbackSrc) {
+          e.currentTarget.src = fallbackSrc
+        }
+      }}
+    />
+  )
+}
 
-function getNodeIcon(
-  node: TreeNode,
-  storageIconUrl?: StorageIconUrlResolver,
-  storageIconAlt = 'Storage icon',
-): JSX.Element | null {
+function getNodeIcon(node: TreeNode): JSX.Element | null {
   const isUserNode = !node.storageId
   const isStorageNode = node.root
   if (isUserNode) {
@@ -114,24 +137,7 @@ function getNodeIcon(
   }
 
   if (isStorageNode && node.storageNodeIcon) {
-    const storageNodeIcon = node.storageNodeIcon
-    const fallbackSrc = storageIconUrl?.({ type: storageNodeIcon })
-    const iconSrc = node.storageImageUrl || fallbackSrc
-    if (!iconSrc) {
-      return <DiskIcon className="h-4 w-4 mr-2" />
-    }
-    return (
-      <img
-        className="h-4 w-4 mr-2"
-        src={iconSrc}
-        alt={storageIconAlt}
-        onError={(e) => {
-          if (fallbackSrc) {
-            e.currentTarget.src = fallbackSrc
-          }
-        }}
-      />
-    )
+    return <StorageImage node={node} />
   }
 
   // Skip directories as the icon is handled conditionally in the tree
@@ -199,9 +205,7 @@ function renderUploadNodes(uploadNodes: UploadNode[]) {
           <span className="inline-block w-3" />
           {fileName}
           {node.file && (
-            <span className="ml-2 text-xs theme-muted-text">
-              ({formatFileSize(node.file.size)})
-            </span>
+            <span className="ml-2 text-xs theme-muted-text">({formatBytes(node.file.size)})</span>
           )}
         </div>
       </div>
@@ -325,15 +329,8 @@ const CORS_PROPAGATION_BUDGET_MS = 60_000
 
 function CorsPropagatingPreview() {
   const t = useStrings().fileExplorer.cors.propagating
-  const [elapsedMs, setElapsedMs] = useState(0)
-
-  useEffect(() => {
-    const start = Date.now()
-    const id = setInterval(() => {
-      setElapsedMs(Date.now() - start)
-    }, 500)
-    return () => clearInterval(id)
-  }, [])
+  const [start] = useState(Date.now)
+  const elapsedMs = useClock((now) => Math.max(0, now - start))
 
   const totalSeconds = Math.floor(elapsedMs / 1000)
   const mm = String(Math.floor(totalSeconds / 60)).padStart(2, '0')
@@ -375,14 +372,12 @@ function CorsPropagatingPreview() {
         <PropagationStage status="pending" label={t.stages.verified} />
       </ol>
 
-      <div className="w-full max-w-xs mb-3">
-        <div className="h-1 rounded-full theme-muted-panel overflow-hidden">
-          <div
-            className="h-full bg-blue-500 transition-[width] duration-500 ease-linear"
-            style={{ width: `${progressPct}%` }}
-          />
-        </div>
-      </div>
+      <ProgressBar
+        value={progressPct}
+        size="sm"
+        aria-label={t.stages.propagating}
+        className="w-full max-w-xs mb-3"
+      />
 
       <div className="flex items-center gap-2 theme-muted-text text-xs font-mono tabular-nums">
         <span>

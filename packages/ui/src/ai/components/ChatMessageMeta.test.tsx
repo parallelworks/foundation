@@ -59,10 +59,11 @@ afterEach(() => {
 })
 
 describe('message metadata row', () => {
-  it('renders a relative timestamp with an absolute title', () => {
+  it('renders a relative timestamp as a machine-readable time', () => {
     render(<ChatMessage {...defaultProps} message={message({ timestamp: recentIso })} />)
     const el = screen.getByText('2 hours ago')
-    expect(el).toHaveAttribute('title')
+    expect(el.tagName).toBe('TIME')
+    expect(el).toHaveAttribute('dateTime', DateTime.fromISO(recentIso).toISO())
   })
 
   it('ignores an invalid or empty timestamp', () => {

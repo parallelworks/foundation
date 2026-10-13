@@ -1,5 +1,4 @@
 import { clsx as cx } from 'clsx'
-import { Duration } from 'luxon'
 import {
   type ReactNode,
   useCallback,
@@ -9,7 +8,8 @@ import {
   useRef,
   useState,
 } from 'react'
-import { durationToAbsHumanDuration } from '../../duration'
+import { useClock } from '../../components/relativeTime'
+import { formatDuration } from '../../format'
 import { CheckIcon, ClockIcon } from '../../icons'
 import { useChat } from '../core/ChatProvider'
 import { useChatConfig } from '../core/config'
@@ -125,8 +125,6 @@ export default function ChatMessageList({
   const streamingContent = streamingMessage?.content
   const streamingMessageParts = streamingMessage?.parts
 
-  // Calculate elapsed thinking time
-  const [elapsedTime, setElapsedTime] = useState(0)
   const [finalThinkingDuration, setFinalThinkingDuration] = useState<number | null>(null)
   const [reasoningOpen, setReasoningOpen] = useState(false)
 
@@ -152,17 +150,6 @@ export default function ChatMessageList({
       setReasoningOpen(false)
     }
   }, [isStreaming])
-
-  useEffect(() => {
-    if (!thinkingStartTime || !isThinking) {
-      setElapsedTime(0)
-      return
-    }
-    const interval = setInterval(() => {
-      setElapsedTime(Math.floor((Date.now() - thinkingStartTime) / 1000))
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [thinkingStartTime, isThinking])
 
   // Auto-scroll reasoning preview to bottom as content streams
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll on content change
@@ -377,15 +364,10 @@ export default function ChatMessageList({
                     : setReasoningOpen((o) => !o)
                 }
               >
-                {isThinking
-                  ? elapsedTime > 0
-                    ? `${tThinking.label} (${elapsedTime}s)`
-                    : tThinking.ellipsis
-                  : tThinking.thoughtFor(
-                      finalThinkingDuration
-                        ? durationToAbsHumanDuration(Duration.fromMillis(finalThinkingDuration))
-                        : `${elapsedTime}s`,
-                    )}
+                <ThinkingLabel
+                  startedAt={isThinking ? thinkingStartTime : undefined}
+                  finalDuration={finalThinkingDuration}
+                />
               </ReasoningToggle>
 
               {/* Open: the whole reasoning. Closed while thinking: its tail,
@@ -504,4 +486,26 @@ export default function ChatMessageList({
       {inputElement && <div className="sticky bottom-0 z-10">{inputElement}</div>}
     </div>
   )
+}
+
+/** "Thinking (12s)" while it thinks, then how long it took. Its own component,
+ *  so the clock re-renders only this label, not the list. */
+function ThinkingLabel({
+  startedAt,
+  finalDuration,
+}: {
+  /** When the thinking under way began; unset once it ends. */
+  startedAt: number | null | undefined
+  /** How long it took, in milliseconds, once it has ended. */
+  finalDuration: number | null
+}) {
+  const t = useChatConfig().strings.thinking
+  const seconds = useClock(
+    (now) => (startedAt ? Math.floor((now - startedAt) / 1000) : 0),
+    !!startedAt,
+  )
+  if (startedAt) {
+    return seconds > 0 ? `${t.label} (${seconds}s)` : t.ellipsis
+  }
+  return t.thoughtFor(formatDuration(finalDuration ?? 0))
 }

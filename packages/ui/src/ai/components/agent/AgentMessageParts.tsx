@@ -1,6 +1,7 @@
 import { clsx as cx } from 'clsx'
 import { useEffect, useMemo, useState } from 'react'
 import { useCssIsDark } from '../../../components/useCssIsDark'
+import { formatDuration } from '../../../format'
 import { CheckIcon, ChevronRightIcon, LoaderIcon } from '../../../icons'
 import { LogViewer } from '../../../logviewer/index'
 import {
@@ -677,17 +678,6 @@ function NoticeBlock({ part }: { part: NoticePart }) {
   )
 }
 
-function formatThinkingDuration(ms: number): string {
-  const s = Math.round(ms / 1000)
-  if (s < 1) {
-    return '<1s'
-  }
-  if (s < 60) {
-    return `${s}s`
-  }
-  return `${Math.floor(s / 60)}m ${s % 60}s`
-}
-
 /** The TUI's thought, drawn like a chat reply's: while it streams its label
  *  shimmers over the latest lines, then it folds to the label and opens in
  *  place on request. */
@@ -697,7 +687,7 @@ function ReasoningBlock({ part, isStreaming }: { part: ReasoningPart; isStreamin
   const [expanded, setExpanded] = useState(false)
   const label =
     thinkingHeading(part.text) ||
-    (part.durationMs ? t.thoughtFor(formatThinkingDuration(part.durationMs)) : t.label)
+    (part.durationMs ? t.thoughtFor(formatDuration(part.durationMs)) : t.label)
   const hasBody = part.text.trim() !== ''
   const markdown = <Markdown isStreaming={isStreaming ?? false}>{part.text}</Markdown>
   if (isStreaming) {

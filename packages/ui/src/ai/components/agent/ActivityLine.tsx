@@ -1,6 +1,8 @@
 import { clsx as cx } from 'clsx'
 import { DateTime } from 'luxon'
 import { useEffect, useRef, useState } from 'react'
+import { useClock } from '../../../components/relativeTime'
+import { formatCount, formatDuration } from '../../../format'
 import { LoaderIcon, StopSolidIcon } from '../../../icons'
 import { useChatConfig } from '../../core/config'
 
@@ -52,53 +54,14 @@ function randomActivityWord(): string {
   return activityWords[Math.floor(Math.random() * activityWords.length)] ?? activityWords[0]
 }
 
-/** Elapsed run time the way an agent status line prints it: 45s, 2m13s,
- *  1h2m3s. */
-export function formatElapsed(seconds: number): string {
-  const total = Math.max(0, Math.floor(seconds))
-  const hours = Math.floor(total / 3600)
-  const minutes = Math.floor((total % 3600) / 60)
-  const rest = total % 60
-  if (hours > 0) {
-    return `${hours}h${minutes}m${rest}s`
-  }
-  if (minutes > 0) {
-    return `${minutes}m${rest}s`
-  }
-  return `${rest}s`
-}
-
-/** Token counts the way an agent status line prints them: 512, 1.2k, 3.4M. */
-export function compactCount(n: number): string {
-  if (n >= 1_000_000) {
-    return `${(n / 1_000_000).toFixed(1)}M`
-  }
-  if (n >= 1_000) {
-    return `${(n / 1_000).toFixed(1)}k`
-  }
-  return String(Math.floor(n))
-}
-
-function secondsSince(iso: string): number {
-  return Math.max(0, DateTime.now().diff(DateTime.fromISO(iso)).as('seconds'))
-}
-
 /** Seconds since `startedAt`, re-read every second; null when there is no
  *  start to count from. */
 function useElapsedSeconds(startedAt: string | null | undefined): number | null {
-  const [elapsed, setElapsed] = useState<number | null>(() =>
-    startedAt ? secondsSince(startedAt) : null,
+  const start = startedAt ? DateTime.fromISO(startedAt).toMillis() : null
+  return useClock(
+    (now) => (start === null ? null : Math.max(0, Math.floor((now - start) / 1000))),
+    start !== null,
   )
-  useEffect(() => {
-    if (!startedAt) {
-      setElapsed(null)
-      return
-    }
-    setElapsed(secondsSince(startedAt))
-    const id = setInterval(() => setElapsed(secondsSince(startedAt)), 1000)
-    return () => clearInterval(id)
-  }, [startedAt])
-  return elapsed
 }
 
 /** A status word held for the whole turn and re-rolled when a new one starts. */
@@ -140,11 +103,11 @@ export default function ActivityLine({
   const turnWord = useTurnWord(startedAt)
   const meta: string[] = []
   if (elapsed !== null) {
-    meta.push(formatElapsed(elapsed))
+    meta.push(formatDuration(elapsed * 1000))
   }
   if (inputTokens || outputTokens) {
     meta.push(
-      strings.activity.tokens(compactCount(inputTokens ?? 0), compactCount(outputTokens ?? 0)),
+      strings.activity.tokens(formatCount(inputTokens ?? 0), formatCount(outputTokens ?? 0)),
     )
   }
   return (

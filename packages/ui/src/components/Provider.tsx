@@ -68,6 +68,18 @@ export interface UIStrings {
     sort: string
     userAvatar: string
     moreInfo: string
+    /** The name of a menu of actions on a page or row. */
+    actions: string
+    edit: string
+    submit: string
+    search: string
+    clearSearch: string
+    filterPlaceholder: string
+    breadcrumb: string
+    yes: string
+    no: string
+    /** Read after a link that opens a new tab. */
+    opensInNewTab: string
     refresh: string
     refreshing: string
     /** A refresh button's label once it knows when the data was fetched. */
@@ -145,6 +157,8 @@ export interface UIStrings {
     logLoadFailed: string
     statusLabel: (status: string) => string
     statusReason: (reason: string | undefined | null) => string | undefined
+    /** A run's general log, beside its summary. */
+    generalLog: string
   }
   jobActions: {
     openSubworkflowLogs: string
@@ -357,6 +371,9 @@ export interface UIStrings {
       refreshFailed: (name: string, message: string) => string
       unknownError: string
       overallProgress: string
+      cancelFile: (name: string) => string
+      confirmCancelFile: string
+      confirmCancelAll: string
     }
   }
   form: {
@@ -369,6 +386,14 @@ export interface UIStrings {
     removeCopy: (title: string) => string
     /** A wizard's row of step dots. */
     steps: string
+    previous: string
+    next: string
+    previousStep: string
+    nextStep: string
+    /** A wizard's last button, unless its config names its own. */
+    runWizard: string
+    fixErrorsToContinue: string
+    stepFailed: string
   }
   time: {
     now: string
@@ -419,6 +444,8 @@ export interface UIStrings {
     paginationNext: string
     paginationShowing: (name: string, start: number | string, end: number | string) => ReactNode
     paginationShowingTimeRange: (name: string, startTime: string, endTime: string) => ReactNode
+    pagination: string
+    removeSearchTerm: (term: string) => string
   }
 }
 
@@ -611,6 +638,16 @@ const DEFAULTS: UIProviderValue = {
       sort: 'Sort',
       userAvatar: 'User avatar',
       moreInfo: 'More information',
+      actions: 'Actions',
+      edit: 'Edit',
+      submit: 'Submit',
+      search: 'Search',
+      clearSearch: 'Clear search',
+      filterPlaceholder: 'Filter…',
+      breadcrumb: 'Breadcrumb',
+      yes: 'Yes',
+      no: 'No',
+      opensInNewTab: '(opens in a new tab)',
       refresh: 'Refresh',
       refreshing: 'Refreshing',
       updated: (ago) => `Updated ${ago}`,
@@ -684,6 +721,7 @@ const DEFAULTS: UIProviderValue = {
       logLoadFailed: 'Log could not be loaded',
       statusLabel: (status) => status,
       statusReason: () => undefined,
+      generalLog: 'General log',
     },
     jobActions: {
       openSubworkflowLogs: 'Open subworkflow logs',
@@ -916,6 +954,9 @@ const DEFAULTS: UIProviderValue = {
           `Failed to refresh storage data for ${name}. ${message}. Please try again.`,
         unknownError: 'Unknown error',
         overallProgress: 'Overall Progress',
+        cancelFile: (name) => `Cancel ${name}`,
+        confirmCancelFile: 'Cancel?',
+        confirmCancelAll: 'Cancel all uploading files?',
       },
     },
     form: {
@@ -926,6 +967,13 @@ const DEFAULTS: UIProviderValue = {
       addCopy: (title) => `+ Add ${title}`,
       removeCopy: (title) => `Remove ${title}`,
       steps: 'Steps',
+      previous: '← Previous',
+      next: 'Next →',
+      previousStep: 'Go to previous step',
+      nextStep: 'Go to next step',
+      runWizard: 'Execute',
+      fixErrorsToContinue: 'Please fix errors before proceeding',
+      stepFailed: 'An error occurred',
     },
     time: {
       now: 'now',
@@ -985,6 +1033,8 @@ const DEFAULTS: UIProviderValue = {
           <span className="font-medium">{endTime}</span>
         </>
       ),
+      pagination: 'Pagination',
+      removeSearchTerm: (term) => `Remove filter ${term}`,
     },
   },
   navigation: {

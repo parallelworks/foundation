@@ -2,18 +2,22 @@ import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useState } from 'react'
 import { expect, screen, userEvent, waitFor, within } from 'storybook/test'
 import type { RunStatus } from '../engine'
+import { formatBytes } from '../format'
 import Callout from './Callout'
 import { Autocomplete, Combobox } from './Combobox'
 import { ConfirmModal } from './ConfirmModal'
 import { CreateModal, CreateModalField } from './CreateModal'
 import { DatePicker } from './DatePicker'
+import { ExternalLink } from './ExternalLink'
 import { primaryButtonClasses } from './ghostButton'
 import { Indicator } from './Indicator'
 import { InfoTip } from './InfoTip'
 import { Loader } from './Loader'
+import { type BarTone, Meter, ProgressBar } from './Meter'
 import { Modal, ModalDescription, type ModalProps, ModalTitle } from './Modal'
 import { NumberInput } from './NumberInput'
 import { Overview } from './Overview'
+import { RelativeTime } from './relativeTime'
 import { SegmentedControl } from './SegmentedControl'
 import { Select } from './Select'
 import { StatusBadge, StatusDot } from './StatusBadge'
@@ -378,7 +382,7 @@ export const InfoTips: StoryObj = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: 'More information' }))
-    await waitFor(() => expect(screen.getByRole('link', { name: 'the docs' })).toBeVisible())
+    await waitFor(() => expect(screen.getByRole('link', { name: /^the docs/ })).toBeVisible())
   },
 }
 
@@ -710,5 +714,115 @@ export const DatePickers: StoryObj<{
         args.withTime ? '2026-03-20T09:30' : '2026-03-20',
       ),
     )
+  },
+}
+
+const GB = 1024 ** 3
+
+/** Readings against levels: amber past `warnAt`, red past `errorAt`. */
+export const Meters: StoryObj<{ value: number; showValue: 'beside' | 'tooltip' }> = {
+  args: { value: 62, showValue: 'beside' },
+  argTypes: {
+    value: { control: { type: 'range', min: 0, max: 100 } },
+    showValue: { control: 'inline-radio', options: ['beside', 'tooltip'] },
+  },
+  render: ({ value, showValue }) => (
+    <div className="flex w-72 flex-col gap-6 p-8">
+      <Meter
+        value={value}
+        showValue={showValue}
+        label="Storage"
+        detail={`${formatBytes((value / 100) * 50 * GB)} of ${formatBytes(50 * GB)}`}
+      />
+      <Meter value={85} label="Memory" />
+      <Meter value={96} label="Quota" />
+      <Meter value={12} tone="error" label="Frozen allocation" />
+      <Meter value={6} max={16} format={{}} label="Cores in use" />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getAllByRole('meter')).toHaveLength(5)
+    await expect(canvas.getByRole('meter', { name: 'Memory' })).toHaveTextContent('85%')
+  },
+}
+
+const PROGRESS: { label: string; value: number | null; tone: BarTone; status?: string }[] = [
+  { label: 'results.csv', value: 42, tone: 'accent' },
+  { label: 'model.bin', value: 100, tone: 'success', status: 'Completed' },
+  { label: 'archive.tar', value: 64, tone: 'error', status: 'Failed' },
+  { label: 'notes.txt', value: 18, tone: 'muted', status: 'Cancelled' },
+  { label: 'Preparing', value: null, tone: 'accent' },
+]
+
+/** Tasks under way, settled ones with a status in place of the percentage. */
+export const ProgressBars: StoryObj<{ size: 'sm' | 'md' | 'lg' }> = {
+  args: { size: 'md' },
+  argTypes: { size: { control: 'inline-radio', options: ['sm', 'md', 'lg'] } },
+  render: ({ size }) => (
+    <div className="flex w-72 flex-col gap-6 p-8">
+      {PROGRESS.map(({ label, value, tone, status }) => (
+        <ProgressBar
+          key={label}
+          value={value}
+          tone={tone}
+          status={status}
+          label={label}
+          size={size}
+          detail={value === 42 ? '21 MB / 50 MB' : undefined}
+        />
+      ))}
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('progressbar', { name: 'results.csv' })).toHaveTextContent('42%')
+    await expect(canvas.getByRole('progressbar', { name: 'model.bin' })).toHaveTextContent(
+      'Completed',
+    )
+  },
+}
+
+const MINUTE = 60_000
+
+/** Times that keep counting while on screen, long or compact, with the exact
+ *  time on hover. */
+export const RelativeTimes: StoryObj<{ format: 'long' | 'compact' }> = {
+  args: { format: 'long' },
+  argTypes: { format: { control: 'inline-radio', options: ['long', 'compact'] } },
+  render: ({ format }) => {
+    const now = Date.now()
+    return (
+      <div className="flex flex-col gap-2 p-8 text-sm">
+        {[0.2, 5, 90, 60 * 30, 60 * 24 * 400].map((minutes) => (
+          <RelativeTime key={minutes} value={now - minutes * MINUTE} format={format} />
+        ))}
+      </div>
+    )
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByText(args.format === 'compact' ? '5m' : '5 minutes ago'),
+    ).toBeInTheDocument()
+  },
+}
+
+/** Links that leave the page open a new tab and say so to screen readers. */
+export const ExternalLinks: StoryObj = {
+  render: () => (
+    <div className="flex items-center gap-6 p-8 text-sm">
+      <ExternalLink href="https://example.com" className="link">
+        Documentation
+      </ExternalLink>
+      <ExternalLink href="https://example.com" className="link" icon>
+        Status page
+      </ExternalLink>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const link = within(canvasElement).getByRole('link', { name: /^Status page/ })
+    await expect(link).toHaveAttribute('target', '_blank')
+    await expect(link).toHaveAttribute('rel', 'noopener noreferrer')
   },
 }

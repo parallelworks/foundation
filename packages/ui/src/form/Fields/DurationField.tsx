@@ -6,7 +6,7 @@ import { FieldWrapper } from '../FieldWrapper'
 import type { FieldComponentProps } from '../types/fieldComponentTypes'
 import type { BaseField } from '../types/fieldTypes'
 import { useFieldValue } from '../useFieldValue'
-import { formatDuration, parseDuration } from '../utils/duration'
+import { formatDurationText, parseDurationText } from '../utils/duration'
 import { setDurationValidity } from './durationValidity'
 
 export interface IDurationField extends BaseField {
@@ -24,10 +24,10 @@ const isNumericString = (value: unknown): boolean =>
 
 const toDisplay = (value: unknown): string => {
   if (typeof value === 'number') {
-    return formatDuration(value)
+    return formatDurationText(value)
   }
   if (isNumericString(value)) {
-    return formatDuration(Number(value))
+    return formatDurationText(Number(value))
   }
   return ''
 }
@@ -87,15 +87,15 @@ export default function DurationField({
   }, [currentValue])
 
   const trimmed = text.trim()
-  const parsed = trimmed === '' ? null : parseDuration(trimmed)
+  const parsed = trimmed === '' ? null : parseDurationText(trimmed)
   let error: string | null = null
   if (!isSentinel && trimmed !== '') {
     if (parsed === null) {
       error = t.invalidDuration
     } else if (parsed < min || parsed > max) {
       error = Number.isFinite(max)
-        ? t.durationOutOfRange(formatDuration(Math.max(min, 0)), formatDuration(max))
-        : t.durationBelowMin(formatDuration(Math.max(min, 0)))
+        ? t.durationOutOfRange(formatDurationText(Math.max(min, 0)), formatDurationText(max))
+        : t.durationBelowMin(formatDurationText(Math.max(min, 0)))
     }
   }
 
@@ -126,7 +126,7 @@ export default function DurationField({
     const raw = e.target.value
     setText(raw)
     const rawTrimmed = raw.trim()
-    const value = rawTrimmed === '' ? '' : parseDuration(rawTrimmed)
+    const value = rawTrimmed === '' ? '' : parseDurationText(rawTrimmed)
     // Invalid or out-of-range input never reaches the form; the registry blocks save.
     if (value === '' || (typeof value === 'number' && value >= min && value <= max)) {
       set(value)
@@ -143,7 +143,7 @@ export default function DurationField({
       setText('')
       set('')
     } else if (parsed !== null && parsed >= min && parsed <= max) {
-      setText(formatDuration(parsed))
+      setText(formatDurationText(parsed))
       set(parsed)
     }
   }

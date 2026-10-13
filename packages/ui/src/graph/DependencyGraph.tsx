@@ -26,10 +26,11 @@ import { InfoTip } from '../components/InfoTip'
 import { Loader } from '../components/Loader'
 import { Modal } from '../components/Modal'
 import { useRunFile, useSlots, useStrings, useWorkflowEngine } from '../components/Provider'
-import { toAbsHumanDuration } from '../duration'
+import { useClock } from '../components/relativeTime'
 import type { GraphLayout } from '../editing'
 import type { RunStatus, WorkflowEngine } from '../engine'
 import { initializeValues } from '../form/lib'
+import { formatDuration } from '../format'
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -1110,16 +1111,8 @@ function RunTime({
   end: DateTime | undefined
   finished: boolean
 }) {
-  const [now, setNow] = useState(() => DateTime.now())
   const ticking = !end && !finished
-  useEffect(() => {
-    if (!ticking) {
-      return
-    }
-    const timer = setInterval(() => setNow(DateTime.now()), 1000)
-    return () => clearInterval(timer)
-  }, [ticking])
-  return toAbsHumanDuration(start, end ?? now)
+  return useClock((now) => formatDuration((end ?? DateTime.fromMillis(now)).diff(start)), ticking)
 }
 
 // The outermost nodes' extent in content space, so an expanded nested subgraph doesn't change it.
@@ -1856,7 +1849,7 @@ export default function DependencyGraph({
             Summary
             <button
               type="button"
-              aria-label="General log"
+              aria-label={dagStrings.generalLog}
               onClick={() => setSublogOpen(generalLogPath)}
               className="link"
             >

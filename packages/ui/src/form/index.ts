@@ -62,8 +62,8 @@ export {
   collectPartitionDurationIssues,
   FLEX_MAX_DURATION_RANGE,
   FLEX_WAIT_TIME_RANGE,
-  formatDuration,
-  parseDuration,
+  formatDurationText,
+  parseDurationText,
   STANDARD_MAX_DURATION_RANGE,
 } from './utils/duration'
 export type { FieldOption, FieldOptionGroup, FieldOptionItem } from './utils/fieldItems'

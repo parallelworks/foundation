@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Loader } from '../../components/Loader'
+import { useStrings } from '../../components/Provider'
 import type { WizardNavigationProps } from './types'
 
 export function WizardNavigation({
@@ -8,11 +9,13 @@ export function WizardNavigation({
   isCurrentStepValid,
   nextLabel,
   prevLabel,
-  submitLabel = 'Submit',
+  submitLabel: submitLabelProp,
   onNext,
   onPrevious,
   onSubmit,
 }: WizardNavigationProps) {
+  const { form: t, common } = useStrings()
+  const submitLabel = submitLabelProp ?? common.submit
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -22,10 +25,10 @@ export function WizardNavigation({
     try {
       const success = await onNext()
       if (!success) {
-        setError('Please fix errors before proceeding')
+        setError(t.fixErrorsToContinue)
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      setError(err instanceof Error ? err.message : t.stepFailed)
     } finally {
       setIsLoading(false)
     }
@@ -73,9 +76,9 @@ export function WizardNavigation({
           onMouseLeave={(e) => {
             e.currentTarget.style.backgroundColor = 'var(--theme-app-bg)'
           }}
-          aria-label="Go to previous step"
+          aria-label={t.previousStep}
         >
-          {prevLabel || '← Previous'}
+          {prevLabel || t.previous}
         </button>
 
         {/* Next / Submit button */}
@@ -118,10 +121,10 @@ export function WizardNavigation({
             onMouseLeave={(e) => {
               e.currentTarget.style.filter = 'brightness(1)'
             }}
-            aria-label="Go to next step"
+            aria-label={t.nextStep}
           >
             {isLoading && <Loader size={16} inline color="currentColor" />}
-            {nextLabel || 'Next →'}
+            {nextLabel || t.next}
           </button>
         )}
       </div>

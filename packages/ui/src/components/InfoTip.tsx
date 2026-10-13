@@ -1,6 +1,7 @@
 import { clsx as cx } from 'clsx'
 import { Fragment, type ReactNode } from 'react'
 import { TooltipIcon } from '../icons'
+import { ExternalLink } from './ExternalLink'
 import { keyedByContent } from './keys'
 import { Popover } from './Popover'
 import { useStrings } from './Provider'
@@ -16,15 +17,9 @@ function formatLine(line: string) {
       nodes.push(line.slice(last, match.index))
     }
     nodes.push(
-      <a
-        key={match.index}
-        href={match[2]}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="underline"
-      >
+      <ExternalLink key={match.index} href={match[2]} className="underline">
         {match[1]}
-      </a>,
+      </ExternalLink>,
     )
     last = match.index + match[0].length
   }

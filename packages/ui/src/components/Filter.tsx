@@ -1,5 +1,6 @@
 import { clsx as cx } from 'clsx'
 import { FilterIcon } from '../icons'
+import { useStrings } from './Provider'
 
 interface FilterPill {
   label: string
@@ -19,16 +20,17 @@ interface FilterProps {
 export default function Filter({
   filter,
   setFilter,
-  placeholder = 'Filter...',
+  placeholder,
   pills,
   activePill,
   onPillChange,
 }: FilterProps) {
+  const { common } = useStrings()
   return (
     <div className="flex items-center gap-2">
       <div className="relative flex items-center">
         <input
-          placeholder={placeholder}
+          placeholder={placeholder ?? common.filterPlaceholder}
           type="text"
           value={filter}
           onChange={(e) => setFilter(e.target.value.toLowerCase())}

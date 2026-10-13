@@ -1,7 +1,8 @@
 import { clsx as cx } from 'clsx'
-import { DateTime, Duration } from 'luxon'
+import { DateTime } from 'luxon'
 import { type KeyboardEvent, memo, useEffect, useRef, useState } from 'react'
-import { durationToAbsHumanDuration } from '../../duration'
+import { RelativeTime } from '../../components/relativeTime'
+import { formatBytes, formatDuration } from '../../format'
 import {
   CheckIcon,
   CopyIcon,
@@ -18,7 +19,6 @@ import type { ApprovalAnswerValue, AttachmentRef, ChatMessage as Message } from 
 import { Avatar } from '../ui/Avatar'
 import Markdown from '../ui/Markdown'
 import { chatProseClasses } from '../ui/prose'
-import { formatFileSize } from '../utils'
 import AgentMessageParts from './agent/AgentMessageParts'
 import BranchNavigator from './BranchNavigator'
 import { UserMessageText } from './PastedText'
@@ -47,13 +47,6 @@ interface ChatMessageProps {
   onApprovalAnswer?: ((id: string, answer: ApprovalAnswerValue) => void) | undefined
   /** Drops the row's horizontal padding, for hosts that constrain the column themselves. */
   flush?: boolean | undefined
-}
-
-function formatDuration(ms: number | null | undefined): string {
-  if (!ms) {
-    return ''
-  }
-  return durationToAbsHumanDuration(Duration.fromMillis(ms))
 }
 
 // Threshold sits above the CSS clamp height (600px) so borderline messages
@@ -123,7 +116,7 @@ function ChatMessage({
   const showTurnDurationLabel =
     !isUser && !isStreaming && !hasReasoning && (!!message.reasoningDuration || toolCallCount > 0)
 
-  const t = useChatConfig().strings.messageMeta
+  const { messageMeta: t, thinking: tThinking } = useChatConfig().strings
   const [copied, setCopied] = useState(false)
   const [showActions, setShowActions] = useState(false)
   const [editContent, setEditContent] = useState(message.content || '')
@@ -297,8 +290,8 @@ function ChatMessage({
                   }
                 >
                   {message.reasoningDuration
-                    ? `Thought for ${formatDuration(message.reasoningDuration)}`
-                    : 'Thought process'}
+                    ? tThinking.thoughtFor(formatDuration(message.reasoningDuration))
+                    : tThinking.thoughtProcess}
                 </ReasoningToggle>
                 {reasoningOpen && (
                   <ReasoningBody>
@@ -454,7 +447,7 @@ function ChatMessage({
                         <FileIcon className="w-3.5 h-3.5 flex-shrink-0" />
                         <span className="truncate max-w-[150px]">{att.filename || 'File'}</span>
                         {att.size ? (
-                          <span className="theme-muted-text">({formatFileSize(att.size)})</span>
+                          <span className="theme-muted-text">({formatBytes(att.size)})</span>
                         ) : null}
                         <DownloadFileIcon className="w-3 h-3 flex-shrink-0" />
                       </button>
@@ -476,7 +469,7 @@ function ChatMessage({
                       <FileIcon className="w-3.5 h-3.5 flex-shrink-0" />
                       <span className="truncate max-w-[150px]">{att.filename || 'File'}</span>
                       {att.size ? (
-                        <span className="theme-muted-text">({formatFileSize(att.size)})</span>
+                        <span className="theme-muted-text">({formatBytes(att.size)})</span>
                       ) : null}
                     </div>
                   )
@@ -548,11 +541,7 @@ function ChatMessage({
                       showActions ? 'opacity-100' : 'opacity-0',
                     )}
                   >
-                    {timestamp && (
-                      <span title={timestamp.toLocaleString(DateTime.DATETIME_MED_WITH_SECONDS)}>
-                        {timestamp.toRelative()}
-                      </span>
-                    )}
+                    <RelativeTime value={timestamp} />
                     {!isUser && message.model && <span>{message.model}</span>}
                     {!isUser && totalTokens ? (
                       <span

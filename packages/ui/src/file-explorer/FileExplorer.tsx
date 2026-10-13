@@ -24,9 +24,11 @@ import { MenuItem, MenuPopup, MenuSeparator } from '../components/Menu'
 import type { MenuEntry } from '../components/MenuEntries'
 import { useNotify, useSlots, useStrings } from '../components/Provider'
 import { RefreshButton } from '../components/RefreshButton'
+import { RelativeTime } from '../components/relativeTime'
 import { StatusBadge } from '../components/StatusBadge'
 import { Table } from '../components/Table'
 import { Tooltip } from '../components/Tooltip'
+import { formatBytes } from '../format'
 import {
   AccessIcon,
   AlertIcon,
@@ -95,7 +97,6 @@ import type { ExplorerObject, TreeNode, TStorage, UploadNode } from './lib/types
 import {
   calculateUploadNodesTotalSize,
   createTreeBuilder,
-  formatFileSize,
   getDirectoryNameError,
   getDirectoryObjectPath,
   getNodeChildren,
@@ -1608,7 +1609,7 @@ export default function FileExplorer({
                     <UserRow
                       key={rootNode.path}
                       node={rootNode}
-                      icon={getNodeIcon(rootNode, slots.storageIconUrl, t.chrome.storageIconAlt)}
+                      icon={getNodeIcon(rootNode)}
                       storageCount={getNodeChildren(parentToChildrenMap, rootNode.path).length}
                       getItems={() => [
                         {
@@ -1848,11 +1849,9 @@ export default function FileExplorer({
                 {selectedNode.type === 'file' &&
                   (() => {
                     const uris = getNodeUris(selectedNode)
-                    const fileIcon = getNodeIcon(
-                      selectedNode,
-                      slots.storageIconUrl,
-                      t.chrome.storageIconAlt,
-                    ) ?? <FileIcon className="h-5 w-5 theme-muted-text" />
+                    const fileIcon = getNodeIcon(selectedNode) ?? (
+                      <FileIcon className="h-5 w-5 theme-muted-text" />
+                    )
                     const modifiedDt = selectedNode.modified
                       ? DateTime.fromISO(selectedNode.modified)
                       : null
@@ -1916,13 +1915,15 @@ export default function FileExplorer({
                                   )}
                                   {typeof selectedNode.size === 'number' && (
                                     <span className="tabular-nums">
-                                      {formatFileSize(selectedNode.size)}
+                                      {formatBytes(selectedNode.size)}
                                     </span>
                                   )}
                                   {modifiedDt && (
                                     <>
                                       <span aria-hidden>·</span>
-                                      <span>Modified {modifiedDt.toRelative()}</span>
+                                      <span>
+                                        Modified <RelativeTime value={modifiedDt} />
+                                      </span>
                                     </>
                                   )}
                                 </div>
@@ -1962,7 +1963,7 @@ export default function FileExplorer({
                                   <>
                                     <dt className="theme-muted-text">{t.chrome.size}</dt>
                                     <dd className="tabular-nums">
-                                      {formatFileSize(selectedNode.size)}
+                                      {formatBytes(selectedNode.size)}
                                     </dd>
                                   </>
                                 )}
@@ -1980,7 +1981,7 @@ export default function FileExplorer({
                                     <dd>
                                       {createdDt.toLocaleString(DateTime.DATETIME_MED)}{' '}
                                       <span className="theme-muted-text">
-                                        · {createdDt.toRelative()}
+                                        · <RelativeTime value={createdDt} />
                                       </span>
                                     </dd>
                                   </>
@@ -1991,7 +1992,7 @@ export default function FileExplorer({
                                     <dd>
                                       {modifiedDt.toLocaleString(DateTime.DATETIME_MED)}{' '}
                                       <span className="theme-muted-text">
-                                        · {modifiedDt.toRelative()}
+                                        · <RelativeTime value={modifiedDt} />
                                       </span>
                                     </dd>
                                   </>
@@ -2086,7 +2087,7 @@ export default function FileExplorer({
                   'text-amber-800 font-semibold',
               )}
             >
-              {formatFileSize(pendingUpload?.totalSize ?? 0)}
+              {formatBytes(pendingUpload?.totalSize ?? 0)}
             </span>
           </div>
           {isUploadSizeExceeded(pendingUpload?.totalSize ?? 0) && (
@@ -2098,8 +2099,8 @@ export default function FileExplorer({
                   <div className="text-sm">
                     <p>
                       {t.confirmUpload.sizeLimitBody(
-                        formatFileSize(pendingUpload?.totalSize ?? 0),
-                        formatFileSize(MAX_UPLOAD_SIZE),
+                        formatBytes(pendingUpload?.totalSize ?? 0),
+                        formatBytes(MAX_UPLOAD_SIZE),
                       )}
                     </p>
                     <p>{t.confirmUpload.sizeLimitHint}</p>

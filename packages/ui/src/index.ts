@@ -47,6 +47,7 @@ export { DatePicker, type DatePickerProps } from './components/DatePicker'
 export { DescriptionListItem, default as DescriptionList } from './components/DescriptionList'
 export { Drawer, type DrawerProps } from './components/Drawer'
 export { default as EmptyState } from './components/EmptyState'
+export { ExternalLink, type ExternalLinkProps } from './components/ExternalLink'
 export { default as Filter } from './components/Filter'
 export { FilterPill } from './components/FilterPill'
 export {
@@ -89,6 +90,13 @@ export {
   type MenuSubmenu,
   menuDivider,
 } from './components/MenuEntries'
+export {
+  type BarSize,
+  type BarTone,
+  levelTone,
+  Meter,
+  ProgressBar,
+} from './components/Meter'
 export {
   Modal,
   ModalDescription,
@@ -143,7 +151,13 @@ export {
 export { Radio, RadioGroup, type RadioProps } from './components/Radio'
 export { RefreshButton, type RefreshButtonProps } from './components/RefreshButton'
 export { RequiredMark } from './components/RequiredMark'
-export { useRelativeTime } from './components/relativeTime'
+export {
+  RelativeTime,
+  type RelativeTimeFormat,
+  type TimeValue,
+  useClock,
+  useRelativeTime,
+} from './components/relativeTime'
 export {
   Section,
   type SectionProps,
@@ -209,4 +223,5 @@ export type {
   WorkflowVariable,
   WorkflowVariables,
 } from './engine'
+export { formatBytes, formatCount, formatDuration } from './format'
 export * from './theme/index'

@@ -1,7 +1,7 @@
 import { useStrings } from '../../components/Provider'
+import { formatBytes } from '../../format'
 import { ExpandIcon } from '../../icons'
 import type { TreeNode, TStorage } from '../lib/types'
-import { formatFileSize } from '../lib/utils'
 import { getPreviewKind } from './previewType'
 import { StreamedBadge } from './StreamedBadge'
 import { usePresignedUrl } from './usePresignedUrl'
@@ -49,7 +49,7 @@ export function FilePreviewInline({
       <div className="flex shrink-0 items-center justify-between gap-3 border-t theme-border px-4 py-2.5">
         <div className="flex items-center gap-2 text-xs theme-muted-text">
           <span>
-            {typeof node.size === 'number' && formatFileSize(node.size)}
+            {typeof node.size === 'number' && formatBytes(node.size)}
             {node.contentType && ` · ${node.contentType}`}
           </span>
           {url && <StreamedBadge />}

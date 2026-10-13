@@ -4,10 +4,10 @@ import { positionKeys, withPositionKeys } from '../../components/keys'
 import { Loader } from '../../components/Loader'
 import Markdown from '../../components/Markdown'
 import { useStrings } from '../../components/Provider'
+import { formatBytes } from '../../format'
 import { DownloadFileIcon, FileIcon, LockIcon, MusicIcon, ZipIcon } from '../../icons'
 import { type CorsAwareRefresh, CorsIssuePreview } from '../helpers'
 import type { TreeNode, TStorage } from '../lib/types'
-import { formatFileSize } from '../lib/utils'
 import { joinSource, type NotebookOutput, parseDelimited, parseNotebook, stripAnsi } from './parse'
 import {
   getFileExtension,
@@ -259,7 +259,7 @@ function AudioView({
           <div className="break-all font-medium">{node.name}</div>
           <div className="mt-0.5 text-xs theme-muted-text">
             {node.contentType}
-            {typeof node.size === 'number' && ` · ${formatFileSize(node.size)}`}
+            {typeof node.size === 'number' && ` · ${formatBytes(node.size)}`}
           </div>
         </div>
         {/** biome-ignore lint/a11y/useMediaCaption: user content has no caption track */}
@@ -705,7 +705,7 @@ function TooLargeInline({
       <div className="flex max-w-md flex-col items-center gap-3 text-center">
         <div className="text-sm theme-muted-text">
           {typeof size === 'number'
-            ? t.preview.tooLargeSize(formatFileSize(size))
+            ? t.preview.tooLargeSize(formatBytes(size))
             : t.preview.tooLarge}
         </div>
         {onDownload && (

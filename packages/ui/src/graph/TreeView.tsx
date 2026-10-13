@@ -4,7 +4,7 @@ import { useCallback, useId, useMemo, useState } from 'react'
 import { Indicator } from '../components/Indicator'
 import { Loader } from '../components/Loader'
 import { useRunFile, useSlots, useStrings, useWorkflowEngine } from '../components/Provider'
-import { toAbsHumanDuration } from '../duration'
+import { formatDuration } from '../format'
 import { ChevronRightIcon } from '../icons'
 import { LogViewer } from '../logviewer'
 import { Collapse } from './Collapse'
@@ -23,7 +23,7 @@ function elapsed({ startedAt, completedAt }: Job | Step): string {
     return ''
   }
   const end = completedAt ? DateTime.fromISO(completedAt) : DateTime.now()
-  return toAbsHumanDuration(DateTime.fromISO(startedAt), end)
+  return formatDuration(end.diff(DateTime.fromISO(startedAt)))
 }
 
 function Chevron({ open, hidden = false }: { open: boolean; hidden?: boolean }) {
