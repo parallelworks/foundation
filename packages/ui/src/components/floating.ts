@@ -1,4 +1,4 @@
-// One look for everything that floats: menus, selects, comboboxes, tooltips and infotips.
+// One look for everything that floats: menus, selects, comboboxes, tooltips, infotips and hover cards.
 
 /** Popups portal into the host's .ds-root when it has one, so they inherit the
  *  design system's CSS variables; undefined lets the portal use document.body. */
@@ -27,3 +27,6 @@ export const tipClassName = `rounded-md bg-(--theme-app) px-2 py-1 text-xs text-
 
 export const tipArrowClassName =
   'size-2 rotate-45 bg-(--theme-app) data-[side=top]:-bottom-1 data-[side=bottom]:-top-1 data-[side=left]:-right-1 data-[side=right]:-left-1'
+
+/** A hover card's surface; the card sets its own width and padding. */
+export const cardClassName = `overflow-hidden rounded-xl border border-(--theme-border) bg-(--theme-panel-bg) text-(--theme-app) shadow-(--theme-shadow-lg) outline-none ${enterExit}`

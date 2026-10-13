@@ -140,8 +140,8 @@ export const Grouped: StoryObj<{ collapsed: boolean; fill: boolean }> = {
 }
 
 // A host composing its own list puts it in a SidebarDrawer on a narrow
-// screen: the drawer covers its positioned container, a tap outside or
-// Escape closes it, and the list fills it.
+// screen: the drawer covers its positioned container, a tap outside, Escape
+// or a swipe to the left closes it, and the list fills it.
 export const InDrawer: StoryObj<{ open: boolean }> = {
   args: { open: true },
   render: (args) => {
@@ -160,12 +160,7 @@ export const InDrawer: StoryObj<{ open: boolean }> = {
               closeLabel="Close sidebar"
             />
           </div>
-          <SidebarDrawer
-            open={open}
-            onClose={() => setOpen(false)}
-            label="Tasks"
-            closeLabel="Close sidebar"
-          >
+          <SidebarDrawer open={open} onClose={() => setOpen(false)} label="Tasks">
             <TaskSidebar
               tasks={TASKS}
               startCollapsed={false}

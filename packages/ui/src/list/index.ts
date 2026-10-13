@@ -7,7 +7,6 @@ export {
   ToolbarButton,
   type ToolbarItem,
 } from './ActionToolbar'
-export { HoverCardSurface, useHoverCard } from './HoverCard'
 export {
   ListColumns,
   ListPage,
@@ -72,9 +71,7 @@ export {
 } from './RowContextMenu'
 export { isTextEntryContext } from './textEntry'
 export {
-  type HoverCardPlacement,
   HoverCardRow,
-  HoverCardTrigger,
   UserHoverCard,
   type UserHoverCardProps,
 } from './UserHoverCard'

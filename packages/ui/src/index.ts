@@ -47,6 +47,7 @@ export {
   ghostButtonClasses,
   primaryButtonClasses,
 } from './components/ghostButton'
+export { HoverCard, type HoverCardProps } from './components/HoverCard'
 export { IconButton } from './components/IconButton'
 export { Indicator } from './components/Indicator'
 export { formatInfoTipContent, InfoTip } from './components/InfoTip'

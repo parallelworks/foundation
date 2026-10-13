@@ -189,6 +189,7 @@ try {
       "need(root, 'root', 'StatusBadge')",
       "need(root, 'root', 'Tooltip')",
       "need(root, 'root', 'InfoTip')",
+      "need(root, 'root', 'HoverCard')",
       "need(root, 'root', 'Combobox')",
       "need(root, 'root', 'Select')",
       "need(root, 'root', 'Switch')",

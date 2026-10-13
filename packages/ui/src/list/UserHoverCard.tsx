@@ -4,52 +4,9 @@ import { Avatar } from '../components/Avatar'
 import { type UILinkComponent, useLink, useNotify, useStrings } from '../components/Provider'
 import { Tooltip } from '../components/Tooltip'
 import { CopyIcon } from '../icons'
-import { HoverCardSurface, useHoverCard } from './HoverCard'
 
-/** Where an open hover card sits, and the handlers that keep it open. */
-export interface HoverCardPlacement {
-  x: number
-  y: number
-  onKeepOpen: () => void
-  onLeave: () => void
-}
-
-/** Opens `card` after a short hover or on focus of `children`. */
-export function HoverCardTrigger({
-  className,
-  children,
-  card,
-}: {
-  className?: string | undefined
-  children: ReactNode
-  card: (placement: HoverCardPlacement) => ReactNode
-}) {
-  const { triggerRef, coords, scheduleOpen, scheduleClose, keepOpen } =
-    useHoverCard<HTMLSpanElement>()
-
-  return (
-    <span
-      ref={triggerRef}
-      role="none"
-      className={className}
-      onMouseEnter={scheduleOpen}
-      onMouseLeave={scheduleClose}
-      onFocus={scheduleOpen}
-      onBlur={scheduleClose}
-    >
-      {children}
-      {coords &&
-        card({
-          x: coords.x,
-          y: coords.y,
-          onKeepOpen: keepOpen,
-          onLeave: scheduleClose,
-        })}
-    </span>
-  )
-}
-
-export interface UserHoverCardProps extends HoverCardPlacement {
+/** A person's card, for `HoverCard`'s `card`. */
+export interface UserHoverCardProps {
   username: string
   /** Display name; falls back to the username. */
   name?: string | null | undefined
@@ -62,17 +19,11 @@ export interface UserHoverCardProps extends HoverCardPlacement {
   linkComponent?: UILinkComponent | undefined
   /** Shows placeholder detail lines while the profile loads. */
   loading?: boolean | undefined
-  /** Re-measures the card's position when this changes. */
-  relayoutKey?: unknown
   /** Detail lines, usually `HoverCardRow`s, below the header. */
   children?: ReactNode
 }
 
 export function UserHoverCard({
-  x,
-  y,
-  onKeepOpen,
-  onLeave,
   username,
   name,
   avatarSrc,
@@ -80,7 +31,6 @@ export function UserHoverCard({
   href,
   linkComponent,
   loading = false,
-  relayoutKey,
   children,
 }: UserHoverCardProps) {
   const strings = useStrings()
@@ -124,14 +74,7 @@ export function UserHoverCard({
     )
 
   return (
-    <HoverCardSurface
-      x={x}
-      y={y}
-      widthClassName="w-64"
-      relayoutKey={relayoutKey}
-      onKeepOpen={onKeepOpen}
-      onLeave={onLeave}
-    >
+    <div className="w-64 p-3">
       {/* The copy button sits beside the header, not in it: a linked header can't
           hold a button. Its slot is always there, so showing it on hover moves nothing. */}
       <div className="group/copy flex items-end gap-1">
@@ -178,7 +121,7 @@ export function UserHoverCard({
           {children}
         </div>
       ) : null}
-    </HoverCardSurface>
+    </div>
   )
 }
 

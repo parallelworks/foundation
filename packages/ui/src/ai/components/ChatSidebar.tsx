@@ -147,7 +147,6 @@ export default function ChatSidebar({
               open: drawerOpen,
               onClose: closeDrawer,
               label: tSidebar.drawerLabel,
-              closeLabel: tSidebar.closeSidebar,
             }
           : undefined
       }
