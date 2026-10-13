@@ -190,11 +190,7 @@ function field(label: string): HTMLElement {
 beforeAll(async () => {
   await import('./GraphEditor')
   render(<DependencyGraphPreview yml={yml} editor={editor()} />)
-  await screen.findByRole(
-    'button',
-    { name: GRAPH_EDITOR_STRINGS.resetLayout },
-    { timeout: 10_000 },
-  )
+  await screen.findByRole('button', { name: GRAPH_EDITOR_STRINGS.resetLayout }, { timeout: 10_000 })
   cleanup()
 })
 
