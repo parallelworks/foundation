@@ -1,11 +1,15 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useState } from 'react'
 import { useContextMenu } from '../../components/ContextMenu'
+import { Drawer } from '../../components/Drawer'
 import { StatusDot } from '../../components/StatusBadge'
 import { StoryViewport } from '../stories/harness'
-import { ConversationSidebar, type ConversationSidebarGroup } from './ConversationSidebar'
 import {
-  SidebarDrawer,
+  ConversationSidebar,
+  type ConversationSidebarGroup,
+  sidebarDrawerProps,
+} from './ConversationSidebar'
+import {
   SidebarPlaceholder,
   SidebarRailItem,
   SidebarRow,
@@ -139,9 +143,9 @@ export const Grouped: StoryObj<{ collapsed: boolean; fill: boolean }> = {
   ),
 }
 
-// A host composing its own list puts it in a SidebarDrawer on a narrow
-// screen: the drawer covers its positioned container, a tap outside, Escape
-// or a swipe to the left closes it, and the list fills it.
+// A host composing its own list puts it in a Drawer with sidebarDrawerProps on a
+// narrow screen: the drawer covers its positioned container, a tap outside,
+// Escape or a swipe to the left closes it, and the list fills it.
 export const InDrawer: StoryObj<{ open: boolean }> = {
   args: { open: true },
   render: (args) => {
@@ -160,14 +164,19 @@ export const InDrawer: StoryObj<{ open: boolean }> = {
               closeLabel="Close sidebar"
             />
           </div>
-          <SidebarDrawer open={open} onClose={() => setOpen(false)} label="Tasks">
+          <Drawer
+            {...sidebarDrawerProps}
+            open={open}
+            onClose={() => setOpen(false)}
+            aria-label="Tasks"
+          >
             <TaskSidebar
               tasks={TASKS}
               startCollapsed={false}
               fill
               onToggle={() => setOpen(false)}
             />
-          </SidebarDrawer>
+          </Drawer>
         </div>
       )
     }

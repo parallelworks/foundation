@@ -69,6 +69,11 @@ export interface UIStrings {
     userAvatar: string
     moreInfo: string
   }
+  drawer: {
+    close: string
+    resize: string
+    width: (px: number) => string
+  }
   dropdown: {
     select: (type: string) => string
     noOptionsFound: string
@@ -590,6 +595,11 @@ const DEFAULTS: UIProviderValue = {
       sort: 'Sort',
       userAvatar: 'User avatar',
       moreInfo: 'More information',
+    },
+    drawer: {
+      close: 'Close',
+      resize: 'Resize panel',
+      width: (px) => `${px} pixels wide`,
     },
     dropdown: {
       select: (type) => `Select ${type}`,
@@ -1155,6 +1165,7 @@ export function UIProvider({
         loading: strings?.loading ?? DEFAULTS.strings.loading,
         modal: { ...DEFAULTS.strings.modal, ...strings?.modal },
         common: { ...DEFAULTS.strings.common, ...strings?.common },
+        drawer: { ...DEFAULTS.strings.drawer, ...strings?.drawer },
         dropdown: { ...DEFAULTS.strings.dropdown, ...strings?.dropdown },
         logviewer: { ...DEFAULTS.strings.logviewer, ...strings?.logviewer },
         dag: { ...DEFAULTS.strings.dag, ...strings?.dag },

@@ -1,7 +1,6 @@
-import { clsx as cx } from 'clsx'
+import { IconButton } from '../components/IconButton'
 import { useStrings } from '../components/Provider'
 import { ChevronLeftIcon, ChevronRightIcon } from '../icons'
-import { listControlButtonClasses } from './ListViewControls'
 
 /** Page sizes offered by the pager's per-page select; first entry is the default. */
 export const LIST_PAGE_SIZES: readonly [number, ...number[]] = [50, 100, 200]
@@ -61,30 +60,20 @@ export function ListPager({
         )}
       </div>
       <div className="flex items-center gap-1">
-        <button
-          type="button"
-          aria-label={t.paginationPrevious}
+        <IconButton
+          variant="outline"
+          icon={<ChevronLeftIcon />}
+          label={t.paginationPrevious}
           disabled={page === 0}
           onClick={() => onPageChange(page - 1)}
-          className={cx(
-            listControlButtonClasses,
-            'disabled:opacity-40 disabled:pointer-events-none',
-          )}
-        >
-          <ChevronLeftIcon className="w-3.5 h-3.5" />
-        </button>
-        <button
-          type="button"
-          aria-label={t.paginationNext}
+        />
+        <IconButton
+          variant="outline"
+          icon={<ChevronRightIcon />}
+          label={t.paginationNext}
           disabled={hasNext === undefined ? page >= pageCount - 1 : !hasNext}
           onClick={() => onPageChange(page + 1)}
-          className={cx(
-            listControlButtonClasses,
-            'disabled:opacity-40 disabled:pointer-events-none',
-          )}
-        >
-          <ChevronRightIcon className="w-3.5 h-3.5" />
-        </button>
+        />
       </div>
     </div>
   )

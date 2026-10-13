@@ -1,7 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import { IconButton } from '../components/IconButton'
+import { Popover } from '../components/Popover'
 import { InfoIcon } from '../icons'
 import { ListPager } from './ListPager'
-import { AnchoredPopover, ListDisplayMenu, ListFilterMenu } from './ListViewControls'
+import { ListDisplayMenu, ListFilterMenu } from './ListViewControls'
 import { ListCount, ListSearchControl, useListSearch } from './listSearch'
 import { useListView } from './listView'
 
@@ -108,18 +110,19 @@ export const CappedPager: StoryObj = {
   ),
 }
 
-// A panel that explains rather than offers choices, named by the button's
-// label like every popover in the strip. The play opens it.
+// A panel that explains rather than offers choices, opened from an outline icon
+// button like the strip's own Filter and Display. The play opens it.
 export const HelpPopover: StoryObj = {
   render: () => (
     <div className="flex justify-end">
-      <AnchoredPopover
-        icon={<InfoIcon className="h-3.5 w-3.5" />}
-        label="How items appear"
-        panelClassName="w-80 p-4"
+      <Popover
+        aria-label="How items appear"
+        align="end"
+        className="w-80 p-4"
+        trigger={<IconButton variant="outline" icon={<InfoIcon />} label="How items appear" />}
       >
         <p className="text-sm theme-text">Items you create show up here within a few seconds.</p>
-      </AnchoredPopover>
+      </Popover>
     </div>
   ),
   play: async ({ canvasElement }) => {

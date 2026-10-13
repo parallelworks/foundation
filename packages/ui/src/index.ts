@@ -44,6 +44,7 @@ export {
   CreateModalTextarea,
 } from './components/CreateModal'
 export { DescriptionListItem, default as DescriptionList } from './components/DescriptionList'
+export { Drawer, type DrawerProps } from './components/Drawer'
 export { default as EmptyState } from './components/EmptyState'
 export { default as Filter } from './components/Filter'
 export { FilterPill } from './components/FilterPill'
@@ -53,7 +54,11 @@ export {
   primaryButtonClasses,
 } from './components/ghostButton'
 export { HoverCard, type HoverCardProps } from './components/HoverCard'
-export { IconButton } from './components/IconButton'
+export {
+  IconButton,
+  type IconButtonProps,
+  iconButtonOutlineClasses,
+} from './components/IconButton'
 export { Indicator } from './components/Indicator'
 export { formatInfoTipContent, InfoTip } from './components/InfoTip'
 export { Input, Textarea } from './components/Input'
@@ -104,6 +109,7 @@ export {
   type PageHeaderCrumb,
 } from './components/PageHeader'
 export { Pagination } from './components/Pagination'
+export { Popover, PopoverClose, type PopoverProps } from './components/Popover'
 export {
   type PersistedStateHook,
   type RunFileResult,
@@ -150,6 +156,7 @@ export {
   statusTextClass,
 } from './components/StatusBadge'
 export { Switch, type SwitchProps } from './components/Switch'
+export { isTextEntryContext, useShortcutKey } from './components/shortcutKey'
 export { CompactTable, Table } from './components/Table'
 export {
   Tooltip,

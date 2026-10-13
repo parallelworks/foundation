@@ -29,12 +29,7 @@ export {
   NameCell,
   RowSelectCheckbox,
 } from './ListTable'
-export {
-  AnchoredPopover,
-  ListDisplayMenu,
-  ListFilterMenu,
-  listControlButtonClasses,
-} from './ListViewControls'
+export { ListDisplayMenu, ListFilterMenu } from './ListViewControls'
 export {
   ListCount,
   type ListSearch,
@@ -63,7 +58,6 @@ export {
   useCopySubmenu,
   useRowMenuActive,
 } from './rowMenu'
-export { isTextEntryContext } from './textEntry'
 export {
   HoverCardRow,
   UserHoverCard,

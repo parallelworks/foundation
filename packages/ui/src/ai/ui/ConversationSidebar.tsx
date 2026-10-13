@@ -1,15 +1,28 @@
 import { clsx as cx } from 'clsx'
 import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react'
+import { Drawer } from '../../components/Drawer'
 import { positionKeys } from '../../components/keys'
 import {
   SIDEBAR_DEFAULT_WIDTH_PX,
-  SidebarDrawer,
   SidebarGroupHeading,
   SidebarPanel,
   SidebarToggle,
 } from './sidebar'
 
 export const SIDEBAR_MIN_WIDTH_PX = 200
+
+/** A conversation list's drawer on a layout too narrow to keep it beside the
+ *  content: it covers the chat's own positioned container, not the window, and
+ *  stays mounted so the list keeps its scroll and search between openings. */
+export const sidebarDrawerProps = {
+  contained: true,
+  side: 'left',
+  width: 'min(20rem, 85%)',
+  modal: 'trap-focus',
+  keepMounted: true,
+  closeButton: false,
+  padded: false,
+} as const
 // Every list that takes turns beside the thread shares one width, so moving
 // between them leaves the thread where it was.
 const SHARED_WIDTH_STORAGE_KEY = 'aiChatSidebarWidth'
@@ -280,9 +293,14 @@ export function ConversationSidebar<T>({
     </SidebarPanel>
   )
   return drawer ? (
-    <SidebarDrawer open={drawer.open} onClose={drawer.onClose} label={drawer.label}>
+    <Drawer
+      {...sidebarDrawerProps}
+      open={drawer.open}
+      onClose={drawer.onClose}
+      aria-label={drawer.label}
+    >
       {panel}
-    </SidebarDrawer>
+    </Drawer>
   ) : (
     panel
   )

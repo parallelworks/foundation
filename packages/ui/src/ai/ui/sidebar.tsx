@@ -1,6 +1,5 @@
-import { Drawer } from '@base-ui/react/drawer'
 import { clsx as cx } from 'clsx'
-import { type CSSProperties, type ReactNode, useRef, useState } from 'react'
+import { type CSSProperties, type ReactNode, useState } from 'react'
 import { ConfirmModal } from '../../components/ConfirmModal'
 import type { OpenMenu } from '../../components/ContextMenu'
 import { focusOnMount } from '../../components/focus'
@@ -51,49 +50,6 @@ export function SidebarPanel({
     >
       {children}
     </aside>
-  )
-}
-
-/** The list over the content of a layout too narrow to keep it beside the
- *  content. Place it in a positioned container: the drawer covers that
- *  container, not the window, so an embedded chat keeps to its own panel.
- *  A tap outside, Escape or a swipe to the left closes it, and focus returns
- *  where it was. */
-export function SidebarDrawer({
-  open,
-  onClose,
-  label,
-  children,
-}: {
-  open: boolean
-  onClose: () => void
-  label: string
-  children: ReactNode
-}) {
-  // The portal lands here, in the container, rather than in the body.
-  const container = useRef<HTMLDivElement>(null)
-  return (
-    <Drawer.Root
-      open={open}
-      onOpenChange={(next) => !next && onClose()}
-      swipeDirection="left"
-      // Traps focus without locking the page around an embedded chat.
-      modal="trap-focus"
-    >
-      <div ref={container} className="contents" />
-      {/* Kept mounted so the list keeps its scroll and search between openings. */}
-      <Drawer.Portal container={container} keepMounted className="contents">
-        <Drawer.Backdrop className="absolute inset-0 z-20 bg-black/40 opacity-[calc(1-var(--drawer-swipe-progress))] transition-opacity duration-300 data-ending-style:opacity-0 data-starting-style:opacity-0 data-swiping:duration-0" />
-        <Drawer.Viewport className="absolute inset-y-0 left-0 z-30 flex w-[min(20rem,85%)]">
-          <Drawer.Popup
-            aria-label={label}
-            className="flex w-full shadow-xl outline-none [transform:translateX(var(--drawer-swipe-movement-x))] transition-transform duration-300 ease-in-out data-ending-style:[transform:translateX(-100%)] data-starting-style:[transform:translateX(-100%)] data-swiping:select-none data-swiping:duration-0"
-          >
-            {children}
-          </Drawer.Popup>
-        </Drawer.Viewport>
-      </Drawer.Portal>
-    </Drawer.Root>
   )
 }
 
