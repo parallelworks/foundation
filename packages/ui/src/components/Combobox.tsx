@@ -15,7 +15,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { CaretDownIcon, CheckIcon, XIcon } from '../icons'
+import { AddIcon, CaretDownIcon, CheckIcon, XIcon } from '../icons'
 import {
   type ComboboxItem,
   type ComboboxItems,
@@ -64,6 +64,13 @@ type SelectionProps<Value> =
       value?: readonly Value[] | undefined
       defaultValue?: readonly Value[] | undefined
       onValueChange?: ((value: NoInfer<Value>[]) => void) | undefined
+      /** Typed text the list doesn't have can be added as a value of its own, as tags are. The
+       *  values are then strings. For one free-text value, use Autocomplete. */
+      creatable?: (Value extends string ? boolean : never) | undefined
+      /** The most values the field takes; past it, only removing one lets another in. */
+      maxItems?: number | undefined
+      /** The longest text that can be typed, such as for a created value. */
+      maxLength?: number | undefined
     }
 
 export type ComboboxProps<Value = string> = FieldProps &
@@ -91,6 +98,8 @@ export interface AutocompleteProps extends FieldProps {
 interface Entry<Value> extends ComboboxItem<Value> {
   /** The heading the item sits under, which a query also matches. */
   group?: string | undefined
+  /** The row that adds the typed text, which every query keeps. */
+  created?: boolean | undefined
 }
 
 interface EntryGroup<Value> {
@@ -153,6 +162,7 @@ function useEntryFilter() {
   const match = useQueryMatch()
   return useCallback(
     <Value,>(entry: Entry<Value>, query: string) =>
+      entry.created === true ||
       match(
         query,
         entry.label,
@@ -210,6 +220,39 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
     value === undefined ? undefined : value === null ? null : entryOf(value)
 
   const selected = props.multiple ? undefined : toSingle(props.value)
+
+  // Multiple values: how many there are (counted here while uncontrolled), whether the field is
+  // full, and the row that adds the typed text when nothing listed or chosen already has it.
+  const [uncontrolledCount, setUncontrolledCount] = useState(
+    props.multiple ? (props.defaultValue?.length ?? 0) : 0,
+  )
+  const chosen = props.multiple ? (props.value ?? null) : null
+  const full =
+    props.multiple &&
+    props.maxItems !== undefined &&
+    (chosen?.length ?? uncontrolledCount) >= props.maxItems
+  const isChosen = (entry: Entry<Value>) =>
+    chosen?.some((value) => isItemEqualToValue(entry.value, value)) ?? false
+  const typed = inputValue?.trim() ?? ''
+  const lowered = typed.toLocaleLowerCase()
+  const sameText = (value: unknown, label?: string) =>
+    label?.toLocaleLowerCase() === lowered ||
+    (typeof value === 'string' && value.toLocaleLowerCase() === lowered)
+  const created: Entry<Value> | undefined =
+    props.multiple &&
+    props.creatable &&
+    typed !== '' &&
+    !full &&
+    !entries.flat.some((entry) => sameText(entry.value, entry.label)) &&
+    !chosen?.some((value) => sameText(value))
+      ? { value: typed as Value, label: t.add(typed), icon: <AddIcon />, created: true }
+      : undefined
+  const [first] = entries.items
+  const listItems = !created
+    ? entries.items
+    : first !== undefined && 'items' in first
+      ? [{ label: '', items: [created], order: -1 }, ...(entries.items as EntryGroup<Value>[])]
+      : [created, ...(entries.items as Entry<Value>[])]
   // The selection's icon sits in the field until the text no longer names it.
   const selectedIcon =
     selected?.icon && (inputValue === null || inputValue === selected.label) ? selected.icon : null
@@ -217,7 +260,10 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
   const input = (
     <BaseCombobox.Input
       id={trigger ? undefined : id}
-      placeholder={placeholder}
+      placeholder={
+        full && props.maxItems !== undefined ? t.limitReached(props.maxItems) : placeholder
+      }
+      maxLength={props.multiple ? props.maxLength : undefined}
       aria-label={ariaLabel || undefined}
       aria-labelledby={ariaLabelledBy}
       aria-describedby={ariaDescribedBy}
@@ -231,7 +277,7 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
     <BaseCombobox.Item
       key={rowProps.key}
       value={entry}
-      disabled={entry.disabled}
+      disabled={entry.disabled || (full && !isChosen(entry))}
       {...rowProps.props}
       className={itemClassName}
     >
@@ -316,7 +362,7 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
     </>
   )
   const root = {
-    items: entries.items,
+    items: listItems,
     filter,
     isItemEqualToValue: (a: Entry<Value>, b: Entry<Value>) => isItemEqualToValue(a.value, b.value),
     itemToStringLabel: entryLabel,
@@ -326,6 +372,8 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
     disabled,
     required,
     virtualized: true,
+    // Enter takes the leading row: what was typed, or the item that has that text already.
+    autoHighlight: Boolean(props.multiple && props.creatable),
     children: parts,
   }
   return props.multiple ? (
@@ -334,7 +382,10 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
       multiple
       value={toEntries(props.value)}
       defaultValue={toEntries(props.defaultValue)}
-      onValueChange={(next) => props.onValueChange?.(next.map((entry) => entry.value))}
+      onValueChange={(next) => {
+        setUncontrolledCount(next.length)
+        props.onValueChange?.(next.map((entry) => entry.value))
+      }}
     />
   ) : (
     <BaseCombobox.Root<Entry<Value>>

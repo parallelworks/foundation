@@ -199,6 +199,8 @@ try {
       "need(root, 'root', 'Tabs')",
       "need(root, 'root', 'Skeleton')",
       "need(root, 'root', 'RefreshButton')",
+      "need(root, 'root', 'NumberInput')",
+      "need(root, 'root', 'DatePicker')",
       "need(root, 'root', 'Callout')",
       "need(root, 'root', 'EmptyState')",
       "need(root, 'root', 'DescriptionList')",

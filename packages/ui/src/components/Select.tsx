@@ -35,13 +35,20 @@ export type SelectProps<Value, Multiple extends boolean | undefined = false> = O
   trigger?: ReactElement | undefined
   /** A hint on the trigger button. */
   triggerTooltip?: ReactNode
+  /** `sm` for dense places such as toolbars and table cells. */
+  size?: 'sm' | 'md' | undefined
   /** The item a person is on as they move through the open list, then undefined once it
    *  closes, such as to preview a theme before it is chosen. */
   onItemHighlighted?: ((value: Value | undefined) => void) | undefined
 }
 
+const triggerSizes = {
+  sm: 'h-7 pl-2 pr-1.5 text-xs',
+  md: 'py-2 pl-3 pr-2 text-sm',
+}
+
 const triggerClassName = cx(
-  'flex w-full items-center justify-between gap-2 rounded-md border border-(--theme-border) bg-(--theme-input-bg) py-2 pl-3 pr-2 text-left text-sm text-(--theme-app) cursor-pointer outline-none',
+  'flex w-full items-center justify-between gap-2 rounded-md border border-(--theme-border) bg-(--theme-input-bg) text-left text-(--theme-app) cursor-pointer outline-none',
   'focus-visible:border-(--theme-element) focus-visible:ring-1 focus-visible:ring-(--theme-element)',
   'aria-invalid:border-(--theme-error) data-disabled:cursor-not-allowed data-disabled:bg-(--theme-input-disabled-bg) data-disabled:text-(--theme-input-disabled-text)',
 )
@@ -57,6 +64,7 @@ export function Select<Value, Multiple extends boolean | undefined = false>({
   'aria-invalid': invalid,
   trigger,
   triggerTooltip,
+  size = 'md',
   onItemHighlighted,
   ...rootProps
 }: SelectProps<Value, Multiple>) {
@@ -82,7 +90,10 @@ export function Select<Value, Multiple extends boolean | undefined = false>({
           <BaseSelect.Trigger {...triggerProps} render={trigger} />
         </Tooltip>
       ) : (
-        <BaseSelect.Trigger {...triggerProps} className={cx(triggerClassName, className)}>
+        <BaseSelect.Trigger
+          {...triggerProps}
+          className={cx(triggerClassName, triggerSizes[size], className)}
+        >
           <BaseSelect.Value
             placeholder={placeholder}
             className="truncate data-placeholder:text-(--theme-muted-text-color)"
@@ -115,9 +126,9 @@ export function Select<Value, Multiple extends boolean | undefined = false>({
                   key={String(item.value)}
                   value={item.value}
                   disabled={item.disabled}
-                  className={cx('grid grid-cols-[1rem_1fr]', panelItemClassName)}
                   // Select highlights an item by focusing it.
                   onFocus={onItemHighlighted && (() => onItemHighlighted(item.value))}
+                  className={cx('grid grid-cols-[1rem_1fr]', panelItemClassName)}
                 >
                   <BaseSelect.ItemIndicator className="col-start-1">
                     <CheckIcon className="size-3.5" />

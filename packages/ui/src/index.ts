@@ -43,6 +43,7 @@ export {
   CreateModalSwitch,
   CreateModalTextarea,
 } from './components/CreateModal'
+export { DatePicker, type DatePickerProps } from './components/DatePicker'
 export { DescriptionListItem, default as DescriptionList } from './components/DescriptionList'
 export { Drawer, type DrawerProps } from './components/Drawer'
 export { default as EmptyState } from './components/EmptyState'
@@ -95,6 +96,7 @@ export {
   ModalTitle,
   modalPanelClassName,
 } from './components/Modal'
+export { NumberInput, type NumberInputProps } from './components/NumberInput'
 export { Overview } from './components/Overview'
 export {
   BreadcrumbsActionButton,

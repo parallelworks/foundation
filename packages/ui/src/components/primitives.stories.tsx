@@ -6,11 +6,13 @@ import Callout from './Callout'
 import { Autocomplete, Combobox } from './Combobox'
 import { ConfirmModal } from './ConfirmModal'
 import { CreateModal, CreateModalField } from './CreateModal'
+import { DatePicker } from './DatePicker'
 import { primaryButtonClasses } from './ghostButton'
 import { Indicator } from './Indicator'
 import { InfoTip } from './InfoTip'
 import { Loader } from './Loader'
 import { Modal, ModalDescription, type ModalProps, ModalTitle } from './Modal'
+import { NumberInput } from './NumberInput'
 import { Overview } from './Overview'
 import { SegmentedControl } from './SegmentedControl'
 import { Select } from './Select'
@@ -385,10 +387,15 @@ export const OverviewLoading: StoryObj = {
   render: () => <Overview Icon={null} name="Resource" loading className="max-w-sm gap-3" />,
 }
 
-export const Switches: StoryObj<{ size: 'sm' | 'md'; disabled: boolean; invalid: boolean }> = {
-  args: { size: 'md', disabled: false, invalid: false },
+export const Switches: StoryObj<{
+  size: 'sm' | 'md'
+  disabled: boolean
+  invalid: boolean
+  stateNames: boolean
+}> = {
+  args: { size: 'md', disabled: false, invalid: false, stateNames: true },
   argTypes: { size: { control: 'inline-radio', options: ['sm', 'md'] } },
-  render: ({ size, disabled, invalid }) => (
+  render: ({ size, disabled, invalid, stateNames }) => (
     <div className="flex flex-col gap-3 text-sm">
       <label className="flex items-center gap-2">
         <Switch size={size} disabled={disabled} aria-invalid={invalid || undefined} />
@@ -403,13 +410,31 @@ export const Switches: StoryObj<{ size: 'sm' | 'md'; disabled: boolean; invalid:
         />
         Automatic updates
       </label>
+      {/* States with names of their own show the current one beside the switch. */}
+      <div className="flex items-center gap-2">
+        <span id="visibility-label">Visibility</span>
+        <Switch
+          aria-labelledby="visibility-label"
+          size={size}
+          disabled={disabled}
+          aria-invalid={invalid || undefined}
+          onLabel={stateNames ? 'Public' : undefined}
+          offLabel={stateNames ? 'Private' : undefined}
+        />
+      </div>
     </div>
   ),
-  play: async ({ canvasElement }) => {
+  play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
     const notifications = canvas.getByRole('switch', { name: 'Email notifications' })
     await userEvent.click(notifications)
     await expect(notifications).toHaveAttribute('aria-checked', 'true')
+    if (args.stateNames && !args.disabled) {
+      await expect(canvas.getByText('Private')).toBeVisible()
+      await userEvent.click(canvas.getByRole('switch', { name: 'Visibility' }))
+      await waitFor(() => expect(canvas.getByText('Public')).toBeVisible())
+      await expect(canvas.getByText('Private')).not.toBeVisible()
+    }
   },
 }
 
@@ -419,19 +444,28 @@ const SIZES = [
   { value: 'large', label: 'Large', disabled: true },
 ]
 
-function SelectsDemo({ disabled, invalid }: { disabled: boolean; invalid: boolean }) {
-  const [size, setSize] = useState<string | null>(null)
+function SelectsDemo({
+  disabled,
+  invalid,
+  size,
+}: {
+  disabled: boolean
+  invalid: boolean
+  size: 'sm' | 'md'
+}) {
+  const [instance, setInstance] = useState<string | null>(null)
   const [regions, setRegions] = useState<string[]>(['us-east'])
   return (
     <div className="flex max-w-xs flex-col gap-4">
       <Select
         aria-label="Instance size"
         items={SIZES}
-        value={size}
-        onValueChange={setSize}
+        value={instance}
+        onValueChange={setInstance}
         placeholder="Pick a size"
         disabled={disabled}
         aria-invalid={invalid}
+        size={size}
       />
       <Select
         multiple
@@ -446,13 +480,15 @@ function SelectsDemo({ disabled, invalid }: { disabled: boolean; invalid: boolea
         placeholder="Pick regions"
         disabled={disabled}
         aria-invalid={invalid}
+        size={size}
       />
     </div>
   )
 }
 
-export const Selects: StoryObj<{ disabled: boolean; invalid: boolean }> = {
-  args: { disabled: false, invalid: false },
+export const Selects: StoryObj<{ disabled: boolean; invalid: boolean; size: 'sm' | 'md' }> = {
+  args: { disabled: false, invalid: false, size: 'md' },
+  argTypes: { size: { control: 'inline-radio', options: ['sm', 'md'] } },
   render: (args) => <SelectsDemo {...args} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -518,6 +554,7 @@ function SelectPreviewDemo() {
     <div className="flex max-w-xs flex-col gap-3 text-sm">
       <Select
         aria-label="Theme"
+        size="sm"
         items={THEMES}
         value={theme}
         onValueChange={setTheme}
@@ -536,13 +573,142 @@ export const SelectPreview: StoryObj = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('combobox', { name: 'Theme' }))
-    // Opening highlights the chosen theme; the arrow moves on from there.
-    await waitFor(() =>
-      expect(canvas.getByTestId('applied')).toHaveTextContent('Previewing: Light'),
-    )
+    await screen.findByRole('option', { name: 'Dark' })
     await userEvent.keyboard('{ArrowDown}')
     await waitFor(() => expect(canvas.getByTestId('applied')).toHaveTextContent('Previewing: Dark'))
     await userEvent.keyboard('{Escape}')
     await waitFor(() => expect(canvas.getByTestId('applied')).toHaveTextContent('Applied: Light'))
+  },
+}
+
+type NumberFormat = 'plain' | 'grouped' | 'currency' | 'unit'
+
+const NUMBER_FORMATS: Record<NumberFormat, Intl.NumberFormatOptions> = {
+  plain: {},
+  grouped: { useGrouping: true },
+  currency: { style: 'currency', currency: 'USD' },
+  unit: { style: 'unit', unit: 'gigabyte' },
+}
+
+function NumberInputDemo({
+  format,
+  steppers,
+  disabled,
+  invalid,
+}: {
+  format: NumberFormat
+  steppers: boolean
+  disabled: boolean
+  invalid: boolean
+}) {
+  const [value, setValue] = useState<number | null>(2500)
+  return (
+    <div className="flex max-w-xs flex-col gap-2 text-sm">
+      <label htmlFor="budget" className="font-medium">
+        Budget
+      </label>
+      <NumberInput
+        id="budget"
+        value={value}
+        onValueChange={setValue}
+        min={0}
+        step={100}
+        format={NUMBER_FORMATS[format]}
+        steppers={steppers}
+        disabled={disabled}
+        aria-invalid={invalid}
+      />
+      <span data-testid="number-value">{value === null ? 'empty' : value}</span>
+    </div>
+  )
+}
+
+/** A number with Intl formatting, held as a number; steppers move it by `step` within range. */
+export const NumberInputs: StoryObj<{
+  format: NumberFormat
+  steppers: boolean
+  disabled: boolean
+  invalid: boolean
+}> = {
+  args: { format: 'grouped', steppers: true, disabled: false, invalid: false },
+  argTypes: {
+    format: { control: 'inline-radio', options: ['plain', 'grouped', 'currency', 'unit'] },
+  },
+  render: (args) => <NumberInputDemo {...args} />,
+  play: async ({ canvasElement, args }) => {
+    if (args.disabled) {
+      return
+    }
+    const canvas = within(canvasElement)
+    const input = canvas.getByRole('textbox', { name: 'Budget' })
+    await userEvent.clear(input)
+    await userEvent.type(input, '1234')
+    await waitFor(() => expect(canvas.getByTestId('number-value')).toHaveTextContent('1234'))
+  },
+}
+
+function DatePickerDemo({
+  withTime,
+  bounded,
+  required,
+  disabled,
+  invalid,
+}: {
+  withTime: boolean
+  bounded: boolean
+  required: boolean
+  disabled: boolean
+  invalid: boolean
+}) {
+  const [value, setValue] = useState(withTime ? '2026-03-14T09:30' : '2026-03-14')
+  return (
+    <div className="flex flex-col gap-2 text-sm">
+      <span id="starts-label" className="font-medium">
+        Starts
+      </span>
+      <DatePicker
+        aria-labelledby="starts-label"
+        value={value}
+        onValueChange={setValue}
+        withTime={withTime}
+        timeStep={900}
+        min={bounded ? (withTime ? '2026-03-10T08:00' : '2026-03-10') : undefined}
+        max={bounded ? (withTime ? '2026-03-31T18:00' : '2026-03-31') : undefined}
+        required={required}
+        disabled={disabled}
+        aria-invalid={invalid}
+      />
+      <span data-testid="date-value">{value || 'empty'}</span>
+    </div>
+  )
+}
+
+/** A day from a calendar in the reader's locale; with a time, a time input beside it. The
+ *  value reads as a native date or datetime-local input's would. */
+export const DatePickers: StoryObj<{
+  withTime: boolean
+  bounded: boolean
+  required: boolean
+  disabled: boolean
+  invalid: boolean
+}> = {
+  args: { withTime: true, bounded: true, required: false, disabled: false, invalid: false },
+  render: (args) => <DatePickerDemo key={String(args.withTime)} {...args} />,
+  play: async ({ canvasElement, args }) => {
+    if (args.disabled) {
+      return
+    }
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: 'Starts' }))
+    const grid = await screen.findByRole('grid')
+    const day = new Intl.DateTimeFormat(undefined, { dateStyle: 'full' }).format(
+      new Date(2026, 2, 20),
+    )
+    await userEvent.click(within(grid).getByRole('button', { name: day }))
+    await waitFor(() =>
+      expect(canvas.getByTestId('date-value')).toHaveTextContent(
+        args.withTime ? '2026-03-20T09:30' : '2026-03-20',
+      ),
+    )
   },
 }

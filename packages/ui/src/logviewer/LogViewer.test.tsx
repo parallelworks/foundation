@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { LogViewer } from './index'
 
 vi.mock('../components/Provider', async (importOriginal) =>
@@ -175,5 +175,35 @@ describe('LogViewer search highlighting', () => {
 
     expect(container.querySelector('.ansi-red-fg')).not.toBeNull()
     expect(container.querySelector('mark.search-highlight')?.textContent).toBe('error')
+  })
+})
+
+describe('LogViewer time range', () => {
+  it('keeps its panel open while a day is picked, and applies the range', async () => {
+    const onTimeRangeChange = vi.fn()
+    render(
+      <LogViewer
+        log="line"
+        width="100%"
+        inline
+        enableTimeRangeFilter
+        initialTimeRangeFrom="2026-03-14T09:00"
+        onTimeRangeChange={onTimeRangeChange}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Time range/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'From' }))
+    const day = new Intl.DateTimeFormat(undefined, { dateStyle: 'full' }).format(
+      new Date(2026, 2, 15),
+    )
+    // A real press, which an outside-press check would see first.
+    const dayButton = within(await screen.findByRole('grid')).getByRole('button', { name: day })
+    fireEvent.pointerDown(dayButton)
+    fireEvent.mouseDown(dayButton)
+    fireEvent.click(dayButton)
+    // The calendar closes; the range panel it sat over stays.
+    await waitFor(() => expect(screen.queryByRole('grid')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+    expect(onTimeRangeChange).toHaveBeenCalledWith('2026-03-15T09:00', '')
   })
 })

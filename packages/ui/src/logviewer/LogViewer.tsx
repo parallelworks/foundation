@@ -1,3 +1,4 @@
+import { Popover } from '@base-ui/react/popover'
 import { clsx as cx } from 'clsx'
 import { DateTime } from 'luxon'
 import {
@@ -5,11 +6,14 @@ import {
   memo,
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from 'react'
+import { DatePicker } from '../components/DatePicker'
+import { panelClassName, portalContainer, positionerClassName } from '../components/floating'
 import { InfoTip } from '../components/InfoTip'
 import { useNotify, useOptionalWorkflowEngine, useStrings } from '../components/Provider'
 import type { LogCommand, LogSegment, ProcessedLogLine } from '../engine'
@@ -340,7 +344,7 @@ export function LogViewer({
   const [timeRangeFrom, setTimeRangeFrom] = useState(initialTimeRangeFrom)
   const [timeRangeTo, setTimeRangeTo] = useState(initialTimeRangeTo)
   const [timeRangeOpen, setTimeRangeOpen] = useState(false)
-  const timeRangePopoverRef = useRef<HTMLDivElement>(null)
+  const timeRangeId = useId()
   const timeRangeError = validateTimeRange(timeRangeFrom, timeRangeTo)
 
   useEffect(() => {
@@ -489,33 +493,6 @@ export function LogViewer({
       document.removeEventListener('keydown', handleKeyDown)
     }
   }, [highlightCopyPosition])
-
-  useEffect(() => {
-    if (!timeRangeOpen) {
-      return
-    }
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement
-      if (timeRangePopoverRef.current?.contains(target)) {
-        return
-      }
-      if (target.closest('[data-time-range-trigger]')) {
-        return
-      }
-      setTimeRangeOpen(false)
-    }
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setTimeRangeOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    document.addEventListener('keydown', handleKey)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleKey)
-    }
-  }, [timeRangeOpen])
 
   // Copy selected lines to clipboard
   const copySelectedLines = useCallback(async () => {
@@ -1009,13 +986,8 @@ export function LogViewer({
               </button>
             )}
             {enableTimeRangeFilter && (
-              <div className="relative">
-                <button
-                  type="button"
-                  data-time-range-trigger
-                  className="btn btn-neutral"
-                  onClick={() => setTimeRangeOpen((o) => !o)}
-                >
+              <Popover.Root open={timeRangeOpen} onOpenChange={setTimeRangeOpen}>
+                <Popover.Trigger className="btn btn-neutral">
                   <ClockIcon />
                   <span>{t.timeRange}</span>
                   {(timeRangeFrom !== '' || timeRangeTo !== '') && (
@@ -1026,77 +998,78 @@ export function LogViewer({
                       {t.timeRangeOn}
                     </span>
                   )}
-                </button>
-                {timeRangeOpen && (
-                  <div
-                    ref={timeRangePopoverRef}
-                    className={cx(
-                      'absolute top-full left-0 mt-1 z-50 w-80 p-3 rounded-lg shadow-lg',
-                      'border border-[var(--theme-border)] bg-[var(--theme-panel-bg)]',
-                      'flex flex-col gap-y-3',
-                    )}
-                  >
-                    <div className="flex items-center gap-x-1.5">
-                      <span className="text-xs font-semibold text-[var(--theme-app)]">
-                        {t.filterByTimeRange}
-                      </span>
-                      <InfoTip text={t.timeRangeHelp} />
-                    </div>
-                    <label className="flex flex-col gap-y-1">
-                      <span className="text-[11px] uppercase tracking-wide text-[var(--theme-muted-text-color)]">
-                        {t.timeRangeFrom}
-                      </span>
-                      <input
-                        type="datetime-local"
-                        value={timeRangeFrom}
-                        onChange={(e) => setTimeRangeFrom(e.target.value)}
-                        className="rounded-md text-sm h-8 px-2 bg-[var(--theme-input-bg)] text-[var(--theme-input)] border border-[var(--theme-border)]"
-                      />
-                    </label>
-                    <label className="flex flex-col gap-y-1">
-                      <span className="text-[11px] uppercase tracking-wide text-[var(--theme-muted-text-color)]">
-                        {t.timeRangeTo}
-                      </span>
-                      <input
-                        type="datetime-local"
-                        value={timeRangeTo}
-                        onChange={(e) => setTimeRangeTo(e.target.value)}
-                        className="rounded-md text-sm h-8 px-2 bg-[var(--theme-input-bg)] text-[var(--theme-input)] border border-[var(--theme-border)]"
-                      />
-                    </label>
-                    {timeRangeError !== '' && (
-                      <span className="text-[11px] text-red-500">{t[timeRangeError]}</span>
-                    )}
-                    <div className="flex gap-x-2">
-                      <button
-                        type="button"
-                        disabled={timeRangeError !== ''}
-                        className="btn btn-primary flex-1 justify-center"
-                        onClick={() => {
-                          onTimeRangeChange?.(timeRangeFrom, timeRangeTo)
-                          setTimeRangeOpen(false)
-                        }}
-                      >
-                        {t.apply}
-                      </button>
-                      {(timeRangeFrom !== '' || timeRangeTo !== '') && (
+                </Popover.Trigger>
+                <Popover.Portal container={portalContainer()}>
+                  <Popover.Positioner align="start" sideOffset={4} className={positionerClassName}>
+                    <Popover.Popup className={cx('flex w-80 flex-col gap-y-3 p-3', panelClassName)}>
+                      <div className="flex items-center gap-x-1.5">
+                        <span className="text-xs font-semibold text-[var(--theme-app)]">
+                          {t.filterByTimeRange}
+                        </span>
+                        <InfoTip text={t.timeRangeHelp} />
+                      </div>
+                      <div className="flex flex-col gap-y-1">
+                        <span
+                          id={`${timeRangeId}-timeRangeFrom`}
+                          className="text-[11px] uppercase tracking-wide text-[var(--theme-muted-text-color)]"
+                        >
+                          {t.timeRangeFrom}
+                        </span>
+                        <DatePicker
+                          withTime
+                          aria-labelledby={`${timeRangeId}-timeRangeFrom`}
+                          value={timeRangeFrom}
+                          onValueChange={setTimeRangeFrom}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-y-1">
+                        <span
+                          id={`${timeRangeId}-timeRangeTo`}
+                          className="text-[11px] uppercase tracking-wide text-[var(--theme-muted-text-color)]"
+                        >
+                          {t.timeRangeTo}
+                        </span>
+                        <DatePicker
+                          withTime
+                          aria-labelledby={`${timeRangeId}-timeRangeTo`}
+                          value={timeRangeTo}
+                          onValueChange={setTimeRangeTo}
+                        />
+                      </div>
+                      {timeRangeError !== '' && (
+                        <span className="text-[11px] text-red-500">{t[timeRangeError]}</span>
+                      )}
+                      <div className="flex gap-x-2">
                         <button
                           type="button"
-                          className="btn btn-neutral flex-1 justify-center"
+                          disabled={timeRangeError !== ''}
+                          className="btn btn-primary flex-1 justify-center"
                           onClick={() => {
-                            setTimeRangeFrom('')
-                            setTimeRangeTo('')
-                            onTimeRangeChange?.('', '')
+                            onTimeRangeChange?.(timeRangeFrom, timeRangeTo)
                             setTimeRangeOpen(false)
                           }}
                         >
-                          {t.clear}
+                          {t.apply}
                         </button>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
+                        {(timeRangeFrom !== '' || timeRangeTo !== '') && (
+                          <button
+                            type="button"
+                            className="btn btn-neutral flex-1 justify-center"
+                            onClick={() => {
+                              setTimeRangeFrom('')
+                              setTimeRangeTo('')
+                              onTimeRangeChange?.('', '')
+                              setTimeRangeOpen(false)
+                            }}
+                          >
+                            {t.clear}
+                          </button>
+                        )}
+                      </div>
+                    </Popover.Popup>
+                  </Popover.Positioner>
+                </Popover.Portal>
+              </Popover.Root>
             )}
           </div>
           <input

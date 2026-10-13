@@ -82,6 +82,19 @@ export interface UIStrings {
     select: (type: string) => string
     noOptionsFound: string
     showOptions: string
+    /** The row that adds typed text as a new value. */
+    add: (text: string) => string
+    /** In place of the placeholder once a field holds as many values as it takes. */
+    limitReached: (max: number) => string
+  }
+  datePicker: {
+    /** The button's text while no date is chosen. */
+    pickDate: string
+    /** Names the time beside the date. */
+    time: string
+    clear: string
+    previousMonth: string
+    nextMonth: string
   }
   logviewer: {
     error: string
@@ -611,6 +624,15 @@ const DEFAULTS: UIProviderValue = {
       select: (type) => `Select ${type}`,
       noOptionsFound: 'No options found',
       showOptions: 'Show options',
+      add: (text) => `Add “${text}”`,
+      limitReached: (max) => `Up to ${max}`,
+    },
+    datePicker: {
+      pickDate: 'Pick a date',
+      time: 'Time',
+      clear: 'Clear',
+      previousMonth: 'Previous month',
+      nextMonth: 'Next month',
     },
     logviewer: {
       error: 'Error:',
@@ -1172,6 +1194,7 @@ export function UIProvider({
         common: { ...DEFAULTS.strings.common, ...strings?.common },
         drawer: { ...DEFAULTS.strings.drawer, ...strings?.drawer },
         dropdown: { ...DEFAULTS.strings.dropdown, ...strings?.dropdown },
+        datePicker: { ...DEFAULTS.strings.datePicker, ...strings?.datePicker },
         logviewer: { ...DEFAULTS.strings.logviewer, ...strings?.logviewer },
         dag: { ...DEFAULTS.strings.dag, ...strings?.dag },
         jobActions: {

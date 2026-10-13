@@ -40,6 +40,11 @@ export default function BooleanField(props: FieldComponentProps<IBooleanField>) 
   const onOption = field.options ? String(field.options.onOption ?? true) : true
   const offOption = field.options ? String(field.options.offOption ?? false) : false
   const checked = value === true || value === 'true' || value === onOption
+  // Named options name the state beside the switch, in sentence case: "YES" reads "Yes".
+  const stateName = (option: string | boolean) =>
+    typeof option === 'string'
+      ? option.charAt(0).toUpperCase() + option.slice(1).toLowerCase()
+      : undefined
 
   return (
     <FieldWrapper
@@ -59,6 +64,8 @@ export default function BooleanField(props: FieldComponentProps<IBooleanField>) 
             render={<button type="button" />}
             checked={checked}
             onCheckedChange={(on) => handleChange(on ? onOption : offOption)}
+            onLabel={stateName(onOption)}
+            offLabel={stateName(offOption)}
             disabled={disabled}
             aria-describedby={describedBy}
             aria-invalid={missing || undefined}

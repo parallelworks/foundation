@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useForm, useFormState } from 'react-hook-form'
+import { expect, screen, userEvent, waitFor, within } from 'storybook/test'
 import { DynamicForm, type FormValues } from './Form'
 
 const meta: Meta<typeof DynamicForm> = {
@@ -189,6 +190,52 @@ export const Choices: StoryObj<typeof DynamicForm> = {
     initialValues: { precision: 'bf16', workers: 2, features: ['log'] },
     skipValueParse: true,
     workflowForm: true,
+  },
+}
+
+/** Options in groups, one setting another field as it's chosen, and a switch whose states have
+ *  names of their own. */
+export const GroupedChoicesAndNamedStates: StoryObj<typeof DynamicForm> = {
+  args: {
+    formJSONs: {
+      region: {
+        type: 'dropdown',
+        label: 'Region',
+        secondaryField: 'zone',
+        options: [
+          {
+            category: 'Americas',
+            options: [
+              { label: 'US East', value: 'us-east', secondaryValue: 'us-east-1a' },
+              { label: 'US West', value: 'us-west', secondaryValue: 'us-west-2b' },
+            ],
+          },
+          {
+            category: 'Europe',
+            options: [
+              { label: 'EU Central', value: 'eu-central', secondaryValue: 'eu-central-1a' },
+            ],
+          },
+        ],
+      },
+      zone: { type: 'string', label: 'Zone', disabled: true },
+      visibility: {
+        type: 'boolean',
+        label: 'Visibility',
+        default: 'PRIVATE',
+        options: { onOption: 'PUBLIC', offOption: 'PRIVATE' },
+      },
+    },
+    workflowForm: true,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('combobox', { name: 'Region' }))
+    await userEvent.click(await screen.findByRole('option', { name: 'EU Central' }))
+    await waitFor(() =>
+      expect(canvas.getByRole('textbox', { name: 'Zone' })).toHaveValue('eu-central-1a'),
+    )
+    await expect(canvas.getByText('Private')).toBeVisible()
   },
 }
 

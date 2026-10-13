@@ -66,8 +66,6 @@ export {
   parseDuration,
   STANDARD_MAX_DURATION_RANGE,
 } from './utils/duration'
+export type { FieldOption, FieldOptionGroup, FieldOptionItem } from './utils/fieldItems'
 export { getPlaceholder } from './utils/getPlaceholder'
-export {
-  applySecondaryField,
-  findSecondaryOption,
-} from './utils/secondaryField'
+export { applySecondaryField } from './utils/secondaryField'

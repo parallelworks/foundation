@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import { expect, screen, userEvent, waitFor, within } from 'storybook/test'
 import { LogViewer } from './LogViewer'
 
 const meta: Meta<typeof LogViewer> = {
@@ -42,6 +43,31 @@ export const WorkflowCommands: StoryObj<typeof LogViewer> = {
     width: 720,
     height: 320,
     enableWorkflowCommands: true,
+  },
+}
+
+/** The time range filter: days from a calendar, times beside them. */
+export const TimeRange: StoryObj<typeof LogViewer> = {
+  args: {
+    log: ANSI_LOG,
+    width: 720,
+    height: 320,
+    enableTimeRangeFilter: true,
+    initialTimeRangeFrom: '2026-03-14T09:00',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /Time range/ }))
+    await userEvent.click(await screen.findByRole('button', { name: 'From' }))
+    const day = new Intl.DateTimeFormat(undefined, { dateStyle: 'full' }).format(
+      new Date(2026, 2, 15),
+    )
+    await userEvent.click(
+      within(await screen.findByRole('grid')).getByRole('button', { name: day }),
+    )
+    // Picking a day closes the calendar, not the range panel under it.
+    await waitFor(() => expect(screen.queryByRole('grid')).not.toBeInTheDocument())
+    await expect(screen.getByRole('button', { name: 'Apply' })).toBeVisible()
   },
 }
 
