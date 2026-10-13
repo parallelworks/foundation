@@ -540,7 +540,8 @@ function toRows<Value>(
   const rowOfItem: number[] = []
   for (const node of nodes) {
     const leaves = 'items' in node ? node.items : [node]
-    if ('items' in node) {
+    // An untitled group only separates its items from the groups around it.
+    if ('items' in node && (node.label || node.icon)) {
       rows.push({ kind: 'group', group: node })
     }
     for (const entry of leaves) {
