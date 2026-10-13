@@ -202,9 +202,10 @@ describe('computeGraphLayout', () => {
     expect(long.dependencyCols).toHaveLength(20000)
   })
 
-  // Times measured against each other in one run, so a slow machine slows both: four times the jobs
-  // take about four times as long when the work grows with them, and sixteen when it grows with their
-  // square. The fastest of a few runs leaves out what a collection or a busy runner adds.
+  // Times measured against each other in one run, so a slow machine slows both. Eight times the jobs
+  // take twelve to fourteen times as long (more than eight, as the larger graphs outgrow the caches),
+  // and would take sixty-four if the work grew with their square; the bound sits between, with room
+  // for a busy runner. The fastest of a few runs leaves out what a collection adds.
   it.each([
     ['a wide graph', (n: number) => layeredJobs(n, { columns: 40 })],
     ['a square graph', (n: number) => layeredJobs(n, { columns: Math.round(Math.sqrt(n)) })],
@@ -221,7 +222,7 @@ describe('computeGraphLayout', () => {
       }
       return best
     }
-    expect(fastest(16000) / fastest(4000)).toBeLessThan(10)
+    expect(fastest(16000) / fastest(2000)).toBeLessThan(30)
   })
 })
 
