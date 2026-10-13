@@ -11,7 +11,7 @@ describe('SegmentedControl', () => {
       <SegmentedControl
         label="Range"
         value="day"
-        onChange={onChange}
+        onValueChange={onChange}
         options={[
           { value: 'day', label: 'Day' },
           { value: 'week', label: 'Week' },
@@ -22,6 +22,41 @@ describe('SegmentedControl', () => {
     expect(screen.getByRole('button', { name: 'Day' })).toHaveAttribute('aria-pressed', 'true')
     fireEvent.click(screen.getByRole('button', { name: 'Week' }))
     expect(onChange).toHaveBeenCalledWith('week')
+  })
+
+  it('keeps the current choice when it is pressed again', () => {
+    const onChange = vi.fn()
+    render(
+      <SegmentedControl
+        label="Range"
+        value="day"
+        onValueChange={onChange}
+        options={[
+          { value: 'day', label: 'Day' },
+          { value: 'week', label: 'Week' },
+        ]}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Day' }))
+    expect(onChange).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Day' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('moves between segments with the arrow keys', async () => {
+    render(
+      <SegmentedControl
+        label="Range"
+        value="day"
+        options={[
+          { value: 'day', label: 'Day' },
+          { value: 'week', label: 'Week' },
+        ]}
+      />,
+    )
+    const day = screen.getByRole('button', { name: 'Day' })
+    act(() => day.focus())
+    fireEvent.keyDown(day, { key: 'ArrowRight' })
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Week' })).toHaveFocus())
   })
 
   it('renders page segments as navigation marking the current page', () => {

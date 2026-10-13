@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useState } from 'react'
+import { expect, userEvent, within } from 'storybook/test'
 import { Button, MethodButton } from './Button'
 import { Card, CardHeader } from './Card'
 import Filter from './Filter'
@@ -8,6 +9,7 @@ import { IconButton } from './IconButton'
 import { Input, Textarea } from './Input'
 import { LetterBadge } from './LetterBadge'
 import { Pagination } from './Pagination'
+import { RadioGroup } from './Radio'
 import { SettingModeOption } from './SettingModeOption'
 import { SettingRow, SettingSection } from './SettingRow'
 import SettingsCard from './SettingsCard'
@@ -122,20 +124,23 @@ function SettingsDemo() {
         <SettingRow label="Run completion" helpText="Email when a workflow run finishes" isFirst>
           <Switch aria-label="Run completion" checked={enabled} onCheckedChange={setEnabled} />
         </SettingRow>
-        <SettingRow label="Digest mode">
-          <div className="flex gap-2">
-            {['auto', 'daily', 'off'].map((m) => (
-              <SettingModeOption
-                key={m}
-                name="digest-mode"
-                label={m}
-                description={`Use the ${m} digest cadence`}
-                checked={mode === m}
-                onSelect={() => setMode(m)}
-              />
-            ))}
-          </div>
-        </SettingRow>
+      </SettingsCard>
+      <SettingsCard title="Digest">
+        <RadioGroup aria-label="Digest cadence" value={mode} onValueChange={setMode}>
+          <SettingModeOption
+            value="auto"
+            label="Automatic"
+            description="Send a digest when enough has happened"
+            isFirst
+          />
+          <SettingModeOption value="daily" label="Daily" description="One digest every morning" />
+          <SettingModeOption
+            value="off"
+            label="Off"
+            description="Only the run completion emails"
+            disabled={!enabled}
+          />
+        </RadioGroup>
       </SettingsCard>
     </SettingsGroup>
   )
@@ -143,6 +148,11 @@ function SettingsDemo() {
 
 export const Settings: StoryObj = {
   render: () => <SettingsDemo />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByText('Daily'))
+    await expect(canvas.getByRole('radio', { name: /Daily/ })).toBeChecked()
+  },
 }
 
 export const BadgesAndIconButtons: StoryObj = {

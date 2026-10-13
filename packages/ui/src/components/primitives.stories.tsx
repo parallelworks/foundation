@@ -214,7 +214,7 @@ function SegmentedDemo({ fill, iconOnly }: { fill: boolean; iconOnly: boolean })
       <SegmentedControl
         label="Range"
         value={range}
-        onChange={setRange}
+        onValueChange={setRange}
         fill={fill}
         iconOnly={iconOnly}
         options={[

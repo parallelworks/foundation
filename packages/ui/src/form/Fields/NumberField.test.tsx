@@ -35,21 +35,38 @@ describe('NumberField', () => {
     })
   })
 
-  it('writes typed numbers and clamps them into range on blur', () => {
+  it('keeps typed numbers within range, and shows the clamped value on blur', () => {
     const { form } = renderField({ min: 0, max: 8 })
-    const input = screen.getByRole('spinbutton')
+    const input = screen.getByRole('textbox')
     fireEvent.focus(input)
     fireEvent.change(input, { target: { value: '12' } })
-    expect(form.getValues('gpuCount')).toBe(12)
-    fireEvent.blur(input)
     expect(form.getValues('gpuCount')).toBe(8)
-    expect(input).toHaveValue(8)
+    fireEvent.blur(input)
+    expect(input).toHaveValue('8')
   })
 
-  it('shows a value the form sets while the field is not focused', () => {
+  it('shows a value the form holds, as a number or as text, and writes typed numbers', () => {
+    const { form } = renderField({}, { gpuCount: '2' })
+    const input = screen.getByRole('textbox')
+    expect(input).toHaveValue('2')
+    fireEvent.change(input, { target: { value: '3.25' } })
+    expect(form.getValues('gpuCount')).toBe(3.25)
+  })
+
+  it('clears to undefined', () => {
     const { form } = renderField({}, { gpuCount: 2 })
-    expect(screen.getByRole('spinbutton')).toHaveValue(2)
-    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '3' } })
-    expect(form.getValues('gpuCount')).toBe(3)
+    fireEvent.change(screen.getByRole('textbox', { name: 'GPU Count' }), { target: { value: '' } })
+    expect(form.getValues('gpuCount')).toBeUndefined()
+  })
+
+  it('groups thousands only when asked', () => {
+    renderField({ thousandsSeparator: true }, { gpuCount: 1234567 })
+    expect(screen.getByRole('textbox')).toHaveValue('1,234,567')
+  })
+
+  it('steps with the buttons', () => {
+    const { form } = renderField({ step: 5 }, { gpuCount: 10 })
+    fireEvent.pointerDown(screen.getByRole('button', { name: /increase/i }), { button: 0 })
+    expect(form.getValues('gpuCount')).toBe(15)
   })
 })

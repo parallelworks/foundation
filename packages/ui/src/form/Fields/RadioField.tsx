@@ -1,5 +1,5 @@
 import { clsx as cx } from 'clsx'
-import { useId } from 'react'
+import { Radio, RadioGroup } from '../../components/Radio'
 import { FieldWrapper } from '../FieldWrapper'
 import type { FieldComponentProps } from '../types/fieldComponentTypes'
 import type { BaseField } from '../types/fieldTypes'
@@ -12,28 +12,23 @@ export interface IRadioField extends BaseField {
   optionLabelPosition?: 'left' | 'top'
 }
 
-export default function RadioField(props: FieldComponentProps<IRadioField>) {
-  const {
-    field,
-    label,
-    labelPosition,
-    missing,
-    disabled,
-    onChange,
-    tooltipComponent,
-    spaceCompact,
-  } = props
-  const uid = useId()
+export default function RadioField({
+  field,
+  label,
+  labelPosition,
+  missing,
+  disabled,
+  onChange,
+  tooltipComponent,
+  spaceCompact,
+}: FieldComponentProps<IRadioField>) {
   // The form names every field before it renders one.
   const [value, change] = useFieldValue<unknown>(field.name ?? '')
-
-  const handleChange = (val: string | number) => {
-    if (disabled) {
-      return
-    }
-    onChange?.(val)
-    change(val)
-  }
+  const options = (field.options ?? []).map((raw) => ({
+    ...fieldOption(raw),
+    // An option without a label of its own shows capitalized, as radio options always have.
+    unlabelled: typeof raw !== 'object' || raw.label === undefined,
+  }))
 
   return (
     <FieldWrapper
@@ -44,11 +39,19 @@ export default function RadioField(props: FieldComponentProps<IRadioField>) {
       spaceCompact={spaceCompact}
     >
       {({ labelId, describedBy }) => (
-        <div
-          role="radiogroup"
+        <RadioGroup
           aria-labelledby={labelId}
           aria-describedby={describedBy}
-          aria-required={field.optional ? undefined : true}
+          name={field.name}
+          required={!field.optional}
+          disabled={disabled}
+          // Options match as text, so a numeric option still matches a value held as text.
+          value={value === undefined || value === null ? null : String(value)}
+          onValueChange={(next) => {
+            const picked = options.find((option) => option.value === next)?.raw
+            onChange?.(picked)
+            change(picked)
+          }}
           className={cx(
             // py-1.5 centres the first row on the 34px field label beside it.
             'flex py-1.5',
@@ -57,38 +60,21 @@ export default function RadioField(props: FieldComponentProps<IRadioField>) {
               : 'flex-row flex-wrap gap-x-5 gap-y-2',
           )}
         >
-          {field.options?.map((raw) => {
-            const option = fieldOption(raw)
-            // An option without a label of its own shows capitalized, as radio options always have.
-            const unlabelled = typeof raw !== 'object' || raw.label === undefined
-            return (
-              <label
-                key={field.name + option.value}
-                htmlFor={`${uid}-${option.value}`}
-                className={cx(
-                  'flex items-center gap-2',
-                  disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer',
-                )}
-              >
-                <input
-                  id={`${uid}-${option.value}`}
-                  className={cx(
-                    'h-4 w-4',
-                    disabled ? 'cursor-not-allowed' : 'cursor-pointer',
-                    missing && 'invalid',
-                  )}
-                  name={field.name}
-                  type="radio"
-                  value={option.value}
-                  checked={value !== undefined && value !== null && String(value) === option.value}
-                  disabled={disabled}
-                  onChange={() => handleChange(option.raw)}
-                />
-                <span className={cx('theme-text', unlabelled && 'capitalize')}>{option.label}</span>
-              </label>
-            )
-          })}
-        </div>
+          {options.map((option) => (
+            <label
+              key={option.value}
+              className={cx(
+                'flex items-center gap-2',
+                disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer',
+              )}
+            >
+              <Radio value={option.value} aria-invalid={missing || undefined} />
+              <span className={cx('theme-text', option.unlabelled && 'capitalize')}>
+                {option.label}
+              </span>
+            </label>
+          ))}
+        </RadioGroup>
       )}
     </FieldWrapper>
   )

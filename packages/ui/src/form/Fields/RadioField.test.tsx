@@ -45,4 +45,21 @@ describe('RadioField', () => {
     expect(form.getValues('workers')).toBe(2)
     expect(screen.getByRole('radio', { name: '2' })).toBeChecked()
   })
+
+  it('names the group by its label and marks it missing or disabled', () => {
+    renderInForm(
+      <RadioField
+        {...baseProps}
+        missing
+        disabled
+        field={{ type: 'radio', name: 'size', options: ['small', 'large'] }}
+        label="Size"
+      />,
+    )
+    expect(screen.getByRole('radiogroup', { name: 'Size' })).toBeInTheDocument()
+    for (const radio of screen.getAllByRole('radio')) {
+      expect(radio).toHaveAttribute('aria-invalid', 'true')
+      expect(radio).toHaveAttribute('aria-disabled', 'true')
+    }
+  })
 })

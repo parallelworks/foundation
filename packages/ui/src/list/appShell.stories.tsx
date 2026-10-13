@@ -311,7 +311,7 @@ function ClustersPage({ state, rowCount, sparseStatus }: ShellArgs) {
       ) : state === 'error' ? (
         <ListError error={new Error('upstream timed out')} noun="clusters" />
       ) : all.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 text-center">
+        <div className="flex flex-col items-center justify-center py-20 text-center">
           <ClusterIcon className="h-8 w-8 text-(--theme-muted-text-color)" />
           <p className="mt-3 max-w-sm text-sm text-(--theme-muted-text-color)">
             No clusters yet. Create one to get started.
@@ -479,7 +479,7 @@ export const DetailPageShell: StoryObj = {
               />
               <div className="px-4">
                 <ActionToolbar groups={DETAIL_GROUPS} right={DETAIL_RIGHT} sticky />
-                <div className="py-6 text-sm text-(--theme-muted-text-color)">
+                <div className="py-5 text-sm text-(--theme-muted-text-color)">
                   Narrow the Storybook canvas to watch the right-hand actions collapse into the ⋯
                   menu.
                 </div>

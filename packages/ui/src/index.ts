@@ -108,6 +108,7 @@ export {
   type WorkflowEngineSource,
   type WorkflowJsonRef,
 } from './components/Provider'
+export { Radio, RadioGroup, type RadioProps } from './components/Radio'
 export { RequiredMark } from './components/RequiredMark'
 export { useRelativeTime } from './components/relativeTime'
 export { default as SectionHeader } from './components/SectionHeader'

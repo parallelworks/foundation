@@ -1,6 +1,7 @@
+import { NumberField as BaseNumberField } from '@base-ui/react/number-field'
 import { clsx as cx } from 'clsx'
-import { useEffect, useRef, useState } from 'react'
-import { NumericFormat } from 'react-number-format'
+import { useEffect } from 'react'
+import { AngleDownIcon, AngleUpIcon } from '../../icons'
 import { FieldWrapper } from '../FieldWrapper'
 import type { FieldComponentProps } from '../types/fieldComponentTypes'
 import type { BaseField } from '../types/fieldTypes'
@@ -18,7 +19,20 @@ export interface INumberField extends BaseField {
   thousandsSeparator?: boolean
 }
 
-type NumberValue = number | undefined
+/** A value held as text, as one read from a workflow's inputs may be, still shows as its number. */
+function toNumber(value: unknown): number | null {
+  if (typeof value === 'number') {
+    return value
+  }
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+const stepperClassName =
+  'flex flex-1 items-center justify-center px-1 theme-muted-text hover:theme-text data-disabled:opacity-40 data-disabled:cursor-not-allowed'
 
 export default function NumberField({
   field,
@@ -31,18 +45,7 @@ export default function NumberField({
   spaceCompact,
 }: FieldComponentProps<INumberField>) {
   // The form names every field before it renders one.
-  const [value, change] = useFieldValue<NumberValue | string>(field.name ?? '')
-  // What the person types: it follows the value except while they type, when a parse would turn "1."
-  // into 1 under them.
-  const [text, setText] = useState(() =>
-    value === undefined || value === null ? '' : String(value),
-  )
-  const typing = useRef(false)
-  useEffect(() => {
-    if (!typing.current) {
-      setText(value === undefined || value === null ? '' : String(value))
-    }
-  }, [value])
+  const [value, change] = useFieldValue<unknown>(field.name ?? '')
 
   // With prefillDefault, seed the form value with the default (not just the placeholder) when it's
   // unset — e.g. gpuCount needs to actually hold 1, since the cost estimate prices the attached GPU
@@ -55,84 +58,55 @@ export default function NumberField({
     }
   }, [seed, change])
 
-  const set = (next: NumberValue) => {
-    onChange?.(next)
-    change(next)
-  }
-  // Leaving the field clamps what it holds into its range.
-  const clamp = (next: NumberValue): NumberValue =>
-    next === undefined
-      ? undefined
-      : Math.min(Math.max(next, field.min ?? -Infinity), field.max ?? Infinity)
-  const placeholder = getPlaceholder(field.placeholder, field.default)
-
   return (
     <FieldWrapper
       optional={field.optional}
       label={label}
       tooltipComponent={tooltipComponent}
+      description={field.description}
       labelPosition={labelPosition}
       spaceCompact={spaceCompact}
     >
-      {({ id, describedBy }) =>
-        field.thousandsSeparator ? (
-          <NumericFormat
-            id={id}
-            aria-describedby={describedBy}
-            data-1p-ignore
-            className={cx('w-full', disabled && 'disabled', missing && 'invalid')}
-            name={field.name}
-            value={typeof value === 'number' ? value : ''}
-            aria-required={field.optional ? undefined : true}
-            thousandSeparator=","
-            decimalScale={20}
-            allowNegative
-            disabled={disabled}
-            placeholder={placeholder}
-            onValueChange={(v, { source }) => {
-              if (source === 'event') {
-                set(v.floatValue)
-              }
-            }}
-            onBlur={() => {
-              if (typeof value === 'number' && clamp(value) !== value) {
-                set(clamp(value))
-              }
-            }}
-          />
-        ) : (
-          <input
-            id={id}
-            aria-describedby={describedBy}
-            data-1p-ignore
-            className={cx('w-full', disabled && 'disabled', missing && 'invalid')}
-            name={field.name}
-            type="number"
-            value={text}
-            aria-required={field.optional ? undefined : true}
-            disabled={disabled}
-            placeholder={placeholder}
-            step={field.step}
-            min={field.min}
-            max={field.max}
-            onFocus={() => {
-              typing.current = true
-            }}
-            onChange={(e) => {
-              setText(e.target.value)
-              const parsed = parseFloat(e.target.value)
-              set(Number.isNaN(parsed) ? undefined : parsed)
-            }}
-            onBlur={() => {
-              typing.current = false
-              const parsed = parseFloat(text)
-              const next = clamp(Number.isNaN(parsed) ? undefined : parsed)
-              setText(next === undefined ? '' : String(next))
-              set(next)
-            }}
-          />
-        )
-      }
+      {({ id, describedBy }) => (
+        <BaseNumberField.Root
+          id={id}
+          name={field.name}
+          value={toNumber(value)}
+          onValueChange={(next) => {
+            const number = next ?? undefined
+            onChange?.(number)
+            change(number)
+          }}
+          min={field.min}
+          max={field.max}
+          step={field.step}
+          disabled={disabled}
+          format={{ useGrouping: field.thousandsSeparator ?? false, maximumFractionDigits: 20 }}
+        >
+          <BaseNumberField.Group className="relative w-full">
+            <BaseNumberField.Input
+              aria-describedby={describedBy}
+              aria-required={field.optional ? undefined : true}
+              aria-invalid={missing || undefined}
+              data-1p-ignore
+              className={cx(
+                'w-full pr-6 tabular-nums',
+                disabled && 'disabled',
+                missing && 'invalid',
+              )}
+              placeholder={getPlaceholder(field.placeholder, field.default)}
+            />
+            <div className="absolute inset-y-px right-px flex flex-col">
+              <BaseNumberField.Increment className={stepperClassName}>
+                <AngleUpIcon aria-hidden="true" className="size-3" />
+              </BaseNumberField.Increment>
+              <BaseNumberField.Decrement className={stepperClassName}>
+                <AngleDownIcon aria-hidden="true" className="size-3" />
+              </BaseNumberField.Decrement>
+            </div>
+          </BaseNumberField.Group>
+        </BaseNumberField.Root>
+      )}
     </FieldWrapper>
   )
 }

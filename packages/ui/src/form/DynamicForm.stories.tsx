@@ -42,6 +42,14 @@ const FORM_JSONS = {
         tooltip: 'A unique cluster name',
       },
       nodes: { type: 'number', label: 'Nodes', default: 2, min: 1, max: 16 },
+      memory: {
+        type: 'number',
+        label: 'Memory (MB)',
+        default: 16384,
+        step: 1024,
+        min: 0,
+        thousandsSeparator: true,
+      },
       monitoring: {
         type: 'boolean',
         label: 'Enable monitoring',
