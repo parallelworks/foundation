@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { cleanup, createEvent, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, createEvent, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 // jsdom lacks these; the graph relies on them for connector recompute + fit.
@@ -418,6 +418,36 @@ describe('DependencyGraph step summary', () => {
     expect(await screen.findByRole('heading', { name: 'Refined' })).toBeInTheDocument()
     expect(screen.getByText(/Step: refine/)).toBeInTheDocument()
     expect(calls).toContain('subworkflows/report/step_0/logs/mesh/step_0/summary.md')
+  })
+
+  it('keeps its height when content under it opens on a scrolled page', () => {
+    const frames: FrameRequestCallback[] = []
+    const raf = vi.spyOn(global, 'requestAnimationFrame').mockImplementation((frame) => {
+      frames.push(frame)
+      return 0
+    })
+    const rect = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockReturnValue({ top: -300 } as DOMRect)
+    const { container } = render(
+      <div data-testid="scroller">
+        <UIProvider>
+          <DependencyGraph run={summaryRun}>
+            <p>Below the graph</p>
+          </DependencyGraph>
+        </UIProvider>
+      </div>,
+    )
+    Object.defineProperty(screen.getByTestId('scroller'), 'scrollTop', { value: 500 })
+    act(() => {
+      for (const frame of frames.splice(0)) {
+        frame(0)
+      }
+    })
+    const panel = container.querySelector<HTMLElement>('.panel.overflow-hidden')
+    expect(panel?.style.height).toBe(`${window.innerHeight - 200 - 16}px`)
+    raf.mockRestore()
+    rect.mockRestore()
   })
 
   it('shows what the host puts under the graph', () => {

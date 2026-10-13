@@ -184,6 +184,15 @@ function offsetWithin(el: HTMLElement, ancestor: HTMLElement | null) {
   return { x, y }
 }
 
+// Where `el` sits with nothing scrolled, so a page scrolled down to content under it never stretches it.
+function unscrolledTop(el: HTMLElement) {
+  let top = el.getBoundingClientRect().top
+  for (let cur = el.parentElement; cur; cur = cur.parentElement) {
+    top += cur.scrollTop
+  }
+  return top
+}
+
 // Turn a namespaced subworkflow prefix (`subworkflows/{job}/step_{idx}/...`) back
 // into the executedJobs walk path used to re-root the graph in "new graph" mode.
 function parsePrefixToPath(prefix: string): (string | number)[] {
@@ -1297,7 +1306,7 @@ export default function DependencyGraph({
           return
         }
         setTopOffset((prev) => {
-          const next = cur.getBoundingClientRect().top
+          const next = unscrolledTop(cur)
           return prev === next ? prev : next
         })
       }
