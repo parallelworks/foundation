@@ -137,6 +137,8 @@ export const addCleanupSteps = ({ jobs }: { jobs: Record<string, WorkflowJob> })
 }
 
 const PREVIEW_PADDING = 24
+// A graph sized to its jobs keeps room for its Reset View and expand controls.
+const FITTED_MIN_HEIGHT = 96
 
 interface PreviewView {
   scale: number
@@ -1853,7 +1855,7 @@ export default function DependencyGraph({
                   : !fitsContent && containerHeight !== null
                     ? `${containerHeight}px`
                     : '62vh',
-              minHeight: preview && previewHeight !== null ? 0 : 160,
+              minHeight: previewHeight === null ? 160 : preview ? 0 : FITTED_MIN_HEIGHT,
             }}
           >
             <TransformWrapper
