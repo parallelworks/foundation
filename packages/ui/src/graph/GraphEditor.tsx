@@ -1773,7 +1773,7 @@ function EditorToolbar({
       {chip(true)}
       <BarDivider />
       <IconButton
-        icon={<RefreshIcon className="h-4 w-4" />}
+        icon={<RefreshIcon />}
         label={t.resetLayout}
         size="sm"
         variant="ghost"

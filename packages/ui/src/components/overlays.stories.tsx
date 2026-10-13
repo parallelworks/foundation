@@ -2,8 +2,8 @@ import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useState } from 'react'
 import { expect, screen, userEvent, waitFor, within } from 'storybook/test'
 import { DisplayIcon, FilterIcon, KeyboardIcon } from '../icons'
+import { Button } from './Button'
 import { Drawer, type DrawerProps } from './Drawer'
-import { ghostButtonClasses, primaryButtonClasses } from './ghostButton'
 import { IconButton } from './IconButton'
 import { Popover, type PopoverProps, useClosePopover } from './Popover'
 import { Switch } from './Switch'
@@ -22,9 +22,9 @@ function DrawerDemo({ footer, ...props }: DrawerArgs) {
   const [open, setOpen] = useState(false)
   return (
     <div className="p-8">
-      <button type="button" className={primaryButtonClasses} onClick={() => setOpen(true)}>
+      <Button variant="primary" onClick={() => setOpen(true)}>
         Open drawer
-      </button>
+      </Button>
       <Drawer
         {...props}
         open={open}
@@ -34,12 +34,12 @@ function DrawerDemo({ footer, ...props }: DrawerArgs) {
         footer={
           footer && (
             <>
-              <button type="button" className={ghostButtonClasses} onClick={() => setOpen(false)}>
+              <Button variant="ghost" onClick={() => setOpen(false)}>
                 Cancel
-              </button>
-              <button type="button" className={primaryButtonClasses} onClick={() => setOpen(false)}>
+              </Button>
+              <Button variant="primary" onClick={() => setOpen(false)}>
                 Save
-              </button>
+              </Button>
             </>
           )
         }
@@ -143,9 +143,9 @@ export const DrawerContained: StoryObj = {
           className="border border-(--theme-border)"
         >
           <div className="p-4">
-            <button type="button" className={ghostButtonClasses} onClick={() => setOpen(true)}>
+            <Button variant="ghost" onClick={() => setOpen(true)}>
               Open list
-            </button>
+            </Button>
           </div>
           <Drawer
             open={open}
@@ -185,11 +185,7 @@ export const PopoverStory: StoryObj<PopoverArgs> = {
         {...args}
         title="Widget options"
         className="w-72"
-        trigger={
-          <button type="button" className={ghostButtonClasses}>
-            Options
-          </button>
-        }
+        trigger={<Button variant="ghost">Options</Button>}
       >
         <label className="flex items-center justify-between gap-3 text-sm">
           Show legend
@@ -232,11 +228,7 @@ export const PopoverOfLinks: StoryObj = {
       <Popover
         aria-label="Organizations"
         className="w-64 p-1"
-        trigger={
-          <button type="button" className={ghostButtonClasses}>
-            Switch organization
-          </button>
-        }
+        trigger={<Button variant="ghost">Switch organization</Button>}
       >
         {['Research', 'Platform', 'Finance'].map((name) => (
           <OrganizationLink key={name} name={name} />
@@ -255,10 +247,10 @@ export const PopoverOfLinks: StoryObj = {
 
 /** Outline icon buttons, as on a page header strip: one narrowing the page shows a
  *  dot, and a single-key shortcut presses it. Their tooltips hide while their popup is open. */
-export const IconButtonTriggers: StoryObj<{ active: boolean }> = {
+export const IconButtonTriggers: StoryObj<{ dot: boolean }> = {
   name: 'Icon button triggers',
-  args: { active: true },
-  render: ({ active }) => (
+  args: { dot: true },
+  render: ({ dot }) => (
     <div className="flex items-center gap-2 p-8">
       <Popover
         title="Filter"
@@ -269,7 +261,7 @@ export const IconButtonTriggers: StoryObj<{ active: boolean }> = {
             variant="outline"
             icon={<FilterIcon />}
             label="Filter"
-            active={active}
+            dot={dot}
             shortcut="f"
           />
         }

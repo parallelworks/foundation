@@ -304,32 +304,6 @@ function inputsInBox(root: HTMLElement, box: Box): InputPath[] {
   return outermost(level.map(({ path }) => path))
 }
 
-function ChromeButton({
-  label,
-  onClick,
-  children,
-}: {
-  label: string
-  onClick: (e: React.MouseEvent<HTMLButtonElement>) => void
-  children: ReactNode
-}) {
-  return (
-    <Tooltip content={label}>
-      <button
-        type="button"
-        aria-label={label}
-        className="flex h-5 w-5 cursor-pointer items-center justify-center rounded hover:bg-(--theme-muted-panel-bg) hover:text-(--theme-app)"
-        onClick={(e) => {
-          e.stopPropagation()
-          onClick(e)
-        }}
-      >
-        {children}
-      </button>
-    </Tooltip>
-  )
-}
-
 /** An input's row: its field, with a toolbar of its type, drag grip and actions on hover. */
 function InputRow({
   path,
@@ -400,28 +374,42 @@ function InputRow({
           list={definition[editing.inputChildrenKey(definition['type']) ?? '']}
         />
       )}
-      <ChromeButton label={t.editInput} onClick={() => api.edit(path)}>
-        <EditIcon className="h-3 w-3" />
-      </ChromeButton>
-      <ChromeButton
-        label={t.addInputBelow}
+      <IconButton
+        size="xs"
+        label={t.editInput}
+        icon={<EditIcon />}
         onClick={(e) => {
+          e.stopPropagation()
+          api.edit(path)
+        }}
+      />
+      <IconButton
+        size="xs"
+        label={t.addInputBelow}
+        icon={<AddIcon />}
+        onClick={(e) => {
+          e.stopPropagation()
           api.openTypeMenu(e.currentTarget, parent, index + 1)
         }}
-      >
-        <AddIcon className="h-3 w-3" />
-      </ChromeButton>
-      <ChromeButton label={t.deleteInput} onClick={() => api.remove(path)}>
-        <MinusIcon className="h-3 w-3" />
-      </ChromeButton>
-      <ChromeButton
-        label={t.inputActions}
+      />
+      <IconButton
+        size="xs"
+        label={t.deleteInput}
+        icon={<MinusIcon />}
         onClick={(e) => {
+          e.stopPropagation()
+          api.remove(path)
+        }}
+      />
+      <IconButton
+        size="xs"
+        label={t.inputActions}
+        icon={<MoreIcon />}
+        onClick={(e) => {
+          e.stopPropagation()
           api.openMenu(e.currentTarget, path)
         }}
-      >
-        <MoreIcon className="h-3 w-3" />
-      </ChromeButton>
+      />
     </>
   )
   return (
@@ -522,16 +510,22 @@ function PageActions({
   if (!isWizard(list)) {
     return bar ? (
       <IconButton
-        icon={<FilesIcon className="h-4 w-4" />}
+        icon={<FilesIcon />}
         label={t.splitIntoPages}
         size="sm"
         variant="ghost"
         onClick={() => api.splitIntoPages(parent)}
       />
     ) : (
-      <ChromeButton label={t.splitIntoPages} onClick={() => api.splitIntoPages(parent)}>
-        <FilesIcon className="h-3 w-3" />
-      </ChromeButton>
+      <IconButton
+        size="xs"
+        label={t.splitIntoPages}
+        icon={<FilesIcon />}
+        onClick={(e) => {
+          e.stopPropagation()
+          api.splitIntoPages(parent)
+        }}
+      />
     )
   }
   return bar ? (
@@ -543,7 +537,7 @@ function PageActions({
         onClick={() => api.addPage(parent)}
       />
       <IconButton
-        icon={<CollapseIcon className="h-4 w-4" />}
+        icon={<CollapseIcon />}
         label={t.unsplitPages}
         size="sm"
         variant="ghost"
@@ -552,12 +546,24 @@ function PageActions({
     </>
   ) : (
     <>
-      <ChromeButton label={t.addPage} onClick={() => api.addPage(parent)}>
-        <PlusOutlineIcon className="h-3 w-3" />
-      </ChromeButton>
-      <ChromeButton label={t.unsplitPages} onClick={() => api.unsplitPages(parent)}>
-        <CollapseIcon className="h-3 w-3" />
-      </ChromeButton>
+      <IconButton
+        size="xs"
+        label={t.addPage}
+        icon={<PlusOutlineIcon />}
+        onClick={(e) => {
+          e.stopPropagation()
+          api.addPage(parent)
+        }}
+      />
+      <IconButton
+        size="xs"
+        label={t.unsplitPages}
+        icon={<CollapseIcon />}
+        onClick={(e) => {
+          e.stopPropagation()
+          api.unsplitPages(parent)
+        }}
+      />
     </>
   )
 }

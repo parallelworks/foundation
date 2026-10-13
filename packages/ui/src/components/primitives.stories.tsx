@@ -3,13 +3,14 @@ import { useState } from 'react'
 import { expect, screen, userEvent, waitFor, within } from 'storybook/test'
 import type { RunStatus } from '../engine'
 import { formatBytes } from '../format'
+import { Button } from './Button'
+import { buttonClasses } from './buttonClasses'
 import Callout from './Callout'
 import { Autocomplete, Combobox } from './Combobox'
 import { ConfirmModal } from './ConfirmModal'
 import { CreateModal, CreateModalField } from './CreateModal'
 import { DatePicker } from './DatePicker'
 import { ExternalLink } from './ExternalLink'
-import { primaryButtonClasses } from './ghostButton'
 import { Indicator } from './Indicator'
 import { InfoTip } from './InfoTip'
 import { Loader } from './Loader'
@@ -87,9 +88,9 @@ function ModalDemo({ align, dismissible }: Pick<ModalProps, 'align' | 'dismissib
   const [open, setOpen] = useState(false)
   return (
     <>
-      <button type="button" className="btn btn-info" onClick={() => setOpen(true)}>
+      <Button variant="primary" onClick={() => setOpen(true)}>
         Open modal
-      </button>
+      </Button>
       <Modal
         open={open}
         onClose={() => setOpen(false)}
@@ -102,9 +103,9 @@ function ModalDemo({ align, dismissible }: Pick<ModalProps, 'align' | 'dismissib
           Focus stays inside until the modal closes, then returns to the button that opened it.
         </ModalDescription>
         <div className="mt-5 flex justify-end">
-          <button type="button" className={primaryButtonClasses} onClick={() => setOpen(false)}>
+          <Button variant="primary" onClick={() => setOpen(false)}>
             Done
-          </button>
+          </Button>
         </div>
       </Modal>
     </>
@@ -149,9 +150,9 @@ function ConfirmDemo({ destructive = false }: { destructive?: boolean }) {
   const [open, setOpen] = useState(false)
   return (
     <>
-      <button type="button" className="btn btn-info" onClick={() => setOpen(true)}>
+      <Button variant="primary" onClick={() => setOpen(true)}>
         Open modal
-      </button>
+      </Button>
       <ConfirmModal
         open={open}
         onClose={() => setOpen(false)}
@@ -194,9 +195,9 @@ function CreateModalDemo() {
   const [open, setOpen] = useState(false)
   return (
     <>
-      <button type="button" className="btn btn-info" onClick={() => setOpen(true)}>
+      <Button variant="primary" onClick={() => setOpen(true)}>
         New widget
-      </button>
+      </Button>
       <CreateModal
         open={open}
         onClose={() => setOpen(false)}
@@ -335,19 +336,13 @@ export const Tooltips: StoryObj<{ side: 'top' | 'bottom' | 'left' | 'right' }> =
     <div className="flex flex-col items-start gap-6 p-8 text-sm">
       <div className="flex items-center gap-6">
         <Tooltip content="Saves the draft" side={side}>
-          <button type="button" className="btn">
-            Save
-          </button>
+          <Button variant="secondary">Save</Button>
         </Tooltip>
         <Tooltip content="Search the list" shortcut="⌘+F" side={side}>
-          <button type="button" className="btn">
-            Search
-          </button>
+          <Button variant="secondary">Search</Button>
         </Tooltip>
         <Tooltip content="Nothing to undo" side={side} disabled>
-          <button type="button" className="btn">
-            Disabled tooltip
-          </button>
+          <Button variant="secondary">Disabled tooltip</Button>
         </Tooltip>
       </div>
       <Tooltip content={longName} overflowOnly side={side}>
@@ -521,10 +516,7 @@ function SelectTriggerDemo({ disabled }: { disabled: boolean }) {
       disabled={disabled}
       triggerTooltip="How the agent edits files"
       trigger={
-        <button
-          type="button"
-          className="inline-flex h-7 items-center rounded-md border border-(--theme-border) px-2 text-xs font-medium"
-        >
+        <button type="button" className={buttonClasses({ variant: 'outline', size: 'sm' })}>
           {MODES.find((m) => m.value === mode)?.label}
         </button>
       }

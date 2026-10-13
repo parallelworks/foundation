@@ -15,7 +15,13 @@ export {
   useSetBreadcrumbs,
   useSetDefaultBreadcrumbs,
 } from './components/Breadcrumbs'
-export { Button, MethodButton } from './components/Button'
+export { Button, type ButtonProps, MethodButton } from './components/Button'
+export {
+  type ButtonSize,
+  type ButtonStyle,
+  type ButtonVariant,
+  buttonClasses,
+} from './components/buttonClasses'
 export { default as Callout } from './components/Callout'
 export { Card, CardHeader } from './components/Card'
 export {
@@ -50,17 +56,8 @@ export { default as EmptyState } from './components/EmptyState'
 export { ExternalLink, type ExternalLinkProps } from './components/ExternalLink'
 export { default as Filter } from './components/Filter'
 export { FilterPill } from './components/FilterPill'
-export {
-  dangerButtonClasses,
-  ghostButtonClasses,
-  primaryButtonClasses,
-} from './components/ghostButton'
 export { HoverCard, type HoverCardProps } from './components/HoverCard'
-export {
-  IconButton,
-  type IconButtonProps,
-  iconButtonOutlineClasses,
-} from './components/IconButton'
+export { IconButton, type IconButtonProps } from './components/IconButton'
 export { Indicator } from './components/Indicator'
 export { formatInfoTipContent, InfoTip } from './components/InfoTip'
 export { Input, Textarea } from './components/Input'
@@ -113,7 +110,6 @@ export {
   HeaderActionMenu,
   HeaderAddButton,
   HeaderEditButton,
-  headerActionButtonClasses,
   PageHeader,
   type PageHeaderBreadcrumb,
   type PageHeaderCrumb,

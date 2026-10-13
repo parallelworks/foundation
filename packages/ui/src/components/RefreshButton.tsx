@@ -1,18 +1,10 @@
 import { clsx as cx } from 'clsx'
 import { useEffect, useRef, useState } from 'react'
 import { RefreshIcon } from '../icons'
-import { ghostButtonClasses } from './ghostButton'
+import { type ButtonSize, buttonClasses } from './buttonClasses'
 import { useStrings } from './Provider'
 import { useRelativeTime } from './relativeTime'
 import { Tooltip } from './Tooltip'
-
-const sizeClasses = {
-  md: ghostButtonClasses,
-  sm: 'inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-xs text-(--theme-muted-text-color) transition-colors hover:bg-(--theme-muted-panel-bg) hover:text-(--theme-app)',
-}
-
-const iconOnlyClasses =
-  'inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md theme-muted-text transition-colors duration-150 hover:theme-text hover:theme-hover focus:outline-none focus-visible:ring-1 focus-visible:ring-(--theme-link)'
 
 export interface RefreshButtonProps {
   /** May return a promise; the button spins until it settles. */
@@ -22,7 +14,7 @@ export interface RefreshButtonProps {
   /** When the data was last fetched. The button then reads "Updated 5
    *  seconds ago" instead of "Refresh", and keeps that current. */
   updatedAt?: Date | number | null | undefined
-  size?: keyof typeof sizeClasses | undefined
+  size?: ButtonSize | undefined
   /** Only the icon shows, with "Refresh" as its name and tooltip. */
   iconOnly?: boolean | undefined
 }
@@ -63,18 +55,16 @@ export function RefreshButton({
       type="button"
       onClick={refresh}
       aria-busy={busy}
-      aria-disabled={busy || undefined}
       aria-label={iconOnly ? t.refresh : undefined}
       className={cx(
-        iconOnly ? iconOnlyClasses : sizeClasses[size],
-        'group aria-disabled:cursor-default aria-disabled:opacity-60',
+        buttonClasses({ variant: 'ghost', size, iconOnly }),
+        'group aria-busy:cursor-progress',
       )}
     >
       <RefreshIcon
         aria-hidden="true"
         className={cx(
           'shrink-0 motion-reduce:animate-none motion-reduce:transition-none',
-          size === 'sm' && !iconOnly ? 'h-3 w-3' : 'h-3.5 w-3.5',
           busy ? 'animate-spin' : 'transition-transform duration-300 group-hover:rotate-180',
         )}
       />

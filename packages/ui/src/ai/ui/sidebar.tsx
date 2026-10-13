@@ -3,6 +3,7 @@ import { type CSSProperties, type ReactNode, useState } from 'react'
 import { ConfirmModal } from '../../components/ConfirmModal'
 import type { OpenMenu } from '../../components/ContextMenu'
 import { focusOnMount } from '../../components/focus'
+import { IconButton } from '../../components/IconButton'
 import type { MenuEntry } from '../../components/MenuEntries'
 import { Tooltip } from '../../components/Tooltip'
 import { SidebarIcon } from '../../icons'
@@ -69,19 +70,13 @@ export function SidebarToggle({
 }) {
   const label = collapsed ? openLabel : closeLabel
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      title={label}
-      aria-label={label}
+    <IconButton
+      label={label}
+      icon={<SidebarIcon />}
       aria-expanded={!collapsed}
-      className={cx(
-        'flex h-7 w-7 items-center justify-center rounded-md theme-muted-text transition-colors hover:theme-muted-panel hover:theme-text',
-        className,
-      )}
-    >
-      <SidebarIcon className="h-4 w-4" />
-    </button>
+      onClick={onToggle}
+      className={className}
+    />
   )
 }
 

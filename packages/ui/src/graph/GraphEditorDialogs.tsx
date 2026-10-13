@@ -503,7 +503,7 @@ function OutputsEditor({
             }
           />
           <IconButton
-            icon={<CloseIcon className="h-4 w-4" />}
+            icon={<CloseIcon />}
             label={t.removeRow}
             variant="ghost"
             size="sm"
@@ -666,7 +666,7 @@ function MatrixEntries({
                 />
               </div>
               <IconButton
-                icon={<CloseIcon className="h-4 w-4" />}
+                icon={<CloseIcon />}
                 label={t.removeEntry}
                 variant="ghost"
                 size="sm"
@@ -757,7 +757,7 @@ function MatrixVariable({
         )}
       </div>
       <IconButton
-        icon={<CloseIcon className="h-4 w-4" />}
+        icon={<CloseIcon />}
         label={t.removeVariable}
         variant="ghost"
         size="sm"
@@ -1725,14 +1725,14 @@ function StepForm({
     footerStart: (
       <>
         <IconButton
-          icon={<TrashIcon className="h-4 w-4" />}
+          icon={<TrashIcon />}
           label={t.deleteStep}
           variant="ghost"
           size="sm"
           onClick={() => (adding ? onClose() : edit({ type: 'deleteStep', job, index }))}
         />
         <IconButton
-          icon={<ArrowUpIcon className="h-4 w-4" />}
+          icon={<ArrowUpIcon />}
           label={t.moveUp}
           variant="ghost"
           size="sm"
@@ -1740,7 +1740,7 @@ function StepForm({
           onClick={() => edit({ type: 'moveStep', job, from: index, to: index - 1 })}
         />
         <IconButton
-          icon={<ArrowDownIcon className="h-4 w-4" />}
+          icon={<ArrowDownIcon />}
           label={t.moveDown}
           variant="ghost"
           size="sm"

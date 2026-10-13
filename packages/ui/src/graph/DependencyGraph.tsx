@@ -20,6 +20,7 @@ import {
   TransformComponent,
   TransformWrapper,
 } from 'react-zoom-pan-pinch'
+import { Button } from '../components/Button'
 import { IconButton } from '../components/IconButton'
 import { Indicator } from '../components/Indicator'
 import { InfoTip } from '../components/InfoTip'
@@ -153,7 +154,7 @@ function GraphViewControls({
       {history && (
         <>
           <IconButton
-            icon={<ChevronLeftIcon className="h-4 w-4" />}
+            icon={<ChevronLeftIcon />}
             label={dag.previousGraph}
             size="sm"
             variant="ghost"
@@ -161,7 +162,7 @@ function GraphViewControls({
             onClick={history.back}
           />
           <IconButton
-            icon={<ChevronRightIcon className="h-4 w-4" />}
+            icon={<ChevronRightIcon />}
             label={dag.nextGraph}
             size="sm"
             variant="ghost"
@@ -181,7 +182,7 @@ function GraphViewControls({
       </button>
       <div className="mx-0.5 h-5 w-px bg-(--theme-border)" />
       <IconButton
-        icon={<ZoomOutIcon className="h-4 w-4" />}
+        icon={<ZoomOutIcon />}
         label={dag.zoomOut}
         size="sm"
         variant="ghost"
@@ -189,7 +190,7 @@ function GraphViewControls({
         onClick={() => onZoom(-1)}
       />
       <IconButton
-        icon={<ZoomInIcon className="h-4 w-4" />}
+        icon={<ZoomInIcon />}
         label={dag.zoomIn}
         size="sm"
         variant="ghost"
@@ -1796,23 +1797,26 @@ export default function DependencyGraph({
 
   const additionalBottomLeftBarComponents = sublogIsStep ? (
     <>
-      <button type="button" className="btn btn-neutral" onClick={() => nextStep(true)}>
-        <ArrowLeftIcon />
-        <span>Prev</span>
-      </button>
-      <button type="button" className="btn btn-neutral" onClick={() => nextStep(false)}>
-        <ArrowRightIcon />
-        <span>Next</span>
-      </button>
+      <Button variant="secondary" size="sm" icon={<ArrowLeftIcon />} onClick={() => nextStep(true)}>
+        Prev
+      </Button>
+      <Button
+        variant="secondary"
+        size="sm"
+        icon={<ArrowRightIcon />}
+        onClick={() => nextStep(false)}
+      >
+        Next
+      </Button>
       <span className="pt-0.5 whitespace-pre-wrap text-xs">{logName}</span>
     </>
   ) : undefined
 
   const additionalBottomRightBarComponents =
     (!preview || sublogIsSubworkflow) && sublogIsStep ? (
-      <button
-        type="button"
-        className="btn btn-neutral"
+      <Button
+        variant="secondary"
+        size="sm"
         onClick={() => {
           if (sublogIsSubworkflow) {
             openInNewGraph(pathAppend, sublogJob, parseInt(sublogStep ?? '', 10))
@@ -1825,10 +1829,8 @@ export default function DependencyGraph({
           }
         }}
       >
-        <span>
-          {sublogIsSubworkflow ? 'Open Subworkflow' : sublogShowsLog ? 'Show Script' : 'Show Logs'}
-        </span>
-      </button>
+        {sublogIsSubworkflow ? 'Open Subworkflow' : sublogShowsLog ? 'Show Script' : 'Show Logs'}
+      </Button>
     ) : undefined
 
   const graph = (

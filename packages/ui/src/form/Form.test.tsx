@@ -40,7 +40,6 @@ vi.mock('@parallelworks/ui', async () => ({
 
 vi.mock('@parallelworks/ui/icons', () => ({
   AngleRightIcon: () => null,
-  LoaderIcon: () => null,
   SuccessCheckmark: () => null,
   TrashIcon: () => null,
 }))

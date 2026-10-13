@@ -1,5 +1,6 @@
 import { clsx as cx } from 'clsx'
 import { lazy, Suspense, useCallback, useMemo, useState } from 'react'
+import { Button } from '../../components/Button'
 import { positionKeys, withPositionKeys } from '../../components/keys'
 import { Loader } from '../../components/Loader'
 import Markdown from '../../components/Markdown'
@@ -682,10 +683,9 @@ function NotPreviewable({
           <div className="mt-1 text-sm theme-muted-text">{message}</div>
         </div>
         {onDownload && (
-          <button type="button" className="btn btn-info cursor-pointer" onClick={onDownload}>
-            <DownloadFileIcon className="mr-2 h-4 w-4" />
+          <Button variant="primary" icon={<DownloadFileIcon />} onClick={onDownload}>
             {t.preview.downloadInstead}
-          </button>
+          </Button>
         )}
       </div>
     </div>
@@ -709,10 +709,9 @@ function TooLargeInline({
             : t.preview.tooLarge}
         </div>
         {onDownload && (
-          <button type="button" className="btn btn-info cursor-pointer" onClick={onDownload}>
-            <DownloadFileIcon className="mr-2 h-4 w-4" />
+          <Button variant="primary" icon={<DownloadFileIcon />} onClick={onDownload}>
             {t.preview.downloadInstead}
-          </button>
+          </Button>
         )}
       </div>
     </div>
@@ -732,10 +731,9 @@ function InlineError({
       <div className="flex max-w-md flex-col items-center gap-3 text-center">
         <div className="text-sm theme-muted-text">{message}</div>
         {onDownload && (
-          <button type="button" className="btn btn-neutral cursor-pointer" onClick={onDownload}>
-            <DownloadFileIcon className="mr-2 h-4 w-4" />
+          <Button variant="secondary" icon={<DownloadFileIcon />} onClick={onDownload}>
             {t.preview.downloadInstead}
-          </button>
+          </Button>
         )}
       </div>
     </div>

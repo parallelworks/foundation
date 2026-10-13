@@ -654,7 +654,7 @@ function OptionsEditor({
                 </div>
               )}
               <IconButton
-                icon={<CloseIcon className="h-4 w-4" />}
+                icon={<CloseIcon />}
                 label={t.removeOption}
                 variant="ghost"
                 size="sm"
@@ -1269,14 +1269,14 @@ function TemplateFields({
             </span>
             <div className="flex-1" />
             <IconButton
-              icon={<EditIcon className="h-3.5 w-3.5" />}
+              icon={<EditIcon />}
               label={t.editInput}
               variant="ghost"
               size="sm"
               onClick={() => setEditing({ name })}
             />
             <IconButton
-              icon={<ArrowUpIcon className="h-3.5 w-3.5" />}
+              icon={<ArrowUpIcon />}
               label={t.moveUp}
               variant="ghost"
               size="sm"
@@ -1284,7 +1284,7 @@ function TemplateFields({
               onClick={() => move(i, i - 1)}
             />
             <IconButton
-              icon={<ArrowDownIcon className="h-3.5 w-3.5" />}
+              icon={<ArrowDownIcon />}
               label={t.moveDown}
               variant="ghost"
               size="sm"
@@ -1292,7 +1292,7 @@ function TemplateFields({
               onClick={() => move(i, i + 1)}
             />
             <IconButton
-              icon={<TrashIcon className="h-3.5 w-3.5" />}
+              icon={<TrashIcon />}
               label={t.deleteInput}
               variant="ghost"
               size="sm"
@@ -2148,7 +2148,7 @@ function deleteButton(
 ): ReactNode {
   return (
     <IconButton
-      icon={<TrashIcon className="h-4 w-4" />}
+      icon={<TrashIcon />}
       label={t.deleteInput}
       variant="ghost"
       size="sm"

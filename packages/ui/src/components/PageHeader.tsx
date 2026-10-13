@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { AddIcon, ChevronRightIcon, EditIcon, MoreIcon } from '../icons'
 import { ActionMenu } from './ActionMenu'
 import { useBreadcrumb } from './Breadcrumbs'
+import { buttonClasses } from './buttonClasses'
 import { keyedByContent } from './keys'
 import type { MenuEntry } from './MenuEntries'
 import { useLink, useSlots, useStrings } from './Provider'
@@ -21,10 +22,8 @@ export interface PageHeaderCrumb {
   href?: string
 }
 
-export const headerActionButtonClasses =
-  'flex items-center justify-center w-6 h-6 rounded-md shrink-0 cursor-pointer text-(--theme-muted-text-color) hover:text-(--theme-app) hover:bg-(--theme-muted-panel-bg) transition-colors'
-const headerAddButtonClasses =
-  'inline-flex h-[26px] shrink-0 items-center gap-1.5 rounded-md border border-(--theme-border) px-2 text-xs font-medium cursor-pointer text-(--theme-muted-text-color) hover:bg-(--theme-muted-panel-bg) hover:text-(--theme-app) transition-colors'
+const headerActionButtonClasses = buttonClasses({ variant: 'ghost', size: 'xs', iconOnly: true })
+const headerAddButtonClasses = buttonClasses({ variant: 'outline', size: 'xs' })
 
 /** With menu, the plus opens a chooser; otherwise navigates to or calls the
  * single action. `word` is the visible verb; `label` stays the full action for
@@ -79,10 +78,7 @@ export function HeaderAddButton({
         onClick={disabled ? undefined : onClick}
         aria-label={hint ? `${label}. ${hint}` : label}
         aria-disabled={disabled || undefined}
-        className={cx(
-          headerAddButtonClasses,
-          'aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:bg-transparent aria-disabled:hover:text-(--theme-muted-text-color)',
-        )}
+        className={headerAddButtonClasses}
       >
         {content}
       </button>
@@ -135,10 +131,7 @@ export function HeaderEditButton({
           onClick={onClick}
           disabled={disabled}
           aria-label={label}
-          className={cx(
-            headerActionButtonClasses,
-            disabled && 'opacity-50 cursor-not-allowed hover:bg-transparent',
-          )}
+          className={headerActionButtonClasses}
         >
           <EditIcon className="w-3 h-3" />
         </button>

@@ -208,7 +208,7 @@ export function ListFilterMenu<T>({ view, label }: { view: ListView<T>; label?: 
             variant="outline"
             icon={<FilterIcon />}
             label={label ?? t.filter}
-            active={active}
+            dot={active}
             shortcut="f"
           />
         }

@@ -3,6 +3,7 @@ import { type ClassNames, DayPicker, type Matcher } from '@daypicker/react'
 import { clsx as cx } from 'clsx'
 import { useState } from 'react'
 import { AngleLeftIcon, AngleRightIcon, CalendarIcon } from '../icons'
+import { buttonClasses } from './buttonClasses'
 import { panelClassName, portalContainer, positionerClassName } from './floating'
 import { useStrings } from './Provider'
 
@@ -74,10 +75,8 @@ const calendarClassNames: Partial<ClassNames> = {
   month_caption: 'flex h-7 items-center px-1',
   caption_label: 'text-sm font-semibold',
   nav: 'absolute top-3 right-3 flex items-center gap-1',
-  button_previous:
-    'flex size-7 items-center justify-center rounded-md hover:bg-(--theme-hover) cursor-pointer disabled:cursor-not-allowed disabled:opacity-40',
-  button_next:
-    'flex size-7 items-center justify-center rounded-md hover:bg-(--theme-hover) cursor-pointer disabled:cursor-not-allowed disabled:opacity-40',
+  button_previous: buttonClasses({ variant: 'ghost', size: 'sm', iconOnly: true }),
+  button_next: buttonClasses({ variant: 'ghost', size: 'sm', iconOnly: true }),
   month_grid: 'border-collapse',
   weekdays: '',
   weekday: 'size-9 text-center text-xs font-normal text-(--theme-muted-text-color)',
@@ -201,9 +200,9 @@ export function DatePicker({
                 components={{
                   Chevron: ({ orientation }) =>
                     orientation === 'left' ? (
-                      <AngleLeftIcon aria-hidden="true" className="size-3.5" />
+                      <AngleLeftIcon aria-hidden="true" />
                     ) : (
-                      <AngleRightIcon aria-hidden="true" className="size-3.5" />
+                      <AngleRightIcon aria-hidden="true" />
                     ),
                 }}
               />
@@ -211,7 +210,7 @@ export function DatePicker({
                 <div className="flex justify-end border-t border-(--theme-border) px-3 py-2">
                   <button
                     type="button"
-                    className="text-xs text-(--theme-link) cursor-pointer hover:underline"
+                    className={buttonClasses({ variant: 'ghost', size: 'xs' })}
                     onClick={() => {
                       emit(undefined)
                       setOpen(false)

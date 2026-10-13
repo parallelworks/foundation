@@ -1,8 +1,9 @@
 import { clsx as cx } from 'clsx'
 import { useEffect, useMemo, useState } from 'react'
+import { Loader } from '../../../components/Loader'
 import { useCssIsDark } from '../../../components/useCssIsDark'
 import { formatDuration } from '../../../format'
-import { CheckIcon, ChevronRightIcon, LoaderIcon } from '../../../icons'
+import { CheckIcon, ChevronRightIcon } from '../../../icons'
 import { LogViewer } from '../../../logviewer/index'
 import {
   computeEditDiff,
@@ -231,7 +232,7 @@ function ResultBody({ part }: { part: ToolCallPart }) {
 
 function ToolStatusDot({ part }: { part: ToolCallPart }) {
   if (part.status === 'running') {
-    return <LoaderIcon className="w-3.5 h-3.5 animate-spin theme-muted-text" />
+    return <Loader inline decorative size={14} color="var(--theme-muted-text-color)" />
   }
   if (part.status === 'error') {
     return <span className="text-red-500 leading-none">●</span>
@@ -324,7 +325,9 @@ function SubagentCard({ part }: { part: SubagentPart }) {
         className="flex min-h-6 items-start gap-2 w-full text-left"
       >
         {part.status === 'running' ? (
-          <LoaderIcon className="w-3.5 h-3.5 mt-[3px] animate-spin theme-muted-text" />
+          <span className="mt-[3px]">
+            <Loader inline decorative size={14} color="var(--theme-muted-text-color)" />
+          </span>
         ) : (
           <span
             className={cx(

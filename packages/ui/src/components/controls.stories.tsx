@@ -1,7 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useState } from 'react'
 import { expect, userEvent, within } from 'storybook/test'
+import { AddIcon } from '../icons'
 import { Button, MethodButton } from './Button'
+import { type ButtonSize, type ButtonVariant, buttonClasses } from './buttonClasses'
 import { Card, CardHeader } from './Card'
 import Filter from './Filter'
 import { FilterPill } from './FilterPill'
@@ -22,24 +24,93 @@ const meta: Meta = {
 }
 export default meta
 
+const VARIANTS: ButtonVariant[] = ['primary', 'secondary', 'outline', 'ghost', 'danger']
+const SIZES: ButtonSize[] = ['xs', 'sm', 'md']
+
+/** The one button look: each variant at each size, its icon-only square, and
+ *  the states every button shares. */
 export const Buttons: StoryObj = {
-  render: () => (
-    <div className="flex flex-col gap-3 max-w-sm">
-      <Button>Primary</Button>
-      <Button variant="secondary">Secondary</Button>
-      <Button variant="outline">Outline</Button>
-      <Button variant="ghost">Ghost</Button>
-      <Button loading>Saving</Button>
-      <Button size="sm" fullWidth={false}>
-        Small
-      </Button>
-      <MethodButton
-        label="Single sign-on"
-        description="Use your organization identity provider"
-        href="/sso"
-      />
-    </div>
-  ),
+  render: () => {
+    const Demo = () => {
+      const [pressed, setPressed] = useState(true)
+      return (
+        <div className="flex flex-col gap-6 p-8 text-sm">
+          <table className="border-separate border-spacing-x-4 border-spacing-y-2">
+            <tbody>
+              {VARIANTS.map((variant) => (
+                <tr key={variant}>
+                  <th scope="row" className="pr-2 text-left font-medium theme-muted-text">
+                    {variant}
+                  </th>
+                  {SIZES.map((size) => (
+                    <td key={size}>
+                      <Button variant={variant} size={size} icon={<AddIcon />}>
+                        Create
+                      </Button>
+                    </td>
+                  ))}
+                  {SIZES.map((size) => (
+                    <td key={`${size}-icon`}>
+                      <IconButton variant={variant} size={size} label="Add" icon={<AddIcon />} />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              aria-pressed={pressed}
+              onClick={() => setPressed((on) => !on)}
+            >
+              Show hidden
+            </Button>
+            <Button variant="primary" size="sm" loading>
+              Saving
+            </Button>
+            <Button variant="primary" size="sm" disabled>
+              Unavailable
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled
+              focusableWhenDisabled
+              aria-label="Delete, which needs write access"
+            >
+              Delete
+            </Button>
+            <a href="#docs" className={buttonClasses({ variant: 'ghost', size: 'sm' })}>
+              Read the docs
+            </a>
+          </div>
+          <div className="max-w-sm">
+            <MethodButton
+              label="Single sign-on"
+              description="Use your organization identity provider"
+              href="/sso"
+            />
+          </div>
+        </div>
+      )
+    }
+    return <Demo />
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const toggle = canvas.getByRole('button', { name: 'Show hidden' })
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    await userEvent.click(toggle)
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    await expect(canvas.getByRole('button', { name: 'Saving' })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    )
+    await expect(canvas.getByRole('link', { name: 'Read the docs' })).toBeInTheDocument()
+    await expect(canvas.getAllByRole('button', { name: 'Add' })).toHaveLength(15)
+  },
 }
 
 export const Inputs: StoryObj = {

@@ -240,7 +240,7 @@ function Card({
         {children}
       </div>
       <IconButton
-        icon={<CloseIcon className="h-4 w-4" />}
+        icon={<CloseIcon />}
         label={removeLabel}
         variant="ghost"
         size="sm"

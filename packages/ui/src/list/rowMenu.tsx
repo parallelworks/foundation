@@ -2,6 +2,7 @@ import { clsx as cx } from 'clsx'
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import { useCallback, useState } from 'react'
 import type { OpenMenu } from '../components/ContextMenu'
+import { IconButton } from '../components/IconButton'
 import type { MenuAction, MenuEntry, MenuSubmenu } from '../components/MenuEntries'
 import { useStrings } from '../components/Provider'
 import {
@@ -176,22 +177,21 @@ export function MoreButton({
 }) {
   const { list: t } = useStrings()
   return (
-    <button
-      type="button"
-      aria-label={label ?? t.moreActions}
+    <IconButton
+      label={label ?? t.moreActions}
+      icon={<MoreIcon />}
       aria-haspopup="menu"
       aria-expanded={open}
+      data-popup-open={open || undefined}
       onClick={(e) => {
         e.stopPropagation()
         onOpen(e.currentTarget)
       }}
       className={cx(
-        'rounded p-1 cursor-pointer text-(--theme-muted-text-color) transition-colors hover:bg-(--theme-muted-panel-bg) hover:text-(--theme-app) focus-visible:opacity-100',
+        'focus-visible:opacity-100',
         visible ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100',
         className,
       )}
-    >
-      <MoreIcon className="h-4 w-4" />
-    </button>
+    />
   )
 }

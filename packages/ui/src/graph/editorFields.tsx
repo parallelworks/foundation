@@ -1,4 +1,3 @@
-import { clsx as cx } from 'clsx'
 import {
   type ComponentProps,
   createContext,
@@ -12,7 +11,6 @@ import {
 } from 'react'
 import { Button } from '../components/Button'
 import { FilterPill } from '../components/FilterPill'
-import { ghostButtonClasses, primaryButtonClasses } from '../components/ghostButton'
 import { IconButton } from '../components/IconButton'
 import { Input, Textarea } from '../components/Input'
 import { withPositionKeys } from '../components/keys'
@@ -388,11 +386,11 @@ export function ExpressionToggle({
   const t = useGraphEditorStrings()
   return (
     <IconButton
-      icon={<ExpressionIcon className="h-4 w-4" />}
+      icon={<ExpressionIcon />}
       label={active ? t.stopExpression : t.useExpression}
       size="sm"
       variant="ghost"
-      active={active}
+      data-selected={active || undefined}
       onClick={() => onChange(!active)}
     />
   )
@@ -453,15 +451,7 @@ export function ChoiceButtons<T extends string>({
 export function AddRowButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <div>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        fullWidth={false}
-        icon={<AddIcon className="h-3 w-3" />}
-        iconPosition="left"
-        onClick={onClick}
-      >
+      <Button variant="ghost" size="sm" icon={<AddIcon />} onClick={onClick}>
         {label}
       </Button>
     </div>
@@ -561,7 +551,7 @@ function KeyValueRow({
           />
         </div>
         <IconButton
-          icon={<CloseIcon className="h-4 w-4" />}
+          icon={<CloseIcon />}
           label={t.removeRow}
           variant="ghost"
           size="sm"
@@ -617,7 +607,7 @@ export function StringListEditor({
             />
           </div>
           <IconButton
-            icon={<CloseIcon className="h-4 w-4" />}
+            icon={<CloseIcon />}
             label={t.removeRow}
             variant="ghost"
             size="sm"
@@ -782,17 +772,12 @@ export function DialogShell({
           {footerStart}
           {openOnAdd && <OpenOnAddSwitch {...openOnAdd} />}
           <div className="flex-1" />
-          <button type="button" className={ghostButtonClasses} onClick={onClose}>
+          <Button variant="ghost" size="sm" onClick={onClose}>
             {t.cancel}
-          </button>
-          <button
-            type="button"
-            disabled={saveDisabled}
-            onClick={submit}
-            className={cx(primaryButtonClasses, 'disabled:cursor-not-allowed disabled:opacity-50')}
-          >
+          </Button>
+          <Button variant="primary" size="sm" disabled={saveDisabled} onClick={submit}>
             {t.save}
-          </button>
+          </Button>
         </div>
       </div>
     </Modal>

@@ -30,14 +30,7 @@ export function ShortcutsButton({ groups }: { groups: ShortcutGroup[] }) {
     <Popover
       title={t.shortcuts}
       {...toolbarPanel}
-      trigger={
-        <IconButton
-          icon={<KeyboardIcon className="h-4 w-4" />}
-          label={t.shortcuts}
-          size="sm"
-          variant="ghost"
-        />
-      }
+      trigger={<IconButton icon={<KeyboardIcon />} label={t.shortcuts} size="sm" variant="ghost" />}
     >
       {groups.map((group) => (
         <section key={group.title} className="mt-3 first-of-type:mt-0">

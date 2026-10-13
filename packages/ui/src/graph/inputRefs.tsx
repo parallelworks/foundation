@@ -196,7 +196,7 @@ function NewInputButton({
   const types = inputsEditor.types as Record<string, string>
   return (
     <IconButton
-      icon={<AddIcon className="h-4 w-4" />}
+      icon={<AddIcon />}
       label={t.newInputOf(types[type] ?? type)}
       size="sm"
       variant="ghost"

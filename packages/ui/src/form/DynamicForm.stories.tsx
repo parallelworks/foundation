@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useForm, useFormState } from 'react-hook-form'
 import { expect, screen, userEvent, waitFor, within } from 'storybook/test'
+import { Button } from '../components/Button'
 import { DynamicForm, type FormValues } from './Form'
 
 const meta: Meta<typeof DynamicForm> = {
@@ -98,9 +99,9 @@ function HostFormStory() {
       <DynamicForm form={form} formJSONs={FORM_JSONS} initialValues={{}} skipValueParse />
       <div className="flex items-center gap-3 text-[13px]">
         <span>{isDirty ? 'Unsaved changes' : 'No changes'}</span>
-        <button type="button" className="btn" onClick={() => form.reset()}>
+        <Button variant="secondary" onClick={() => form.reset()}>
           Reset
-        </button>
+        </Button>
       </div>
     </div>
   )

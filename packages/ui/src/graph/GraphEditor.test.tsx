@@ -2362,7 +2362,6 @@ describe('steps, the clipboard and the arrow keys', () => {
     for (const props of [{ editor: editor() }, {}]) {
       render(<DependencyGraphPreview yml={graph} {...props} />)
       const reset = screen.getByRole('button', { name: 'Reset View' })
-      expect(reset).not.toHaveClass('btn')
       expect(reset.parentElement).toContainElement(screen.getByRole('button', { name: 'Zoom in' }))
       expect(reset.parentElement).toContainElement(screen.getByRole('button', { name: 'Zoom out' }))
       cleanup()

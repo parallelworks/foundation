@@ -1,6 +1,7 @@
 import { clsx as cx } from 'clsx'
 import { type JSX, useState, useTransition } from 'react'
 import { useLocalStorage } from 'usehooks-ts'
+import { Button } from '../components/Button'
 import Callout from '../components/Callout'
 import { ProgressBar } from '../components/Meter'
 import {
@@ -217,8 +218,6 @@ function NoFileSelectedPreview() {
   const t = useStrings().fileExplorer
   return (
     <div className="flex-1 flex items-center justify-center p-8">
-      {/* A centring flex column, not `text-center`: `.btn` is display:flex, so it
-          would stretch to the container instead of sitting centred. */}
       <div className="flex flex-col items-center max-w-sm text-center">
         <div className="inline-flex items-center justify-center w-14 h-14 rounded-full theme-muted-panel mb-4">
           <DiskIcon className="h-6 w-6 theme-muted-text" />
@@ -242,10 +241,9 @@ function NotFoundPreview({ path, onRetry }: { path: string; onRetry: () => void 
         </div>
         <h2 className="text-base font-semibold mb-1">{t.title(name)}</h2>
         <p className="text-sm theme-muted-text mb-4">{t.description}</p>
-        <button type="button" className="btn btn-info gap-2" onClick={onRetry}>
-          <RefreshIcon className="h-4 w-4" />
+        <Button variant="primary" icon={<RefreshIcon />} onClick={onRetry}>
           {t.retry}
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -299,23 +297,17 @@ function CorsIssuePreview({
         <p className="mt-2 text-sm italic">{t.explanation.note}</p>
       </Callout>
       <div className="flex gap-3 justify-center">
-        <button
-          type="button"
-          className="btn btn-info cursor-pointer flex items-center"
+        <Button
+          variant="primary"
+          icon={<RefreshIcon />}
           onClick={onRefresh ? () => onRefresh() : undefined}
         >
-          <RefreshIcon className="h-4 w-4 mr-2" />
           {t.actions.retry}
-        </button>
+        </Button>
         {provisionCorsRules && (
-          <button
-            type="button"
-            className="btn btn-info cursor-pointer flex items-center"
-            onClick={handleAddCorsRules}
-          >
-            <CustomizeIcon className="h-4 w-4 mr-2" />
-            <span>{t.actions.addRules}</span>
-          </button>
+          <Button variant="primary" icon={<CustomizeIcon />} onClick={handleAddCorsRules}>
+            {t.actions.addRules}
+          </Button>
         )}
       </div>
     </div>
@@ -500,14 +492,13 @@ function NoDataAvailablePreview({
           </div>
           <h2 className="text-base font-semibold mb-1">{t.empty.connectionIssue}</h2>
           <p className="text-sm theme-muted-text mb-4">{connectionIssueMessage}</p>
-          <button
-            type="button"
-            className="btn btn-info cursor-pointer flex items-center gap-2"
+          <Button
+            variant="primary"
+            icon={<RefreshIcon />}
             onClick={onRefresh ? () => onRefresh() : undefined}
           >
-            <RefreshIcon className="h-4 w-4" />
             {t.empty.tryAgain}
-          </button>
+          </Button>
         </div>
       )}
     </div>
@@ -590,20 +581,20 @@ function ShareFileButton({ node, onShare }: IShareFileButtonProps) {
   const [isPending, startTransition] = useTransition()
 
   return (
-    <button
-      type="button"
+    <Button
+      variant="primary"
+      size="sm"
       aria-label={t.preview.shareFile}
-      className="btn btn-info cursor-pointer flex items-center justify-between"
+      icon={<ShareIcon />}
       onClick={() => {
         startTransition(async () => {
           await onShare(node)
         })
       }}
-      disabled={isPending}
+      loading={isPending}
     >
-      <ShareIcon className="h-4 w-4" />
       <span className="hidden md:inline">{t.empty.shareThisFile}</span>
-    </button>
+    </Button>
   )
 }
 

@@ -12,9 +12,13 @@ import {
   useRef,
   useState,
 } from 'react'
+import { Button } from '../components/Button'
+import { buttonClasses } from '../components/buttonClasses'
 import { DatePicker } from '../components/DatePicker'
 import { panelClassName, portalContainer, positionerClassName } from '../components/floating'
+import { IconButton } from '../components/IconButton'
 import { InfoTip } from '../components/InfoTip'
+import { Loader } from '../components/Loader'
 import { useNotify, useOptionalWorkflowEngine, useStrings } from '../components/Provider'
 import type { LogCommand, LogSegment, ProcessedLogLine } from '../engine'
 import {
@@ -243,10 +247,7 @@ const TopPaginationBanner = memo(function TopPaginationBanner({
   if (loadingTop) {
     return (
       <div className={baseCx}>
-        <span
-          className="w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin"
-          aria-hidden
-        />
+        <Loader inline decorative size={12} color="currentColor" />
         <span>{t.loadingOlderEntries}</span>
       </div>
     )
@@ -921,20 +922,22 @@ export function LogViewer({
           <div className="flex gap-x-2 w-full">
             {!inline && (
               <>
-                <button
-                  type="button"
-                  className="btn btn-neutral"
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={<ArrowUpIcon />}
                   onClick={() => {
                     scrollToTop()
                     updateFollow(false)
                   }}
                 >
-                  <ArrowUpIcon />
-                  <span>{t.top}</span>
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-neutral"
+                  {t.top}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={<ArrowDownIcon />}
+                  aria-pressed={follow}
                   onClick={() => {
                     if (!follow) {
                       updateFollow(true)
@@ -947,47 +950,55 @@ export function LogViewer({
                     }
                   }}
                 >
-                  <ArrowDownIcon />
-                  <span>{!follow ? 'Follow' : 'Following'}</span>
-                </button>
+                  {!follow ? 'Follow' : 'Following'}
+                </Button>
               </>
             )}
             {/* Copy selected lines button */}
             {selectedLines.size > 0 ? (
               <div className="relative flex items-center h-full">
-                <button type="button" className="btn btn-neutral" onClick={copySelectedLines}>
-                  {copied ? <CheckIcon className="text-green-500" /> : <CopyIcon />}
-                  <span>{copied ? tCommon.copied : t.copyLines(selectedLines.size)}</span>
-                </button>
-                <button
-                  type="button"
-                  aria-label={t.clearSelection}
-                  className="absolute -top-1.5 -right-1.5 btn-neutral rounded-full p-1 border transition-colors shadow-sm cursor-pointer z-10"
-                  onClick={() => setSelectedLines(new Set())}
-                  title={t.clearSelection}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={copied ? <CheckIcon className="text-green-500" /> : <CopyIcon />}
+                  onClick={copySelectedLines}
                 >
-                  <XIcon className="text-[10px]" />
-                </button>
+                  {copied ? tCommon.copied : t.copyLines(selectedLines.size)}
+                </Button>
+                <span className="absolute -top-2 -right-2 z-10 rounded-md shadow-sm">
+                  <IconButton
+                    variant="secondary"
+                    size="xs"
+                    label={t.clearSelection}
+                    icon={<XIcon />}
+                    onClick={() => setSelectedLines(new Set())}
+                  />
+                </span>
               </div>
             ) : (
-              <button type="button" className="btn btn-neutral" onClick={copyAllLogs}>
-                {copied ? <CheckIcon className="text-green-500" /> : <CopyIcon />}
-                <span>{copied ? tCommon.copied : t.copyAll}</span>
-              </button>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={copied ? <CheckIcon className="text-green-500" /> : <CopyIcon />}
+                onClick={copyAllLogs}
+              >
+                {copied ? tCommon.copied : t.copyAll}
+              </Button>
             )}
             {additionalLeftBarComponents}
             {enableWorkflowCommands && (
-              <button
-                type="button"
-                className={cx('btn btn-neutral', showDebug && 'btn-active')}
+              <Button
+                variant="secondary"
+                size="sm"
+                aria-pressed={showDebug}
                 onClick={() => setShowDebug((prev) => !prev)}
               >
-                <span>{showDebug ? t.hideDebug : t.showDebug}</span>
-              </button>
+                {showDebug ? t.hideDebug : t.showDebug}
+              </Button>
             )}
             {enableTimeRangeFilter && (
               <Popover.Root open={timeRangeOpen} onOpenChange={setTimeRangeOpen}>
-                <Popover.Trigger className="btn btn-neutral">
+                <Popover.Trigger className={buttonClasses({ variant: 'secondary', size: 'sm' })}>
                   <ClockIcon />
                   <span>{t.timeRange}</span>
                   {(timeRangeFrom !== '' || timeRangeTo !== '') && (
@@ -1040,21 +1051,23 @@ export function LogViewer({
                         <span className="text-[11px] text-red-500">{t[timeRangeError]}</span>
                       )}
                       <div className="flex gap-x-2">
-                        <button
-                          type="button"
+                        <Button
+                          variant="primary"
+                          size="sm"
                           disabled={timeRangeError !== ''}
-                          className="btn btn-primary flex-1 justify-center"
+                          className="flex-1"
                           onClick={() => {
                             onTimeRangeChange?.(timeRangeFrom, timeRangeTo)
                             setTimeRangeOpen(false)
                           }}
                         >
                           {t.apply}
-                        </button>
+                        </Button>
                         {(timeRangeFrom !== '' || timeRangeTo !== '') && (
-                          <button
-                            type="button"
-                            className="btn btn-neutral flex-1 justify-center"
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="flex-1"
                             onClick={() => {
                               setTimeRangeFrom('')
                               setTimeRangeTo('')
@@ -1063,7 +1076,7 @@ export function LogViewer({
                             }}
                           >
                             {t.clear}
-                          </button>
+                          </Button>
                         )}
                       </div>
                     </Popover.Popup>
@@ -1078,18 +1091,25 @@ export function LogViewer({
             placeholder={t.filterLogs}
             onChange={handleFilterChange}
           />
-          <a href={logUrl} className={cx(!logUrl && 'disabled', 'btn btn-neutral')} download>
-            <DownloadIcon />
-            <span>{t.download}</span>
-          </a>
-          <button
-            type="button"
-            className={cx('btn btn-neutral', hideExpand && 'hidden')}
-            onClick={() => setFullscreen((prev) => !prev)}
+          <a
+            href={logUrl || undefined}
+            aria-disabled={!logUrl || undefined}
+            className={buttonClasses({ variant: 'secondary', size: 'sm' })}
+            download
           >
-            <ExpandButtonIcon />
-            <span>{expandButtonText}</span>
-          </button>
+            <DownloadIcon />
+            {t.download}
+          </a>
+          {!hideExpand && (
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<ExpandButtonIcon />}
+              onClick={() => setFullscreen((prev) => !prev)}
+            >
+              {expandButtonText}
+            </Button>
+          )}
         </div>
         {additionalRightBarComponents}
       </div>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocalStorage } from 'usehooks-ts'
-import { iconButtonOutlineClasses } from '../components/IconButton'
+import { buttonClasses } from '../components/buttonClasses'
 import { useStrings } from '../components/Provider'
 import { isTextEntryContext } from '../components/shortcutKey'
 import { Tooltip } from '../components/Tooltip'
@@ -170,9 +170,9 @@ export function ListSearchControl({
         type="button"
         onClick={search.openSearch}
         aria-label={label}
-        className={iconButtonOutlineClasses}
+        className={buttonClasses({ variant: 'outline', size: 'sm', iconOnly: true })}
       >
-        <SearchIcon className="w-3.5 h-3.5" />
+        <SearchIcon />
       </button>
     </Tooltip>
   )

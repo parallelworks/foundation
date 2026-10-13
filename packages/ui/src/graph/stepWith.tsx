@@ -717,7 +717,7 @@ function ExtraKey({
         <span className="font-mono">{name}</span>
         <span className="text-xs text-(--theme-error)">{t.notActionInput}</span>
         <IconButton
-          icon={<CloseIcon className="h-4 w-4" />}
+          icon={<CloseIcon />}
           label={t.removeRow}
           variant="ghost"
           size="sm"

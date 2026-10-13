@@ -127,7 +127,12 @@ try {
   if (!css.includes('@layer pw-ui{')) {
     throw new Error('dist/styles.css lost its pw-ui layer wrapper')
   }
-  for (const needle of ['.btn{', '.bg-background', '.divide-border', '--color-background:']) {
+  for (const needle of [
+    '.logo-loader-ring{',
+    '.bg-background',
+    '.divide-border',
+    '--color-background:',
+  ]) {
     if (!css.includes(needle)) {
       throw new Error(`dist/styles.css is missing ${needle}`)
     }
@@ -193,6 +198,7 @@ try {
       "need(root, 'root', 'Popover')",
       "need(root, 'root', 'Drawer')",
       "need(root, 'root', 'Combobox')",
+      "need(root, 'root', 'buttonClasses')",
       "need(root, 'root', 'Select')",
       "need(root, 'root', 'Switch')",
       "need(root, 'root', 'Section')",
@@ -245,7 +251,6 @@ try {
       "need(theme, 'theme', 'THEME_PRESETS')",
       "need(theme, 'theme', 'applyTheme')",
       "need(icons, 'icons', 'AddIcon')",
-      "need(icons, 'icons', 'LoaderIcon')",
       "need(icons, 'icons', 'SuccessCheckmark')",
       'const vars = theme.deriveTheme({',
       "  accent: '#06354f',",
@@ -265,11 +270,11 @@ try {
     [
       "import { deriveTheme, THEME_PRESETS } from '@parallelworks/ui/theme'",
       "import type { ThemeVariables, ThemeSeed } from '@parallelworks/ui/theme'",
-      "import { AddIcon, LoaderIcon } from '@parallelworks/ui/icons'",
+      "import { AddIcon, TrashIcon } from '@parallelworks/ui/icons'",
       "const seed: ThemeSeed = { accent: '#06354f', background: '#ffffff' }",
       'export const vars: ThemeVariables = deriveTheme(seed)',
       'export const presets = THEME_PRESETS.map(p => p.name)',
-      'export const icons = [AddIcon, LoaderIcon]',
+      'export const icons = [AddIcon, TrashIcon]',
       "import type { ChatAdapter, ChatMessage, Conversation } from '@parallelworks/ui/ai'",
       "import { createMockChatAdapter } from '@parallelworks/ui/ai/mock'",
       'const adapter: ChatAdapter = createMockChatAdapter()',

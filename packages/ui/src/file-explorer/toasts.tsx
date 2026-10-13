@@ -1,8 +1,9 @@
 import { clsx as cx } from 'clsx'
 import { useState } from 'react'
+import { Button } from '../components/Button'
+import { IconButton } from '../components/IconButton'
 import { type BarTone, ProgressBar } from '../components/Meter'
 import { type UIStrings, useStrings } from '../components/Provider'
-import { Tooltip } from '../components/Tooltip'
 import { formatBytes } from '../format'
 import {
   AlertIcon,
@@ -127,16 +128,12 @@ function FileProgressBar({ fileProgress, fileName, onCancelFile }: FileProgressB
       />
 
       {!showCancelConfirm && canCancel && (
-        <Tooltip content={strings.cancelFile(fileName)}>
-          <button
-            type="button"
-            aria-label={strings.cancelFile(fileName)}
-            className="p-1 rounded-full hover:bg-red-100 cursor-pointer"
-            onClick={(e) => stop(e, () => setShowCancelConfirm(true))}
-          >
-            <CloseIcon className="w-4 h-4 text-red-500 hover:text-red-700" />
-          </button>
-        </Tooltip>
+        <IconButton
+          size="xs"
+          label={strings.cancelFile(fileName)}
+          icon={<CloseIcon />}
+          onClick={(e) => stop(e, () => setShowCancelConfirm(true))}
+        />
       )}
 
       {showCancelConfirm && canCancel && (
@@ -144,16 +141,16 @@ function FileProgressBar({ fileProgress, fileName, onCancelFile }: FileProgressB
           <span className="text-xs theme-muted-text whitespace-nowrap">
             {strings.confirmCancelFile}
           </span>
-          <button
-            type="button"
-            className="px-1.5 py-0.5 text-xs bg-(--theme-border) theme-muted-text rounded hover:theme-hover"
+          <Button
+            variant="secondary"
+            size="xs"
             onClick={(e) => stop(e, () => setShowCancelConfirm(false))}
           >
             {common.no}
-          </button>
-          <button
-            type="button"
-            className="!px-1.5 !py-0.5 text-xs btn btn-destructive cursor-pointer"
+          </Button>
+          <Button
+            variant="danger"
+            size="xs"
             onClick={(e) =>
               stop(e, () => {
                 onCancelFile?.()
@@ -162,7 +159,7 @@ function FileProgressBar({ fileProgress, fileName, onCancelFile }: FileProgressB
             }
           >
             {common.yes}
-          </button>
+          </Button>
         </div>
       )}
     </div>
@@ -416,32 +413,20 @@ export function UploadSessionToast({
             {/* Action Buttons */}
             <div className="flex items-center justify-end">
               {shouldShowSessionCancelButton && (
-                <button
-                  type="button"
-                  className="!px-2 !py-1 text-xs btn btn-destructive cursor-pointer transition-colors"
-                  onClick={handleCancelClick}
-                >
+                <Button variant="danger" size="xs" onClick={handleCancelClick}>
                   {modal.cancel}
-                </button>
+                </Button>
               )}
 
               {showCancelConfirm && (
                 <div className="flex items-center space-x-2">
                   <span className="text-xs theme-muted-text">{strings.confirmCancelAll}</span>
-                  <button
-                    type="button"
-                    className="!px-2 !py-1 text-xs bg-(--theme-border) theme-muted-text rounded hover:theme-hover"
-                    onClick={handleKeepUploading}
-                  >
+                  <Button variant="secondary" size="xs" onClick={handleKeepUploading}>
                     {common.no}
-                  </button>
-                  <button
-                    type="button"
-                    className="!px-2 !py-1 text-xs btn btn-destructive cursor-pointer"
-                    onClick={handleConfirmCancel}
-                  >
+                  </Button>
+                  <Button variant="danger" size="xs" onClick={handleConfirmCancel}>
                     {common.yes}
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>

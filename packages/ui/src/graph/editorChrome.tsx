@@ -98,7 +98,7 @@ export function EditorBar({
         </>
       )}
       <IconButton
-        icon={<UndoIcon className="h-4 w-4" />}
+        icon={<UndoIcon />}
         label={t.undo}
         size="sm"
         variant="ghost"
@@ -106,7 +106,7 @@ export function EditorBar({
         onClick={editor.onUndo}
       />
       <IconButton
-        icon={<RedoIcon className="h-4 w-4" />}
+        icon={<RedoIcon />}
         label={t.redo}
         size="sm"
         variant="ghost"
@@ -117,7 +117,7 @@ export function EditorBar({
       {children}
       {editor.onOpenSettings && (
         <IconButton
-          icon={<SettingsIcon className="h-4 w-4" />}
+          icon={<SettingsIcon />}
           label={t.workflowSettings}
           size="sm"
           variant="ghost"

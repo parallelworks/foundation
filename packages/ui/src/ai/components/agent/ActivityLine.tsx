@@ -1,9 +1,10 @@
 import { clsx as cx } from 'clsx'
 import { DateTime } from 'luxon'
 import { useEffect, useRef, useState } from 'react'
+import { Loader } from '../../../components/Loader'
 import { useClock } from '../../../components/relativeTime'
 import { formatCount, formatDuration } from '../../../format'
-import { LoaderIcon, StopSolidIcon } from '../../../icons'
+import { StopSolidIcon } from '../../../icons'
 import { useChatConfig } from '../../core/config'
 
 /** The agent status words: one is picked per turn and held until it ends. */
@@ -112,16 +113,7 @@ export default function ActivityLine({
   }
   return (
     <div data-testid={testId} className="flex min-h-8 items-center gap-2 px-1 text-sm">
-      <LoaderIcon
-        className="h-3.5 w-3.5 shrink-0 animate-spin text-(--theme-element) motion-reduce:hidden"
-        aria-hidden="true"
-      />
-      <span
-        className="hidden shrink-0 leading-none text-(--theme-element) motion-reduce:inline"
-        aria-hidden="true"
-      >
-        ●
-      </span>
+      <Loader inline decorative size={14} color="var(--theme-element)" />
       <span
         data-testid={testId ? `${testId}-word` : undefined}
         className="min-w-0 truncate text-(--theme-element)"

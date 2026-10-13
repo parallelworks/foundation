@@ -1,7 +1,8 @@
 import { clsx as cx } from 'clsx'
 import { Fragment } from 'react'
+import { Loader } from '../../components/Loader'
 import { formatBytes } from '../../format'
-import { FileIcon, RunningIcon, XIcon } from '../../icons'
+import { FileIcon, XIcon } from '../../icons'
 import { useChatConfig } from '../core/config'
 import { fencePaste } from '../core/pasteLanguage'
 import { splitPastes } from '../core/pastes'
@@ -44,9 +45,7 @@ export function PasteFileCard({
           {detail}
         </div>
       </div>
-      {saving && (
-        <RunningIcon className="h-3.5 w-3.5 flex-shrink-0 animate-spin theme-muted-text" />
-      )}
+      {saving && <Loader inline decorative size={14} color="var(--theme-muted-text-color)" />}
       {onRemove && (
         <button
           type="button"

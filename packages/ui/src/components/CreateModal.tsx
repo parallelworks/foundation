@@ -1,13 +1,13 @@
-import { Button } from '@base-ui/react/button'
 import { Toggle } from '@base-ui/react/toggle'
 import { clsx as cx } from 'clsx'
 import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from 'react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { ChevronDownIcon, FavoriteIcon, FavoriteOutlineIcon } from '../icons'
 import { ActionMenu } from './ActionMenu'
+import { Button } from './Button'
+import { buttonClasses } from './buttonClasses'
 import { Autocomplete, Combobox } from './Combobox'
 import { type ComboboxItems, comboboxLeaves } from './comboboxItems'
-import { ghostButtonClasses, primaryButtonClasses } from './ghostButton'
 import { InfoTip } from './InfoTip'
 import type { MenuEntry } from './MenuEntries'
 import { Modal } from './Modal'
@@ -284,17 +284,12 @@ export function CreateModal({
               pressed={favorite}
               onPressedChange={setFavorite}
               aria-label={t.favorite}
-              className={cx(
-                'inline-flex h-8 items-center gap-1.5 px-2.5 rounded-md text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-(--theme-focus-ring)',
-                favorite
-                  ? 'text-(--theme-favorite) bg-(--theme-favorite-muted)'
-                  : 'text-(--theme-muted-text-color) hover:text-(--theme-app) hover:bg-(--theme-muted-panel-bg)',
-              )}
+              className={buttonClasses({ variant: 'ghost', size: 'md' })}
             >
               {favorite ? (
-                <FavoriteIcon className="w-4 h-4 scale-110 transition-transform" />
+                <FavoriteIcon className="text-(--theme-favorite)" />
               ) : (
-                <FavoriteOutlineIcon className="w-4 h-4 transition-transform" />
+                <FavoriteOutlineIcon />
               )}
               {favorite ? t.favorited : t.favorite}
             </Toggle>
@@ -303,18 +298,19 @@ export function CreateModal({
           <span />
         )}
         <div className="flex items-center gap-2">
-          <button type="button" onClick={onClose} className={ghostButtonClasses}>
+          <Button variant="ghost" size="sm" onClick={onClose}>
             {hideSubmit ? t.close : t.cancel}
-          </button>
+          </Button>
           {!hideSubmit && (
-            <button
-              type="button"
+            <Button
+              variant="primary"
+              size="sm"
               onClick={handleSubmit}
               aria-disabled={!canSubmit}
-              className={`${primaryButtonClasses} aria-disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:hover:opacity-50`}
+              loading={submitting}
             >
               {submitting ? submittingText : submitText}
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -436,8 +432,9 @@ export function CreateModalAutocompleteField({
   )
 }
 
-const pillClasses =
-  'inline-flex h-7 items-center gap-1.5 rounded-md border border-(--theme-border) px-2 text-xs font-medium transition-colors'
+// A property pill reads filled once it holds a value, and outlined while unset.
+const pillClasses = (set: boolean) =>
+  buttonClasses({ variant: set ? 'secondary' : 'outline', size: 'sm' })
 
 /** Compact property pill with an on/off switch. */
 export function CreateModalSwitch({
@@ -454,13 +451,7 @@ export function CreateModalSwitch({
 }) {
   return (
     <Tooltip content={tooltip}>
-      <label
-        className={cx(
-          pillClasses,
-          'cursor-pointer hover:bg-(--theme-muted-panel-bg)',
-          checked ? 'text-(--theme-app)' : 'text-(--theme-muted-text-color)',
-        )}
-      >
+      <label className={pillClasses(checked)}>
         <Switch size="sm" checked={checked} onCheckedChange={onCheckedChange} />
         {label}
       </label>
@@ -517,15 +508,7 @@ export function CreateModalSelect({
   if (disabled) {
     return (
       <Tooltip content={disabledReason ?? tooltip}>
-        <Button
-          disabled
-          focusableWhenDisabled
-          aria-label={label}
-          className={cx(
-            pillClasses,
-            'opacity-50 cursor-not-allowed text-(--theme-muted-text-color)',
-          )}
-        >
+        <Button disabled focusableWhenDisabled aria-label={label} variant="outline" size="sm">
           {pillContent}
         </Button>
       </Tooltip>
@@ -545,14 +528,7 @@ export function CreateModalSelect({
       placeholder={t.filter}
       triggerTooltip={tooltip}
       trigger={
-        <button
-          type="button"
-          className={cx(
-            pillClasses,
-            'cursor-pointer hover:bg-(--theme-muted-panel-bg)',
-            selectedLabel ? 'text-(--theme-app)' : 'text-(--theme-muted-text-color)',
-          )}
-        >
+        <button type="button" className={pillClasses(!!selectedLabel)}>
           {pillContent}
         </button>
       }

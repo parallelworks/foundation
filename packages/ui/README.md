@@ -55,10 +55,30 @@ so its precedence does not depend on where it loads. It includes Tailwind's
 preflight reset; a host with its own Tailwind build should use the `@source`
 route instead to avoid a double preflight.
 
+## Buttons and spinners
+
+Every pressable thing has one look, from `buttonClasses({ variant, size, iconOnly })`:
+
+| Variant | For |
+| --- | --- |
+| `primary` | the one action a view leads to |
+| `secondary` | actions beside it |
+| `outline`, `ghost` | toolbar and inline actions, bordered or not |
+| `danger` | confirming what can't be undone |
+
+Sizes are `xs`, `sm` and `md`. `Button` and `IconButton` apply it. An
+`IconButton` is named by its tooltip, and takes `pressed` for a toggle and
+`dot` for an indicator. Pass `buttonClasses()` to a host link or to another
+component's trigger rather than styling a button by hand. A pressed toggle
+(`aria-pressed`) and an open popup's trigger read as selected.
+
+`Loader` is the one spinner. Inside a button, or beside text that already
+says what is happening, use `<Loader inline decorative />`.
+
 ## Icons
 
 ```tsx
-import { AddIcon, LoaderIcon, TrashIcon } from '@parallelworks/ui/icons'
+import { AddIcon, TrashIcon } from '@parallelworks/ui/icons'
 ```
 
 The barrel re-exports a curated, stable set of icon names over `react-icons`

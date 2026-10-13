@@ -1,6 +1,7 @@
 import { clsx as cx } from 'clsx'
 import { useCallback, useMemo, useState } from 'react'
 import useSWRInfinite from 'swr/infinite'
+import { Loader } from '../../components/Loader'
 import { RelativeTime } from '../../components/relativeTime'
 import { formatBytes } from '../../format'
 import { DownloadFileIcon, FileIcon, TrashIcon } from '../../icons'
@@ -89,8 +90,8 @@ export default function AttachmentManager() {
             <h1 className="text-2xl font-semibold mb-6 text-(--theme-panel)">{t.title}</h1>
 
             {isLoading && attachments.length === 0 ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-2 border-current border-t-transparent theme-muted-text" />
+              <div className="py-12">
+                <Loader size={32} />
               </div>
             ) : attachments.length === 0 ? (
               <p className="text-center theme-muted-text py-12 text-sm">{t.empty}</p>

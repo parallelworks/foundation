@@ -1,5 +1,5 @@
 import { clsx as cx } from 'clsx'
-import { LoaderIcon } from '../icons'
+import { FaCircleNotch } from 'react-icons/fa'
 import { useStrings } from './Provider'
 
 const RIPPLE_STAGGER_S = 0.22
@@ -22,6 +22,9 @@ export interface LoaderProps {
   inline?: boolean
   /** The spinner's color, such as `currentColor` inside a button. */
   color?: string | undefined
+  /** Beside text that already says what is happening, such as a busy button's
+   *  label: hidden from assistive technology, and in the text's color. */
+  decorative?: boolean
 }
 
 /** Something on the way that has no shape to sketch yet. When its shape is
@@ -32,9 +35,28 @@ export function Loader({
   variant = 'spinner',
   inline = false,
   color,
+  decorative = false,
 }: LoaderProps) {
   const { loading } = useStrings()
   const dimension = typeof size === 'number' ? `${size}px` : size
+  const spinner = (
+    <FaCircleNotch
+      aria-hidden="true"
+      className="animate-spin motion-reduce:animate-none"
+      style={{ fontSize: dimension }}
+    />
+  )
+  if (decorative) {
+    return (
+      <span
+        aria-hidden="true"
+        className="inline-flex shrink-0"
+        style={color ? { color } : undefined}
+      >
+        {spinner}
+      </span>
+    )
+  }
   return (
     <span
       role="status"
@@ -70,11 +92,7 @@ export function Loader({
             ))}
           </svg>
         ) : (
-          <LoaderIcon
-            aria-hidden="true"
-            className="animate-spin motion-reduce:animate-none"
-            style={{ fontSize: dimension }}
-          />
+          spinner
         )}
       </span>
       {label && <span className="text-center text-sm theme-muted-text">{label}</span>}

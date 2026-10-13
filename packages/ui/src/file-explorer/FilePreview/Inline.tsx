@@ -1,3 +1,4 @@
+import { Button } from '../../components/Button'
 import { useStrings } from '../../components/Provider'
 import { formatBytes } from '../../format'
 import { ExpandIcon } from '../../icons'
@@ -54,14 +55,14 @@ export function FilePreviewInline({
           </span>
           {url && <StreamedBadge />}
         </div>
-        <button
-          type="button"
-          className="btn btn-neutral cursor-pointer"
+        <Button
+          variant="secondary"
+          size="sm"
+          icon={<ExpandIcon />}
           onClick={() => onOpenFull(node)}
         >
-          <ExpandIcon className="mr-2 h-4 w-4" />
           {t.preview.openFullPreview}
-        </button>
+        </Button>
       </div>
     </div>
   )

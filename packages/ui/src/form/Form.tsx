@@ -21,6 +21,7 @@ import {
   useFormState,
   useWatch,
 } from 'react-hook-form'
+import { Button } from '../components/Button'
 import { InfoTip } from '../components/InfoTip'
 import { Loader } from '../components/Loader'
 import { useStrings, useWorkflowEngine } from '../components/Provider'
@@ -989,7 +990,9 @@ function DynamicFormContent({
           <FieldsFromOptions {...meta} options={opts} />
           {onSubmit !== undefined && !workflowForm && (
             <div className="mt-4">
-              <input type="submit" className="btn btn-info" value={submitLabel} />
+              <Button type="submit" variant="primary">
+                {submitLabel}
+              </Button>
             </div>
           )}
         </>

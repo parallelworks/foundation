@@ -13,6 +13,8 @@ import {
   useState,
 } from 'react'
 import { useLocalStorage } from 'usehooks-ts'
+import { Button } from '../components/Button'
+import { buttonClasses } from '../components/buttonClasses'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { useContextMenu } from '../components/ContextMenu'
 import CopyToClipboard, { CopyCodeBlock } from '../components/CopyToClipboard'
@@ -1677,30 +1679,28 @@ export default function FileExplorer({
                     />
 
                     {selectedNodeCanWrite && selectedNodeCanUpload && (
-                      <button
-                        type="button"
+                      <Button
+                        variant="primary"
+                        size="sm"
                         aria-label={t.createFolder.action}
-                        className="btn btn-info cursor-pointer flex items-center justify-center"
+                        icon={<FolderIcon />}
                         disabled={selectedNode.type === 'file' || !selectedNode.storageId}
                         onClick={() => setCreateFolderTarget(selectedNode)}
                       >
-                        <FolderIcon className="h-4 w-4 mr-2" />
                         <span className="hidden md:inline">{t.createFolder.action}</span>
-                      </button>
+                      </Button>
                     )}
 
                     {selectedNodeCanWrite && selectedNodeCanUpload && (
                       <Menu.Root>
                         <Menu.Trigger
                           aria-label={t.chrome.upload}
-                          className="btn btn-info cursor-pointer flex items-center justify-between pr-0.5!"
+                          className={buttonClasses({ variant: 'primary', size: 'sm' })}
                           disabled={selectedNode.type === 'file' || !selectedNode.storageId}
                         >
-                          <div>
-                            <UploadIcon className="h-4 w-4 mr-2" />
-                            <span className="hidden md:inline">{t.chrome.upload}</span>
-                          </div>
-                          <AngleDownIcon className="h-4 w-4 ml-2" />
+                          <UploadIcon />
+                          <span className="hidden md:inline">{t.chrome.upload}</span>
+                          <AngleDownIcon />
                         </Menu.Trigger>
                         <MenuPopup align="end" className="w-36">
                           <MenuItem onClick={() => fileInputRef.current?.click()}>
@@ -1716,18 +1716,16 @@ export default function FileExplorer({
                     <Menu.Root>
                       <Menu.Trigger
                         aria-label={t.chrome.download}
-                        className="btn btn-info cursor-pointer flex items-center justify-between pr-0.5!"
+                        className={buttonClasses({ variant: 'primary', size: 'sm' })}
                         disabled={
                           (checkedItems.size === 0 && selectedNode.type !== 'file') ||
                           hasFolderSelected() ||
                           !selectedNode.storageId
                         }
                       >
-                        <div>
-                          <DownloadFileIcon className="h-4 w-4 mr-2" />
-                          <span className="hidden md:inline">{t.chrome.download}</span>
-                        </div>
-                        <AngleDownIcon className="h-4 w-4 ml-2" />
+                        <DownloadFileIcon />
+                        <span className="hidden md:inline">{t.chrome.download}</span>
+                        <AngleDownIcon />
                       </Menu.Trigger>
                       <MenuPopup align="end" className="w-72">
                         <MenuItem onClick={handleDownload}>{t.chrome.downloadFromBrowser}</MenuItem>
@@ -1754,32 +1752,33 @@ export default function FileExplorer({
                       </MenuPopup>
                     </Menu.Root>
 
-                    <button
-                      type="button"
-                      aria-label={t.chrome.access}
-                      className="btn btn-info cursor-pointer flex items-center justify-center"
-                      disabled={!selectedNode.storageId}
-                      onClick={() => setAccessDrawerOpen(true)}
-                      hidden={groups.length === 0 || !selectedNodeCanManageAccess}
-                    >
-                      <AccessIcon className="h-4 w-4 mr-2" />
-                      <span className="hidden md:inline">{t.chrome.manageAccess}</span>
-                    </button>
+                    {groups.length > 0 && selectedNodeCanManageAccess && (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        aria-label={t.chrome.access}
+                        icon={<AccessIcon />}
+                        disabled={!selectedNode.storageId}
+                        onClick={() => setAccessDrawerOpen(true)}
+                      >
+                        <span className="hidden md:inline">{t.chrome.manageAccess}</span>
+                      </Button>
+                    )}
 
                     {selectedNodeCanDelete && (
-                      <button
-                        type="button"
+                      <Button
+                        variant="danger"
+                        size="sm"
                         aria-label={t.chrome.delete}
-                        className="btn btn-destructive cursor-pointer flex items-center justify-center"
+                        icon={<TrashIcon />}
                         disabled={
                           (checkedItems.size === 0 && selectedNode.type !== 'file') ||
                           !selectedNode.storageId
                         }
                         onClick={onDeleteClick}
                       >
-                        <TrashIcon className="h-4 w-4 mr-2" />
                         <span className="hidden md:inline">{t.chrome.delete}</span>
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>
