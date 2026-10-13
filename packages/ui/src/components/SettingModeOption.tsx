@@ -1,4 +1,4 @@
-import cx from 'classnames'
+import { clsx as cx } from 'clsx'
 
 /** A labeled + described radio option row, used inside a SettingsCard to pick
  * between modes (e.g. default vs custom). Stacked rows share the card's

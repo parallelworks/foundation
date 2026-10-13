@@ -22,11 +22,6 @@ vi.mock('../components/Provider', async (importOriginal) =>
 )
 
 // jsdom lacks these; the graph relies on them for connector recompute + fit.
-global.ResizeObserver = class {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
-} as unknown as typeof ResizeObserver
 global.requestAnimationFrame = (() => 0) as typeof requestAnimationFrame
 global.cancelAnimationFrame = (() => {}) as typeof cancelAnimationFrame
 // jsdom has no PointerEvent; without it pointer events lose button and coordinates.
@@ -39,18 +34,6 @@ vi.mock('react-zoom-pan-pinch', () => ({
     typeof children === 'function' ? (children as () => unknown)() : children,
   TransformComponent: ({ children }: { children: ReactNode }) => (
     <div className="react-transform-wrapper">{children}</div>
-  ),
-}))
-vi.mock('framer-motion', () => ({
-  AnimatePresence: ({ children }: { children: unknown }) => children,
-  motion: new Proxy(
-    {},
-    {
-      get:
-        () =>
-        ({ children }: { children: unknown }) =>
-          children,
-    },
   ),
 }))
 vi.mock('../logviewer', () => ({ LogViewer: () => null }))
@@ -73,10 +56,10 @@ vi.mock('../editor/Monaco', () => ({
     return <textarea aria-label={path} value={value} onChange={(e) => onChange?.(e.target.value)} />
   },
 }))
-vi.mock('../components/Dropdown', () => import('../test/DropdownStandIn'))
 vi.mock('./AnnotationBanner', () => ({ AnnotationBanner: () => null }))
 
-import { suggestionsOf } from '../test/DropdownStandIn'
+import { optionsOf } from '../test/combobox'
+import { hoverTooltip } from '../test/tooltip'
 import { DependencyGraphPreview } from './DependencyGraph'
 import type { DependencyGraphEditor, EditorProblem } from './editorApi'
 import { GRAPH_EDITOR_STRINGS } from './editorStrings'
@@ -573,15 +556,15 @@ describe('DependencyGraphPreview editor', () => {
     })
   })
 
-  it('reads a job’s remote host from a cluster input, or takes any host typed in', () => {
+  it('reads a job’s remote host from a cluster input, or takes any host typed in', async () => {
     const e = editor()
     render(<DependencyGraphPreview yml={withInputs} editor={e} />)
     fireEvent.contextMenu(jobRow('mac'), { clientX: 5, clientY: 5 })
     fireEvent.click(screen.getByText('Edit job'))
     const host = within(field('Host')).getByLabelText('Host')
-    expect(suggestionsOf(host)).toContainEqual({
-      value: '${{ inputs.cluster.ip }}',
+    expect(await optionsOf(host)).toContainEqual({
       label: 'Cluster',
+      description: '${{ inputs.cluster.ip }}',
     })
     fireEvent.change(host, { target: { value: '${{ inputs.cluster.ip }}' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -675,15 +658,15 @@ describe('DependencyGraphPreview editor', () => {
     })
   })
 
-  it('runs a job on any condition typed in, offering the form’s choices', () => {
+  it('runs a job on any condition typed in, offering the form’s choices', async () => {
     const e = editor()
     render(<DependencyGraphPreview yml={withInputs} editor={e} />)
     fireEvent.contextMenu(jobRow('mac'), { clientX: 5, clientY: 5 })
     fireEvent.click(screen.getByText('Edit job'))
     const condition = within(field('When to run')).getByLabelText('When to run')
-    expect(suggestionsOf(condition)).toContainEqual({
-      value: "${{ inputs.mode == 'slow' }}",
+    expect(await optionsOf(condition)).toContainEqual({
       label: 'When mode is slow',
+      description: "${{ inputs.mode == 'slow' }}",
     })
     fireEvent.change(condition, {
       target: { value: "${{ inputs.mode != 'slow' }}" },
@@ -697,16 +680,17 @@ describe('DependencyGraphPreview editor', () => {
     })
   })
 
-  it('offers the executor’s status checks for when a step runs', () => {
+  it('offers the executor’s status checks for when a step runs', async () => {
     const e = editor()
     render(<DependencyGraphPreview yml={yml} editor={e} />)
     fireEvent.click(within(jobRow('build')).getByRole('button', { name: 'Build' }))
     fireEvent.click(screen.getByTestId('compile'))
     const condition = within(field('When to run')).getByLabelText('When to run')
     expect(condition).toHaveValue('')
-    expect(suggestionsOf(condition).map((option) => option.value)).toEqual(
-      expect.arrayContaining(['always', 'failure()', 'cancelled()', 'success()', 'false']),
-    )
+    // A labelled suggestion shows the value it writes beneath its label.
+    expect(
+      (await optionsOf(condition)).map((option) => option.description ?? option.label),
+    ).toEqual(expect.arrayContaining(['always', 'failure()', 'cancelled()', 'success()', 'false']))
     fireEvent.change(condition, { target: { value: 'failure()' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(e.onEdit).toHaveBeenCalledWith({
@@ -763,7 +747,7 @@ describe('DependencyGraphPreview editor', () => {
     const lenient = field('Keep going if it fails')
     fireEvent.click(within(lenient).getByRole('button', { name: 'Use an expression instead' }))
     // The switch gives way to a typed field below the label.
-    expect(screen.queryByRole('checkbox', { name: 'Keep going if it fails' })).toBeNull()
+    expect(screen.queryByRole('switch', { name: 'Keep going if it fails' })).toBeNull()
     fireEvent.change(screen.getByLabelText('Keep going if it fails'), {
       target: { value: '${{ inputs.lenient }}' },
     })
@@ -2467,18 +2451,18 @@ describe('problems and the YAML beside the graph', () => {
     expect(show?.({ message: '', line: 1, input: ['name'] })).toBe(false)
   })
 
-  it('marks a job and its step with their problems, and not their node', () => {
+  it('marks a job and its step with their problems, and not their node', async () => {
     const onReveal = vi.fn()
     renderGraph(editor({ problems, onReveal }))
     fireEvent.click(within(jobRow('test')).getByRole('button', { name: 'Test' }))
     // The job's badge lists its steps' problems too.
-    expect(badge(jobRow('test'))?.dataset['tooltipContent']).toBe(
+    expect((await hoverTooltip(badge(jobRow('test')))).textContent).toBe(
       'test reads needs.lint\nunit reads matrix.os',
     )
     const step = document.querySelector(
       '[data-dag-step-job="test"][data-dag-step="0"]',
     ) as HTMLElement
-    expect(badge(step)?.dataset['tooltipContent']).toBe('unit reads matrix.os')
+    expect((await hoverTooltip(badge(step))).textContent).toBe('unit reads matrix.os')
     expect(badge(jobRow('build'))).toBeNull()
     expect(jobRow('test')).toHaveClass('ring-(--theme-error)')
     expect(step).toHaveClass('ring-(--theme-error)')

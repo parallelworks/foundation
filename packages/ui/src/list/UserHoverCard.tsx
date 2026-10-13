@@ -1,8 +1,8 @@
-import cx from 'classnames'
+import { clsx as cx } from 'clsx'
 import type { ReactNode } from 'react'
 import { Avatar } from '../components/Avatar'
 import { type UILinkComponent, useLink, useNotify, useStrings } from '../components/Provider'
-import { TOOLTIP_ID } from '../components/Tooltip'
+import { Tooltip } from '../components/Tooltip'
 import { CopyIcon } from '../icons'
 import { HoverCardSurface, useHoverCard } from './HoverCard'
 
@@ -137,7 +137,7 @@ export function UserHoverCard({
       <div className="group/copy flex items-end gap-1">
         {href ? (
           <Link
-            to={href}
+            href={href}
             className="flex min-w-0 flex-1 items-start gap-3 transition-opacity hover:opacity-80"
           >
             {header}
@@ -146,21 +146,21 @@ export function UserHoverCard({
           <div className="flex min-w-0 flex-1 items-start gap-3">{header}</div>
         )}
         {username && (
-          <button
-            type="button"
-            aria-label={t.copy(copyLabel)}
-            data-tooltip-id={TOOLTIP_ID}
-            data-tooltip-content={t.copy(copyLabel)}
-            onClick={onCopy}
-            className={cx(
-              'shrink-0 cursor-pointer rounded p-0.5 text-(--theme-muted-text-color) opacity-0 transition hover:bg-(--theme-muted-panel-bg) hover:text-(--theme-app) [&>svg]:h-3.5 [&>svg]:w-3.5',
-              // Shown while the value or the button is under the pointer, on keyboard
-              // focus, and always where there is no hover to reveal it.
-              'hover:opacity-100 group-has-[[data-copy-value]:hover]/copy:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--theme-link) pointer-coarse:opacity-100',
-            )}
-          >
-            <CopyIcon aria-hidden="true" />
-          </button>
+          <Tooltip content={t.copy(copyLabel)}>
+            <button
+              type="button"
+              aria-label={t.copy(copyLabel)}
+              onClick={onCopy}
+              className={cx(
+                'shrink-0 cursor-pointer rounded p-0.5 text-(--theme-muted-text-color) opacity-0 transition hover:bg-(--theme-muted-panel-bg) hover:text-(--theme-app) [&>svg]:h-3.5 [&>svg]:w-3.5',
+                // Shown while the value or the button is under the pointer, on keyboard
+                // focus, and always where there is no hover to reveal it.
+                'hover:opacity-100 group-has-[[data-copy-value]:hover]/copy:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--theme-link) pointer-coarse:opacity-100',
+              )}
+            >
+              <CopyIcon aria-hidden="true" />
+            </button>
+          </Tooltip>
         )}
       </div>
       {loading ? (

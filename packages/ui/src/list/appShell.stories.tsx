@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import cx from 'classnames'
+import { clsx as cx } from 'clsx'
 import type { ReactNode } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { expect, screen, userEvent, within } from 'storybook/test'
@@ -71,21 +71,18 @@ const STATUS_VARIANT: Record<RowStatus, 'success' | 'muted' | 'error'> = {
   error: 'error',
 }
 
-const MockLink: UILinkComponent = ({ to, onClick, className, children, ...rest }) => {
+const MockLink: UILinkComponent = ({ href, onClick, ...rest }) => {
   const { goTo } = useNavigation()
   return (
     <a
-      href={to}
-      className={className}
+      {...rest}
+      href={href}
       onClick={(e) => {
         e.preventDefault()
-        onClick?.()
-        goTo(to)
+        onClick?.(e)
+        goTo(href)
       }}
-      {...rest}
-    >
-      {children}
-    </a>
+    />
   )
 }
 
@@ -248,7 +245,7 @@ function ClustersPage({ state, rowCount, sparseStatus }: ShellArgs) {
     {
       kind: 'link',
       label: 'Open',
-      to: `/clusters/${row.name}`,
+      href: `/clusters/${row.name}`,
       icon: <ClusterIcon />,
     },
     {
@@ -289,8 +286,8 @@ function ClustersPage({ state, rowCount, sparseStatus }: ShellArgs) {
     <ListPage
       breadcrumbs={[{ label: 'Compute', href: '/compute' }]}
       title="Clusters"
-      titleAction={<HeaderEditButton to="/clusters/settings" />}
-      actions={<HeaderAddButton label="New cluster" word="create" to="/clusters/new" />}
+      titleAction={<HeaderEditButton href="/clusters/settings" />}
+      actions={<HeaderAddButton label="New cluster" word="create" href="/clusters/new" />}
       view={view}
       toolbar={
         <div className="flex items-center justify-between gap-3 py-1.5">
@@ -444,9 +441,9 @@ const DETAIL_GROUPS: ToolbarItem[][] = [
       label: 'Auto refresh',
       icon: RefreshIcon,
       onClick: () => {},
-      active: true,
+      pressed: true,
     },
-    { key: 'follow', label: 'Follow', icon: TerminalIcon, onClick: () => {}, active: false },
+    { key: 'follow', label: 'Follow', icon: TerminalIcon, onClick: () => {}, pressed: false },
   ],
 ]
 
@@ -459,7 +456,7 @@ const DETAIL_RIGHT: ToolbarItem[] = [
     icon: TrashIcon,
     onClick: () => {},
     disabled: true,
-    disabledTooltip: 'Stop the cluster before deleting it',
+    disabledReason: 'Stop the cluster before deleting it',
   },
 ]
 
@@ -478,7 +475,7 @@ export const DetailPageShell: StoryObj = {
                   { label: 'Clusters', href: '/clusters' },
                 ]}
                 title="gpu-trainer-01"
-                titleAction={<HeaderEditButton to="/clusters/gpu-trainer-01/edit" />}
+                titleAction={<HeaderEditButton href="/clusters/gpu-trainer-01/edit" />}
               />
               <div className="px-4">
                 <ActionToolbar groups={DETAIL_GROUPS} right={DETAIL_RIGHT} sticky />

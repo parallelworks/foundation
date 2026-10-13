@@ -1,5 +1,5 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import cx from 'classnames'
+import { clsx as cx } from 'clsx'
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Table } from '../components/Table'
 import { listTableFixedProps, type OpenMenu, type RowMenuItem } from '../list/index'

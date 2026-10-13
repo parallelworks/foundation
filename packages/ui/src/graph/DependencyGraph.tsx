@@ -1,4 +1,4 @@
-import cx from 'classnames'
+import { clsx as cx } from 'clsx'
 import { DateTime } from 'luxon'
 import {
   createContext,
@@ -23,9 +23,9 @@ import {
 import { BareModal, modalPanelClasses } from '../components/BareModal'
 import { IconButton } from '../components/IconButton'
 import { Indicator } from '../components/Indicator'
+import { InfoTip } from '../components/InfoTip'
 import Loader from '../components/Loader'
 import { useRunFile, useSlots, useStrings, useWorkflowEngine } from '../components/Provider'
-import { TooltipInfo } from '../components/Tooltip'
 import { toAbsHumanDuration } from '../duration'
 import type { GraphLayout } from '../editing'
 import type { RunStatus, WorkflowEngine } from '../engine'
@@ -1882,13 +1882,13 @@ export default function DependencyGraph({
             <div className="flex flex-col">
               <div className="text-xs">{dagStrings.status}</div>
               <div className="text-sm font-semibold flex items-center gap-x-1">
-                <TooltipInfo
+                <InfoTip
                   className="flex items-center gap-x-1"
                   text={dagStrings.statusReason(run.statusReason) ?? ''}
                 >
                   <Indicator status={runStatus} />
                   {dagStrings.statusLabel(runStatus)}
-                </TooltipInfo>
+                </InfoTip>
               </div>
             </div>
             <div className="flex flex-col">

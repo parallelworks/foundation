@@ -1,10 +1,11 @@
-import cx from 'classnames'
+import { clsx as cx } from 'clsx'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { focusOnMount } from '../components/focus'
+import { InfoTip } from '../components/InfoTip'
 import { useStrings } from '../components/Provider'
-import { TOOLTIP_ID, TooltipInfo } from '../components/Tooltip'
+import { Tooltip } from '../components/Tooltip'
 import {
   CheckIcon,
   ChevronDownIcon,
@@ -120,26 +121,25 @@ export function AnchoredPopover({
 
   return (
     <>
-      <button
-        ref={btnRef}
-        type="button"
-        onClick={() => (pos ? close() : open())}
-        aria-label={label}
-        aria-haspopup="dialog"
-        aria-expanded={pos !== null}
-        data-tooltip-id={TOOLTIP_ID}
-        data-tooltip-content={label}
-        data-tooltip-shortcut={shortcut ? shortcut.toUpperCase() : undefined}
-        className={cx(
-          listControlButtonClasses,
-          active && 'border-(--theme-link) text-(--theme-app)',
-        )}
-      >
-        {icon}
-        {active && (
-          <span className="absolute right-0 top-0 h-1.5 w-1.5 rounded-full bg-(--theme-link)" />
-        )}
-      </button>
+      <Tooltip content={label} shortcut={shortcut?.toUpperCase()} disabled={pos !== null}>
+        <button
+          ref={btnRef}
+          type="button"
+          onClick={() => (pos ? close() : open())}
+          aria-label={label}
+          aria-haspopup="dialog"
+          aria-expanded={pos !== null}
+          className={cx(
+            listControlButtonClasses,
+            active && 'border-(--theme-link) text-(--theme-app)',
+          )}
+        >
+          {icon}
+          {active && (
+            <span className="absolute right-0 top-0 h-1.5 w-1.5 rounded-full bg-(--theme-link)" />
+          )}
+        </button>
+      </Tooltip>
       {pos &&
         createPortal(
           <div
@@ -297,7 +297,7 @@ export function ListDisplayMenu<T>({ view, label }: { view: ListView<T>; label?:
         <div className="mt-3 border-t border-(--theme-border) pt-3">
           <div className={cx(SECTION_LABEL, 'flex items-center gap-1')}>
             {t.pinnedActions}
-            <TooltipInfo className="inline-flex" text={t.pinnedActionsHelp} />
+            <InfoTip text={t.pinnedActionsHelp} />
           </div>
           <div className="flex flex-wrap gap-1.5">
             {view.actions.map((a) => (

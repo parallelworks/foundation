@@ -1,10 +1,10 @@
-import cx from 'classnames'
+import { clsx as cx } from 'clsx'
 import type { ComponentType, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { keyedByContent } from '../components/keys'
 import { useLink, useNotify, useStrings } from '../components/Provider'
-import { TOOLTIP_ID } from '../components/Tooltip'
+import { Tooltip } from '../components/Tooltip'
 import {
   CheckIcon,
   ChevronRightIcon,
@@ -23,7 +23,7 @@ export type RowMenuItem =
   | {
       kind: 'link'
       label: string
-      to: string
+      href: string
       icon?: ReactNode
       destructive?: boolean | undefined
       /** Load the page instead of routing, for paths this app doesn't serve. */
@@ -85,7 +85,7 @@ export interface RowAction {
   label: string
   icon: ReactNode
   onSelect?: (() => void) | undefined
-  to?: string | undefined
+  href?: string | undefined
   disabled?: boolean | undefined
   destructive?: boolean | undefined
   /** Shown on hover when the action is disabled, explaining why. */
@@ -94,12 +94,12 @@ export interface RowAction {
 
 /** Converts a single row action to a menu item: a `to` makes it a link, otherwise an action. */
 export function toRowMenuItem(action: RowAction): RowMenuItem {
-  if (action.to) {
+  if (action.href) {
     return {
       kind: 'link',
       label: action.label,
       icon: action.icon,
-      to: action.to,
+      href: action.href,
       destructive: action.destructive,
     }
   }
@@ -132,7 +132,7 @@ export function toolbarActionToRowAction(action: {
     label: action.label,
     icon: <Icon />,
     onSelect: action.onClick,
-    to: action.href,
+    href: action.href,
     disabled: action.disabled,
     destructive: action.key === 'delete' || action.key === 'destroy',
     tooltip: action.disabledTooltip,
@@ -663,14 +663,14 @@ function MenuRow({
     )
     if (item.reloadDocument) {
       return (
-        <a href={safeUrl(item.to)} onClick={onClose} className={className}>
+        <a href={safeUrl(item.href)} onClick={onClose} className={className}>
           {item.icon}
           {item.label}
         </a>
       )
     }
     return (
-      <Link to={item.to} onClick={onClose} className={className}>
+      <Link href={item.href} onClick={onClose} className={className}>
         {item.icon}
         {item.label}
       </Link>
@@ -679,28 +679,26 @@ function MenuRow({
 
   // A natively disabled button swallows hover events, so a disabled item with
   // a tooltip stays enabled and inert instead.
+  const reason = item.disabled ? item.tooltip : undefined
   return (
-    <button
-      type="button"
-      disabled={item.disabled && !item.tooltip}
-      aria-disabled={item.disabled}
-      {...(item.disabled && item.tooltip
-        ? {
-            'data-tooltip-id': TOOLTIP_ID,
-            'data-tooltip-content': item.tooltip,
-          }
-        : {})}
-      onClick={() => run(item)}
-      className={cx(
-        MENU_ITEM_CLASSES,
-        item.destructive ? 'text-red-500' : 'text-(--theme-app)',
-        item.disabled && 'opacity-40 cursor-not-allowed hover:bg-transparent',
-      )}
-    >
-      {item.icon}
-      {item.label}
-      {item.selected && <CheckIcon className="ml-auto opacity-80" />}
-    </button>
+    <Tooltip content={reason}>
+      <button
+        type="button"
+        disabled={item.disabled && !reason}
+        aria-disabled={item.disabled}
+        aria-label={reason ? `${item.label}. ${reason}` : undefined}
+        onClick={() => run(item)}
+        className={cx(
+          MENU_ITEM_CLASSES,
+          item.destructive ? 'text-red-500' : 'text-(--theme-app)',
+          item.disabled && 'opacity-40 cursor-not-allowed hover:bg-transparent',
+        )}
+      >
+        {item.icon}
+        {item.label}
+        {item.selected && <CheckIcon className="ml-auto opacity-80" />}
+      </button>
+    </Tooltip>
   )
 }
 

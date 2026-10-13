@@ -1,4 +1,4 @@
-import cx from 'classnames'
+import { clsx as cx } from 'clsx'
 import { useEffect, useRef, useSyncExternalStore } from 'react'
 import type { OpenMenu } from '../list/RowContextMenu'
 

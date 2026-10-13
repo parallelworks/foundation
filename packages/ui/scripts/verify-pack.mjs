@@ -89,7 +89,7 @@ try {
         type: 'module',
         dependencies: {
           '@parallelworks/ui': `file:./${tarball}`,
-          formik: '2.4.9',
+          'react-hook-form': '7.90.0',
           react: '19.2.8',
           'react-dom': '19.2.8',
           // Matches the compiler the repo builds with, so the consumer check
@@ -187,8 +187,11 @@ try {
       "need(root, 'root', 'ConfirmModal')",
       "need(root, 'root', 'CreateModal')",
       "need(root, 'root', 'StatusBadge')",
-      "need(root, 'root', 'GlobalTooltip')",
-      "need(root, 'root', 'TOOLTIP_ID')",
+      "need(root, 'root', 'Tooltip')",
+      "need(root, 'root', 'InfoTip')",
+      "need(root, 'root', 'Combobox')",
+      "need(root, 'root', 'Select')",
+      "need(root, 'root', 'Switch')",
       "need(root, 'root', 'Callout')",
       "need(root, 'root', 'EmptyState')",
       "need(root, 'root', 'DescriptionList')",

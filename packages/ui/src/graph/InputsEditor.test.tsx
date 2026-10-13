@@ -45,13 +45,13 @@ vi.mock('../editor/Monaco', () => ({
     path?: string
   }) => <textarea aria-label={path} value={value} onChange={(e) => onChange?.(e.target.value)} />,
 }))
-vi.mock('../components/Dropdown', () => import('../test/DropdownStandIn'))
 
 import type { GraphEdit } from '../editing'
 import { DynamicForm } from '../form/Form'
 import { resolveFormLayout } from '../form/layout'
-import { suggestionsOf } from '../test/DropdownStandIn'
+import { optionsOf } from '../test/combobox'
 import ListStandIn from '../test/ListStandIn'
+import { hoverTooltip } from '../test/tooltip'
 import type { DependencyGraphEditor, EditorProblem } from './editorApi'
 import { GRAPH_EDITOR_STRINGS, INPUTS_EDITOR_STRINGS } from './editorStrings'
 import { INPUT_TYPE_GROUPS } from './InputDialog'
@@ -152,6 +152,7 @@ function pickType(label: string) {
 }
 
 // The suggestions a field offers, as the dropdown stand-in lists them.
+
 describe('InputsFormEditor', () => {
   it('gives every input a row, hidden and grouped ones included', () => {
     renderForm(editor())
@@ -380,7 +381,7 @@ describe('InputsFormEditor', () => {
     expect(row(['hosts', 'cpus']).dataset['inputInstance']).toBe('hosts[0].cpus')
   })
 
-  it('offers the form’s inputs to a setting that reads one', () => {
+  it('offers the form’s inputs to a setting that reads one', async () => {
     const e = editor()
     renderForm(e, {
       cluster: { type: 'compute-clusters', label: 'Cluster' },
@@ -388,8 +389,8 @@ describe('InputsFormEditor', () => {
     } as unknown as typeof INPUTS)
     fireEvent.click(within(row(['partition'])).getByRole('button', { name: 'Edit input' }))
     const resource = screen.getByLabelText('Cluster')
-    expect(suggestionsOf(resource).map((option) => [option.value, option.label])).toEqual([
-      ['${{ inputs.cluster }}', 'Cluster'],
+    expect(await optionsOf(resource)).toEqual([
+      { label: 'Cluster', description: '${{ inputs.cluster }}' },
     ])
     // Only an expression reads another input.
     fireEvent.change(resource, { target: { value: 'cluster' } })
@@ -843,7 +844,7 @@ describe('InputsFormEditor', () => {
 })
 
 describe('problems in the inputs', () => {
-  it('marks an input with its problems, and shows the first one’s line on a click', () => {
+  it('marks an input with its problems, and shows the first one’s line on a click', async () => {
     const onReveal = vi.fn()
     renderForm(
       editor({
@@ -860,7 +861,7 @@ describe('problems in the inputs', () => {
     )
     const flagged = row(['settings', 'size'])
     const badge = within(flagged).getByRole('button', { name: '1 problem' })
-    expect(badge.dataset['tooltipContent']).toBe('Size is not a number')
+    expect((await hoverTooltip(badge)).textContent).toBe('Size is not a number')
     expect(within(row(['name'])).queryByRole('button', { name: '1 problem' })).toBeNull()
     fireEvent.click(badge)
     expect(onReveal).toHaveBeenCalledWith({ line: 12 })

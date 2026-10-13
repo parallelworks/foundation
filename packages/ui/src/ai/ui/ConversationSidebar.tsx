@@ -1,4 +1,4 @@
-import cx from 'classnames'
+import { clsx as cx } from 'clsx'
 import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react'
 import { positionKeys } from '../../components/keys'
 import {

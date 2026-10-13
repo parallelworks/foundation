@@ -1,4 +1,4 @@
-import cx from 'classnames'
+import { clsx as cx } from 'clsx'
 import {
   createContext,
   type ReactNode,
@@ -11,7 +11,7 @@ import {
 } from 'react'
 import { IconButton } from '../components/IconButton'
 import { useWorkflowEditing } from '../components/Provider'
-import { TOOLTIP_ID } from '../components/Tooltip'
+import { Tooltip } from '../components/Tooltip'
 import type { GraphEdit, InputPath, WorkflowEditing } from '../editing'
 import { type FormEditing, FormEditingContext } from '../form/formEditing'
 import { type WizardPages, WizardPagesContext } from '../form/Wizard/wizardPages'
@@ -319,19 +319,19 @@ function ChromeButton({
   children: ReactNode
 }) {
   return (
-    <button
-      type="button"
-      aria-label={label}
-      data-tooltip-id={TOOLTIP_ID}
-      data-tooltip-content={label}
-      className="flex h-5 w-5 cursor-pointer items-center justify-center rounded hover:bg-(--theme-muted-panel-bg) hover:text-(--theme-app)"
-      onClick={(e) => {
-        e.stopPropagation()
-        onClick(e)
-      }}
-    >
-      {children}
-    </button>
+    <Tooltip content={label}>
+      <button
+        type="button"
+        aria-label={label}
+        className="flex h-5 w-5 cursor-pointer items-center justify-center rounded hover:bg-(--theme-muted-panel-bg) hover:text-(--theme-app)"
+        onClick={(e) => {
+          e.stopPropagation()
+          onClick(e)
+        }}
+      >
+        {children}
+      </button>
+    </Tooltip>
   )
 }
 
@@ -394,9 +394,11 @@ function InputRow({
       >
         <DragHandleIcon className="h-3.5 w-3.5" />
       </button>
-      <span data-tooltip-id={TOOLTIP_ID} data-tooltip-content={name}>
-        <TypeBadge type={text(definition['type'])} />
-      </span>
+      <Tooltip content={name}>
+        <span>
+          <TypeBadge type={text(definition['type'])} />
+        </span>
+      </Tooltip>
       {(definition['type'] === 'group' || definition['type'] === 'list') && (
         <PageActions
           api={api}
@@ -482,19 +484,19 @@ function InputRow({
         </div>
       )}
       {found.length > 0 && (
-        <button
-          type="button"
-          data-input-chrome
-          aria-label={g.problemCount(found.length)}
-          data-tooltip-id={TOOLTIP_ID}
-          data-tooltip-content={found
-            .map((problem) => problem.slice(problem.indexOf('\n') + 1))
-            .join('\n')}
-          className="absolute -left-2 -top-2 z-10 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full bg-(--theme-panel-bg) text-(--theme-error) shadow-sm"
-          onClick={() => api.reveal(Number.parseInt(found[0] ?? '0', 10))}
+        <Tooltip
+          content={found.map((problem) => problem.slice(problem.indexOf('\n') + 1)).join('\n')}
         >
-          <AlertIcon className="h-3.5 w-3.5" />
-        </button>
+          <button
+            type="button"
+            data-input-chrome
+            aria-label={g.problemCount(found.length)}
+            className="absolute -left-2 -top-2 z-10 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full bg-(--theme-panel-bg) text-(--theme-error) shadow-sm"
+            onClick={() => api.reveal(Number.parseInt(found[0] ?? '0', 10))}
+          >
+            <AlertIcon className="h-3.5 w-3.5" />
+          </button>
+        </Tooltip>
       )}
       {children}
       {outline && (

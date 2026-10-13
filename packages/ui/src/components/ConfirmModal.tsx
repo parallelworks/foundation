@@ -1,4 +1,4 @@
-import cx from 'classnames'
+import { clsx as cx } from 'clsx'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { BareModal, modalPanelClasses } from './BareModal'

@@ -6,14 +6,8 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-global.ResizeObserver = class {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
-} as unknown as typeof ResizeObserver
 global.requestAnimationFrame = (() => 0) as typeof requestAnimationFrame
 global.cancelAnimationFrame = (() => {}) as typeof cancelAnimationFrame
-Element.prototype.getAnimations = () => []
 
 vi.mock('../components/Provider', async (importOriginal) =>
   (await import('../test/engine')).mockEngineHooks(importOriginal),

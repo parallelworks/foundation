@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { openTooltip } from '../test/tooltip'
 import { SegmentedControl } from './SegmentedControl'
 
 describe('SegmentedControl', () => {
@@ -29,8 +30,8 @@ describe('SegmentedControl', () => {
         label="Views"
         value="b"
         options={[
-          { value: 'a', label: 'First', to: '/a' },
-          { value: 'b', label: 'Second', to: '/b' },
+          { value: 'a', label: 'First', href: '/a' },
+          { value: 'b', label: 'Second', href: '/b' },
         ]}
       />,
     )
@@ -39,18 +40,16 @@ describe('SegmentedControl', () => {
     expect(screen.getByRole('link', { name: 'First' })).not.toHaveAttribute('aria-current')
   })
 
-  it('keeps each label as the accessible name and tooltip when only icons show', () => {
+  it('keeps each label as the accessible name and tooltip when only icons show', async () => {
     render(
       <SegmentedControl
         label="Views"
         value="a"
         iconOnly
-        options={[{ value: 'a', label: 'First', icon: <svg />, to: '/a' }]}
+        options={[{ value: 'a', label: 'First', icon: <svg />, href: '/a' }]}
       />,
     )
-    expect(screen.getByRole('link', { name: 'First' })).toHaveAttribute(
-      'data-tooltip-content',
-      'First',
-    )
+    act(() => screen.getByRole('link', { name: 'First' }).focus())
+    await waitFor(() => expect(openTooltip()).toHaveTextContent('First'))
   })
 })

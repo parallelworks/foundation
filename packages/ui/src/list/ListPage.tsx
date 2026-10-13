@@ -1,10 +1,10 @@
-import cx from 'classnames'
+import { clsx as cx } from 'clsx'
 import type { ReactElement, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import { Children, cloneElement, createContext, isValidElement, useContext, useMemo } from 'react'
 import { PageHeader, type PageHeaderBreadcrumb } from '../components/PageHeader'
 import { useNavigation } from '../components/Provider'
 import { Table } from '../components/Table'
-import { TOOLTIP_ID } from '../components/Tooltip'
+import { Tooltip } from '../components/Tooltip'
 import { ListActionsHeader, NAME_MIN_WIDTH_PX } from './ListTable'
 import type { ListView, ListViewChrome } from './listView'
 import {
@@ -260,34 +260,33 @@ export function ListRow({
              * show"), freeing their lane. */}
             {pinnedActions && pinnedActions.length > 0 && (
               <span className="hidden items-center gap-0.5 @[44rem]:flex">
-                {pinnedActions.map((action) => (
-                  <button
-                    key={action.key}
-                    type="button"
-                    aria-label={action.label}
-                    data-tooltip-id={TOOLTIP_ID}
-                    data-tooltip-content={
-                      action.disabled && action.tooltip ? action.tooltip : action.label
-                    }
-                    data-tooltip-place="bottom"
-                    aria-disabled={action.disabled}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (action.disabled) {
-                        return
-                      }
-                      action.onSelect()
-                    }}
-                    className={cx(
-                      'rounded p-1 cursor-pointer text-(--theme-muted-text-color) transition-colors hover:bg-(--theme-muted-panel-bg) hover:text-(--theme-app) aria-disabled:cursor-not-allowed aria-disabled:opacity-20 aria-disabled:hover:bg-transparent aria-disabled:hover:text-(--theme-muted-text-color) [&>svg]:h-4 [&>svg]:w-4',
-                      alwaysShowActions || menuActive
-                        ? 'opacity-100'
-                        : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
-                    )}
-                  >
-                    {action.icon}
-                  </button>
-                ))}
+                {pinnedActions.map((action) => {
+                  const reason = action.disabled ? action.tooltip : undefined
+                  return (
+                    <Tooltip key={action.key} content={reason ?? action.label} side="bottom">
+                      <button
+                        type="button"
+                        aria-label={reason ? `${action.label}. ${reason}` : action.label}
+                        aria-disabled={action.disabled}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (action.disabled) {
+                            return
+                          }
+                          action.onSelect()
+                        }}
+                        className={cx(
+                          'rounded p-1 cursor-pointer text-(--theme-muted-text-color) transition-colors hover:bg-(--theme-muted-panel-bg) hover:text-(--theme-app) aria-disabled:cursor-not-allowed aria-disabled:opacity-20 aria-disabled:hover:bg-transparent aria-disabled:hover:text-(--theme-muted-text-color) [&>svg]:h-4 [&>svg]:w-4',
+                          alwaysShowActions || menuActive
+                            ? 'opacity-100'
+                            : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
+                        )}
+                      >
+                        {action.icon}
+                      </button>
+                    </Tooltip>
+                  )
+                })}
               </span>
             )}
             {/* `⋯` opens the full menu; when redundant (all items pinned) hide

@@ -1,9 +1,9 @@
-import cx from 'classnames'
-import { useField, useFormikContext } from 'formik'
+import { clsx as cx } from 'clsx'
 import { useId } from 'react'
 import { FieldWrapper } from '../FieldWrapper'
 import type { FieldComponentProps } from '../types/fieldComponentTypes'
 import type { BaseField } from '../types/fieldTypes'
+import { useFieldValue } from '../useFieldValue'
 import { fieldOption } from './fieldOption'
 
 export interface IRadioField extends BaseField {
@@ -22,23 +22,17 @@ export default function RadioField(props: FieldComponentProps<IRadioField>) {
     onChange,
     tooltipComponent,
     spaceCompact,
-    setFormDirty,
   } = props
-  // The form names every field before it renders one.
-  const fieldName = field.name ?? ''
-
   const uid = useId()
-  const [fieldState] = useField(fieldName)
-  const { setFieldValue, setFieldTouched } = useFormikContext()
+  // The form names every field before it renders one.
+  const [value, change] = useFieldValue<unknown>(field.name ?? '')
 
   const handleChange = (val: string | number) => {
     if (disabled) {
       return
     }
     onChange?.(val)
-    setFieldTouched(fieldName, true)
-    setFieldValue(fieldName, val)
-    setFormDirty(true)
+    change(val)
   }
 
   return (
@@ -86,11 +80,7 @@ export default function RadioField(props: FieldComponentProps<IRadioField>) {
                   name={field.name}
                   type="radio"
                   value={option.value}
-                  checked={
-                    fieldState.value !== undefined &&
-                    fieldState.value !== null &&
-                    String(fieldState.value) === option.value
-                  }
+                  checked={value !== undefined && value !== null && String(value) === option.value}
                   disabled={disabled}
                   onChange={() => handleChange(option.raw)}
                 />

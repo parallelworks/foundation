@@ -1,4 +1,4 @@
-import cx from 'classnames'
+import { clsx as cx } from 'clsx'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useRelativeTime } from '../../components/relativeTime'
 import { ImageIcon, NewChatIcon, SearchIcon, SharingIcon } from '../../icons'

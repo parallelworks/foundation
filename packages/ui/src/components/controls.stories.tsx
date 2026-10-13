@@ -13,7 +13,7 @@ import { SettingRow, SettingSection } from './SettingRow'
 import SettingsCard from './SettingsCard'
 import SettingsGroup from './SettingsGroup'
 import Sort, { type TDirection } from './Sort'
-import { Toggle } from './Toggle'
+import { Switch } from './Switch'
 
 const meta: Meta = {
   title: 'UI/Controls',
@@ -120,7 +120,7 @@ function SettingsDemo() {
       <SettingsCard title="Notifications" description="How we reach you">
         <SettingSection title="Email" isFirst />
         <SettingRow label="Run completion" helpText="Email when a workflow run finishes" isFirst>
-          <Toggle checked={enabled} onChange={() => setEnabled((e) => !e)} />
+          <Switch aria-label="Run completion" checked={enabled} onCheckedChange={setEnabled} />
         </SettingRow>
         <SettingRow label="Digest mode">
           <div className="flex gap-2">

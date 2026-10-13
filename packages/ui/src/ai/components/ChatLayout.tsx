@@ -1,4 +1,4 @@
-import cx from 'classnames'
+import { clsx as cx } from 'clsx'
 import { type ReactNode, type RefObject, useLayoutEffect, useRef, useState } from 'react'
 import { useChat } from '../core/ChatProvider'
 import { useChatConfig } from '../core/config'

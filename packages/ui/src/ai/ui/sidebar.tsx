@@ -1,4 +1,4 @@
-import cx from 'classnames'
+import { clsx as cx } from 'clsx'
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 'react'
 import { ConfirmModal } from '../../components/ConfirmModal'
 import { focusOnMount } from '../../components/focus'

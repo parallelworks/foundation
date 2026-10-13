@@ -1,4 +1,4 @@
-import cx from 'classnames'
+import { clsx as cx } from 'clsx'
 import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocalStorage } from 'usehooks-ts'

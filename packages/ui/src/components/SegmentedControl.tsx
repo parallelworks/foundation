@@ -1,7 +1,7 @@
-import cx from 'classnames'
+import { clsx as cx } from 'clsx'
 import type { ReactNode } from 'react'
 import { useLink } from './Provider'
-import { TOOLTIP_ID } from './Tooltip'
+import { Tooltip } from './Tooltip'
 
 export interface SegmentedOption<T extends string> {
   value: T
@@ -10,7 +10,7 @@ export interface SegmentedOption<T extends string> {
   /** Beside the label, or in the corner when only the icon shows. */
   badge?: ReactNode
   /** Navigates instead of calling `onChange`, for segments that are pages. */
-  to?: string
+  href?: string
   testId?: string
 }
 
@@ -41,7 +41,7 @@ export function SegmentedControl<T extends string>({
   testId?: string
 }) {
   const Link = useLink()
-  const links = options.some((o) => o.to)
+  const links = options.some((o) => o.href)
 
   const items = options.map((option) => {
     const current = option.value === value
@@ -66,36 +66,30 @@ export function SegmentedControl<T extends string>({
           ))}
       </>
     )
-    const tooltip = iconOnly
-      ? {
-          'data-tooltip-id': TOOLTIP_ID,
-          'data-tooltip-content': option.label,
-          'data-tooltip-place': 'right' as const,
-        }
-      : {}
-    return option.to ? (
-      <Link
-        key={option.value}
-        to={option.to}
-        aria-current={current ? 'page' : undefined}
-        data-testid={option.testId}
-        className={className}
-        {...tooltip}
-      >
-        {content}
-      </Link>
-    ) : (
-      <button
-        key={option.value}
-        type="button"
-        aria-pressed={current}
-        data-testid={option.testId}
-        onClick={() => onChange?.(option.value)}
-        className={className}
-        {...tooltip}
-      >
-        {content}
-      </button>
+    return (
+      // A labelled segment shows its name already; only an icon needs the tooltip.
+      <Tooltip key={option.value} content={option.label} side="right" disabled={!iconOnly}>
+        {option.href ? (
+          <Link
+            href={option.href}
+            aria-current={current ? 'page' : undefined}
+            data-testid={option.testId}
+            className={className}
+          >
+            {content}
+          </Link>
+        ) : (
+          <button
+            type="button"
+            aria-pressed={current}
+            data-testid={option.testId}
+            onClick={() => onChange?.(option.value)}
+            className={className}
+          >
+            {content}
+          </button>
+        )}
+      </Tooltip>
     )
   })
 

@@ -9,6 +9,9 @@ import { cleanup, render } from '@testing-library/react'
 import type React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import * as combobox from './components/Combobox.stories'
+import * as controls from './components/controls.stories'
+import * as pageHeader from './components/pageHeader.stories'
 import * as primitives from './components/primitives.stories'
 import * as fileExplorer from './file-explorer/FileExplorer.stories'
 import * as form from './form/DynamicForm.stories'
@@ -26,11 +29,6 @@ import * as userHoverCard from './list/UserHoverCard.stories'
 import * as logviewer from './logviewer/LogViewer.stories'
 
 // jsdom lacks these; the DAG and explorer rely on them for layout plumbing.
-global.ResizeObserver = class {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
-} as unknown as typeof ResizeObserver
 global.requestAnimationFrame = (() => 0) as typeof requestAnimationFrame
 global.cancelAnimationFrame = (() => {}) as typeof cancelAnimationFrame
 
@@ -48,6 +46,9 @@ vi.mock('react-zoom-pan-pinch', () => ({
 
 const SUITES = {
   primitives,
+  combobox,
+  controls,
+  pageHeader,
   logviewer,
   list,
   listControls,

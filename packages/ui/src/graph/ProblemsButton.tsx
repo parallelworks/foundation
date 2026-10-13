@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { keyedByContent } from '../components/keys'
-import { TOOLTIP_ID } from '../components/Tooltip'
+import { Tooltip } from '../components/Tooltip'
 import { AlertIcon } from '../icons'
 import type { EditorProblem } from './editorApi'
 import { useGraphEditorStrings } from './editorStrings'
@@ -22,19 +22,20 @@ export function ProblemsButton({ problems }: { problems: ListedProblem[] }) {
   const label = t.problemCount(problems.length)
   return (
     <>
-      <button
-        ref={button}
-        type="button"
-        aria-label={label}
-        aria-expanded={open}
-        {...(open ? {} : { 'data-tooltip-id': TOOLTIP_ID })}
-        data-tooltip-content={label}
-        className="flex h-7 cursor-pointer items-center gap-1 rounded px-2 text-xs font-medium text-(--theme-error) theme-hover"
-        onClick={() => setOpen((current) => !current)}
-      >
-        <AlertIcon className="h-3.5 w-3.5" />
-        {problems.length}
-      </button>
+      {/* The open list already names the count. */}
+      <Tooltip content={label} disabled={open}>
+        <button
+          ref={button}
+          type="button"
+          aria-label={label}
+          aria-expanded={open}
+          className="flex h-7 cursor-pointer items-center gap-1 rounded px-2 text-xs font-medium text-(--theme-error) theme-hover"
+          onClick={() => setOpen((current) => !current)}
+        >
+          <AlertIcon className="h-3.5 w-3.5" />
+          {problems.length}
+        </button>
+      </Tooltip>
       {open && (
         <ToolbarPopover anchor={button} label={label} onClose={() => setOpen(false)}>
           <div className="mb-2 text-[0.8125rem] font-semibold">{label}</div>

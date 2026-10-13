@@ -17,8 +17,8 @@ const placement: HoverCardPlacement = {
   onLeave: () => {},
 }
 
-const RouterLink: UILinkComponent = ({ to, children, className }) => (
-  <a href={`#router${to}`} className={className}>
+const RouterLink: UILinkComponent = ({ href, children, className }) => (
+  <a href={`#router${href}`} className={className}>
     {children}
   </a>
 )
@@ -57,8 +57,8 @@ describe('UserHoverCard', () => {
     )
     expect(screen.getByRole('link')).toHaveAttribute('href', '#router/users/a')
 
-    const Override: UILinkComponent = ({ to, children }) => (
-      <a href={`#override${to}`}>{children}</a>
+    const Override: UILinkComponent = ({ href, children }) => (
+      <a href={`#override${href}`}>{children}</a>
     )
     rerender(
       <UIProvider slots={{ link: RouterLink }}>
