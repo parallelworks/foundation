@@ -1,9 +1,9 @@
 import { clsx as cx } from 'clsx'
-import { DateTime } from 'luxon'
 import { useEffect, useRef, useState } from 'react'
 import { RefreshIcon } from '../icons'
 import { ghostButtonClasses } from './ghostButton'
 import { useStrings } from './Provider'
+import { useRelativeTime } from './relativeTime'
 import { Tooltip } from './Tooltip'
 
 const sizeClasses = {
@@ -45,7 +45,7 @@ export function RefreshButton({
     [],
   )
   const busy = refreshing || pending
-  const ago = useAgo(updatedAt)
+  const ago = useRelativeTime(updatedAt)
 
   const refresh = () => {
     if (busy) {
@@ -89,20 +89,4 @@ export function RefreshButton({
       </span>
     </>
   )
-}
-
-/** How long ago `at` was, in words, kept current: each second for the first
- *  minute, then every half minute. */
-function useAgo(at: Date | number | null | undefined): string | null {
-  const [, tick] = useState(0)
-  const time = at === null || at === undefined ? null : DateTime.fromMillis(+at)
-  const age = time ? Date.now() - time.toMillis() : 0
-  useEffect(() => {
-    if (!time) {
-      return
-    }
-    const id = setTimeout(() => tick((n) => n + 1), age < 60_000 ? 1_000 : 30_000)
-    return () => clearTimeout(id)
-  })
-  return time ? time.toRelative() : null
 }
