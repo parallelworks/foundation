@@ -1,4 +1,4 @@
-import { clsx as cx } from 'clsx'
+import { cx } from '../cx'
 import { AlertIcon, InfoIcon } from '../icons'
 import { toneSurface } from './tone'
 

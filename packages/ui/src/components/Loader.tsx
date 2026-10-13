@@ -1,5 +1,5 @@
-import { clsx as cx } from 'clsx'
 import { FaCircleNotch } from 'react-icons/fa'
+import { cx } from '../cx'
 import { useStrings } from './Provider'
 
 const RIPPLE_STAGGER_S = 0.22

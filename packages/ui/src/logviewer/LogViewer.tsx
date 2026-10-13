@@ -1,5 +1,4 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { clsx as cx } from 'clsx'
 import { DateTime } from 'luxon'
 import {
   Fragment,
@@ -23,6 +22,7 @@ import { Popover } from '../components/Popover'
 import { useOptionalWorkflowEngine, useStrings } from '../components/Provider'
 import { SearchInput } from '../components/SearchInput'
 import { useCopy } from '../components/useCopy'
+import { cx } from '../cx'
 import type { LogCommand, LogSegment, ProcessedLogLine } from '../engine'
 import {
   ArrowDownIcon,

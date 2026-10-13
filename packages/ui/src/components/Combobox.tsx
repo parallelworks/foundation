@@ -1,7 +1,6 @@
 import { Autocomplete as BaseAutocomplete } from '@base-ui/react/autocomplete'
 import { Combobox as BaseCombobox } from '@base-ui/react/combobox'
 import { useVirtualizer, type Virtualizer } from '@tanstack/react-virtual'
-import { clsx as cx } from 'clsx'
 import { dequal } from 'dequal'
 import {
   type CSSProperties,
@@ -15,6 +14,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { cx } from '../cx'
 import { AddIcon, CaretDownIcon, CheckIcon, XIcon } from '../icons'
 import {
   type ComboboxItem,

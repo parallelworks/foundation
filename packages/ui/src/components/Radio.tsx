@@ -1,5 +1,5 @@
 import { Radio as BaseRadio } from '@base-ui/react/radio'
-import { clsx as cx } from 'clsx'
+import { cx } from '../cx'
 
 export { RadioGroup } from '@base-ui/react/radio-group'
 

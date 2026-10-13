@@ -1,7 +1,7 @@
 import { Toggle } from '@base-ui/react/toggle'
-import { clsx as cx } from 'clsx'
 import type { ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
+import { cx } from '../cx'
 import { ChevronDownIcon, FavoriteIcon, FavoriteOutlineIcon } from '../icons'
 import { ActionMenu } from './ActionMenu'
 import { Button } from './Button'

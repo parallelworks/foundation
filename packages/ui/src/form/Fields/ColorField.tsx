@@ -1,6 +1,6 @@
-import { clsx as cx } from 'clsx'
 import { Field } from '../../components/Field'
 import { fieldBox } from '../../components/fieldBox'
+import { cx } from '../../cx'
 import { fieldFrame } from '../fieldFrame'
 import type { FieldComponentProps } from '../types/fieldComponentTypes'
 import type { BaseField } from '../types/fieldTypes'

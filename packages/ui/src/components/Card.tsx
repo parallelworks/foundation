@@ -1,6 +1,6 @@
 import { useRender } from '@base-ui/react/use-render'
-import { clsx as cx } from 'clsx'
 import type { ReactElement, ReactNode } from 'react'
+import { cx } from '../cx'
 
 const sizeClasses = {
   sm: 'max-w-[400px] p-6',

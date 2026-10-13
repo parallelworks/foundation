@@ -1,4 +1,4 @@
-import { clsx as cx } from 'clsx'
+import { cx } from '../cx'
 import { ErrorIcon, SuccessIcon } from '../icons'
 
 interface IBaseCheckmarkProps {

@@ -1,7 +1,7 @@
 import { Meter as BaseMeter } from '@base-ui/react/meter'
 import { Progress } from '@base-ui/react/progress'
-import { clsx as cx } from 'clsx'
 import type { ReactNode } from 'react'
+import { cx } from '../cx'
 import { Tooltip } from './Tooltip'
 
 /** A bar's color: the theme's accent, a status, or muted for something stopped. */

@@ -1,5 +1,5 @@
 import { Slider as BaseSlider } from '@base-ui/react/slider'
-import { clsx as cx } from 'clsx'
+import { cx } from '../cx'
 
 export interface SliderProps {
   value: number

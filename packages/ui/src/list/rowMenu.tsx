@@ -1,10 +1,10 @@
-import { clsx as cx } from 'clsx'
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import { useCallback, useState } from 'react'
 import type { OpenMenu } from '../components/ContextMenu'
 import { IconButton } from '../components/IconButton'
 import type { MenuAction, MenuEntry, MenuSubmenu } from '../components/MenuEntries'
 import { useStrings } from '../components/Provider'
+import { cx } from '../cx'
 import {
   ClipboardIcon,
   CopyIcon,

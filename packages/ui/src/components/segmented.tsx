@@ -1,5 +1,5 @@
-import { clsx as cx } from 'clsx'
 import type { ReactNode } from 'react'
+import { cx } from '../cx'
 
 /** The parts SegmentedControl and segmented Tabs share, so a picker and a set
  *  of views beside it look the same. */

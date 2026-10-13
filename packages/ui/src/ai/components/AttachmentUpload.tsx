@@ -1,4 +1,3 @@
-import { clsx as cx } from 'clsx'
 import {
   type ChangeEvent,
   type DragEvent,
@@ -11,6 +10,7 @@ import {
 import { mutate } from 'swr'
 import { useStrings } from '../../components/Provider'
 import { toast } from '../../components/Toast'
+import { cx } from '../../cx'
 import { formatBytes } from '../../format'
 import {
   AddIcon,

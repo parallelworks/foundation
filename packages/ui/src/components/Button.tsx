@@ -1,6 +1,6 @@
 import { Button as BaseButton } from '@base-ui/react/button'
-import { clsx as cx } from 'clsx'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import { cx } from '../cx'
 import { AngleRightIcon } from '../icons'
 import { type ButtonStyle, buttonClasses } from './buttonClasses'
 import { Loader } from './Loader'

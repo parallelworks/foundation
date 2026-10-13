@@ -1,5 +1,5 @@
-import { clsx as cx } from 'clsx'
 import React from 'react'
+import { cx } from '../cx'
 import { Loader } from './Loader'
 import type { TDirection } from './Sort'
 

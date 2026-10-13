@@ -1,5 +1,5 @@
 import { Checkbox as BaseCheckbox } from '@base-ui/react/checkbox'
-import { clsx as cx } from 'clsx'
+import { cx } from '../cx'
 import { CheckStrokeIcon, MinusIcon } from '../icons'
 
 export { CheckboxGroup } from '@base-ui/react/checkbox-group'

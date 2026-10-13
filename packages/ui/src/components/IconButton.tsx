@@ -1,5 +1,5 @@
-import { clsx as cx } from 'clsx'
 import { type ComponentPropsWithRef, type ReactNode, useCallback, useRef } from 'react'
+import { cx } from '../cx'
 import { type ButtonSize, type ButtonVariant, buttonClasses } from './buttonClasses'
 import { useShortcutKey } from './shortcutKey'
 import { Tooltip } from './Tooltip'

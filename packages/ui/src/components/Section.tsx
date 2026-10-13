@@ -1,6 +1,6 @@
 import { Collapsible } from '@base-ui/react/collapsible'
-import { clsx as cx } from 'clsx'
 import type { ReactNode } from 'react'
+import { cx } from '../cx'
 import { AngleRightIcon } from '../icons'
 import { collapsePanelClassName } from './Disclosure'
 

@@ -1,9 +1,9 @@
-import { clsx as cx } from 'clsx'
 import { useState } from 'react'
 import { Button } from '../components/Button'
 import { IconButton } from '../components/IconButton'
 import { type BarTone, ProgressBar } from '../components/Meter'
 import { type UIStrings, useStrings } from '../components/Provider'
+import { cx } from '../cx'
 import { formatBytes, formatTimeLeft } from '../format'
 import {
   AlertIcon,

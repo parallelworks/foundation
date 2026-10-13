@@ -1,9 +1,9 @@
-import { clsx as cx } from 'clsx'
 import { useEffect, useState } from 'react'
 import { IconButton } from '../../components/IconButton'
 import { Modal } from '../../components/Modal'
 import { usePersistedState, useStrings } from '../../components/Provider'
 import { SegmentedControl } from '../../components/SegmentedControl'
+import { cx } from '../../cx'
 import { formatBytes } from '../../format'
 import {
   ChevronLeftIcon,

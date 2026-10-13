@@ -1,10 +1,10 @@
-import { clsx as cx } from 'clsx'
 import { Fragment, type ReactNode, useEffect, useRef } from 'react'
 import { Drawer } from '../../components/Drawer'
 import { positionKeys } from '../../components/keys'
 import { usePersistedState } from '../../components/Provider'
 import { LoadingRegion, Skeleton } from '../../components/Skeleton'
 import { useSplitter } from '../../components/splitter'
+import { cx } from '../../cx'
 import {
   SIDEBAR_DEFAULT_WIDTH_PX,
   SidebarGroupHeading,

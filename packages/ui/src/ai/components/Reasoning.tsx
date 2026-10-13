@@ -1,6 +1,6 @@
-import { clsx as cx } from 'clsx'
 import type { ReactNode } from 'react'
 import { Disclosure } from '../../components/Disclosure'
+import { cx } from '../../cx'
 import { ChevronRightIcon } from '../../icons'
 
 const toggleClasses =

@@ -1,6 +1,6 @@
 import { Tabs as BaseTabs } from '@base-ui/react/tabs'
-import { clsx as cx } from 'clsx'
 import { type ReactNode, useState } from 'react'
+import { cx } from '../cx'
 import { useLink } from './Provider'
 import {
   SegmentContent,

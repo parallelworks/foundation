@@ -1,7 +1,7 @@
-import { clsx as cx } from 'clsx'
 import type { ReactNode, PointerEvent as ReactPointerEvent } from 'react'
 import { IconButton } from '../components/IconButton'
 import { Tooltip } from '../components/Tooltip'
+import { cx } from '../cx'
 import { RedoIcon, SettingsIcon, UndoIcon } from '../icons'
 import type { DependencyGraphEditor } from './editorApi'
 import type { Point } from './editorPrimitives'

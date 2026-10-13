@@ -1,10 +1,10 @@
-import { clsx as cx } from 'clsx'
 import type {
   HTMLAttributes,
   KeyboardEvent as ReactKeyboardEvent,
   PointerEvent as ReactPointerEvent,
 } from 'react'
 import { useRef, useState } from 'react'
+import { cx } from '../cx'
 import { useStrings } from './Provider'
 
 const KEYBOARD_STEP_PX = 16

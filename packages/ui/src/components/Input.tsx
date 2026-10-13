@@ -1,6 +1,6 @@
-import { clsx as cx } from 'clsx'
 import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from 'react'
 import { forwardRef, useState } from 'react'
+import { cx } from '../cx'
 import { Field, type FieldControlProps, RevealToggle } from './Field'
 import { fieldBox } from './fieldBox'
 

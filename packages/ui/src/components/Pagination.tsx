@@ -1,5 +1,5 @@
-import { clsx as cx } from 'clsx'
 import type { ReactNode } from 'react'
+import { cx } from '../cx'
 import { ChevronLeftIcon, ChevronRightIcon } from '../icons'
 import { buttonClasses } from './buttonClasses'
 import { IconButton } from './IconButton'
@@ -69,7 +69,8 @@ export function Pagination({
       aria-label={t.pagination}
       className={cx('flex h-10 shrink-0 items-center justify-between gap-3 px-2.5', className)}
     >
-      <div className="flex min-w-0 items-center gap-3 text-xs text-(--theme-muted-text-color)">
+      {/* Takes the bar's free space, so the position truncates only when the bar runs out. */}
+      <div className="flex min-w-0 flex-1 items-center gap-3 text-xs text-(--theme-muted-text-color)">
         {position && <span className="truncate">{position}</span>}
         {showSizes && (
           <Select

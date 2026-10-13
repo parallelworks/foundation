@@ -1,7 +1,7 @@
-import { clsx as cx } from 'clsx'
 import { useMemo, useRef } from 'react'
 import { useFormContext, useWatch } from 'react-hook-form'
 import { Field } from '../components/Field'
+import { cx } from '../cx'
 import { fieldFrame } from '../form/fieldFrame'
 import type { FieldComponentProps } from '../form/types/fieldComponentTypes'
 import type { BaseField } from '../form/types/fieldTypes'

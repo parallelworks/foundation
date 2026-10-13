@@ -1,10 +1,10 @@
-import { clsx as cx } from 'clsx'
 import { DateTime } from 'luxon'
 import { type KeyboardEvent, memo, useEffect, useRef, useState } from 'react'
 import { Avatar } from '../../components/Avatar'
 import { useStrings } from '../../components/Provider'
 import { RelativeTime } from '../../components/relativeTime'
 import { useCopy } from '../../components/useCopy'
+import { cx } from '../../cx'
 import { formatBytes, formatDuration } from '../../format'
 import {
   CheckIcon,

@@ -1,7 +1,7 @@
-import { clsx as cx } from 'clsx'
 import { useState } from 'react'
 import { Checkbox } from '../../components/Checkbox'
 import { Field, FieldOption } from '../../components/Field'
+import { cx } from '../../cx'
 import { fieldFrame } from '../fieldFrame'
 import type { FieldComponentProps } from '../types/fieldComponentTypes'
 import type { BaseField } from '../types/fieldTypes'

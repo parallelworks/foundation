@@ -1,4 +1,3 @@
-import { clsx as cx } from 'clsx'
 import {
   type ReactNode,
   useCallback,
@@ -10,6 +9,7 @@ import {
 } from 'react'
 import { useStrings } from '../../components/Provider'
 import { useElapsed } from '../../components/relativeTime'
+import { cx } from '../../cx'
 import { formatDuration } from '../../format'
 import { CheckIcon, ClockIcon } from '../../icons'
 import { useChat } from '../core/ChatProvider'

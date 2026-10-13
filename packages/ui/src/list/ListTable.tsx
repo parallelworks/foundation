@@ -1,10 +1,10 @@
-import { clsx as cx } from 'clsx'
 import type { ReactNode } from 'react'
 import { Checkbox } from '../components/Checkbox'
 import { positionKeys } from '../components/keys'
 import { useLink, useStrings } from '../components/Provider'
 import { LoadingRegion, Skeleton } from '../components/Skeleton'
 import { Table } from '../components/Table'
+import { cx } from '../cx'
 import { ErrorIcon } from '../icons'
 
 const NAME_TEXT = 'font-medium text-[13px] leading-tight text-(--theme-app) truncate'

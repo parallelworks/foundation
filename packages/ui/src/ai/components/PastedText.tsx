@@ -1,6 +1,6 @@
-import { clsx as cx } from 'clsx'
 import { Fragment } from 'react'
 import { Loader } from '../../components/Loader'
+import { cx } from '../../cx'
 import { formatBytes } from '../../format'
 import { FileIcon, XIcon } from '../../icons'
 import { useChatConfig } from '../core/config'

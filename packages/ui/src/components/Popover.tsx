@@ -1,6 +1,6 @@
 import { Popover as BasePopover } from '@base-ui/react/popover'
-import { clsx as cx } from 'clsx'
 import { createContext, type ReactElement, type ReactNode, use, useRef } from 'react'
+import { cx } from '../cx'
 import {
   type FloatingAnchor,
   panelClassName,

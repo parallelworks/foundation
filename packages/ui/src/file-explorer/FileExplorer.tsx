@@ -1,5 +1,4 @@
 import { Menu } from '@base-ui/react/menu'
-import { clsx as cx } from 'clsx'
 import { DateTime } from 'luxon'
 import {
   type ReactNode,
@@ -31,6 +30,7 @@ import { Table } from '../components/Table'
 import { toast } from '../components/Toast'
 import { Tooltip } from '../components/Tooltip'
 import { useCopy } from '../components/useCopy'
+import { cx } from '../cx'
 import { formatBytes, formatDateTime } from '../format'
 import {
   AccessIcon,

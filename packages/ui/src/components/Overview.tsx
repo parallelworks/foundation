@@ -1,4 +1,4 @@
-import { clsx as cx } from 'clsx'
+import { cx } from '../cx'
 import { LoadingRegion, Skeleton } from './Skeleton'
 export function Overview({
   Icon,

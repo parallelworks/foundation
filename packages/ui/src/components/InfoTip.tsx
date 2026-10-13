@@ -1,5 +1,5 @@
-import { clsx as cx } from 'clsx'
 import { Fragment, type ReactNode } from 'react'
+import { cx } from '../cx'
 import { TooltipIcon } from '../icons'
 import { ExternalLink } from './ExternalLink'
 import { keyedByContent } from './keys'

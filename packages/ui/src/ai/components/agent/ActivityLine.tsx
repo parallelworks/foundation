@@ -1,7 +1,7 @@
-import { clsx as cx } from 'clsx'
 import { useEffect, useRef, useState } from 'react'
 import { Loader } from '../../../components/Loader'
 import { useElapsed } from '../../../components/relativeTime'
+import { cx } from '../../../cx'
 import { formatCount, formatDuration } from '../../../format'
 import { StopSolidIcon } from '../../../icons'
 import { useChatConfig } from '../../core/config'

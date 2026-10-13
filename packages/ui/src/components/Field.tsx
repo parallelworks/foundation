@@ -1,7 +1,7 @@
 import { Field as BaseField } from '@base-ui/react/field'
 import { Fieldset } from '@base-ui/react/fieldset'
-import { clsx as cx } from 'clsx'
 import { createContext, type ReactNode, use, useId } from 'react'
+import { cx } from '../cx'
 import { AlertIcon, EyeIcon, EyeOffIcon } from '../icons'
 import { useStrings } from './Provider'
 import { RequiredMark } from './RequiredMark'

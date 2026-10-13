@@ -1,6 +1,6 @@
 import { Drawer as BaseDrawer } from '@base-ui/react/drawer'
-import { clsx as cx } from 'clsx'
 import { type ReactNode, useLayoutEffect, useRef, useState } from 'react'
+import { cx } from '../cx'
 import { CloseIcon } from '../icons'
 import { useStrings } from './Provider'
 import { useSplitter } from './splitter'

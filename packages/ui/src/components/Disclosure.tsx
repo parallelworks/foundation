@@ -1,6 +1,6 @@
 import { Collapsible } from '@base-ui/react/collapsible'
-import { clsx as cx } from 'clsx'
 import type { ReactNode } from 'react'
+import { cx } from '../cx'
 import { ChevronRightIcon } from '../icons'
 
 /** The height a collapsible panel animates as it opens and closes. It clips

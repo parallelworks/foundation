@@ -1,10 +1,10 @@
-import { clsx as cx } from 'clsx'
 import type { ReactNode } from 'react'
 import { Avatar } from '../components/Avatar'
 import { type UILinkComponent, useLink, useStrings } from '../components/Provider'
 import { LoadingRegion, Skeleton } from '../components/Skeleton'
 import { Tooltip } from '../components/Tooltip'
 import { useCopy } from '../components/useCopy'
+import { cx } from '../cx'
 import { CopyIcon } from '../icons'
 
 /** A person's card, for `HoverCard`'s `card`. */

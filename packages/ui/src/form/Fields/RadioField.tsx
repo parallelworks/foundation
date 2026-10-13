@@ -1,6 +1,6 @@
-import { clsx as cx } from 'clsx'
 import { Field, FieldOption } from '../../components/Field'
 import { Radio, RadioGroup } from '../../components/Radio'
+import { cx } from '../../cx'
 import { fieldFrame } from '../fieldFrame'
 import type { FieldComponentProps } from '../types/fieldComponentTypes'
 import type { BaseField } from '../types/fieldTypes'

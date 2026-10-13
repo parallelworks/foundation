@@ -1,4 +1,3 @@
-import { clsx as cx } from 'clsx'
 import { dequal as deepEqual } from 'dequal'
 import {
   type CSSProperties,
@@ -29,6 +28,7 @@ import { InfoTip } from '../components/InfoTip'
 import { Loader } from '../components/Loader'
 import { useStrings, useWorkflowEngine } from '../components/Provider'
 import { Section } from '../components/Section'
+import { cx } from '../cx'
 import type { WorkflowVariables } from '../engine'
 import { FormLayout, LayoutCSSContext } from './FormLayout'
 import { type FieldComponent, FieldRegistryContext, Registry } from './fieldRegistry'

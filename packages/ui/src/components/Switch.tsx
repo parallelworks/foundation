@@ -1,5 +1,5 @@
 import { Switch as BaseSwitch } from '@base-ui/react/switch'
-import { clsx as cx } from 'clsx'
+import { cx } from '../cx'
 
 const sizes = {
   sm: { root: 'h-5 w-9', thumb: 'size-4 data-checked:translate-x-4' },

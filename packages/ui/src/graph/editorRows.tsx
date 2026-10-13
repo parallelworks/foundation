@@ -1,7 +1,7 @@
-import { clsx as cx } from 'clsx'
 import { type ReactNode, useEffect, useRef } from 'react'
 import type { FloatingAnchor } from '../components/floating'
 import { Tooltip } from '../components/Tooltip'
+import { cx } from '../cx'
 import { AddIcon, AlertIcon, DragHandleIcon, MoreIcon } from '../icons'
 import type { EditorProblem } from './editorApi'
 import { MarqueeBox, type Point, place } from './editorPrimitives'

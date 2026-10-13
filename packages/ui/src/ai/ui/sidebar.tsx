@@ -1,4 +1,3 @@
-import { clsx as cx } from 'clsx'
 import { type CSSProperties, type ReactNode, useState } from 'react'
 import { ConfirmModal } from '../../components/ConfirmModal'
 import type { OpenMenu } from '../../components/ContextMenu'
@@ -7,6 +6,7 @@ import { focusOnMount } from '../../components/focus'
 import { IconButton } from '../../components/IconButton'
 import type { MenuEntry } from '../../components/MenuEntries'
 import { Tooltip } from '../../components/Tooltip'
+import { cx } from '../../cx'
 import { SidebarIcon } from '../../icons'
 import { MoreButton, rowContextMenuProps, useRowMenuActive } from '../../list/index'
 

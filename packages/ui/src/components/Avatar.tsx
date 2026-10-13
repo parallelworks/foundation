@@ -1,5 +1,5 @@
 import { Avatar as BaseAvatar } from '@base-ui/react/avatar'
-import { clsx as cx } from 'clsx'
+import { cx } from '../cx'
 import { useStrings } from './Provider'
 
 export type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl'

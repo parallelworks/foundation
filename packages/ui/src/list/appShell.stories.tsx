@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { clsx as cx } from 'clsx'
 import type { ReactNode } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { expect, screen, userEvent, within } from 'storybook/test'
@@ -11,6 +10,7 @@ import { HeaderAddButton, HeaderEditButton, PageHeader } from '../components/Pag
 import { type UILinkComponent, UIProvider, useNavigation } from '../components/Provider'
 import { StatusBadge } from '../components/StatusBadge'
 import { Table } from '../components/Table'
+import { cx } from '../cx'
 import {
   AddIcon,
   ClusterIcon,

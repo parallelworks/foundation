@@ -1,6 +1,6 @@
 import { Menu as BaseMenu } from '@base-ui/react/menu'
-import { clsx as cx } from 'clsx'
 import type { ReactNode } from 'react'
+import { cx } from '../cx'
 import { CheckIcon, ChevronRightIcon } from '../icons'
 import { panelClassName, panelItemClassName, positionerClassName } from './floating'
 

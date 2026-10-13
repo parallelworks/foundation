@@ -1,4 +1,4 @@
-import { clsx as cx } from 'clsx'
+import { cx } from '../cx'
 
 export type FieldBoxSize = 'sm' | 'md'
 

@@ -1,4 +1,4 @@
-import { clsx as cx } from 'clsx'
+import { cx } from '../cx'
 
 /** `primary` is the one action a view leads to; `secondary` sits beside it;
  *  `outline` and `ghost` are toolbar and inline actions, bordered or not;

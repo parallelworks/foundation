@@ -1,4 +1,3 @@
-import { clsx as cx } from 'clsx'
 import { DateTime } from 'luxon'
 import {
   createContext,
@@ -29,6 +28,7 @@ import { Modal } from '../components/Modal'
 import { useRunFile, useSlots, useStrings, useWorkflowEngine } from '../components/Provider'
 import { RunStatusIcon } from '../components/RunStatusIcon'
 import { Elapsed } from '../components/relativeTime'
+import { cx } from '../cx'
 import type { GraphLayout } from '../editing'
 import type { RunStatus, WorkflowEngine } from '../engine'
 import { initializeValues } from '../form/lib'

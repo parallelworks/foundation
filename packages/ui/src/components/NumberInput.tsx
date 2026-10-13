@@ -1,5 +1,5 @@
 import { NumberField } from '@base-ui/react/number-field'
-import { clsx as cx } from 'clsx'
+import { cx } from '../cx'
 import { AngleDownIcon, AngleUpIcon } from '../icons'
 import { type FieldBoxSize, fieldBox } from './fieldBox'
 

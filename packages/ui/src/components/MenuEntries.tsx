@@ -1,6 +1,6 @@
 import { Menu } from '@base-ui/react/menu'
-import { clsx as cx } from 'clsx'
 import { type ReactNode, useState } from 'react'
+import { cx } from '../cx'
 import { safeUrl } from '../safeUrl'
 import { EmptyState } from './EmptyState'
 import { keyedByContent } from './keys'

@@ -1,6 +1,6 @@
 import { Toast as BaseToast } from '@base-ui/react/toast'
-import { clsx as cx } from 'clsx'
 import { type ReactNode, useEffect, useId, useSyncExternalStore } from 'react'
+import { cx } from '../cx'
 import { CloseIcon, ErrorIcon, InfoIcon, SuccessIcon, WarningIcon } from '../icons'
 import { buttonClasses } from './buttonClasses'
 import { Loader } from './Loader'

@@ -1,4 +1,4 @@
-import { clsx as cx } from 'clsx'
+import { cx } from '../cx'
 import { Radio } from './Radio'
 
 /** A named and described choice in a SettingsCard, picking between modes such

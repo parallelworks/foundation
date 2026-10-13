@@ -1,7 +1,7 @@
-import { clsx as cx } from 'clsx'
 import type { ComponentType, ReactNode } from 'react'
 import { Fragment, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { cx } from '../cx'
 import { AddIcon, ChevronRightIcon, EditIcon, MoreIcon } from '../icons'
 import { ActionMenu } from './ActionMenu'
 import { useBreadcrumb } from './Breadcrumbs'

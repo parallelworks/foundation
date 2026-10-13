@@ -1,4 +1,3 @@
-import { clsx as cx } from 'clsx'
 import { type JSX, useState, useTransition } from 'react'
 import { Button } from '../components/Button'
 import Callout from '../components/Callout'
@@ -14,6 +13,7 @@ import {
 import { useElapsed } from '../components/relativeTime'
 import { Skeleton } from '../components/Skeleton'
 import { toast } from '../components/Toast'
+import { cx } from '../cx'
 import { formatBytes } from '../format'
 import {
   AlertIcon,

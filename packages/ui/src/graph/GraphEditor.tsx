@@ -1,4 +1,3 @@
-import { clsx as cx } from 'clsx'
 import {
   type ReactNode,
   type PointerEvent as ReactPointerEvent,
@@ -14,6 +13,7 @@ import { IconButton } from '../components/IconButton'
 import { type MenuEntry, menuDivider } from '../components/MenuEntries'
 import { useWorkflowEditing } from '../components/Provider'
 import { useCopy } from '../components/useCopy'
+import { cx } from '../cx'
 import type {
   GraphEdit,
   GraphEditResult,

@@ -1,7 +1,7 @@
-import { clsx as cx } from 'clsx'
 import { useState } from 'react'
 import { keyedByContent } from '../components/keys'
 import { useStrings } from '../components/Provider'
+import { cx } from '../cx'
 import { ChevronDownIcon, ChevronRightIcon, ErrorIcon, InfoIcon, WarningIcon } from '../icons'
 import type { WorkflowJob } from './types'
 

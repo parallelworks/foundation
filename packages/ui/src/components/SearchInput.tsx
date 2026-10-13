@@ -1,5 +1,5 @@
-import { clsx as cx } from 'clsx'
 import type { InputHTMLAttributes, Ref } from 'react'
+import { cx } from '../cx'
 import { SearchIcon, XIcon } from '../icons'
 import { type FieldBoxSize, fieldBox } from './fieldBox'
 import { useStrings } from './Provider'

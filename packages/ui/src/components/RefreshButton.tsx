@@ -1,5 +1,5 @@
-import { clsx as cx } from 'clsx'
 import { useEffect, useRef, useState } from 'react'
+import { cx } from '../cx'
 import { RefreshIcon } from '../icons'
 import { type ButtonSize, buttonClasses } from './buttonClasses'
 import { useStrings } from './Provider'

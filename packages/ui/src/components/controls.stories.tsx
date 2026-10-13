@@ -261,7 +261,9 @@ export const PaginationStory: StoryObj<{ known: boolean; sizes: boolean }> = {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: 'Next' }))
     if (args.known) {
-      await expect(canvas.getByText('101–150 of 420')).toBeInTheDocument()
+      const position = canvas.getByText('101–150 of 420')
+      // With room to spare, the position shows in full.
+      await expect(position.scrollWidth).toBeLessThanOrEqual(position.clientWidth)
     }
   },
 }

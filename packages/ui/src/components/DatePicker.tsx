@@ -1,7 +1,7 @@
 import { Popover } from '@base-ui/react/popover'
 import { type ClassNames, DayPicker, type Matcher } from '@daypicker/react'
-import { clsx as cx } from 'clsx'
 import { useState } from 'react'
+import { cx } from '../cx'
 import { AngleLeftIcon, AngleRightIcon, CalendarIcon } from '../icons'
 import { buttonClasses } from './buttonClasses'
 import { fieldBox } from './fieldBox'
@@ -95,7 +95,8 @@ const calendarClassNames: Partial<ClassNames> = {
 
 const triggerClassName = cx(
   fieldBox(),
-  'flex w-auto min-w-40 cursor-pointer items-center gap-2 text-left',
+  // Fills its field as every other control does; the time beside it keeps to its content.
+  'flex flex-1 min-w-40 cursor-pointer items-center gap-2 text-left',
 )
 
 /**
@@ -153,7 +154,7 @@ export function DatePicker({
     day !== undefined && parseDay(bound)?.getTime() === day.getTime()
 
   return (
-    <div className={cx('inline-flex items-center gap-2', className)}>
+    <div className={cx('flex w-full items-center gap-2', className)}>
       <Popover.Root open={open} onOpenChange={setOpen}>
         <Popover.Trigger
           id={id}

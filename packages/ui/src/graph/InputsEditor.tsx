@@ -1,4 +1,3 @@
-import { clsx as cx } from 'clsx'
 import {
   createContext,
   type ReactNode,
@@ -17,6 +16,7 @@ import { type MenuEntry, type MenuSearch, menuDivider } from '../components/Menu
 import { NumberInput } from '../components/NumberInput'
 import { useWorkflowEditing } from '../components/Provider'
 import { Tooltip } from '../components/Tooltip'
+import { cx } from '../cx'
 import type { GraphEdit, InputPath, WorkflowEditing } from '../editing'
 import { type FormEditing, FormEditingContext } from '../form/formEditing'
 import { type WizardPages, WizardPagesContext } from '../form/Wizard/wizardPages'
