@@ -5,7 +5,7 @@ import { DisplayIcon, FilterIcon, KeyboardIcon } from '../icons'
 import { Drawer, type DrawerProps } from './Drawer'
 import { ghostButtonClasses, primaryButtonClasses } from './ghostButton'
 import { IconButton } from './IconButton'
-import { Popover, PopoverClose, type PopoverProps } from './Popover'
+import { Popover, type PopoverProps, useClosePopover } from './Popover'
 import { Switch } from './Switch'
 
 const meta: Meta = {
@@ -207,6 +207,23 @@ export const PopoverStory: StoryObj<PopoverArgs> = {
   },
 }
 
+function OrganizationLink({ name }: { name: string }) {
+  const close = useClosePopover()
+  return (
+    <a
+      href={`/organizations/${name.toLowerCase()}`}
+      // As a router's link does: navigate in place, then close.
+      onClick={(e) => {
+        e.preventDefault()
+        close()
+      }}
+      className="block rounded-md px-3 py-1.5 text-sm hover:bg-(--theme-hover)"
+    >
+      {name}
+    </a>
+  )
+}
+
 /** A list of links; following one closes the panel. */
 export const PopoverOfLinks: StoryObj = {
   name: 'Popover of links',
@@ -222,13 +239,7 @@ export const PopoverOfLinks: StoryObj = {
         }
       >
         {['Research', 'Platform', 'Finance'].map((name) => (
-          <PopoverClose
-            key={name}
-            render={<a href={`#${name.toLowerCase()}`} />}
-            className="block rounded-md px-3 py-1.5 text-sm hover:bg-(--theme-hover)"
-          >
-            {name}
-          </PopoverClose>
+          <OrganizationLink key={name} name={name} />
         ))}
       </Popover>
     </div>

@@ -119,7 +119,12 @@ export {
   type PageHeaderCrumb,
 } from './components/PageHeader'
 export { Pagination } from './components/Pagination'
-export { Popover, PopoverClose, type PopoverProps } from './components/Popover'
+export {
+  Popover,
+  PopoverClose,
+  type PopoverProps,
+  useClosePopover,
+} from './components/Popover'
 export {
   type PersistedStateHook,
   type RunFileResult,

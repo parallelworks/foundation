@@ -1,6 +1,6 @@
 import { Popover as BasePopover } from '@base-ui/react/popover'
 import { clsx as cx } from 'clsx'
-import { type ReactElement, type ReactNode, useRef } from 'react'
+import { createContext, type ReactElement, type ReactNode, use, useRef } from 'react'
 import {
   panelClassName,
   portalContainer,
@@ -9,9 +9,16 @@ import {
   tipClassName,
 } from './floating'
 
-/** Closes the popover it sits in when pressed. Render a link through it, as in
- *  `<PopoverClose render={<Link href="…" />}>`, for a link that closes its panel. */
+/** A button that closes the popover it sits in. */
 export const PopoverClose = BasePopover.Close
+
+const CloseContext = createContext<() => void>(() => {})
+
+/** Closes the popover the caller sits in, for an element that isn't a button,
+ *  such as a link that leaves the panel: `<Link href onClick={close}>`. */
+export function useClosePopover(): () => void {
+  return use(CloseContext)
+}
 
 export interface PopoverProps
   extends Omit<
@@ -61,8 +68,10 @@ export function Popover({
 }: PopoverProps) {
   const tip = variant === 'tip'
   const popup = useRef<HTMLDivElement>(null)
+  const actions = useRef<BasePopover.Root.Actions>(null)
   return (
     <BasePopover.Root
+      actionsRef={actions}
       {...(open === undefined ? {} : { open })}
       {...(defaultOpen === undefined ? {} : { defaultOpen })}
       {...(onOpenChange ? { onOpenChange: (next: boolean) => onOpenChange(next) } : {})}
@@ -98,7 +107,7 @@ export function Popover({
             {title && (
               <BasePopover.Title className="mb-2 text-sm font-semibold">{title}</BasePopover.Title>
             )}
-            {children}
+            <CloseContext value={() => actions.current?.close()}>{children}</CloseContext>
           </BasePopover.Popup>
         </BasePopover.Positioner>
       </BasePopover.Portal>

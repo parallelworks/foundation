@@ -577,7 +577,10 @@ export const SelectPreview: StoryObj = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('combobox', { name: 'Theme' }))
-    await screen.findByRole('option', { name: 'Dark' })
+    // Opening highlights the chosen theme; the arrow moves on from there.
+    await waitFor(() =>
+      expect(canvas.getByTestId('applied')).toHaveTextContent('Previewing: Light'),
+    )
     await userEvent.keyboard('{ArrowDown}')
     await waitFor(() => expect(canvas.getByTestId('applied')).toHaveTextContent('Previewing: Dark'))
     await userEvent.keyboard('{Escape}')

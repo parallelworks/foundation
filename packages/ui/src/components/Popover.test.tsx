@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { IconButton } from './IconButton'
-import { Popover, PopoverClose, type PopoverProps } from './Popover'
+import { Popover, PopoverClose, type PopoverProps, useClosePopover } from './Popover'
 import { Tooltip } from './Tooltip'
 
 function Toolbar({
@@ -80,7 +80,32 @@ describe('Popover', () => {
   it('closes from a PopoverClose inside it', async () => {
     render(
       <Popover aria-label="Organizations" trigger={<button type="button">Switch</button>}>
-        <PopoverClose render={<a href="#all" />}>See all</PopoverClose>
+        <PopoverClose>Done</PopoverClose>
+      </Popover>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Switch' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  })
+
+  it('closes from a link inside it, which stays a link', async () => {
+    function AllLink() {
+      const close = useClosePopover()
+      return (
+        <a
+          href="/organizations"
+          onClick={(e) => {
+            e.preventDefault()
+            close()
+          }}
+        >
+          See all
+        </a>
+      )
+    }
+    render(
+      <Popover aria-label="Organizations" trigger={<button type="button">Switch</button>}>
+        <AllLink />
       </Popover>,
     )
     fireEvent.click(screen.getByRole('button', { name: 'Switch' }))

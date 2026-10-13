@@ -4,6 +4,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
   type PointerEvent as ReactPointerEvent,
+  useLayoutEffect,
   useRef,
   useState,
 } from 'react'
@@ -243,8 +244,21 @@ function ResizeHandle({
       (Number.parseFloat(style.paddingRight) || 0)
     )
   }
+  // The width the drawer renders at, which its CSS may hold below the width asked for.
+  const [rendered, setRendered] = useState<number | null>(null)
+  useLayoutEffect(() => {
+    const el = popup.current
+    if (!el) {
+      return
+    }
+    const measure = () => setRendered(el.getBoundingClientRect().width || null)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [popup])
   const clamp = (px: number) => Math.round(Math.max(minWidth, Math.min(px, maxWidth())))
-  const current = () => width ?? (popup.current?.getBoundingClientRect().width || minWidth)
+  const current = () => width ?? rendered ?? minWidth
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     e.preventDefault()

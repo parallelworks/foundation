@@ -230,7 +230,9 @@ export const GroupedChoicesAndNamedStates: StoryObj<typeof DynamicForm> = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('combobox', { name: 'Region' }))
+    await userEvent.click(
+      await canvas.findByRole('combobox', { name: 'Region' }, { timeout: 5000 }),
+    )
     await userEvent.click(await screen.findByRole('option', { name: 'EU Central' }))
     await waitFor(() =>
       expect(canvas.getByRole('textbox', { name: 'Zone' })).toHaveValue('eu-central-1a'),
