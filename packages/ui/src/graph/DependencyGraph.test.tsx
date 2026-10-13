@@ -376,6 +376,19 @@ describe('DependencyGraph step summary', () => {
     expect(calls.some(([path]) => path?.endsWith('summary.md'))).toBe(false)
   })
 
+  it('keeps the step and its tabs on screen while a tab loads', () => {
+    render(
+      <UIProvider
+        data={{ useRunFile: () => ({ data: undefined, isLoading: true, error: undefined }) }}
+      >
+        <DependencyGraph run={summaryRun} openStep={{ job: 'report', step: 1 }} />
+      </UIProvider>,
+    )
+    expect(screen.getByText('Loading logs')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Report › lint' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Logs' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
   it('pages from a summary to the log of a step without one, and back', async () => {
     renderOpen(0)
     await screen.findByRole('heading', { name: 'Tests' })

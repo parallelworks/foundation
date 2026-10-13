@@ -1838,6 +1838,8 @@ export default function DependencyGraph({
       )}
     </div>
   ) : undefined
+  const sublogLoading = sublogsLoading && (!sublogs || !runNumber)
+  const sublogLoader = <Loader text={dagStrings.loadingLogs} size={70} textSize={18} />
   // The header and its gap (h-9 + gap-y-3) come off the body, so the dialog keeps its size.
   const stepBodyHeight = windowSize.h / 1.2 - (sublogIsStep ? 48 : 0)
   const stepLogViewer = (
@@ -2089,8 +2091,8 @@ export default function DependencyGraph({
         className={cx(modalPanelClasses, 'max-h-full overflow-y-auto p-4 sm:p-6')}
       >
         <div className="flex w-full">
-          {sublogsLoading && (!sublogs || !runNumber) ? (
-            <Loader text={dagStrings.loadingLogs} size={70} textSize={18} />
+          {sublogLoading && (preview || !sublogIsStep) ? (
+            sublogLoader
           ) : preview ? (
             <div className="flex flex-col gap-y-3">
               {stepHeader}
@@ -2122,6 +2124,14 @@ export default function DependencyGraph({
                 >
                   <StepSummary runSlug={runSlug} path={`${sublogDir}summary.md`} />
                   {stepBar}
+                </div>
+              ) : sublogLoading ? (
+                // The header stays while a tab's file loads, so the tabs never vanish under the pointer.
+                <div
+                  className="flex items-center justify-center"
+                  style={{ height: stepBodyHeight, width: windowSize.w / 1.2 }}
+                >
+                  {sublogLoader}
                 </div>
               ) : (
                 stepLogViewer
