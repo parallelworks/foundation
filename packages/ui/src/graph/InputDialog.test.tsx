@@ -83,7 +83,10 @@ describe('InputDialog', () => {
     open({ type: 'string' }, { isNew: true })
     expect(openSections()).toEqual(['Field'])
     // Nothing folds or unfolds on its own later, except to show a problem that blocks Save.
-    await chooseOption(screen.getByLabelText('Type'), INPUTS_EDITOR_STRINGS.types['zone'])
+    await chooseOption(
+      screen.getByRole('combobox', { name: 'Type' }),
+      INPUTS_EDITOR_STRINGS.types['zone'],
+    )
     expect(openSections()).toEqual(['Field', 'Settings'])
   })
 
@@ -201,7 +204,10 @@ describe('InputDialog', () => {
 
   it('drops settings the new type does not take', async () => {
     const onSave = open({ type: 'string', placeholder: 'Name', label: 'X' })
-    await chooseOption(screen.getByLabelText('Type'), INPUTS_EDITOR_STRINGS.types['number'])
+    await chooseOption(
+      screen.getByRole('combobox', { name: 'Type' }),
+      INPUTS_EDITOR_STRINGS.types['number'],
+    )
     expect(screen.getByText(INPUTS_EDITOR_STRINGS.typeChangeNote)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(onSave).toHaveBeenCalledWith(
@@ -583,7 +589,10 @@ describe('InputDialog', () => {
     fireEvent.change(within(nested).getByLabelText('Name'), {
       target: { value: 'port' },
     })
-    await chooseOption(within(nested).getByLabelText('Type'), INPUTS_EDITOR_STRINGS.types['number'])
+    await chooseOption(
+      within(nested).getByRole('combobox', { name: 'Type' }),
+      INPUTS_EDITOR_STRINGS.types['number'],
+    )
     fireEvent.click(within(nested).getByRole('button', { name: 'Save' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(onSave).toHaveBeenCalledWith(
@@ -646,7 +655,10 @@ describe('InputDialog in two views', () => {
 
   it('drops the old type’s settings after a trip to the YAML and back', async () => {
     const { onSave } = openViews({ type: 'string', placeholder: 'Name' })
-    await chooseOption(screen.getByLabelText('Type'), INPUTS_EDITOR_STRINGS.types['number'])
+    await chooseOption(
+      screen.getByRole('combobox', { name: 'Type' }),
+      INPUTS_EDITOR_STRINGS.types['number'],
+    )
     toYaml()
     toForm()
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -808,14 +820,20 @@ describe('InputDialog keeps what it does not show', () => {
 
   it('checks a kept setting the new type can’t hold, as options keyed by another input', async () => {
     open({ type: 'dropdown', options: { aws: ['a'] }, 'option-key': '${{ inputs.csp }}' })
-    await chooseOption(screen.getByLabelText('Type'), INPUTS_EDITOR_STRINGS.types['multi-dropdown'])
+    await chooseOption(
+      screen.getByRole('combobox', { name: 'Type' }),
+      INPUTS_EDITOR_STRINGS.types['multi-dropdown'],
+    )
     expect(screen.getByText(INPUTS_EDITOR_STRINGS.optionsByKeyDropdownOnly)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
   })
 
   it('carries a group’s fields into a list’s template', async () => {
     const onSave = open({ type: 'group', items: { host: { type: 'string' } } })
-    await chooseOption(screen.getByLabelText('Type'), INPUTS_EDITOR_STRINGS.types['list'])
+    await chooseOption(
+      screen.getByRole('combobox', { name: 'Type' }),
+      INPUTS_EDITOR_STRINGS.types['list'],
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(onSave).toHaveBeenCalledWith(
       'field',
@@ -993,7 +1011,10 @@ describe('InputDialog keeps what it does not show', () => {
       type: 'checkbox-group',
       options: [{ value: 'cuda', label: 'CUDA', description: 'Needs the GPU drivers' }],
     })
-    await chooseOption(screen.getByLabelText('Type'), INPUTS_EDITOR_STRINGS.types['radio'])
+    await chooseOption(
+      screen.getByRole('combobox', { name: 'Type' }),
+      INPUTS_EDITOR_STRINGS.types['radio'],
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(onSave).toHaveBeenCalledWith(
       'field',
@@ -1009,7 +1030,10 @@ describe('InputDialog keeps what it does not show', () => {
       options: [{ value: 2, label: 'Two', description: 'Second' }],
       default: 2,
     })
-    await chooseOption(screen.getByLabelText('Type'), INPUTS_EDITOR_STRINGS.types['radio'])
+    await chooseOption(
+      screen.getByRole('combobox', { name: 'Type' }),
+      INPUTS_EDITOR_STRINGS.types['radio'],
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(onSave).toHaveBeenCalledWith(
       'field',
@@ -1019,7 +1043,10 @@ describe('InputDialog keeps what it does not show', () => {
     )
     cleanup()
     const boxes = open({ type: 'dropdown', options: [{ value: 'a', description: 123 }] })
-    await chooseOption(screen.getByLabelText('Type'), INPUTS_EDITOR_STRINGS.types['checkbox-group'])
+    await chooseOption(
+      screen.getByRole('combobox', { name: 'Type' }),
+      INPUTS_EDITOR_STRINGS.types['checkbox-group'],
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(boxes).toHaveBeenCalledWith(
       'field',
@@ -1031,14 +1058,20 @@ describe('InputDialog keeps what it does not show', () => {
 
   it('asks for text options when JSON ones a radio can’t hold carry over', async () => {
     open({ type: 'multi-dropdown', options: [{ value: { id: 1 }, label: 'One' }] })
-    await chooseOption(screen.getByLabelText('Type'), INPUTS_EDITOR_STRINGS.types['radio'])
+    await chooseOption(
+      screen.getByRole('combobox', { name: 'Type' }),
+      INPUTS_EDITOR_STRINGS.types['radio'],
+    )
     expect(screen.getByText(INPUTS_EDITOR_STRINGS.radioOptionShape)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
   })
 
   it('keeps a setting both types read alike exactly across a type change', async () => {
     const onSave = open({ type: 'password', label: ' Secret ', default: '  passphrase  ' })
-    await chooseOption(screen.getByLabelText('Type'), INPUTS_EDITOR_STRINGS.types['string'])
+    await chooseOption(
+      screen.getByRole('combobox', { name: 'Type' }),
+      INPUTS_EDITOR_STRINGS.types['string'],
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(onSave).toHaveBeenCalledWith(
       'field',
@@ -1076,7 +1109,10 @@ describe('InputDialog keeps what it does not show', () => {
 
   it('writes a kept default as the new type reads it, and asks to change one it can’t hold', async () => {
     const onSave = open({ type: 'number', default: 5 })
-    await chooseOption(screen.getByLabelText('Type'), INPUTS_EDITOR_STRINGS.types['string'])
+    await chooseOption(
+      screen.getByRole('combobox', { name: 'Type' }),
+      INPUTS_EDITOR_STRINGS.types['string'],
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(onSave).toHaveBeenCalledWith(
       'field',
@@ -1093,7 +1129,10 @@ describe('InputDialog keeps what it does not show', () => {
       ],
       default: ['a', 'b'],
     })
-    await chooseOption(screen.getByLabelText('Type'), INPUTS_EDITOR_STRINGS.types['dropdown'])
+    await chooseOption(
+      screen.getByRole('combobox', { name: 'Type' }),
+      INPUTS_EDITOR_STRINGS.types['dropdown'],
+    )
     expect(screen.getByText(INPUTS_EDITOR_STRINGS.keptValueDoesNotFit)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
     fireEvent.change(screen.getByLabelText('Default'), { target: { value: 'a' } })

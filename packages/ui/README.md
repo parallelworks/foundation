@@ -20,6 +20,63 @@ so an application ships only what it imports:
 Hosts bind notifications, strings, navigation, data hooks and the workflow
 engine through `UIProvider`.
 
+## Which component?
+
+Each need has one component. Reach for it before styling markup by hand.
+
+| Need | Use |
+| --- | --- |
+| An action | `Button`; `IconButton` for an icon alone, named by its tooltip |
+| A link or another component's trigger that looks like a button | `buttonClasses()` |
+| A link out of the app | `ExternalLink` |
+| Work under way | `Loader`; `Skeleton` in a `LoadingRegion` for the shape of content still loading |
+| Nothing to show yet, or nothing matches | `EmptyState` |
+| A text field | `Input`, `Textarea`, or a control framed by `Field` |
+| A number, a date | `NumberInput`, `DatePicker` |
+| On or off | `Switch`; `Checkbox` in a list of things to tick |
+| One of a few choices, all shown | `RadioGroup` in a form; `SegmentedControl` in a toolbar |
+| A value from a list | `Select`, or `Combobox` when the list needs filtering |
+| Free text with suggestions, or tags | `Autocomplete`; `Combobox` with `multiple creatable` |
+| A range | `Slider` |
+| A titled part of a page or form | `Section` |
+| More detail under a line | `Disclosure` |
+| Views of one thing | `Tabs` |
+| A list of actions | `ActionMenu`; `useContextMenu` for a right-click or a row's menu |
+| A panel of controls anchored to a trigger | `Popover` |
+| A hint for a control | `Tooltip`; `InfoTip` for help everyone must reach |
+| A preview of what a link leads to | `HoverCard` |
+| A task that blocks the page | `Modal`; `ConfirmModal` to confirm one action |
+| A panel beside the page | `Drawer` |
+| How full something is, how far a task has come | `Meter`, `ProgressBar` |
+| Pages of a long list | `Pagination` |
+| A grouped page of settings | `SettingsCard` with `SettingRow`s |
+| A person | `Avatar` |
+| A copy action | `useCopy`, or `CopyToClipboard` for its button |
+| A live relative time or duration | `RelativeTime`, `Elapsed` |
+| Rendered Markdown | `Markdown` |
+| A value that survives a reload | `usePersistedState` |
+
+Some pairs look alike and are split on purpose:
+
+- **Section or Disclosure.** A `Section` is a titled part of a page or form: its
+  title is a heading in the page's outline, and folding it keeps its fields
+  mounted. A `Disclosure` is a line inside content that reveals detail beneath
+  it, such as a tool call's arguments, and adds nothing to the outline.
+- **Popover or HoverCard.** A `Popover` opens on a press and holds controls or a
+  list, so keyboard and touch reach it. A `HoverCard` opens on hover or focus
+  and only previews what its anchor already leads to; nothing in it may be
+  reachable only there.
+- **Menu or Popover.** A menu is a list of actions or choices that closes once
+  one is picked, with arrow-key navigation and type-ahead. Anything else
+  anchored to a trigger, such as a form or a filter panel, is a `Popover`.
+- **Tabs or SegmentedControl.** `Tabs` switch between views or pages of one
+  thing, each with its own panel or route. A `SegmentedControl` sets a value,
+  such as a time range, that changes what one view shows. `Tabs` with
+  `variant="segmented"` look the same, so the choice rests on what pressing does.
+- **Select or Combobox.** A `Select` picks from a short list it shows in full.
+  A `Combobox` filters as you type, for a list long enough to search, and is the
+  one that takes several values, new ones, or free text (`Autocomplete`).
+
 ## Theme contract
 
 Every color a component may use is one of the closed set of `--theme-*` CSS

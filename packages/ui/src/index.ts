@@ -48,6 +48,7 @@ export {
 } from './components/CreateModal'
 export { DatePicker, type DatePickerProps } from './components/DatePicker'
 export { DescriptionListItem, default as DescriptionList } from './components/DescriptionList'
+export { Disclosure, DisclosurePanel, type DisclosureProps } from './components/Disclosure'
 export { Drawer, type DrawerProps } from './components/Drawer'
 export { EmptyState, type EmptyStateProps } from './components/EmptyState'
 export { ExternalLink, type ExternalLinkProps } from './components/ExternalLink'

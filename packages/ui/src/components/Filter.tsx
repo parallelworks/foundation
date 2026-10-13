@@ -1,9 +1,10 @@
 import { clsx as cx } from 'clsx'
 import { FilterIcon } from '../icons'
+import { FilterPill } from './FilterPill'
 import { fieldBox } from './fieldBox'
 import { useStrings } from './Provider'
 
-interface FilterPill {
+interface FilterOption {
   label: string
   value: string
 }
@@ -13,7 +14,7 @@ interface FilterProps {
   setFilter: (value: string) => void
   placeholder?: string
   /** Optional filter pills rendered before the search input */
-  pills?: FilterPill[]
+  pills?: FilterOption[]
   activePill?: string
   onPillChange?: (value: string) => void
 }
@@ -31,6 +32,7 @@ export default function Filter({
     <div className="flex items-center gap-2">
       <div className="relative flex items-center">
         <input
+          aria-label={placeholder ?? common.filterPlaceholder}
           placeholder={placeholder ?? common.filterPlaceholder}
           type="text"
           value={filter}
@@ -44,19 +46,13 @@ export default function Filter({
       {pills && onPillChange && (
         <div className="flex gap-1">
           {pills.map((pill) => (
-            <button
+            <FilterPill
               key={pill.value}
-              type="button"
+              active={activePill === pill.value}
               onClick={() => onPillChange(pill.value)}
-              className={cx(
-                'px-2.5 py-1 text-xs rounded-full transition-colors border',
-                activePill === pill.value
-                  ? 'bg-(--theme-element) text-(--theme-element-text) border-transparent'
-                  : 'theme-border theme-text hover:theme-hover',
-              )}
             >
               {pill.label}
-            </button>
+            </FilterPill>
           ))}
         </div>
       )}

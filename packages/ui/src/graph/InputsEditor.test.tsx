@@ -197,7 +197,7 @@ describe('InputsFormEditor', () => {
     fireEvent.change(search, { target: { value: 'kubernetes-pv' } })
     expect(menuItemLabels()).toEqual([types['kubernetes-pvc']])
     fireEvent.keyDown(search, { key: 'Enter' })
-    expect(screen.getByLabelText('Type')).toHaveValue(types['kubernetes-pvc'])
+    expect(screen.getByRole('combobox', { name: 'Type' })).toHaveValue(types['kubernetes-pvc'])
   })
 
   it('lists the form’s gestures and keys from its toolbar', () => {

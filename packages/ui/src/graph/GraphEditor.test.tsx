@@ -831,7 +831,7 @@ describe('DependencyGraphPreview editor', () => {
     const dialogs = screen.getAllByRole('dialog')
     const created = dialogs[dialogs.length - 1] as HTMLElement
     expect(within(created).getByLabelText('Name')).toHaveValue('enabled')
-    expect(within(created).getByLabelText('Type')).toBeDisabled()
+    expect(within(created).getByRole('combobox', { name: 'Type' })).toBeDisabled()
     fireEvent.click(within(created).getByRole('button', { name: 'Save' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(e.onEdit).toHaveBeenCalledWith({

@@ -1,7 +1,8 @@
 import { clsx as cx } from 'clsx'
-import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { Checkbox } from '../components/Checkbox'
 import { Combobox } from '../components/Combobox'
+import { Field } from '../components/Field'
 import { FilterPill } from '../components/FilterPill'
 import { IconButton } from '../components/IconButton'
 import { Input, Textarea } from '../components/Input'
@@ -54,7 +55,7 @@ import {
 } from './editorStrings'
 import { withInputLayouts } from './inputLayout'
 import { FlagField, type InputSource, inputRefs, ValueOrInputField } from './inputRefs'
-import { FIELD_TEXT_BOX, SuggestionInput } from './SuggestionInput'
+import { SuggestionInput } from './SuggestionInput'
 import type { SettingsView } from './settingsViews'
 import { NO_SCOPED, ViewSwitch, YamlPane, yamlProblem } from './settingsViews'
 
@@ -836,38 +837,35 @@ function TypeSelect({
   disabled: boolean
 }) {
   const t = useInputsEditorStrings()
-  const id = useId()
   const types = t.types as Record<string, string>
   const help = t.typeHelp as Record<string, string>
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex flex-wrap items-baseline gap-x-1.5">
-        <label htmlFor={id} className="text-[0.8125rem] font-medium text-(--theme-app)">
-          {t.inputType}
-        </label>
-        <KeyHint label={t.inputType} yamlKey="type" />
-      </div>
-      <Combobox
-        id={id}
-        value={value}
-        disabled={disabled}
-        className={FIELD_TEXT_BOX}
-        items={INPUT_TYPE_GROUPS.map(([group, list]) => ({
-          label: t.typeGroups[group],
-          items: list
-            .filter((type) => allowStep || type !== 'step' || value === 'step')
-            .map((type) => ({ label: types[type] ?? type, value: type })),
-        }))}
-        // A type this editor doesn't know shows as written.
-        itemToStringLabel={(type) => types[type] ?? type}
-        onValueChange={(next) => {
-          if (next) {
-            onChange(next)
-          }
-        }}
-      />
-      <span className="text-xs text-(--theme-muted-text-color)">{help[value] ?? t.help.type}</span>
-    </div>
+    <Field
+      label={t.inputType}
+      hint={<KeyHint label={t.inputType} yamlKey="type" />}
+      description={help[value] ?? t.help.type}
+    >
+      {(control) => (
+        <Combobox
+          {...control}
+          value={value}
+          disabled={disabled}
+          items={INPUT_TYPE_GROUPS.map(([group, list]) => ({
+            label: t.typeGroups[group],
+            items: list
+              .filter((type) => allowStep || type !== 'step' || value === 'step')
+              .map((type) => ({ label: types[type] ?? type, value: type })),
+          }))}
+          // A type this editor doesn't know shows as written.
+          itemToStringLabel={(type) => types[type] ?? type}
+          onValueChange={(next) => {
+            if (next) {
+              onChange(next)
+            }
+          }}
+        />
+      )}
+    </Field>
   )
 }
 

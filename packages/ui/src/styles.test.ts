@@ -32,3 +32,18 @@ describe('package styles', () => {
     },
   )
 })
+
+const sources = (readdirSync(import.meta.dirname, { recursive: true }) as string[])
+  .filter((file) => /\.(css|tsx?)$/.test(file))
+  .map((file) => [file, readFileSync(join(import.meta.dirname, file), 'utf8')] as const)
+
+describe('package names', () => {
+  // The package themes through its own --theme-* tokens; a host design system's prefixed classes or
+  // variables would only work inside that host.
+  it('use no design-system prefixed class or variable', () => {
+    const found = sources.flatMap(([file, source]) =>
+      (source.match(/(?<![\w-])(?:--|\.)?ds-[a-z][\w-]*/g) ?? []).map((name) => `${file}: ${name}`),
+    )
+    expect(found).toEqual([])
+  })
+})
