@@ -2053,6 +2053,7 @@ export default function DependencyGraph({
       <Modal
         open={sublogOpen !== ''}
         onClose={() => setSublogOpen('')}
+        aria-label={logName.replace(/\s+/g, ' ') || sublogOpen.slice(sublogFileStart)}
         align="center"
         className="max-h-full overflow-y-auto p-4 sm:p-6"
       >
