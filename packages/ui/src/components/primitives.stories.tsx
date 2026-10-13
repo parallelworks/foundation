@@ -13,7 +13,6 @@ import { CreateModal, CreateModalSwitch } from './CreateModal'
 import { DatePicker } from './DatePicker'
 import { EmptyState } from './EmptyState'
 import { ExternalLink } from './ExternalLink'
-import { Indicator } from './Indicator'
 import { InfoTip } from './InfoTip'
 import { Input } from './Input'
 import { Loader } from './Loader'
@@ -21,6 +20,7 @@ import { type BarTone, Meter, ProgressBar } from './Meter'
 import { Modal, ModalDescription, type ModalProps, ModalTitle } from './Modal'
 import { NumberInput } from './NumberInput'
 import { Overview } from './Overview'
+import { RunStatusIcon, runStatusTone } from './RunStatusIcon'
 import { Elapsed, RelativeTime } from './relativeTime'
 import { SegmentedControl } from './SegmentedControl'
 import { Select } from './Select'
@@ -34,7 +34,7 @@ const meta: Meta = {
 }
 export default meta
 
-const INDICATOR_STATUSES: RunStatus[] = [
+const RUN_STATUSES: RunStatus[] = [
   'running',
   'completed',
   'error',
@@ -46,17 +46,26 @@ const INDICATOR_STATUSES: RunStatus[] = [
   '',
 ]
 
-export const Indicators: StoryObj = {
+/** A run status as an icon beside what ran, and in words as a badge in the same tone. */
+export const RunStatuses: StoryObj = {
   render: () => (
-    <div className="flex flex-col gap-2">
-      {INDICATOR_STATUSES.map((status) => (
-        <div key={status || 'none'} className="flex items-center gap-3">
-          <Indicator status={status} />
-          <span className="text-sm">{status || '(no status)'}</span>
+    <div className="flex flex-col gap-2 text-sm">
+      {RUN_STATUSES.map((status) => (
+        <div key={status || 'none'} className="flex items-center gap-6">
+          <span className="flex w-20 items-center gap-2">
+            <RunStatusIcon status={status} />
+            build
+          </span>
+          <StatusBadge variant={runStatusTone(status)}>{status || 'not run'}</StatusBadge>
         </div>
       ))}
     </div>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('img', { name: 'error' })).toBeVisible()
+    await expect(canvas.getByRole('img', { name: 'completed' })).toBeVisible()
+  },
 }
 
 export const Badges: StoryObj = {
@@ -426,7 +435,7 @@ export const InfoTips: StoryObj = {
         <InfoTip text={'How many times a job reruns.\nSee [the docs](https://example.com).'} />
       </span>
       <InfoTip text="The runner stopped responding." className="gap-1">
-        <Indicator status="error" />
+        <RunStatusIcon status="error" />
         Failed
       </InfoTip>
     </div>

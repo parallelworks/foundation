@@ -11,12 +11,13 @@ import {
 } from 'react'
 import { Button } from '../components/Button'
 import { Checkbox } from '../components/Checkbox'
-import { FilterPill } from '../components/FilterPill'
+import { ErrorText, Field, type FieldProps } from '../components/Field'
 import { IconButton } from '../components/IconButton'
 import { Input, Textarea } from '../components/Input'
 import { withPositionKeys } from '../components/keys'
 import { Modal, ModalTitle } from '../components/Modal'
 import { Section } from '../components/Section'
+import { SegmentedControl } from '../components/SegmentedControl'
 import { Switch } from '../components/Switch'
 import { Tooltip } from '../components/Tooltip'
 import type { FieldPatch } from '../editing'
@@ -287,14 +288,10 @@ export function DialogSection({
   )
 }
 
-export function FieldError({ message }: { message: string | undefined }) {
-  return message ? <div className="text-xs text-(--theme-error)">{message}</div> : null
-}
-
 /** The YAML key a field sets, beside its name; left out where the name already says it. */
 export function KeyHint({ label, yamlKey }: { label: string; yamlKey: string }) {
   return label.trim().toLowerCase() === yamlKey.toLowerCase() ? null : (
-    <code aria-hidden="true" className="font-mono text-xs theme-muted-text">
+    <code aria-hidden="true" className="font-mono text-xs font-normal theme-muted-text">
       {yamlKey}
     </code>
   )
@@ -305,60 +302,41 @@ export function labelled(label: string, yamlKey: string) {
   return { label, hint: <KeyHint label={label} yamlKey={yamlKey} /> }
 }
 
-/** A field's name and help text, for controls without their own label; `actions` sit at its right. */
-export function FieldLabel({
+/** A Field for a setting the YAML holds, with the key it sets beside its name. With `id`
+ *  its label names the one control that takes that id; without, it names its controls as a
+ *  group, as a list of rows or a set of choices wants. */
+export function YamlField({
   label,
   yamlKey,
   description,
-  htmlFor,
-  descriptionId,
   actions,
+  error,
+  required,
+  id,
+  children,
 }: {
   label: string
   yamlKey?: string | undefined
-  description: string
-  htmlFor?: string
-  descriptionId?: string
+  description?: ReactNode
   actions?: ReactNode
+  error?: ReactNode
+  required?: boolean | undefined
+  id?: string | undefined
+  children: FieldProps['children']
 }) {
-  const nameClass = 'text-[0.8125rem] font-medium'
-  const text = (
-    <div className="flex min-w-0 flex-col">
-      <div className="flex flex-wrap items-baseline gap-x-1.5">
-        {htmlFor ? (
-          <label htmlFor={htmlFor} className={nameClass}>
-            {label}
-          </label>
-        ) : (
-          <span className={nameClass}>{label}</span>
-        )}
-        {yamlKey && <KeyHint label={label} yamlKey={yamlKey} />}
-      </div>
-      <span id={descriptionId} className="text-xs theme-muted-text">
-        {description}
-      </span>
-    </div>
-  )
-  return actions ? (
-    <div className="flex items-start justify-between gap-3">
-      {text}
-      <div className="flex shrink-0 items-center gap-1">{actions}</div>
-    </div>
-  ) : (
-    text
-  )
-}
-
-/** A field's label and description above the editor that sets it. */
-export function LabelledField({
-  children,
-  ...label
-}: ComponentProps<typeof FieldLabel> & { children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <FieldLabel {...label} />
+    <Field
+      label={label}
+      hint={yamlKey && <KeyHint label={label} yamlKey={yamlKey} />}
+      description={description || undefined}
+      actions={actions}
+      error={error || undefined}
+      required={required}
+      id={id}
+      group={id === undefined}
+    >
       {children}
-    </div>
+    </Field>
   )
 }
 
@@ -393,6 +371,7 @@ export function ToggleField({
   checked,
   onChange,
   disabled,
+  error,
 }: {
   label: string
   yamlKey?: string
@@ -400,42 +379,38 @@ export function ToggleField({
   checked: boolean
   onChange: (checked: boolean) => void
   disabled?: boolean
+  error?: string | undefined
 }) {
+  const id = useId()
   return (
-    <div className="flex items-center justify-between gap-3">
-      <FieldLabel label={label} yamlKey={yamlKey} description={description} />
-      <Switch
-        checked={checked}
-        onCheckedChange={onChange}
-        aria-label={label}
-        {...(disabled ? { disabled } : {})}
-      />
-    </div>
+    <YamlField label={label} yamlKey={yamlKey} description={description} error={error} id={id}>
+      {(control) => (
+        <Switch
+          {...control}
+          nativeButton
+          render={<button type="button" />}
+          checked={checked}
+          onCheckedChange={onChange}
+          {...(disabled ? { disabled } : {})}
+        />
+      )}
+    </YamlField>
   )
 }
 
+/** One of a few choices. A YamlField around it names it; standing alone, `label` does. */
 export function ChoiceButtons<T extends string>({
+  label,
   options,
   value,
   onChange,
 }: {
+  label?: string | undefined
   options: { value: T; label: string }[]
   value: T
   onChange: (value: T) => void
 }) {
-  return (
-    <div className="flex flex-wrap gap-1">
-      {options.map((option) => (
-        <FilterPill
-          key={option.value}
-          active={value === option.value}
-          onClick={() => onChange(option.value)}
-        >
-          {option.label}
-        </FilterPill>
-      ))}
-    </div>
-  )
+  return <SegmentedControl label={label} options={options} value={value} onValueChange={onChange} />
 }
 
 export function AddRowButton({ label, onClick }: { label: string; onClick: () => void }) {
@@ -484,7 +459,7 @@ export function KeyValueEditor({
           lint={lint}
         />
       ))}
-      <FieldError message={error} />
+      <ErrorText>{error}</ErrorText>
       <AddRowButton
         label={addLabel ?? t.common.add}
         onClick={() => onChange([...rows, { key: '', value: '' }])}
@@ -548,7 +523,7 @@ function KeyValueRow({
           onClick={onRemove}
         />
       </div>
-      <FieldError message={lint.message} />
+      <ErrorText>{lint.message}</ErrorText>
       {lint.fixes}
     </div>
   )
@@ -605,7 +580,7 @@ export function StringListEditor({
           />
         </div>
       ))}
-      <FieldError message={error} />
+      <ErrorText>{error}</ErrorText>
       <AddRowButton label={addLabel} onClick={() => onChange([...values, ''])} />
     </div>
   )
@@ -633,24 +608,26 @@ export function SuggestedInput({
   const id = useId()
   const lint = useFieldLint(yamlKey, id, value, onChange)
   return (
-    <LabelledField
+    <YamlField
       label={label}
       yamlKey={yamlKey}
-      description={description ?? ''}
-      htmlFor={id}
-      {...(description ? { descriptionId: `${id}-help` } : {})}
+      description={description}
+      error={error ?? lint.message}
+      id={id}
     >
-      <SuggestionInput
-        id={id}
-        aria-describedby={description ? `${id}-help` : undefined}
-        value={value}
-        placeholder={placeholder}
-        suggestions={suggestions.map((option) => ({ value: option }))}
-        onValueChange={onChange}
-      />
-      <FieldError message={error ?? lint.message} />
-      {lint.fixes}
-    </LabelledField>
+      {(control) => (
+        <>
+          <SuggestionInput
+            {...control}
+            value={value}
+            placeholder={placeholder}
+            suggestions={suggestions.map((option) => ({ value: option }))}
+            onValueChange={onChange}
+          />
+          {lint.fixes}
+        </>
+      )}
+    </YamlField>
   )
 }
 

@@ -15,13 +15,13 @@ import {
 import { Button } from '../components/Button'
 import { buttonClasses } from '../components/buttonClasses'
 import { DatePicker } from '../components/DatePicker'
-import { fieldBox } from '../components/fieldBox'
 import type { FloatingAnchor } from '../components/floating'
 import { IconButton } from '../components/IconButton'
 import { InfoTip } from '../components/InfoTip'
 import { Loader } from '../components/Loader'
 import { Popover } from '../components/Popover'
 import { useOptionalWorkflowEngine, useStrings } from '../components/Provider'
+import { SearchInput } from '../components/SearchInput'
 import { useCopy } from '../components/useCopy'
 import type { LogCommand, LogSegment, ProcessedLogLine } from '../engine'
 import {
@@ -661,8 +661,7 @@ export function LogViewer({
     }
   })
 
-  const handleFilterChange = (event: React.ChangeEvent<HTMLInputElement>): void => {
-    const newFilter = event.target.value
+  const handleFilterChange = (newFilter: string): void => {
     setFilter(newFilter)
     updateFollow(false)
     scrollToTop()
@@ -875,11 +874,11 @@ export function LogViewer({
               </Popover>
             )}
           </div>
-          <input
-            type="text"
-            className={cx(fieldBox(), 'w-48')}
-            placeholder={t.filterLogs}
-            onChange={handleFilterChange}
+          <SearchInput
+            label={t.filterLogs}
+            value={filter}
+            onValueChange={handleFilterChange}
+            className="w-48"
           />
           <a
             href={logUrl || undefined}

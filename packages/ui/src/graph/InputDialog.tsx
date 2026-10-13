@@ -1,9 +1,8 @@
 import { clsx as cx } from 'clsx'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
-import { Checkbox } from '../components/Checkbox'
+import { Checkbox, CheckboxGroup } from '../components/Checkbox'
 import { Combobox } from '../components/Combobox'
-import { Field } from '../components/Field'
-import { FilterPill } from '../components/FilterPill'
+import { ErrorText, Field, FieldOption } from '../components/Field'
 import { IconButton } from '../components/IconButton'
 import { Input, Textarea } from '../components/Input'
 import { withPositionKeys } from '../components/keys'
@@ -24,7 +23,6 @@ import {
   EXPRESSION,
   ExpressionToggle,
   expressionError,
-  FieldError,
   type Flag,
   flagError,
   GrowingTextarea,
@@ -32,7 +30,6 @@ import {
   isScalar,
   type Json,
   KeyHint,
-  LabelledField,
   labelled,
   type OpenOnAdd,
   parseJson,
@@ -46,6 +43,7 @@ import {
   unchangedValue,
   useSectionMemory,
   withoutUndefined,
+  YamlField,
 } from './editorFields'
 import {
   type GraphEditorStrings,
@@ -705,7 +703,7 @@ function OptionsEditor({
           />
         </>
       )}
-      <FieldError message={error} />
+      <ErrorText>{error}</ErrorText>
     </div>
   )
 }
@@ -739,33 +737,32 @@ function ImpliesEditor({
   }
   const nameOf = (value: string) =>
     listed.find((option) => option.value === value)?.label.trim() || value
-  const toggle = (from: string, to: string) => {
-    const current = draft[from] ?? []
-    onChange({
-      ...draft,
-      [from]: current.includes(to) ? current.filter((value) => value !== to) : [...current, to],
-    })
-  }
   return (
     <div className="flex flex-col gap-2">
-      {listed.map((option) => (
-        <div key={option.value} className="flex flex-wrap items-center gap-1.5">
-          <span className="mr-1 text-sm font-medium">{t.impliesWhen(nameOf(option.value))}</span>
-          {listed
-            .filter((other) => other.value !== option.value)
-            .map((other) => {
-              return (
-                <FilterPill
-                  key={other.value}
-                  active={(draft[option.value] ?? []).includes(other.value)}
-                  onClick={() => toggle(option.value, other.value)}
-                >
+      {listed.map((option) => {
+        const when = t.impliesWhen(nameOf(option.value))
+        return (
+          <CheckboxGroup
+            key={option.value}
+            aria-label={when}
+            value={draft[option.value] ?? []}
+            onValueChange={(next) => onChange({ ...draft, [option.value]: next })}
+            className="flex flex-wrap items-center gap-x-3 gap-y-1.5"
+          >
+            <span aria-hidden="true" className="mr-1 text-sm font-medium">
+              {when}
+            </span>
+            {listed
+              .filter((other) => other.value !== option.value)
+              .map((other) => (
+                <FieldOption key={other.value} className="flex items-center gap-1.5 text-sm">
+                  <Checkbox value={other.value} />
                   {nameOf(other.value)}
-                </FilterPill>
-              )
-            })}
-        </div>
-      ))}
+                </FieldOption>
+              ))}
+          </CheckboxGroup>
+        )
+      })}
     </div>
   )
 }
@@ -1303,7 +1300,7 @@ function TemplateFields({
           </div>
         )
       })}
-      <FieldError message={error} />
+      <ErrorText>{error}</ErrorText>
       <AddRowButton label={t.addField} onClick={() => setEditing({ create: true })} />
       {editing && (
         <InputDialog
@@ -1435,7 +1432,7 @@ function RowsField({
           }}
         />
       </FormEditingContext.Provider>
-      <FieldError message={error} />
+      <ErrorText>{error}</ErrorText>
     </div>
   )
 }
@@ -1511,20 +1508,18 @@ function PropField({
     case 'bool': {
       const fallback = prop.fallback ?? false
       return (
-        <div className="flex flex-col gap-1.5">
-          <ToggleField
-            {...field}
-            checked={typeof draft === 'boolean' ? draft : fallback}
-            onChange={(on) => onChange(on !== fallback ? on : original === on ? on : undefined)}
-          />
-          <FieldError message={error} />
-        </div>
+        <ToggleField
+          {...field}
+          error={error}
+          checked={typeof draft === 'boolean' ? draft : fallback}
+          onChange={(on) => onChange(on !== fallback ? on : original === on ? on : undefined)}
+        />
       )
     }
     case 'options': {
       const options = draft as OptionsDraft
       return (
-        <LabelledField
+        <YamlField
           {...field}
           actions={
             <ExpressionToggle
@@ -1546,13 +1541,13 @@ function PropField({
             keyed={inputType === 'dropdown'}
             described={inputType === 'checkbox-group'}
           />
-        </LabelledField>
+        </YamlField>
       )
     }
     case 'perCopy': {
       const perCopy = draft as PerCopyDraft
       return (
-        <LabelledField
+        <YamlField
           {...field}
           actions={
             <label className="flex cursor-pointer items-center gap-1.5 text-xs theme-muted-text">
@@ -1589,15 +1584,15 @@ function PropField({
                 suggestions={[]}
                 onValueChange={(next) => onChange({ ...perCopy, text: next })}
               />
-              <FieldError message={error} />
+              <ErrorText>{error}</ErrorText>
             </>
           )}
-        </LabelledField>
+        </YamlField>
       )
     }
     case 'values':
       return (
-        <LabelledField
+        <YamlField
           {...field}
           actions={
             <ExpressionToggle
@@ -1617,11 +1612,11 @@ function PropField({
             onChange={onChange}
             error={error}
           />
-        </LabelledField>
+        </YamlField>
       )
     case 'rows':
       return (
-        <LabelledField
+        <YamlField
           {...field}
           actions={
             <ExpressionToggle
@@ -1637,7 +1632,7 @@ function PropField({
             onChange={onChange}
             error={error}
           />
-        </LabelledField>
+        </YamlField>
       )
     case 'duration':
       return (
@@ -1653,7 +1648,7 @@ function PropField({
       )
     case 'template':
       return (
-        <LabelledField
+        <YamlField
           {...field}
           actions={
             <ExpressionToggle
@@ -1682,20 +1677,20 @@ function PropField({
               onFieldKey={onFieldKey}
             />
           )}
-        </LabelledField>
+        </YamlField>
       )
     case 'implies':
       return (
-        <LabelledField {...field}>
+        <YamlField {...field}>
           <ImpliesEditor draft={draft as ImpliesDraft} options={optionRows} onChange={onChange} />
-        </LabelledField>
+        </YamlField>
       )
     case 'choice': {
       const choiceLabels = (t.choices as Record<string, Record<string, string> | undefined>)[
         prop.key
       ]
       return (
-        <LabelledField {...field}>
+        <YamlField {...field} error={error}>
           <ChoiceButtons
             options={(prop.choices ?? []).map((choice) => ({
               value: choice,
@@ -1704,8 +1699,7 @@ function PropField({
             value={String(draft ?? '') || (prop.choices?.[0] ?? '')}
             onChange={onChange}
           />
-          <FieldError message={error} />
-        </LabelledField>
+        </YamlField>
       )
     }
     case 'json':

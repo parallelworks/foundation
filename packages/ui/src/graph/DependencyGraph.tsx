@@ -23,11 +23,11 @@ import {
 import { Button } from '../components/Button'
 import { DisclosurePanel } from '../components/Disclosure'
 import { IconButton } from '../components/IconButton'
-import { Indicator } from '../components/Indicator'
 import { InfoTip } from '../components/InfoTip'
 import { Loader } from '../components/Loader'
 import { Modal } from '../components/Modal'
 import { useRunFile, useSlots, useStrings, useWorkflowEngine } from '../components/Provider'
+import { RunStatusIcon } from '../components/RunStatusIcon'
 import { Elapsed } from '../components/relativeTime'
 import type { GraphLayout } from '../editing'
 import type { RunStatus, WorkflowEngine } from '../engine'
@@ -1870,7 +1870,7 @@ export default function DependencyGraph({
                   className="flex items-center gap-x-1"
                   text={dagStrings.statusReason(run.statusReason) ?? ''}
                 >
-                  <Indicator status={runStatus} />
+                  <RunStatusIcon status={runStatus} />
                   {dagStrings.statusLabel(runStatus)}
                 </InfoTip>
               </div>

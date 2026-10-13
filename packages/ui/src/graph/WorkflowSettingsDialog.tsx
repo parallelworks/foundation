@@ -1,4 +1,5 @@
 import { type ReactNode, useState } from 'react'
+import { ErrorText } from '../components/Field'
 import { IconButton } from '../components/IconButton'
 import { Input } from '../components/Input'
 import { useWorkflowEditing } from '../components/Provider'
@@ -17,8 +18,6 @@ import {
   ENV_KEY,
   ExpressionToggle,
   expressionError,
-  FieldError,
-  FieldLabel,
   type Flag,
   flagError,
   flagOf,
@@ -36,6 +35,7 @@ import {
   ToggleField,
   text,
   withoutUndefined,
+  YamlField,
 } from './editorFields'
 import { useGraphEditorStrings, useInputsEditorStrings } from './editorStrings'
 import { expressionRefs } from './expressionRefs'
@@ -521,13 +521,14 @@ function SettingsForm({
     <>
       {newInputs.dialog}
       <DialogSection title={t.sectionGeneral} open>
-        <FieldLabel label={t.fields.env} yamlKey="env" description={t.help.workflowEnv} />
-        <KeyValueEditor
-          rows={env}
-          onChange={setEnv}
-          error={errors.env}
-          valueSuggestions={refSuggestions(source)}
-        />
+        <YamlField label={t.fields.env} yamlKey="env" description={t.help.workflowEnv}>
+          <KeyValueEditor
+            rows={env}
+            onChange={setEnv}
+            error={errors.env}
+            valueSuggestions={refSuggestions(source)}
+          />
+        </YamlField>
         <Input
           mono
           {...labelled(t.fields.timeout, 'timeout')}
@@ -571,32 +572,30 @@ function SettingsForm({
               value={session.name}
               onChange={(e) => updateSession(i, { name: e.target.value })}
             />
-            <FieldLabel
-              label={t.fields.sessionType}
-              yamlKey="type"
-              description={t.help.sessionType}
-            />
-            <ChoiceButtons
-              options={[
-                { value: 'tunnel', label: t.sessionTypeTunnel },
-                { value: 'link', label: t.sessionTypeLink },
-              ]}
-              value={session.type}
-              onChange={(type) => updateSession(i, { type })}
-            />
-            <FieldLabel
+            <YamlField label={t.fields.sessionType} yamlKey="type" description={t.help.sessionType}>
+              <ChoiceButtons
+                options={[
+                  { value: 'tunnel', label: t.sessionTypeTunnel },
+                  { value: 'link', label: t.sessionTypeLink },
+                ]}
+                value={session.type}
+                onChange={(type) => updateSession(i, { type })}
+              />
+            </YamlField>
+            <YamlField
               label={t.fields.promptForName}
               yamlKey="prompt-for-name"
               description={t.help.promptForName}
-            />
-            <ChoiceButtons
-              options={[
-                { value: 'off', label: t.promptOff },
-                { value: 'ask', label: t.promptAsk },
-              ]}
-              value={session.prompt ? 'ask' : 'off'}
-              onChange={(mode) => updateSession(i, { prompt: mode === 'ask' })}
-            />
+            >
+              <ChoiceButtons
+                options={[
+                  { value: 'off', label: t.promptOff },
+                  { value: 'ask', label: t.promptAsk },
+                ]}
+                value={session.prompt ? 'ask' : 'off'}
+                onChange={(mode) => updateSession(i, { prompt: mode === 'ask' })}
+              />
+            </YamlField>
             {session.prompt && (
               <Input
                 {...labelled(t.fields.promptDefault, 'default')}
@@ -629,7 +628,7 @@ function SettingsForm({
             ))}
           </Card>
         ))}
-        <FieldError message={errors.sessions ?? errors.redirect} />
+        <ErrorText>{errors.sessions ?? errors.redirect}</ErrorText>
         <AddRowButton
           label={t.addSession}
           onClick={() =>
@@ -673,15 +672,16 @@ function SettingsForm({
               value={link.name}
               onChange={(e) => updateLink(i, { name: e.target.value })}
             />
-            <FieldLabel label={t.fields.linkTarget} description={t.help.linkTarget} />
-            <ChoiceButtons
-              options={[
-                { value: 'endpoint', label: t.linkToEndpoint },
-                { value: 'url', label: t.linkToUrl },
-              ]}
-              value={link.target}
-              onChange={(target) => updateLink(i, { target })}
-            />
+            <YamlField label={t.fields.linkTarget} description={t.help.linkTarget}>
+              <ChoiceButtons
+                options={[
+                  { value: 'endpoint', label: t.linkToEndpoint },
+                  { value: 'url', label: t.linkToUrl },
+                ]}
+                value={link.target}
+                onChange={(target) => updateLink(i, { target })}
+              />
+            </YamlField>
             <Input
               mono
               aria-label={link.target === 'url' ? t.linkToUrl : t.linkToEndpoint}
@@ -706,7 +706,7 @@ function SettingsForm({
             ))}
           </Card>
         ))}
-        <FieldError message={errors.links ?? errors.redirect} />
+        <ErrorText>{errors.links ?? errors.redirect}</ErrorText>
         <AddRowButton
           label={t.addLink}
           onClick={() =>
@@ -733,20 +733,21 @@ function SettingsForm({
         }
         alert={!!(errors.orgVariables || errors.userVariables)}
       >
-        <FieldLabel
+        <YamlField
           label={t.fields.organizationVariables}
           yamlKey="needs.organizationVariables"
           description={t.help.organizationVariables}
-        />
-        <StringListEditor
-          label={t.fields.organizationVariables}
-          values={orgVariables}
-          onChange={setOrgVariables}
-          addLabel={t.addOrganizationVariable}
-          placeholder="MY_VARIABLE"
-          error={errors.orgVariables}
-        />
-        <FieldLabel
+        >
+          <StringListEditor
+            label={t.fields.organizationVariables}
+            values={orgVariables}
+            onChange={setOrgVariables}
+            addLabel={t.addOrganizationVariable}
+            placeholder="MY_VARIABLE"
+            error={errors.orgVariables}
+          />
+        </YamlField>
+        <YamlField
           label={t.fields.userVariables}
           yamlKey="needs.userVariables"
           description={t.help.userVariables}
@@ -761,40 +762,42 @@ function SettingsForm({
               }
             />
           }
-        />
-        {userVariables.expression !== undefined ? (
-          <Input
-            mono
-            aria-label={t.fields.userVariables}
-            value={userVariables.expression}
-            error={errors.userVariables}
-            onChange={(e) => setUserVariables({ ...userVariables, expression: e.target.value })}
-          />
-        ) : (
-          <KeyValueEditor
-            rows={userVariables.rows}
-            onChange={(rows) => setUserVariables({ ...userVariables, rows })}
-            error={errors.userVariables}
-            keyPlaceholder={t.key}
-            valuePlaceholder={t.help.userVariableHint}
-            addLabel={t.addUserVariable}
-          />
-        )}
+        >
+          {userVariables.expression !== undefined ? (
+            <Input
+              mono
+              aria-label={t.fields.userVariables}
+              value={userVariables.expression}
+              error={errors.userVariables}
+              onChange={(e) => setUserVariables({ ...userVariables, expression: e.target.value })}
+            />
+          ) : (
+            <KeyValueEditor
+              rows={userVariables.rows}
+              onChange={(rows) => setUserVariables({ ...userVariables, rows })}
+              error={errors.userVariables}
+              keyPlaceholder={t.key}
+              valuePlaceholder={t.help.userVariableHint}
+              addLabel={t.addUserVariable}
+            />
+          )}
+        </YamlField>
       </DialogSection>
       <DialogSection title={t.sectionInputForm} open={wizardOn} alert={!!errors.wizard}>
-        <FieldLabel
+        <YamlField
           label={t.fields.labelPosition}
           yamlKey="labelPosition"
           description={t.help.labelPosition}
-        />
-        <ChoiceButtons
-          options={[
-            { value: 'left', label: t.labelsBeside },
-            { value: 'top', label: t.labelsAbove },
-          ]}
-          value={labelPosition}
-          onChange={setLabelPosition}
-        />
+        >
+          <ChoiceButtons
+            options={[
+              { value: 'left', label: t.labelsBeside },
+              { value: 'top', label: t.labelsAbove },
+            ]}
+            value={labelPosition}
+            onChange={setLabelPosition}
+          />
+        </YamlField>
         <ToggleField
           label={t.fields.wizard}
           yamlKey="wizard"

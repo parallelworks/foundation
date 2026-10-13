@@ -1,14 +1,17 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useState } from 'react'
 import { expect, userEvent, within } from 'storybook/test'
+import { ExpressionIcon } from '../icons'
 import { Checkbox, CheckboxGroup } from './Checkbox'
 import { Autocomplete } from './Combobox'
 import { DatePicker } from './DatePicker'
 import { Field, type FieldLayout, FieldOption } from './Field'
 import { fieldBox } from './fieldBox'
+import { IconButton } from './IconButton'
 import { Input, Textarea } from './Input'
 import { NumberInput } from './NumberInput'
 import { Radio, RadioGroup } from './Radio'
+import { SegmentedControl } from './SegmentedControl'
 import { Select } from './Select'
 import { Slider } from './Slider'
 
@@ -166,6 +169,54 @@ export const FrameWithError: StoryObj<FrameArgs> = {
     const box = canvas.getByRole('textbox', { name: /Cluster/ })
     await expect(box).toHaveAttribute('aria-invalid', 'true')
     await expect(box).toHaveAccessibleDescription(/already exists/)
+  },
+}
+
+function FrameWithActionsDemo() {
+  const [typed, setTyped] = useState(false)
+  const [mode, setMode] = useState<'name' | 'target'>('name')
+  return (
+    <div className="flex max-w-lg flex-col gap-4">
+      <Field
+        label="Runs on"
+        description={typed ? 'An expression the run reads.' : 'Where the job runs.'}
+        group
+        actions={
+          <IconButton
+            icon={<ExpressionIcon />}
+            label={typed ? 'Stop using an expression' : 'Use an expression instead'}
+            size="sm"
+            variant="ghost"
+            onClick={() => setTyped(!typed)}
+          />
+        }
+      >
+        {typed ? (
+          <input aria-label="Runs on" className={fieldBox()} defaultValue="${{ inputs.target }}" />
+        ) : (
+          <SegmentedControl
+            options={[
+              { value: 'name', label: 'By name' },
+              { value: 'target', label: 'By target' },
+            ]}
+            value={mode}
+            onValueChange={setMode}
+          />
+        )}
+      </Field>
+    </div>
+  )
+}
+
+/** Buttons at the end of the label's row act on the field, here switching its control to a
+ *  typed expression; a group's legend names the segmented control inside. */
+export const FrameWithActions: StoryObj = {
+  render: () => <FrameWithActionsDemo />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('group', { name: 'Runs on' })).toBeInTheDocument()
+    await userEvent.click(canvas.getByRole('button', { name: 'Use an expression instead' }))
+    await expect(canvas.getByRole('textbox', { name: 'Runs on' })).toBeInTheDocument()
   },
 }
 

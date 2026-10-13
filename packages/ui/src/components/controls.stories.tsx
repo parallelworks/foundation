@@ -5,13 +5,13 @@ import { AddIcon } from '../icons'
 import { Button, MethodButton } from './Button'
 import { type ButtonSize, type ButtonVariant, buttonClasses } from './buttonClasses'
 import { Card, CardHeader } from './Card'
-import Filter from './Filter'
-import { FilterPill } from './FilterPill'
 import { IconButton } from './IconButton'
 import { Input, Textarea } from './Input'
 import { LetterBadge } from './LetterBadge'
 import { Pagination } from './Pagination'
 import { RadioGroup } from './Radio'
+import { SearchInput } from './SearchInput'
+import { SegmentedControl } from './SegmentedControl'
 import { SettingModeOption } from './SettingModeOption'
 import { SettingRow, SettingsCard, SettingsHeading } from './SettingsCard'
 import Sort, { type TDirection } from './Sort'
@@ -168,33 +168,68 @@ export const CardsPressable: StoryObj = {
   },
 }
 
-function FilterSortDemo() {
-  const [filter, setFilter] = useState('')
-  const [pill, setPill] = useState(false)
+type RunFilter = 'all' | 'running' | 'failed'
+
+function SearchSortDemo({ size }: { size: 'sm' | 'md' }) {
+  const [query, setQuery] = useState('')
+  const [status, setStatus] = useState<RunFilter>('all')
   const [sorted, setSorted] = useState<'name' | ''>('name')
   const [direction, setDirection] = useState<TDirection>('ascending')
   return (
-    <div className="flex items-center gap-3">
-      <Filter filter={filter} setFilter={setFilter} />
-      <FilterPill active={pill} onClick={() => setPill((a) => !a)}>
-        Running
-      </FilterPill>
-      <span className="text-sm">
-        Name
-        <Sort
-          currentlySorted={sorted || null}
-          name="name"
-          currentDirection={direction}
-          setCurrentDirection={setDirection}
-          setCurrentlySorted={setSorted}
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <SearchInput
+          label="Filter runs"
+          value={query}
+          onValueChange={setQuery}
+          size={size}
+          className="w-56"
         />
+        <SegmentedControl
+          label="Status"
+          options={[
+            { value: 'all', label: 'All' },
+            { value: 'running', label: 'Running' },
+            { value: 'failed', label: 'Failed' },
+          ]}
+          value={status}
+          onValueChange={setStatus}
+        />
+        <span className="text-sm">
+          Name
+          <Sort
+            currentlySorted={sorted || null}
+            name="name"
+            currentDirection={direction}
+            setCurrentDirection={setDirection}
+            setCurrentlySorted={setSorted}
+          />
+        </span>
+      </div>
+      <span data-testid="shown" className="text-xs text-(--theme-muted-text-color)">
+        {query ? `Matching “${query}”` : 'Every run'}, {status}
       </span>
     </div>
   )
 }
 
-export const FilterAndSort: StoryObj = {
-  render: () => <FilterSortDemo />,
+/** A search box narrows the rows, a segmented control picks a status, and a column sorts. */
+export const SearchAndSort: StoryObj<{ size: 'sm' | 'md' }> = {
+  args: { size: 'md' },
+  argTypes: { size: { control: 'inline-radio', options: ['sm', 'md'] } },
+  render: (args) => <SearchSortDemo {...args} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const search = canvas.getByRole('searchbox', { name: 'Filter runs' })
+    await userEvent.type(search, 'nightly')
+    await expect(canvas.getByTestId('shown')).toHaveTextContent('Matching “nightly”')
+    await userEvent.click(canvas.getByRole('button', { name: 'Clear search' }))
+    await expect(search).toHaveValue('')
+    await userEvent.type(search, 'x{Escape}')
+    await expect(search).toHaveValue('')
+    await userEvent.click(canvas.getByRole('button', { name: 'Failed' }))
+    await expect(canvas.getByTestId('shown')).toHaveTextContent('failed')
+  },
 }
 
 function PaginationDemo({ known, sizes }: { known: boolean; sizes: boolean }) {

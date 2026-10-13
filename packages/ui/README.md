@@ -31,10 +31,11 @@ Each need has one component. Reach for it before styling markup by hand.
 | A link out of the app | `ExternalLink` |
 | Work under way | `Loader`; `Skeleton` in a `LoadingRegion` for the shape of content still loading |
 | Nothing to show yet, or nothing matches | `EmptyState` |
-| A text field | `Input`, `Textarea`, or a control framed by `Field` |
+| A text field | `Input`, `Textarea`, or a control framed by `Field`, whose `actions` hold buttons that act on it |
 | A number, a date | `NumberInput`, `DatePicker` |
-| On or off | `Switch`; `Checkbox` in a list of things to tick |
-| One of a few choices, all shown | `RadioGroup` in a form; `SegmentedControl` in a toolbar |
+| On or off | `Switch`; `Checkbox` in a list of things to tick, several of which may be on |
+| One of a few choices, all shown | `RadioGroup` in a form; `SegmentedControl` in a toolbar, or as a field's control in a `Field group` |
+| Narrowing what is shown by typing | `SearchInput`; `ListSearchControl` on a list page's toolbar |
 | A value from a list | `Select`, or `Combobox` when the list needs filtering |
 | Free text with suggestions, or tags | `Autocomplete`; `Combobox` with `multiple creatable` |
 | A range | `Slider` |
@@ -52,6 +53,8 @@ Each need has one component. Reach for it before styling markup by hand.
 | Pages of a long list | `Pagination` |
 | A grouped page of settings | `SettingsCard` with `SettingRow`s |
 | A person | `Avatar` |
+| A status in words | `StatusBadge`, or `StatusDot` beside text that says it |
+| A run's, job's or step's status beside its name | `RunStatusIcon`; `StatusBadge` with `runStatusTone` to say it in words |
 | A copy action | `useCopy`, or `CopyToClipboard` for its button |
 | A live relative time or duration | `RelativeTime`, `Elapsed` |
 | Rendered Markdown | `Markdown` |
@@ -74,6 +77,14 @@ Some pairs look alike and are split on purpose:
   thing, each with its own panel or route. A `SegmentedControl` sets a value,
   such as a time range, that changes what one view shows. `Tabs` with
   `variant="segmented"` look the same, so the choice rests on what pressing does.
+- **SearchInput or ListSearchControl.** A `SearchInput` is a box that is
+  always shown and narrows what sits beside it, such as a panel's rows or a
+  log's lines. `ListSearchControl` belongs to a list page's toolbar: it folds to
+  a button, opens on ⌘F or `/`, and keeps terms as chips the list remembers.
+- **StatusBadge or RunStatusIcon.** A `StatusBadge` says a status in words in
+  its tone, for anything. A `RunStatusIcon` shows the status of something that
+  ran as an icon beside its name, and turns while it runs; `runStatusTone` gives
+  a badge for the same status the same tone.
 - **Select or Combobox.** A `Select` picks from a short list it shows in full.
   A `Combobox` filters as you type, for a list long enough to search, and is the
   one that takes several values, new ones, or free text (`Autocomplete`).

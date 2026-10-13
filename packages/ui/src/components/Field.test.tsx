@@ -27,6 +27,16 @@ describe('Field', () => {
     expect(label?.closest('[data-field-row]')).toHaveClass('contents')
   })
 
+  it('puts actions on the label row, out of the control’s name', () => {
+    render(
+      <Field label="Needs" actions={<button type="button">Use an expression</button>}>
+        {(control) => <input {...control} />}
+      </Field>,
+    )
+    expect(screen.getByRole('textbox', { name: 'Needs' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Use an expression' })).toBeInTheDocument()
+  })
+
   it('names the control by its label and describes it by its description and error', () => {
     render(
       <Field label="Cluster" description="Where it runs." error="Pick a cluster.">

@@ -2,9 +2,9 @@ import { clsx as cx } from 'clsx'
 import { useCallback, useId, useMemo, useState } from 'react'
 import { DisclosurePanel } from '../components/Disclosure'
 import { EmptyState } from '../components/EmptyState'
-import { Indicator } from '../components/Indicator'
 import { Loader } from '../components/Loader'
 import { useRunFile, useSlots, useStrings, useWorkflowEngine } from '../components/Provider'
+import { RunStatusIcon } from '../components/RunStatusIcon'
 import { Elapsed } from '../components/relativeTime'
 import { ChevronRightIcon } from '../icons'
 import { LogViewer } from '../logviewer'
@@ -121,7 +121,7 @@ function JobRow({
         onClick={onToggle}
       >
         <Chevron open={isExpanded} hidden={!hasSteps} />
-        <Indicator status={job.status} />
+        <RunStatusIcon status={job.status} />
         <div className="flex flex-col gap-1 min-w-0 flex-1">
           <span className="font-mono text-sm text-[var(--theme-app)] truncate">
             {jobLabel(jobName, job)}
@@ -216,7 +216,7 @@ function StepRow({
         onClick={onToggle}
       >
         <Chevron open={isExpanded} />
-        <Indicator status={step.status} />
+        <RunStatusIcon status={step.status} />
         {subworkflow &&
           slots.workflowIcon?.({
             image: subworkflow.image,
@@ -390,7 +390,7 @@ export default function TreeView({ jobs, slug, expandedJobs, setExpandedJobs }: 
                     onClick={() => toggleJob(`matrix:${matrixOrigin}`)}
                   >
                     <Chevron open={isGroupExpanded} />
-                    <Indicator status={aggStatus} />
+                    <RunStatusIcon status={aggStatus} />
                     <span className="font-mono text-sm text-[var(--theme-app)]">
                       {dag.matrixOf(matrixOrigin)} ({dag.jobCount(group.members.length)})
                     </span>

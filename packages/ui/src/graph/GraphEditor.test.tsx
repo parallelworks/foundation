@@ -560,7 +560,7 @@ describe('DependencyGraphPreview editor', () => {
     render(<DependencyGraphPreview yml={withInputs} editor={e} />)
     fireEvent.contextMenu(jobRow('mac'), { clientX: 5, clientY: 5 })
     fireEvent.click(screen.getByText('Edit job'))
-    const host = within(field('Host')).getByLabelText('Host')
+    const host = within(field('Host')).getByLabelText('Host', { selector: 'input, textarea' })
     expect(await optionsOf(host)).toContainEqual({
       label: 'Cluster',
       description: '${{ inputs.cluster.ip }}',
@@ -590,7 +590,7 @@ describe('DependencyGraphPreview editor', () => {
     fireEvent.change(within(dialog).getByLabelText('Environment name'), {
       target: { value: 'gpu-large' },
     })
-    const host = within(field('Host')).getByLabelText('Host')
+    const host = within(field('Host')).getByLabelText('Host', { selector: 'input, textarea' })
     fireEvent.change(host, { target: { value: '10.0.0.1' } })
     expect(within(dialog).getByText(GRAPH_EDITOR_STRINGS.runsOnWithSsh)).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Save' })).toBeDisabled()
@@ -646,9 +646,12 @@ describe('DependencyGraphPreview editor', () => {
     fireEvent.click(screen.getByText('Edit job'))
     const dialog = screen.getByRole('dialog')
     expect(within(dialog).getByLabelText('Environment ID')).toHaveValue('env-1')
-    fireEvent.change(within(field('When to run')).getByLabelText('When to run'), {
-      target: { value: 'always' },
-    })
+    fireEvent.change(
+      within(field('When to run')).getByLabelText('When to run', { selector: 'input, textarea' }),
+      {
+        target: { value: 'always' },
+      },
+    )
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
     expect(e.onEdit).toHaveBeenCalledWith({
       type: 'updateJob',
@@ -663,7 +666,9 @@ describe('DependencyGraphPreview editor', () => {
     render(<DependencyGraphPreview yml={withInputs} editor={e} />)
     fireEvent.contextMenu(jobRow('mac'), { clientX: 5, clientY: 5 })
     fireEvent.click(screen.getByText('Edit job'))
-    const condition = within(field('When to run')).getByLabelText('When to run')
+    const condition = within(field('When to run')).getByLabelText('When to run', {
+      selector: 'input, textarea',
+    })
     expect(await optionsOf(condition)).toContainEqual({
       label: 'When mode is slow',
       description: "${{ inputs.mode == 'slow' }}",
@@ -685,7 +690,9 @@ describe('DependencyGraphPreview editor', () => {
     render(<DependencyGraphPreview yml={yml} editor={e} />)
     fireEvent.click(within(jobRow('build')).getByRole('button', { name: 'Build' }))
     fireEvent.click(screen.getByTestId('compile'))
-    const condition = within(field('When to run')).getByLabelText('When to run')
+    const condition = within(field('When to run')).getByLabelText('When to run', {
+      selector: 'input, textarea',
+    })
     expect(condition).toHaveValue('')
     // A labelled suggestion shows the value it writes beneath its label.
     expect(
@@ -707,9 +714,12 @@ describe('DependencyGraphPreview editor', () => {
     render(<DependencyGraphPreview yml={yml} editor={e} />)
     fireEvent.click(within(jobRow('build')).getByRole('button', { name: 'Build' }))
     fireEvent.click(screen.getByTestId('compile'))
-    fireEvent.change(within(field('When to run')).getByLabelText('When to run'), {
-      target: { value: 'false' },
-    })
+    fireEvent.change(
+      within(field('When to run')).getByLabelText('When to run', { selector: 'input, textarea' }),
+      {
+        target: { value: 'false' },
+      },
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(e.onEdit).toHaveBeenCalledWith({
       type: 'updateStep',
@@ -774,9 +784,9 @@ describe('DependencyGraphPreview editor', () => {
     render(<DependencyGraphPreview yml={steps} editor={e} />)
     fireEvent.click(within(jobRow('build')).getByRole('button', { name: 'Build' }))
     fireEvent.click(screen.getByTestId('notify'))
-    expect(within(field('When to run')).getByLabelText('When to run')).toHaveValue(
-      'failure() && inputs.notify',
-    )
+    expect(
+      within(field('When to run')).getByLabelText('When to run', { selector: 'input, textarea' }),
+    ).toHaveValue('failure() && inputs.notify')
     fireEvent.change(screen.getByLabelText('Time limit'), {
       target: { value: '10m' },
     })
@@ -806,9 +816,12 @@ describe('DependencyGraphPreview editor', () => {
       await screen.findByRole('menuitem', { name: 'needs.build.outputs.version' }),
     ).toBeInTheDocument()
     fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
-    fireEvent.change(within(condition).getByLabelText('When to run'), {
-      target: { value: "${{ needs.build.outputs.version == '2' }}" },
-    })
+    fireEvent.change(
+      within(condition).getByLabelText('When to run', { selector: 'input, textarea' }),
+      {
+        target: { value: "${{ needs.build.outputs.version == '2' }}" },
+      },
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(e.onEdit).toHaveBeenCalledWith({
       type: 'updateJob',

@@ -20,7 +20,8 @@ export interface SegmentedOption<T extends string> {
 
 /** A few mutually exclusive choices side by side, one always current, such as
  *  a time range or what to group by. To move between views or pages, use
- *  `Tabs` with `variant="segmented"`, which looks the same. */
+ *  `Tabs` with `variant="segmented"`, which looks the same. Name it with
+ *  `label`, or leave that out inside a `Field group`, whose legend names it. */
 export function SegmentedControl<T extends string>({
   label,
   options,
@@ -30,7 +31,7 @@ export function SegmentedControl<T extends string>({
   iconOnly = false,
   testId,
 }: SegmentLayout & {
-  label: string
+  label?: string | undefined
   options: SegmentedOption<T>[]
   value: T
   onValueChange?: (value: T) => void

@@ -36,6 +36,9 @@ export interface FieldProps {
   label: ReactNode
   /** Beside the label and outside it, so it stays out of the control's name: an InfoTip, a count. */
   hint?: ReactNode
+  /** Buttons at the far end of the label's row that act on the field, such as one that
+   *  switches its control to a typed expression. */
+  actions?: ReactNode
   /** Help under the control, read with it. */
   description?: ReactNode
   /** A message under the control. It also marks the control invalid. */
@@ -60,12 +63,26 @@ export interface FieldProps {
 }
 
 const labelClassName = 'flex items-center gap-1 text-sm font-medium text-(--theme-app)'
+const actionsClassName = 'ml-auto flex shrink-0 items-center gap-1'
+const errorTextClassName = 'flex items-center gap-1.5 text-xs text-(--theme-error)'
+
+/** An error in the look a Field gives its own, for one under a part of a control rather than
+ *  the whole of it, such as a row of a list editor. */
+export function ErrorText({ children }: { children: ReactNode }) {
+  return children ? (
+    <div role="alert" className={errorTextClassName}>
+      <AlertIcon aria-hidden="true" className="size-3.5 shrink-0" />
+      {children}
+    </div>
+  ) : null
+}
 
 /** A control with its label, help and error, tied to it for assistive technology. One frame
  *  for every field, in a form or standing alone. */
 export function Field({
   label,
   hint,
+  actions,
   description,
   error,
   invalid,
@@ -110,6 +127,7 @@ export function Field({
         {required && <RequiredMark />}
       </span>
       {hint}
+      {actions && <span className={actionsClassName}>{actions}</span>}
     </>
   )
   const body = (
@@ -129,12 +147,7 @@ export function Field({
         </BaseField.Description>
       )}
       {error && (
-        <BaseField.Error
-          id={errorId}
-          match
-          role="alert"
-          className="flex items-center gap-1.5 text-xs text-(--theme-error)"
-        >
+        <BaseField.Error id={errorId} match role="alert" className={errorTextClassName}>
           <AlertIcon aria-hidden="true" className="size-3.5 shrink-0" />
           {error}
         </BaseField.Error>
@@ -181,6 +194,7 @@ export function Field({
           {required && <RequiredMark />}
         </BaseField.Label>
         {hint}
+        {actions && <span className={actionsClassName}>{actions}</span>}
       </div>
       {body}
     </BaseField.Root>

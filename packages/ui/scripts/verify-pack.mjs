@@ -217,7 +217,7 @@ try {
       "need(root, 'root', 'Callout')",
       "need(root, 'root', 'EmptyState')",
       "need(root, 'root', 'DescriptionList')",
-      "need(root, 'root', 'Indicator')",
+      "need(root, 'root', 'RunStatusIcon')",
       "need(root, 'root', 'UIProvider')",
       "need(root, 'root', 'useRunFile')",
       "need(logviewer, 'logviewer', 'LogViewer')",

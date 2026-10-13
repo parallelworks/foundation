@@ -384,7 +384,7 @@ describe('InputsFormEditor', () => {
       partition: { type: 'slurm-partitions', resource: '' },
     } as unknown as typeof INPUTS)
     fireEvent.click(within(row(['partition'])).getByRole('button', { name: 'Edit input' }))
-    const resource = screen.getByLabelText('Cluster')
+    const resource = screen.getByRole('combobox', { name: 'Cluster' })
     expect(await optionsOf(resource)).toEqual([
       { label: 'Cluster', description: '${{ inputs.cluster }}' },
     ])

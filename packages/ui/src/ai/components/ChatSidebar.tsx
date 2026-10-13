@@ -4,7 +4,8 @@ import type { OpenMenu } from '../../components/ContextMenu'
 import { EmptyState } from '../../components/EmptyState'
 import type { MenuEntry } from '../../components/MenuEntries'
 import { RelativeTime } from '../../components/relativeTime'
-import { ImageIcon, NewChatIcon, SearchIcon, SharingIcon } from '../../icons'
+import { SearchInput } from '../../components/SearchInput'
+import { ImageIcon, NewChatIcon, SharingIcon } from '../../icons'
 import { useChat } from '../core/ChatProvider'
 import { useChatConfig } from '../core/config'
 import { FOCUS_SIDEBAR_SEARCH_EVENT } from '../core/events'
@@ -226,24 +227,13 @@ export default function ChatSidebar({
 
                 {!sidebarCollapsed && conversations.length > 0 && (
                   <div className="px-2 pb-2">
-                    <div className="relative">
-                      <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 theme-muted-text pointer-events-none" />
-                      <input
-                        ref={searchInputRef}
-                        type="text"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Escape' && search) {
-                            e.stopPropagation()
-                            setSearch('')
-                          }
-                        }}
-                        placeholder={strings.chrome.searchPlaceholder}
-                        aria-label={strings.chrome.searchLabel}
-                        className="w-full h-9 pl-8 pr-2 text-sm rounded-lg border border-transparent chat-tint theme-text placeholder:theme-muted-text transition-colors focus:outline-none focus:border-(--theme-border) focus:bg-(--theme-panel-bg)"
-                      />
-                    </div>
+                    <SearchInput
+                      ref={searchInputRef}
+                      value={search}
+                      onValueChange={setSearch}
+                      label={strings.chrome.searchLabel}
+                      placeholder={strings.chrome.searchPlaceholder}
+                    />
                   </div>
                 )}
               </>

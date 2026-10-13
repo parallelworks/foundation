@@ -11,16 +11,14 @@ import { AddIcon } from '../icons'
 import {
   asRecord,
   ExpressionToggle,
-  FieldError,
-  FieldLabel,
   type Flag,
   flagError,
   flagValue,
   GROWING_AREA,
   type Json,
-  LabelledField,
   text,
   useGrowingArea,
+  YamlField,
 } from './editorFields'
 import {
   type GraphEditorStrings,
@@ -220,45 +218,6 @@ function insertAt(
 // Inputs whose value is one of their options, so a condition compares it to one.
 const ONE_OF = ['dropdown', 'radio']
 
-/** A text field that takes any value, expressions included, with suggestions to pick from. */
-export function ExpressionInput({
-  id,
-  label,
-  value,
-  onChange,
-  suggestions = [],
-  placeholder,
-  error,
-  describedBy,
-  required,
-}: {
-  id?: string
-  label: string
-  value: string
-  onChange: (value: string) => void
-  suggestions?: Suggestion[]
-  placeholder?: string | undefined
-  error?: string | undefined
-  describedBy?: string
-  required?: boolean
-}) {
-  return (
-    <>
-      <SuggestionInput
-        id={id}
-        aria-label={label}
-        aria-describedby={describedBy}
-        required={required}
-        value={value}
-        placeholder={placeholder}
-        suggestions={suggestions}
-        onValueChange={onChange}
-      />
-      <FieldError message={error} />
-    </>
-  )
-}
-
 /** Conditions on the form's switches and choices, for fields that run on one. */
 function conditionSuggestions(
   source: InputSource | undefined,
@@ -307,51 +266,53 @@ export function FlagField({
   const setTypedValue = (next: string) => onChange(next.trim() ? next : undefined)
   const lint = useFieldLint(yamlKey, id, typeof value === 'string' ? value : '', setTypedValue)
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center justify-between gap-3">
-        <FieldLabel label={label} yamlKey={yamlKey} description={description} />
-        {/* The switch keeps the end of the row, as on a row without an expression, and its room
-            while one is typed, so neither the switch nor this button moves. */}
-        <div className="flex shrink-0 items-center gap-1">
-          <ExpressionToggle
-            active={typed}
-            onChange={(on) => {
-              setTyped(on)
-              onChange(undefined)
-            }}
+    <YamlField
+      label={label}
+      yamlKey={yamlKey}
+      description={description}
+      error={typed ? (flagError(value, t) ?? lint.message) : undefined}
+      id={id}
+      actions={
+        <ExpressionToggle
+          active={typed}
+          onChange={(on) => {
+            setTyped(on)
+            onChange(undefined)
+          }}
+        />
+      }
+    >
+      {(control) =>
+        typed ? (
+          <>
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                <SuggestionInput
+                  {...control}
+                  value={typeof value === 'string' ? value : ''}
+                  suggestions={conditionSuggestions(source, t)}
+                  onValueChange={setTypedValue}
+                />
+              </div>
+              <NewInputButton
+                type="boolean"
+                source={source}
+                onCreated={(path) => onChange(flagExpression(path, false))}
+              />
+            </div>
+            {lint.fixes}
+          </>
+        ) : (
+          <Switch
+            {...control}
+            nativeButton
+            render={<button type="button" />}
+            checked={checked}
+            onCheckedChange={(on) => onChange(flagValue(on, fallback, original))}
           />
-          {typed ? (
-            <span aria-hidden="true" className="w-11" />
-          ) : (
-            <Switch
-              checked={checked}
-              onCheckedChange={(on) => onChange(flagValue(on, fallback, original))}
-              aria-label={label}
-            />
-          )}
-        </div>
-      </div>
-      {typed && (
-        <div className="flex items-center gap-2">
-          <div className="flex-1">
-            <ExpressionInput
-              id={id}
-              label={label}
-              value={typeof value === 'string' ? value : ''}
-              suggestions={conditionSuggestions(source, t)}
-              error={flagError(value, t) ?? lint.message}
-              onChange={setTypedValue}
-            />
-          </div>
-          <NewInputButton
-            type="boolean"
-            source={source}
-            onCreated={(path) => onChange(flagExpression(path, false))}
-          />
-        </div>
-      )}
-      {typed && lint.fixes}
-    </div>
+        )
+      }
+    </YamlField>
   )
 }
 
@@ -393,12 +354,12 @@ export function ConditionField({
     onChange(insertAt(typed, value, reference))
   }
   return (
-    <LabelledField
+    <YamlField
       label={label}
       yamlKey={yamlKey}
       description={description}
-      htmlFor={id}
-      descriptionId={`${id}-help`}
+      error={lint.message}
+      id={id}
       actions={
         <>
           {allRefs(source).length > 0 && (
@@ -412,25 +373,26 @@ export function ConditionField({
         </>
       }
     >
-      <ExpressionInput
-        id={id}
-        label={label}
-        describedBy={`${id}-help`}
-        value={value}
-        error={lint.message}
-        placeholder={texts.default}
-        suggestions={[
-          ...CONDITIONS.map(([condition, key]) => ({
-            value: condition,
-            label: texts[key],
-          })),
-          { value: 'false', label: t.conditionNever },
-          ...conditionSuggestions(source, t),
-        ]}
-        onChange={onChange}
-      />
-      {lint.fixes}
-    </LabelledField>
+      {(control) => (
+        <>
+          <SuggestionInput
+            {...control}
+            value={value}
+            placeholder={texts.default}
+            suggestions={[
+              ...CONDITIONS.map(([condition, key]) => ({
+                value: condition,
+                label: texts[key],
+              })),
+              { value: 'false', label: t.conditionNever },
+              ...conditionSuggestions(source, t),
+            ]}
+            onValueChange={onChange}
+          />
+          {lint.fixes}
+        </>
+      )}
+    </YamlField>
   )
 }
 
@@ -480,34 +442,36 @@ export function ValueOrInputField({
     ...(literal ? suggestions.map((suggestion) => ({ value: suggestion })) : []),
   ]
   return (
-    <LabelledField
-      label={required ? `${label} *` : label}
+    <YamlField
+      label={label}
       yamlKey={yamlKey}
       description={description}
-      descriptionId={`${id}-help`}
+      required={required}
+      error={error ?? lint.message}
+      id={id}
     >
-      <div className="flex items-center gap-2">
-        <div className="flex-1">
-          <ExpressionInput
-            id={id}
-            label={label}
-            describedBy={`${id}-help`}
-            required={required}
-            value={value}
-            placeholder={placeholder ?? (literal ? undefined : t.chooseInput)}
-            suggestions={offered}
-            onChange={onChange}
-          />
-        </div>
-        <NewInputButton
-          type={firstType}
-          source={source}
-          onCreated={(path) => onChange(refExpression(path, suffix))}
-        />
-      </div>
-      <FieldError message={error ?? lint.message} />
-      {lint.fixes}
-    </LabelledField>
+      {(control) => (
+        <>
+          <div className="flex items-center gap-2">
+            <div className="flex-1">
+              <SuggestionInput
+                {...control}
+                value={value}
+                placeholder={placeholder ?? (literal ? undefined : t.chooseInput)}
+                suggestions={offered}
+                onValueChange={onChange}
+              />
+            </div>
+            <NewInputButton
+              type={firstType}
+              source={source}
+              onCreated={(path) => onChange(refExpression(path, suffix))}
+            />
+          </div>
+          {lint.fixes}
+        </>
+      )}
+    </YamlField>
   )
 }
 
@@ -544,32 +508,34 @@ export function ScriptField({
   const insert = (reference: string) =>
     onChange(insertAt((area ?? fixed).current, value, reference))
   return (
-    <LabelledField
+    <YamlField
       label={label}
       yamlKey={yamlKey}
       description={description}
-      htmlFor={id}
-      descriptionId={`${id}-help`}
+      error={shownError}
+      id={id}
       actions={
         allRefs(source).length > 0 && (
           <InsertRefSelect source={source} label={t.insertValue} onInsert={insert} />
         )
       }
     >
-      <Textarea
-        ref={area ?? fixed}
-        id={id}
-        mono
-        aria-describedby={`${id}-help`}
-        rows={rows ?? 1}
-        value={value}
-        className={rows === undefined ? GROWING_AREA : ''}
-        {...(shownError ? { error: shownError } : {})}
-        {...(placeholder ? { placeholder } : {})}
-        onChange={(e) => onChange(e.target.value)}
-      />
-      {lint.fixes}
-    </LabelledField>
+      {(control) => (
+        <>
+          <Textarea
+            {...control}
+            ref={area ?? fixed}
+            mono
+            rows={rows ?? 1}
+            value={value}
+            className={rows === undefined ? GROWING_AREA : ''}
+            {...(placeholder ? { placeholder } : {})}
+            onChange={(e) => onChange(e.target.value)}
+          />
+          {lint.fixes}
+        </>
+      )}
+    </YamlField>
   )
 }
 

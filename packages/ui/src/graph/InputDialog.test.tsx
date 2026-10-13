@@ -104,7 +104,7 @@ describe('InputDialog', () => {
     )
     cleanup()
     onSave = open({ type: 'duration' })
-    fireEvent.change(screen.getByLabelText('Default'), {
+    fireEvent.change(screen.getByLabelText('Default', { selector: 'input' }), {
       target: { value: '${{ inputs.limit }}' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -121,12 +121,11 @@ describe('InputDialog', () => {
     const toggles = () => screen.getAllByRole('button', { name: 'Use an expression instead' })
     // The options' switch comes first, then the flags in Behavior.
     fireEvent.click(toggles()[0] as HTMLElement)
-    fireEvent.change(screen.getByLabelText('Options'), {
+    fireEvent.change(screen.getByLabelText('Options', { selector: 'input' }), {
       target: { value: '${{ inputs.choices }}' },
     })
     openSection('Behavior')
-    const hidden = screen.getByText('Hidden', { selector: 'span' }).parentElement?.parentElement
-      ?.parentElement as HTMLElement
+    const hidden = screen.getByText('Hidden', { selector: 'label' }).parentElement as HTMLElement
     fireEvent.click(within(hidden).getByRole('button', { name: 'Use an expression instead' }))
     fireEvent.change(screen.getByLabelText('Hidden'), {
       target: { value: '${{ inputs.simple }}' },
@@ -149,13 +148,10 @@ describe('InputDialog', () => {
       type: 'checkbox-group',
       options: ['logs', 'checkpoints', 'all'],
     })
-    const row = screen.getByText('all also ticks').parentElement as HTMLElement
-    fireEvent.click(within(row).getByRole('button', { name: 'logs' }))
-    fireEvent.click(within(row).getByRole('button', { name: 'checkpoints' }))
-    expect(within(row).getByRole('button', { name: 'logs' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
+    const row = screen.getByRole('group', { name: 'all also ticks' })
+    fireEvent.click(within(row).getByRole('checkbox', { name: 'logs' }))
+    fireEvent.click(within(row).getByRole('checkbox', { name: 'checkpoints' }))
+    expect(within(row).getByRole('checkbox', { name: 'logs' })).toBeChecked()
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(onSave).toHaveBeenCalledWith(
       'field',
@@ -286,13 +282,13 @@ describe('InputDialog', () => {
     expect(screen.getByLabelText('Hint text')).toBeInTheDocument()
     expect(screen.queryByLabelText('Options depend on')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Per value of another input' }))
-    fireEvent.change(screen.getByLabelText('Options'), {
+    fireEvent.change(screen.getByLabelText('Options', { selector: 'textarea' }), {
       target: { value: '{"x": ["a"]}' },
     })
     expect(screen.queryByLabelText('Hint text')).toBeNull()
     const save = screen.getByRole('button', { name: 'Save' })
     expect(save).toBeDisabled()
-    fireEvent.change(screen.getByLabelText('Options depend on'), {
+    fireEvent.change(screen.getByLabelText('Options depend on', { selector: 'input' }), {
       target: { value: '${{ inputs.k }}' },
     })
     fireEvent.click(save)
@@ -394,7 +390,7 @@ describe('InputDialog', () => {
 
   it('reads and writes a duration as HH:MM:SS, stored in seconds', () => {
     const onSave = open({ type: 'duration', default: 3600 })
-    expect(screen.getByLabelText('Default')).toHaveValue('01:00:00')
+    expect(screen.getByLabelText('Default', { selector: 'input' })).toHaveValue('01:00:00')
     fireEvent.change(screen.getByLabelText('Minimum'), {
       target: { value: '90m' },
     })
@@ -501,7 +497,7 @@ describe('InputDialog', () => {
       options: ['fp16', 'fp32'],
       optionLabelPosition: 'side',
     })
-    const input = screen.getByLabelText('Default')
+    const input = screen.getByLabelText('Default', { selector: 'input' })
     expect((await optionsOf(input)).map((option) => option.label)).toEqual(['fp16', 'fp32'])
     // A layout the schema doesn't know picks neither.
     for (const name of ['Side by side', 'One per line']) {
@@ -848,7 +844,9 @@ describe('InputDialog keeps what it does not show', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add option' }))
     const values = screen.getAllByRole('textbox', { name: 'Value' })
     fireEvent.change(values[values.length - 1] as HTMLElement, { target: { value: '4' } })
-    fireEvent.change(screen.getByLabelText('Default'), { target: { value: '4' } })
+    fireEvent.change(screen.getByLabelText('Default', { selector: 'input' }), {
+      target: { value: '4' },
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(onSave).toHaveBeenCalledWith(
       'field',
@@ -932,13 +930,15 @@ describe('InputDialog keeps what it does not show', () => {
 
   it('takes the opt-out value as a duration’s default, and only a number for it', () => {
     open({ type: 'duration', disableLabel: 'Never', disableValue: -1, default: -1 })
-    expect(screen.getByLabelText('Default')).toHaveValue('-1')
+    expect(screen.getByLabelText('Default', { selector: 'input' })).toHaveValue('-1')
     expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
   })
 
   it('takes the opt-out value typed as a duration’s default', () => {
     const onSave = open({ type: 'duration', disableLabel: 'Never', disableValue: -1 })
-    fireEvent.change(screen.getByLabelText('Default'), { target: { value: '-1' } })
+    fireEvent.change(screen.getByLabelText('Default', { selector: 'input' }), {
+      target: { value: '-1' },
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(onSave).toHaveBeenCalledWith(
       'field',
@@ -969,7 +969,7 @@ describe('InputDialog keeps what it does not show', () => {
       options: '${{ inputs.features }}',
       implies: { all: ['logs'] },
     })
-    fireEvent.change(screen.getByLabelText('Options'), {
+    fireEvent.change(screen.getByLabelText('Options', { selector: 'input' }), {
       target: { value: '${{ inputs.flags }}' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -1135,7 +1135,9 @@ describe('InputDialog keeps what it does not show', () => {
     )
     expect(screen.getByText(INPUTS_EDITOR_STRINGS.keptValueDoesNotFit)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
-    fireEvent.change(screen.getByLabelText('Default'), { target: { value: 'a' } })
+    fireEvent.change(screen.getByLabelText('Default', { selector: 'input' }), {
+      target: { value: 'a' },
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(listed).toHaveBeenCalledWith(
       'field',

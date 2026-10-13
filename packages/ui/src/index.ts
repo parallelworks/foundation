@@ -61,13 +61,10 @@ export {
   RevealToggle,
   useFieldControl,
 } from './components/Field'
-export { default as Filter } from './components/Filter'
-export { FilterPill } from './components/FilterPill'
 export { type FieldBoxOptions, type FieldBoxSize, fieldBox } from './components/fieldBox'
 export type { FloatingAnchor } from './components/floating'
 export { HoverCard, type HoverCardProps } from './components/HoverCard'
 export { IconButton, type IconButtonProps } from './components/IconButton'
-export { Indicator } from './components/Indicator'
 export { formatInfoTipContent, InfoTip } from './components/InfoTip'
 export { Input, type InputProps, Textarea, type TextareaProps } from './components/Input'
 export { LetterBadge } from './components/LetterBadge'
@@ -155,6 +152,7 @@ export {
 export { Radio, RadioGroup, type RadioProps } from './components/Radio'
 export { RefreshButton, type RefreshButtonProps } from './components/RefreshButton'
 export { RequiredMark } from './components/RequiredMark'
+export { RunStatusIcon, runStatusTone } from './components/RunStatusIcon'
 export {
   Elapsed,
   RelativeTime,
@@ -163,6 +161,7 @@ export {
   useElapsed,
   useRelativeTime,
 } from './components/relativeTime'
+export { SearchInput, type SearchInputProps } from './components/SearchInput'
 export {
   Section,
   type SectionProps,

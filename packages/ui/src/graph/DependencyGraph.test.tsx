@@ -8,7 +8,6 @@ import {
   render,
   screen,
   waitFor,
-  within,
 } from '@testing-library/react'
 import type { ReactNode, Ref } from 'react'
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
@@ -426,7 +425,7 @@ describe('DependencyGraph sidebar', () => {
     render(<DependencyGraph run={oneRun} />)
     // The sidebar comes first in the page.
     const row = screen.getAllByText('Build')[0]?.closest('button') as HTMLElement
-    expect(within(row).getByTestId('failed-indicator')).toBeInTheDocument()
+    expect(row.querySelector('[data-status="error"]')).toBeInTheDocument()
     fireEvent.click(row)
     expect(screen.getAllByTestId('compile').length).toBeGreaterThan(0)
   })

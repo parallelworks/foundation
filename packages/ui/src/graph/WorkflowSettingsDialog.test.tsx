@@ -228,9 +228,10 @@ describe('WorkflowSettingsDialog', () => {
     }
     const onEdit = open(paged)
     const session = screen.getByDisplayValue('app').closest('div.flex.items-start') as HTMLElement
-    const redirect = within(session)
-      .getByRole('switch', { name: GRAPH_EDITOR_STRINGS.fields.redirect })
-      .closest('.flex-col') as HTMLElement
+    // The field: its label's row, which holds the expression switch, and the control under it.
+    const redirect = within(session).getByText(GRAPH_EDITOR_STRINGS.fields.redirect, {
+      selector: 'label',
+    }).parentElement?.parentElement as HTMLElement
     fireEvent.click(
       within(redirect).getByRole('button', { name: GRAPH_EDITOR_STRINGS.useExpression }),
     )

@@ -1,6 +1,6 @@
-import { clsx as cx } from 'clsx'
 import { type ReactNode, useId, useMemo, useRef, useState } from 'react'
 import { Checkbox } from '../components/Checkbox'
+import { ErrorText, FieldOption } from '../components/Field'
 import { IconButton } from '../components/IconButton'
 import { Input } from '../components/Input'
 import { withPositionKeys } from '../components/keys'
@@ -26,8 +26,6 @@ import {
   EXPRESSION,
   ExpressionToggle,
   expressionError,
-  FieldError,
-  FieldLabel,
   type Flag,
   flagError,
   flagOf,
@@ -35,7 +33,6 @@ import {
   isScalar,
   type Json,
   KeyValueEditor,
-  LabelledField,
   labelled,
   type OpenOnAdd,
   orUndefined,
@@ -56,6 +53,7 @@ import {
   unchangedValue,
   updateAt,
   useSectionMemory,
+  YamlField,
 } from './editorFields'
 import { useGraphEditorStrings } from './editorStrings'
 import { expressionRefs } from './expressionRefs'
@@ -329,7 +327,7 @@ function SshEditor({
           onChange={(e) => set(key)(e.target.value)}
         />
       ))}
-      <FieldError message={error} />
+      <ErrorText>{error}</ErrorText>
     </LintScope>
   )
 }
@@ -506,7 +504,7 @@ function OutputsEditor({
           />
         </div>
       ))}
-      <FieldError message={error} />
+      <ErrorText>{error}</ErrorText>
       <AddRowButton
         label={t.common.add}
         onClick={() => onChange([...rows, { name: '', step: stepIds[0] ?? '', output: '' }])}
@@ -631,28 +629,28 @@ function MatrixEntries({
 }) {
   const t = useGraphEditorStrings()
   return (
-    <div className="flex flex-col gap-2">
-      <FieldLabel
-        label={label}
-        yamlKey={yamlKey}
-        description={description}
-        actions={
-          <ExpressionToggle
-            active={text !== undefined}
-            onChange={(on) => onText(on ? '' : undefined)}
-          />
-        }
-      />
+    <YamlField
+      label={label}
+      yamlKey={yamlKey}
+      description={description}
+      error={error}
+      actions={
+        <ExpressionToggle
+          active={text !== undefined}
+          onChange={(on) => onText(on ? '' : undefined)}
+        />
+      }
+    >
       {text !== undefined ? (
         <Input
           mono
           aria-label={label}
+          aria-invalid={error ? true : undefined}
           value={text}
-          error={error}
           onChange={(e) => onText(e.target.value)}
         />
       ) : (
-        <>
+        <div className="flex flex-col gap-2">
           {withPositionKeys(entries).map(({ key, item: rows }, i) => (
             <div key={key} className="flex items-start gap-2">
               <div className="flex-1 rounded-md border theme-border p-2">
@@ -671,14 +669,13 @@ function MatrixEntries({
               />
             </div>
           ))}
-          <FieldError message={error} />
           <AddRowButton
             label={t.addEntry}
             onClick={() => onChange([...entries, [{ key: '', value: '' }]])}
           />
-        </>
+        </div>
       )}
-    </div>
+    </YamlField>
   )
 }
 
@@ -713,6 +710,7 @@ function MatrixVariable({
           </div>
           <div className="flex-1">
             <ChoiceButtons
+              label={t.matrixValuesFrom}
               options={[
                 { value: 'values', label: t.matrixValuesListed },
                 { value: 'input', label: t.modeFromInput },
@@ -967,65 +965,63 @@ function JobForm({
         onChange={(e) => setName(e.target.value)}
       />
       <DialogSection title={t.sectionDependencies} open>
-        <FieldLabel
+        <YamlField
           label={t.fields.needs}
           yamlKey="needs"
           description={needsTyped ? t.help.needsExpression : t.help.needs}
+          error={(needsTyped && errors.needs) || needsLint}
           actions={<ExpressionToggle active={needsTyped} onChange={setNeedsTyped} />}
-        />
-        {needsTyped ? (
-          <Input
-            id={needsId}
-            mono
-            aria-label={t.fields.needs}
-            value={needsText}
-            error={errors.needs ?? (needsLint || undefined)}
-            onChange={(e) => setNeedsText(e.target.value)}
-          />
-        ) : others.length === 0 ? (
-          <div className="text-xs theme-muted-text">{t.noOtherJobs}</div>
-        ) : (
-          <div id={needsId} tabIndex={-1} className="flex flex-col gap-1.5">
-            {[...others, ...missing].map((other) => {
-              const entry = needs.find((need) => needTarget(need) === other)
-              const cycle = !entry && editing.dependsOn(allNeeds, other, job)
-              return (
-                <div key={other} className="flex items-center gap-2 text-sm">
-                  <label
-                    className={cx(
-                      'flex flex-1 items-center gap-2',
-                      cycle ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
-                    )}
+        >
+          {needsTyped ? (
+            <Input
+              id={needsId}
+              mono
+              aria-label={t.fields.needs}
+              aria-invalid={errors.needs || needsLint ? true : undefined}
+              value={needsText}
+              onChange={(e) => setNeedsText(e.target.value)}
+            />
+          ) : others.length === 0 ? (
+            <div className="text-xs theme-muted-text">{t.noOtherJobs}</div>
+          ) : (
+            <div id={needsId} tabIndex={-1} className="flex flex-col gap-1.5">
+              {[...others, ...missing].map((other) => {
+                const entry = needs.find((need) => needTarget(need) === other)
+                const cycle = !entry && editing.dependsOn(allNeeds, other, job)
+                return (
+                  <div
+                    key={other}
+                    className="flex items-center gap-2 text-sm"
                     title={cycle ? t.dependsOnThisJob : undefined}
                   >
-                    <Checkbox
-                      checked={!!entry}
-                      disabled={cycle}
-                      onCheckedChange={(on) => toggleNeed(other, on)}
-                    />
-                    <span className="font-mono">{other}</span>
-                    {!Object.hasOwn(jobs, other) && (
-                      <span className="text-xs text-(--theme-error)">{t.missingJob}</span>
-                    )}
-                  </label>
-                  {entry && isMatrixJob(other) && (
-                    <label
-                      className="flex cursor-pointer items-center gap-1.5 text-xs theme-muted-text"
-                      title={t.help.waitForAny}
-                    >
+                    <FieldOption disabled={cycle} className="flex flex-1 items-center gap-2">
                       <Checkbox
-                        checked={entry.endsWith(':any')}
-                        onCheckedChange={(on) => toggleAny(other, on)}
+                        checked={!!entry}
+                        disabled={cycle}
+                        onCheckedChange={(on) => toggleNeed(other, on)}
                       />
-                      {t.waitForAny}
-                    </label>
-                  )}
-                </div>
-              )
-            })}
-            <FieldError message={needsLint || undefined} />
-          </div>
-        )}
+                      <span className="font-mono">{other}</span>
+                      {!Object.hasOwn(jobs, other) && (
+                        <span className="text-xs text-(--theme-error)">{t.missingJob}</span>
+                      )}
+                    </FieldOption>
+                    {entry && isMatrixJob(other) && (
+                      <span title={t.help.waitForAny}>
+                        <FieldOption className="flex items-center gap-1.5 text-xs theme-muted-text">
+                          <Checkbox
+                            checked={entry.endsWith(':any')}
+                            onCheckedChange={(on) => toggleAny(other, on)}
+                          />
+                          {t.waitForAny}
+                        </FieldOption>
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </YamlField>
         <ConditionField
           scope="job"
           label={t.fields.condition}
@@ -1051,22 +1047,22 @@ function JobForm({
         alert={!!errors.runsOn}
       >
         <LintScope at="runs-on">
-          <FieldLabel
+          <YamlField
             label={t.fields.runsOn}
             yamlKey="runs-on"
             description={t.help.runsOn}
+            error={errors.runsOn}
             actions={<ExpressionToggle active={runsOnTyped} onChange={setRunsOnTyped} />}
-          />
-          {runsOnTyped ? (
-            <Input
-              mono
-              aria-label={t.fields.runsOn}
-              value={runsOnText}
-              error={errors.runsOn}
-              onChange={(e) => setRunsOnText(e.target.value)}
-            />
-          ) : (
-            <>
+          >
+            {runsOnTyped ? (
+              <Input
+                mono
+                aria-label={t.fields.runsOn}
+                aria-invalid={errors.runsOn ? true : undefined}
+                value={runsOnText}
+                onChange={(e) => setRunsOnText(e.target.value)}
+              />
+            ) : (
               <ChoiceButtons
                 options={[
                   { value: 'name' as const, label: t.runsOnByName },
@@ -1075,94 +1071,94 @@ function JobForm({
                 value={runsOn.kind}
                 onChange={(kind) => setRunsOn({ ...runsOn, kind })}
               />
-              {runsOn.kind === 'name' ? (
-                <>
-                  <Input
-                    mono
-                    {...labelled(t.fields.environmentCluster, 'cluster')}
-                    description={t.help.environmentCluster}
-                    value={runsOn.cluster}
-                    onChange={(e) => setRunsOn({ ...runsOn, cluster: e.target.value })}
+            )}
+          </YamlField>
+          {!runsOnTyped &&
+            (runsOn.kind === 'name' ? (
+              <>
+                <Input
+                  mono
+                  {...labelled(t.fields.environmentCluster, 'cluster')}
+                  description={t.help.environmentCluster}
+                  value={runsOn.cluster}
+                  onChange={(e) => setRunsOn({ ...runsOn, cluster: e.target.value })}
+                />
+                <Input
+                  mono
+                  {...labelled(t.fields.environmentName, 'name')}
+                  description={t.help.environmentName}
+                  value={runsOn.name}
+                  onChange={(e) => setRunsOn({ ...runsOn, name: e.target.value })}
+                />
+                <YamlField
+                  label={t.fields.schedulingParams}
+                  yamlKey="params"
+                  description={t.help.schedulingParams}
+                >
+                  <KeyValueEditor
+                    rows={runsOn.params}
+                    onChange={(params) => setRunsOn({ ...runsOn, params })}
+                    error={undefined}
                   />
-                  <Input
-                    mono
-                    {...labelled(t.fields.environmentName, 'name')}
-                    description={t.help.environmentName}
-                    value={runsOn.name}
-                    onChange={(e) => setRunsOn({ ...runsOn, name: e.target.value })}
+                </YamlField>
+              </>
+            ) : (
+              <>
+                <YamlField
+                  label={t.fields.targetMode}
+                  yamlKey="mode"
+                  description={t.help.targetMode}
+                >
+                  <ChoiceButtons
+                    options={TARGET_MODES.map((mode) => ({
+                      value: mode,
+                      label: t.targetModes[mode],
+                    }))}
+                    value={runsOn.mode as TargetMode}
+                    onChange={(mode) => setRunsOn({ ...runsOn, mode })}
                   />
-                  <LabelledField
-                    label={t.fields.schedulingParams}
-                    yamlKey="params"
-                    description={t.help.schedulingParams}
-                  >
-                    <KeyValueEditor
-                      rows={runsOn.params}
-                      onChange={(params) => setRunsOn({ ...runsOn, params })}
-                      error={undefined}
-                    />
-                  </LabelledField>
-                </>
-              ) : (
-                <>
-                  <LabelledField
-                    label={t.fields.targetMode}
-                    yamlKey="mode"
-                    description={t.help.targetMode}
-                  >
-                    <ChoiceButtons
-                      options={TARGET_MODES.map((mode) => ({
-                        value: mode,
-                        label: t.targetModes[mode],
-                      }))}
-                      value={runsOn.mode as TargetMode}
-                      onChange={(mode) => setRunsOn({ ...runsOn, mode })}
-                    />
-                  </LabelledField>
-                  <Input
-                    mono
-                    {...labelled(t.fields.targetId, 'targetId')}
-                    description={t.help.targetId}
-                    value={runsOn.targetId}
-                    onChange={(e) => setRunsOn({ ...runsOn, targetId: e.target.value })}
+                </YamlField>
+                <Input
+                  mono
+                  {...labelled(t.fields.targetId, 'targetId')}
+                  description={t.help.targetId}
+                  value={runsOn.targetId}
+                  onChange={(e) => setRunsOn({ ...runsOn, targetId: e.target.value })}
+                />
+                <Input
+                  mono
+                  {...labelled(t.fields.environmentId, 'environmentId')}
+                  description={t.help.environmentId}
+                  value={runsOn.environmentId}
+                  onChange={(e) => setRunsOn({ ...runsOn, environmentId: e.target.value })}
+                />
+                <YamlField
+                  label={t.fields.schedulingParams}
+                  yamlKey="schedulingParams"
+                  description={t.help.schedulingParams}
+                >
+                  <KeyValueEditor
+                    rows={runsOn.schedulingParams}
+                    onChange={(schedulingParams) => setRunsOn({ ...runsOn, schedulingParams })}
+                    error={undefined}
                   />
-                  <Input
-                    mono
-                    {...labelled(t.fields.environmentId, 'environmentId')}
-                    description={t.help.environmentId}
-                    value={runsOn.environmentId}
-                    onChange={(e) => setRunsOn({ ...runsOn, environmentId: e.target.value })}
-                  />
-                  <LabelledField
-                    label={t.fields.schedulingParams}
-                    yamlKey="schedulingParams"
-                    description={t.help.schedulingParams}
-                  >
-                    <KeyValueEditor
-                      rows={runsOn.schedulingParams}
-                      onChange={(schedulingParams) => setRunsOn({ ...runsOn, schedulingParams })}
-                      error={undefined}
-                    />
-                  </LabelledField>
-                  <ToggleField
-                    label={t.fields.newWorker}
-                    yamlKey="newWorker"
-                    description={t.help.newWorker}
-                    checked={runsOn.newWorker === true}
-                    onChange={(newWorker) => setRunsOn({ ...runsOn, newWorker })}
-                  />
-                  <Input
-                    mono
-                    {...labelled(t.fields.workerId, 'workerId')}
-                    description={t.help.workerId}
-                    value={runsOn.workerId}
-                    onChange={(e) => setRunsOn({ ...runsOn, workerId: e.target.value })}
-                  />
-                </>
-              )}
-              <FieldError message={errors.runsOn} />
-            </>
-          )}
+                </YamlField>
+                <ToggleField
+                  label={t.fields.newWorker}
+                  yamlKey="newWorker"
+                  description={t.help.newWorker}
+                  checked={runsOn.newWorker === true}
+                  onChange={(newWorker) => setRunsOn({ ...runsOn, newWorker })}
+                />
+                <Input
+                  mono
+                  {...labelled(t.fields.workerId, 'workerId')}
+                  description={t.help.workerId}
+                  value={runsOn.workerId}
+                  onChange={(e) => setRunsOn({ ...runsOn, workerId: e.target.value })}
+                />
+              </>
+            ))}
         </LintScope>
       </DialogSection>
       <DialogSection
@@ -1194,8 +1190,7 @@ function JobForm({
           <>
             {/* The schema takes only variables; an expression matrix can be turned into them. */}
             {typeof rawMatrix === 'string' && (
-              <>
-                <FieldLabel label={t.fields.matrixSource} description={t.help.matrixMode} />
+              <YamlField label={t.fields.matrixSource} description={t.help.matrixMode}>
                 <ChoiceButtons
                   options={[
                     { value: 'variables', label: t.matrixFromVariables },
@@ -1209,7 +1204,7 @@ function JobForm({
                     }
                   }}
                 />
-              </>
+              </YamlField>
             )}
             {matrixMode === 'expression' ? (
               <Input
@@ -1232,7 +1227,7 @@ function JobForm({
                     onRemove={() => setMatrixRows((rows) => removeAt(rows, i))}
                   />
                 ))}
-                <FieldError message={errors.matrix} />
+                <ErrorText>{errors.matrix}</ErrorText>
                 <AddRowButton
                   label={t.addVariable}
                   onClick={() =>
@@ -1499,15 +1494,16 @@ function StepForm({
         value={name}
         onChange={(e) => setName(e.target.value)}
       />
-      <div className="text-xs theme-muted-text">{t.help.stepKind}</div>
-      <ChoiceButtons
-        options={[
-          { value: 'run', label: t.stepRun },
-          { value: 'uses', label: t.stepUses },
-        ]}
-        value={kind}
-        onChange={setKind}
-      />
+      <YamlField label={t.stepKind} description={t.help.stepKind}>
+        <ChoiceButtons
+          options={[
+            { value: 'run', label: t.stepRun },
+            { value: 'uses', label: t.stepUses },
+          ]}
+          value={kind}
+          onChange={setKind}
+        />
+      </YamlField>
       {kind === 'run' ? (
         <ScriptField
           label={t.fields.run}
@@ -1652,6 +1648,7 @@ function StepForm({
         alert={!!errors.ssh}
       >
         <ChoiceButtons
+          label={t.sectionRemoteHost}
           options={[
             { value: 'inherit', label: t.sshInherit },
             { value: 'custom', label: t.sshCustom },
@@ -2168,7 +2165,7 @@ export function useSettingsViews(o: SettingsViewsOptions) {
               openOnAdd={o.openOnAdd}
               onSubmit={() => save(drafted())}
             >
-              <FieldError message={problem} />
+              <ErrorText>{problem}</ErrorText>
               <ProblemList problems={scoped.problems} />
               {shellProps.children}
             </DialogShell>

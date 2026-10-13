@@ -24,6 +24,7 @@ vi.mock('../../icons', () => ({
   SuccessIcon: () => <span />,
   TrashIcon: () => <span />,
   WarningIcon: () => <span />,
+  XIcon: () => <span />,
 }))
 
 const downloadTextMock = vi.fn()
