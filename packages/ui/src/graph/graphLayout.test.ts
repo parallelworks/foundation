@@ -201,6 +201,28 @@ describe('computeGraphLayout', () => {
     const long = layOut(asJobs(chainJobs(20000)))
     expect(long.dependencyCols).toHaveLength(20000)
   })
+
+  // Times measured against each other in one run, so a slow machine slows both: four times the jobs
+  // take about four times as long when the work grows with them, and sixteen when it grows with their
+  // square. The fastest of a few runs leaves out what a collection or a busy runner adds.
+  it.each([
+    ['a wide graph', (n: number) => layeredJobs(n, { columns: 40 })],
+    ['a square graph', (n: number) => layeredJobs(n, { columns: Math.round(Math.sqrt(n)) })],
+    ['a chain', (n: number) => chainJobs(n)],
+  ])('takes time in step with the jobs it lays out: %s', (_, make) => {
+    const fastest = (n: number) => {
+      const jobs = asJobs(make(n))
+      layOut(jobs)
+      let best = Number.POSITIVE_INFINITY
+      for (let run = 0; run < 5; run++) {
+        const start = performance.now()
+        layOut(jobs)
+        best = Math.min(best, performance.now() - start)
+      }
+      return best
+    }
+    expect(fastest(16000) / fastest(4000)).toBeLessThan(10)
+  })
 })
 
 describe('hopDistances', () => {
