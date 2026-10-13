@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Indicator } from '../components/Indicator'
 import { useNavigation, useSlots, useStrings, useWorkflowEngine } from '../components/Provider'
 import { TOOLTIP_ID } from '../components/Tooltip'
-import { DocumentIcon, OpenInNewGraphIcon } from '../icons'
+import { DocumentIcon, OpenInNewGraphIcon, SummaryIcon } from '../icons'
 import { Reveal } from './Reveal'
 import type { WorkflowJob, WorkflowSubworkflow } from './types'
 import { jobLabel } from './util'
@@ -62,7 +62,7 @@ export function Joblist(
     preview?: boolean
   },
 ) {
-  const { jobActions } = useStrings()
+  const { dag, jobActions } = useStrings()
   const engine = useWorkflowEngine()
   return inputs.jobNames.map((jobName) => {
     // Skip synthetic matrix group nodes — rendered by the caller, not Joblist
@@ -116,6 +116,15 @@ export function Joblist(
                     >
                       {inputs.preview ? '↳' : <Indicator status={step.status} />}
                       <div>{stepLabel}</div>
+                      {step.summary && !inputs.preview && (
+                        <SummaryIcon
+                          role="img"
+                          aria-label={dag.hasSummary}
+                          data-tooltip-id={TOOLTIP_ID}
+                          data-tooltip-content={dag.hasSummary}
+                          className="w-[1.1em] h-[1.1em] shrink-0 text-(--theme-muted-text-color)"
+                        />
+                      )}
                     </button>
                     {step.subworkflow && (
                       <>

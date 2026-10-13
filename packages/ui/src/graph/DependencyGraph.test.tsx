@@ -460,6 +460,14 @@ describe('DependencyGraph step summary', () => {
     rect.mockRestore()
   })
 
+  it('marks the steps that wrote a summary in the job list', () => {
+    render(<DependencyGraph run={summaryRun} />)
+    fireEvent.click(screen.getAllByText('Report')[0]!)
+    // The sidebar and the graph list the job's steps alike.
+    const marked = screen.getAllByRole('img', { name: 'Has a summary' })
+    expect(marked.map((icon) => icon.closest('button')?.textContent)).toEqual(['test', 'test'])
+  })
+
   it('shows what the host puts above the graph', () => {
     const { container } = render(
       <UIProvider>

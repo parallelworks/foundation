@@ -227,6 +227,7 @@ export {
   LuCheck as CheckStrokeIcon,
   LuChevronLeft as ChevronLeftIcon,
   LuChevronRight as ChevronRightIcon,
+  LuClipboardList as SummaryIcon,
   LuExternalLink as ExternalLink,
   LuEye as EyeIcon,
   LuEyeOff as EyeOffIcon,

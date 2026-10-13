@@ -112,6 +112,7 @@ export interface UIStrings {
     noLogFound: string
     logLoadFailed: string
     loadingSummary: string
+    hasSummary: string
     summaryLoadFailed: string
     statusLabel: (status: string) => string
     statusReason: (reason: string | undefined | null) => string | undefined
@@ -616,6 +617,7 @@ const DEFAULTS: UIProviderValue = {
       noLogFound: 'No log found',
       logLoadFailed: 'Log could not be loaded',
       loadingSummary: 'Loading summary',
+      hasSummary: 'Has a summary',
       summaryLoadFailed: 'Summary could not be loaded',
       statusLabel: (status) => status,
       statusReason: () => undefined,
