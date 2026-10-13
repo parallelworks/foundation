@@ -11,7 +11,6 @@ import TextAreaField from './Fields/TextAreaField'
 
 const baseProps = {
   labelPosition: 'top' as const,
-  missing: false,
   disabled: false,
 }
 
@@ -99,19 +98,21 @@ describe('a form field’s required mark', () => {
   })
 })
 
-describe('a field missing its value', () => {
-  const missing = { ...baseProps, missing: true }
+describe('a field with an error', () => {
+  const invalid = { ...baseProps, error: 'Enter a value.' }
 
-  it('marks a text input invalid', () => {
+  it('marks a text input invalid and shows the message, described by it', () => {
     renderField(
-      <StringField {...missing} field={{ type: 'string', name: 'testField' }} label="Region" />,
+      <StringField {...invalid} field={{ type: 'string', name: 'testField' }} label="Region" />,
     )
-    expect(screen.getByRole('textbox', { name: /Region/ })).toHaveAttribute('aria-invalid', 'true')
+    const input = screen.getByRole('textbox', { name: /Region/ })
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+    expect(input).toHaveAccessibleDescription('Enter a value.')
   })
 
   it('marks a duration invalid', () => {
     renderField(
-      <DurationField {...missing} field={{ type: 'duration', name: 'testField' }} label="Wait" />,
+      <DurationField {...invalid} field={{ type: 'duration', name: 'testField' }} label="Wait" />,
     )
     expect(screen.getByRole('textbox', { name: /Wait/ })).toHaveAttribute('aria-invalid', 'true')
   })
@@ -119,7 +120,7 @@ describe('a field missing its value', () => {
   it('marks a group of checkboxes invalid', () => {
     renderField(
       <CheckboxGroupField
-        {...missing}
+        {...invalid}
         field={{ type: 'checkbox-group', name: 'testField', options: ['a', 'b'] }}
         label="Zones"
       />,

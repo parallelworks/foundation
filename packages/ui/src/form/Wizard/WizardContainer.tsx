@@ -1,10 +1,19 @@
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { useFormContext, useWatch } from 'react-hook-form'
 import { useStrings, useWorkflowEngine } from '../../components/Provider'
 import { useFormEditing } from '../formEditing'
 import { initializeValues } from '../lib'
 import { fieldPath } from '../utils/fieldPath'
 import { getValueUsingPath } from '../utils/getValueUsingPath'
+import { FormChecksContext } from '../validation'
 import type { StepFieldConfig, WizardContainerProps } from './types'
 import { useWizardState } from './useWizardState'
 import { copyBounds, stepText } from './utils'
@@ -35,7 +44,8 @@ export function WizardContainer({
   fieldNamePrefix = '',
 }: WizardContainerProps) {
   const form = useFormContext<Record<string, unknown>>()
-  const { control, getValues, getFieldState, subscribe } = form
+  const { control, getValues, trigger, subscribe } = form
+  const { check, serverErrors, serverErrorsKey } = useContext(FormChecksContext)
   const editing = useFormEditing()
   const pages = useContext(WizardPagesContext)
   const [ownPage, setOwnPage] = useState(0)
@@ -216,13 +226,13 @@ export function WizardContainer({
     [shown],
   )
 
-  const validateCurrentStep = useCallback(
-    async (pageKey: string) => {
+  // The store paths of a page's fields.
+  const pagePaths = useCallback(
+    (pageKey: string): string[] => {
       const page = shown.byKey[pageKey]
       if (!page?.config.options) {
-        return true
+        return []
       }
-
       // Where the page's fields keep their values: a copy's row, where the wizard's do, or under the step's name.
       const stepPrefix =
         page.copy !== undefined
@@ -230,12 +240,19 @@ export function WizardContainer({
           : config.flatten !== false
             ? fieldNamePrefix
             : `${fieldNamePrefix}${page.step}.`
-      const stepFieldPaths = Object.keys(page.config.options).map((name) => `${stepPrefix}${name}`)
-
-      // A field the form marks missing holds the page.
-      return !stepFieldPaths.some((path) => getFieldState(fieldPath(path)).invalid)
+      return fieldsOf(page.config.options).map((name) => fieldPath(`${stepPrefix}${name}`))
     },
-    [shown, config, fieldNamePrefix, getFieldState],
+    [shown, config, fieldNamePrefix],
+  )
+
+  // A page holds while a field it shows breaks a rule, such as needing a value. The server's errors
+  // don't hold it, and a field the page hides isn't checked.
+  const validateCurrentStep = useCallback(
+    async (pageKey: string) => {
+      const paths = pagePaths(pageKey)
+      return paths.length === 0 || check(() => trigger(paths))
+    },
+    [pagePaths, check, trigger],
   )
 
   const {
@@ -254,6 +271,21 @@ export function WizardContainer({
     validateStep: validateCurrentStep,
   })
 
+  // Each time the host reports the server's errors, the wizard turns to the first page holding one.
+  const turnToServerError = useEffectEvent(() => {
+    if (editing || serverErrors.size === 0) {
+      return
+    }
+    const holds = (path: string) =>
+      [...serverErrors].some((error) => error === path || error.startsWith(`${path}.`))
+    const key = shown.order.find((pageKey) => pagePaths(pageKey).some(holds))
+    if (key !== undefined && key !== currentStep) {
+      showStep(key)
+    }
+  })
+  // biome-ignore lint/correctness/useExhaustiveDependencies: turns once per set the host reports
+  useEffect(() => turnToServerError(), [serverErrorsKey])
+
   const navigation = config.navigation ?? {}
 
   const handleSubmit = useCallback(async () => {
@@ -261,14 +293,16 @@ export function WizardContainer({
       return
     }
     let submitted = false
-    await form.handleSubmit(async (values) => {
-      submitted = true
-      await onSubmit?.(values)
-    })()
+    await check(() =>
+      form.handleSubmit(async (values) => {
+        submitted = true
+        await onSubmit?.(values)
+      })(),
+    )
     if (!submitted) {
       throw new Error(strings.fixErrorsToContinue)
     }
-  }, [isLastStep, form, onSubmit, strings])
+  }, [isLastStep, form, check, onSubmit, strings])
 
   // A form being built pages as it will when run, moving freely: no step blocks the next, every
   // step can be jumped to, and the editor can turn the pages too.
@@ -489,4 +523,14 @@ function takeAside(aside: unknown[], index: number): unknown {
   const row = aside[index]
   delete aside[index]
   return row
+}
+
+/** A page's fields by name, through its groups, whose fields keep their values beside the group's. */
+function fieldsOf(options: Record<string, unknown>): string[] {
+  return Object.entries(options).flatMap(([name, field]) => {
+    const { type, options: inner } = (field ?? {}) as { type?: unknown; options?: unknown }
+    return type === 'group' && inner && typeof inner === 'object'
+      ? fieldsOf(inner as Record<string, unknown>)
+      : [name]
+  })
 }

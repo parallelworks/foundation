@@ -422,6 +422,10 @@ export interface UIStrings {
     }
   }
   form: {
+    /** Under a field the form needs a value in. */
+    required: string
+    /** Under a field the server rejected without saying why. */
+    checkValue: string
     invalidDuration: string
     durationOutOfRange: (min: string, max: string) => string
     durationBelowMin: (min: string) => string
@@ -1024,6 +1028,8 @@ const DEFAULTS: UIProviderValue = {
       },
     },
     form: {
+      required: 'Enter a value.',
+      checkValue: 'Check this value.',
       invalidDuration: 'Enter a duration as DD-HH:MM:SS or HH:MM:SS.',
       durationOutOfRange: (min, max) => `Must be between ${min} and ${max}.`,
       durationBelowMin: (min) => `Must be at least ${min}.`,

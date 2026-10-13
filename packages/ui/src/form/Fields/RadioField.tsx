@@ -14,7 +14,7 @@ export interface IRadioField extends BaseField {
 }
 
 export default function RadioField(props: FieldComponentProps<IRadioField>) {
-  const { field, missing, disabled, onChange } = props
+  const { field, error, disabled, onChange } = props
   // The form names every field before it renders one.
   const [value, change] = useFieldValue<unknown>(field.name ?? '')
   const options = (field.options ?? []).map((raw) => ({
@@ -47,7 +47,7 @@ export default function RadioField(props: FieldComponentProps<IRadioField>) {
         >
           {options.map((option) => (
             <FieldOption key={option.value} disabled={disabled} className="flex items-center gap-2">
-              <Radio value={option.value} aria-invalid={missing || undefined} />
+              <Radio value={option.value} aria-invalid={error !== undefined || undefined} />
               <span className={cx('theme-text', option.unlabelled && 'capitalize')}>
                 {option.label}
               </span>

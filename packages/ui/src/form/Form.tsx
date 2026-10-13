@@ -4,6 +4,7 @@ import {
   type CSSProperties,
   createContext,
   memo,
+  useCallback,
   useContext,
   useEffect,
   useEffectEvent,
@@ -13,6 +14,7 @@ import {
   useState,
 } from 'react'
 import {
+  type FieldError,
   FormProvider,
   get,
   type UseFormReturn,
@@ -37,6 +39,12 @@ import { atIndex, fieldPath, rowIndexOf } from './utils/fieldPath'
 import { getParentValue } from './utils/getParentValue'
 import { getValueUsingPath } from './utils/getValueUsingPath'
 import { shareEqual } from './utils/shareEqual'
+import {
+  type FormChecks,
+  FormChecksContext,
+  RequiredFieldContext,
+  type ServerError,
+} from './validation'
 import { parseWizardConfig } from './Wizard/utils'
 import { WizardContainer } from './Wizard/WizardContainer'
 
@@ -579,7 +587,7 @@ interface FormFieldProps {
 
 /**
  * One field of the schema. It renders again only when what it reads changes: an input its expressions
- * or conditions read, or whether the form marks it missing. Its own value is its input's business.
+ * or conditions read, or the error the form shows under it. Its own value is its input's business.
  */
 const FormField = memo(function FormField({
   fieldName,
@@ -594,6 +602,7 @@ const FormField = memo(function FormField({
 }: FormFieldProps) {
   const { control, getValues, setValue, unregister } = useFormContext<FormValues>()
   const { workflowForm } = useContext(FormOptionsContext)
+  const { form: strings } = useStrings()
   const editing = useFormEditing()
   const parse = useFieldParse(optionsField, nested ? arrayIndex : undefined)
   // The row a field's `[index]` paths read: its own list's, or the nearest list's around it.
@@ -733,19 +742,25 @@ const FormField = memo(function FormField({
       )
   }
 
+  // A field needs a value unless it is optional or has a default. A boolean always holds one, and a
+  // field the person can't change, or one still being built, holds nothing back.
+  const required =
+    !fieldObj.optional && !fieldObj.disabled && fieldObj.type !== 'boolean' && !editing
   const input = (
     <div className={cx('flex w-full', labelPosition === 'left' ? 'mb-[15px]' : 'mb-[5px]')}>
-      <Registry
-        field={fieldObj}
-        label={fieldObj.label ?? ''}
-        labelPosition={labelPosition}
-        missing={get(errors, name) !== undefined}
-        onChange={onChange}
-        disabled={Boolean(fieldObj.disabled)}
-        computeOn={computeOn || fieldObj.computeOn}
-        spaceCompact={spaceCompact}
-        tooltipComponent={tooltipComponent}
-      />
+      <RequiredFieldContext value={required ? { name, message: strings.required } : null}>
+        <Registry
+          field={fieldObj}
+          label={fieldObj.label ?? ''}
+          labelPosition={labelPosition}
+          error={errorMessage(get(errors, name), strings)}
+          onChange={onChange}
+          disabled={Boolean(fieldObj.disabled)}
+          computeOn={computeOn || fieldObj.computeOn}
+          spaceCompact={spaceCompact}
+          tooltipComponent={tooltipComponent}
+        />
+      </RequiredFieldContext>
     </div>
   )
   if (!editing || !path) {
@@ -761,6 +776,21 @@ const FormField = memo(function FormField({
     </editing.Row>
   )
 })
+
+/** The message under a field for its error, if it has one of its own rather than errors in fields
+ *  inside it. */
+function errorMessage(
+  error: FieldError | undefined,
+  strings: { required: string; checkValue: string },
+): string | undefined {
+  if (typeof error?.type !== 'string') {
+    return undefined
+  }
+  if (typeof error.message === 'string' && error.message !== '') {
+    return error.message
+  }
+  return error.type === 'server' ? strings.checkValue : strings.required
+}
 
 /** Renders a schema's fields. Inside another field, `parentInfo` says where their values sit. */
 export function FieldsFromOptions({
@@ -1016,8 +1046,12 @@ export interface DynamicFormProps {
   /** Every change to the form's values, as it happens. */
   onValuesChange?: (values: FormValues) => void
   labelPosition?: 'left' | 'top'
-  /** Fields to mark as missing a value, by name; the form sets them as `required` errors. */
-  missingFields?: string[] | undefined
+  /**
+   * Fields the server rejected, each shown under its field until the person changes it. They never
+   * hold back Next or a submit, since the server checks again, and a wizard turns to the first page
+   * holding one. `useFieldMessages` from the problem package gives them from a problem response.
+   */
+  serverErrors?: readonly ServerError[] | undefined
   spaceCompact?: boolean
   organizationVariables?: WorkflowVariables | undefined
   /** A remote workflow's repo/branch/yaml, so `${{ remote.* }}` resolves the same here as it does on the run. */
@@ -1039,7 +1073,7 @@ export interface DynamicFormProps {
 }
 
 const NO_FIELDS: Record<string, FieldComponent> = {}
-const NO_MISSING: string[] = []
+const NO_SERVER_ERRORS: readonly ServerError[] = []
 
 /** A form drawn from a workflow's schema. */
 export function DynamicForm({ form, ...props }: DynamicFormProps) {
@@ -1058,7 +1092,7 @@ function DynamicFormBody({
   initialValues,
   onValuesChange,
   labelPosition = 'left',
-  missingFields = NO_MISSING,
+  serverErrors = NO_SERVER_ERRORS,
   spaceCompact = false,
   organizationVariables,
   remoteVars,
@@ -1119,17 +1153,7 @@ function DynamicFormBody({
   // Every field reads these, so they keep their identity while they hold.
   const formOptions = useMemo(() => ({ workflowForm }), [workflowForm])
 
-  const missing = missingFields.join('\n')
-  useEffect(() => {
-    if (!missing || loaded === undefined) {
-      return
-    }
-    const names = missing.split('\n').map(fieldPath)
-    for (const name of names) {
-      form.setError(name, { type: 'required' })
-    }
-    return () => form.clearErrors(names)
-  }, [form, missing, loaded])
+  const checks = useServerErrors(form, serverErrors, loaded !== undefined)
 
   return (
     <FieldRegistryContext.Provider value={fields}>
@@ -1143,18 +1167,22 @@ function DynamicFormBody({
                 <FormProvider {...form}>
                   <form
                     className="w-full text-[13px]"
-                    onSubmit={form.handleSubmit((values) => onSubmit?.(values))}
+                    onSubmit={(event) =>
+                      checks.check(() => form.handleSubmit((values) => onSubmit?.(values))(event))
+                    }
                   >
-                    <DynamicFormContent
-                      options={options}
-                      labelPosition={labelPosition}
-                      spaceCompact={spaceCompact}
-                      organizationVariables={organizationVariables}
-                      remoteVars={remoteVars}
-                      onSubmit={onSubmit}
-                      submitLabel={submitLabel ?? common.submit}
-                      contextKey={contextKey}
-                    />
+                    <FormChecksContext value={checks}>
+                      <DynamicFormContent
+                        options={options}
+                        labelPosition={labelPosition}
+                        spaceCompact={spaceCompact}
+                        organizationVariables={organizationVariables}
+                        remoteVars={remoteVars}
+                        onSubmit={onSubmit}
+                        submitLabel={submitLabel ?? common.submit}
+                        contextKey={contextKey}
+                      />
+                    </FormChecksContext>
                   </form>
                 </FormProvider>
               )
@@ -1164,4 +1192,96 @@ function DynamicFormBody({
       </LayoutCSSContext.Provider>
     </FieldRegistryContext.Provider>
   )
+}
+
+/**
+ * The server's errors on the form: each is set on its field until the person changes the field's
+ * value, and set again whenever the host reports a new set. A check of the form sets them aside while
+ * it runs, so they never hold the person back.
+ */
+function useServerErrors(
+  form: UseFormReturn<FormValues>,
+  serverErrors: readonly ServerError[],
+  loaded: boolean,
+): FormChecks {
+  const key = JSON.stringify(
+    serverErrors
+      .map((error) => [fieldPath(error.path), error.message ?? ''])
+      .filter(([path]) => path !== ''),
+  )
+  const [given, setGiven] = useState({ key, open: openErrors(key) })
+  let open = given.open
+  if (given.key !== key) {
+    open = openErrors(key)
+    setGiven({ key, open })
+  }
+  const latest = useRef(open)
+  useEffect(() => {
+    latest.current = open
+    if (!loaded || open.size === 0) {
+      return
+    }
+    const paths = [...open.keys()]
+    const read = (values: FormValues, path: string) =>
+      JSON.stringify(getValueUsingPath(values, path))
+    const before = new Map(paths.map((path) => [path, read(form.getValues(), path)]))
+    for (const [path, message] of open) {
+      setServerError(form, path, message)
+    }
+    const unsubscribe = form.subscribe({
+      formState: { values: true },
+      callback: ({ values }) => {
+        const changed = paths.filter((path) => read(values, path) !== before.get(path))
+        if (changed.length > 0) {
+          setGiven((current) => ({
+            key: current.key,
+            open: new Map([...current.open].filter(([path]) => !changed.includes(path))),
+          }))
+        }
+      },
+    })
+    return () => {
+      unsubscribe()
+      clearServerErrors(form, paths)
+    }
+  }, [form, open, loaded])
+
+  const check = useCallback(
+    async <T,>(run: () => Promise<T>): Promise<T> => {
+      const kept = latest.current
+      clearServerErrors(form, kept.keys())
+      try {
+        return await run()
+      } finally {
+        for (const [path, message] of kept) {
+          if (!form.getFieldState(path).error) {
+            setServerError(form, path, message)
+          }
+        }
+      }
+    },
+    [form],
+  )
+  return useMemo(
+    () => ({ serverErrors: new Set(open.keys()), serverErrorsKey: key, check }),
+    [open, key, check],
+  )
+}
+
+/** The server's errors in a set, by store path, to the message each gives, if any. */
+function openErrors(key: string): ReadonlyMap<string, string> {
+  return new Map(JSON.parse(key) as [string, string][])
+}
+
+function setServerError(form: UseFormReturn<FormValues>, path: string, message: string) {
+  form.setError(path, message ? { type: 'server', message } : { type: 'server' })
+}
+
+/** Clears the server's errors at these paths, leaving any error the form's own check set there. */
+function clearServerErrors(form: UseFormReturn<FormValues>, paths: Iterable<string>) {
+  for (const path of paths) {
+    if (form.getFieldState(path).error?.type === 'server') {
+      form.clearErrors(path)
+    }
+  }
 }

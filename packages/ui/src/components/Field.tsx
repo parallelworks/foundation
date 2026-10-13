@@ -35,7 +35,7 @@ export interface FieldProps {
   description?: ReactNode
   /** A message under the control. It also marks the control invalid. */
   error?: ReactNode
-  /** Marks the control invalid without a message, such as a required value still missing. */
+  /** Marks the control invalid without a message, for one shown elsewhere. */
   invalid?: boolean | undefined
   required?: boolean | undefined
   disabled?: boolean | undefined

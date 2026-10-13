@@ -284,13 +284,36 @@ const { isDirty } = useFormState({ control: form.control })
 
 `form.getValues()`, `form.reset()` and `formState.isDirty` then work as
 react-hook-form documents them. Without `form`, the form keeps its own;
-`onValuesChange` reports each change either way. `missingFields` marks fields
-as `required` errors.
+`onValuesChange` reports each change either way.
+
+## Validation
+
+A field with neither `optional` nor a `default` needs a value. A submit, or
+Next on a wizard page, checks the fields the form shows, says "Enter a value."
+under each empty one and holds until it is filled; once a field shows an
+error it checks again with each change. A hidden field, a disabled one and a
+boolean never hold the form.
+
+`serverErrors` shows what the server rejected, each under its field until the
+person changes it. A path may come in any convention: a workflow's
+`hosts[0].cpus`, a problem response's JSON Pointer `#/hosts/0/cpus`, or
+`hosts.0.cpus`. Without a message the field says to check its value. They
+never hold back Next or a submit, since the server checks again, and a wizard
+turns to the first page holding one. From a problem response:
+
+```tsx
+const fieldMessages = useFieldMessages() // @parallelworks/problem/react
+<DynamicForm serverErrors={save.error ? fieldMessages(save.error) : undefined} … />
+```
+
+A field component receives the form's message as `error`; `fieldFrame(props)`
+shows it through `Field`.
 
 Each field subscribes only to what it reads, so typing renders the edited
 field and whatever reads it, not the whole form. A host field component,
 passed through `fields` or `slots.formFields`, binds the same way: its own
-value with `useFieldValue(field.name)` (or `useController`), another input's
+value with `useFieldValue(field.name)`, which also gives the form the field's
+rules (a component's own `useController` would drop them), another input's
 with `useFieldAt(path)` or `useWatch`, and a pick from a list with
 `useChoiceField`, which applies `autoselect` and `secondaryField`.
 

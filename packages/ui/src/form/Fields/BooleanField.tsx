@@ -39,7 +39,7 @@ export default function BooleanField(props: FieldComponentProps<IBooleanField>) 
       : undefined
 
   return (
-    // A boolean is always set, so the field is never missing a value.
+    // A boolean is always set, so the field never needs a value.
     <Field {...fieldFrame(props)} required={false}>
       {(control) => (
         <Tooltip content={field.disabled_message} disabled={!disabled}>

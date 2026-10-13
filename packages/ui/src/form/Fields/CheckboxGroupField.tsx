@@ -37,7 +37,7 @@ function union(manual: string[], forced: Set<string>): string[] {
 }
 
 export default function CheckboxGroupField(props: FieldComponentProps<ICheckboxGroupField>) {
-  const { field, missing, disabled, onChange } = props
+  const { field, error, disabled, onChange } = props
   // The form names every field before it renders one.
   const [value, change] = useFieldValue<Array<string | number> | undefined>(field.name ?? '')
   const implies = field.implies
@@ -96,7 +96,7 @@ export default function CheckboxGroupField(props: FieldComponentProps<ICheckboxG
                 checked={manual.includes(option.value) || locked}
                 disabled={optionDisabled}
                 onCheckedChange={() => handleToggle(option.value)}
-                aria-invalid={missing || undefined}
+                aria-invalid={error !== undefined || undefined}
                 // Down to the first line of a label that may wrap.
                 className="mt-0.5"
               />

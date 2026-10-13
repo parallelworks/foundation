@@ -19,7 +19,6 @@ describe('RangeField default seeding', () => {
     },
     label: 'Wait',
     labelPosition: 'top',
-    missing: false,
     disabled: false,
   })
 

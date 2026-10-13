@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useForm, useFormState } from 'react-hook-form'
-import { expect, screen, userEvent, waitFor, within } from 'storybook/test'
+import { expect, fn, screen, userEvent, waitFor, within } from 'storybook/test'
 import { Button } from '../components/Button'
 import { DynamicForm, type FormValues } from './Form'
 
@@ -13,9 +13,10 @@ const meta: Meta<typeof DynamicForm> = {
       description: 'Host opt-in for validated CSS declarations on layout nodes.',
     },
     formJSONs: { control: 'object', description: 'Input definitions and optional $meta.layout.' },
-    missingFields: {
+    serverErrors: {
       control: 'object',
-      description: 'Field names the host marks as missing a value, set as `required` errors.',
+      description:
+        'Fields the server rejected, by any path (`hosts[0].cpus`, `#/hosts/0/cpus`), each with an optional message.',
     },
     onValuesChange: { action: 'values changed' },
   },
@@ -82,12 +83,53 @@ export const ClusterSettings: StoryObj<typeof DynamicForm> = {
   },
 }
 
-/** The host marks fields it found missing a value: the form sets them as errors, and only those
- * fields draw again. */
-export const MissingFields: StoryObj<typeof DynamicForm> = {
+/** The server rejected fields the form sent: each shows the server's message under it, or asks to
+ * check the value, until the person changes it. They never hold back a submit. */
+export const ServerErrors: StoryObj<typeof DynamicForm> = {
   args: {
     ...ClusterSettings.args,
-    missingFields: ['name', 'size'],
+    serverErrors: [
+      { path: 'settings.name', message: 'A cluster with this name already exists.' },
+      { path: '#/settings/nodes' },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const name = await canvas.findByRole('textbox', { name: /Name/ }, { timeout: 5000 })
+    await waitFor(() =>
+      expect(name).toHaveAccessibleDescription('A cluster with this name already exists.'),
+    )
+    await expect(canvas.getByText('Check this value.')).toBeVisible()
+    await userEvent.type(name, '-2')
+    await waitFor(() => expect(name).not.toHaveAttribute('aria-invalid'))
+    await expect(canvas.getByText('Check this value.')).toBeVisible()
+  },
+}
+
+/** A field with neither `optional` nor a default needs a value: a submit, or Next in a wizard, says
+ * so under each empty one, and the message goes as the person fills it. */
+export const RequiredFields: StoryObj<typeof DynamicForm> = {
+  args: {
+    formJSONs: {
+      name: { type: 'string', label: 'Cluster name' },
+      size: { type: 'dropdown', label: 'Instance size', options: ['small', 'medium', 'large'] },
+      notes: { type: 'string', label: 'Notes', optional: true },
+      nodes: { type: 'number', label: 'Nodes', default: 2 },
+    },
+    initialValues: {},
+    skipValueParse: true,
+    onSubmit: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement)
+    const name = await canvas.findByRole('textbox', { name: /Cluster name/ }, { timeout: 5000 })
+    await userEvent.click(canvas.getByRole('button', { name: 'Submit' }))
+    await waitFor(() => expect(name).toHaveAccessibleDescription('Enter a value.'))
+    await expect(canvas.getAllByText('Enter a value.')).toHaveLength(2)
+    await expect(args.onSubmit).not.toHaveBeenCalled()
+    await userEvent.type(name, 'demo')
+    await waitFor(() => expect(name).not.toHaveAttribute('aria-invalid'))
+    await expect(canvas.getAllByText('Enter a value.')).toHaveLength(1)
   },
 }
 

@@ -2,14 +2,14 @@ import type { FieldProps } from '../components/Field'
 import { resolvedFlag } from './lib'
 import type { FieldComponentProps } from './types/fieldComponentTypes'
 
-/** How a form field's props frame it: its label, help, description, required mark and missing
- *  state, laid out as the form lays out its fields. Spread on `Field`. */
+/** How a form field's props frame it: its label, help, description, required mark and error,
+ *  laid out as the form lays out its fields. Spread on `Field`. */
 export function fieldFrame(
   {
     field,
     label,
     labelPosition,
-    missing,
+    error,
     disabled,
     spaceCompact,
     tooltipComponent,
@@ -22,7 +22,7 @@ export function fieldFrame(
     description: field.description,
     group,
     required: !resolvedFlag(field.optional),
-    invalid: missing,
+    error,
     disabled,
     layout: labelPosition === 'top' ? 'stacked' : 'inline',
     compact: spaceCompact,

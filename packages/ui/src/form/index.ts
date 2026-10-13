@@ -62,3 +62,4 @@ export {
 export type { FieldOption, FieldOptionGroup, FieldOptionItem } from './utils/fieldItems'
 export { getPlaceholder } from './utils/getPlaceholder'
 export { applySecondaryField } from './utils/secondaryField'
+export type { ServerError } from './validation'

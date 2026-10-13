@@ -143,7 +143,7 @@ export default function DurationField(props: FieldComponentProps<IDurationField>
   }
 
   return (
-    <Field {...fieldFrame(props)} error={error ?? undefined}>
+    <Field {...fieldFrame(props)} error={error ?? props.error}>
       {(control) => (
         <>
           {!isSentinel && (
