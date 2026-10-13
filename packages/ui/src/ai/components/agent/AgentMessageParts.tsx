@@ -2,6 +2,7 @@ import { clsx as cx } from 'clsx'
 import { useEffect, useMemo, useState } from 'react'
 import { Disclosure } from '../../../components/Disclosure'
 import { Loader } from '../../../components/Loader'
+import { useStrings } from '../../../components/Provider'
 import { useCssIsDark } from '../../../components/useCssIsDark'
 import { formatDuration } from '../../../format'
 import { CheckIcon } from '../../../icons'
@@ -164,7 +165,7 @@ function EditDiffBlock({ part }: { part: ToolCallPart }) {
   if (!a) {
     return null
   }
-  const outcome = editSummary(part.name, part.args)
+  const outcome = editSummary(part.name, part.args, strings.tools)
   const model =
     part.name === 'EditFile'
       ? computeEditDiff(a.old_string ?? '', a.new_string ?? '', part.startLine)
@@ -180,6 +181,7 @@ function EditDiffBlock({ part }: { part: ToolCallPart }) {
 
 function ResultBody({ part }: { part: ToolCallPart }) {
   const { strings } = useChatConfig()
+  const { common } = useStrings()
   const t = strings.agentTranscript
   const [showAll, setShowAll] = useState(false)
   const result = part.result ?? ''
@@ -224,7 +226,7 @@ function ResultBody({ part }: { part: ToolCallPart }) {
           onClick={() => setShowAll(false)}
           className="text-xs text-(--theme-link) hover:underline"
         >
-          {t.showLess}
+          {common.showLess}
         </button>
       )}
     </div>
@@ -254,7 +256,10 @@ function ToolCallBlock({ part }: { part: ToolCallPart }) {
   const summary =
     part.status === 'running'
       ? t.running
-      : toolSummary(part.name, part.args, part.result ?? '', part.status === 'error', editSummary)
+      : toolSummary(part.name, part.args, part.result ?? '', part.status === 'error', {
+          editSummary,
+          strings: strings.tools,
+        })
   return (
     <div className="py-1.5 text-sm" data-testid="tool-call-part">
       <Disclosure
@@ -387,6 +392,7 @@ function ConfirmApproval({
   onAnswer?: PartRendererProps['onApprovalAnswer']
 }) {
   const { strings } = useChatConfig()
+  const { common } = useStrings()
   const t = strings.agentTranscript
   const [feedback, setFeedback] = useState<string | null>(null)
   const answer = (a: Parameters<NonNullable<typeof onAnswer>>[1]) => onAnswer?.(part.id, a)
@@ -459,7 +465,7 @@ function ConfirmApproval({
             }
             className="px-3 py-1 text-xs font-medium rounded-full bg-(--theme-element) text-(--theme-element-text) disabled:opacity-50"
           >
-            {t.send}
+            {common.send}
           </button>
         </div>
       )}
@@ -475,6 +481,7 @@ function AskApproval({
   onAnswer?: PartRendererProps['onApprovalAnswer']
 }) {
   const { strings } = useChatConfig()
+  const { common } = useStrings()
   const t = strings.agentTranscript
   const [own, setOwn] = useState<string | null>(null)
   const answer = (text: string) => onAnswer?.(part.id, { kind: 'ask', text })
@@ -529,7 +536,7 @@ function AskApproval({
             onClick={() => answer(own.trim())}
             className="px-3 py-1 text-xs font-medium rounded-full bg-(--theme-element) text-(--theme-element-text) disabled:opacity-50"
           >
-            {t.send}
+            {common.send}
           </button>
         </div>
       )}
@@ -837,8 +844,10 @@ function RollupGroup({
   members: RunMember[]
   message: PartRendererProps['message']
 }) {
+  const { strings } = useChatConfig()
   const sentence = rollupSentence(
     members.flatMap((m) => (m.part.kind === 'tool_call' ? [m.part.name] : [])),
+    strings.tools,
   )
   return (
     <div className="py-1.5 text-sm" data-testid="tool-rollup">

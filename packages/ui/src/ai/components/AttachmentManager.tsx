@@ -3,6 +3,7 @@ import { useCallback, useMemo, useState } from 'react'
 import useSWRInfinite from 'swr/infinite'
 import { EmptyState } from '../../components/EmptyState'
 import { Loader } from '../../components/Loader'
+import { useStrings } from '../../components/Provider'
 import { RelativeTime } from '../../components/relativeTime'
 import { formatBytes } from '../../format'
 import { DownloadFileIcon, FileIcon, TrashIcon } from '../../icons'
@@ -27,6 +28,7 @@ function triggerDownload(url: string, filename: string) {
 export default function AttachmentManager() {
   const { adapter, notify } = useChat()
   const t = useChatConfig().strings.attachmentManager
+  const { common } = useStrings()
   const attachmentsAdapter = adapter.attachments
 
   const [deleting, setDeleting] = useState<string | null>(null)
@@ -162,7 +164,7 @@ export default function AttachmentManager() {
                               type="button"
                               onClick={() => triggerDownload(downloadUrl, att.filename || 'File')}
                               className="p-1.5 rounded-lg hover:theme-hover theme-muted-text transition-colors"
-                              title={t.download}
+                              title={common.download}
                             >
                               <DownloadFileIcon className="w-4 h-4" />
                             </button>
@@ -171,7 +173,7 @@ export default function AttachmentManager() {
                               onClick={() => handleDelete(att.id)}
                               disabled={isDeleting}
                               className="p-1.5 rounded-lg hover:bg-red-500/15 theme-muted-text hover:text-red-600 transition-colors"
-                              title={t.delete}
+                              title={common.delete}
                             >
                               <TrashIcon className="w-4 h-4" />
                             </button>
@@ -190,7 +192,7 @@ export default function AttachmentManager() {
                       disabled={isValidating}
                       className="px-6 py-3 text-sm rounded-lg theme-muted-panel hover:theme-hover transition-colors disabled:opacity-50"
                     >
-                      {isValidating ? t.loading : t.loadMore}
+                      {isValidating ? common.loading : common.loadMore}
                     </button>
                   </div>
                 )}

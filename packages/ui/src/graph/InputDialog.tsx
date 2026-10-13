@@ -1164,7 +1164,7 @@ function valueError(
           : t.wholeNumberFrom(prop.wholeFrom)
       }
       return raw && !EXPRESSION.test(raw) && !Number.isFinite(Number(raw))
-        ? t.invalidNumber
+        ? t.common.invalidNumber
         : undefined
     }
     case 'flag':
@@ -1277,7 +1277,7 @@ function TemplateFields({
             />
             <IconButton
               icon={<ArrowUpIcon />}
-              label={t.moveUp}
+              label={t.common.moveUp}
               variant="ghost"
               size="sm"
               disabled={i === 0}
@@ -1285,7 +1285,7 @@ function TemplateFields({
             />
             <IconButton
               icon={<ArrowDownIcon />}
-              label={t.moveDown}
+              label={t.common.moveDown}
               variant="ghost"
               size="sm"
               disabled={i === names.length - 1}
@@ -2096,7 +2096,7 @@ function InputViews({
   }
   const nextName = name.trim()
   const nameError = !editing.isValidInputName(nextName)
-    ? t.invalidInputName
+    ? t.common.invalidName
     : (nextName !== props.name && props.siblings.includes(nextName)) ||
         newInputs.pending.some((input) => input.name === nextName)
       ? t.inputExists
@@ -2296,7 +2296,7 @@ function InputForm({
   const trimmedName = draftName.trim()
   const errors: Record<string, string | undefined> = {
     name: !editing.isValidInputName(trimmedName)
-      ? t.invalidInputName
+      ? t.common.invalidName
       : siblings.includes(trimmedName) ||
           newInputs.pending.some((input) => input.name === trimmedName)
         ? t.inputExists
@@ -2341,7 +2341,7 @@ function InputForm({
     }
     // The opt-out value is sent as it is, so it can't be an expression.
     if (typeof optOut === 'string') {
-      errors[draftKey(DISABLE_VALUE)] = t.invalidNumber
+      errors[draftKey(DISABLE_VALUE)] = t.common.invalidNumber
     }
     // A default of the opt-out value starts the form with its box ticked.
     const defaultKey = draftKey(DURATION_DEFAULT)

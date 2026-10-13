@@ -153,10 +153,11 @@ export { Radio, RadioGroup, type RadioProps } from './components/Radio'
 export { RefreshButton, type RefreshButtonProps } from './components/RefreshButton'
 export { RequiredMark } from './components/RequiredMark'
 export {
+  Elapsed,
   RelativeTime,
   type RelativeTimeFormat,
-  type TimeValue,
   useClock,
+  useElapsed,
   useRelativeTime,
 } from './components/relativeTime'
 export {
@@ -191,6 +192,7 @@ export {
   TooltipProvider,
   type TooltipSide,
 } from './components/Tooltip'
+export { type CopyOptions, useCopy } from './components/useCopy'
 export { useCssIsDark } from './components/useCssIsDark'
 export type {
   EditRefusalReason,
@@ -226,5 +228,12 @@ export type {
   WorkflowVariable,
   WorkflowVariables,
 } from './engine'
-export { formatBytes, formatCount, formatDuration } from './format'
+export {
+  formatBytes,
+  formatCount,
+  formatDateTime,
+  formatDuration,
+  formatTimeLeft,
+  type TimeValue,
+} from './format'
 export * from './theme/index'

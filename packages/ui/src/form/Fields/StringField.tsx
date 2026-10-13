@@ -1,5 +1,6 @@
 import { clsx as cx } from 'clsx'
 import { useMemo, useState } from 'react'
+import { useStrings } from '../../components/Provider'
 import { EyeIcon, EyeOffIcon } from '../../icons'
 import { FieldWrapper } from '../FieldWrapper'
 import type { FieldComponentProps } from '../types/fieldComponentTypes'
@@ -34,6 +35,7 @@ export default function StringField({
   // The form names every field before it renders one.
   const [value, change] = useFieldValue<string | undefined>(field.name ?? '')
   const [revealed, setRevealed] = useState(false)
+  const { common } = useStrings()
   const password = field.type === 'password'
   const fallback = field.default ?? ''
 
@@ -105,7 +107,7 @@ export default function StringField({
               onClick={() => setRevealed((shown) => !shown)}
               disabled={disabled}
               tabIndex={-1}
-              aria-label={revealed ? 'Hide value' : 'Show value'}
+              aria-label={revealed ? common.hideValue : common.showValue}
             >
               {revealed ? <EyeOffIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
             </button>

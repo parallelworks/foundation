@@ -120,6 +120,7 @@ export function DatePicker({
   className,
 }: DatePickerProps) {
   const t = useStrings().datePicker
+  const { common } = useStrings()
   const [open, setOpen] = useState(false)
   const [weekStartsOn] = useState(firstWeekday)
   const day = parseDay(value)
@@ -216,7 +217,7 @@ export function DatePicker({
                       setOpen(false)
                     }}
                   >
-                    {t.clear}
+                    {common.clear}
                   </button>
                 </div>
               )}

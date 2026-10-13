@@ -223,7 +223,7 @@ describe('DependencyGraph inline subworkflows', () => {
     }
     render(<DependencyGraph run={placedRun} preview />)
     const jobsOf = (ids: string[]) => ids.map((id) => id.split('/').pop())
-    fireEvent.click(screen.getByRole('button', { name: 'Expand All' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Expand all' }))
     expect(jobsOf(nodeIds().filter((id) => id.includes('subworkflows/')))).toEqual([
       'publish',
       'prep',
@@ -236,7 +236,7 @@ describe('DependencyGraph inline subworkflows', () => {
     render(<DependencyGraph run={run} preview />)
     // Nothing expanded initially.
     expect(screen.queryByText('Prep')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Expand All' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Expand all' }))
     expect(screen.getByText('Prep')).toBeInTheDocument()
     expect(screen.getByText('Publish')).toBeInTheDocument()
   })
@@ -274,7 +274,7 @@ describe('DependencyGraph inline subworkflows', () => {
     render(<DependencyGraph run={matrixRun} preview />)
     // The matrix is collapsed, so the subworkflow nested in a member is hidden.
     expect(screen.queryByText('Inner')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Expand All' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Expand all' }))
     // Expand All opened the matrix group, its member's steps, and the subworkflow.
     expect(screen.getByText('Inner')).toBeInTheDocument()
   })

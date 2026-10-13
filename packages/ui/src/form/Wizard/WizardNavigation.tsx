@@ -40,7 +40,7 @@ export function WizardNavigation({
     try {
       await onSubmit?.()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      setError(err instanceof Error ? err.message : t.stepFailed)
     } finally {
       setIsLoading(false)
     }
@@ -78,7 +78,7 @@ export function WizardNavigation({
           }}
           aria-label={t.previousStep}
         >
-          {prevLabel || t.previous}
+          {prevLabel || common.previous}
         </button>
 
         {/* Next / Submit button */}
@@ -124,7 +124,7 @@ export function WizardNavigation({
             aria-label={t.nextStep}
           >
             {isLoading && <Loader size={16} inline color="currentColor" />}
-            {nextLabel || t.next}
+            {nextLabel || common.next}
           </button>
         )}
       </div>

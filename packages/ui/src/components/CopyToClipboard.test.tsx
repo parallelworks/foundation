@@ -4,14 +4,14 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { CopyCodeBlock } from './CopyToClipboard'
 import { UIProvider } from './Provider'
 
-const notifyInfo = vi.fn()
+const notifySuccess = vi.fn()
 
 describe('CopyCodeBlock', () => {
   const setup = () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.assign(navigator, { clipboard: { writeText } })
     render(
-      <UIProvider notify={{ info: notifyInfo }}>
+      <UIProvider notify={{ success: notifySuccess }}>
         <CopyCodeBlock textToCopy="npm install">npm install</CopyCodeBlock>
       </UIProvider>,
     )
@@ -19,7 +19,7 @@ describe('CopyCodeBlock', () => {
   }
 
   beforeEach(() => {
-    notifyInfo.mockClear()
+    notifySuccess.mockClear()
   })
 
   it('copies once when the copy button is clicked', async () => {
@@ -29,7 +29,7 @@ describe('CopyCodeBlock', () => {
 
     await waitFor(() => expect(writeText).toHaveBeenCalledWith('npm install'))
     expect(writeText).toHaveBeenCalledTimes(1)
-    expect(notifyInfo).toHaveBeenCalledTimes(1)
+    expect(notifySuccess).toHaveBeenCalledTimes(1)
   })
 
   it('copies once when the surrounding block is clicked', async () => {
@@ -39,7 +39,7 @@ describe('CopyCodeBlock', () => {
 
     await waitFor(() => expect(writeText).toHaveBeenCalledWith('npm install'))
     expect(writeText).toHaveBeenCalledTimes(1)
-    expect(notifyInfo).toHaveBeenCalledTimes(1)
+    expect(notifySuccess).toHaveBeenCalledTimes(1)
   })
 
   it('ignores clicks while the copied check mark is showing', async () => {
@@ -52,6 +52,6 @@ describe('CopyCodeBlock', () => {
     fireEvent.click(screen.getByText('npm install'))
 
     expect(writeText).toHaveBeenCalledTimes(1)
-    expect(notifyInfo).toHaveBeenCalledTimes(1)
+    expect(notifySuccess).toHaveBeenCalledTimes(1)
   })
 })

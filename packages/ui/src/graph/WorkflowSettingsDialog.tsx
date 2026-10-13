@@ -428,7 +428,7 @@ function SettingsForm({
     userVariables:
       userVariables.expression !== undefined
         ? expressionError(userVariables.expression, t)
-        : rowsError(userVariables.rows, USER_VARIABLE, t.invalidKey, t),
+        : rowsError(userVariables.rows, USER_VARIABLE, t.common.invalidName, t),
     wizard: wizardOn
       ? WIZARD_FLAGS.map((flag) => flagError(wizardFlags[flag], t)).find(Boolean)
       : undefined,
@@ -561,7 +561,7 @@ function SettingsForm({
         {sessions.map((session, i) => (
           <Card
             key={session.key}
-            removeLabel={t.removeRow}
+            removeLabel={t.common.remove}
             onRemove={() => setSessions(sessions.filter((_, j) => j !== i))}
           >
             <Input
@@ -663,7 +663,7 @@ function SettingsForm({
         {links.map((link, i) => (
           <Card
             key={link.key}
-            removeLabel={t.removeRow}
+            removeLabel={t.common.remove}
             onRemove={() => setLinks(links.filter((_, j) => j !== i))}
           >
             <Input

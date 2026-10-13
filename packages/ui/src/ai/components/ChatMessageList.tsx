@@ -8,7 +8,8 @@ import {
   useRef,
   useState,
 } from 'react'
-import { useClock } from '../../components/relativeTime'
+import { useStrings } from '../../components/Provider'
+import { useElapsed } from '../../components/relativeTime'
 import { formatDuration } from '../../format'
 import { CheckIcon, ClockIcon } from '../../icons'
 import { useChat } from '../core/ChatProvider'
@@ -94,6 +95,7 @@ export default function ChatMessageList({
   } = useChat()
   const isStreaming = isStreamingProp ?? providerStreaming
   const { strings } = useChatConfig()
+  const { common } = useStrings()
   const tThinking = strings.thinking
   // Stable across renders so memoized ChatMessage rows don't re-render on
   // every streamed token.
@@ -458,7 +460,7 @@ export default function ChatMessageList({
                       onClick={() => onRemoveQueued(msg.id)}
                       className="rounded font-medium underline-offset-2 hover:theme-text hover:underline"
                     >
-                      {strings.queue.removeShort}
+                      {common.remove}
                     </button>
                   </>
                 )}
@@ -497,12 +499,9 @@ function ThinkingLabel({
   finalDuration: number | null
 }) {
   const t = useChatConfig().strings.thinking
-  const seconds = useClock(
-    (now) => (startedAt ? Math.floor((now - startedAt) / 1000) : 0),
-    !!startedAt,
-  )
+  const elapsed = useElapsed(startedAt)
   if (startedAt) {
-    return seconds > 0 ? `${t.label} (${seconds}s)` : t.ellipsis
+    return elapsed ? `${t.label} (${formatDuration(elapsed)})` : t.ellipsis
   }
   return t.thoughtFor(formatDuration(finalDuration ?? 0))
 }

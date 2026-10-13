@@ -1493,12 +1493,12 @@ export function InputsFormEditor({
           search: typeSearch(t),
         },
         {
-          label: t.duplicate,
+          label: t.common.duplicate,
           icon: <DuplicateIcon />,
           onClick: () => send({ type: 'duplicateInput', path }),
         },
         {
-          label: t.moveUp,
+          label: t.common.moveUp,
           icon: <ArrowUpIcon />,
           disabled: index <= 0,
           onClick: () =>
@@ -1510,7 +1510,7 @@ export function InputsFormEditor({
             }),
         },
         {
-          label: t.moveDown,
+          label: t.common.moveDown,
           icon: <ArrowDownIcon />,
           disabled: index >= count - 1,
           onClick: () =>

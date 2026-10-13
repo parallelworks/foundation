@@ -50,6 +50,38 @@
           }
         }
       }
+    },
+    {
+      "includes": ["ui/src/**/*.tsx"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noJsxLiterals": {
+              "level": "error",
+              "options": {
+                "allowedStrings": ["(", ")", "/", ":", ".", "…", "%", "·", "•", "●", "+", "*", "#"]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "**/*.stories.tsx",
+        "**/*.test.tsx",
+        "ui/src/ai/stories/**",
+        "ui/src/test/**",
+        "ui/src/components/Provider.tsx",
+        "ui/src/ai/strings.tsx"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noJsxLiterals": "off"
+          }
+        }
+      }
     }
   ],
   "assist": {

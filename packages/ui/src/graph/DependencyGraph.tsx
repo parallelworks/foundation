@@ -28,11 +28,11 @@ import { InfoTip } from '../components/InfoTip'
 import { Loader } from '../components/Loader'
 import { Modal } from '../components/Modal'
 import { useRunFile, useSlots, useStrings, useWorkflowEngine } from '../components/Provider'
-import { useClock } from '../components/relativeTime'
+import { Elapsed } from '../components/relativeTime'
 import type { GraphLayout } from '../editing'
 import type { RunStatus, WorkflowEngine } from '../engine'
 import { initializeValues } from '../form/lib'
-import { formatDuration } from '../format'
+import { formatDateTime } from '../format'
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -97,6 +97,7 @@ function ViewToggle({
   viewMode: ViewMode
   setViewMode: (mode: ViewMode) => void
 }) {
+  const { dag: t } = useStrings()
   return (
     <div className="flex border border-[var(--theme-border)] rounded overflow-hidden">
       <button
@@ -109,7 +110,7 @@ function ViewToggle({
             : 'text-[var(--theme-muted-text-color)] hover:text-[var(--theme-app)] hover:bg-[var(--theme-hover)]',
         )}
       >
-        DAG
+        {t.graphView}
       </button>
       <button
         type="button"
@@ -121,7 +122,7 @@ function ViewToggle({
             : 'text-[var(--theme-muted-text-color)] hover:text-[var(--theme-app)] hover:bg-[var(--theme-hover)]',
         )}
       >
-        Tree
+        {t.treeView}
       </button>
     </div>
   )
@@ -146,7 +147,7 @@ function GraphViewControls({
   /** The way the view can zoom no further, if it is at a limit. */
   zoomedAll: 'in' | 'out' | null
 }) {
-  const { dag } = useStrings()
+  const { common, dag } = useStrings()
   const chip =
     'flex h-7 cursor-pointer items-center whitespace-nowrap rounded px-2 text-xs theme-hover'
   return (
@@ -183,7 +184,7 @@ function GraphViewControls({
       <div className="mx-0.5 h-5 w-px bg-(--theme-border)" />
       <IconButton
         icon={<ZoomOutIcon />}
-        label={dag.zoomOut}
+        label={common.zoomOut}
         size="sm"
         variant="ghost"
         disabled={zoomedAll === 'out'}
@@ -191,7 +192,7 @@ function GraphViewControls({
       />
       <IconButton
         icon={<ZoomInIcon />}
-        label={dag.zoomIn}
+        label={common.zoomIn}
         size="sm"
         variant="ghost"
         disabled={zoomedAll === 'in'}
@@ -1103,19 +1104,6 @@ function walkJobPath(
 
 // The time a run has taken, ticking each second until it finishes. Its own component, so the tick
 // re-renders only this.
-function RunTime({
-  start,
-  end,
-  finished,
-}: {
-  start: DateTime
-  end: DateTime | undefined
-  finished: boolean
-}) {
-  const ticking = !end && !finished
-  return useClock((now) => formatDuration((end ?? DateTime.fromMillis(now)).diff(start)), ticking)
-}
-
 // The outermost nodes' extent in content space, so an expanded nested subgraph doesn't change it.
 function graphBounds(content: HTMLElement): Bounds | null {
   const nodes = outerNodes(content)
@@ -1269,7 +1257,7 @@ export default function DependencyGraph({
     }
   }, [preview, fixedHeight])
 
-  const { dag: dagStrings } = useStrings()
+  const { common, dag: dagStrings } = useStrings()
   const slots = useSlots()
   const [executedJobsPath, setExecutedJobsPath] = useState<(string | number)[][]>([[]])
   const [executedJobsPathIdx, setExecutedJobsPathIdx] = useState<number>(0)
@@ -1849,7 +1837,7 @@ export default function DependencyGraph({
             </div>
           )}
           <div className="font-bold flex items-center gap-x-2">
-            Summary
+            {dagStrings.summary}
             <button
               type="button"
               aria-label={dagStrings.generalLog}
@@ -1890,13 +1878,15 @@ export default function DependencyGraph({
             <div className="flex flex-col">
               <div className="text-xs">{dagStrings.runtime}</div>
               <div className="text-sm font-semibold flex items-center gap-x-1">
-                <RunTime
+                <Elapsed
                   start={startDt}
-                  end={run.completedAt ? DateTime.fromISO(run.completedAt) : undefined}
-                  finished={
-                    run.status === 'completed' ||
-                    run.status === 'error' ||
-                    run.status === 'canceled'
+                  end={run.completedAt}
+                  running={
+                    !(
+                      run.status === 'completed' ||
+                      run.status === 'error' ||
+                      run.status === 'canceled'
+                    )
                   }
                 />
               </div>
@@ -1904,7 +1894,7 @@ export default function DependencyGraph({
             <div className="flex flex-col">
               <div className="text-xs">{dagStrings.submitted}</div>
               <div className="text-sm font-semibold flex items-center gap-x-1">
-                {startDt.toLocaleString(DateTime.DATETIME_SHORT)}
+                {formatDateTime(startDt, 'short')}
               </div>
             </div>
             {/* Spacer */}
@@ -1997,7 +1987,7 @@ export default function DependencyGraph({
                       expand={
                         hasExpandable
                           ? {
-                              label: allExpanded ? dagStrings.collapseAll : dagStrings.expandAll,
+                              label: allExpanded ? common.collapseAll : common.expandAll,
                               onClick: toggleExpandAll,
                             }
                           : undefined

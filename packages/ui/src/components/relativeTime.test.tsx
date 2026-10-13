@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { act, render, screen } from '@testing-library/react'
 import { DateTime } from 'luxon'
 import { hoverTooltip } from '../test/tooltip'
-import { RelativeTime, useClock, useRelativeTime } from './relativeTime'
+import { Elapsed, RelativeTime, useClock, useRelativeTime } from './relativeTime'
 import { TooltipProvider } from './Tooltip'
 
 const START = new Date('2026-01-01T12:00:00Z')
@@ -117,6 +117,31 @@ describe('useClock', () => {
     }
     render(<Stopped />)
     expect(vi.getTimerCount()).toBe(0)
+  })
+})
+
+describe('Elapsed', () => {
+  it('counts while running and stops at its end', () => {
+    const { rerender } = render(<Elapsed start={ago(75)} />)
+    expect(screen.getByText('1m 15s').tagName).toBe('TIME')
+    advance(2000)
+    expect(screen.getByText('1m 17s')).toBeInTheDocument()
+    rerender(<Elapsed start={ago(75)} end={ago(5)} />)
+    expect(screen.getByText('1m 10s')).toHaveAttribute('dateTime', 'PT70S')
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('holds still when told it is not running', () => {
+    const { container } = render(<Elapsed start={ago(30)} running={false} />)
+    const shown = container.textContent
+    advance(5000)
+    expect(container.textContent).toBe(shown)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('renders nothing without a start', () => {
+    const { container } = render(<Elapsed start={null} />)
+    expect(container).toBeEmptyDOMElement()
   })
 })
 

@@ -1,12 +1,11 @@
 import { clsx as cx } from 'clsx'
-import { DateTime } from 'luxon'
 import { useCallback, useId, useMemo, useState } from 'react'
 import { DisclosurePanel } from '../components/Disclosure'
 import { EmptyState } from '../components/EmptyState'
 import { Indicator } from '../components/Indicator'
 import { Loader } from '../components/Loader'
 import { useRunFile, useSlots, useStrings, useWorkflowEngine } from '../components/Provider'
-import { formatDuration } from '../format'
+import { Elapsed } from '../components/relativeTime'
 import { ChevronRightIcon } from '../icons'
 import { LogViewer } from '../logviewer'
 import type { WorkflowJob as Job, WorkflowStep as Step } from './types'
@@ -17,14 +16,6 @@ interface TreeViewProps {
   slug: string
   expandedJobs: Set<string>
   setExpandedJobs: (jobs: Set<string>) => void
-}
-
-function elapsed({ startedAt, completedAt }: Job | Step): string {
-  if (!startedAt) {
-    return ''
-  }
-  const end = completedAt ? DateTime.fromISO(completedAt) : DateTime.now()
-  return formatDuration(end.diff(DateTime.fromISO(startedAt)))
 }
 
 function Chevron({ open, hidden = false }: { open: boolean; hidden?: boolean }) {
@@ -111,8 +102,8 @@ function JobRow({
 }) {
   const hasSteps = !!job.steps?.length
   const dependencies = Array.isArray(job.needs) ? job.needs : []
-  const duration = elapsed(job)
   const panelId = useId()
+  const { dag: t } = useStrings()
 
   return (
     <div className="border-b border-[var(--theme-border)] last:border-b-0">
@@ -137,7 +128,9 @@ function JobRow({
           </span>
           {dependencies.length > 0 && (
             <div className="flex items-center gap-1.5">
-              <span className="text-[10px] text-[var(--theme-muted-text-color)]">depends on:</span>
+              <span className="text-[10px] text-[var(--theme-muted-text-color)]">
+                {t.dependsOn}
+              </span>
               {dependencies.map((dep) => (
                 <span
                   key={dep}
@@ -150,11 +143,11 @@ function JobRow({
           )}
         </div>
         <div className="flex-1" />
-        {duration && (
-          <span className="font-mono text-xs text-[var(--theme-muted-text-color)] flex-shrink-0">
-            {duration}
-          </span>
-        )}
+        <Elapsed
+          start={job.startedAt}
+          end={job.completedAt}
+          className="font-mono text-xs text-[var(--theme-muted-text-color)] flex-shrink-0"
+        />
       </button>
 
       <DisclosurePanel open={isExpanded && hasSteps} id={panelId}>
@@ -199,10 +192,10 @@ function StepRow({
 }) {
   const engine = useWorkflowEngine()
   const slots = useSlots()
-  const duration = elapsed(step)
   const label = engine.stepLabel(step, index)
   const subworkflow = step.subworkflow
   const panelId = useId()
+  const { dag: t } = useStrings()
 
   const subworkflowJobs = subworkflow?.jobs ?? {}
   const subworkflowJobNames = Object.keys(subworkflowJobs).filter(
@@ -233,14 +226,16 @@ function StepRow({
         <span className="font-mono text-sm text-[var(--theme-app)] truncate flex-1">
           {label}
           {subworkflow && (
-            <span className="ml-2 text-xs text-[var(--theme-muted-text-color)]">(subworkflow)</span>
+            <span className="ml-2 text-xs text-[var(--theme-muted-text-color)]">
+              {t.subworkflow}
+            </span>
           )}
         </span>
-        {duration && (
-          <span className="font-mono text-xs text-[var(--theme-muted-text-color)] flex-shrink-0">
-            {duration}
-          </span>
-        )}
+        <Elapsed
+          start={step.startedAt}
+          end={step.completedAt}
+          className="font-mono text-xs text-[var(--theme-muted-text-color)] flex-shrink-0"
+        />
       </button>
 
       <DisclosurePanel open={isExpanded && !subworkflow} id={panelId}>
@@ -278,7 +273,7 @@ function StepRow({
 
 export default function TreeView({ jobs, slug, expandedJobs, setExpandedJobs }: TreeViewProps) {
   const engine = useWorkflowEngine()
-  const { dag } = useStrings()
+  const { common, dag } = useStrings()
   // Filter out jobs with if === false (same logic as DAG view)
   const visibleJobNames = useMemo(() => {
     return Object.keys(jobs).filter((jobName) => jobs[jobName]?.if !== false)
@@ -333,7 +328,7 @@ export default function TreeView({ jobs, slug, expandedJobs, setExpandedJobs }: 
           onClick={allExpanded ? collapseAll : expandAll}
           className="text-xs font-mono text-[var(--theme-muted-text-color)] hover:text-[var(--theme-app)] transition-colors px-3 py-1.5 border border-[var(--theme-border)] rounded"
         >
-          {allExpanded ? 'Collapse all' : 'Expand all'}
+          {allExpanded ? common.collapseAll : common.expandAll}
         </button>
       </div>
 

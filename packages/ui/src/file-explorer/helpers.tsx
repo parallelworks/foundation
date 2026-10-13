@@ -13,7 +13,7 @@ import {
   useSlots,
   useStrings,
 } from '../components/Provider'
-import { useClock } from '../components/relativeTime'
+import { useElapsed } from '../components/relativeTime'
 import { Skeleton } from '../components/Skeleton'
 import { formatBytes } from '../format'
 import {
@@ -232,6 +232,7 @@ function NoFileSelectedPreview() {
 /** Shown instead of a skeleton that has nothing left to wait for. */
 function NotFoundPreview({ path, onRetry }: { path: string; onRetry: () => void }) {
   const t = useStrings().fileExplorer.notFound
+  const { common } = useStrings()
   const name = path.replace(/\/$/, '').split('/').pop() || path
   return (
     <div className="flex-1 flex items-center justify-center p-8">
@@ -242,7 +243,7 @@ function NotFoundPreview({ path, onRetry }: { path: string; onRetry: () => void 
         <h2 className="text-base font-semibold mb-1">{t.title(name)}</h2>
         <p className="text-sm theme-muted-text mb-4">{t.description}</p>
         <Button variant="primary" icon={<RefreshIcon />} onClick={onRetry}>
-          {t.retry}
+          {common.retry}
         </Button>
       </div>
     </div>
@@ -263,6 +264,7 @@ function CorsIssuePreview({
 }) {
   const t = useStrings().fileExplorer.cors
   const messages = useStrings().fileExplorer.messages
+  const { common } = useStrings()
   const notify = useNotify()
   const provisionCorsRules = useProvisionCorsRules()
   const [isPending, startTransition] = useTransition()
@@ -302,7 +304,7 @@ function CorsIssuePreview({
           icon={<RefreshIcon />}
           onClick={onRefresh ? () => onRefresh() : undefined}
         >
-          {t.actions.retry}
+          {common.retry}
         </Button>
         {provisionCorsRules && (
           <Button variant="primary" icon={<CustomizeIcon />} onClick={handleAddCorsRules}>
@@ -322,7 +324,7 @@ const CORS_PROPAGATION_BUDGET_MS = 60_000
 function CorsPropagatingPreview() {
   const t = useStrings().fileExplorer.cors.propagating
   const [start] = useState(Date.now)
-  const elapsedMs = useClock((now) => Math.max(0, now - start))
+  const elapsedMs = useElapsed(start) ?? 0
 
   const totalSeconds = Math.floor(elapsedMs / 1000)
   const mm = String(Math.floor(totalSeconds / 60)).padStart(2, '0')
@@ -465,6 +467,7 @@ function NoDataAvailablePreview({
   canWrite?: boolean
 }) {
   const t = useStrings().fileExplorer
+  const { common } = useStrings()
   if (error instanceof CorsError) {
     return (
       <div className={cx('flex-1 flex items-center justify-center w-full text-center', className)}>
@@ -497,7 +500,7 @@ function NoDataAvailablePreview({
             icon={<RefreshIcon />}
             onClick={onRefresh ? () => onRefresh() : undefined}
           >
-            {t.empty.tryAgain}
+            {common.retry}
           </Button>
         </div>
       )}

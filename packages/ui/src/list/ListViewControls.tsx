@@ -22,7 +22,7 @@ const SECTION_LABEL =
   'mb-2 text-[11px] font-medium uppercase tracking-wide text-(--theme-muted-text-color)'
 
 export function ListDisplayMenu<T>({ view, label }: { view: ListView<T>; label?: string }) {
-  const t = useStrings().list
+  const { common, list: t } = useStrings()
   const toggleable = view.columns.filter((c) => !c.alwaysVisible)
   const hasGrouping = view.groupBys.length > 0
   const orderDirLabel = view.orderDir === 'asc' ? t.ascending : t.descending
@@ -147,7 +147,7 @@ export function ListDisplayMenu<T>({ view, label }: { view: ListView<T>; label?:
       {!view.isDisplayDefault && (
         <div className="mt-3 border-t border-(--theme-border) pt-2">
           <button type="button" onClick={view.resetDisplay} className="link text-[12px]">
-            {t.reset}
+            {common.reset}
           </button>
         </div>
       )}
@@ -195,7 +195,7 @@ function OptionSelect({
 /** The Filter button's menu: a submenu for each facet, whose options toggle
  *  without closing it. F opens it. */
 export function ListFilterMenu<T>({ view, label }: { view: ListView<T>; label?: string }) {
-  const t = useStrings().list
+  const { common } = useStrings()
   if (view.facets.length === 0) {
     return null
   }
@@ -207,7 +207,7 @@ export function ListFilterMenu<T>({ view, label }: { view: ListView<T>; label?: 
           <IconButton
             variant="outline"
             icon={<FilterIcon />}
-            label={label ?? t.filter}
+            label={label ?? common.filter}
             dot={active}
             shortcut="f"
           />
@@ -216,7 +216,7 @@ export function ListFilterMenu<T>({ view, label }: { view: ListView<T>; label?: 
       <MenuPopup align="end" className="w-56">
         <div className="flex items-center justify-between px-3 py-1">
           <span className="text-[11px] font-medium uppercase tracking-wide text-(--theme-muted-text-color)">
-            {t.filter}
+            {common.filter}
           </span>
           {active && (
             <Menu.Item
@@ -224,7 +224,7 @@ export function ListFilterMenu<T>({ view, label }: { view: ListView<T>; label?: 
               onClick={view.clearFilters}
               className="cursor-pointer text-[12px] text-(--theme-muted-text-color) outline-none data-highlighted:text-(--theme-app)"
             >
-              {t.clear}
+              {common.clear}
             </Menu.Item>
           )}
         </div>

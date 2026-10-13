@@ -244,7 +244,7 @@ export function withError(
       return t.missingInput(spec.key)
     }
     if (spec.kind === 'number' && value !== undefined && typeof value !== 'number') {
-      return t.invalidNumberInput
+      return t.common.invalidNumber
     }
     if (
       spec.kind === 'choice' &&
@@ -255,7 +255,7 @@ export function withError(
       return t.invalidChoice(spec.key)
     }
     if (spec.kind === 'flags') {
-      const error = rowsError(draft.values[slot(spec)] as Row[], INPUT_KEY, t.invalidKey, t)
+      const error = rowsError(draft.values[slot(spec)] as Row[], INPUT_KEY, t.common.invalidName, t)
       if (error) {
         return error
       }
@@ -263,7 +263,12 @@ export function withError(
   }
   return kind === 'action'
     ? undefined
-    : rowsError(draft.rows, kind === 'other' ? /^\$?[a-zA-Z0-9_-]+$/ : INPUT_KEY, t.invalidKey, t)
+    : rowsError(
+        draft.rows,
+        kind === 'other' ? /^\$?[a-zA-Z0-9_-]+$/ : INPUT_KEY,
+        t.common.invalidName,
+        t,
+      )
 }
 
 function SpecField({
@@ -304,7 +309,7 @@ function SpecField({
             label={label}
             values={draft as string[]}
             onChange={onChange}
-            addLabel={t.addRow}
+            addLabel={t.common.add}
           />
         </LabelledField>
       )
@@ -718,7 +723,7 @@ function ExtraKey({
         <span className="text-xs text-(--theme-error)">{t.notActionInput}</span>
         <IconButton
           icon={<CloseIcon />}
-          label={t.removeRow}
+          label={t.common.remove}
           variant="ghost"
           size="sm"
           onClick={remove}

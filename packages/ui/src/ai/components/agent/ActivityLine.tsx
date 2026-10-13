@@ -1,8 +1,7 @@
 import { clsx as cx } from 'clsx'
-import { DateTime } from 'luxon'
 import { useEffect, useRef, useState } from 'react'
 import { Loader } from '../../../components/Loader'
-import { useClock } from '../../../components/relativeTime'
+import { useElapsed } from '../../../components/relativeTime'
 import { formatCount, formatDuration } from '../../../format'
 import { StopSolidIcon } from '../../../icons'
 import { useChatConfig } from '../../core/config'
@@ -55,16 +54,6 @@ function randomActivityWord(): string {
   return activityWords[Math.floor(Math.random() * activityWords.length)] ?? activityWords[0]
 }
 
-/** Seconds since `startedAt`, re-read every second; null when there is no
- *  start to count from. */
-function useElapsedSeconds(startedAt: string | null | undefined): number | null {
-  const start = startedAt ? DateTime.fromISO(startedAt).toMillis() : null
-  return useClock(
-    (now) => (start === null ? null : Math.max(0, Math.floor((now - start) / 1000))),
-    start !== null,
-  )
-}
-
 /** A status word held for the whole turn and re-rolled when a new one starts. */
 function useTurnWord(startedAt: string | null | undefined): string {
   const [word, setWord] = useState(randomActivityWord)
@@ -100,11 +89,11 @@ export default function ActivityLine({
   testId?: string
 }) {
   const { strings } = useChatConfig()
-  const elapsed = useElapsedSeconds(startedAt)
+  const elapsed = useElapsed(startedAt)
   const turnWord = useTurnWord(startedAt)
   const meta: string[] = []
   if (elapsed !== null) {
-    meta.push(formatDuration(elapsed * 1000))
+    meta.push(formatDuration(elapsed))
   }
   if (inputTokens || outputTokens) {
     meta.push(

@@ -485,7 +485,7 @@ export function KeyValueEditor({
       ))}
       <FieldError message={error} />
       <AddRowButton
-        label={addLabel ?? t.addRow}
+        label={addLabel ?? t.common.add}
         onClick={() => onChange([...rows, { key: '', value: '' }])}
       />
     </div>
@@ -541,7 +541,7 @@ function KeyValueRow({
         </div>
         <IconButton
           icon={<CloseIcon />}
-          label={t.removeRow}
+          label={t.common.remove}
           variant="ghost"
           size="sm"
           onClick={onRemove}
@@ -597,7 +597,7 @@ export function StringListEditor({
           </div>
           <IconButton
             icon={<CloseIcon />}
-            label={t.removeRow}
+            label={t.common.remove}
             variant="ghost"
             size="sm"
             onClick={() => onChange(removeAt(values, i))}
@@ -762,10 +762,10 @@ export function DialogShell({
           {openOnAdd && <OpenOnAddSwitch {...openOnAdd} />}
           <div className="flex-1" />
           <Button variant="ghost" size="sm" onClick={onClose}>
-            {t.cancel}
+            {t.common.cancel}
           </Button>
           <Button variant="primary" size="sm" disabled={saveDisabled} onClick={submit}>
-            {t.save}
+            {t.common.save}
           </Button>
         </div>
       </div>

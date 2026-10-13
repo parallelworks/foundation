@@ -1,5 +1,9 @@
-import { DateTime } from 'luxon'
-import { useRef, useSyncExternalStore } from 'react'
+import { DateTime, Duration } from 'luxon'
+import { useRef, useState, useSyncExternalStore } from 'react'
+import { formatDateTime, formatDuration, type TimeValue, toDateTime } from '../format'
+
+export type { TimeValue }
+
 import { type UIStrings, useStrings } from './Provider'
 import { Tooltip } from './Tooltip'
 
@@ -46,23 +50,6 @@ const stopped = () => () => {}
 export function useClock<T>(select: (now: number) => T, running = true): T {
   const snapshot = () => select(now)
   return useSyncExternalStore(running ? subscribe : stopped, snapshot, snapshot)
-}
-
-export type TimeValue = string | number | Date | DateTime | null | undefined
-
-function toDateTime(value: TimeValue): DateTime | null {
-  if (value === null || value === undefined || value === '') {
-    return null
-  }
-  const time =
-    typeof value === 'string'
-      ? DateTime.fromISO(value)
-      : typeof value === 'number'
-        ? DateTime.fromMillis(value)
-        : value instanceof Date
-          ? DateTime.fromJSDate(value)
-          : value
-  return time.isValid ? time : null
 }
 
 /** `long` reads "5 minutes ago" in the host's locale; `compact` reads "5m",
@@ -135,10 +122,58 @@ export function RelativeTime({
     return null
   }
   return (
-    <Tooltip content={time.toLocaleString(DateTime.DATETIME_MED_WITH_SECONDS)}>
+    <Tooltip content={formatDateTime(time, 'seconds')}>
       <time dateTime={time.toISO() ?? undefined} className={className}>
         {label}
       </time>
     </Tooltip>
+  )
+}
+
+/** Milliseconds from `start` to `end`, or to now while `running`, in whole
+ *  seconds so it changes at most once a second. Running defaults to having no
+ *  end; pass false for something that stopped without recording when. Null
+ *  without a start. */
+export function useElapsed(
+  start: TimeValue,
+  end?: TimeValue,
+  running: boolean = toDateTime(end) === null,
+): number | null {
+  const from = toDateTime(start)?.toMillis() ?? null
+  const to = toDateTime(end)?.toMillis() ?? null
+  // A stopped clock holds its last tick, which predates this component when it
+  // never ran here, so something that stopped without an end reads at least to
+  // when it was first shown.
+  const [shownAt] = useState(Date.now)
+  return useClock(
+    (current) =>
+      from === null
+        ? null
+        : Math.max(0, Math.floor(((to ?? Math.max(current, shownAt)) - from) / SECOND) * SECOND),
+    from !== null && to === null && running,
+  )
+}
+
+/** How long something took, or has taken so far while it runs: 45s, 2m 13s.
+ *  Renders nothing without a start. */
+export function Elapsed({
+  start,
+  end,
+  running,
+  className,
+}: {
+  start: TimeValue
+  end?: TimeValue
+  running?: boolean
+  className?: string
+}) {
+  const elapsed = useElapsed(start, end, running)
+  if (elapsed === null) {
+    return null
+  }
+  return (
+    <time dateTime={Duration.fromMillis(elapsed).toISO() ?? undefined} className={className}>
+      {formatDuration(elapsed)}
+    </time>
   )
 }

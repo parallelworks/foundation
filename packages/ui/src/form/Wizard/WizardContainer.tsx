@@ -266,9 +266,9 @@ export function WizardContainer({
       await onSubmit?.(values)
     })()
     if (!submitted) {
-      throw new Error('Please fix errors before submitting')
+      throw new Error(strings.fixErrorsToContinue)
     }
-  }, [isLastStep, form, onSubmit])
+  }, [isLastStep, form, onSubmit, strings])
 
   // A form being built pages as it will when run, moving freely: no step blocks the next, every
   // step can be jumped to, and the editor can turn the pages too.

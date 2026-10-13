@@ -12,9 +12,10 @@ import {
   MenuSeparator,
   MenuSubmenuTrigger,
 } from './Menu'
-import { useLink, useNotify, useStrings } from './Provider'
+import { useLink } from './Provider'
 import { useQueryMatch } from './search'
 import { Tooltip } from './Tooltip'
+import { useCopy } from './useCopy'
 
 /** Something a menu row does: navigates with `href`, or runs `onClick`. */
 export interface MenuAction {
@@ -170,7 +171,7 @@ const destructiveClassName = 'text-(--theme-error) data-highlighted:text-(--them
 
 function ActionRow({ action }: { action: MenuAction }) {
   const Link = useLink()
-  const copy = useCopy()
+  const { copy } = useCopy()
   const className = cx(action.destructive && destructiveClassName)
   const content = (
     <>
@@ -191,7 +192,7 @@ function ActionRow({ action }: { action: MenuAction }) {
   }
   const run = () => {
     if (action.copy) {
-      copy(action.copy)
+      void copy(action.copy.text, { label: action.copy.label })
     }
     action.onClick?.()
   }
@@ -220,15 +221,4 @@ function ActionRow({ action }: { action: MenuAction }) {
       )}
     </Tooltip>
   )
-}
-
-function useCopy() {
-  const notify = useNotify()
-  const { list: t } = useStrings()
-  return ({ text, label }: { text: string; label: string }) => {
-    navigator.clipboard?.writeText(text).then(
-      () => notify.success(t.copied(label)),
-      () => notify.error(t.couldntCopy(label)),
-    )
-  }
 }

@@ -37,7 +37,7 @@ export function Loader({
   color,
   decorative = false,
 }: LoaderProps) {
-  const { loading } = useStrings()
+  const { loading } = useStrings().common
   const dimension = typeof size === 'number' ? `${size}px` : size
   const spinner = (
     <FaCircleNotch

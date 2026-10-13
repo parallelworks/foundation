@@ -119,7 +119,7 @@ export type CopySubmenu = (fields: CopyFields) => MenuSubmenu
 
 /** Returns a builder for the Copy submenu, labeled from the provider's strings. */
 export function useCopySubmenu(): CopySubmenu {
-  const { list: t } = useStrings()
+  const { common, list: t } = useStrings()
   return useCallback<CopySubmenu>(
     ({ name, nameLabel, email, username, uid, id, url, extra }) => {
       const fields: {
@@ -144,14 +144,14 @@ export function useCopySubmenu(): CopySubmenu {
         })),
       ]
       return {
-        label: t.copyMenu,
+        label: common.copy,
         icon: <ClipboardIcon />,
         items: fields.flatMap(({ label, value, icon }): MenuAction[] =>
-          value ? [{ label: t.copy(label), icon, copy: { text: value, label } }] : [],
+          value ? [{ label: common.copyThing(label), icon, copy: { text: value, label } }] : [],
         ),
       }
     },
-    [t],
+    [t, common],
   )
 }
 

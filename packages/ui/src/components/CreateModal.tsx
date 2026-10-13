@@ -80,7 +80,8 @@ export function CreateModal({
   onSubmit,
 }: CreateModalProps) {
   const t = useStrings().modal
-  const submitText = submitLabel ?? t.create
+  const { common } = useStrings()
+  const submitText = submitLabel ?? common.create
   const submittingText = submittingLabel ?? t.creating
   const descriptionText = descriptionPlaceholder ?? t.addDescription
 
@@ -303,7 +304,7 @@ export function CreateModal({
         )}
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={onClose}>
-            {hideSubmit ? t.close : t.cancel}
+            {hideSubmit ? common.close : common.cancel}
           </Button>
           {!hideSubmit && (
             <Button
@@ -487,7 +488,7 @@ export function CreateModalSelect({
   /** Help text surfaced on hover (explains what the pill selects). */
   tooltip?: string
 }) {
-  const t = useStrings().modal
+  const { common } = useStrings()
   const selected = comboboxLeaves(items)
     .map((item) => (typeof item === 'string' ? { value: item, label: item } : item))
     .find((item) => item.value === value)
@@ -529,7 +530,7 @@ export function CreateModalSelect({
       }}
       itemToStringLabel={(next) => next}
       aria-label={label}
-      placeholder={t.filter}
+      placeholder={common.filter}
       triggerTooltip={tooltip}
       trigger={
         <button type="button" className={pillClasses(!!selectedLabel)}>

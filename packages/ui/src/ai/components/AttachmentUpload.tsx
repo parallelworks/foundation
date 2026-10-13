@@ -9,8 +9,16 @@ import {
   useState,
 } from 'react'
 import { mutate } from 'swr'
+import { useStrings } from '../../components/Provider'
 import { formatBytes } from '../../format'
-import { AddIcon, FileSolidIcon, ImageSolidIcon, PdfSolidIcon, TrashIcon } from '../../icons'
+import {
+  AddIcon,
+  AlertIcon,
+  FileSolidIcon,
+  ImageSolidIcon,
+  PdfSolidIcon,
+  TrashIcon,
+} from '../../icons'
 import { useChat } from '../core/ChatProvider'
 import { useChatConfig } from '../core/config'
 import { ATTACHMENTS_INFINITE_KEY } from './attachmentKeys'
@@ -70,6 +78,7 @@ const AttachmentUpload = forwardRef<AttachmentUploadHandle, AttachmentUploadProp
   ) {
     const { adapter, notify } = useChat()
     const t = useChatConfig().strings.attachmentUpload
+    const { common } = useStrings()
     const [isDragging, setIsDragging] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -245,18 +254,18 @@ const AttachmentUpload = forwardRef<AttachmentUploadHandle, AttachmentUploadProp
                     </span>
                     <span className="text-xs theme-muted-text">{formatBytes(attachment.size)}</span>
                     {attachment.uploading && (
-                      <span className="text-xs text-blue-500 animate-pulse">Uploading...</span>
+                      <span className="text-xs text-blue-500 animate-pulse">{t.uploading}</span>
                     )}
                     {attachment.error && (
-                      <span className="text-xs text-red-500" title={attachment.error}>
-                        ⚠️
+                      <span role="img" aria-label={attachment.error} title={attachment.error}>
+                        <AlertIcon className="h-3.5 w-3.5 text-red-500" />
                       </span>
                     )}
                     <button
                       type="button"
                       onClick={() => handleRemove(index)}
                       className="p-0.5 rounded hover:bg-red-500/10"
-                      title={t.remove}
+                      title={common.remove}
                       disabled={disabled}
                     >
                       <TrashIcon className="w-3 h-3 text-red-500" />

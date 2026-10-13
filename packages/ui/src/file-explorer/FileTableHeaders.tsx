@@ -37,13 +37,13 @@ export function FileTableHeaders({
         </div>
       </Table.Header>
       <Table.Header caps={false} className="w-[14%] py-2">
-        Size
+        {t.chrome.size}
       </Table.Header>
       <Table.Header caps={false} className="w-[14%] py-2">
-        Type
+        {t.chrome.type}
       </Table.Header>
       <Table.Header caps={false} className="w-[22%] py-2">
-        Last Modified
+        {t.chrome.lastModified}
       </Table.Header>
       <ListActionsHeader actionCount={1} />
     </>

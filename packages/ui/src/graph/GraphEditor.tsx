@@ -13,6 +13,7 @@ import type { FloatingAnchor } from '../components/floating'
 import { IconButton } from '../components/IconButton'
 import { type MenuEntry, menuDivider } from '../components/MenuEntries'
 import { useWorkflowEditing } from '../components/Provider'
+import { useCopy } from '../components/useCopy'
 import type {
   GraphEdit,
   GraphEditResult,
@@ -1079,7 +1080,7 @@ function useGraphEditorState({
           onClick: () => editJob(job),
         },
         {
-          label: t.duplicate,
+          label: t.common.duplicate,
           icon: <DuplicateIcon />,
           onClick: () => edit({ type: 'duplicateJob', job, layout: materialize() }),
         },
@@ -1523,6 +1524,7 @@ function useGraphEditorState({
     }
   }, [container, active, store])
 
+  const { copy } = useCopy()
   const editable = editor !== undefined
   useEffect(() => {
     if (!container || !editable) {
@@ -1596,7 +1598,7 @@ function useGraphEditorState({
         const text = api.copySelection()
         if (text) {
           e.preventDefault()
-          navigator.clipboard?.writeText(text).catch(() => {})
+          void copy(text, { quiet: true })
         }
       } else if (key === 'v' && !native) {
         e.preventDefault()
@@ -1656,7 +1658,7 @@ function useGraphEditorState({
       container.removeEventListener('pointerleave', onLeave)
       container.removeEventListener('pointerdown', onDown)
     }
-  }, [container, editable, api])
+  }, [container, editable, api, copy])
 
   return {
     api,

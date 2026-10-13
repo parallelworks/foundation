@@ -428,6 +428,8 @@ export function ChatProvider({
     loadModels()
   }, [loadProviders, loadModels])
 
+  const resolvedConfig = useMemo(() => resolveChatConfig(config), [config])
+
   const createConversation = useCallback(
     async (title?: string): Promise<string | null> => {
       try {
@@ -503,7 +505,7 @@ export function ChatProvider({
 
       const modelString = state.selectedProvider
       if (!isSelectedModelAvailable || !modelString) {
-        notify.error('Please select a provider first')
+        notify.error(resolvedConfig.strings.modelPicker.selectFirst)
         return false
       }
 
@@ -868,6 +870,7 @@ export function ChatProvider({
     [
       adapter,
       notify,
+      resolvedConfig,
       isSelectedModelAvailable,
       state.selectedProvider,
       state.selectedAllocation,
@@ -1132,8 +1135,6 @@ export function ChatProvider({
 
     dispatch({ type: 'SET_CURRENT_CONVERSATION', conversation: null })
   }, [resetAnimationRefs, streamingConversationIdRef])
-
-  const resolvedConfig = useMemo(() => resolveChatConfig(config), [config])
 
   const value = useMemo<ChatContextValue>(
     () => ({

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, useTransition } from 'react'
 import { Combobox } from '../../components/Combobox'
 import { ConfirmModal } from '../../components/ConfirmModal'
 import { Loader } from '../../components/Loader'
+import { useStrings } from '../../components/Provider'
 import { Select } from '../../components/Select'
 import { Tooltip } from '../../components/Tooltip'
 import { ShareIcon, TrashIcon } from '../../icons'
@@ -23,6 +24,7 @@ interface ShareDialogProps {
 
 export default function ShareDialog({ conversationId, isOpen, onClose }: ShareDialogProps) {
   const { strings } = useChatConfig()
+  const { common } = useStrings()
   const t = strings.shareConversation
   const { adapter, notify } = useChat()
   const sharing = adapter.sharing
@@ -199,15 +201,15 @@ export default function ShareDialog({ conversationId, isOpen, onClose }: ShareDi
       onClose={onClose}
       align="center"
       title={t.title}
-      confirmLabel={strings.modal.save}
-      cancelLabel={strings.modal.cancel}
+      confirmLabel={common.save}
+      cancelLabel={common.cancel}
       onConfirm={handleSave}
       confirmDisabled={saving}
     >
       <div className="space-y-4">
         {loading ? (
           <div className="py-4">
-            <Loader size={24} label={strings.modal.loading} />
+            <Loader size={24} label={common.loading} />
           </div>
         ) : (
           <>
@@ -268,12 +270,12 @@ export default function ShareDialog({ conversationId, isOpen, onClose }: ShareDi
                             aria-label={perm.teamName || perm.team}
                           />
                         </div>
-                        <Tooltip content={t.remove}>
+                        <Tooltip content={common.remove}>
                           <button
                             type="button"
                             onClick={() => handleRemoveTeam(perm.team)}
                             className="p-1 rounded hover:bg-red-500/10"
-                            aria-label={`${t.remove} ${perm.teamName || perm.team}`}
+                            aria-label={`${common.remove} ${perm.teamName || perm.team}`}
                           >
                             <TrashIcon className="w-3 h-3 text-red-500" />
                           </button>

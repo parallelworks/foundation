@@ -71,7 +71,7 @@ export function Drawer({
   children,
   ...popupProps
 }: DrawerProps) {
-  const strings = useStrings().drawer
+  const { common } = useStrings()
   const container = useRef<HTMLDivElement>(null)
   const viewport = useRef<HTMLDivElement>(null)
   // In state, not a ref: the portal mounts it a render after it opens.
@@ -168,7 +168,7 @@ export function Drawer({
                   </div>
                   {closeButton && (
                     <BaseDrawer.Close
-                      aria-label={strings.close}
+                      aria-label={common.close}
                       className="-m-1 shrink-0 cursor-pointer rounded-md p-1 text-(--theme-muted-text-color) transition-colors hover:bg-(--theme-muted-panel-bg) hover:text-(--theme-app)"
                     >
                       <CloseIcon className="h-4 w-4" />

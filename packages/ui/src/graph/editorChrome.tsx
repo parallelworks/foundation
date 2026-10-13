@@ -99,7 +99,7 @@ export function EditorBar({
       )}
       <IconButton
         icon={<UndoIcon />}
-        label={t.undo}
+        label={t.common.undo}
         size="sm"
         variant="ghost"
         disabled={!editor.canUndo}
@@ -107,7 +107,7 @@ export function EditorBar({
       />
       <IconButton
         icon={<RedoIcon />}
-        label={t.redo}
+        label={t.common.redo}
         size="sm"
         variant="ghost"
         disabled={!editor.canRedo}

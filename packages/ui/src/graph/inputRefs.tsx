@@ -155,7 +155,7 @@ export function InputRefSelect({
       <option value="" disabled>
         {matching.length > 0 ? t.chooseInput : t.noMatchingInputs}
       </option>
-      {!known && current && <option value={`?${current}`}>inputs.{current}</option>}
+      {!known && current && <option value={`?${current}`}>{`inputs.${current}`}</option>}
       {matching.map((ref) => (
         <option key={pathKey(ref.path)} value={pathKey(ref.path)}>
           {ref.label === ref.path.at(-1)

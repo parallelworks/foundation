@@ -20,7 +20,8 @@ import { IconButton } from '../components/IconButton'
 import { InfoTip } from '../components/InfoTip'
 import { Loader } from '../components/Loader'
 import { Popover } from '../components/Popover'
-import { useNotify, useOptionalWorkflowEngine, useStrings } from '../components/Provider'
+import { useOptionalWorkflowEngine, useStrings } from '../components/Provider'
+import { useCopy } from '../components/useCopy'
 import type { LogCommand, LogSegment, ProcessedLogLine } from '../engine'
 import {
   ArrowDownIcon,
@@ -322,8 +323,7 @@ export function LogViewer({
   const engine = useOptionalWorkflowEngine(workflowCommandsRequested)
   // Workflow commands are engine semantics; without one the log renders plain.
   const enableWorkflowCommands = workflowCommandsRequested && engine !== undefined
-  const notify = useNotify()
-  const { common: tCommon, logviewer: t } = useStrings()
+  const { common, logviewer: t } = useStrings()
   const annotationLabels = useMemo(
     () => ({ error: t.error, warning: t.warning, notice: t.notice }),
     [t],
@@ -361,7 +361,7 @@ export function LogViewer({
   // Line selection state
   const [selectedLines, setSelectedLines] = useState<Set<number>>(new Set())
   const [lastClickedLine, setLastClickedLine] = useState<number | null>(null)
-  const [copied, setCopied] = useState(false)
+  const { copy, copied } = useCopy()
 
   // Text the reader selected, offered for copying where the selection ended.
   const [selection, setSelection] = useState<{ text: string; at: FloatingAnchor } | null>(null)
@@ -414,14 +414,8 @@ export function LogViewer({
   // Copy all logs to clipboard
   const copyAllLogs = useCallback(async () => {
     const text = rawLines.join('\n')
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch (_err) {
-      notify.error('Failed to copy logs to clipboard')
-    }
-  }, [rawLines, notify])
+    await copy(text, { quiet: true })
+  }, [rawLines, copy])
 
   // Offers the selected text for copying, where the pointer let go.
   const handleTextMouseUp = useCallback((e: React.MouseEvent) => {
@@ -434,15 +428,11 @@ export function LogViewer({
     if (!selection) {
       return
     }
-    try {
-      await navigator.clipboard.writeText(selection.text)
-      notify.success('Text copied to clipboard')
+    if (await copy(selection.text)) {
       window.getSelection()?.removeAllRanges()
       setSelection(null)
-    } catch (_err) {
-      notify.error('Failed to copy text to clipboard')
     }
-  }, [selection, notify])
+  }, [selection, copy])
 
   // Copy selected lines to clipboard
   const copySelectedLines = useCallback(async () => {
@@ -453,14 +443,8 @@ export function LogViewer({
     const sortedLines = Array.from(selectedLines).sort((a, b) => a - b)
     const text = sortedLines.map((ln) => rawLines[ln - 1] || '').join('\n')
 
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch (_err) {
-      notify.error('Failed to copy selected logs to clipboard')
-    }
-  }, [selectedLines, rawLines, notify])
+    await copy(text, { quiet: true })
+  }, [selectedLines, rawLines, copy])
 
   const handleGroupToggle = useCallback((lineIndex: number) => {
     setCollapsedGroups((prev) => {
@@ -684,7 +668,7 @@ export function LogViewer({
   }
 
   const ExpandButtonIcon = fullscreen ? ShrinkIcon : ExpandIcon
-  const expandButtonText = fullscreen ? 'Collapse' : 'Expand'
+  const expandButtonText = fullscreen ? common.collapse : common.expand
 
   const rows = virtualizer.getVirtualItems()
   // Inline renders every line; otherwise only those in view, measured as they render.
@@ -750,7 +734,7 @@ export function LogViewer({
                     }
                   }}
                 >
-                  {!follow ? 'Follow' : 'Following'}
+                  {follow ? t.following : t.follow}
                 </Button>
               </>
             )}
@@ -763,7 +747,7 @@ export function LogViewer({
                   icon={copied ? <CheckIcon className="text-green-500" /> : <CopyIcon />}
                   onClick={copySelectedLines}
                 >
-                  {copied ? tCommon.copied : t.copyLines(selectedLines.size)}
+                  {copied ? common.copied : t.copyLines(selectedLines.size)}
                 </Button>
                 <span className="absolute -top-2 -right-2 z-10 rounded-md shadow-sm">
                   <IconButton
@@ -782,7 +766,7 @@ export function LogViewer({
                 icon={copied ? <CheckIcon className="text-green-500" /> : <CopyIcon />}
                 onClick={copyAllLogs}
               >
-                {copied ? tCommon.copied : t.copyAll}
+                {copied ? common.copied : t.copyAll}
               </Button>
             )}
             {additionalLeftBarComponents}
@@ -869,7 +853,7 @@ export function LogViewer({
                       setTimeRangeOpen(false)
                     }}
                   >
-                    {t.apply}
+                    {common.apply}
                   </Button>
                   {(timeRangeFrom !== '' || timeRangeTo !== '') && (
                     <Button
@@ -883,7 +867,7 @@ export function LogViewer({
                         setTimeRangeOpen(false)
                       }}
                     >
-                      {t.clear}
+                      {common.clear}
                     </Button>
                   )}
                 </div>
@@ -903,7 +887,7 @@ export function LogViewer({
             download
           >
             <DownloadIcon />
-            {t.download}
+            {common.download}
           </a>
           {!hideExpand && (
             <Button
@@ -994,17 +978,12 @@ export function LogViewer({
           onOpenChange={(open) => !open && setSelection(null)}
           at={selection.at}
           initialFocus="none"
-          aria-label={tCommon.copy}
+          aria-label={common.copy}
           className="p-1"
         >
-          <button
-            type="button"
-            onClick={copySelection}
-            className="flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-xs font-medium hover:bg-(--theme-hover)"
-          >
-            <CopyIcon className="w-3.5 h-3.5" />
-            <span>{tCommon.copy}</span>
-          </button>
+          <Button variant="ghost" size="xs" icon={<CopyIcon />} onClick={copySelection}>
+            {common.copy}
+          </Button>
         </Popover>
       )}
       {/* log viewer bottom bar (only with custom nodes) */}

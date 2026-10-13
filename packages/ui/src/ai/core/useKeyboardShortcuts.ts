@@ -1,7 +1,9 @@
 import { useCallback, useEffect } from 'react'
+import { useStrings } from '../../components/Provider'
 import type { ChatMessage } from '../types'
 import { isMac } from '../utils'
 import { useChat } from './ChatProvider'
+import { useChatConfig } from './config'
 import { FOCUS_SIDEBAR_SEARCH_EVENT } from './events'
 
 export function lastAssistantContent(messages: ChatMessage[]): string | null {
@@ -26,6 +28,8 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions = {}) 
     navigation,
     notify,
   } = useChat()
+  const { common } = useStrings()
+  const { chrome: t } = useChatConfig().strings
 
   // Get last assistant message for copy functionality
   const getLastAssistantMessage = useCallback(
@@ -49,14 +53,14 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions = {}) 
     if (content) {
       try {
         await navigator.clipboard.writeText(content)
-        notify.success('Copied to clipboard')
+        notify.success(common.copiedToClipboard)
       } catch {
-        notify.error('Failed to copy')
+        notify.error(common.copyFailed)
       }
     } else {
-      notify.info('No response to copy')
+      notify.info(t.noResponseToCopy)
     }
-  }, [getLastAssistantMessage, notify])
+  }, [getLastAssistantMessage, notify, common, t])
 
   const handleStopGeneration = useCallback(() => {
     if (isStreaming) {

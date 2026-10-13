@@ -2156,7 +2156,7 @@ describe('steps, the clipboard and the arrow keys', () => {
     }
     const e = editor({ readSource: () => dumpYaml(matrix) })
     render(<DependencyGraphPreview yml={matrix} editor={e} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Expand All' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Expand all' }))
     // The first run's steps sit above the second run's.
     const copies = [...document.querySelectorAll<HTMLElement>('[data-dag-step-job="run"]')]
     expect(copies).toHaveLength(4)

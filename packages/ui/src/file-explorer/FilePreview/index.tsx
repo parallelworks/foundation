@@ -53,6 +53,7 @@ export function FilePreview({
   onCopyUri,
 }: FilePreviewProps) {
   const t = useStrings().fileExplorer
+  const { common } = useStrings()
   const [style, setStyle] = usePersistedState<PreviewStyle>(
     'fileExplorer.previewStyle',
     'quicklook',
@@ -135,11 +136,11 @@ export function FilePreview({
         />
         <IconButton
           size="md"
-          label={t.preview.download}
+          label={common.download}
           icon={<DownloadFileIcon />}
           onClick={() => onDownload(node)}
         />
-        <IconButton size="md" label={t.preview.close} icon={<CloseIcon />} onClick={onClose} />
+        <IconButton size="md" label={common.close} icon={<CloseIcon />} onClick={onClose} />
       </div>
     </div>
   )
@@ -170,14 +171,14 @@ export function FilePreview({
           >
             <IconButton
               size="xs"
-              label={t.preview.zoomOut}
+              label={common.zoomOut}
               onClick={() => setZoom((z) => Math.max(25, z - 25))}
               icon={<ZoomOutIcon />}
             />
             <span className="min-w-11 text-center text-xs tabular-nums">{zoom}%</span>
             <IconButton
               size="xs"
-              label={t.preview.zoomIn}
+              label={common.zoomIn}
               onClick={() => setZoom((z) => Math.min(400, z + 25))}
               icon={<ZoomInIcon />}
             />

@@ -34,7 +34,7 @@ export function ConfirmModal({
   /** When false, the dialog stays open after a successful confirm. */
   closeOnConfirm?: boolean
 }) {
-  const strings = useStrings()
+  const { common } = useStrings()
   const [pending, setPending] = useState(false)
   const firedRef = useRef(false)
 
@@ -88,7 +88,7 @@ export function ConfirmModal({
       </div>
       <div className="mt-5 flex items-center justify-end gap-2 border-t border-(--theme-border) px-5 py-3">
         <Button variant="ghost" size="sm" onClick={onClose} disabled={pending}>
-          {cancelLabel ?? strings.modal.cancel}
+          {cancelLabel ?? common.cancel}
         </Button>
         <Button
           variant={destructive ? 'danger' : 'primary'}

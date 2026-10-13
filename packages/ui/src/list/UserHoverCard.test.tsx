@@ -52,7 +52,7 @@ describe('UserHoverCard', () => {
 
   it('shows a labelled loading region instead of rows while loading', () => {
     render(
-      <UIProvider strings={{ loading: 'Cargando' }}>
+      <UIProvider strings={{ common: { loading: 'Cargando' } }}>
         <UserHoverCard username="a" loading>
           <HoverCardRow icon={<span />}>Online</HoverCardRow>
         </UserHoverCard>

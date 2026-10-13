@@ -256,9 +256,7 @@ describe('WorkflowSettingsDialog', () => {
     })
     const card = (name: string) =>
       screen.getByDisplayValue(name).closest('div.flex.items-start') as HTMLElement
-    fireEvent.click(
-      within(card('one')).getByRole('button', { name: GRAPH_EDITOR_STRINGS.removeRow }),
-    )
+    fireEvent.click(within(card('one')).getByRole('button', { name: 'Remove' }))
     // The first session's redirect was an expression; the second's is still a switch, and on.
     expect(
       within(card('two')).getByRole('switch', { name: GRAPH_EDITOR_STRINGS.fields.redirect }),

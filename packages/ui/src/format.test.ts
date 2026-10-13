@@ -1,5 +1,5 @@
 import { DateTime, Duration } from 'luxon'
-import { formatBytes, formatCount, formatDuration } from './format'
+import { formatBytes, formatCount, formatDateTime, formatDuration, formatTimeLeft } from './format'
 
 describe('formatBytes', () => {
   it('counts in 1024s with the largest unit that fits', () => {
@@ -39,5 +39,27 @@ describe('formatDuration', () => {
     const start = DateTime.fromISO('2026-01-01T10:00:00Z')
     expect(formatDuration(start.plus({ minutes: 5 }).diff(start))).toBe('5m')
     expect(formatDuration(Duration.fromObject({ seconds: -30 }))).toBe('30s')
+  })
+})
+
+describe('formatDateTime', () => {
+  it('reads a time in the named style, and nothing for no time', () => {
+    const at = DateTime.fromISO('2026-03-04T05:06:07Z')
+    expect(formatDateTime(at)).toBe(at.toLocaleString(DateTime.DATETIME_MED))
+    expect(formatDateTime(at.toISO(), 'date')).toBe(at.toLocaleString(DateTime.DATE_MED))
+    expect(formatDateTime(at.toMillis(), 'seconds')).toBe(
+      at.toLocaleString(DateTime.DATETIME_MED_WITH_SECONDS),
+    )
+    expect(formatDateTime(null)).toBe('')
+    expect(formatDateTime('not a date')).toBe('')
+  })
+})
+
+describe('formatTimeLeft', () => {
+  it('counts down in whole seconds, then whole minutes past an hour', () => {
+    expect(formatTimeLeft(4.9)).toBeNull()
+    expect(formatTimeLeft(42.4)).toBe('42s')
+    expect(formatTimeLeft(125)).toBe('2m 5s')
+    expect(formatTimeLeft(3_601)).toBe('1h 1m')
   })
 })

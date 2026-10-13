@@ -2,7 +2,9 @@ import { clsx as cx } from 'clsx'
 import { DateTime } from 'luxon'
 import { type KeyboardEvent, memo, useEffect, useRef, useState } from 'react'
 import { Avatar } from '../../components/Avatar'
+import { useStrings } from '../../components/Provider'
 import { RelativeTime } from '../../components/relativeTime'
+import { useCopy } from '../../components/useCopy'
 import { formatBytes, formatDuration } from '../../format'
 import {
   CheckIcon,
@@ -117,7 +119,8 @@ function ChatMessage({
     !isUser && !isStreaming && !hasReasoning && (!!message.reasoningDuration || toolCallCount > 0)
 
   const { messageMeta: t, thinking: tThinking } = useChatConfig().strings
-  const [copied, setCopied] = useState(false)
+  const { common } = useStrings()
+  const { copy, copied } = useCopy()
   const [showActions, setShowActions] = useState(false)
   const [editContent, setEditContent] = useState(message.content || '')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -222,9 +225,7 @@ function ChatMessage({
 
   const copyToClipboard = async () => {
     if (message.content) {
-      await navigator.clipboard.writeText(message.content)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      await copy(message.content, { quiet: true })
     }
   }
 
@@ -256,7 +257,7 @@ function ChatMessage({
               onClick={onCancelEdit}
               className="px-4 py-1.5 text-sm font-medium rounded-full transition-colors chat-tint hover:chat-tint-strong text-(--theme-panel)"
             >
-              {t.cancel}
+              {common.cancel}
             </button>
             <button
               type="button"
@@ -264,7 +265,7 @@ function ChatMessage({
               disabled={!editContent.trim()}
               className="px-4 py-1.5 text-sm font-medium rounded-full transition-colors hover:opacity-85 disabled:opacity-50 disabled:cursor-not-allowed bg-(--theme-panel) text-(--theme-panel-bg)"
             >
-              {t.send}
+              {common.send}
             </button>
           </div>
         </div>
@@ -304,8 +305,8 @@ function ChatMessage({
                 <div className="flex items-center gap-x-1.5 text-sm theme-muted-text">
                   <span>
                     {message.reasoningDuration
-                      ? `Thought for ${formatDuration(message.reasoningDuration)}`
-                      : `Ran ${toolCallCount} tool ${toolCallCount === 1 ? 'call' : 'calls'}`}
+                      ? tThinking.thoughtFor(formatDuration(message.reasoningDuration))
+                      : tThinking.ranToolCalls(toolCallCount)}
                   </span>
                 </div>
               </div>
@@ -373,7 +374,7 @@ function ChatMessage({
                 onClick={() => setExpanded((e) => !e)}
                 className="text-xs font-medium theme-muted-text hover:theme-text transition-colors"
               >
-                {expanded ? t.showLess : t.showMore}
+                {expanded ? common.showLess : common.showMore}
               </button>
             )}
 
@@ -395,7 +396,7 @@ function ChatMessage({
                     className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-500/15 rounded transition-colors"
                   >
                     <RetryIcon className="w-3 h-3" />
-                    {t.retry}
+                    {common.retry}
                   </button>
                 )}
               </div>

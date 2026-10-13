@@ -352,13 +352,14 @@ function TreeMoreRow({
   onReveal: () => void
 }) {
   const t = useStrings().fileExplorer
+  const { common } = useStrings()
 
   const label = () => {
     if (failed) {
-      return t.retry
+      return common.retry
     }
     if (hiddenFiles === 0) {
-      return t.loadMore
+      return common.loadMore
     }
     return partial ? t.treeMoreCountPartial(hiddenFiles) : t.treeMoreCount(hiddenFiles)
   }

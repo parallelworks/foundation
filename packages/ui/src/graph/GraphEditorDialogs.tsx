@@ -265,12 +265,12 @@ function runsOnError(fields: RunsOnFields, sshUsed: boolean, t: Strings): string
     if (!TARGET_MODES.includes(fields.mode.trim() as TargetMode)) {
       return t.runsOnNeedsMode
     }
-    return rowsError(fields.schedulingParams, PARAM_KEY, t.invalidKey, t)
+    return rowsError(fields.schedulingParams, PARAM_KEY, t.common.invalidName, t)
   }
   if (!fields.cluster.trim() || !fields.name.trim()) {
     return t.runsOnNeedsEnvironment
   }
-  return rowsError(fields.params, PARAM_KEY, t.invalidKey, t)
+  return rowsError(fields.params, PARAM_KEY, t.common.invalidName, t)
 }
 
 function sshHelp(key: (typeof SSH_KEYS)[number], t: Strings): string {
@@ -406,7 +406,7 @@ function outputsError(rows: OutputRow[], t: Strings): string | undefined {
   const names = rows.map((row) => row.name.trim())
   for (const [i, row] of rows.entries()) {
     if (!OUTPUT_KEY.test(names[i] ?? '')) {
-      return t.invalidKey
+      return t.common.invalidName
     }
     if (names.indexOf(names[i] ?? '') !== i) {
       return t.duplicateKey
@@ -504,7 +504,7 @@ function OutputsEditor({
           />
           <IconButton
             icon={<CloseIcon />}
-            label={t.removeRow}
+            label={t.common.remove}
             variant="ghost"
             size="sm"
             onClick={() => onChange(removeAt(rows, i))}
@@ -513,7 +513,7 @@ function OutputsEditor({
       ))}
       <FieldError message={error} />
       <AddRowButton
-        label={t.addRow}
+        label={t.common.add}
         onClick={() => onChange([...rows, { name: '', step: stepIds[0] ?? '', output: '' }])}
       />
     </div>
@@ -603,7 +603,9 @@ function entriesTo(entries: Row[][]): Json[] | undefined {
 function entriesError(entries: Row[][], t: Strings): string | undefined {
   for (const rows of entries) {
     const error =
-      rows.length === 0 ? t.invalidMatrixEntry : rowsError(rows, MATRIX_KEY, t.invalidKey, t)
+      rows.length === 0
+        ? t.invalidMatrixEntry
+        : rowsError(rows, MATRIX_KEY, t.common.invalidName, t)
     if (error) {
       return error
     }
@@ -1733,7 +1735,7 @@ function StepForm({
         />
         <IconButton
           icon={<ArrowUpIcon />}
-          label={t.moveUp}
+          label={t.common.moveUp}
           variant="ghost"
           size="sm"
           disabled={dirty || pending || index === 0}
@@ -1741,7 +1743,7 @@ function StepForm({
         />
         <IconButton
           icon={<ArrowDownIcon />}
-          label={t.moveDown}
+          label={t.common.moveDown}
           variant="ghost"
           size="sm"
           disabled={dirty || pending || index >= steps.length - 1}

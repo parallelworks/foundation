@@ -512,24 +512,3 @@ export function getUploadSessionETA(
     shouldUpdateETA: false,
   }
 }
-
-export function formatETA(seconds: number): string {
-  if (seconds <= 0) {
-    return 'Almost done'
-  }
-  if (seconds < 5) {
-    return 'Few seconds'
-  }
-  if (seconds < 60) {
-    return `~ ${seconds}s`
-  }
-  if (seconds < 3600) {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return secs > 0 ? `~ ${mins}m ${secs}s` : `~ ${mins}m`
-  }
-
-  const hours = Math.floor(seconds / 3600)
-  const mins = Math.ceil((seconds % 3600) / 60)
-  return `~ ${hours}h ${mins}m`
-}

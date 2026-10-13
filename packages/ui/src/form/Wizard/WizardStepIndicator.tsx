@@ -118,7 +118,7 @@ export function WizardStepIndicator({
                     }
                   : { zIndex: 10 }
               }
-              aria-label={`Step ${index + 1}: ${stepText(stepConfig?.title)}`}
+              aria-label={strings.stepLabel(index + 1, stepText(stepConfig?.title))}
               title={stepText(stepConfig?.title)}
             >
               {!hideStepNumbers && (

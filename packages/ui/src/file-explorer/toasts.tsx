@@ -4,7 +4,7 @@ import { Button } from '../components/Button'
 import { IconButton } from '../components/IconButton'
 import { type BarTone, ProgressBar } from '../components/Meter'
 import { type UIStrings, useStrings } from '../components/Provider'
-import { formatBytes } from '../format'
+import { formatBytes, formatTimeLeft } from '../format'
 import {
   AlertIcon,
   AngleDownIcon,
@@ -16,7 +16,6 @@ import {
   SuccessIcon,
 } from '../icons'
 import type { UploadFileProgress, UploadSession } from './lib/types'
-import { formatETA } from './lib/utils'
 
 type UploadStrings = UIStrings['fileExplorer']['upload']
 
@@ -40,14 +39,14 @@ function getSessionStatusInfo(session: UploadSession, queueLength: number, strin
       return {
         icon: <SuccessIcon className="w-5 h-5 text-green-600" />,
         title: strings.completeTitle,
-        shortTitle: strings.completeShort,
+        shortTitle: strings.completed,
         bgColor: 'bg-green-100',
       }
     case 'failed':
       return {
         icon: <AlertIcon className="w-5 h-5 text-red-600" />,
         title: strings.failedTitle,
-        shortTitle: strings.failedShort,
+        shortTitle: strings.failed,
         bgColor: 'bg-red-100',
       }
     default:
@@ -179,7 +178,7 @@ export function UploadSessionToast({
   onCancel,
   onCancelFile,
 }: UploadSessionToastProps) {
-  const { common, modal, fileExplorer } = useStrings()
+  const { common, fileExplorer } = useStrings()
   const strings = fileExplorer.upload
   const [isToastExpanded, setIsToastExpanded] = useState(false)
   const [isFileListExpanded, setIsExpanded] = useState(session.uploadNodes.length <= 3)
@@ -267,11 +266,13 @@ export function UploadSessionToast({
               </div>
               <div className="flex items-center justify-between">
                 <div className="text-xs theme-muted-text mt-0.5">
-                  {session.progress?.completedFiles || 0} / {session.progress?.totalFiles || 0}{' '}
-                  files done
+                  {strings.filesDone(
+                    session.progress?.completedFiles || 0,
+                    session.progress?.totalFiles || 0,
+                  )}
                 </div>
                 <div className="text-xs theme-muted-text mt-0.5">
-                  {showETA && formatETA(estimatedSecondsLeft)}
+                  {showETA && (formatTimeLeft(estimatedSecondsLeft) ?? strings.almostDone)}
                 </div>
               </div>
 
@@ -303,9 +304,11 @@ export function UploadSessionToast({
                 <div>
                   <h3 className="text-sm font-semibold theme-text">{statusInfo.title}</h3>
                   <p className="text-xs theme-muted-text">
-                    {uploadingFiles.length > 0 && `${uploadingFiles.length} uploading `}(
-                    {session.progress?.completedFiles || 0} / {session.progress?.totalFiles || 0}{' '}
-                    done)
+                    {strings.progress(
+                      uploadingFiles.length,
+                      session.progress?.completedFiles || 0,
+                      session.progress?.totalFiles || 0,
+                    )}
                   </p>
                 </div>
               </div>
@@ -334,7 +337,9 @@ export function UploadSessionToast({
                 </div>
                 <div className="flex justify-between">
                   <span>{strings.eta}</span>
-                  {showETA ? formatETA(estimatedSecondsLeft) : strings.calculating}
+                  {showETA
+                    ? (formatTimeLeft(estimatedSecondsLeft) ?? strings.almostDone)
+                    : strings.calculating}
                 </div>
               </div>
             </div>
@@ -344,9 +349,7 @@ export function UploadSessionToast({
               <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                 <div className="flex gap-2">
                   <AlertIcon className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-amber-800">
-                    Please don&apos;t refresh this page during upload to prevent any data loss.
-                  </p>
+                  <p className="text-xs text-amber-800">{strings.keepPageOpen}</p>
                 </div>
               </div>
             )}
@@ -369,7 +372,7 @@ export function UploadSessionToast({
                   className="flex items-center justify-between text-xs theme-muted-text hover:theme-text cursor-pointer"
                   onClick={() => setIsExpanded(!isFileListExpanded)}
                 >
-                  <span>{session.uploadNodes.length} files</span>
+                  <span>{strings.fileCount(session.uploadNodes.length)}</span>
                   {isFileListExpanded ? (
                     <AngleUpIcon className="w-4 h-4" />
                   ) : (
@@ -414,7 +417,7 @@ export function UploadSessionToast({
             <div className="flex items-center justify-end">
               {shouldShowSessionCancelButton && (
                 <Button variant="danger" size="xs" onClick={handleCancelClick}>
-                  {modal.cancel}
+                  {common.cancel}
                 </Button>
               )}
 

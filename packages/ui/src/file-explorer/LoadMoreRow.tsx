@@ -37,6 +37,7 @@ export function LoadMoreRow({
   onLoadMore,
 }: LoadMoreRowProps) {
   const t = useStrings().fileExplorer
+  const { common } = useStrings()
   const ref = useRef<HTMLTableRowElement>(null)
 
   useNearEnd(ref, {
@@ -56,7 +57,7 @@ export function LoadMoreRow({
               className="cursor-pointer underline theme-link"
               onClick={onLoadMore}
             >
-              {t.retry}
+              {common.retry}
             </button>
           </span>
         ) : loading ? (
@@ -67,7 +68,7 @@ export function LoadMoreRow({
             className="cursor-pointer underline theme-link"
             onClick={onLoadMore}
           >
-            {t.loadMore}
+            {common.loadMore}
           </button>
         )}
       </td>

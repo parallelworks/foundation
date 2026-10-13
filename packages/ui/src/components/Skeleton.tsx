@@ -44,7 +44,7 @@ export function LoadingRegion({
   className?: string | undefined
   children: ReactNode
 }) {
-  const { loading } = useStrings()
+  const { loading } = useStrings().common
   const name = label || loading
   return (
     <div role="status" aria-label={name} className={className}>

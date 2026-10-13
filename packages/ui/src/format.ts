@@ -1,4 +1,4 @@
-import { Duration, type DurationObjectUnits } from 'luxon'
+import { DateTime, Duration, type DurationObjectUnits } from 'luxon'
 
 // Numbers read in the reader's own locale; the units stay the symbols everyone reads.
 const sizeNumber = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 })
@@ -49,4 +49,51 @@ export function formatDuration(value: number | Duration): string {
   return human
     .toHuman({ unitDisplay: UNIT_DISPLAY[human.locale?.split('-')[0] ?? ''] ?? 'narrow' })
     .replaceAll(/[,、]/g, '')
+}
+
+/** A moment as an ISO string, milliseconds, a Date or a luxon DateTime. */
+export type TimeValue = string | number | Date | DateTime | null | undefined
+
+/** The moment `value` names, or null when it is missing or invalid. */
+export function toDateTime(value: TimeValue): DateTime | null {
+  if (value === null || value === undefined || value === '') {
+    return null
+  }
+  const time =
+    typeof value === 'string'
+      ? DateTime.fromISO(value)
+      : typeof value === 'number'
+        ? DateTime.fromMillis(value)
+        : value instanceof Date
+          ? DateTime.fromJSDate(value)
+          : value
+  return time.isValid ? time : null
+}
+
+const DATE_TIME_STYLES = {
+  date: DateTime.DATE_MED,
+  short: DateTime.DATETIME_SHORT,
+  medium: DateTime.DATETIME_MED,
+  seconds: DateTime.DATETIME_MED_WITH_SECONDS,
+} as const
+
+/** A moment in the reader's locale: `date` reads "Mar 14, 2026", `short`
+ *  "3/14/2026, 9:30 AM", `medium` "Mar 14, 2026, 9:30 AM", and `seconds` adds
+ *  the seconds. Empty for a missing or invalid time. */
+export function formatDateTime(
+  value: TimeValue,
+  style: keyof typeof DATE_TIME_STYLES = 'medium',
+): string {
+  return toDateTime(value)?.toLocaleString(DATE_TIME_STYLES[style]) ?? ''
+}
+
+/** Time left, rounded the way a countdown reads: whole seconds under a minute,
+ *  minutes and seconds under an hour, then hours and minutes. Null once only a
+ *  few seconds remain, for the caller's "almost done". */
+export function formatTimeLeft(seconds: number): string | null {
+  if (seconds < 5) {
+    return null
+  }
+  const whole = seconds < 3600 ? Math.round(seconds) : Math.ceil(seconds / 60) * 60
+  return formatDuration(whole * 1000)
 }

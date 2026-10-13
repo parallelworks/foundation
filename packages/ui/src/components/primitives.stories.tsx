@@ -20,7 +20,7 @@ import { type BarTone, Meter, ProgressBar } from './Meter'
 import { Modal, ModalDescription, type ModalProps, ModalTitle } from './Modal'
 import { NumberInput } from './NumberInput'
 import { Overview } from './Overview'
-import { RelativeTime } from './relativeTime'
+import { Elapsed, RelativeTime } from './relativeTime'
 import { SegmentedControl } from './SegmentedControl'
 import { Select } from './Select'
 import { StatusBadge, StatusDot } from './StatusBadge'
@@ -853,6 +853,25 @@ export const RelativeTimes: StoryObj<{ format: 'long' | 'compact' }> = {
     await expect(
       canvas.getByText(args.format === 'compact' ? '5m' : '5 minutes ago'),
     ).toBeInTheDocument()
+  },
+}
+
+/** How long something ran: counting while it has no end, fixed once it has one. */
+export const ElapsedTimes: StoryObj<{ running: boolean }> = {
+  args: { running: true },
+  render: ({ running }) => {
+    const now = Date.now()
+    return (
+      <div className="flex flex-col gap-2 p-8 text-sm tabular-nums">
+        <Elapsed start={now - 75_000} running={running} />
+        <Elapsed start={now - 3 * 60 * MINUTE} end={now - 60 * MINUTE - 4_000} />
+      </div>
+    )
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('1h 59m 56s').tagName).toBe('TIME')
+    await waitFor(() => expect(canvas.getByText(/^1m 1[5-9]s$/)).toBeInTheDocument())
   },
 }
 
