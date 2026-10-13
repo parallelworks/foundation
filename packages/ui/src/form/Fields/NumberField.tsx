@@ -1,9 +1,10 @@
-import { useField, useFormikContext } from 'formik'
 import { useEffect } from 'react'
-import { FieldWrapper } from '../FieldWrapper'
-import { FormikCustomInput, FormikNumericInput } from '../SpecialTypes'
+import { Field } from '../../components/Field'
+import { NumberInput } from '../../components/NumberInput'
+import { fieldFrame } from '../fieldFrame'
 import type { FieldComponentProps } from '../types/fieldComponentTypes'
 import type { BaseField } from '../types/fieldTypes'
+import { useFieldValue } from '../useFieldValue'
 import { getPlaceholder } from '../utils/getPlaceholder'
 
 export interface INumberField extends BaseField {
@@ -17,69 +18,54 @@ export interface INumberField extends BaseField {
   thousandsSeparator?: boolean
 }
 
-export default function NumberField(props: FieldComponentProps<INumberField>) {
-  const {
-    field,
-    label,
-    labelPosition,
-    missing,
-    disabled,
-    onChange,
-    tooltipComponent,
-    spaceCompact,
-  } = props
-  // The form names every field before it renders one.
-  const fieldName = field.name ?? ''
+/** A value held as text, as one read from a workflow's inputs may be, still shows as its number. */
+function toNumber(value: unknown): number | null {
+  if (typeof value === 'number') {
+    return value
+  }
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
 
-  const [fieldState] = useField<number | string | undefined>(fieldName)
-  const { setFieldValue } = useFormikContext()
+export default function NumberField(props: FieldComponentProps<INumberField>) {
+  const { field, disabled, onChange } = props
+  // The form names every field before it renders one.
+  const [value, change] = useFieldValue<unknown>(field.name ?? '')
+
   // With prefillDefault, seed the form value with the default (not just the placeholder) when it's
   // unset — e.g. gpuCount needs to actually hold 1, since the cost estimate prices the attached GPU
   // off the form value and would otherwise show the bare-VM price until the field is touched.
+  const unset = value === undefined || value === null || value === ''
+  const seed = field.prefillDefault && unset ? field.default : undefined
   useEffect(() => {
-    if (
-      field.prefillDefault &&
-      field.default !== undefined &&
-      (fieldState.value === undefined || fieldState.value === null || fieldState.value === '')
-    ) {
-      setFieldValue(fieldName, field.default)
+    if (seed !== undefined) {
+      change(seed)
     }
-  }, [field.prefillDefault, field.default, fieldName, fieldState.value, setFieldValue])
+  }, [seed, change])
 
   return (
-    <FieldWrapper
-      optional={field.optional}
-      label={label}
-      tooltipComponent={tooltipComponent}
-      labelPosition={labelPosition}
-      spaceCompact={spaceCompact}
-    >
-      {field.thousandsSeparator ? (
-        <FormikNumericInput
-          invalid={missing}
-          key={field.name}
-          name={fieldName}
-          placeholder={getPlaceholder(field.placeholder, field.default)}
-          disabled={disabled}
+    <Field {...fieldFrame(props)}>
+      {(control) => (
+        <NumberInput
+          {...control}
+          name={field.name}
+          value={toNumber(value)}
+          onValueChange={(next) => {
+            const number = next ?? undefined
+            onChange?.(number)
+            change(number)
+          }}
           min={field.min}
           max={field.max}
-          {...(onChange && { onChange })}
-        />
-      ) : (
-        <FormikCustomInput
-          invalid={missing}
-          key={field.name}
-          name={fieldName}
-          type="number"
-          placeholder={getPlaceholder(field.placeholder, field.default)}
-          disabled={disabled}
           step={field.step}
-          min={field.min}
-          max={field.max}
-          defaultValue={field.default}
-          {...(onChange && { onChange })}
+          disabled={disabled}
+          format={{ useGrouping: field.thousandsSeparator ?? false }}
+          placeholder={getPlaceholder(field.placeholder, field.default)}
         />
       )}
-    </FieldWrapper>
+    </Field>
   )
 }

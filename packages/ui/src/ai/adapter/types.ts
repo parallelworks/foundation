@@ -53,13 +53,17 @@ export interface StreamHandlers {
   onReasoning?: (reasoning: string) => void
   // Backend-assigned ID for the assistant message being streamed.
   onMessageId?: (messageId: string) => void
-  // Agent-protocol adapters stream transcript parts progressively; the
-  // OpenAI-compatible adapter never emits these.
+  // Transcript parts, streamed progressively: an agent adapter's whole
+  // timeline, or the tool calls an OpenAI-compatible gateway runs itself.
   onPart?: (delta: PartDelta) => void
 }
 
 // Progressive events an agent adapter maps onto MessagePart timelines.
 export type PartDelta =
+  | { type: 'text' | 'reasoning'; text: string }
+  // Takes back the text and reasoning still streaming at the end of the
+  // timeline, for a provider that restarts a reply.
+  | { type: 'retract' }
   | {
       type: 'tool_start'
       id: string

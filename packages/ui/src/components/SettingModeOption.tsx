@@ -1,24 +1,17 @@
-import cx from 'classnames'
+import { cx } from '../cx'
+import { Radio } from './Radio'
 
-/** A labeled + described radio option row, used inside a SettingsCard to pick
- * between modes (e.g. default vs custom). Stacked rows share the card's
- * dividers via `isFirst`. */
+/** A named and described choice in a SettingsCard, picking between modes such
+ *  as default or custom. Stack them in a `RadioGroup`, which holds the value. */
 export function SettingModeOption({
-  name,
-  checked,
-  onSelect,
+  value,
   label,
   description,
-  isFirst,
   disabled,
 }: {
-  /** Radio group name; shared across the options of one picker. */
-  name: string
-  checked: boolean
-  onSelect: () => void
+  value: string
   label: string
   description: string
-  isFirst?: boolean
   disabled?: boolean
 }) {
   return (
@@ -26,17 +19,10 @@ export function SettingModeOption({
       className={cx(
         'flex items-start gap-3 px-5 py-4',
         disabled ? 'cursor-default opacity-60' : 'cursor-pointer',
-        !isFirst && 'border-t theme-border',
+        'border-t border-(--theme-border) first:border-t-0',
       )}
     >
-      <input
-        type="radio"
-        name={name}
-        checked={checked}
-        onChange={onSelect}
-        disabled={disabled}
-        className="mt-0.5 w-4 h-4 theme-input shrink-0"
-      />
+      <Radio value={value} disabled={disabled} className="mt-0.5" />
       <div className="min-w-0">
         <div className="font-semibold theme-text leading-tight">{label}</div>
         <div className="theme-muted-text text-xs leading-snug mt-0.5">{description}</div>

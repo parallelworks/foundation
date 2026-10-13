@@ -1,7 +1,9 @@
-import cx from 'classnames'
-import { useId, useRef, useState } from 'react'
-import { useNotify, useStrings, useWorkflowEngine } from '../components/Provider'
-import SwitchToggleSmall from '../components/SwitchToggleSmall'
+import { useRef, useState } from 'react'
+import { useStrings, useWorkflowEngine } from '../components/Provider'
+import { Switch } from '../components/Switch'
+import { Tooltip } from '../components/Tooltip'
+import { useCopy } from '../components/useCopy'
+import { cx } from '../cx'
 import type { WorkflowEngine } from '../engine'
 import { flattenGroups, impureSetValueFromPath } from '../form/lib'
 import { CheckIcon, CopyIcon, EyeIcon, EyeOffIcon } from '../icons'
@@ -125,13 +127,10 @@ function FormCodePanel({
   disabled?: boolean
 }) {
   const engine = useWorkflowEngine()
-  const notify = useNotify()
   const { common: t } = useStrings()
-  const uid = useId()
   const [jsonHasErrors, setJsonHasErrors] = useState(false)
   const [showHidden, setShowHidden] = useState(false)
-  const [copied, setCopied] = useState(false)
-  const copyResetRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const { copy, copied } = useCopy()
 
   const isValidJson = (errors: ISchemaError[]) => {
     setJsonHasErrors(errors.length > 0)
@@ -152,16 +151,7 @@ function FormCodePanel({
 
   const json = JSON.stringify(displayObj, null, 2)
 
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(json)
-      setCopied(true)
-      clearTimeout(copyResetRef.current)
-      copyResetRef.current = setTimeout(() => setCopied(false), 2000)
-    } catch {
-      notify.error(t.copyFailed)
-    }
-  }
+  const handleCopy = () => void copy(json, { quiet: true })
 
   return (
     <div style={{ height }} className="flex w-full flex-col gap-2">
@@ -171,24 +161,17 @@ function FormCodePanel({
           jsonHasErrors ? 'border-red-500' : 'border-(--theme-border)',
         )}
       >
-        <div className="bg-(--theme-muted-panel-bg) text-(--theme-muted-panel-color) flex shrink-0 items-center gap-3 border-b border-(--theme-border) px-3 py-2">
+        <div className="bg-(--theme-muted-panel-bg) text-(--theme-muted-text-color) flex shrink-0 items-center gap-3 border-b border-(--theme-border) px-3 py-2">
           {hasHiddenFields && (
-            <label
-              htmlFor={`${uid}-show-hidden`}
-              title={t.showHiddenFieldsHint}
-              className="flex cursor-pointer select-none items-center gap-2 text-sm text-(--theme-app)"
-            >
-              <SwitchToggleSmall
-                id={`${uid}-show-hidden`}
-                value={showHidden}
-                aria-label={t.showHiddenFields}
-                onClick={() => setShowHidden((prev) => !prev)}
-              />
-              <span className="flex items-center gap-1.5">
-                {showHidden ? <EyeIcon /> : <EyeOffIcon />}
-                {t.showHiddenFields}
-              </span>
-            </label>
+            <Tooltip content={t.showHiddenFieldsHint}>
+              <label className="flex cursor-pointer select-none items-center gap-2 text-sm text-(--theme-app)">
+                <Switch size="sm" checked={showHidden} onCheckedChange={setShowHidden} />
+                <span className="flex items-center gap-1.5">
+                  {showHidden ? <EyeIcon /> : <EyeOffIcon />}
+                  {t.showHiddenFields}
+                </span>
+              </label>
+            </Tooltip>
           )}
           <button
             type="button"

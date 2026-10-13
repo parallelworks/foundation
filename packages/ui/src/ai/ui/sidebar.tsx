@@ -1,23 +1,24 @@
-import cx from 'classnames'
 import { type CSSProperties, type ReactNode, useState } from 'react'
 import { ConfirmModal } from '../../components/ConfirmModal'
+import type { OpenMenu } from '../../components/ContextMenu'
+import { fieldBox } from '../../components/fieldBox'
 import { focusOnMount } from '../../components/focus'
+import { IconButton } from '../../components/IconButton'
+import type { MenuEntry } from '../../components/MenuEntries'
+import { Tooltip } from '../../components/Tooltip'
+import { cx } from '../../cx'
 import { SidebarIcon } from '../../icons'
-import {
-  MoreButton,
-  type OpenMenu,
-  type RowMenuItem,
-  rowContextMenuProps,
-  useRowMenuActive,
-} from '../../list/index'
+import { MoreButton, rowContextMenuProps, useRowMenuActive } from '../../list/index'
 
 const SIDEBAR_RAIL_WIDTH_PX = 48
 export const SIDEBAR_DEFAULT_WIDTH_PX = 256
 
-// Tints of the ink rather than the theme's hover, which is a shade off this
-// surface and would not read as a highlight on it.
-const HIGHLIGHT_SELECTED = 'bg-[color-mix(in_oklab,var(--theme-panel)_8%,transparent)]'
-const HIGHLIGHT_HOVER = 'hover:bg-[color-mix(in_oklab,var(--theme-panel)_5%,transparent)]'
+// Tints rather than the theme's hover, which is a shade off this surface and
+// would not read as a highlight on it: the accent for the open row, so the
+// conversation on screen is marked in the chat's own colour, and the ink for
+// a passing pointer.
+const HIGHLIGHT_SELECTED = 'bg-[color-mix(in_oklab,var(--theme-accent)_12%,transparent)]'
+const HIGHLIGHT_HOVER = 'hover:bg-[color-mix(in_oklab,var(--theme-app)_5%,transparent)]'
 
 /** The column a conversation list lives in: it animates between its width
  *  and a rail, unless a drag is setting the width right now. */
@@ -35,7 +36,7 @@ export function SidebarPanel({
   width?: number
   railWidth?: number
   resizing?: boolean
-  label?: string
+  label?: string | undefined
   className?: string
   style?: CSSProperties
   children: ReactNode
@@ -70,19 +71,13 @@ export function SidebarToggle({
 }) {
   const label = collapsed ? openLabel : closeLabel
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      title={label}
-      aria-label={label}
+    <IconButton
+      label={label}
+      icon={<SidebarIcon />}
       aria-expanded={!collapsed}
-      className={cx(
-        'flex h-7 w-7 items-center justify-center rounded-md theme-muted-text transition-colors hover:theme-muted-panel hover:theme-text',
-        className,
-      )}
-    >
-      <SidebarIcon className="h-4 w-4" />
-    </button>
+      onClick={onToggle}
+      className={className}
+    />
   )
 }
 
@@ -94,18 +89,38 @@ export function SidebarGroupHeading({
   children: ReactNode
   /** 'attention' is for the group the reader is being asked to act on. */
   tone?: 'default' | 'attention'
-  testId?: string
+  testId?: string | undefined
 }) {
   return (
     <h4
       data-testid={testId}
       className={cx(
-        'mt-4 mb-1 whitespace-nowrap px-2 text-xs font-medium',
+        'mt-5 mb-1 whitespace-nowrap px-2 text-xs font-medium',
         tone === 'attention' ? 'text-amber-700 dark:text-amber-300' : 'theme-muted-text',
       )}
     >
       {children}
     </h4>
+  )
+}
+
+/** A row's first line, the same in every list: what it is, and when it last
+ *  moved, abbreviated, on the right. */
+export function SidebarRowTitle({
+  children,
+  time,
+}: {
+  children: ReactNode
+  /** When it last changed, short: a compact `RelativeTime`. */
+  time?: ReactNode
+}) {
+  return (
+    <span className="flex min-w-0 flex-1 items-baseline gap-2">
+      <span className="min-w-0 flex-1 truncate text-sm theme-text">{children}</span>
+      {time && (
+        <span className="min-w-8 shrink-0 text-[11px] tabular-nums theme-muted-text">{time}</span>
+      )}
+    </span>
   )
 }
 
@@ -119,7 +134,7 @@ export function SidebarRow({
   children,
 }: {
   selected: boolean
-  menuItems: RowMenuItem[]
+  menuItems: MenuEntry[]
   openMenu: OpenMenu
   className?: string
   children: ReactNode
@@ -128,14 +143,14 @@ export function SidebarRow({
   return (
     <li
       className={cx(
-        'group relative flex items-center justify-between rounded-lg px-2 py-1 transition-colors duration-150',
+        'group relative flex items-center justify-between rounded-lg px-2 py-[3px] transition-colors duration-150',
         selected || active ? HIGHLIGHT_SELECTED : HIGHLIGHT_HOVER,
         className,
       )}
       {...rowContextMenuProps(openRowMenu, menuItems)}
     >
       {children}
-      <MoreButton active={active} onOpen={(x, y) => openRowMenu(x, y, menuItems)} />
+      <MoreButton open={active} onOpen={(button) => openRowMenu(button, menuItems)} />
     </li>
   )
 }
@@ -147,33 +162,33 @@ export function SidebarRailItem({
   label,
   onSelect,
   testId,
-  tooltipProps,
   children,
 }: {
   selected: boolean
+  /** Names the icon-only button, and shows beside it on hover. */
   label: string
   onSelect: () => void
   testId?: string
-  tooltipProps?: Record<string, string>
   children: ReactNode
 }) {
   return (
     <li>
-      <button
-        type="button"
-        data-testid={testId}
-        aria-label={label}
-        aria-current={selected ? 'page' : undefined}
-        onClick={onSelect}
-        {...tooltipProps}
-        className={cx(
-          'flex h-7 w-7 items-center justify-center rounded-md transition-colors',
-          HIGHLIGHT_HOVER,
-          selected && HIGHLIGHT_SELECTED,
-        )}
-      >
-        {children}
-      </button>
+      <Tooltip content={label} side="right">
+        <button
+          type="button"
+          data-testid={testId}
+          aria-label={label}
+          aria-current={selected ? 'page' : undefined}
+          onClick={onSelect}
+          className={cx(
+            'flex h-7 w-7 items-center justify-center rounded-md transition-colors',
+            HIGHLIGHT_HOVER,
+            selected && HIGHLIGHT_SELECTED,
+          )}
+        >
+          {children}
+        </button>
+      </Tooltip>
     </li>
   )
 }
@@ -223,7 +238,7 @@ export function RenameDialog({
           }}
           placeholder={placeholder}
           ref={focusOnMount}
-          className="w-full rounded-md border theme-border bg-(--theme-input-bg) px-3 py-2 text-sm theme-text placeholder:theme-muted-text focus:border-(--theme-element) focus:outline-none"
+          className={fieldBox()}
         />
       </label>
     </ConfirmModal>

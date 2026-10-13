@@ -30,6 +30,7 @@ export type TStorage = {
   canShare?: boolean | undefined
   canManageAccess?: boolean | undefined
   previewLimits?: Partial<PreviewLimits> | undefined
+  rootPath?: string | undefined
 }
 
 /** A file the host is asked to name or download: its storage, key and name. */

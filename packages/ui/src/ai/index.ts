@@ -1,4 +1,3 @@
-export { durationToAbsHumanDuration } from '../duration'
 export * from './adapter/types'
 export * from './agent/index'
 export { default as AllocationSelector } from './components/AllocationSelector'
@@ -8,11 +7,7 @@ export {
   type AttachmentUploadHandle,
   default as AttachmentUpload,
 } from './components/AttachmentUpload'
-export {
-  compactCount,
-  default as ActivityLine,
-  formatElapsed,
-} from './components/agent/ActivityLine'
+export { default as ActivityLine } from './components/agent/ActivityLine'
 export {
   ApprovalBlock,
   default as AgentMessageParts,
@@ -25,20 +20,33 @@ export {
   type ChatInputHandle,
   default as ChatInput,
 } from './components/ChatInput'
-export { default as ChatLayout } from './components/ChatLayout'
+export {
+  CHAT_COLUMN_SCOPE,
+  ConversationLayout,
+  DRAWER_BELOW_PX,
+  default as ChatLayout,
+  type SidebarMode,
+} from './components/ChatLayout'
 // Named ChatMessageView so it doesn't shadow the ChatMessage type from
 // './types' at the package entry point.
 export { default as ChatMessageView } from './components/ChatMessage'
 export { default as ChatMessageList } from './components/ChatMessageList'
 export { default as ChatSidebar } from './components/ChatSidebar'
+export { default as ChatStage } from './components/ChatStage'
 export { default as ChatThread } from './components/ChatThread'
 export {
   ComposerContext,
   ComposerControls,
   ComposerSettings,
+  ComposerUsage,
   ConnectToolsLink,
+  ManageProvidersLink,
 } from './components/ComposerChrome'
-export { default as ComposerFrame } from './components/ComposerFrame'
+export {
+  type ConversationGroupKey,
+  groupConversationsByDate,
+  useConversationActions,
+} from './components/conversationActions'
 export { default as DragOverlay } from './components/DragOverlay'
 export {
   default as ModelSelector,
@@ -82,12 +90,17 @@ export { KeyboardShortcutsProvider } from './core/KeyboardShortcutsProvider'
 export { applyPartDelta, finalizeParts } from './core/parts'
 export { pasteInlineMaxBytes } from './core/pastes'
 export { providerIssueFor } from './core/providerIssues'
+export type { SidebarPresentation, SidebarState } from './core/sidebarState'
 export { default as useDragDrop } from './core/useDragDrop'
 export { useKeyboardShortcuts } from './core/useKeyboardShortcuts'
 export { type ChatStrings, defaultChatStrings } from './strings'
 export * from './types'
-export { type DropdownOption, default as Dropdown } from './ui/Dropdown'
-export { NoticeBar, NoticeCard, type NoticeTone } from './ui/Notice'
+export {
+  ConversationSidebar,
+  type ConversationSidebarGroup,
+  sidebarDrawerProps,
+} from './ui/ConversationSidebar'
+export { NoticeBar, NoticeCard, type NoticeTone, OutputCard } from './ui/Notice'
 export {
   RenameDialog,
   type RowDialogStrings,
@@ -95,7 +108,8 @@ export {
   SidebarPanel,
   SidebarRailItem,
   SidebarRow,
+  SidebarRowTitle,
   SidebarToggle,
   useRowDialogs,
 } from './ui/sidebar'
-export { formatFileSize, isMac, isOrgModel } from './utils'
+export { isMac, isOrgModel } from './utils'

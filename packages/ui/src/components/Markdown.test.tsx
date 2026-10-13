@@ -24,19 +24,11 @@ afterEach(cleanup)
 describe('Markdown mermaid', () => {
   const chart = '```mermaid\ngraph TD; A-->B;\n```'
 
-  it('renders a mermaid fence as a diagram when asked', async () => {
-    const { container } = render(<Markdown mermaid>{chart}</Markdown>)
+  it('renders a mermaid fence as a diagram', async () => {
+    const { container } = render(<Markdown>{chart}</Markdown>)
     await waitFor(() =>
       expect(container.querySelector('[data-streamdown="mermaid-block"]')).toBeInTheDocument(),
     )
-  })
-
-  it('leaves a mermaid fence as code otherwise', async () => {
-    const { container } = render(<Markdown>{chart}</Markdown>)
-    await waitFor(() =>
-      expect(container.querySelector('[data-streamdown="code-block"]')).toBeInTheDocument(),
-    )
-    expect(container.querySelector('[data-streamdown="mermaid-block"]')).not.toBeInTheDocument()
   })
 })
 

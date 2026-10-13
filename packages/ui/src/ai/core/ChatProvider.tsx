@@ -8,7 +8,10 @@ import {
   useMemo,
   useReducer,
   useRef,
+  useState,
 } from 'react'
+import { usePersistedState } from '../../components/Provider'
+import { toast } from '../../components/Toast'
 import type { CompletionMessage } from '../adapter/openai/wire'
 import type { ChatAdapter, PartDelta } from '../adapter/types'
 import type {
@@ -16,7 +19,6 @@ import type {
   AttachmentRef,
   ChatModel,
   ChatNavigation,
-  ChatNotify,
   ChatUser,
   Conversation,
   ConversationSummary,
@@ -28,44 +30,16 @@ import type {
 } from '../types'
 import { chatReducer, initialState } from './chatReducer'
 import { ChatConfigProvider, type ChatUIConfig, resolveChatConfig } from './config'
-import { applyPartDelta, finalizeParts } from './parts'
+import { applyPartDelta, finalizeParts, toolTurnMessages } from './parts'
 import { providerIssueFor } from './providerIssues'
+import {
+  ReportSidebarPresentationContext,
+  type SidebarPresentation,
+  type SidebarState,
+  useControllable,
+  useOwnSidebar,
+} from './sidebarState'
 import { useSSEStream } from './useSSEStream'
-
-const SELECTED_MODEL_STORAGE_KEY = 'aiChatSelectedModel'
-const SIDEBAR_COLLAPSED_STORAGE_KEY = 'aiChatSidebarCollapsed'
-
-function readStoredSidebarCollapsed(): boolean {
-  try {
-    return globalThis.localStorage?.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === '1'
-  } catch {
-    return false
-  }
-}
-
-function storeSidebarCollapsed(collapsed: boolean) {
-  try {
-    globalThis.localStorage?.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, collapsed ? '1' : '0')
-  } catch {
-    // Storage unavailable: the sidebar still toggles, it just does not remember.
-  }
-}
-
-function readStoredModel(): string | null {
-  try {
-    return globalThis.localStorage?.getItem(SELECTED_MODEL_STORAGE_KEY) ?? null
-  } catch {
-    return null
-  }
-}
-
-function storeSelectedModel(modelId: string) {
-  try {
-    globalThis.localStorage?.setItem(SELECTED_MODEL_STORAGE_KEY, modelId)
-  } catch {
-    // Storage unavailable (SSR, disabled storage): the selection just doesn't persist.
-  }
-}
 
 function generateTitleFromMessage(content: string): string {
   const cleaned = content
@@ -145,7 +119,6 @@ interface ChatContextValue {
   adapter: ChatAdapter
   currentUser: ChatUser
   navigation: ChatNavigation
-  notify: ChatNotify
   activeConversationId: string | null
   conversations: ConversationSummary[]
   currentConversation: Conversation | null
@@ -167,7 +140,11 @@ interface ChatContextValue {
   streamingReasoning: string
   streamingParts: MessagePart[]
   thinkingStartTime: number | null
+  sidebar: SidebarState
+  /** True unless the sidebar is expanded. */
   sidebarCollapsed: boolean
+  sidebarPresentation: SidebarPresentation
+  drawerOpen: boolean
   queuedMessages: Message[]
 
   loadConversations: () => Promise<void>
@@ -189,6 +166,10 @@ interface ChatContextValue {
   stopStreaming: () => void
   removeQueuedMessage: (id: string) => void
   flushQueuedMessages: () => void
+  setSidebar: (sidebar: SidebarState) => void
+  setDrawerOpen: (open: boolean) => void
+  /** Opens or closes the drawer while the layout shows one; otherwise moves
+   *  between expanded and the rail. */
   toggleSidebar: () => void
   updateConversationTitle: (id: string, title: string) => Promise<boolean>
   navigateToBranch: (messageId: string) => void
@@ -209,9 +190,16 @@ export interface ChatProviderProps {
   adapter: ChatAdapter
   currentUser: ChatUser
   navigation: ChatNavigation
-  notify: ChatNotify
   activeConversationId?: string | null
   config?: ChatUIConfig
+  /** Owns the sidebar's state. Omit to leave it to the reader, remembered
+   *  per browser. */
+  sidebar?: SidebarState
+  onSidebarChange?: (sidebar: SidebarState) => void
+  /** Owns whether the drawer is open while the layout shows the sidebar as
+   *  one. Omit to leave it to the reader; it starts closed. */
+  drawerOpen?: boolean
+  onDrawerOpenChange?: (open: boolean) => void
   children: ReactNode
 }
 
@@ -219,15 +207,15 @@ export function ChatProvider({
   adapter,
   currentUser,
   navigation,
-  notify,
   activeConversationId = null,
   config,
+  sidebar: sidebarProp,
+  onSidebarChange,
+  drawerOpen: drawerOpenProp,
+  onDrawerOpenChange,
   children,
 }: ChatProviderProps) {
-  const [state, dispatch] = useReducer(chatReducer, initialState, (seed) => ({
-    ...seed,
-    sidebarCollapsed: readStoredSidebarCollapsed(),
-  }))
+  const [state, dispatch] = useReducer(chatReducer, initialState)
   const hasLoadedConversationsRef = useRef(false)
 
   const {
@@ -246,6 +234,11 @@ export function ChatProvider({
   // Updated explicitly in: clearCurrentConversation (null), loadConversation (id), sendMessage (new id)
   // Do NOT auto-sync with state - that causes race conditions
   const currentConversationIdRef = useRef<string | null>(null)
+
+  // The model last chosen, offered again once the models load.
+  const [storedModel, storeModel] = usePersistedState<string | null>('aiChat.model', null)
+  const storedModelRef = useRef(storedModel)
+  storedModelRef.current = storedModel
 
   const selectedProviderRef = useRef(state.selectedProvider)
   useEffect(() => {
@@ -270,11 +263,11 @@ export function ChatProvider({
       dispatch({ type: 'SET_CONVERSATIONS', conversations })
       hasLoadedConversationsRef.current = true
     } catch (error) {
-      notify.error(errorText(error))
+      toast.error(errorText(error))
     } finally {
       dispatch({ type: 'SET_LOADING', isLoading: false })
     }
-  }, [adapter, notify])
+  }, [adapter])
 
   // Prevents redundant reloads while actively streaming to a conversation
   const streamingToConversationRef = useRef<string | null>(null)
@@ -314,7 +307,7 @@ export function ChatProvider({
           type: 'SET_LOADING_CONVERSATION',
           isLoadingConversation: false,
         })
-        notify.error(errorText(error))
+        toast.error(errorText(error))
         currentConversationIdRef.current = null
         dispatch({ type: 'SET_CURRENT_CONVERSATION', conversation: null })
         return
@@ -348,7 +341,6 @@ export function ChatProvider({
     },
     [
       adapter,
-      notify,
       resetAnimationRefs,
       streamingConversationIdRef,
       backgroundStreamsRef,
@@ -369,9 +361,9 @@ export function ChatProvider({
       dispatch({ type: 'SET_PROVIDERS', providers })
       hasLoadedProvidersRef.current = true
     } catch (error) {
-      notify.error(errorText(error))
+      toast.error(errorText(error))
     }
-  }, [adapter, notify])
+  }, [adapter])
 
   const refreshProviders = useCallback(async () => {
     hasLoadedProvidersRef.current = false
@@ -395,7 +387,7 @@ export function ChatProvider({
       })
       hasLoadedModelsRef.current = true
       const current = selectedProviderRef.current
-      const stored = readStoredModel()
+      const stored = storedModelRef.current
       const offers = (id: string | null) => !!id && models.some((m) => m.id === id)
       // A remembered choice survives even when its provider is broken (the
       // banner explains); only the fresh default skips broken providers.
@@ -432,6 +424,8 @@ export function ChatProvider({
     loadModels()
   }, [loadProviders, loadModels])
 
+  const resolvedConfig = useMemo(() => resolveChatConfig(config), [config])
+
   const createConversation = useCallback(
     async (title?: string): Promise<string | null> => {
       try {
@@ -439,11 +433,11 @@ export function ChatProvider({
         dispatch({ type: 'ADD_CONVERSATION', conversation })
         return conversation.id
       } catch (error) {
-        notify.error(errorText(error))
+        toast.error(errorText(error))
         return null
       }
     },
-    [adapter, notify],
+    [adapter],
   )
 
   const deleteConversation = useCallback(
@@ -451,7 +445,7 @@ export function ChatProvider({
       try {
         await adapter.conversations.remove(id)
       } catch (error) {
-        notify.error(errorText(error))
+        toast.error(errorText(error))
         return false
       }
       dispatch({ type: 'REMOVE_CONVERSATION', conversationId: id })
@@ -463,7 +457,7 @@ export function ChatProvider({
 
       return true
     },
-    [adapter, notify, state.currentConversation, navigation],
+    [adapter, state.currentConversation, navigation],
   )
 
   const sendMessage = useCallback<SendMessage>(
@@ -476,7 +470,7 @@ export function ChatProvider({
 
         const MAX_QUEUED_MESSAGES = 10
         if (pendingQueueRef.current.length >= MAX_QUEUED_MESSAGES) {
-          notify.error(
+          toast.error(
             `You can queue up to ${MAX_QUEUED_MESSAGES} messages while waiting for a response`,
           )
           return false
@@ -507,7 +501,7 @@ export function ChatProvider({
 
       const modelString = state.selectedProvider
       if (!isSelectedModelAvailable || !modelString) {
-        notify.error('Please select a provider first')
+        toast.error(resolvedConfig.strings.modelPicker.selectFirst)
         return false
       }
 
@@ -639,8 +633,8 @@ export function ChatProvider({
       const existingMessages = isNewConversation ? [] : state.currentConversation?.messages || []
       const apiMessages: CompletionMessage[] = [
         ...existingMessages
-          .filter((m) => m.content || m.toolCalls?.length)
-          .map((m) => {
+          .filter((m) => m.content || m.toolCalls?.length || m.parts?.length)
+          .flatMap((m) => {
             const msg: CompletionMessage = {
               role: m.role,
               content: m.content || null,
@@ -665,7 +659,7 @@ export function ChatProvider({
             // The AI already processed those attachments when they were first sent.
             // Re-sending them would cause duplicate content and potential API errors
             // for non-vision models.
-            return msg
+            return m.role === 'assistant' ? toolTurnMessages(m.parts, msg) : [msg]
           }),
         ...precedingApiMessages,
         {
@@ -700,6 +694,9 @@ export function ChatProvider({
         // duration excludes request setup — the response only became readable
         // at the first chunk before the transport moved behind the adapter.
         let thinkingStart: number | null = null
+        // The last reasoning chunk, so "Thought for" stops where the thinking
+        // did rather than running on through the answer.
+        let thinkingEnd: number | null = null
         const markStreamStart = () => {
           if (thinkingStart === null) {
             thinkingStart = Date.now()
@@ -735,6 +732,7 @@ export function ChatProvider({
             },
             onReasoning: (reasoning: string) => {
               markStreamStart()
+              thinkingEnd = Date.now()
               dispatch({
                 type: 'APPEND_STREAMING_REASONING',
                 reasoning,
@@ -770,7 +768,9 @@ export function ChatProvider({
         )
 
         const thinkingDuration =
-          assistantReasoning && thinkingStart !== null ? Date.now() - thinkingStart : null
+          assistantReasoning && thinkingStart !== null
+            ? (thinkingEnd ?? Date.now()) - thinkingStart
+            : null
 
         const assistantMessage: Message = {
           id: assistantMessageId || crypto.randomUUID(),
@@ -865,7 +865,7 @@ export function ChatProvider({
     },
     [
       adapter,
-      notify,
+      resolvedConfig,
       isSelectedModelAvailable,
       state.selectedProvider,
       state.selectedAllocation,
@@ -893,7 +893,7 @@ export function ChatProvider({
       try {
         await adapter.conversations.rename(id, title)
       } catch (error) {
-        notify.error(errorText(error))
+        toast.error(errorText(error))
         return false
       }
 
@@ -911,17 +911,17 @@ export function ChatProvider({
 
       return true
     },
-    [adapter, notify, state.conversations, state.currentConversation],
+    [adapter, state.conversations, state.currentConversation],
   )
 
   const setSelectedProvider = useCallback(
     (providerId: string | null) => {
       if (providerId && state.models.some((m) => m.id === providerId)) {
-        storeSelectedModel(providerId)
+        storeModel(providerId)
       }
       dispatch({ type: 'SET_SELECTED_PROVIDER', providerId })
     },
-    [state.models],
+    [state.models, storeModel],
   )
 
   const setSelectedAllocation = useCallback((allocation: string | null) => {
@@ -1046,12 +1046,39 @@ export function ChatProvider({
     state.thinkingStartTime,
   ])
 
-  const sidebarCollapsedRef = useRef(state.sidebarCollapsed)
-  sidebarCollapsedRef.current = state.sidebarCollapsed
+  const [sidebar, setSidebar, sidebarRef] = useControllable(
+    sidebarProp,
+    useOwnSidebar(),
+    onSidebarChange,
+  )
+  const [drawerOpen, setDrawerOpen, drawerOpenRef] = useControllable(
+    drawerOpenProp,
+    useState(false),
+    onDrawerOpenChange,
+  )
+  const [sidebarPresentation, setSidebarPresentation] = useState<SidebarPresentation>('inline')
+  const presentationRef = useRef(sidebarPresentation)
+  presentationRef.current = sidebarPresentation
+
+  const reportSidebarPresentation = useCallback(
+    (presentation: SidebarPresentation) => {
+      setSidebarPresentation(presentation)
+      // A drawer left open while the layout widened would be open again the
+      // moment it narrows.
+      if (presentation === 'inline') {
+        setDrawerOpen(false)
+      }
+    },
+    [setDrawerOpen],
+  )
+
   const toggleSidebar = useCallback(() => {
-    storeSidebarCollapsed(!sidebarCollapsedRef.current)
-    dispatch({ type: 'TOGGLE_SIDEBAR' })
-  }, [])
+    if (presentationRef.current === 'drawer') {
+      setDrawerOpen(!drawerOpenRef.current.value)
+    } else {
+      setSidebar(sidebarRef.current.value === 'expanded' ? 'collapsed' : 'expanded')
+    }
+  }, [setDrawerOpen, drawerOpenRef, setSidebar, sidebarRef])
 
   const navigateToBranch = useCallback(
     (messageId: string) => {
@@ -1104,14 +1131,11 @@ export function ChatProvider({
     dispatch({ type: 'SET_CURRENT_CONVERSATION', conversation: null })
   }, [resetAnimationRefs, streamingConversationIdRef])
 
-  const resolvedConfig = useMemo(() => resolveChatConfig(config), [config])
-
   const value = useMemo<ChatContextValue>(
     () => ({
       adapter,
       currentUser,
       navigation,
-      notify,
       activeConversationId,
       conversations: state.conversations,
       currentConversation: state.currentConversation,
@@ -1133,7 +1157,10 @@ export function ChatProvider({
       streamingReasoning: state.streamingReasoning,
       streamingParts: state.streamingParts,
       thinkingStartTime: state.thinkingStartTime,
-      sidebarCollapsed: state.sidebarCollapsed,
+      sidebar,
+      sidebarCollapsed: sidebar !== 'expanded',
+      sidebarPresentation,
+      drawerOpen,
       queuedMessages: state.queuedMessages,
       loadConversations,
       loadConversation,
@@ -1149,6 +1176,8 @@ export function ChatProvider({
       stopStreaming,
       removeQueuedMessage,
       flushQueuedMessages,
+      setSidebar,
+      setDrawerOpen,
       toggleSidebar,
       updateConversationTitle,
       navigateToBranch,
@@ -1158,9 +1187,11 @@ export function ChatProvider({
       adapter,
       currentUser,
       navigation,
-      notify,
       activeConversationId,
       state,
+      sidebar,
+      sidebarPresentation,
+      drawerOpen,
       isSelectedModelAvailable,
       loadConversations,
       loadConversation,
@@ -1176,6 +1207,8 @@ export function ChatProvider({
       stopStreaming,
       removeQueuedMessage,
       flushQueuedMessages,
+      setSidebar,
+      setDrawerOpen,
       toggleSidebar,
       updateConversationTitle,
       navigateToBranch,
@@ -1185,7 +1218,9 @@ export function ChatProvider({
 
   return (
     <ChatConfigProvider value={resolvedConfig}>
-      <ChatContext.Provider value={value}>{children}</ChatContext.Provider>
+      <ReportSidebarPresentationContext.Provider value={reportSidebarPresentation}>
+        <ChatContext.Provider value={value}>{children}</ChatContext.Provider>
+      </ReportSidebarPresentationContext.Provider>
     </ChatConfigProvider>
   )
 }

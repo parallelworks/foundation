@@ -30,12 +30,6 @@ vi.mock('../ui/Markdown', () => ({
   default: ({ children }: { children: string }) => <div>{children}</div>,
 }))
 
-vi.mock('../../icons', () => ({
-  ThinkingIcon: () => null,
-  ChevronRightIcon: () => null,
-  XIcon: () => null,
-}))
-
 vi.mock('./agent/AgentMessageParts', () => ({
   __esModule: true,
   default: () => <div data-testid="agent-parts" />,
@@ -293,5 +287,28 @@ describe('ChatMessageList queued messages', () => {
     expect(buttons).toHaveLength(1)
     fireEvent.click(buttons[0]!)
     expect(onRemoveQueued).toHaveBeenCalledWith('queued')
+  })
+
+  it('says when each queued message reaches the model', () => {
+    const queued = [createMockMessage({ id: 'steered' }), createMockMessage({ id: 'queued' })]
+    const { getAllByTestId, rerender } = render(
+      <ChatMessageList
+        messages={[]}
+        allMessages={[]}
+        queuedMessages={queued}
+        canRemoveQueued={(id) => id === 'queued'}
+        queueDelivery="nextStep"
+      />,
+    )
+    expect(getAllByTestId('queued-status').map((el) => el.textContent)).toEqual([
+      'Sent to the running turn',
+      'Queued · reaches the agent after its current step',
+    ])
+
+    rerender(<ChatMessageList messages={[]} allMessages={[]} queuedMessages={queued} />)
+    expect(getAllByTestId('queued-status').map((el) => el.textContent)).toEqual([
+      'Queued · sends when this reply finishes',
+      'Queued · sends when this reply finishes',
+    ])
   })
 })

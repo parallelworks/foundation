@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MessagePart, ToolCallPart } from '../types'
-import { applyPartDelta, finalizeParts } from './parts'
+import { applyPartDelta, finalizeParts, toolTurnMessages } from './parts'
 
 const runningTool = (id = 't1'): ToolCallPart => ({
   kind: 'tool_call',
@@ -129,6 +129,48 @@ describe('applyPartDelta', () => {
     ])
   })
 
+  it('grows the last text or reasoning part and starts a new one when the kind changes', () => {
+    let parts = applyPartDelta([], { type: 'reasoning', text: 'Look' })
+    parts = applyPartDelta(parts, { type: 'reasoning', text: 'ing' })
+    parts = applyPartDelta(parts, { type: 'text', text: 'Found ' })
+    parts = applyPartDelta(parts, { type: 'text', text: 'it' })
+    parts = applyPartDelta(parts, { type: 'tool_start', id: 't1', name: 'x', args: '' })
+    parts = applyPartDelta(parts, { type: 'text', text: 'Done' })
+    expect(parts).toEqual([
+      { kind: 'reasoning', text: 'Looking' },
+      { kind: 'text', text: 'Found it' },
+      { kind: 'tool_call', id: 't1', name: 'x', args: '', status: 'running' },
+      { kind: 'text', text: 'Done' },
+    ])
+  })
+
+  it('keeps the rest of the last part when appending text to it', () => {
+    const parts = applyPartDelta([{ kind: 'reasoning', text: 'a', durationMs: 5 }], {
+      type: 'reasoning',
+      text: 'b',
+    })
+    expect(parts).toEqual([{ kind: 'reasoning', text: 'ab', durationMs: 5 }])
+  })
+
+  it('retracts the trailing text and reasoning, back to the last other part', () => {
+    const before: MessagePart[] = [
+      { kind: 'text', text: 'kept' },
+      runningTool(),
+      { kind: 'reasoning', text: 'gone' },
+      { kind: 'text', text: 'gone too' },
+    ]
+    expect(applyPartDelta(before, { type: 'retract' })).toEqual([
+      { kind: 'text', text: 'kept' },
+      runningTool(),
+    ])
+    expect(before).toHaveLength(4)
+  })
+
+  it('retracts nothing when the timeline does not end in text', () => {
+    const parts: MessagePart[] = [runningTool()]
+    expect(applyPartDelta(parts, { type: 'retract' })).toBe(parts)
+  })
+
   it('appends notices and warnings', () => {
     let parts = applyPartDelta([], { type: 'notice', text: 'heads up' })
     parts = applyPartDelta(parts, { type: 'warning', text: 'careful' })
@@ -163,5 +205,47 @@ describe('finalizeParts', () => {
     const done: ToolCallPart = { ...runningTool(), status: 'ok', result: 'x' }
     const notice: MessagePart = { kind: 'notice', text: 'n' }
     expect(finalizeParts([done, notice])).toEqual([done, notice])
+  })
+})
+
+describe('toolTurnMessages', () => {
+  const answer = { role: 'assistant', content: 'You have gpu-a.' }
+
+  it('replays finished tool calls and their results before the answer', () => {
+    const parts: MessagePart[] = [
+      { ...runningTool('t1'), status: 'ok', result: '["gpu-a"]' },
+      { ...runningTool('t2'), status: 'error', result: 'not found' },
+    ]
+    expect(toolTurnMessages(parts, answer)).toEqual([
+      {
+        role: 'assistant',
+        content: null,
+        tool_calls: [
+          {
+            id: 't1',
+            type: 'function',
+            function: { name: 'get_workflow', arguments: '{"name":"helloworld"}' },
+          },
+          {
+            id: 't2',
+            type: 'function',
+            function: { name: 'get_workflow', arguments: '{"name":"helloworld"}' },
+          },
+        ],
+      },
+      { role: 'tool', tool_call_id: 't1', content: '["gpu-a"]' },
+      { role: 'tool', tool_call_id: 't2', content: 'not found' },
+      answer,
+    ])
+  })
+
+  it('returns the answer alone when no tool call finished', () => {
+    expect(toolTurnMessages([runningTool()], answer)).toEqual([answer])
+    expect(toolTurnMessages(undefined, answer)).toEqual([answer])
+  })
+
+  it('leaves out an empty answer after the tool results', () => {
+    const parts: MessagePart[] = [{ ...runningTool(), status: 'ok', result: 'done' }]
+    expect(toolTurnMessages(parts, { role: 'assistant', content: null })).toHaveLength(2)
   })
 })

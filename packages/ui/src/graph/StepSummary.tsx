@@ -1,4 +1,4 @@
-import Loader from '../components/Loader'
+import { Loader } from '../components/Loader'
 import Markdown from '../components/Markdown'
 import { useRunFile, useStrings } from '../components/Provider'
 
@@ -9,11 +9,11 @@ export function StepSummary({ runSlug, path }: { runSlug: string; path: string }
   return (
     <div className="panel border rounded min-h-0 flex-1 overflow-y-auto p-4">
       {isLoading && data === undefined ? (
-        <Loader text={dag.loadingSummary} size={24} />
+        <Loader label={dag.loadingSummary} size={24} />
       ) : error || data === undefined ? (
         <p className="text-xs theme-muted-text">{dag.summaryLoadFailed}</p>
       ) : (
-        <Markdown mermaid httpsImagesOnly compact>
+        <Markdown httpsImagesOnly compact>
           {data}
         </Markdown>
       )}

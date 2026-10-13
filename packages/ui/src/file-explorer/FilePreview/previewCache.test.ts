@@ -178,4 +178,22 @@ describe('clearPreviewCache', () => {
     expect(content.controller.signal.aborted).toBe(true)
     expect(dispose).toHaveBeenCalledWith({ v: 'a' })
   })
+
+  it('keeps entries the given paths leave out', async () => {
+    const dispose = vi.fn()
+    loadPreviewUrl('a/x', async () => ['https://signed/a', null] as [string, null])
+    loadPreviewUrl('b/x', async () => ['https://signed/b', null] as [string, null])
+    const a = loadPreviewContent('a/x', async () => ({ v: 'a' }), dispose)
+    const b = loadPreviewContent('b/x', async () => ({ v: 'b' }), dispose)
+    await Promise.all([a.promise, b.promise])
+
+    clearPreviewCache((path) => path.startsWith('a/'))
+
+    expect(peekPreviewContent('a/x')).toBeUndefined()
+    expect(peekPreviewUrl('a/x')).toBeUndefined()
+    expect(peekPreviewContent('b/x')).toEqual({ v: 'b' })
+    expect(peekPreviewUrl('b/x')).toEqual(['https://signed/b', null])
+    expect(b.controller.signal.aborted).toBe(false)
+    expect(dispose).toHaveBeenCalledExactlyOnceWith({ v: 'a' })
+  })
 })

@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
-import { useSlots, useStrings } from '../components/Provider'
+import type { OpenMenu } from '../components/ContextMenu'
+import type { MenuEntry } from '../components/MenuEntries'
 import { FileIcon, FolderIcon } from '../icons'
-import type { OpenMenu, RowMenuItem } from '../list/index'
 import { canPreview } from './FilePreview/previewType'
 import { FileRow, isTwoLineRow, ROW_HEIGHT_SHORT, ROW_HEIGHT_TALL } from './FileRow'
 import { getNodeIcon } from './helpers'
@@ -42,7 +42,7 @@ interface FileRowsWindowProps {
   rowIdPrefix: string
   scrollEl: HTMLElement | null
   loadMore?: LoadMoreState | undefined
-  getItems: (node: TreeNode) => RowMenuItem[]
+  getItems: (node: TreeNode) => MenuEntry[]
   openMenu: OpenMenu
   onOpen: (node: TreeNode) => void
   onToggleCheck: (node: TreeNode, checked: boolean) => void
@@ -67,8 +67,6 @@ export function FileRowsWindow({
   onToggleCheck,
   onPreview,
 }: FileRowsWindowProps) {
-  const { storageIconUrl } = useSlots()
-  const storageIconAlt = useStrings().fileExplorer.chrome.storageIconAlt
   useNestedScrollerWarning(scrollEl, nodes.length)
   useRowPitchAudit(scrollEl, nodes, items)
 
@@ -94,7 +92,7 @@ export function FileRowsWindow({
           ) : null
         }
         const icon =
-          getNodeIcon(node, storageIconUrl, storageIconAlt) ??
+          getNodeIcon(node) ??
           (node.type === 'directory' ? (
             <FolderIcon className="h-4 w-4 text-sky-500/80" />
           ) : (

@@ -1,5 +1,6 @@
+import type { CompletionMessage } from '../adapter/openai/wire'
 import type { PartDelta } from '../adapter/types'
-import type { MessagePart, SubagentPart } from '../types'
+import type { MessagePart, SubagentPart, ToolCallPart } from '../types'
 
 /** Fold one streamed PartDelta into a parts timeline. Pure: returns a new
  *  array, leaving the input untouched, so it works for both reducer state
@@ -7,6 +8,21 @@ import type { MessagePart, SubagentPart } from '../types'
  *  rather than invented — an end without a start has nothing to render. */
 export function applyPartDelta(parts: MessagePart[], delta: PartDelta): MessagePart[] {
   switch (delta.type) {
+    case 'text':
+    case 'reasoning': {
+      const last = parts.at(-1)
+      if (last?.kind === delta.type) {
+        return [...parts.slice(0, -1), { ...last, text: last.text + delta.text }]
+      }
+      return [...parts, { kind: delta.type, text: delta.text }]
+    }
+    case 'retract': {
+      let end = parts.length
+      while (end > 0 && isStreamedText(parts[end - 1])) {
+        end -= 1
+      }
+      return end === parts.length ? parts : parts.slice(0, end)
+    }
     case 'tool_start':
       return [
         ...parts,
@@ -93,6 +109,39 @@ export function applyPartDelta(parts: MessagePart[], delta: PartDelta): MessageP
     default:
       return parts
   }
+}
+
+function isStreamedText(part: MessagePart | undefined): boolean {
+  return part?.kind === 'text' || part?.kind === 'reasoning'
+}
+
+/** The wire history for an assistant turn whose tool calls the gateway ran:
+ *  the calls, each result, then the answer. A turn with no finished tool
+ *  calls comes back as the answer alone. */
+export function toolTurnMessages(
+  parts: MessagePart[] | null | undefined,
+  answer: CompletionMessage,
+): CompletionMessage[] {
+  const calls = (parts ?? []).filter(
+    (p): p is ToolCallPart & { result: string } =>
+      p.kind === 'tool_call' && p.status !== 'running' && p.result !== undefined,
+  )
+  if (calls.length === 0) {
+    return [answer]
+  }
+  return [
+    {
+      role: 'assistant',
+      content: null,
+      tool_calls: calls.map((c) => ({
+        id: c.id,
+        type: 'function',
+        function: { name: c.name, arguments: c.args },
+      })),
+    },
+    ...calls.map((c) => ({ role: 'tool', tool_call_id: c.id, content: c.result })),
+    ...(answer.content ? [answer] : []),
+  ]
 }
 
 /** A turn can end (completed or stopped) with tool calls still marked

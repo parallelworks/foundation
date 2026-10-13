@@ -5,7 +5,6 @@ const meta: Meta<typeof Markdown> = {
   title: 'UI/Markdown',
   component: Markdown,
   argTypes: {
-    mermaid: { control: 'boolean' },
     httpsImagesOnly: { control: 'boolean' },
   },
 }
@@ -44,7 +43,7 @@ export const Report: StoryObj<typeof Markdown> = {
 }
 
 export const MermaidDiagram: StoryObj<typeof Markdown> = {
-  args: { children: DIAGRAM, mermaid: true },
+  args: { children: DIAGRAM },
 }
 
 export const HttpsImagesOnly: StoryObj<typeof Markdown> = {

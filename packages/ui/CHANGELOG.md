@@ -1,5 +1,189 @@
 # Changelog
 
+## [0.45.0](https://github.com/parallelworks/foundation/compare/ui-v0.44.0...ui-v0.45.0) (2026-10-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* **ui:** themes from a few picked colors, with contrast solved, display-p3, a code theme and an editor ([#237](https://github.com/parallelworks/foundation/issues/237))
+* **ui:** one icon set, on Lucide ([#236](https://github.com/parallelworks/foundation/issues/236))
+* **ui:** one component per job across overlays, buttons, fields, structure and live times ([#231](https://github.com/parallelworks/foundation/issues/231))
+
+### Features
+
+* **ui:** one component per job across overlays, buttons, fields, structure and live times ([#231](https://github.com/parallelworks/foundation/issues/231)) ([956cd5e](https://github.com/parallelworks/foundation/commit/956cd5e1f8e8a025220149c8fab387d4f0e4f0c9))
+* **ui:** one icon set, on Lucide ([#236](https://github.com/parallelworks/foundation/issues/236)) ([e150389](https://github.com/parallelworks/foundation/commit/e150389b9d1f5ab023f8e8fb0b54b3986541416f))
+* **ui:** themes from a few picked colors, with contrast solved, display-p3, a code theme and an editor ([#237](https://github.com/parallelworks/foundation/issues/237)) ([c46e370](https://github.com/parallelworks/foundation/commit/c46e370b8c6328901d0bae99ac1e0aa917663048))
+
+## [0.44.0](https://github.com/parallelworks/foundation/compare/ui-v0.43.0...ui-v0.44.0) (2026-10-13)
+
+
+### Features
+
+* **ui:** Select reports the highlighted item, for previewing a choice ([#234](https://github.com/parallelworks/foundation/issues/234)) ([610ea90](https://github.com/parallelworks/foundation/commit/610ea900a1f44bdd94d8317c9831835f6a80d22e))
+
+## [0.43.0](https://github.com/parallelworks/foundation/compare/ui-v0.42.0...ui-v0.43.0) (2026-10-13)
+
+
+### Features
+
+* **ui:** a row's more button shows on touch screens and can name its row ([#232](https://github.com/parallelworks/foundation/issues/232)) ([8831ea1](https://github.com/parallelworks/foundation/commit/8831ea185a86fb81b89f8384805be36597ebe33e))
+
+
+### Bug Fixes
+
+* **ui:** grouped dropdown options keep their groups, and a create dialog's fields are named by their labels ([#229](https://github.com/parallelworks/foundation/issues/229)) ([1d166c1](https://github.com/parallelworks/foundation/commit/1d166c1de67a7e8ee446b2601f1b10693971d26f))
+
+## [0.42.0](https://github.com/parallelworks/foundation/compare/ui-v0.41.0...ui-v0.42.0) (2026-10-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* **ui:** rebuild components on Base UI and forms on react-hook-form ([#225](https://github.com/parallelworks/foundation/issues/225))
+
+### Features
+
+* **ui:** rebuild components on Base UI and forms on react-hook-form ([#225](https://github.com/parallelworks/foundation/issues/225)) ([548c4bd](https://github.com/parallelworks/foundation/commit/548c4bd6440123cdb94458b7fd0dd4c8ec273d84))
+
+## [0.41.0](https://github.com/parallelworks/foundation/compare/ui-v0.40.1...ui-v0.41.0) (2026-10-13)
+
+
+### Features
+
+* **ui:** chat shows the tool calls a gateway runs while it answers ([#226](https://github.com/parallelworks/foundation/issues/226)) ([42fed74](https://github.com/parallelworks/foundation/commit/42fed746123ceb338e70946bd36ec403bad95d8b))
+
+## [0.40.1](https://github.com/parallelworks/foundation/compare/ui-v0.40.0...ui-v0.40.1) (2026-10-13)
+
+
+### Performance Improvements
+
+* **ui:** draw workflow graphs of thousands of jobs, and zoom further ([#221](https://github.com/parallelworks/foundation/issues/221)) ([5d751d7](https://github.com/parallelworks/foundation/commit/5d751d7e0a36063eacfde41df4f9a430fa77cb8d))
+
+## [0.40.0](https://github.com/parallelworks/foundation/compare/ui-v0.39.0...ui-v0.40.0) (2026-10-12)
+
+
+### Features
+
+* **ui:** the permission picker offers only the modes a machine accepts ([#219](https://github.com/parallelworks/foundation/issues/219)) ([968953a](https://github.com/parallelworks/foundation/commit/968953a1962407c4db44f6ac47f16e35ec83f981))
+
+## [0.39.0](https://github.com/parallelworks/foundation/compare/ui-v0.38.0...ui-v0.39.0) (2026-10-12)
+
+
+### Features
+
+* **ui:** edit workflow dependency graphs ([#183](https://github.com/parallelworks/foundation/issues/183)) ([99187f5](https://github.com/parallelworks/foundation/commit/99187f56075f4b333f2aef74a9407f01f927457f))
+* **ui:** edit workflow jobs and steps ([#182](https://github.com/parallelworks/foundation/issues/182)) ([f4c6af1](https://github.com/parallelworks/foundation/commit/f4c6af10e6a234cc583dcd63eca362229d18c34c))
+* **ui:** edit workflow settings ([#184](https://github.com/parallelworks/foundation/issues/184)) ([bdac88d](https://github.com/parallelworks/foundation/commit/bdac88d962f44df9f36cd1017b24de91cbf5f472))
+
+
+### Bug Fixes
+
+* **ui:** chat drafts left unsent stay in browser storage forever ([#218](https://github.com/parallelworks/foundation/issues/218)) ([9251a5a](https://github.com/parallelworks/foundation/commit/9251a5aa8ed094fe52760f16ae5de0e8885eda7d))
+
+## [0.38.0](https://github.com/parallelworks/foundation/compare/ui-v0.37.0...ui-v0.38.0) (2026-10-12)
+
+
+### Features
+
+* **ui:** edit workflow inputs with declarative layouts ([#181](https://github.com/parallelworks/foundation/issues/181)) ([8736344](https://github.com/parallelworks/foundation/commit/8736344cfc05613a29484dbd75455be0db7914c5))
+* **ui:** every conversation list row says when it last changed ([#215](https://github.com/parallelworks/foundation/issues/215)) ([7baa347](https://github.com/parallelworks/foundation/commit/7baa3474c745e258c95ea2a492d97218b4ea78f1))
+
+## [0.37.0](https://github.com/parallelworks/foundation/compare/ui-v0.36.0...ui-v0.37.0) (2026-10-12)
+
+
+### Features
+
+* **ui:** add shared workflow editor fields and YAML views ([#179](https://github.com/parallelworks/foundation/issues/179)) ([600516c](https://github.com/parallelworks/foundation/commit/600516ce1a6c668221687f859f062632adce2f68))
+* **ui:** edit input settings and preserve layout references ([#180](https://github.com/parallelworks/foundation/issues/180)) ([a9a33e6](https://github.com/parallelworks/foundation/commit/a9a33e6a1ed2dcf2acad304d2cf1e0f9fb2bc37d))
+* **ui:** the agent permission picker offers an auto mode ([#213](https://github.com/parallelworks/foundation/issues/213)) ([31dbe24](https://github.com/parallelworks/foundation/commit/31dbe24015413173da4bf094375b685fa22b51ab))
+
+## [0.36.0](https://github.com/parallelworks/foundation/compare/ui-v0.35.0...ui-v0.36.0) (2026-10-11)
+
+
+### Features
+
+* **ui:** approval cards word their buttons for what a confirm approves ([#210](https://github.com/parallelworks/foundation/issues/210)) ([bd610ba](https://github.com/parallelworks/foundation/commit/bd610ba74ec02180da6a4c511870469681abaaef))
+
+## [0.35.0](https://github.com/parallelworks/foundation/compare/ui-v0.34.0...ui-v0.35.0) (2026-10-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* **ui:** one composer layout, a shared conversation stage and list pieces, and a segmented control ([#209](https://github.com/parallelworks/foundation/issues/209))
+
+### Features
+
+* **ui:** add graph controls and stored job positions ([#178](https://github.com/parallelworks/foundation/issues/178)) ([a4698dc](https://github.com/parallelworks/foundation/commit/a4698dccc290383404d9da019eb49eec1bd10555))
+* **ui:** declarative workflow form layouts with scoped appearance ([#202](https://github.com/parallelworks/foundation/issues/202)) ([76357f2](https://github.com/parallelworks/foundation/commit/76357f278691fa3a8e3ca2e104a07b293ce336b9))
+* **ui:** one composer layout, a shared conversation stage and list pieces, and a segmented control ([#209](https://github.com/parallelworks/foundation/issues/209)) ([2b648e7](https://github.com/parallelworks/foundation/commit/2b648e7c97756bb70f1c897534060e6e65fc2fc5))
+
+## [0.34.0](https://github.com/parallelworks/foundation/compare/ui-v0.33.0...ui-v0.34.0) (2026-10-10)
+
+
+### Features
+
+* **ui:** any conversation list can share the chat layout and its drawer ([#200](https://github.com/parallelworks/foundation/issues/200)) ([4f9b45f](https://github.com/parallelworks/foundation/commit/4f9b45f53406e133dc988a893789691d4f0313e1))
+
+## [0.33.0](https://github.com/parallelworks/foundation/compare/ui-v0.32.0...ui-v0.33.0) (2026-10-09)
+
+
+### Features
+
+* **ui:** a chat host can put its own content at the top of the conversation list ([#198](https://github.com/parallelworks/foundation/issues/198)) ([d262051](https://github.com/parallelworks/foundation/commit/d26205156c0767da02afd6d849ebc127fd6a2095))
+
+## [0.32.0](https://github.com/parallelworks/foundation/compare/ui-v0.31.0...ui-v0.32.0) (2026-10-09)
+
+
+### Features
+
+* **ui:** the chat column grows with a wide window ([#196](https://github.com/parallelworks/foundation/issues/196)) ([9c1065f](https://github.com/parallelworks/foundation/commit/9c1065f4bd91c410d10f5c615908535d134ab6b5))
+
+
+### Bug Fixes
+
+* **ui:** the latest reply stays open, so opening a chat ends on its last line ([#195](https://github.com/parallelworks/foundation/issues/195)) ([971eb5e](https://github.com/parallelworks/foundation/commit/971eb5e7ea9e7be40900ffe1494ae271b1c65457))
+
+## [0.31.0](https://github.com/parallelworks/foundation/compare/ui-v0.30.0...ui-v0.31.0) (2026-10-09)
+
+
+### Features
+
+* **ui:** the model picker names a provider's owner from the models when the adapter lists no providers ([#192](https://github.com/parallelworks/foundation/issues/192)) ([ff0c087](https://github.com/parallelworks/foundation/commit/ff0c08722bd22cbdaf3b38e3c89d135863ea59d5))
+
+## [0.30.0](https://github.com/parallelworks/foundation/compare/ui-v0.29.0...ui-v0.30.0) (2026-10-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* **ui:** hosts control the chat sidebar, and narrow layouts show it as a drawer ([#187](https://github.com/parallelworks/foundation/issues/187))
+
+### Features
+
+* **ui:** hosts control the chat sidebar, and narrow layouts show it as a drawer ([#187](https://github.com/parallelworks/foundation/issues/187)) ([9059f59](https://github.com/parallelworks/foundation/commit/9059f59e4e2a0354f9b23d858a75aaf5eb95f8c1))
+* **ui:** the model picker names who shared a provider with the reader ([#186](https://github.com/parallelworks/foundation/issues/186)) ([c5eb2a5](https://github.com/parallelworks/foundation/commit/c5eb2a50bbb5a247e613358ce42754675e08fc67))
+
+## [0.29.0](https://github.com/parallelworks/foundation/compare/ui-v0.28.0...ui-v0.29.0) (2026-10-09)
+
+
+### Features
+
+* **ui:** ConversationSidebar lists any kind of conversation in resizable groups with a rail and keyboard cycling ([#175](https://github.com/parallelworks/foundation/issues/175)) ([bec45c9](https://github.com/parallelworks/foundation/commit/bec45c95703c2945291acc139aabbca609fa9462))
+
+## [0.28.0](https://github.com/parallelworks/foundation/compare/ui-v0.27.0...ui-v0.28.0) (2026-10-09)
+
+
+### Features
+
+* **ui:** agent transcripts stream text through applyPartDelta, and OutputCard shows what a command printed ([#173](https://github.com/parallelworks/foundation/issues/173)) ([8885432](https://github.com/parallelworks/foundation/commit/8885432b9ceb9b63d99389e238d17dc581717968))
+
+## [0.27.0](https://github.com/parallelworks/foundation/compare/ui-v0.26.0...ui-v0.27.0) (2026-10-09)
+
+
+### Features
+
+* **ui:** a storage whose root moves lists again from its new root ([#167](https://github.com/parallelworks/foundation/issues/167)) ([0726c4e](https://github.com/parallelworks/foundation/commit/0726c4e7e84801edbe973ae7fcabd646b65a717d))
+* **ui:** the chat takes the host's accent, keeps its controls in the composer, and shows reasoning in place ([#171](https://github.com/parallelworks/foundation/issues/171)) ([288da56](https://github.com/parallelworks/foundation/commit/288da561c6baacabb80712dfee633cf1181321c1))
+
 ## [0.26.0](https://github.com/parallelworks/foundation/compare/ui-v0.25.0...ui-v0.26.0) (2026-10-07)
 
 

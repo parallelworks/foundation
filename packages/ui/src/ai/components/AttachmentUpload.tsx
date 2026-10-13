@@ -1,4 +1,3 @@
-import cx from 'classnames'
 import {
   type ChangeEvent,
   type DragEvent,
@@ -9,10 +8,13 @@ import {
   useState,
 } from 'react'
 import { mutate } from 'swr'
-import { AddIcon, FileSolidIcon, ImageSolidIcon, PdfSolidIcon, TrashIcon } from '../../icons'
+import { useStrings } from '../../components/Provider'
+import { toast } from '../../components/Toast'
+import { cx } from '../../cx'
+import { formatBytes } from '../../format'
+import { AddIcon, FileIcon, ImageIcon, PdfIcon, TrashIcon, WarningIcon } from '../../icons'
 import { useChat } from '../core/ChatProvider'
 import { useChatConfig } from '../core/config'
-import { formatFileSize } from '../utils'
 import { ATTACHMENTS_INFINITE_KEY } from './attachmentKeys'
 
 export interface AttachmentUploadHandle {
@@ -45,15 +47,15 @@ const DEFAULT_MAX_FILES = 10
 
 function getFileIcon(mimeType: string | undefined) {
   if (!mimeType) {
-    return FileSolidIcon
+    return FileIcon
   }
   if (mimeType.startsWith('image/')) {
-    return ImageSolidIcon
+    return ImageIcon
   }
   if (mimeType === 'application/pdf') {
-    return PdfSolidIcon
+    return PdfIcon
   }
-  return FileSolidIcon
+  return FileIcon
 }
 
 const AttachmentUpload = forwardRef<AttachmentUploadHandle, AttachmentUploadProps>(
@@ -68,15 +70,16 @@ const AttachmentUpload = forwardRef<AttachmentUploadHandle, AttachmentUploadProp
     },
     ref,
   ) {
-    const { adapter, notify } = useChat()
+    const { adapter } = useChat()
     const t = useChatConfig().strings.attachmentUpload
+    const { common } = useStrings()
     const [isDragging, setIsDragging] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     const validateFile = useCallback(
       (file: File): string | null => {
         if (file.size > maxFileSize) {
-          return t.fileTooLarge(formatFileSize(maxFileSize))
+          return t.fileTooLarge(formatBytes(maxFileSize))
         }
         if (attachments.length >= maxFiles) {
           return t.maxFilesAllowed(maxFiles)
@@ -124,7 +127,7 @@ const AttachmentUpload = forwardRef<AttachmentUploadHandle, AttachmentUploadProp
         for (const file of fileArray) {
           const error = validateFile(file)
           if (error) {
-            notify.error(error)
+            toast.error(error)
             continue
           }
 
@@ -158,7 +161,7 @@ const AttachmentUpload = forwardRef<AttachmentUploadHandle, AttachmentUploadProp
         )
         onAttachmentsChange(finalAttachments)
       },
-      [attachments, notify, onAttachmentsChange, uploadFile, validateFile],
+      [attachments, onAttachmentsChange, uploadFile, validateFile],
     )
 
     const handleDragOver = useCallback((e: DragEvent) => {
@@ -243,22 +246,20 @@ const AttachmentUpload = forwardRef<AttachmentUploadHandle, AttachmentUploadProp
                     <span className="text-sm truncate max-w-[150px] text-(--theme-app)">
                       {attachment.filename}
                     </span>
-                    <span className="text-xs theme-muted-text">
-                      {formatFileSize(attachment.size)}
-                    </span>
+                    <span className="text-xs theme-muted-text">{formatBytes(attachment.size)}</span>
                     {attachment.uploading && (
-                      <span className="text-xs text-blue-500 animate-pulse">Uploading...</span>
+                      <span className="text-xs text-blue-500 animate-pulse">{t.uploading}</span>
                     )}
                     {attachment.error && (
-                      <span className="text-xs text-red-500" title={attachment.error}>
-                        ⚠️
+                      <span role="img" aria-label={attachment.error} title={attachment.error}>
+                        <WarningIcon className="h-3.5 w-3.5 text-red-500" />
                       </span>
                     )}
                     <button
                       type="button"
                       onClick={() => handleRemove(index)}
                       className="p-0.5 rounded hover:bg-red-500/10"
-                      title={t.remove}
+                      title={common.remove}
                       disabled={disabled}
                     >
                       <TrashIcon className="w-3 h-3 text-red-500" />
@@ -287,7 +288,7 @@ const AttachmentUpload = forwardRef<AttachmentUploadHandle, AttachmentUploadProp
               <span>{isDragging ? t.dropFilesHere : t.addFiles}</span>
             </span>
             <span className="block text-xs theme-muted-text mt-1">
-              Max {formatFileSize(maxFileSize)} per file
+              {t.maxSizePerFile(formatBytes(maxFileSize))}
             </span>
           </button>
         </div>

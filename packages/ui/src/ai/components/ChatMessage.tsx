@@ -1,33 +1,36 @@
-import cx from 'classnames'
-import { DateTime, Duration } from 'luxon'
+import { DateTime } from 'luxon'
 import { type KeyboardEvent, memo, useEffect, useRef, useState } from 'react'
-import { durationToAbsHumanDuration } from '../../duration'
+import { Avatar } from '../../components/Avatar'
+import { useStrings } from '../../components/Provider'
+import { RelativeTime } from '../../components/relativeTime'
+import { useCopy } from '../../components/useCopy'
+import { cx } from '../../cx'
+import { formatBytes, formatDuration } from '../../format'
 import {
   CheckIcon,
-  ChevronRightIcon,
   CopyIcon,
-  DownloadFileIcon,
+  DownloadIcon,
   EditIcon,
   ErrorIcon,
   FileIcon,
-  RefreshIcon,
   RetryIcon,
 } from '../../icons'
 import { safeUrl } from '../../safeUrl'
 import { useChatConfig } from '../core/config'
 import type { ApprovalAnswerValue, AttachmentRef, ChatMessage as Message } from '../types'
-import { Avatar } from '../ui/Avatar'
 import Markdown from '../ui/Markdown'
 import { chatProseClasses } from '../ui/prose'
-import { formatFileSize } from '../utils'
 import AgentMessageParts from './agent/AgentMessageParts'
 import BranchNavigator from './BranchNavigator'
 import { UserMessageText } from './PastedText'
+import { Reasoning } from './Reasoning'
 
 interface ChatMessageProps {
   message: Message
   allMessages: Message[]
   isStreaming?: boolean
+  /** The thread's newest message: a long reply stays open, so opening a chat ends on its last line. */
+  latest?: boolean | undefined
   isEditing?: boolean
   showAuthor?: boolean | undefined
   currentUsername?: string | undefined
@@ -45,13 +48,6 @@ interface ChatMessageProps {
   onApprovalAnswer?: ((id: string, answer: ApprovalAnswerValue) => void) | undefined
   /** Drops the row's horizontal padding, for hosts that constrain the column themselves. */
   flush?: boolean | undefined
-}
-
-function formatDuration(ms: number | null | undefined): string {
-  if (!ms) {
-    return ''
-  }
-  return durationToAbsHumanDuration(Duration.fromMillis(ms))
 }
 
 // Threshold sits above the CSS clamp height (600px) so borderline messages
@@ -83,6 +79,7 @@ function ChatMessage({
   message,
   allMessages,
   isStreaming = false,
+  latest = false,
   isEditing = false,
   showAuthor = false,
   currentUsername,
@@ -113,23 +110,28 @@ function ChatMessage({
   // Right-align only for the current user's messages
   const isRightAligned = isUser && !isOtherUser
   const hasError = !!message.error
+  const hasPastes = !!message.pastes?.length
   const hasReasoning = !!message.reasoning
   const toolCallCount = message.parts?.filter((p) => p.kind === 'tool_call').length ?? 0
   const showReasoningButton = !isUser && !isStreaming && hasReasoning
   const showTurnDurationLabel =
     !isUser && !isStreaming && !hasReasoning && (!!message.reasoningDuration || toolCallCount > 0)
 
-  const t = useChatConfig().strings.messageMeta
-  const [copied, setCopied] = useState(false)
+  const { messageMeta: t, thinking: tThinking } = useChatConfig().strings
+  const { common } = useStrings()
+  const { copy, copied } = useCopy()
   const [showActions, setShowActions] = useState(false)
   const [editContent, setEditContent] = useState(message.content || '')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const [collapsible, setCollapsible] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  // Only without a host handler: a host that passes one shows reasoning itself.
+  const [reasoningOpen, setReasoningOpen] = useState(false)
 
   // Long finished assistant replies clamp with a fade; streaming replies never
-  // clamp so the tail stays readable while it grows.
+  // clamp so the tail stays readable while it grows, and the latest reply never
+  // clamps so the thread, scrolled to its end, ends on the answer's last line.
   useEffect(() => {
     if (isUser || isStreaming || !contentRef.current) {
       return
@@ -195,7 +197,7 @@ function ChatMessage({
   const hasParts = !!message.parts?.length
   if (hasParts && !message.content) {
     return (
-      <div className={cx('group py-5 w-full', !flush && 'px-4')}>
+      <div className={cx('group py-3 w-full', !flush && 'px-4')}>
         <AgentMessageParts
           message={message}
           isStreaming={isStreaming}
@@ -218,20 +220,20 @@ function ChatMessage({
 
   const timestamp = parseTimestamp(message.timestamp)
   const totalTokens = message.tokensUsed?.total_tokens
-  const collapsed = !isUser && collapsible && !expanded && !isStreaming
+  const collapsed = !isUser && collapsible && !expanded && !isStreaming && !latest
 
   const copyToClipboard = async () => {
     if (message.content) {
-      await navigator.clipboard.writeText(message.content)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      await copy(message.content, { quiet: true })
     }
   }
 
   return (
     <div
       role="none"
-      className={cx('group py-5 w-full', !flush && 'px-4')}
+      // A question opens a new turn, so it takes the larger space above it;
+      // the room below it holds its hover actions clear of the reply.
+      className={cx('group w-full', isUser ? 'pt-8 pb-5' : 'py-3', !flush && 'px-4')}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
       onFocus={() => setShowActions(true)}
@@ -245,24 +247,24 @@ function ChatMessage({
             value={editContent}
             onChange={handleTextareaChange}
             onKeyDown={handleKeyDown}
-            className="w-full min-h-[100px] max-h-[200px] overflow-y-auto p-4 rounded-xl theme-input resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="chat-composer block w-full min-h-[100px] max-h-[200px] overflow-y-auto px-4 py-3.5 rounded-[1.25rem] bg-(--theme-panel-bg) theme-text text-[1rem] leading-relaxed resize-none focus:outline-none"
             placeholder={t.editPlaceholder}
           />
-          <div className="flex items-center justify-end gap-2 mt-3">
+          <div className="flex items-center justify-end gap-2 mt-2.5">
             <button
               type="button"
               onClick={onCancelEdit}
-              className="px-4 py-1.5 text-sm font-medium rounded-full transition-colors bg-(--theme-muted-panel-bg) text-(--theme-panel)"
+              className="px-4 py-1.5 text-sm font-medium rounded-full transition-colors chat-tint hover:chat-tint-strong text-(--theme-app)"
             >
-              {t.cancel}
+              {common.cancel}
             </button>
             <button
               type="button"
               onClick={handleSave}
               disabled={!editContent.trim()}
-              className="px-4 py-1.5 text-sm font-medium rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-(--theme-panel) text-(--theme-panel-bg)"
+              className="px-4 py-1.5 text-sm font-medium rounded-full transition-colors hover:opacity-85 disabled:opacity-50 disabled:cursor-not-allowed bg-(--theme-app) text-(--theme-panel-bg)"
             >
-              {t.send}
+              {common.send}
             </button>
           </div>
         </div>
@@ -279,20 +281,22 @@ function ChatMessage({
                 reasoning, a bare duration, or tool-call work */}
             {showReasoningButton && (
               <div className="mb-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    onOpenReasoning?.(message.reasoning || '', message.reasoningDuration ?? null)
+                <Reasoning
+                  label={
+                    message.reasoningDuration
+                      ? tThinking.thoughtFor(formatDuration(message.reasoningDuration))
+                      : tThinking.thoughtProcess
                   }
-                  className="flex items-center gap-x-1 text-sm theme-muted-text hover:theme-text transition-colors"
+                  open={reasoningOpen}
+                  onOpenChange={setReasoningOpen}
+                  onOpenPanel={
+                    onOpenReasoning &&
+                    (() =>
+                      onOpenReasoning(message.reasoning || '', message.reasoningDuration ?? null))
+                  }
                 >
-                  <span>
-                    {message.reasoningDuration
-                      ? `Thought for ${formatDuration(message.reasoningDuration)}`
-                      : 'Thought process'}
-                  </span>
-                  <ChevronRightIcon className="w-3.5 h-3.5" />
-                </button>
+                  <Markdown>{message.reasoning || ''}</Markdown>
+                </Reasoning>
               </div>
             )}
             {showTurnDurationLabel && (
@@ -300,8 +304,8 @@ function ChatMessage({
                 <div className="flex items-center gap-x-1.5 text-sm theme-muted-text">
                   <span>
                     {message.reasoningDuration
-                      ? `Thought for ${formatDuration(message.reasoningDuration)}`
-                      : `Ran ${toolCallCount} tool ${toolCallCount === 1 ? 'call' : 'calls'}`}
+                      ? tThinking.thoughtFor(formatDuration(message.reasoningDuration))
+                      : tThinking.ranToolCalls(toolCallCount)}
                   </span>
                 </div>
               </div>
@@ -330,16 +334,27 @@ function ChatMessage({
               otherAuthor ? (
                 <div className="flex items-end gap-2">
                   <Avatar
-                    src={otherAuthor.avatarUrl ?? undefined}
+                    src={otherAuthor.avatarUrl}
                     name={otherAuthor.name || otherAuthor.username}
-                    className="flex-shrink-0 mb-0.5"
+                    size="sm"
+                    className="mb-0.5"
                   />
-                  <div className="px-4 py-2.5 chat-ink rounded-2xl rounded-bl-md max-w-[70%] inline-block whitespace-pre-wrap wrap-break-word text-[1rem] leading-6 bg-[color-mix(in_oklab,var(--theme-panel)_6%,transparent)]">
+                  <div
+                    className={cx(
+                      'px-4 py-2.5 chat-ink rounded-[1.25rem] max-w-[80%] inline-block whitespace-pre-wrap wrap-break-word text-[1rem] leading-6 chat-tint',
+                      hasPastes && 'chat-bubble-roomy',
+                    )}
+                  >
                     <UserMessageText content={message.content} pastes={message.pastes} />
                   </div>
                 </div>
               ) : isUser ? (
-                <div className="px-4 py-2.5 chat-ink rounded-2xl rounded-br-md max-w-[70%] inline-block whitespace-pre-wrap wrap-break-word text-[1rem] leading-6 bg-[color-mix(in_oklab,var(--theme-panel)_6%,transparent)]">
+                <div
+                  className={cx(
+                    'px-4 py-2.5 chat-ink rounded-[1.25rem] max-w-[80%] inline-block whitespace-pre-wrap wrap-break-word text-[1rem] leading-6 chat-bubble-user',
+                    hasPastes && 'chat-bubble-roomy',
+                  )}
+                >
                   <UserMessageText content={message.content} pastes={message.pastes} />
                 </div>
               ) : (
@@ -352,13 +367,13 @@ function ChatMessage({
               )
             ) : null}
 
-            {!isUser && collapsible && !isStreaming && (
+            {!isUser && collapsible && !isStreaming && !latest && (
               <button
                 type="button"
                 onClick={() => setExpanded((e) => !e)}
                 className="text-xs font-medium theme-muted-text hover:theme-text transition-colors"
               >
-                {expanded ? t.showLess : t.showMore}
+                {expanded ? common.showLess : common.showMore}
               </button>
             )}
 
@@ -380,7 +395,7 @@ function ChatMessage({
                     className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-500/15 rounded transition-colors"
                   >
                     <RetryIcon className="w-3 h-3" />
-                    {t.retry}
+                    {common.retry}
                   </button>
                 )}
               </div>
@@ -432,9 +447,9 @@ function ChatMessage({
                         <FileIcon className="w-3.5 h-3.5 flex-shrink-0" />
                         <span className="truncate max-w-[150px]">{att.filename || 'File'}</span>
                         {att.size ? (
-                          <span className="theme-muted-text">({formatFileSize(att.size)})</span>
+                          <span className="theme-muted-text">({formatBytes(att.size)})</span>
                         ) : null}
-                        <DownloadFileIcon className="w-3 h-3 flex-shrink-0" />
+                        <DownloadIcon className="w-3 h-3 flex-shrink-0" />
                       </button>
                     )
                   }
@@ -454,7 +469,7 @@ function ChatMessage({
                       <FileIcon className="w-3.5 h-3.5 flex-shrink-0" />
                       <span className="truncate max-w-[150px]">{att.filename || 'File'}</span>
                       {att.size ? (
-                        <span className="theme-muted-text">({formatFileSize(att.size)})</span>
+                        <span className="theme-muted-text">({formatBytes(att.size)})</span>
                       ) : null}
                     </div>
                   )
@@ -475,7 +490,7 @@ function ChatMessage({
                 <button
                   type="button"
                   onClick={copyToClipboard}
-                  className="p-1.5 rounded-lg hover:theme-hover theme-muted-text transition-colors"
+                  className="p-1.5 rounded-md hover:chat-tint theme-muted-text hover:theme-text transition-colors"
                   title={t.copy}
                 >
                   {copied ? (
@@ -490,7 +505,7 @@ function ChatMessage({
                   <button
                     type="button"
                     onClick={() => onEdit(message.id)}
-                    className="p-1.5 rounded-lg hover:theme-hover theme-muted-text transition-colors"
+                    className="p-1.5 rounded-md hover:chat-tint theme-muted-text hover:theme-text transition-colors"
                     title={t.edit}
                   >
                     <EditIcon className="w-4 h-4" />
@@ -502,10 +517,10 @@ function ChatMessage({
                   <button
                     type="button"
                     onClick={() => onRegenerate(message.id)}
-                    className="p-1.5 rounded-lg hover:theme-hover theme-muted-text transition-colors"
+                    className="p-1.5 rounded-md hover:chat-tint theme-muted-text hover:theme-text transition-colors"
                     title={t.regenerate}
                   >
-                    <RefreshIcon className="w-4 h-4" />
+                    <RetryIcon className="w-4 h-4" />
                   </button>
                 )}
 
@@ -522,15 +537,11 @@ function ChatMessage({
                 {(timestamp || (!isUser && (message.model || totalTokens))) && (
                   <span
                     className={cx(
-                      'chat-meta flex items-center gap-2 ml-2 text-[11px] theme-muted-text transition-opacity duration-150 select-none',
+                      'chat-meta flex items-center gap-2 ml-2 text-xs tabular-nums theme-muted-text transition-opacity duration-150 select-none',
                       showActions ? 'opacity-100' : 'opacity-0',
                     )}
                   >
-                    {timestamp && (
-                      <span title={timestamp.toLocaleString(DateTime.DATETIME_MED_WITH_SECONDS)}>
-                        {timestamp.toRelative()}
-                      </span>
-                    )}
+                    <RelativeTime value={timestamp} />
                     {!isUser && message.model && <span>{message.model}</span>}
                     {!isUser && totalTokens ? (
                       <span

@@ -1,12 +1,15 @@
-import cx from 'classnames'
 import { lazy, Suspense } from 'react'
-import type { ControlsConfig } from 'streamdown'
+import type { Components, ControlsConfig } from 'streamdown'
+import { cx } from '../cx'
 
 export interface MarkdownProps {
   children: string
+  /** Renders as text still arriving: a caret, and unfinished syntax left open. */
   isStreaming?: boolean
+  /** The copy and download buttons on code blocks, tables and diagrams. */
   controls?: ControlsConfig
-  mermaid?: boolean
+  /** Per-tag overrides of the rendered elements. */
+  components?: Components
   httpsImagesOnly?: boolean
   /** Sets it at the page's text size, for Markdown inside other UI rather than a document of its own. */
   compact?: boolean
@@ -17,6 +20,8 @@ export interface MarkdownProps {
 // onto every page.
 const MarkdownImpl = lazy(() => import('./MarkdownImpl'))
 
+/** Markdown, with highlighted code, math and mermaid diagrams. Links leave in a
+ *  new tab, and inline code breaks after path separators. */
 export default function Markdown(props: MarkdownProps) {
   return (
     <Suspense

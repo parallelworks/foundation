@@ -3,20 +3,23 @@
 // state without a backend; new features add a factory (or a factory knob)
 // here and a story that calls it. See ../../.storybook/CONTRIBUTING.md.
 import type { ReactNode } from 'react'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ChatAdapter, StreamHandlers } from '../adapter/types'
 import type { ComposerPastes, PasteUploadResult } from '../components/usePasteCards'
-import { ChatProvider } from '../core/ChatProvider'
+import { ChatProvider, type ChatProviderProps } from '../core/ChatProvider'
 import type { ChatLinkProps, ChatUIConfig } from '../core/config'
 import { countLines, utf8Bytes } from '../core/pastes'
 import type {
+  Allocation,
   ApprovalPart,
+  ApprovalSubject,
   ChatMessage,
   ChatUser,
   Conversation,
   ConversationSummary,
   MessagePart,
   MessagePaste,
+  ProviderInfo,
   ProviderIssue,
   SubagentPart,
   TodoItem,
@@ -41,6 +44,15 @@ function words(count: number): string {
   }
   return out.join(' ')
 }
+
+// What the streaming adapter thinks aloud: paragraphs, so the tail scrolls
+// and a reader who opens it mid-stream has something to read.
+const REASONING_SCRIPT = [
+  'The question is about the build, so start with the log rather than the config.',
+  '\n\nThe log stops at step 380. That step allocates nodes, and the gpu partition only has four, so a request for more would hang there rather than fail outright.',
+  '\n\nCompute has twelve idle nodes. If the job does not need GPU kernels it should run there instead; check the job spec for a gpu constraint before suggesting it.',
+  '\n\nNo constraint in the spec. Answer: move it to compute, and say why the log looks like a hang.',
+].join(' ')
 
 let idCounter = 0
 function nextId(prefix: string): string {
@@ -210,7 +222,16 @@ export function makeStaticAdapter(options?: {
   streaming?: StreamingKnobs
   sharing?: boolean
   providerIssues?: ProviderIssue[]
+  /** Each provider lists one model; omit for the single story provider. */
+  providers?: ProviderInfo[]
+  /** False for an adapter that returns models only, so owners come from
+   *  each model's provider_owner. */
+  listProviders?: boolean
   attachments?: boolean
+  /** Sessions whose service did not answer, as the picker lists them. */
+  unreachableSessions?: { name: string; owner: string }[]
+  /** Offered for an organization model ("org:" providers). */
+  allocations?: Allocation[]
 }): ChatAdapter {
   const conversations = options?.conversations ?? [makeConversation()]
   const summaries =
@@ -257,19 +278,31 @@ export function makeStaticAdapter(options?: {
     models: {
       async list() {
         return {
-          models: [
-            {
-              id: 'mock:story/streaming',
-              object: 'model' as const,
-              created: 0,
-              owned_by: 'story',
-              provider: 'Story Provider',
-              provider_name: 'story',
-              provider_owner: 'mock',
-              tool_calling_mode: 'none' as const,
-            },
-          ],
-          unreachableSessions: [],
+          models: options?.providers
+            ? options.providers.map((p) => ({
+                id: `${p.user}:${p.name}/${p.name}-large`,
+                object: 'model' as const,
+                created: 0,
+                owned_by: p.user,
+                provider: p.displayName ?? p.name,
+                provider_name: p.name,
+                // Organization providers carry no owner on the model.
+                provider_owner: p.user === 'org' ? '' : p.user,
+                tool_calling_mode: 'none' as const,
+              }))
+            : [
+                {
+                  id: 'mock:story/streaming',
+                  object: 'model' as const,
+                  created: 0,
+                  owned_by: 'story',
+                  provider: 'Story Provider',
+                  provider_name: 'story',
+                  provider_owner: 'mock',
+                  tool_calling_mode: 'none' as const,
+                },
+              ],
+          unreachableSessions: options?.unreachableSessions ?? [],
           providerIssues: options?.providerIssues ?? [],
         }
       },
@@ -278,11 +311,18 @@ export function makeStaticAdapter(options?: {
       const reasoningMs = knobs.reasoningMs ?? 1200
       const wordDelayMs = knobs.wordDelayMs ?? 120
       const replyWords = knobs.replyWords ?? 40
+      let reasoning = ''
       if (reasoningMs > 0) {
-        const steps = Math.max(1, Math.floor(reasoningMs / 200))
-        for (let i = 0; i < steps; i++) {
-          handlers.onReasoning?.('considering the canned options… ')
-          await sleep(200, signal)
+        // Real sentences at a steady pace across reasoningMs, so the live
+        // tail, its fade and the fold into "Thought for" all show.
+        const thought = REASONING_SCRIPT.split(' ')
+        const steps = Math.max(1, Math.min(thought.length, Math.floor(reasoningMs / 60)))
+        const perStep = Math.ceil(thought.length / steps)
+        for (let i = 0; i < thought.length; i += perStep) {
+          const chunk = `${thought.slice(i, i + perStep).join(' ')} `
+          reasoning += chunk
+          handlers.onReasoning?.(chunk)
+          await sleep(reasoningMs / steps, signal)
         }
       }
       await streamToolCalls(knobs, handlers, signal)
@@ -299,7 +339,7 @@ export function makeStaticAdapter(options?: {
         toolCalls: [],
         finishReason: 'stop',
         model: req.model,
-        reasoning: '',
+        reasoning: reasoning.trim(),
         responsesOutput: [],
       }
     },
@@ -349,6 +389,19 @@ export function makeStaticAdapter(options?: {
       async remove() {},
       downloadUrl: () => '#',
     }
+  }
+
+  const providers = options?.providers
+  if (providers && options?.listProviders !== false) {
+    adapter.providers = {
+      async list() {
+        return providers
+      },
+    }
+  }
+  const allocations = options?.allocations
+  if (allocations) {
+    adapter.allocations = { list: async () => allocations }
   }
   return adapter
 }
@@ -444,10 +497,35 @@ export function makeSubagentParts(options?: { count?: number }): SubagentPart[] 
   })
 }
 
+const confirmSamples: Record<ApprovalSubject, Partial<ApprovalPart>> = {
+  command: {
+    toolName: 'Bash',
+    command: 'kubectl delete pod web-frontend-7d9f --grace-period=0',
+    reason: 'Command deletes a running pod',
+  },
+  code: {
+    toolName: 'NotebookRun',
+    subject: 'code',
+    command: "df = pd.read_parquet('runs.parquet')\ndf.groupby('shard').failures.sum()",
+  },
+  path: {
+    toolName: 'ReadFile',
+    subject: 'path',
+    command: 'ReadFile /etc/slurm/slurm.conf',
+    reason: 'file is outside the workspace',
+  },
+  call: {
+    toolName: 'mcp__tickets__create_issue',
+    subject: 'call',
+    command: 'mcp__tickets__create_issue {"title":"Shard 12 flakes on publish"}',
+  },
+}
+
 export function makeApprovalPart(options?: {
   kind?: 'confirm' | 'ask'
   resolved?: boolean
   multiSelect?: boolean
+  subject?: ApprovalSubject
 }): ApprovalPart {
   const kind = options?.kind ?? 'confirm'
   const base: ApprovalPart =
@@ -456,9 +534,7 @@ export function makeApprovalPart(options?: {
           kind: 'approval',
           id: nextId('appr'),
           approvalKind: 'confirm',
-          toolName: 'Bash',
-          command: 'kubectl delete pod web-frontend-7d9f --grace-period=0',
-          reason: 'Command deletes a running pod',
+          ...confirmSamples[options?.subject ?? 'command'],
           agent: 'main',
           mode: 'accept-edits',
         }
@@ -623,6 +699,18 @@ export function makeComposerPastes(options?: {
   }
 }
 
+// Types into the story's composer and sends, the way a reader would.
+export function sendFromComposer(canvasElement: HTMLElement, text: string) {
+  const textarea = canvasElement.querySelector('textarea')
+  if (!textarea) {
+    return
+  }
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
+  setter?.call(textarea, text)
+  textarea.dispatchEvent(new Event('input', { bubbles: true }))
+  textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+}
+
 // Untrusted paste events never insert text, so only pastes the composer turns
 // into cards show up.
 export function pasteIntoComposer(canvasElement: HTMLElement, text: string) {
@@ -673,18 +761,6 @@ const noopNavigation = {
   toNewChat() {},
 }
 
-const consoleNotify = {
-  success(m: string) {
-    console.info('[notify.success]', m)
-  },
-  error(m: string) {
-    console.info('[notify.error]', m)
-  },
-  info(m: string) {
-    console.info('[notify.info]', m)
-  },
-}
-
 // Stories are excluded from the stylesheet's `@source` scan so their classes
 // never ship, which means a utility used only here has no rule. Height comes
 // from an inline style so the story viewport cannot depend on that scan.
@@ -697,12 +773,17 @@ export function StoryChat({
   config,
   conversationId = 'conv-1',
   onNavigate,
+  sidebarControl,
   children,
 }: {
   adapter?: ChatAdapter
   config?: ChatUIConfig
   conversationId?: string | null
   onNavigate?: (id: string | null) => void
+  /** The host owning the sidebar, as ChatProvider takes it. */
+  sidebarControl?:
+    | Pick<ChatProviderProps, 'sidebar' | 'onSidebarChange' | 'drawerOpen' | 'onDrawerOpenChange'>
+    | undefined
   children: ReactNode
 }) {
   const resolved = useMemo(() => adapter ?? makeStaticAdapter(), [adapter])
@@ -725,11 +806,38 @@ export function StoryChat({
       adapter={resolved}
       currentUser={storyUser}
       navigation={navigation}
-      notify={consoleNotify}
       activeConversationId={conversationId}
       config={resolvedConfig}
+      {...sidebarControl}
     >
       {children}
     </ChatProvider>
   )
+}
+
+/** Reveals text a few words at a time over durationMs, the way a stream
+ *  delivers it, and reports when it is all in. Starts again whenever the
+ *  text, duration or run changes. */
+export function useStreamedText(
+  text: string,
+  durationMs: number,
+  run = 0,
+): { text: string; done: boolean } {
+  const words = useMemo(() => text.split(' '), [text])
+  const [shown, setShown] = useState(0)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: run restarts the stream
+  useEffect(() => {
+    setShown(0)
+    const step = Math.max(16, durationMs / words.length)
+    const timer = setInterval(() => {
+      setShown((n) => {
+        if (n + 1 >= words.length) {
+          clearInterval(timer)
+        }
+        return Math.min(words.length, n + 1)
+      })
+    }, step)
+    return () => clearInterval(timer)
+  }, [words, durationMs, run])
+  return { text: words.slice(0, shown).join(' '), done: shown >= words.length }
 }
