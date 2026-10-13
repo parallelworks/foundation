@@ -335,30 +335,50 @@ const fieldInputClasses =
 
 const fieldLabelClasses = 'block mb-1 text-xs font-medium text-(--theme-muted-text-color)'
 
+/** A field's label, with its help beside it rather than inside the label, so
+ *  the label names the field and not the help button. */
+function FieldLabel({
+  id,
+  label,
+  tooltip,
+}: {
+  id: string
+  label: string
+  tooltip?: string | undefined
+}) {
+  return (
+    <div className={cx(fieldLabelClasses, 'flex items-center gap-1')}>
+      <label htmlFor={id}>{label}</label>
+      {tooltip && <InfoTip text={tooltip} />}
+    </div>
+  )
+}
+
 /** Labeled single-line input row for the dialog's extra fields. */
 export function CreateModalField({
   label,
   tooltip,
+  id,
   ...props
 }: InputHTMLAttributes<HTMLInputElement> & {
   label: string
   /** Help text surfaced via an info icon next to the label. */
   tooltip?: string | undefined
 }) {
+  const fallbackId = useId()
+  const fieldId = id ?? fallbackId
   return (
-    <label className="block mb-3">
-      <span className={cx(fieldLabelClasses, 'flex items-center gap-1')}>
-        {label}
-        <InfoTip text={tooltip ?? ''} />
-      </span>
+    <div className="mb-3">
+      <FieldLabel id={fieldId} label={label} tooltip={tooltip} />
       <input
         type="text"
         autoComplete="off"
         data-1p-ignore
         {...props}
+        id={fieldId}
         className={fieldInputClasses}
       />
-    </label>
+    </div>
   )
 }
 
@@ -367,26 +387,27 @@ export function CreateModalTextarea({
   label,
   tooltip,
   rows = 4,
+  id,
   ...props
 }: TextareaHTMLAttributes<HTMLTextAreaElement> & {
   label: string
   /** Help text surfaced via an info icon next to the label. */
   tooltip?: string | undefined
 }) {
+  const fallbackId = useId()
+  const fieldId = id ?? fallbackId
   return (
-    <label className="block mb-3">
-      <span className={cx(fieldLabelClasses, 'flex items-center gap-1')}>
-        {label}
-        <InfoTip text={tooltip ?? ''} />
-      </span>
+    <div className="mb-3">
+      <FieldLabel id={fieldId} label={label} tooltip={tooltip} />
       <textarea
         autoComplete="off"
         data-1p-ignore
         rows={rows}
         {...props}
+        id={fieldId}
         className={cx(fieldInputClasses, 'h-auto py-2 font-mono text-xs leading-relaxed resize-y')}
       />
-    </label>
+    </div>
   )
 }
 
@@ -411,10 +432,7 @@ export function CreateModalAutocompleteField({
   const id = useId()
   return (
     <div className="mb-3">
-      <div className={cx(fieldLabelClasses, 'flex items-center gap-1')}>
-        <label htmlFor={id}>{label}</label>
-        {tooltip && <InfoTip text={tooltip} />}
-      </div>
+      <FieldLabel id={id} label={label} tooltip={tooltip} />
       <Autocomplete
         id={id}
         items={items}
