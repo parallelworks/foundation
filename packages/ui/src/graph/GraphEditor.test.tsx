@@ -21,9 +21,6 @@ vi.mock('../components/Provider', async (importOriginal) =>
   (await import('../test/engine')).mockEngineHooks(importOriginal),
 )
 
-// jsdom lacks these; the graph relies on them for connector recompute + fit.
-global.requestAnimationFrame = (() => 0) as typeof requestAnimationFrame
-global.cancelAnimationFrame = (() => {}) as typeof cancelAnimationFrame
 // jsdom has no PointerEvent; without it pointer events lose button and coordinates.
 if (!('PointerEvent' in window)) {
   Object.defineProperty(window, 'PointerEvent', { value: MouseEvent })
@@ -2356,15 +2353,15 @@ describe('steps, the clipboard and the arrow keys', () => {
     )
   })
 
-  it('lists the gestures and keys from the toolbar and closes on Escape', () => {
+  it('lists the gestures and keys from the toolbar and closes on Escape', async () => {
     render(<DependencyGraphPreview yml={graph} editor={editor()} />)
     const button = screen.getByRole('button', { name: 'Shortcuts' })
     fireEvent.click(button)
     const list = screen.getByRole('dialog', { name: 'Shortcuts' })
     expect(within(list).getByText(GRAPH_EDITOR_STRINGS.shortcutDoes.connect)).toBeInTheDocument()
-    expect(list).toHaveFocus()
+    await waitFor(() => expect(list).toHaveFocus())
     fireEvent.keyDown(list, { key: 'Escape' })
-    expect(screen.queryByRole('dialog', { name: 'Shortcuts' })).toBeNull()
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Shortcuts' })).toBeNull())
     expect(button).toHaveFocus()
   })
 
@@ -2404,7 +2401,7 @@ describe('problems and the YAML beside the graph', () => {
   }
   const badge = (el: HTMLElement) => el.querySelector('[data-problem-badge]') as HTMLElement | null
 
-  it('counts its problems in the toolbar and picks one from the list', () => {
+  it('counts its problems in the toolbar and picks one from the list', async () => {
     const pick = vi.fn()
     renderGraph(
       editor({
@@ -2421,7 +2418,7 @@ describe('problems and the YAML beside the graph', () => {
     expect(within(list).queryByRole('button', { name: /unit reads matrix\.os/ })).toBeNull()
     fireEvent.click(within(list).getByRole('button', { name: /test reads needs\.lint/ }))
     expect(pick).toHaveBeenCalledOnce()
-    expect(screen.queryByRole('dialog', { name: '2 problems' })).toBeNull()
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: '2 problems' })).toBeNull())
   })
 
   it('brings a picked problem’s job, or step, into view selected and opens it', () => {

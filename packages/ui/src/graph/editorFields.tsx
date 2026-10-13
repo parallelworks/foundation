@@ -10,13 +10,13 @@ import {
   useRef,
   useState,
 } from 'react'
-import { BareModal, modalPanelClasses } from '../components/BareModal'
 import { Button } from '../components/Button'
 import { FilterPill } from '../components/FilterPill'
 import { ghostButtonClasses, primaryButtonClasses } from '../components/ghostButton'
 import { IconButton } from '../components/IconButton'
 import { Input, Textarea } from '../components/Input'
 import { withPositionKeys } from '../components/keys'
+import { Modal, ModalTitle } from '../components/Modal'
 import { Switch } from '../components/Switch'
 import { Tooltip } from '../components/Tooltip'
 import type { FieldPatch } from '../editing'
@@ -765,17 +765,16 @@ export function DialogShell({
   }
   // Not a <form>: the dialogs host input forms of their own, and forms can't nest.
   return (
-    <BareModal
+    <Modal
       open
       onClose={onClose}
-      ariaLabel={title}
       align="center"
-      preventClose={dirty || locked}
-      className={cx(modalPanelClasses, 'flex max-h-[85vh] w-full max-w-2xl flex-col')}
+      dismissible={!dirty && !locked}
+      className="flex max-h-[85vh] w-full max-w-2xl flex-col"
     >
       <div className="flex min-h-0 flex-col">
         <div className="flex items-center gap-3 border-b theme-border px-5 py-4">
-          <div className="flex-1 text-[1rem] font-semibold">{title}</div>
+          <ModalTitle className="flex-1 text-[1rem] font-semibold">{title}</ModalTitle>
           {headerEnd}
         </div>
         <div className="flex min-h-0 flex-col gap-3 overflow-y-auto px-5 py-4">{children}</div>
@@ -796,6 +795,6 @@ export function DialogShell({
           </button>
         </div>
       </div>
-    </BareModal>
+    </Modal>
   )
 }

@@ -183,7 +183,7 @@ try {
       "need(root, 'root', 'Table')",
       "need(root, 'root', 'CompactTable')",
       "need(root, 'root', 'Loader')",
-      "need(root, 'root', 'BareModal')",
+      "need(root, 'root', 'Modal')",
       "need(root, 'root', 'ConfirmModal')",
       "need(root, 'root', 'CreateModal')",
       "need(root, 'root', 'StatusBadge')",

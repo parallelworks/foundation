@@ -6,7 +6,6 @@ export {
   type AvatarStatus,
   avatarInitials,
 } from './components/Avatar'
-export { BareModal, modalPanelClasses } from './components/BareModal'
 export {
   BreadcrumbProvider,
   type IBreadcrumbItem,
@@ -66,6 +65,13 @@ export {
   MenuRadioItem,
   MenuSeparator,
 } from './components/Menu'
+export {
+  Modal,
+  ModalDescription,
+  type ModalProps,
+  ModalTitle,
+  modalPanelClassName,
+} from './components/Modal'
 export { Overview } from './components/Overview'
 export {
   BreadcrumbsActionButton,

@@ -7,9 +7,11 @@ import Callout from './Callout'
 import { Autocomplete, Combobox } from './Combobox'
 import { ConfirmModal } from './ConfirmModal'
 import { CreateModal, CreateModalField } from './CreateModal'
+import { primaryButtonClasses } from './ghostButton'
 import { Indicator } from './Indicator'
 import { InfoTip } from './InfoTip'
 import Loader from './Loader'
+import { Modal, ModalDescription, type ModalProps, ModalTitle } from './Modal'
 import { Overview } from './Overview'
 import { SegmentedControl } from './SegmentedControl'
 import { Select } from './Select'
@@ -87,7 +89,69 @@ export const Loaders: StoryObj<{ size: number; text: string }> = {
   ),
 }
 
-function ModalDemo() {
+function ModalDemo({ align, dismissible }: Pick<ModalProps, 'align' | 'dismissible'>) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button type="button" className="btn btn-info" onClick={() => setOpen(true)}>
+        Open modal
+      </button>
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        align={align}
+        dismissible={dismissible}
+        className="w-[480px] max-w-full p-6"
+      >
+        <ModalTitle className="text-lg font-semibold">Release notes</ModalTitle>
+        <ModalDescription className="mt-1.5 text-sm text-(--theme-muted-text-color)">
+          Focus stays inside until the modal closes, then returns to the button that opened it.
+        </ModalDescription>
+        <div className="mt-5 flex justify-end">
+          <button type="button" className={primaryButtonClasses} onClick={() => setOpen(false)}>
+            Done
+          </button>
+        </div>
+      </Modal>
+    </>
+  )
+}
+
+const openModal = async (canvasElement: HTMLElement, name = 'Open modal') => {
+  await userEvent.click(within(canvasElement).getByRole('button', { name }))
+}
+
+/** A plain modal: Escape and the backdrop close it. */
+export const ModalStory: StoryObj<Pick<ModalProps, 'align' | 'dismissible'>> = {
+  name: 'Modal',
+  args: { align: 'top', dismissible: true },
+  argTypes: {
+    align: { control: 'inline-radio', options: ['top', 'center'] },
+    dismissible: { control: 'boolean', description: 'False ignores Escape and the backdrop.' },
+  },
+  render: (args) => <ModalDemo {...args} />,
+  play: async ({ canvasElement }) => {
+    await openModal(canvasElement)
+    const dialog = await screen.findByRole('dialog', { name: 'Release notes' })
+    await waitFor(() => expect(dialog).toBeVisible())
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  },
+}
+
+/** Unsaved input: Escape and the backdrop leave it open, its own buttons still close it. */
+export const ModalNotDismissible: StoryObj = {
+  name: 'Modal, not dismissible',
+  render: () => <ModalDemo dismissible={false} />,
+  play: async ({ canvasElement }) => {
+    await openModal(canvasElement)
+    const dialog = await screen.findByRole('dialog', { name: 'Release notes' })
+    await userEvent.keyboard('{Escape}')
+    await expect(dialog).toBeVisible()
+  },
+}
+
+function ConfirmDemo({ destructive = false }: { destructive?: boolean }) {
   const [open, setOpen] = useState(false)
   return (
     <>
@@ -97,23 +161,38 @@ function ModalDemo() {
       <ConfirmModal
         open={open}
         onClose={() => setOpen(false)}
-        title="Confirm action"
-        description="Modals trap focus and close on Escape or backdrop click."
-        confirmLabel="Confirm"
+        destructive={destructive}
+        title={destructive ? 'Delete cluster?' : 'Confirm action'}
+        description={
+          destructive ? 'Its jobs stop and its disks are erased.' : 'You can change this later.'
+        }
+        confirmLabel={destructive ? 'Delete' : 'Confirm'}
         onConfirm={() => setOpen(false)}
       />
     </>
   )
 }
 
-export const ModalStory: StoryObj = {
+export const ConfirmModalStory: StoryObj = {
   name: 'Confirm modal',
-  render: () => <ModalDemo />,
+  render: () => <ConfirmDemo />,
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: 'Open modal' }))
+    await openModal(canvasElement)
     // The dialog portals outside the story canvas.
-    await expect(await screen.findByText('Confirm action')).toBeVisible()
+    const dialog = await screen.findByRole('dialog', { name: 'Confirm action' })
+    await waitFor(() => expect(dialog).toBeVisible())
+  },
+}
+
+/** A destructive confirmation is an alertdialog: it waits for an answer, and the backdrop doesn't close it. */
+export const DestructiveConfirmModal: StoryObj = {
+  name: 'Confirm modal, destructive',
+  render: () => <ConfirmDemo destructive />,
+  play: async ({ canvasElement }) => {
+    await openModal(canvasElement)
+    const dialog = await screen.findByRole('alertdialog', { name: 'Delete cluster?' })
+    await waitFor(() => expect(dialog).toBeVisible())
+    await expect(dialog).toHaveAccessibleDescription('Its jobs stop and its disks are erased.')
   },
 }
 

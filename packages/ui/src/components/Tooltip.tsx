@@ -81,7 +81,13 @@ function skipUnclipped(open: boolean, details: BaseTooltip.Root.ChangeEventDetai
   }
 }
 
-export interface TooltipProps {
+/** Props beyond the tooltip's own go to the anchor, so a Tooltip can be another
+ *  trigger's render target, such as a popover button with a hint. */
+export interface TooltipProps
+  extends Omit<
+    BaseTooltip.Trigger.Props,
+    'content' | 'children' | 'render' | 'handle' | 'payload'
+  > {
   /** Nothing to show disables the tooltip. Newlines in a string break lines. */
   content: ReactNode
   /** The anchor. It receives the trigger's props and ref, so it must pass them to its element. */
@@ -103,11 +109,13 @@ export function Tooltip({
   shortcut,
   disabled = false,
   overflowOnly = false,
+  ...anchorProps
 }: TooltipProps) {
   const handle = use(TooltipHandleContext)
   const payload = { content, shortcut, side }
   const trigger = (
     <BaseTooltip.Trigger
+      {...anchorProps}
       handle={handle ?? undefined}
       payload={payload}
       disabled={disabled || !content}

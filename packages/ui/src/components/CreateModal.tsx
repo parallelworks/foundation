@@ -5,10 +5,10 @@ import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from 'rea
 import { useEffect, useId, useRef, useState } from 'react'
 import { ChevronDownIcon, ChevronRightIcon, FavoriteIcon, FavoriteOutlineIcon } from '../icons'
 import { ActionMenu, type ActionMenuItem } from './ActionMenu'
-import { BareModal, modalPanelClasses } from './BareModal'
 import { Autocomplete, Combobox, type ComboboxItem, type ComboboxItems } from './Combobox'
 import { ghostButtonClasses, primaryButtonClasses } from './ghostButton'
 import { InfoTip } from './InfoTip'
+import { Modal } from './Modal'
 import { useStrings } from './Provider'
 import { Switch } from './Switch'
 import { Tooltip } from './Tooltip'
@@ -100,17 +100,6 @@ export function CreateModal({
       setFavorite(false)
       setNameTouched(false)
       setInteracted(false)
-      // Focus after the portal content mounts, unless something inside the
-      // dialog was focused in the meantime.
-      requestAnimationFrame(() => {
-        const input = nameRef.current
-        const dialog = input?.closest('[role="dialog"]')
-        const active = document.activeElement
-        if (dialog?.contains(active) && active !== dialog) {
-          return
-        }
-        input?.focus()
-      })
     }
   }, [open, initialName])
 
@@ -168,18 +157,20 @@ export function CreateModal({
   }
 
   return (
-    <BareModal
+    <Modal
       open={open}
       onClose={onClose}
-      ariaLabel={`${submitText}: ${typeLabel}`}
-      className={cx(modalPanelClasses, 'w-[560px] max-w-full flex flex-col max-h-full')}
-      preventClose={isDirty}
-      onPanelKeyDown={(e) => {
+      aria-label={`${submitText}: ${typeLabel}`}
+      className="w-[560px] max-w-full flex flex-col max-h-full"
+      dismissible={!isDirty}
+      // The name, ahead of the type chip; a form without one starts at its first control.
+      initialFocus={() => nameRef.current ?? true}
+      onKeyDown={(e) => {
         if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
           handleSubmit()
         }
       }}
-      onPanelMouseDown={(e) => {
+      onMouseDown={(e) => {
         // Keep the caret in the focused field when clicking non-interactive
         // panel areas (the borderless name input has no other affordance).
         // Selectable text is exempt: preventDefault would stop a selection
@@ -334,7 +325,7 @@ export function CreateModal({
           )}
         </div>
       </div>
-    </BareModal>
+    </Modal>
   )
 }
 

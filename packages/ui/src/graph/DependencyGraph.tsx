@@ -20,11 +20,11 @@ import {
   TransformComponent,
   TransformWrapper,
 } from 'react-zoom-pan-pinch'
-import { BareModal, modalPanelClasses } from '../components/BareModal'
 import { IconButton } from '../components/IconButton'
 import { Indicator } from '../components/Indicator'
 import { InfoTip } from '../components/InfoTip'
 import Loader from '../components/Loader'
+import { Modal } from '../components/Modal'
 import { useRunFile, useSlots, useStrings, useWorkflowEngine } from '../components/Provider'
 import { toAbsHumanDuration } from '../duration'
 import type { GraphLayout } from '../editing'
@@ -2050,11 +2050,11 @@ export default function DependencyGraph({
           </div>
         )}
       </div>
-      <BareModal
+      <Modal
         open={sublogOpen !== ''}
         onClose={() => setSublogOpen('')}
         align="center"
-        className={cx(modalPanelClasses, 'max-h-full overflow-y-auto p-4 sm:p-6')}
+        className="max-h-full overflow-y-auto p-4 sm:p-6"
       >
         <div className="flex w-full">
           {sublogsLoading && (!sublogs || !runNumber) ? (
@@ -2096,7 +2096,7 @@ export default function DependencyGraph({
             />
           )}
         </div>
-      </BareModal>
+      </Modal>
     </div>
   )
   return <GraphEditorProvider value={editorApi}>{graph}</GraphEditorProvider>
