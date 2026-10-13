@@ -19,9 +19,19 @@ vi.mock('../components/Provider', async (importOriginal) =>
   (await import('../test/engine')).mockEngineHooks(importOriginal),
 )
 
+const zoom = vi.hoisted(() => ({ props: {} as { initialScale?: number; maxScale?: number } }))
 vi.mock('react-zoom-pan-pinch', () => ({
-  TransformWrapper: ({ children }: { children: unknown }) =>
-    typeof children === 'function' ? (children as () => unknown)() : children,
+  TransformWrapper: ({
+    children,
+    ...props
+  }: {
+    children: unknown
+    initialScale?: number
+    maxScale?: number
+  }) => {
+    zoom.props = props
+    return typeof children === 'function' ? (children as () => unknown)() : children
+  },
   TransformComponent: ({ children }: { children: unknown }) => children,
 }))
 vi.mock('framer-motion', () => ({
@@ -450,15 +460,44 @@ describe('DependencyGraph step summary', () => {
     rect.mockRestore()
   })
 
-  it('shows what the host puts under the graph', () => {
-    render(
+  it('shows what the host puts above the graph', () => {
+    const { container } = render(
       <UIProvider>
         <DependencyGraph run={summaryRun}>
-          <p>Below the graph</p>
+          <p>Above the graph</p>
         </DependencyGraph>
       </UIProvider>,
     )
-    expect(screen.getByText('Below the graph')).toBeInTheDocument()
+    const panel = container.querySelector('.panel.overflow-hidden')
+    expect(panel?.compareDocumentPosition(screen.getByText('Above the graph')) ?? 0).toBe(
+      Node.DOCUMENT_POSITION_PRECEDING,
+    )
+  })
+
+  it('pins the job list under the host bars only when asked', () => {
+    const { rerender } = render(
+      <UIProvider>
+        <DependencyGraph run={summaryRun} />
+      </UIProvider>,
+    )
+    const sidebar = () => screen.getByText('Summary').parentElement as HTMLElement
+    expect(sidebar().style.top).toBe('')
+    rerender(
+      <UIProvider>
+        <DependencyGraph run={summaryRun} sidebarStickyTop={92} />
+      </UIProvider>,
+    )
+    expect(sidebar().style.top).toBe('92px')
+    expect(sidebar()).toHaveClass('lg:sticky')
+  })
+
+  it('opens at its fitted size and zooms in past it', () => {
+    render(
+      <UIProvider>
+        <DependencyGraph run={summaryRun} />
+      </UIProvider>,
+    )
+    expect(zoom.props.maxScale).toBeGreaterThan(zoom.props.initialScale ?? Number.POSITIVE_INFINITY)
   })
 })
 

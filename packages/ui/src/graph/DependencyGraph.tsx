@@ -1238,6 +1238,7 @@ export default function DependencyGraph({
   setViewMode,
   openStep,
   onCloseLog,
+  sidebarStickyTop,
   children,
 }: {
   run: GraphRun
@@ -1249,15 +1250,18 @@ export default function DependencyGraph({
   openStep?: { job: string; step: number; prefix?: string | undefined } | undefined
   /** Called when the log dialog closes, so a host can forget the step it asked to open. */
   onCloseLog?: (() => void) | undefined
-  /** Shown under the graph, in the graph's column. */
+  /** Pins the job list this many pixels below the top of the page's scroll area, under the host's own pinned bars. */
+  sidebarStickyTop?: number | undefined
+  /** Shown under the annotations, above the graph. */
   children?: ReactNode
 }) {
   const engine = useWorkflowEngine()
   // Animation timing constant (seconds) — controls line draw, dot transitions, and stagger delay
   const animT = 0.125
-  // Zoom limits for auto-fit and user panning
+  // Zoom limits for user panning; auto-fit stops at fitMaxScale so a small graph still opens at a readable size.
   const minScale = 0.2
-  const maxScale = 0.6
+  const maxScale = 2
+  const fitMaxScale = 0.6
   const rootJobs = isJobRecord(run.executedJobs) ? run.executedJobs : {}
   const runNumber = run.number ?? 0
   const runSlug = run.slug ?? ''
@@ -1533,7 +1537,7 @@ export default function DependencyGraph({
       const margin = Math.min(containerW, containerH) * 0.05
       const scaleW = (containerW - margin * 2) / graphW
       const scaleH = (containerH - margin * 2) / graphH
-      const scale = Math.min(Math.max(Math.min(scaleW, scaleH), minScale), maxScale)
+      const scale = Math.min(Math.max(Math.min(scaleW, scaleH), minScale), fitMaxScale)
       const offsetX = margin - minX * scale
       const offsetY = margin - minY * scale
       if (animationMs > 0) {
@@ -1766,7 +1770,17 @@ export default function DependencyGraph({
   return (
     <div className="flex flex-col lg:flex-row w-full">
       {!preview && (
-        <div className="hidden lg:block lg:w-[280px] flex-shrink-0 lg:mr-1">
+        <div
+          className={cx(
+            'hidden lg:block lg:w-[280px] flex-shrink-0 lg:mr-1',
+            sidebarStickyTop !== undefined && 'lg:sticky lg:self-start lg:overflow-y-auto',
+          )}
+          style={
+            sidebarStickyTop !== undefined
+              ? { top: sidebarStickyTop, maxHeight: `calc(100dvh - ${sidebarStickyTop + 24}px)` }
+              : undefined
+          }
+        >
           {slots.runSessions && (
             <div className="mb-4 overflow-y-auto">
               {slots.runSessions({
@@ -1844,6 +1858,7 @@ export default function DependencyGraph({
           </div>
         )}
         {!preview && <AnnotationBanner executedJobs={jobs} />}
+        {children}
         {viewMode === 'tree' && !preview ? (
           <div className="panel w-full border">
             <TreeView
@@ -1874,7 +1889,7 @@ export default function DependencyGraph({
               ref={transformRef}
               minScale={minScale}
               maxScale={maxScale}
-              initialScale={maxScale}
+              initialScale={fitMaxScale}
               doubleClick={{ disabled: true }}
               limitToBounds={false}
               onInit={() => {
@@ -1978,7 +1993,6 @@ export default function DependencyGraph({
             </TransformWrapper>
           </div>
         )}
-        {children}
       </div>
       <BareModal
         open={sublogOpen !== ''}
