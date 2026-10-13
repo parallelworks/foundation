@@ -1,5 +1,6 @@
 import { clsx as cx } from 'clsx'
 import { type ReactNode, useEffect, useRef } from 'react'
+import type { MenuAnchor } from '../components/ContextMenu'
 import { Tooltip } from '../components/Tooltip'
 import { AddIcon, AlertIcon, DragHandleIcon, MoreIcon } from '../icons'
 import type { EditorProblem } from './editorApi'
@@ -255,7 +256,7 @@ function EditableRow({
   /** Toggles the row in the selection, and says whether it is selected after. */
   toggle: () => boolean
   reveal: () => void
-  openMenu: (x: number, y: number) => void
+  openMenu: (at: MenuAnchor) => void
   menuLabel: string
   menuClassName: string
   iconClassName: string
@@ -298,7 +299,7 @@ function EditableRow({
       onContextMenu={(e) => {
         e.preventDefault()
         e.stopPropagation()
-        openMenu(e.clientX, e.clientY)
+        openMenu(e)
       }}
     >
       {children}
@@ -313,8 +314,7 @@ function EditableRow({
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation()
-          const r = e.currentTarget.getBoundingClientRect()
-          openMenu(r.right, r.bottom)
+          openMenu(e.currentTarget)
         }}
       >
         <MoreIcon className={iconClassName} />
@@ -365,7 +365,7 @@ export function EditableJobRow({
         return api.store.get().selection.includes(job)
       }}
       reveal={() => api.reveal({ job })}
-      openMenu={(x, y) => api.openJobMenu(x, y, job)}
+      openMenu={(at) => api.openJobMenu(at, job)}
       menuLabel={t.jobActions}
       menuClassName="p-1 group-hover/row:opacity-100"
       iconClassName="h-[1em] w-[1em]"
@@ -539,7 +539,7 @@ export function EditableStepRow({
         return api.store.get().steps.some((ref) => sameStep(ref, { job, index }))
       }}
       reveal={() => api.reveal({ job, step: index })}
-      openMenu={(x, y) => api.openStepMenu(x, y, job, index)}
+      openMenu={(at) => api.openStepMenu(at, job, index)}
       menuLabel={t.stepActions}
       menuClassName="p-0.5 group-hover/step:opacity-100"
       iconClassName="h-[0.9em] w-[0.9em]"
@@ -607,7 +607,7 @@ export function EdgeHitPath({ d, edge }: { d: string; edge: EdgeSelection }) {
       }}
       onContextMenu={(e) => {
         e.preventDefault()
-        api.openEdgeMenu(e.clientX, e.clientY, edge)
+        api.openEdgeMenu(e, edge)
       }}
     />
   )

@@ -176,8 +176,10 @@ function jobRow(name: string): HTMLElement {
 
 /** A dialog field, found by its label: the nearest element around it that holds its input. */
 function field(label: string): HTMLElement {
+  // In the dialog on top: a menu that opened it may still be fading out, naming its rows alike.
+  const top = screen.queryAllByRole('dialog').at(-1)
   let element: HTMLElement | null =
-    screen.getAllByText(label, { selector: 'span, label' })[0] ?? null
+    (top ? within(top) : screen).getAllByText(label, { selector: 'span, label' })[0] ?? null
   // Not a select: the Insert a value menu beside a label is one.
   while (element && !element.querySelector('input, textarea')) {
     element = element.parentElement
@@ -1696,16 +1698,14 @@ describe('moves and removals an expression depends on', () => {
     renderGraph(reading, e)
     const [fromA, fromB] = connectors()
     fireEvent.contextMenu(fromB as Element)
-    const inUse = within(screen.getByRole('menu')).getByText('Remove dependency').closest('button')
+    const inUse = screen.getByRole('menuitem', { name: /^Remove dependency/ })
     expect(inUse).toHaveAttribute('aria-disabled', 'true')
-    fireEvent.click(inUse as Element)
+    fireEvent.click(inUse)
     expect(e.onEdit).not.toHaveBeenCalled()
-    fireEvent.keyDown(window, { key: 'Escape' })
     fireEvent.contextMenu(fromA as Element)
-    const free = within(screen.getAllByRole('menu').at(-1) as HTMLElement)
-      .getByText('Remove dependency')
-      .closest('button')
-    expect(free).not.toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByRole('menuitem', { name: 'Remove dependency' })).not.toHaveAttribute(
+      'aria-disabled',
+    )
   })
 
   it('selects a connector with a click, adds connectors with shift, and deletes them with Delete', () => {
@@ -1746,41 +1746,35 @@ describe('moves and removals an expression depends on', () => {
     const e = editor()
     renderGraph(plain, e)
     fireEvent.contextMenu(jobRow('a'), { clientX: 5, clientY: 5 })
-    const menu = screen.getByRole('menu')
     // b and d already wait on a, so a can need neither; b needs a already, d only through b.
-    expect(within(menu).queryByText('Depends on')).toBeNull()
-    fireEvent.click(within(menu).getByText('Needed by'))
+    expect(screen.queryByRole('menuitem', { name: 'Depends on' })).toBeNull()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Needed by' }))
     // Named as the graph names them.
-    expect(within(menu).queryByRole('button', { name: 'B' })).toBeNull()
-    fireEvent.click(within(menu).getByRole('button', { name: 'D' }))
+    expect(screen.queryByRole('menuitem', { name: 'B' })).toBeNull()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'D' }))
     expect(e.onEdit).toHaveBeenCalledWith(connectedFrom([['a', 'd']]))
   })
 
-  it('takes a job menu opened from the keyboard, arrows through it and gives focus back', () => {
+  it('takes a job menu opened from the keyboard, arrows through it and gives focus back', async () => {
     renderGraph(plain, editor())
     const more = within(jobRow('a')).getByRole('button', {
       name: 'Job actions',
     })
-    // jsdom's :focus-visible follows the event in flight, so the opener is stated to show keyboard focus.
-    const matches = Element.prototype.matches
-    const spy = vi.spyOn(Element.prototype, 'matches').mockImplementation(function (
-      this: Element,
-      selector: string,
-    ) {
-      return selector === ':focus-visible' ? this === more : matches.call(this, selector)
-    })
-    onTestFinished(() => spy.mockRestore())
-    more.focus()
+    act(() => more.focus())
     fireEvent.click(more)
-    const items = within(screen.getByRole('menu')).getAllByRole('button')
-    expect(items[0]).toHaveFocus()
-    fireEvent.keyDown(items[0] as HTMLElement, { key: 'ArrowDown' })
-    expect(items[1]).toHaveFocus()
-    fireEvent.keyDown(items[1] as HTMLElement, { key: 'ArrowUp' })
-    fireEvent.keyDown(items[0] as HTMLElement, { key: 'ArrowUp' })
-    expect(items.at(-1)).toHaveFocus()
-    fireEvent.keyDown(window, { key: 'Escape' })
-    expect(more).toHaveFocus()
+    const menu = screen.getByRole('menu')
+    await waitFor(() => expect(menu).toContainElement(document.activeElement as HTMLElement))
+    const items = within(menu).getAllByRole('menuitem')
+    const press = async (key: string, to: HTMLElement | undefined) => {
+      fireEvent.keyDown(document.activeElement as HTMLElement, { key })
+      await waitFor(() => expect(to).toHaveFocus())
+    }
+    await press('ArrowDown', items[0])
+    await press('ArrowDown', items[1])
+    await press('ArrowUp', items[0])
+    await press('ArrowUp', items.at(-1))
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'Escape' })
+    await waitFor(() => expect(more).toHaveFocus())
   })
 
   it('moves the start of a selected connector onto another job', () => {

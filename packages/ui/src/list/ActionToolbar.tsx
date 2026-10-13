@@ -3,29 +3,22 @@ import { Menu } from '@base-ui/react/menu'
 import { Toggle } from '@base-ui/react/toggle'
 import { clsx as cx } from 'clsx'
 import { createContext, Fragment, useContext, useLayoutEffect, useRef, useState } from 'react'
-import { MenuItem, MenuLinkItem, MenuPopup } from '../components/Menu'
+import { MenuPopup } from '../components/Menu'
+import { MenuEntries } from '../components/MenuEntries'
 import { useLink, useStrings } from '../components/Provider'
 import { Tooltip } from '../components/Tooltip'
-import { CheckIcon, MenuIcon } from '../icons'
+import { MenuIcon } from '../icons'
+import type { RowAction } from './rowMenu'
 
 // True inside the `…` menu, so pre-rendered element items whose buttons
 // normally render as chips restyle themselves as menu rows.
 const OverflowMenuContext = createContext(false)
 
-export interface ToolbarAction {
-  key: string
-  label: string
-  icon: React.ComponentType<{ className?: string }>
-  iconClassName?: string
-  onClick?: (() => void) | undefined
-  href?: string | undefined
-  disabled?: boolean | undefined
+/** A toolbar button, which moves into the `…` menu as a row when the toolbar runs out of room. */
+export interface ToolbarAction extends RowAction {
+  /** A hint on the enabled button. */
   tooltip?: string | undefined
-  /** Why the action is disabled, shown in place of the tooltip. */
-  disabledReason?: string | undefined
   hidden?: boolean
-  /** Makes the action a toggle, pressed while true; onClick flips it. */
-  pressed?: boolean | undefined
 }
 
 /** A pre-rendered element (e.g. a button component that owns its modal). */
@@ -44,17 +37,14 @@ function ToolbarItemView({ item }: { item: ToolbarItem }) {
   return <ToolbarButton action={item} />
 }
 
-function tooltipOf(action: ToolbarAction) {
-  return action.disabled ? action.disabledReason : action.tooltip
-}
-
+/** A toolbar action as a button: a link with `href`, a toggle with `checked`. */
 export function ToolbarButton({ action }: { action: ToolbarAction }) {
   const inOverflowMenu = useContext(OverflowMenuContext)
   const Link = useLink()
   if (inOverflowMenu) {
-    return <OverflowRow item={action} />
+    return <MenuEntries entries={[action]} />
   }
-  const off = action.pressed === false
+  const off = action.checked === false
   const className = cx(
     'inline-flex items-center gap-x-0.5 h-9 px-2 rounded-md text-[13.5px] uppercase font-semibold transition-colors whitespace-nowrap',
     off
@@ -66,12 +56,9 @@ export function ToolbarButton({ action }: { action: ToolbarAction }) {
         ? 'cursor-pointer hover:theme-hover'
         : 'cursor-pointer hover:bg-(--theme-element-hover)'),
   )
-  const Icon = action.icon
   const content = (
     <>
-      <div className="h-6 flex items-center">
-        <Icon className={cx('w-auto', action.iconClassName)} />
-      </div>
+      <div className="h-6 flex items-center [&>svg]:w-auto">{action.icon}</div>
       {action.label}
     </>
   )
@@ -82,10 +69,10 @@ export function ToolbarButton({ action }: { action: ToolbarAction }) {
         {content}
       </Link>
     )
-  } else if (action.pressed !== undefined) {
+  } else if (action.checked !== undefined) {
     control = (
       <Toggle
-        pressed={action.pressed}
+        pressed={action.checked}
         onPressedChange={() => action.onClick?.()}
         disabled={action.disabled}
         className={className}
@@ -107,62 +94,8 @@ export function ToolbarButton({ action }: { action: ToolbarAction }) {
     )
   }
   return (
-    <Tooltip content={tooltipOf(action)} side="bottom">
+    <Tooltip content={action.disabled ? action.disabledReason : action.tooltip} side="bottom">
       {control}
-    </Tooltip>
-  )
-}
-
-const overflowRowClassName = 'gap-x-1 px-4 py-2 uppercase font-semibold link'
-
-/** A single overflowed item rendered as a full-width row inside the `…` menu. */
-function OverflowRow({ item }: { item: ToolbarAction }) {
-  const Link = useLink()
-  const Icon = item.icon
-  const content = (
-    <>
-      <div className="w-5 h-6 flex items-center">
-        <Icon className={cx(item.iconClassName)} />
-      </div>
-      {item.label}
-    </>
-  )
-  let row: React.ReactElement
-  if (item.href && !item.disabled) {
-    row = (
-      <MenuLinkItem render={<Link href={item.href} />} className={overflowRowClassName}>
-        {content}
-      </MenuLinkItem>
-    )
-  } else if (item.pressed !== undefined) {
-    row = (
-      <Menu.CheckboxItem
-        checked={item.pressed}
-        onCheckedChange={() => item.onClick?.()}
-        disabled={item.disabled}
-        closeOnClick
-        className={cx(
-          'flex w-full items-center text-left text-[13px] cursor-pointer outline-none select-none data-highlighted:bg-(--theme-muted-panel-bg) data-disabled:cursor-not-allowed data-disabled:opacity-50',
-          overflowRowClassName,
-        )}
-      >
-        {content}
-        <Menu.CheckboxItemIndicator className="ml-auto">
-          <CheckIcon className="h-4 w-4 opacity-80" />
-        </Menu.CheckboxItemIndicator>
-      </Menu.CheckboxItem>
-    )
-  } else {
-    row = (
-      <MenuItem onClick={item.onClick} disabled={item.disabled} className={overflowRowClassName}>
-        {content}
-      </MenuItem>
-    )
-  }
-  // Opens left, away from the menu panel, so the tooltip never covers other rows.
-  return (
-    <Tooltip content={tooltipOf(item)} side="left">
-      {row}
     </Tooltip>
   )
 }
@@ -188,7 +121,7 @@ function OverflowMenu({ items }: { items: ToolbarItem[] }) {
             'element' in item ? (
               <Fragment key={item.key}>{item.element}</Fragment>
             ) : (
-              <OverflowRow key={item.key} item={item} />
+              <MenuEntries key={item.key} entries={[item]} />
             ),
           )}
         </OverflowMenuContext.Provider>

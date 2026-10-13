@@ -14,12 +14,14 @@ import {
 } from 'react'
 import { useLocalStorage } from 'usehooks-ts'
 import { ConfirmModal } from '../components/ConfirmModal'
+import { useContextMenu } from '../components/ContextMenu'
 import CopyToClipboard, { CopyCodeBlock } from '../components/CopyToClipboard'
 import { CreateModal } from '../components/CreateModal'
 import { InfoTip } from '../components/InfoTip'
 import { keyedByContent } from '../components/keys'
 import Loader from '../components/Loader'
 import { MenuItem, MenuPopup, MenuSeparator } from '../components/Menu'
+import type { MenuEntry } from '../components/MenuEntries'
 import { useNotify, useSlots, useStrings } from '../components/Provider'
 import { StatusBadge } from '../components/StatusBadge'
 import { Table } from '../components/Table'
@@ -49,9 +51,7 @@ import {
   listTableFixedProps,
   listTableProps,
   type RowAction,
-  type RowMenuItem,
   useCopySubmenu,
-  useRowMenu,
 } from '../list/index'
 import { safeUrl } from '../safeUrl'
 import { useFileExplorer } from './FileExplorerContext'
@@ -477,7 +477,7 @@ export default function FileExplorer({
   const [detailTab, setDetailTab] = useState<'details' | 'preview'>('details')
 
   useEffect(() => clearPreviewCache, [])
-  const { openMenu, contextMenu } = useRowMenu()
+  const { openMenu, contextMenu } = useContextMenu()
 
   const [sidebarWidth, setSidebarWidth] = useLocalStorage(
     SIDEBAR_WIDTH_STORAGE_KEY,
@@ -1063,13 +1063,13 @@ export default function FileExplorer({
         key: 'create-folder',
         label: t.createFolder.action,
         icon: <FolderIcon />,
-        onSelect: () => openCreateFolder(node),
+        onClick: () => openCreateFolder(node),
       },
     ]
   }
 
   // Order: lead → actions → Copy → delete last.
-  const buildRowMenu = (node: TreeNode): RowMenuItem[] => {
+  const buildRowMenu = (node: TreeNode): MenuEntry[] => {
     const storage = findStorage(node.storageId)
     const nodeCanDelete = storageCanDelete(storage)
     const nodeCanShare = storage?.canShare !== false
@@ -1082,7 +1082,7 @@ export default function FileExplorer({
         key: 'preview',
         label: t.preview.preview,
         icon: <EyeIcon />,
-        onSelect: () => openPreview(node),
+        onClick: () => openPreview(node),
       })
     }
     if (isFile) {
@@ -1090,14 +1090,14 @@ export default function FileExplorer({
         key: 'download',
         label: t.preview.download,
         icon: <DownloadFileIcon />,
-        onSelect: () => downloadNode(node),
+        onClick: () => downloadNode(node),
       })
       if (nodeCanShare) {
         actions.push({
           key: 'share',
           label: t.preview.shareFile,
           icon: <ShareIcon />,
-          onSelect: () => onShareFileButtonClick(node),
+          onClick: () => onShareFileButtonClick(node),
         })
       }
     }
@@ -1111,16 +1111,15 @@ export default function FileExplorer({
         label: t.preview.delete,
         icon: <TrashIcon />,
         destructive: true,
-        onSelect: () => deleteNode(node),
+        onClick: () => deleteNode(node),
       })
     }
 
-    const lead: RowMenuItem[] = [
+    const lead: MenuEntry[] = [
       {
-        kind: 'action',
         label: isFile ? t.preview.viewDetails : t.preview.openFolder,
         icon: isFile ? <FileTextIcon /> : <FolderIcon />,
-        onSelect: () => handleSelectTreeItem(node.path, node),
+        onClick: () => handleSelectTreeItem(node.path, node),
       },
     ]
 
@@ -1150,7 +1149,7 @@ export default function FileExplorer({
     }
     e.preventDefault()
     e.stopPropagation()
-    openMenu(e.clientX, e.clientY, items)
+    openMenu(e, items)
   }
 
   // Folder path from the storage root down to the current node; segments before
@@ -1622,10 +1621,9 @@ export default function FileExplorer({
                       storageCount={getNodeChildren(parentToChildrenMap, rootNode.path).length}
                       getItems={() => [
                         {
-                          kind: 'action',
                           label: t.preview.open,
                           icon: <FolderIcon />,
-                          onSelect: () => openUserNode(rootNode),
+                          onClick: () => openUserNode(rootNode),
                         },
                       ]}
                       openMenu={openMenu}

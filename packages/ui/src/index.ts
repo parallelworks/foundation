@@ -1,4 +1,4 @@
-export { ActionMenu, type ActionMenuItem } from './components/ActionMenu'
+export { ActionMenu } from './components/ActionMenu'
 export {
   Avatar,
   type AvatarProps,
@@ -28,6 +28,12 @@ export {
   type ComboboxProps,
 } from './components/Combobox'
 export { ConfirmModal } from './components/ConfirmModal'
+export {
+  type MenuAnchor,
+  type OpenMenu,
+  type OpenMenuOptions,
+  useContextMenu,
+} from './components/ContextMenu'
 export { CopyCodeBlock, default as CopyToClipboard } from './components/CopyToClipboard'
 export {
   CreateModal,
@@ -57,6 +63,7 @@ export { default as Loader } from './components/Loader'
 export type { MarkdownProps } from './components/Markdown'
 export { default as Markdown } from './components/Markdown'
 export {
+  MenuCheckboxItem,
   MenuGroupLabel,
   MenuItem,
   MenuLinkItem,
@@ -64,7 +71,18 @@ export {
   type MenuPopupProps,
   MenuRadioItem,
   MenuSeparator,
+  MenuSubmenuTrigger,
 } from './components/Menu'
+export {
+  type MenuAction,
+  type MenuDivider,
+  MenuEntries,
+  type MenuEntry,
+  MenuFilter,
+  type MenuSearch,
+  type MenuSubmenu,
+  menuDivider,
+} from './components/MenuEntries'
 export {
   Modal,
   ModalDescription,
@@ -80,7 +98,6 @@ export {
   HeaderActionMenu,
   HeaderAddButton,
   HeaderEditButton,
-  HeaderRowMenu,
   headerActionButtonClasses,
   PageHeader,
   type PageHeaderBreadcrumb,

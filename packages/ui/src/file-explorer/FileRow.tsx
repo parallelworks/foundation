@@ -1,17 +1,13 @@
 import { clsx as cx } from 'clsx'
 import { DateTime } from 'luxon'
 import type { ReactNode } from 'react'
+import type { OpenMenu } from '../components/ContextMenu'
+import type { MenuEntry } from '../components/MenuEntries'
 import { useStrings } from '../components/Provider'
 import { Table } from '../components/Table'
 import { Tooltip } from '../components/Tooltip'
 import { EyeIcon } from '../icons'
-import {
-  MoreButton,
-  type OpenMenu,
-  type RowMenuItem,
-  RowSelectCheckbox,
-  useRowMenuActive,
-} from '../list/index'
+import { MoreButton, RowSelectCheckbox, rowContextMenuProps, useRowMenuActive } from '../list/index'
 import type { TreeNode } from './lib/types'
 import { formatFileSize } from './lib/utils'
 
@@ -35,21 +31,6 @@ function isInteractiveTarget(e: React.MouseEvent) {
   return !!(e.target as HTMLElement).closest('a,button,input,label')
 }
 
-// Build the row menu only when it is opened, not on every render — a large
-// directory would otherwise rebuild hundreds of menu structures per re-render.
-function lazyContextMenuProps(openMenu: OpenMenu, getItems: () => RowMenuItem[]) {
-  return {
-    onContextMenu: (e: React.MouseEvent) => {
-      const items = getItems()
-      e.preventDefault()
-      if (items.length > 0) {
-        e.stopPropagation()
-      }
-      openMenu(e.clientX, e.clientY, items)
-    },
-  }
-}
-
 interface FileRowProps {
   node: TreeNode
   icon: ReactNode
@@ -61,7 +42,7 @@ interface FileRowProps {
   active: boolean
   checked: boolean
   canPreview: boolean
-  getItems: () => RowMenuItem[]
+  getItems: () => MenuEntry[]
   openMenu: OpenMenu
   onOpen: (node: TreeNode) => void
   onToggleCheck: (node: TreeNode, checked: boolean) => void
@@ -79,7 +60,7 @@ export function UserRow({
   node: TreeNode
   icon: ReactNode
   storageCount: number
-  getItems: () => RowMenuItem[]
+  getItems: () => MenuEntry[]
   openMenu: OpenMenu
   onOpen: (node: TreeNode) => void
 }) {
@@ -95,7 +76,7 @@ export function UserRow({
     <tr
       className={cx('group cursor-pointer', menuActive ? 'theme-hover' : 'hover:theme-hover')}
       onClick={handleRowClick}
-      {...lazyContextMenuProps(openRowMenu, getItems)}
+      {...rowContextMenuProps(openRowMenu, getItems)}
     >
       <Table.Item className="py-2.5">
         <div className="flex min-w-0 items-center gap-3">
@@ -115,7 +96,7 @@ export function UserRow({
       </Table.Item>
       <Table.Item className="relative py-2.5">
         <div className="absolute inset-y-0 right-0 flex items-center pr-4">
-          <MoreButton active={menuActive} onOpen={(x, y) => openRowMenu(x, y, getItems())} />
+          <MoreButton open={menuActive} onOpen={(button) => openRowMenu(button, getItems())} />
         </div>
       </Table.Item>
     </tr>
@@ -168,7 +149,7 @@ export function FileRow({
       )}
       onClick={handleRowClick}
       style={{ height: fileRowHeight(node) }}
-      {...lazyContextMenuProps(openRowMenu, getItems)}
+      {...rowContextMenuProps(openRowMenu, getItems)}
     >
       <Table.Item className="py-2.5">
         <div className="flex min-w-0 items-center gap-2.5">
@@ -227,7 +208,7 @@ export function FileRow({
               </button>
             </Tooltip>
           )}
-          <MoreButton active={menuActive} onOpen={(x, y) => openRowMenu(x, y, getItems())} />
+          <MoreButton open={menuActive} onOpen={(button) => openRowMenu(button, getItems())} />
         </div>
       </Table.Item>
     </tr>

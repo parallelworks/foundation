@@ -3,10 +3,10 @@ import type { ComponentType, ReactNode } from 'react'
 import { Fragment, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AddIcon, ChevronRightIcon, EditIcon, MoreIcon } from '../icons'
-import { type RowMenuItem, useRowMenu } from '../list/RowContextMenu'
-import { ActionMenu, type ActionMenuItem } from './ActionMenu'
+import { ActionMenu } from './ActionMenu'
 import { useBreadcrumb } from './Breadcrumbs'
 import { keyedByContent } from './keys'
+import type { MenuEntry } from './MenuEntries'
 import { useLink, useSlots, useStrings } from './Provider'
 import { Tooltip } from './Tooltip'
 
@@ -42,7 +42,7 @@ export function HeaderAddButton({
   onClick?: () => void
   label: string
   word?: 'add' | 'create'
-  menu?: ActionMenuItem[]
+  menu?: MenuEntry[]
   /** Button mode only. */
   disabled?: boolean
   disabledHint?: string
@@ -90,11 +90,12 @@ export function HeaderAddButton({
   )
 }
 
+/** The header's "…" menu of actions on the page's subject. */
 export function HeaderActionMenu({
   items,
   label = 'Actions',
 }: {
-  items: ActionMenuItem[]
+  items: MenuEntry[]
   label?: string
 }) {
   if (items.length === 0) {
@@ -104,38 +105,6 @@ export function HeaderActionMenu({
     <ActionMenu items={items} label={label} triggerClassName={headerActionButtonClasses}>
       <MoreIcon className="w-3.5 h-3.5" />
     </ActionMenu>
-  )
-}
-
-/** The header "…" trigger for a RowMenuItem menu — same rendering (submenus,
- * destructive styling) as the list pages' right-click context menus. */
-export function HeaderRowMenu({
-  items,
-  label = 'Actions',
-}: {
-  items: RowMenuItem[]
-  label?: string
-}) {
-  const { openMenu, contextMenu } = useRowMenu()
-  if (items.length === 0) {
-    return null
-  }
-  return (
-    <>
-      <button
-        type="button"
-        aria-label={label}
-        title={label}
-        className={headerActionButtonClasses}
-        onClick={(e) => {
-          const r = e.currentTarget.getBoundingClientRect()
-          openMenu(r.left, r.bottom + 4, items)
-        }}
-      >
-        <MoreIcon className="w-3.5 h-3.5" />
-      </button>
-      {contextMenu}
-    </>
   )
 }
 

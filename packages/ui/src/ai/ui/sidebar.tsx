@@ -2,15 +2,11 @@ import { Drawer } from '@base-ui/react/drawer'
 import { clsx as cx } from 'clsx'
 import { type CSSProperties, type ReactNode, useRef, useState } from 'react'
 import { ConfirmModal } from '../../components/ConfirmModal'
+import type { OpenMenu } from '../../components/ContextMenu'
 import { focusOnMount } from '../../components/focus'
+import type { MenuEntry } from '../../components/MenuEntries'
 import { SidebarIcon } from '../../icons'
-import {
-  MoreButton,
-  type OpenMenu,
-  type RowMenuItem,
-  rowContextMenuProps,
-  useRowMenuActive,
-} from '../../list/index'
+import { MoreButton, rowContextMenuProps, useRowMenuActive } from '../../list/index'
 
 const SIDEBAR_RAIL_WIDTH_PX = 48
 export const SIDEBAR_DEFAULT_WIDTH_PX = 256
@@ -200,7 +196,7 @@ export function SidebarRow({
   children,
 }: {
   selected: boolean
-  menuItems: RowMenuItem[]
+  menuItems: MenuEntry[]
   openMenu: OpenMenu
   className?: string
   children: ReactNode
@@ -216,7 +212,7 @@ export function SidebarRow({
       {...rowContextMenuProps(openRowMenu, menuItems)}
     >
       {children}
-      <MoreButton active={active} onOpen={(x, y) => openRowMenu(x, y, menuItems)} />
+      <MoreButton open={active} onOpen={(button) => openRowMenu(button, menuItems)} />
     </li>
   )
 }

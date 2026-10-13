@@ -5,7 +5,7 @@ import { ActionToolbar } from './ActionToolbar'
 
 // jsdom measures nothing, so two or more items on the right all move into the `…` menu.
 
-const Icon = () => null
+const icon = <svg />
 
 describe('ActionToolbar toggles', () => {
   it('say whether they are pressed, disabled ones and ones moved into the menu too', () => {
@@ -13,20 +13,20 @@ describe('ActionToolbar toggles', () => {
       <ActionToolbar
         groups={[
           [
-            { key: 'refresh', label: 'Auto refresh', icon: Icon, onClick: () => {}, pressed: true },
+            { key: 'refresh', label: 'Auto refresh', icon, onClick: () => {}, checked: true },
             {
               key: 'follow',
               label: 'Follow',
-              icon: Icon,
+              icon,
               onClick: () => {},
-              pressed: false,
+              checked: false,
               disabled: true,
             },
           ],
         ]}
         right={[
-          { key: 'graph', label: 'Graph', icon: Icon, onClick: () => {}, pressed: true },
-          { key: 'editor', label: 'Editor', icon: Icon, onClick: () => {}, pressed: false },
+          { key: 'graph', label: 'Graph', icon, onClick: () => {}, checked: true },
+          { key: 'editor', label: 'Editor', icon, onClick: () => {}, checked: false },
         ]}
       />,
     )

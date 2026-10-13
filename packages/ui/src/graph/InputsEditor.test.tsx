@@ -9,6 +9,7 @@ import {
 } from '@parallelworks/workflow-parser'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { menuItemLabels, pickMenuItem } from '../test/menu'
 
 // The editor calls useWorkflowEngine(), which throws outside a UIProvider carrying one.
 vi.mock('../components/Provider', async (importOriginal) =>
@@ -146,9 +147,7 @@ function barButton(name: string): HTMLElement {
 
 // The add menu lists types by group; the types these tests add are all basic ones.
 function pickType(label: string) {
-  const menu = screen.getByRole('menu')
-  fireEvent.click(within(menu).getByText('Basic'))
-  fireEvent.click(within(menu).getByText(label))
+  pickMenuItem('Basic', label)
 }
 
 // The suggestions a field offers, as the dropdown stand-in lists them.
@@ -184,24 +183,19 @@ describe('InputsFormEditor', () => {
     })
   })
 
-  it('lists the type groups and finds any type by search', () => {
+  it('lists the type groups and finds any type by search', async () => {
     renderForm(editor())
     fireEvent.click(screen.getByRole('button', { name: 'Input' }))
-    const menu = screen.getByRole('menu')
     const types = INPUTS_EDITOR_STRINGS.types as Record<string, string>
-    const labels = () =>
-      within(menu)
-        .getAllByRole('button')
-        .map((button) => button.textContent)
-    expect(labels()).toEqual(
+    expect(menuItemLabels()).toEqual(
       INPUT_TYPE_GROUPS.map(([group]) => INPUTS_EDITOR_STRINGS.typeGroups[group]),
     )
-    const search = within(menu).getByRole('searchbox', { name: 'Search types' })
-    expect(search).toHaveFocus()
+    const search = screen.getByRole('searchbox', { name: 'Search types' })
+    await waitFor(() => expect(search).toHaveFocus())
     fireEvent.change(search, { target: { value: 'nothing like it' } })
-    expect(within(menu).getByText('No matching types')).toBeInTheDocument()
+    expect(screen.getByText('No matching types')).toBeInTheDocument()
     fireEvent.change(search, { target: { value: 'kubernetes-pv' } })
-    expect(labels()).toEqual([types['kubernetes-pvc']])
+    expect(menuItemLabels()).toEqual([types['kubernetes-pvc']])
     fireEvent.keyDown(search, { key: 'Enter' })
     expect(screen.getByLabelText('Type')).toHaveValue(types['kubernetes-pvc'])
   })
@@ -590,31 +584,11 @@ describe('InputsFormEditor', () => {
     )
   })
 
-  it('lifts a type submenu that would run past the bottom of the window', () => {
-    const real = Element.prototype.getBoundingClientRect
-    // jsdom lays nothing out, so the submenu reports where it would sit: past the bottom of the window.
-    const rect = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (
-      this: Element,
-    ) {
-      return this.classList.contains('-top-1')
-        ? DOMRect.fromRect({ x: 0, y: window.innerHeight - 60, width: 180, height: 200 })
-        : real.call(this)
-    })
-    renderForm(editor())
-    fireEvent.click(screen.getByRole('button', { name: 'Input' }))
-    fireEvent.mouseEnter(within(screen.getByRole('menu')).getByText('Layout'))
-    const panel = screen.getByText('Wizard step').closest('.-top-1')
-    expect(panel).toHaveStyle({ transform: 'translateY(-148px)' })
-    rect.mockRestore()
-  })
-
   it('adds a wizard step outside a wizard as a wizard of its own, in a group', () => {
     const e = editor({ openOnAdd: false, onOpenOnAddChange: vi.fn() })
     renderForm(e)
     fireEvent.click(screen.getByRole('button', { name: 'Input' }))
-    const menu = screen.getByRole('menu')
-    fireEvent.click(within(menu).getByText('Layout'))
-    fireEvent.click(within(menu).getByText('Wizard step'))
+    pickMenuItem('Layout', 'Wizard step')
     expect(e.onEdit).toHaveBeenCalledWith({
       type: 'addInput',
       parent: [],
@@ -782,9 +756,7 @@ describe('InputsFormEditor', () => {
     const e = editor({ openOnAdd: false, onOpenOnAddChange: vi.fn() })
     renderForm(e, PAGED)
     fireEvent.click(within(row(['step_1', 'a'])).getByRole('button', { name: 'Add input below' }))
-    const menu = screen.getByRole('menu')
-    fireEvent.click(within(menu).getByText('Layout'))
-    fireEvent.click(within(menu).getByText('Wizard step'))
+    pickMenuItem('Layout', 'Wizard step')
     expect(e.onEdit).toHaveBeenCalledWith({
       type: 'addInput',
       parent: [],
@@ -826,7 +798,7 @@ describe('InputsFormEditor', () => {
     renderForm(e)
     fireEvent.click(screen.getByRole('button', { name: 'Input' }))
     pickType('Number')
-    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByLabelText('Name')).toBeNull()
     expect(e.onEdit).toHaveBeenCalledWith({
       type: 'addInput',
       parent: [],

@@ -4,10 +4,11 @@ import { clsx as cx } from 'clsx'
 import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from 'react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { ChevronDownIcon, ChevronRightIcon, FavoriteIcon, FavoriteOutlineIcon } from '../icons'
-import { ActionMenu, type ActionMenuItem } from './ActionMenu'
+import { ActionMenu } from './ActionMenu'
 import { Autocomplete, Combobox, type ComboboxItem, type ComboboxItems } from './Combobox'
 import { ghostButtonClasses, primaryButtonClasses } from './ghostButton'
 import { InfoTip } from './InfoTip'
+import type { MenuEntry } from './MenuEntries'
 import { Modal } from './Modal'
 import { useStrings } from './Provider'
 import { Switch } from './Switch'
@@ -19,7 +20,7 @@ interface CreateModalProps {
   typeIcon?: ReactNode
   typeLabel: string
   /** Makes the type chip a dropdown to switch between sibling form types. */
-  typeMenu?: ActionMenuItem[] | undefined
+  typeMenu?: MenuEntry[] | undefined
   namePlaceholder: string
   hideName?: boolean
   initialName?: string | undefined

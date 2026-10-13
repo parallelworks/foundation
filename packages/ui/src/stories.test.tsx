@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import * as combobox from './components/Combobox.stories'
 import * as controls from './components/controls.stories'
+import * as menus from './components/Menu.stories'
 import * as pageHeader from './components/pageHeader.stories'
 import * as primitives from './components/primitives.stories'
 import * as fileExplorer from './file-explorer/FileExplorer.stories'
@@ -48,6 +49,7 @@ const SUITES = {
   primitives,
   combobox,
   controls,
+  menus,
   pageHeader,
   logviewer,
   list,

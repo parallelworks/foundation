@@ -21,7 +21,7 @@ function renderRow(disabled: boolean, onSelect: () => void) {
               key: 'stop',
               label: 'Stop',
               icon: <span data-testid="stop-icon" />,
-              onSelect,
+              onClick: onSelect,
               disabled,
             },
           ]}

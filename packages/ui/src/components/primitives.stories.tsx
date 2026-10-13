@@ -2,7 +2,6 @@ import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useState } from 'react'
 import { expect, screen, userEvent, waitFor, within } from 'storybook/test'
 import type { RunStatus } from '../engine'
-import { ActionMenu } from './ActionMenu'
 import Callout from './Callout'
 import { Autocomplete, Combobox } from './Combobox'
 import { ConfirmModal } from './ConfirmModal'
@@ -507,35 +506,5 @@ export const SelectTrigger: StoryObj<{ disabled: boolean }> = {
     await userEvent.click(canvas.getByRole('combobox', { name: 'Mode' }))
     await userEvent.click(await screen.findByRole('option', { name: /Auto/ }))
     await expect(canvas.getByRole('combobox', { name: 'Mode' })).toHaveTextContent('Auto')
-  },
-}
-
-export const ActionMenuStory: StoryObj = {
-  name: 'Action menu',
-  render: () => (
-    <ActionMenu
-      label="New"
-      triggerClassName="btn btn-info"
-      items={[
-        { label: 'Workflow', onClick: () => {} },
-        { label: 'Cluster', href: '#cluster' },
-        {
-          label: 'Bucket',
-          disabled: true,
-          disabledReason: 'Connect a cloud account first',
-          separatorAbove: true,
-        },
-      ]}
-    >
-      New
-    </ActionMenu>
-  ),
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: 'New' }))
-    await expect(await screen.findByRole('menuitem', { name: /Bucket/ })).toHaveAttribute(
-      'aria-disabled',
-      'true',
-    )
   },
 }
