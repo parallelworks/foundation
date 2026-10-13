@@ -21,7 +21,7 @@ export function StepSummary({
       ) : error || data === undefined ? (
         <p className="text-xs theme-muted-text">{dag.summaryLoadFailed}</p>
       ) : (
-        <Markdown mermaid httpsImagesOnly>
+        <Markdown mermaid httpsImagesOnly compact>
           {data}
         </Markdown>
       )}

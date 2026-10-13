@@ -137,8 +137,6 @@ export const addCleanupSteps = ({ jobs }: { jobs: Record<string, WorkflowJob> })
 }
 
 const PREVIEW_PADDING = 24
-// A graph sized to its jobs keeps room for its Reset View and expand controls.
-const FITTED_MIN_HEIGHT = 96
 
 interface PreviewView {
   scale: number
@@ -1238,15 +1236,14 @@ export default function DependencyGraph({
   removeBorder?: boolean | undefined
   viewMode?: ViewMode
   setViewMode?: (mode: ViewMode) => void
-  openStep?: { job: string; step: number } | undefined
+  /** A step to open; `prefix` is its `subworkflows/<job>/step_<n>/` chain when it runs inside a subworkflow. */
+  openStep?: { job: string; step: number; prefix?: string | undefined } | undefined
   /** Called when the log dialog closes, so a host can forget the step it asked to open. */
   onCloseLog?: (() => void) | undefined
-  /** Shown under the graph, which then takes only the height its jobs need. */
+  /** Shown under the graph, in the graph's column. */
   children?: ReactNode
 }) {
   const engine = useWorkflowEngine()
-  // A panel that fills the viewport would push what sits under it off screen.
-  const fitsContent = preview || Boolean(children)
   // Animation timing constant (seconds) — controls line draw, dot transitions, and stagger delay
   const animT = 0.125
   // Zoom limits for auto-fit and user panning
@@ -1322,10 +1319,9 @@ export default function DependencyGraph({
   // measurement retries until the graph is up.
   const [previewHeight, setPreviewHeight] = useState<number | null>(null)
   const previewViewRef = useRef<PreviewView | null>(null)
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the panel only exists in the DAG view.
   useEffect(() => {
     const container = containerRef.current
-    if (!fitsContent || !container) {
+    if (!preview || !container) {
       return
     }
     let raf = 0
@@ -1351,7 +1347,7 @@ export default function DependencyGraph({
       observer.disconnect()
       cancelAnimationFrame(raf)
     }
-  }, [fitsContent, viewMode])
+  }, [preview])
 
   const { dag: dagStrings } = useStrings()
   const slots = useSlots()
@@ -1435,20 +1431,42 @@ export default function DependencyGraph({
     }
   }, [sublogOpen, sublogs, sublogsError, sublogsLoading])
 
+  const nestingDepth = currentPath.length / 5
+  const levelPrefixes: string[] = []
+  for (let i = 0; i < nestingDepth; i++) {
+    levelPrefixes.push(`subworkflows/${currentPath[5 * i]}/step_${currentPath[5 * i + 2]}/`)
+  }
+  const pathAppend = levelPrefixes.join('')
+  // For subworkflows, the "general log" is the parent step's log file
+  // (the new executor doesn't create a logs.out at the subworkflow root)
+  let generalLogPath = 'logs.out'
+  if (nestingDepth > 0) {
+    const lastJob = String(currentPath[5 * (nestingDepth - 1)] ?? '')
+    const lastStep = currentPath[5 * (nestingDepth - 1) + 2] ?? ''
+    generalLogPath = engine.stepLogPath(levelPrefixes.slice(0, -1).join(''), lastJob, lastStep)
+  }
+
   const openJob = openStep?.job
   const openStepIndex = openStep?.step
+  const openPrefix = openStep?.prefix ?? ''
   useEffect(() => {
     if (openJob !== undefined && openStepIndex !== undefined) {
-      setSublogOpen(engine.stepLogPath('', openJob, openStepIndex))
+      setSublogOpen(engine.stepLogPath(openPrefix, openJob, openStepIndex))
     }
-  }, [engine, openJob, openStepIndex])
+  }, [engine, openJob, openStepIndex, openPrefix])
 
   const [sublogJob = '', sublogStepDir] = sublogOpen.split('/').slice(-3, -1)
   const sublogStep = sublogStepDir === undefined ? undefined : (sublogStepDir.split('_')[1] ?? '')
   // Paging needs a path naming a job and step. A subworkflow's general log is its
   // parent step's log so it qualifies; a run's own logs.out has no step_ to read.
   const sublogIsStep = sublogStep !== undefined
-  const sublogStepData = sublogIsStep ? jobs[sublogJob]?.steps[Number(sublogStep)] : undefined
+  // A step's log path names it from the run's root, whatever level the graph shows or expands.
+  // A subworkflow's general log stays a plain step's, though it is its parent step's log.
+  const sublogJobs =
+    sublogOpen === generalLogPath
+      ? jobs
+      : walkJobPath(rootJobs, parsePrefixToPath(sublogOpen.split('/').slice(0, -4).join('/')))
+  const sublogStepData = sublogIsStep ? sublogJobs[sublogJob]?.steps[Number(sublogStep)] : undefined
   const logName = sublogIsStep
     ? `Job: ${jobLabel(sublogJob)} \nStep: ${sublogStepData?.name || `Step ${sublogStep}`}`
     : ''
@@ -1533,29 +1551,14 @@ export default function DependencyGraph({
   // settle, reset on the main graph). Re-root and initial fits stay instant.
   const animatedFit = useCallback(() => fitGraph(FIT_ANIMATION_MS), [fitGraph])
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: a resized window or panel, or a re-rooted graph, re-fits the view.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a resized window or a re-rooted graph re-fits the view.
   useEffect(() => {
     if (preview) {
       return
     }
     const raf = requestAnimationFrame(() => fitGraph())
     return () => cancelAnimationFrame(raf)
-  }, [preview, fitGraph, windowSize, executedJobsPathIdx, previewHeight])
-
-  const nestingDepth = currentPath.length / 5
-  const levelPrefixes: string[] = []
-  for (let i = 0; i < nestingDepth; i++) {
-    levelPrefixes.push(`subworkflows/${currentPath[5 * i]}/step_${currentPath[5 * i + 2]}/`)
-  }
-  const pathAppend = levelPrefixes.join('')
-  // For subworkflows, the "general log" is the parent step's log file
-  // (the new executor doesn't create a logs.out at the subworkflow root)
-  let generalLogPath = 'logs.out'
-  if (nestingDepth > 0) {
-    const lastJob = String(currentPath[5 * (nestingDepth - 1)] ?? '')
-    const lastStep = currentPath[5 * (nestingDepth - 1) + 2] ?? ''
-    generalLogPath = engine.stepLogPath(levelPrefixes.slice(0, -1).join(''), lastJob, lastStep)
-  }
+  }, [preview, fitGraph, windowSize, executedJobsPathIdx])
 
   // A failed fetch, an end reason, and a truly empty log need distinct wording.
   const missingLogText = sublogIsSubworkflow
@@ -1850,12 +1853,12 @@ export default function DependencyGraph({
             )}
             style={{
               height:
-                fitsContent && previewHeight !== null
-                  ? `${Math.min(previewHeight, windowSize.h * 0.62)}px`
-                  : !fitsContent && containerHeight !== null
-                    ? `${containerHeight}px`
+                containerHeight !== null
+                  ? `${containerHeight}px`
+                  : previewHeight !== null
+                    ? `${Math.min(previewHeight, windowSize.h * 0.62)}px`
                     : '62vh',
-              minHeight: previewHeight === null ? 160 : preview ? 0 : FITTED_MIN_HEIGHT,
+              minHeight: previewHeight !== null ? 0 : 160,
             }}
           >
             <TransformWrapper

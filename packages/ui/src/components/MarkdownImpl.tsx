@@ -16,10 +16,13 @@ export default function Markdown({
   controls,
   mermaid,
   httpsImagesOnly,
+  compact,
 }: MarkdownProps) {
   const plugins = useMarkdownPlugins(children, !!mermaid)
   return (
-    <div className="markdown whitespace-normal text-start w-full">
+    <div
+      className={cx('markdown whitespace-normal text-start w-full', compact && 'markdown-compact')}
+    >
       <Streamdown
         mode={isStreaming ? 'streaming' : 'static'}
         isAnimating={isStreaming ?? false}

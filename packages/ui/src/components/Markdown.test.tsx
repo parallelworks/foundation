@@ -82,3 +82,13 @@ describe('Markdown details', () => {
     expect(container.querySelector('details')).toHaveTextContent('test_a failed')
   })
 })
+
+describe('Markdown compact', () => {
+  it('takes the compact type only when asked', async () => {
+    const { container, rerender } = render(<Markdown compact>{'## Results'}</Markdown>)
+    await screen.findByRole('heading', { name: 'Results' })
+    expect(container.querySelector('.markdown')).toHaveClass('markdown-compact')
+    rerender(<Markdown>{'## Results'}</Markdown>)
+    expect(container.querySelector('.markdown')).not.toHaveClass('markdown-compact')
+  })
+})

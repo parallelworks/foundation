@@ -372,6 +372,54 @@ describe('DependencyGraph step summary', () => {
     expect(onCloseLog).toHaveBeenCalledTimes(1)
   })
 
+  it('opens a step inside a subworkflow with its own name and summary', async () => {
+    const calls: (string | null)[] = []
+    const nestedRun = {
+      ...run,
+      executedJobs: {
+        report: {
+          status: 'completed',
+          steps: [
+            {
+              name: 'mesh study',
+              status: 'completed',
+              subworkflow: {
+                jobs: {
+                  mesh: {
+                    status: 'completed',
+                    steps: [{ name: 'refine', status: 'completed', summary: { bytes: 9 } }],
+                  },
+                },
+              },
+            },
+          ],
+        },
+      },
+    }
+    render(
+      <UIProvider
+        data={{
+          useRunFile: (_slug, path) => {
+            calls.push(path)
+            return {
+              data: path?.endsWith('/summary.md') ? '## Refined\n' : 'step log',
+              isLoading: false,
+              error: undefined,
+            }
+          },
+        }}
+      >
+        <DependencyGraph
+          run={nestedRun}
+          openStep={{ job: 'mesh', step: 0, prefix: 'subworkflows/report/step_0/' }}
+        />
+      </UIProvider>,
+    )
+    expect(await screen.findByRole('heading', { name: 'Refined' })).toBeInTheDocument()
+    expect(screen.getByText(/Step: refine/)).toBeInTheDocument()
+    expect(calls).toContain('subworkflows/report/step_0/logs/mesh/step_0/summary.md')
+  })
+
   it('shows what the host puts under the graph', () => {
     render(
       <UIProvider>
