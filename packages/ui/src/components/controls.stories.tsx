@@ -13,9 +13,7 @@ import { LetterBadge } from './LetterBadge'
 import { Pagination } from './Pagination'
 import { RadioGroup } from './Radio'
 import { SettingModeOption } from './SettingModeOption'
-import { SettingRow, SettingSection } from './SettingRow'
-import SettingsCard from './SettingsCard'
-import SettingsGroup from './SettingsGroup'
+import { SettingRow, SettingsCard, SettingsHeading } from './SettingsCard'
 import Sort, { type TDirection } from './Sort'
 import { Switch } from './Switch'
 
@@ -131,15 +129,43 @@ export const Inputs: StoryObj = {
   ),
 }
 
-export const Cards: StoryObj = {
-  render: () => (
-    <Card className="max-w-md p-6">
-      <CardHeader title="Connect a cluster" description="Bring an existing SLURM cluster online" />
+/** A raised surface for one task, at three sizes; `elevated` for one standing alone on a page. */
+export const Cards: StoryObj<{ size: 'sm' | 'md' | 'lg'; elevated: boolean }> = {
+  args: { size: 'md', elevated: false },
+  argTypes: { size: { control: 'inline-radio', options: ['sm', 'md', 'lg'] } },
+  render: (args) => (
+    <Card {...args}>
+      <CardHeader title="Connect a cluster" description="Bring an existing cluster online" />
       <p className="text-sm text-(--theme-muted-text-color)">
         Body content sits on the card surface.
       </p>
     </Card>
   ),
+}
+
+/** Rendered as a link or button, the whole card presses: it lifts on hover and shows focus. */
+export const CardsPressable: StoryObj = {
+  render: () => (
+    <div className="flex flex-col gap-4">
+      <Card size="sm" render={<a href="#cloud" />}>
+        <CardHeader align="left" title="In the cloud" description="Start new machines for it" />
+      </Card>
+      <Card size="sm" render={<button type="button" />}>
+        <CardHeader
+          align="left"
+          title="On my own hardware"
+          description="Connect machines you run"
+        />
+      </Card>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.tab()
+    await expect(canvas.getByRole('link', { name: /In the cloud/ })).toHaveFocus()
+    await userEvent.tab()
+    await expect(canvas.getByRole('button', { name: /On my own hardware/ })).toHaveFocus()
+  },
 }
 
 function FilterSortDemo() {
@@ -171,28 +197,61 @@ export const FilterAndSort: StoryObj = {
   render: () => <FilterSortDemo />,
 }
 
-export const PaginationRow: StoryObj = {
-  render: () => (
+function PaginationDemo({ known, sizes }: { known: boolean; sizes: boolean }) {
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(50)
+  return (
     <Pagination
-      name="workflow runs"
-      startingNumber={1}
-      endingNumber={25}
-      prevDisabled
-      nextDisabled={false}
-      prevCallback={() => {}}
-      nextCallback={() => {}}
+      className="max-w-2xl border-t border-(--theme-border)"
+      page={page}
+      pageSize={pageSize}
+      {...(known ? { total: 420 } : { hasNext: page < 4, summary: `Runs from page ${page + 1}` })}
+      onPageChange={setPage}
+      {...(sizes ? { onPageSizeChange: setPageSize } : {})}
     />
+  )
+}
+
+/** Where a page sits in the list, with previous and next. Without a total, a
+ *  list that only knows whether more follow says what the page covers itself. */
+export const PaginationStory: StoryObj<{ known: boolean; sizes: boolean }> = {
+  name: 'Pagination',
+  args: { known: true, sizes: true },
+  argTypes: {
+    known: { description: 'The list knows its total.' },
+    sizes: { description: 'Offers page sizes.' },
+  },
+  render: (args) => <PaginationDemo {...args} />,
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: 'Next' }))
+    if (args.known) {
+      await expect(canvas.getByText('101–150 of 420')).toBeInTheDocument()
+    }
+  },
+}
+
+/** Pages the address names: previous and next are links. */
+export const PaginationLinks: StoryObj = {
+  render: () => (
+    <Pagination page={2} pageSize={20} total={200} pageHref={(page) => `?page=${page + 1}`} />
   ),
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByRole('link', { name: 'Next' })).toHaveAttribute(
+      'href',
+      '?page=4',
+    )
+  },
 }
 
 function SettingsDemo() {
   const [enabled, setEnabled] = useState(true)
   const [mode, setMode] = useState('auto')
   return (
-    <SettingsGroup>
+    <div>
       <SettingsCard title="Notifications" description="How we reach you">
-        <SettingSection title="Email" isFirst />
-        <SettingRow label="Run completion" helpText="Email when a workflow run finishes" isFirst>
+        <SettingsHeading>Email</SettingsHeading>
+        <SettingRow label="Run completion" helpText="Email when a workflow run finishes">
           <Switch aria-label="Run completion" checked={enabled} onCheckedChange={setEnabled} />
         </SettingRow>
       </SettingsCard>
@@ -202,7 +261,6 @@ function SettingsDemo() {
             value="auto"
             label="Automatic"
             description="Send a digest when enough has happened"
-            isFirst
           />
           <SettingModeOption value="daily" label="Daily" description="One digest every morning" />
           <SettingModeOption
@@ -213,7 +271,7 @@ function SettingsDemo() {
           />
         </RadioGroup>
       </SettingsCard>
-    </SettingsGroup>
+    </div>
   )
 }
 

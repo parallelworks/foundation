@@ -586,8 +586,8 @@ describe('DependencyGraph general log', () => {
   })
 
   const footerButtons = () =>
-    [...screen.getByTestId('log-footer').querySelectorAll('button')].map((b) =>
-      b.textContent?.trim(),
+    [...screen.getByTestId('log-footer').querySelectorAll('button')].map(
+      (b) => b.getAttribute('aria-label') ?? b.textContent?.trim(),
     )
 
   // The run's logs.out belongs to no job or step, so paging off it read step_ off
@@ -605,10 +605,10 @@ describe('DependencyGraph general log', () => {
     fireEvent.click(screen.getAllByText('Build')[0]!)
     fireEvent.click(screen.getAllByRole('button', { name: 'Open in new graph' })[0]!)
     fireEvent.click(screen.getByRole('button', { name: 'General log' }))
-    expect(footerButtons()).toEqual(['Prev', 'Next', 'Show Script'])
+    expect(footerButtons()).toEqual(['Previous step', 'Next step', 'Show Script'])
     // And paging still resolves to a real step rather than throwing.
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    expect(footerButtons()).toEqual(['Prev', 'Next', 'Show Script'])
+    fireEvent.click(screen.getByRole('button', { name: 'Next step' }))
+    expect(footerButtons()).toEqual(['Previous step', 'Next step', 'Show Script'])
   })
 })
 

@@ -2,6 +2,7 @@ import { Menu } from '@base-ui/react/menu'
 import { clsx as cx } from 'clsx'
 import { type ReactNode, useState } from 'react'
 import { safeUrl } from '../safeUrl'
+import { EmptyState } from './EmptyState'
 import { keyedByContent } from './keys'
 import {
   MenuCheckboxItem,
@@ -113,11 +114,7 @@ export function MenuEntries({
       <Menu.List>
         <EntryRows entries={shown} />
       </Menu.List>
-      {needle && shown.length === 0 && (
-        <div className="px-3 py-1.5 text-[13px] text-(--theme-muted-text-color)">
-          {search.empty}
-        </div>
-      )}
+      {needle && shown.length === 0 && <EmptyState variant="bare" title={search.empty} />}
     </>
   )
 }

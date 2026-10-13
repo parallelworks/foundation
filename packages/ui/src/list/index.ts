@@ -14,7 +14,6 @@ export {
   type ListSection,
   useListNavigate,
 } from './ListPage'
-export { LIST_PAGE_SIZES, ListPager } from './ListPager'
 export {
   actionsColumnWidth,
   GroupRow,

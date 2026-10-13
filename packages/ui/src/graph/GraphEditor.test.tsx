@@ -56,6 +56,7 @@ vi.mock('../editor/Monaco', () => ({
 vi.mock('./AnnotationBanner', () => ({ AnnotationBanner: () => null }))
 
 import { optionsOf } from '../test/combobox'
+import { isSectionOpen, openSection, toggleSection } from '../test/section'
 import { hoverTooltip } from '../test/tooltip'
 import { DependencyGraphPreview } from './DependencyGraph'
 import type { DependencyGraphEditor, EditorProblem } from './editorApi'
@@ -611,6 +612,7 @@ describe('DependencyGraphPreview editor', () => {
     fireEvent.contextMenu(jobRow('mac'), { clientX: 5, clientY: 5 })
     fireEvent.click(screen.getByText('Edit job'))
     const dialog = screen.getByRole('dialog')
+    openSection('Compute environment')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Compute target' }))
     fireEvent.change(within(dialog).getByLabelText('Target'), { target: { value: 'c1' } })
     expect(within(dialog).getByText(GRAPH_EDITOR_STRINGS.runsOnNeedsMode)).toBeInTheDocument()
@@ -742,6 +744,7 @@ describe('DependencyGraphPreview editor', () => {
     render(<DependencyGraphPreview yml={yml} editor={e} />)
     fireEvent.click(within(jobRow('build')).getByRole('button', { name: 'Build' }))
     fireEvent.click(screen.getByTestId('compile'))
+    openSection('Condition and behavior')
     const lenient = field('Keep going if it fails')
     fireEvent.click(within(lenient).getByRole('button', { name: 'Use an expression instead' }))
     // The switch gives way to a typed field below the label.
@@ -859,7 +862,7 @@ describe('DependencyGraphPreview editor', () => {
     render(<DependencyGraphPreview yml={steps} editor={e} />)
     fireEvent.contextMenu(jobRow('build'), { clientX: 5, clientY: 5 })
     fireEvent.click(screen.getByText('Edit job'))
-    const outputs = screen.getByText('Outputs').closest('details') as HTMLElement
+    const outputs = openSection('Outputs')
     fireEvent.click(within(outputs).getByText('Add'))
     fireEvent.change(within(outputs).getByLabelText('Name'), {
       target: { value: 'version' },
@@ -2586,20 +2589,6 @@ describe('problems and the YAML beside the graph', () => {
 
 // A section's fold is decided once, as its dialog opens; after that it stays as the user leaves it.
 describe('dialog sections', () => {
-  const section = (title: string) => {
-    const found = [...document.querySelectorAll('details')].find(
-      (details) => details.querySelector('summary')?.textContent === title,
-    )
-    if (!found) {
-      throw new Error(`no ${title} section`)
-    }
-    return found
-  }
-  const toggle = (details: HTMLDetailsElement) => {
-    details.open = !details.open
-    fireEvent(details, new Event('toggle'))
-  }
-
   it('stays open while what opened it is taken away', () => {
     const retrying = {
       jobs: {
@@ -2611,9 +2600,9 @@ describe('dialog sections', () => {
     render(<DependencyGraphPreview yml={retrying} editor={editor({ settingsView: 'form' })} />)
     fireEvent.click(within(jobRow('build')).getByRole('button', { name: 'Build' }))
     fireEvent.click(screen.getByTestId('compile'))
-    expect(section('Retry').open).toBe(true)
+    expect(isSectionOpen('Retry')).toBe(true)
     fireEvent.click(screen.getByLabelText('Try again if it fails'))
-    expect(section('Retry').open).toBe(true)
+    expect(isSectionOpen('Retry')).toBe(true)
   })
 
   it('keeps how the user left it across the YAML view', async () => {
@@ -2625,13 +2614,13 @@ describe('dialog sections', () => {
     )
     fireEvent.contextMenu(jobRow('mac'), { clientX: 5, clientY: 5 })
     fireEvent.click(screen.getByText('Edit job'))
-    expect(section('Outputs').open).toBe(false)
-    toggle(section('Outputs'))
-    toggle(section('Dependencies and condition'))
+    expect(isSectionOpen('Outputs')).toBe(false)
+    toggleSection('Outputs')
+    toggleSection('Dependencies and condition')
     fireEvent.click(screen.getByRole('button', { name: 'YAML' }))
     await screen.findByLabelText('file:///workflow-job.yaml')
     fireEvent.click(screen.getByRole('button', { name: 'Form' }))
-    expect(section('Outputs').open).toBe(true)
-    expect(section('Dependencies and condition').open).toBe(false)
+    expect(isSectionOpen('Outputs')).toBe(true)
+    expect(isSectionOpen('Dependencies and condition')).toBe(false)
   })
 })

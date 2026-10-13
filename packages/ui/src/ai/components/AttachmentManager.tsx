@@ -1,6 +1,7 @@
 import { clsx as cx } from 'clsx'
 import { useCallback, useMemo, useState } from 'react'
 import useSWRInfinite from 'swr/infinite'
+import { EmptyState } from '../../components/EmptyState'
 import { Loader } from '../../components/Loader'
 import { RelativeTime } from '../../components/relativeTime'
 import { formatBytes } from '../../format'
@@ -94,7 +95,7 @@ export default function AttachmentManager() {
                 <Loader size={32} />
               </div>
             ) : attachments.length === 0 ? (
-              <p className="text-center theme-muted-text py-12 text-sm">{t.empty}</p>
+              <EmptyState variant="bare" title={t.empty} />
             ) : (
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">

@@ -1,13 +1,14 @@
 import { clsx as cx } from 'clsx'
 import { DateTime } from 'luxon'
 import { useCallback, useId, useMemo, useState } from 'react'
+import { DisclosurePanel } from '../components/Disclosure'
+import { EmptyState } from '../components/EmptyState'
 import { Indicator } from '../components/Indicator'
 import { Loader } from '../components/Loader'
 import { useRunFile, useSlots, useStrings, useWorkflowEngine } from '../components/Provider'
 import { formatDuration } from '../format'
 import { ChevronRightIcon } from '../icons'
 import { LogViewer } from '../logviewer'
-import { Collapse } from './Collapse'
 import type { WorkflowJob as Job, WorkflowStep as Step } from './types'
 import { jobLabel, toggled } from './util'
 
@@ -66,11 +67,7 @@ function StepLogs({
   }
 
   if (error || !logs) {
-    return (
-      <div className="px-5 py-4 text-sm text-[var(--theme-muted-text-color)] italic">
-        No logs available
-      </div>
-    )
+    return <EmptyState variant="bare" title={t.noLogFound} />
   }
 
   return (
@@ -160,7 +157,7 @@ function JobRow({
         )}
       </button>
 
-      <Collapse expanded={isExpanded && hasSteps} id={panelId}>
+      <DisclosurePanel open={isExpanded && hasSteps} id={panelId}>
         <div className="ml-[38px] border-l-2 border-[var(--theme-border)]">
           {job.steps?.map((step, index) => {
             const stepKey = `${prefix}${jobName}:${index}`
@@ -178,7 +175,7 @@ function JobRow({
             )
           })}
         </div>
-      </Collapse>
+      </DisclosurePanel>
     </div>
   )
 }
@@ -246,12 +243,12 @@ function StepRow({
         )}
       </button>
 
-      <Collapse expanded={isExpanded && !subworkflow} id={panelId}>
+      <DisclosurePanel open={isExpanded && !subworkflow} id={panelId}>
         <StepLogs slug={state.slug} prefix={prefix} jobName={jobName} stepIndex={index} />
-      </Collapse>
+      </DisclosurePanel>
 
-      <Collapse
-        expanded={isExpanded && !!subworkflow && subworkflowJobNames.length > 0}
+      <DisclosurePanel
+        open={isExpanded && !!subworkflow && subworkflowJobNames.length > 0}
         id={panelId}
       >
         <div className="ml-[38px] border-l-2 border-[var(--theme-border)]">
@@ -274,7 +271,7 @@ function StepRow({
             )
           })}
         </div>
-      </Collapse>
+      </DisclosurePanel>
     </div>
   )
 }
@@ -403,7 +400,7 @@ export default function TreeView({ jobs, slug, expandedJobs, setExpandedJobs }: 
                       {dag.matrixOf(matrixOrigin)} ({dag.jobCount(group.members.length)})
                     </span>
                   </button>
-                  <Collapse expanded={isGroupExpanded} id={`matrix-panel-${matrixOrigin}`}>
+                  <DisclosurePanel open={isGroupExpanded} id={`matrix-panel-${matrixOrigin}`}>
                     <div className="pl-4">
                       {group.members.map((memberName) => {
                         const member = jobs[memberName]
@@ -420,7 +417,7 @@ export default function TreeView({ jobs, slug, expandedJobs, setExpandedJobs }: 
                         ) : null
                       })}
                     </div>
-                  </Collapse>
+                  </DisclosurePanel>
                 </div>,
               )
             } else {

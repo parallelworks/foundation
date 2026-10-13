@@ -16,6 +16,7 @@ import {
   AddRowButton,
   asRecord,
   ChoiceButtons,
+  DialogSection,
   DialogShell,
   diffPatch,
   EXPRESSION,
@@ -34,7 +35,6 @@ import {
   type OpenOnAdd,
   parseJson,
   parseScalar,
-  Section,
   SectionMemory,
   StringListEditor,
   SuggestedInput,
@@ -2542,12 +2542,16 @@ function InputForm({
         <div className="text-xs theme-muted-text">{t.typeChangeNote}</div>
       )}
       {textProps.length > 0 && (
-        <Section title={t.sectionField} open={fieldOpen} alert={textProps.some(erred)}>
+        <DialogSection title={t.sectionField} open={fieldOpen} alert={textProps.some(erred)}>
           {textProps.map(renderProp)}
-        </Section>
+        </DialogSection>
       )}
       {settingProps.length > 0 && (
-        <Section title={t.sectionSettings} open={settingsOpen} alert={settingProps.some(erred)}>
+        <DialogSection
+          title={t.sectionSettings}
+          open={settingsOpen}
+          alert={settingProps.some(erred)}
+        >
           {settingProps.map((prop) =>
             prop === DISABLE_VALUE ? null : prop === DISABLE_LABEL ? (
               <OptOutCheckbox
@@ -2565,16 +2569,16 @@ function InputForm({
               renderProp(prop)
             ),
           )}
-        </Section>
+        </DialogSection>
       )}
       {behaviorProps.length > 0 && (
-        <Section
+        <DialogSection
           title={t.sectionBehavior}
           open={behaviorProps.some(holds)}
           alert={behaviorProps.some(erred)}
         >
           {behaviorProps.map(renderProp)}
-        </Section>
+        </DialogSection>
       )}
       {newInputs.dialog}
     </DialogShell>

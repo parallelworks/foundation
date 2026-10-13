@@ -28,7 +28,6 @@ vi.mock('hooks', () => ({
 
 vi.mock('@parallelworks/ui', async () => ({
   ...(await vi.importActual<typeof import('@parallelworks/ui')>('@parallelworks/ui')),
-  SectionHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   Loader: () => <div data-testid="loader">Loading...</div>,
   Table: Object.assign(({ children }: { children?: ReactNode }) => <table>{children}</table>, {
     Item: ({ children }: { children?: ReactNode }) => <td>{children}</td>,

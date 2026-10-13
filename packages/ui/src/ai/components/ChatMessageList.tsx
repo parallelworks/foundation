@@ -17,7 +17,7 @@ import type { ApprovalAnswerValue, ChatMessage as Message } from '../types'
 import Markdown from '../ui/Markdown'
 import AgentMessageParts from './agent/AgentMessageParts'
 import ChatMessage from './ChatMessage'
-import { ReasoningBody, ReasoningToggle } from './Reasoning'
+import { Reasoning, ReasoningBody } from './Reasoning'
 
 interface ChatMessageListProps {
   messages: Message[]
@@ -355,36 +355,33 @@ export default function ChatMessageList({
         {isStreaming && streamingReasoning && (
           <div key="thinking" className="animate-chat-enter">
             <div className={cx('pt-3', !flush && 'px-4')}>
-              <ReasoningToggle
-                open={reasoningOpen}
+              <Reasoning
+                label={
+                  <ThinkingLabel
+                    startedAt={isThinking ? thinkingStartTime : undefined}
+                    finalDuration={finalThinkingDuration}
+                  />
+                }
                 shimmer={isThinking}
-                onToggle={() =>
-                  onOpenReasoning
-                    ? onOpenReasoning(streamingReasoning, finalThinkingDuration)
-                    : setReasoningOpen((o) => !o)
+                open={reasoningOpen}
+                onOpenChange={setReasoningOpen}
+                onOpenPanel={
+                  onOpenReasoning &&
+                  (() => onOpenReasoning(streamingReasoning, finalThinkingDuration))
+                }
+                // While thinking, its tail, faded at the top, so the work shows without taking the page.
+                preview={
+                  isThinking && (
+                    <ReasoningBody className="chat-reasoning-tail">
+                      <div ref={reasoningScrollRef} className="max-h-20 overflow-y-hidden">
+                        <Markdown isStreaming>{streamingReasoning}</Markdown>
+                      </div>
+                    </ReasoningBody>
+                  )
                 }
               >
-                <ThinkingLabel
-                  startedAt={isThinking ? thinkingStartTime : undefined}
-                  finalDuration={finalThinkingDuration}
-                />
-              </ReasoningToggle>
-
-              {/* Open: the whole reasoning. Closed while thinking: its tail,
-                    faded at the top, so the work shows without taking the page. */}
-              {reasoningOpen ? (
-                <ReasoningBody>
-                  <Markdown isStreaming={isThinking}>{streamingReasoning}</Markdown>
-                </ReasoningBody>
-              ) : (
-                isThinking && (
-                  <ReasoningBody className="chat-reasoning-tail">
-                    <div ref={reasoningScrollRef} className="max-h-20 overflow-y-hidden">
-                      <Markdown isStreaming>{streamingReasoning}</Markdown>
-                    </div>
-                  </ReasoningBody>
-                )
-              )}
+                <Markdown isStreaming={isThinking}>{streamingReasoning}</Markdown>
+              </Reasoning>
             </div>
           </div>
         )}

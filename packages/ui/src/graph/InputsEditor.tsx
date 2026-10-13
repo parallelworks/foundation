@@ -10,6 +10,7 @@ import {
   useState,
 } from 'react'
 import { useContextMenu } from '../components/ContextMenu'
+import { EmptyState } from '../components/EmptyState'
 import type { FloatingAnchor } from '../components/floating'
 import { IconButton } from '../components/IconButton'
 import { type MenuEntry, type MenuSearch, menuDivider } from '../components/MenuEntries'
@@ -1894,7 +1895,7 @@ export function InputsFormEditor({
               store.set({ hovered: null, open: [], ...(keep ? {} : { edge: null }) })
             }}
           >
-            {empty && <div className="mb-3 text-sm theme-muted-text">{t.noInputs}</div>}
+            {empty && <EmptyState variant="bare" title={t.noInputs} />}
             <WizardPagesContext.Provider value={wizardPages}>
               {children}
             </WizardPagesContext.Provider>

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { IconButton } from '../../components/IconButton'
 import { Modal } from '../../components/Modal'
 import { usePersistedState, useStrings } from '../../components/Provider'
+import { SegmentedControl } from '../../components/SegmentedControl'
 import { formatBytes } from '../../format'
 import {
   ChevronLeftIcon,
@@ -115,26 +116,16 @@ export function FilePreview({
         {url && <StreamedBadge />}
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
-        <div
-          className={cx(
-            'mr-1 flex items-center rounded-lg p-0.5',
-            floatingChrome ? 'bg-white/10' : 'theme-muted-panel',
-          )}
-        >
-          <SegButton
-            active={!isOverlay}
-            overlayChrome={floatingChrome}
-            onClick={() => setStyle('quicklook')}
-          >
-            {t.preview.quickLook}
-          </SegButton>
-          <SegButton
-            active={isOverlay}
-            overlayChrome={floatingChrome}
-            onClick={() => setStyle('overlay')}
-          >
-            {t.preview.fullWindow}
-          </SegButton>
+        <div className="mr-1">
+          <SegmentedControl
+            label={t.preview.previewLayout}
+            value={style}
+            onValueChange={setStyle}
+            options={[
+              { value: 'quicklook', label: t.preview.quickLook },
+              { value: 'overlay', label: t.preview.fullWindow },
+            ]}
+          />
         </div>
         <IconButton
           size="md"
@@ -283,35 +274,6 @@ export function FilePreview({
 // look, with the tokens they read set for the dark backdrop.
 const overImage =
   '[--theme-app:#fff] [--theme-muted-text-color:rgb(255_255_255/0.8)] [--theme-muted-panel-bg:rgb(255_255_255/0.15)]'
-
-function SegButton({
-  active,
-  overlayChrome,
-  onClick,
-  children,
-}: {
-  active: boolean
-  overlayChrome: boolean
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cx(
-        'cursor-pointer whitespace-nowrap rounded-md px-2.5 py-1 text-[11.5px] font-medium transition-colors',
-        active
-          ? 'bg-(--theme-element) text-(--theme-element-text)'
-          : overlayChrome
-            ? 'text-white/70 hover:text-white'
-            : 'theme-muted-text hover:theme-text',
-      )}
-    >
-      {children}
-    </button>
-  )
-}
 
 function EdgeButton({
   side,

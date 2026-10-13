@@ -1,6 +1,7 @@
 import { clsx as cx } from 'clsx'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import type { OpenMenu } from '../../components/ContextMenu'
+import { EmptyState } from '../../components/EmptyState'
 import type { MenuEntry } from '../../components/MenuEntries'
 import { RelativeTime } from '../../components/relativeTime'
 import { ImageIcon, NewChatIcon, SearchIcon, SharingIcon } from '../../icons'
@@ -9,7 +10,7 @@ import { useChatConfig } from '../core/config'
 import { FOCUS_SIDEBAR_SEARCH_EVENT } from '../core/events'
 import type { ConversationSummary } from '../types'
 import { ConversationSidebar } from '../ui/ConversationSidebar'
-import { SidebarPlaceholder, SidebarRow, SidebarRowTitle } from '../ui/sidebar'
+import { SidebarRow, SidebarRowTitle } from '../ui/sidebar'
 import { ManageProvidersLink } from './ComposerChrome'
 import { groupConversationsByDate, useConversationActions } from './conversationActions'
 
@@ -170,9 +171,10 @@ export default function ChatSidebar({
       )}
       loading={isLoading}
       placeholder={
-        <SidebarPlaceholder>
-          {conversations.length === 0 ? tSidebar.noConversations : strings.chrome.noMatches}
-        </SidebarPlaceholder>
+        <EmptyState
+          variant="bare"
+          title={conversations.length === 0 ? tSidebar.noConversations : strings.chrome.noMatches}
+        />
       }
       cycle={{
         current: filteredConversations.find((conv) => conv.id === activeConversationId),

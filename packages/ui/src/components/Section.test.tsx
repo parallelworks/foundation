@@ -48,7 +48,7 @@ describe('Section', () => {
 
   it('starts closed with defaultOpen false', () => {
     render(
-      <Section title="Advanced" variant="subtle" defaultOpen={false}>
+      <Section title="Advanced" defaultOpen={false}>
         content
       </Section>,
     )

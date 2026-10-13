@@ -8,11 +8,11 @@ import { Button } from './Button'
 import { buttonClasses } from './buttonClasses'
 import { Autocomplete, Combobox } from './Combobox'
 import { type ComboboxItems, comboboxLeaves } from './comboboxItems'
+import { Disclosure } from './Disclosure'
 import { InfoTip } from './InfoTip'
 import type { MenuEntry } from './MenuEntries'
 import { Modal } from './Modal'
 import { useStrings } from './Provider'
-import { Section } from './Section'
 import { Switch } from './Switch'
 import { Tooltip } from './Tooltip'
 
@@ -271,9 +271,13 @@ export function CreateModal({
         )}
         {advanced && (
           <div className="px-4 pb-3">
-            <Section title={t.advanced} variant="subtle" defaultOpen={false}>
-              <div className="mt-2">{advanced}</div>
-            </Section>
+            <Disclosure
+              summary={t.advanced}
+              summaryClassName="text-xs font-medium text-(--theme-muted-text-color) transition-colors hover:text-(--theme-app)"
+              panelClassName="pt-2"
+            >
+              {advanced}
+            </Disclosure>
           </div>
         )}
       </div>

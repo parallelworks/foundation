@@ -40,7 +40,7 @@ vi.mock('./BranchNavigator', () => ({
 }))
 
 // Mock Avatar
-vi.mock('../ui/Avatar', () => ({
+vi.mock('../../components/Avatar', () => ({
   Avatar: ({ name }: { name?: string }) => <div data-testid="avatar">{name}</div>,
 }))
 

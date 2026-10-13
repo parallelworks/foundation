@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { applyGraphEdit, dumpYaml, loadYaml } from '@parallelworks/workflow-parser'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { openSection } from '../test/section'
 import { GRAPH_EDITOR_STRINGS } from './editorStrings'
 import { WorkflowSettingsDialog } from './WorkflowSettingsDialog'
 
@@ -111,6 +112,7 @@ describe('WorkflowSettingsDialog', () => {
   it('edits the input form layout in the same step, the inputs starting the first page', () => {
     const onEdit = open()
     fireEvent.click(screen.getByText(GRAPH_EDITOR_STRINGS.labelsBeside))
+    openSection('Input form')
     fireEvent.click(screen.getByRole('switch', { name: 'Split into pages' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(onEdit).toHaveBeenCalledWith({

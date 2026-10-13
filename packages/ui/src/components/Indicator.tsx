@@ -6,46 +6,46 @@ export function Indicator({ status }: { status: RunStatus }) {
     <div className="h-2 flex items-center text-(--theme-panel-bg)">
       {status === 'started' || status === 'running' ? (
         <RunningIcon
-          className="rounded-full text-[#FFCF00] animate-spin"
+          className="rounded-full text-(--theme-warning) animate-spin"
           data-testid="running-indicator"
         />
       ) : status === 'completed' ? (
         <SuccessIcon
-          className="text-[#6FBF5A]"
+          className="text-(--theme-success)"
           style={{ transform: 'scale(1.25)' }}
           data-testid="completed-indicator"
         />
       ) : status === 'failed' || status === 'error' ? (
         <FailIcon
-          className="text-red-500"
+          className="text-(--theme-error)"
           style={{ transform: 'scale(1.25)' }}
           data-testid="failed-indicator"
         />
       ) : status === 'skipped' || status === 'skipped-failed' ? (
         <SkipIcon
-          className="text-gray-400"
+          className="text-(--theme-muted-text-color)"
           style={{ transform: 'scale(1.25)' }}
           data-testid="skipped-indicator"
         />
       ) : status === 'canceled' ? (
         <CancelIcon
-          className="text-[#3B82F6]"
+          className="text-(--theme-info)"
           style={{ transform: 'scale(1.5)' }}
           data-testid="canceled-indicator"
         />
       ) : status === 'faulted' ? (
         <RunningIcon
-          className="rounded-full text-[#EF4444] animate-spin"
+          className="rounded-full text-(--theme-error) animate-spin"
           data-testid="faulted-indicator"
         />
       ) : status === 'canceling' ? (
         <RunningIcon
-          className="rounded-full text-[#3B82F6] animate-spin"
+          className="rounded-full text-(--theme-info) animate-spin"
           data-testid="canceling-indicator"
         />
       ) : (
         <NotRunningIcon
-          className="rounded-full text-[#AAAAAA]"
+          className="rounded-full text-(--theme-muted-text-color)"
           data-testid="not-running-indicator"
         />
       )}

@@ -15,6 +15,7 @@ import {
   ChoiceButtons,
   conditionText,
   countError,
+  DialogSection,
   DialogShell,
   type DialogShellProps,
   diffPatch,
@@ -45,7 +46,6 @@ import {
   rowsError,
   rowsFrom,
   rowsTo,
-  Section,
   SectionMemory,
   type Strings,
   sameValue,
@@ -348,7 +348,7 @@ function EnvSection({
 }) {
   const t = useGraphEditorStrings()
   return (
-    <Section
+    <DialogSection
       title={t.sectionEnvironment}
       description={description}
       open={rows.length > 0}
@@ -363,7 +363,7 @@ function EnvSection({
           valueSuggestions={refSuggestions(source)}
         />
       </LintScope>
-    </Section>
+    </DialogSection>
   )
 }
 
@@ -969,7 +969,7 @@ function JobForm({
         error={errors.name}
         onChange={(e) => setName(e.target.value)}
       />
-      <Section title={t.sectionDependencies} open>
+      <DialogSection title={t.sectionDependencies} open>
         <FieldLabel
           label={t.fields.needs}
           yamlKey="needs"
@@ -1040,16 +1040,16 @@ function JobForm({
           onChange={setCondition}
           source={source}
         />
-      </Section>
-      <Section
+      </DialogSection>
+      <DialogSection
         title={t.sectionRemoteHost}
         description={t.runsInWorkspace}
         open={!!sshTo(ssh, original['ssh'])}
         alert={!!errors.ssh}
       >
         <SshEditor fields={ssh} onChange={setSsh} error={errors.ssh} source={source} />
-      </Section>
-      <Section
+      </DialogSection>
+      <DialogSection
         title={t.sectionComputeEnvironment}
         description={t.runsOnHint}
         open={runsOnTyped ? !!runsOnText.trim() : !!runsOnTo(runsOn)}
@@ -1169,8 +1169,8 @@ function JobForm({
             </>
           )}
         </LintScope>
-      </Section>
-      <Section
+      </DialogSection>
+      <DialogSection
         title={t.sectionMatrix}
         open={matrixOn}
         alert={
@@ -1286,7 +1286,7 @@ function JobForm({
             />
           </>
         )}
-      </Section>
+      </DialogSection>
       <EnvSection
         description={t.help.jobEnv}
         rows={env}
@@ -1294,7 +1294,7 @@ function JobForm({
         error={errors.env}
         source={source}
       />
-      <Section
+      <DialogSection
         title={t.sectionOutputs}
         description={t.help.outputs}
         open={outputs.length > 0}
@@ -1306,8 +1306,8 @@ function JobForm({
           stepIds={stepIds}
           error={errors.outputs}
         />
-      </Section>
-      <Section
+      </DialogSection>
+      <DialogSection
         title={t.sectionAdvanced}
         open={!!workingDirectory || !!timeout}
         alert={!!errors.timeout}
@@ -1327,7 +1327,7 @@ function JobForm({
           error={errors.timeout}
           onChange={(e) => setTimeoutText(e.target.value)}
         />
-      </Section>
+      </DialogSection>
     </>
   )
   const shellProps: DialogShellProps = {
@@ -1545,7 +1545,7 @@ function StepForm({
           />
         </>
       )}
-      <Section title={t.sectionCleanup} open={!!cleanup.trim()}>
+      <DialogSection title={t.sectionCleanup} open={!!cleanup.trim()}>
         <ScriptField
           label={t.fields.cleanup}
           yamlKey="cleanup"
@@ -1554,8 +1554,8 @@ function StepForm({
           onChange={setCleanup}
           source={source}
         />
-      </Section>
-      <Section
+      </DialogSection>
+      <DialogSection
         title={t.sectionBehavior}
         open={!!condition || !!timeout || ignoreErrors !== undefined || earlyCancel}
         alert={!!(errors.timeout || errors.ignoreErrors)}
@@ -1593,8 +1593,8 @@ function StepForm({
           checked={earlyCancel}
           onChange={setEarlyCancel}
         />
-      </Section>
-      <Section
+      </DialogSection>
+      <DialogSection
         title={t.sectionRetry}
         open={retryOn}
         alert={
@@ -1649,8 +1649,8 @@ function StepForm({
             />
           </>
         )}
-      </Section>
-      <Section
+      </DialogSection>
+      <DialogSection
         title={t.sectionRemoteHost}
         description={t.help.stepSsh}
         open={sshMode !== 'inherit'}
@@ -1668,7 +1668,7 @@ function StepForm({
         {sshMode === 'custom' && (
           <SshEditor fields={ssh} onChange={setSsh} error={errors.ssh} source={source} />
         )}
-      </Section>
+      </DialogSection>
       <EnvSection
         description={t.help.stepEnv}
         rows={env}
@@ -1676,7 +1676,7 @@ function StepForm({
         error={errors.env}
         source={source}
       />
-      <Section
+      <DialogSection
         title={t.sectionAdvanced}
         open={!!workingDirectory || !!id || !!shell}
         alert={!!(errors.id || errors.shell)}
@@ -1707,7 +1707,7 @@ function StepForm({
             onChange={(e) => setShell(e.target.value)}
           />
         )}
-      </Section>
+      </DialogSection>
     </>
   )
   const shellProps: DialogShellProps = {

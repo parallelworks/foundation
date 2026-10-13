@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useState } from 'react'
 import { useContextMenu } from '../../components/ContextMenu'
 import { Drawer } from '../../components/Drawer'
+import { EmptyState } from '../../components/EmptyState'
 import { StatusDot } from '../../components/StatusBadge'
 import { StoryViewport } from '../stories/harness'
 import {
@@ -9,13 +10,7 @@ import {
   type ConversationSidebarGroup,
   sidebarDrawerProps,
 } from './ConversationSidebar'
-import {
-  SidebarPlaceholder,
-  SidebarRailItem,
-  SidebarRow,
-  SidebarRowTitle,
-  SidebarToggle,
-} from './sidebar'
+import { SidebarRailItem, SidebarRow, SidebarRowTitle, SidebarToggle } from './sidebar'
 
 const meta: Meta = {
   title: 'Chat/Conversation sidebar',
@@ -88,7 +83,7 @@ function TaskSidebar({
         groups={grouped(tasks)}
         getKey={(t) => t.id}
         cycle={{ current: open, onSelect: (t) => setOpenId(t.id) }}
-        placeholder={<SidebarPlaceholder>No tasks yet</SidebarPlaceholder>}
+        placeholder={<EmptyState variant="bare" title="No tasks yet" />}
         renderRow={(t) => (
           <SidebarRow
             selected={t.id === openId}

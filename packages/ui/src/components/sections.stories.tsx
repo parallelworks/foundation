@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useState } from 'react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
+import { Disclosure } from './Disclosure'
 import { InfoTip } from './InfoTip'
 import { Section, type SectionVariant } from './Section'
 import { StatusDot } from './StatusBadge'
@@ -20,7 +21,7 @@ const body = (
 
 export const Sections: StoryObj<{ variant: SectionVariant; collapsible: boolean }> = {
   args: { variant: 'plain', collapsible: true },
-  argTypes: { variant: { control: 'inline-radio', options: ['plain', 'card', 'subtle'] } },
+  argTypes: { variant: { control: 'inline-radio', options: ['plain', 'card'] } },
   render: (args) => (
     <div className="flex max-w-xl flex-col gap-6">
       <Section {...args} title="General">
@@ -195,5 +196,51 @@ export const SegmentedTabs: StoryObj<{ fill: boolean; iconOnly: boolean }> = {
     await waitFor(() =>
       expect(canvas.getByRole('tab', { name: 'Agents' })).toHaveAttribute('aria-selected', 'true'),
     )
+  },
+}
+
+/** A line inside content that reveals detail beneath it. Unlike a Section it has no
+ *  heading: a tool call's arguments, a model's reasoning, or a dialog's advanced options. */
+export const Disclosures: StoryObj<{ disabled: boolean }> = {
+  args: { disabled: false },
+  argTypes: { disabled: { description: 'Nothing to reveal: the line shows without a toggle.' } },
+  render: ({ disabled }) => (
+    <div className="flex max-w-xl flex-col gap-4 text-sm">
+      <Disclosure
+        summary="Advanced"
+        summaryClassName="text-xs font-medium theme-muted-text hover:theme-text"
+        panelClassName="pt-2"
+      >
+        <p className="theme-muted-text">Options most runs leave alone.</p>
+      </Disclosure>
+      <Disclosure
+        disabled={disabled}
+        summaryClassName="w-full"
+        summary={
+          <>
+            <StatusDot variant="success" className="mt-1.5" />
+            <span className="min-w-0 truncate font-mono text-[13px]">
+              <span className="font-semibold">Read</span>
+              <span className="theme-muted-text">(config.yaml)</span>
+            </span>
+          </>
+        }
+        panelClassName="ml-5 mt-1"
+      >
+        <pre className="rounded-md bg-(--theme-muted-panel-bg) p-2 font-mono text-xs">
+          name: build
+        </pre>
+      </Disclosure>
+    </div>
+  ),
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    const advanced = canvas.getByRole('button', { name: 'Advanced' })
+    await userEvent.click(advanced)
+    await waitFor(() => expect(advanced).toHaveAttribute('aria-expanded', 'true'))
+    if (!args.disabled) {
+      await userEvent.click(canvas.getByRole('button', { name: /Read/ }))
+      await waitFor(() => expect(canvas.getByText('name: build')).toBeVisible())
+    }
   },
 }

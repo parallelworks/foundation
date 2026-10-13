@@ -15,10 +15,11 @@ import { IconButton } from '../components/IconButton'
 import { Input, Textarea } from '../components/Input'
 import { withPositionKeys } from '../components/keys'
 import { Modal, ModalTitle } from '../components/Modal'
+import { Section } from '../components/Section'
 import { Switch } from '../components/Switch'
 import { Tooltip } from '../components/Tooltip'
 import type { FieldPatch } from '../editing'
-import { AddIcon, ChevronRightIcon, CloseIcon, ExpressionIcon } from '../icons'
+import { AddIcon, CloseIcon, ExpressionIcon } from '../icons'
 import { type GraphEditorStrings, useGraphEditorStrings } from './editorStrings'
 import { useFieldLint } from './fieldProblems'
 import { asRecord, type Json } from './records'
@@ -248,7 +249,9 @@ export function useSectionMemory(): Map<string, boolean> {
   return useState(() => new Map<string, boolean>())[0]
 }
 
-export function Section({
+/** A titled part of an editor dialog. It opens as it was last left in this
+ *  dialog, and opens itself when a problem inside would otherwise be hidden. */
+export function DialogSection({
   title,
   description,
   open = false,
@@ -264,36 +267,22 @@ export function Section({
   children: ReactNode
 }) {
   const memory = useContext(SectionMemory)
-  const [initial] = useState(() => {
-    const decided = memory?.get(title) ?? open
-    memory?.set(title, decided)
-    return decided
-  })
-  const details = useRef<HTMLDetailsElement>(null)
+  const [isOpen, setOpen] = useState(() => memory?.get(title) ?? open)
   useEffect(() => {
-    if (alert && details.current && !details.current.open) {
-      details.current.open = true
+    memory?.set(title, isOpen)
+  }, [memory, title, isOpen])
+  useEffect(() => {
+    if (alert) {
+      setOpen(true)
     }
   }, [alert])
   return (
-    <details
-      ref={details}
-      open={initial}
-      onToggle={(e) => memory?.set(title, e.currentTarget.open)}
-      className="group border-t theme-border"
-    >
-      <summary className="flex cursor-pointer select-none list-none items-center gap-1.5 py-2.5 text-sm font-semibold [&::-webkit-details-marker]:hidden">
-        <ChevronRightIcon
-          aria-hidden="true"
-          className="h-3.5 w-3.5 shrink-0 theme-muted-text transition-transform group-open:rotate-90 motion-reduce:transition-none"
-        />
-        {title}
-      </summary>
+    <Section title={title} open={isOpen} onOpenChange={setOpen} headingLevel={4}>
       <div className="flex flex-col gap-3 pb-4">
         {description && <div className="text-xs theme-muted-text">{description}</div>}
         {children}
       </div>
-    </details>
+    </Section>
   )
 }
 

@@ -23,7 +23,7 @@ export {
   buttonClasses,
 } from './components/buttonClasses'
 export { default as Callout } from './components/Callout'
-export { Card, CardHeader } from './components/Card'
+export { Card, CardHeader, type CardProps } from './components/Card'
 export {
   Autocomplete,
   type AutocompleteProps,
@@ -51,7 +51,7 @@ export {
 export { DatePicker, type DatePickerProps } from './components/DatePicker'
 export { DescriptionListItem, default as DescriptionList } from './components/DescriptionList'
 export { Drawer, type DrawerProps } from './components/Drawer'
-export { default as EmptyState } from './components/EmptyState'
+export { EmptyState, type EmptyStateProps } from './components/EmptyState'
 export { ExternalLink, type ExternalLinkProps } from './components/ExternalLink'
 export { default as Filter } from './components/Filter'
 export { FilterPill } from './components/FilterPill'
@@ -114,7 +114,7 @@ export {
   type PageHeaderBreadcrumb,
   type PageHeaderCrumb,
 } from './components/PageHeader'
-export { Pagination } from './components/Pagination'
+export { PAGE_SIZES, Pagination, type PaginationProps } from './components/Pagination'
 export {
   Popover,
   PopoverClose,
@@ -164,13 +164,15 @@ export {
   type SectionProps,
   type SectionVariant,
 } from './components/Section'
-export { default as SectionHeader } from './components/SectionHeader'
 export { SegmentedControl, type SegmentedOption } from './components/SegmentedControl'
 export { Select, type SelectItem, type SelectProps } from './components/Select'
 export { SettingModeOption } from './components/SettingModeOption'
-export { SettingRow, SettingSection } from './components/SettingRow'
-export { default as SettingsCard } from './components/SettingsCard'
-export { default as SettingsGroup } from './components/SettingsGroup'
+export {
+  SettingRow,
+  SettingsCard,
+  type SettingsCardProps,
+  SettingsHeading,
+} from './components/SettingsCard'
 export { LoadingRegion, Skeleton, type SkeletonProps } from './components/Skeleton'
 export { default as Sort, type TDirection } from './components/Sort'
 export {

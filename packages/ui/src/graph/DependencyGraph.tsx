@@ -21,6 +21,7 @@ import {
   TransformWrapper,
 } from 'react-zoom-pan-pinch'
 import { Button } from '../components/Button'
+import { DisclosurePanel } from '../components/Disclosure'
 import { IconButton } from '../components/IconButton'
 import { Indicator } from '../components/Indicator'
 import { InfoTip } from '../components/InfoTip'
@@ -43,7 +44,6 @@ import {
 } from '../icons'
 import { LogViewer } from '../logviewer'
 import { AnnotationBanner } from './AnnotationBanner'
-import { Collapse } from './Collapse'
 import { ConnectorLayers } from './Connectors'
 import { type Box, type DrawnEdge, routeConnectors, sameBoxes } from './connectorGeometry'
 import type { DependencyGraphEditor } from './editorApi'
@@ -987,7 +987,7 @@ function SidebarJobs({
     setSublogOpen,
     // No graph or connectors here, just the nested job list, indented.
     renderWell: (subJobs, subPrefix, expanded) => (
-      <Collapse expanded={expanded}>
+      <DisclosurePanel open={expanded}>
         <div className="ml-6 mt-0.5 border-l border-(--theme-border) pl-4">
           <SidebarJobs
             jobs={subJobs}
@@ -1003,7 +1003,7 @@ function SidebarJobs({
             setSublogOpen={setSublogOpen}
           />
         </div>
-      </Collapse>
+      </DisclosurePanel>
     ),
   })
 
@@ -1797,17 +1797,18 @@ export default function DependencyGraph({
 
   const additionalBottomLeftBarComponents = sublogIsStep ? (
     <>
-      <Button variant="secondary" size="sm" icon={<ArrowLeftIcon />} onClick={() => nextStep(true)}>
-        Prev
-      </Button>
-      <Button
-        variant="secondary"
-        size="sm"
+      <IconButton
+        variant="outline"
+        icon={<ArrowLeftIcon />}
+        label={dagStrings.previousStep}
+        onClick={() => nextStep(true)}
+      />
+      <IconButton
+        variant="outline"
         icon={<ArrowRightIcon />}
+        label={dagStrings.nextStep}
         onClick={() => nextStep(false)}
-      >
-        Next
-      </Button>
+      />
       <span className="pt-0.5 whitespace-pre-wrap text-xs">{logName}</span>
     </>
   ) : undefined

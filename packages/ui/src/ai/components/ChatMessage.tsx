@@ -1,6 +1,7 @@
 import { clsx as cx } from 'clsx'
 import { DateTime } from 'luxon'
 import { type KeyboardEvent, memo, useEffect, useRef, useState } from 'react'
+import { Avatar } from '../../components/Avatar'
 import { RelativeTime } from '../../components/relativeTime'
 import { formatBytes, formatDuration } from '../../format'
 import {
@@ -16,13 +17,12 @@ import {
 import { safeUrl } from '../../safeUrl'
 import { useChatConfig } from '../core/config'
 import type { ApprovalAnswerValue, AttachmentRef, ChatMessage as Message } from '../types'
-import { Avatar } from '../ui/Avatar'
 import Markdown from '../ui/Markdown'
 import { chatProseClasses } from '../ui/prose'
 import AgentMessageParts from './agent/AgentMessageParts'
 import BranchNavigator from './BranchNavigator'
 import { UserMessageText } from './PastedText'
-import { ReasoningBody, ReasoningToggle } from './Reasoning'
+import { Reasoning } from './Reasoning'
 
 interface ChatMessageProps {
   message: Message
@@ -281,23 +281,22 @@ function ChatMessage({
                 reasoning, a bare duration, or tool-call work */}
             {showReasoningButton && (
               <div className="mb-2">
-                <ReasoningToggle
+                <Reasoning
+                  label={
+                    message.reasoningDuration
+                      ? tThinking.thoughtFor(formatDuration(message.reasoningDuration))
+                      : tThinking.thoughtProcess
+                  }
                   open={reasoningOpen}
-                  onToggle={() =>
-                    onOpenReasoning
-                      ? onOpenReasoning(message.reasoning || '', message.reasoningDuration ?? null)
-                      : setReasoningOpen((o) => !o)
+                  onOpenChange={setReasoningOpen}
+                  onOpenPanel={
+                    onOpenReasoning &&
+                    (() =>
+                      onOpenReasoning(message.reasoning || '', message.reasoningDuration ?? null))
                   }
                 >
-                  {message.reasoningDuration
-                    ? tThinking.thoughtFor(formatDuration(message.reasoningDuration))
-                    : tThinking.thoughtProcess}
-                </ReasoningToggle>
-                {reasoningOpen && (
-                  <ReasoningBody>
-                    <Markdown>{message.reasoning || ''}</Markdown>
-                  </ReasoningBody>
-                )}
+                  <Markdown>{message.reasoning || ''}</Markdown>
+                </Reasoning>
               </div>
             )}
             {showTurnDurationLabel && (
@@ -335,9 +334,10 @@ function ChatMessage({
               otherAuthor ? (
                 <div className="flex items-end gap-2">
                   <Avatar
-                    src={otherAuthor.avatarUrl ?? undefined}
+                    src={otherAuthor.avatarUrl}
                     name={otherAuthor.name || otherAuthor.username}
-                    className="flex-shrink-0 mb-0.5"
+                    size="sm"
+                    className="mb-0.5"
                   />
                   <div
                     className={cx(

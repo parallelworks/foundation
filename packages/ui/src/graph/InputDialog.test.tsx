@@ -36,6 +36,7 @@ vi.mock('../editor/Monaco', () => ({
 }))
 
 import { chooseOption, optionsOf } from '../test/combobox'
+import { openSection, openSectionTitles } from '../test/section'
 import { INPUTS_EDITOR_STRINGS } from './editorStrings'
 import { InputDialog, inputTypes, offeredInputKeys } from './InputDialog'
 
@@ -68,10 +69,7 @@ describe('InputDialog', () => {
 
   // Like the job and step dialogs: a section starts open only when it holds something.
   it('opens only the sections that hold something', async () => {
-    const openSections = () =>
-      [...document.querySelectorAll('details')]
-        .filter((section) => section.open)
-        .map((section) => section.querySelector('summary')?.textContent)
+    const openSections = openSectionTitles
     open({ type: 'string' })
     expect(openSections()).toEqual([])
     cleanup()
@@ -123,6 +121,7 @@ describe('InputDialog', () => {
     fireEvent.change(screen.getByLabelText('Options'), {
       target: { value: '${{ inputs.choices }}' },
     })
+    openSection('Behavior')
     const hidden = screen.getByText('Hidden', { selector: 'span' }).parentElement?.parentElement
       ?.parentElement as HTMLElement
     fireEvent.click(within(hidden).getByRole('button', { name: 'Use an expression instead' }))
@@ -369,11 +368,13 @@ describe('InputDialog', () => {
       { type: 'group', items: { size: { type: 'number' } } },
       { siblings: ['size'] },
     )
+    openSection('Settings')
     fireEvent.click(screen.getByRole('switch', { name: 'Leave out the group name' }))
     expect(screen.getByText(INPUTS_EDITOR_STRINGS.flattenClash('size'))).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
     cleanup()
     const clean = open({ type: 'group', items: { size: { type: 'number' } } })
+    openSection('Settings')
     fireEvent.click(screen.getByRole('switch', { name: 'Leave out the group name' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(clean).toHaveBeenCalledWith(
@@ -459,6 +460,8 @@ describe('InputDialog', () => {
 
   it('gives a repeatable page a title per copy and its fewest and most copies from its dialog', () => {
     const onSave = open({ type: 'step', title: 'Host', multi: true, options: {} })
+    openSection('Field')
+    openSection('Settings')
     // The description's comes first, in the Field section.
     const [, titlePerCopy] = screen.getAllByRole('checkbox', { name: 'One per copy' })
     fireEvent.click(titlePerCopy as HTMLElement)
@@ -548,6 +551,7 @@ describe('InputDialog', () => {
 
   it('needs min, max and step once the slider is on', () => {
     open({ type: 'number' })
+    openSection('Settings')
     fireEvent.click(screen.getByRole('switch', { name: 'Slider' }))
     const save = screen.getByRole('button', { name: 'Save' })
     expect(save).toBeDisabled()

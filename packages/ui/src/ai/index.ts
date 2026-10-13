@@ -106,7 +106,6 @@ export {
   type RowDialogStrings,
   SidebarGroupHeading,
   SidebarPanel,
-  SidebarPlaceholder,
   SidebarRailItem,
   SidebarRow,
   SidebarRowTitle,

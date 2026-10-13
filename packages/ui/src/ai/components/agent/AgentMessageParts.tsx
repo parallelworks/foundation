@@ -1,9 +1,10 @@
 import { clsx as cx } from 'clsx'
 import { useEffect, useMemo, useState } from 'react'
+import { Disclosure } from '../../../components/Disclosure'
 import { Loader } from '../../../components/Loader'
 import { useCssIsDark } from '../../../components/useCssIsDark'
 import { formatDuration } from '../../../format'
-import { CheckIcon, ChevronRightIcon } from '../../../icons'
+import { CheckIcon } from '../../../icons'
 import { LogViewer } from '../../../logviewer/index'
 import {
   computeEditDiff,
@@ -38,7 +39,7 @@ import type {
 } from '../../types'
 import Markdown from '../../ui/Markdown'
 import { chatProseClasses } from '../../ui/prose'
-import { ReasoningBody, ReasoningToggle } from '../Reasoning'
+import { Reasoning, ReasoningBody } from '../Reasoning'
 
 const COLLAPSED_RESULT_LINES = 12
 
@@ -240,6 +241,9 @@ function ToolStatusDot({ part }: { part: ToolCallPart }) {
   return <span className="text-green-600 leading-none">●</span>
 }
 
+/** A part's toggle row: its status mark and name, across the transcript's width. */
+const rowSummaryClasses = 'min-h-6 w-full'
+
 function ToolCallBlock({ part }: { part: ToolCallPart }) {
   const { strings } = useChatConfig()
   const t = strings.agentTranscript
@@ -253,42 +257,37 @@ function ToolCallBlock({ part }: { part: ToolCallPart }) {
       : toolSummary(part.name, part.args, part.result ?? '', part.status === 'error', editSummary)
   return (
     <div className="py-1.5 text-sm" data-testid="tool-call-part">
-      <button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
-        aria-expanded={expanded}
-        className="flex min-h-6 items-start gap-2 w-full text-left group/tool"
+      <Disclosure
+        open={expanded}
+        onOpenChange={setExpanded}
+        disabled={isDiff}
+        summaryClassName={rowSummaryClasses}
+        summary={
+          <>
+            <ToolStatusDot part={part} />
+            <span className="font-mono text-[13px] leading-5 min-w-0 truncate">
+              <span className="font-semibold">{header.label}</span>
+              {argSummary && <span className="theme-muted-text">({argSummary})</span>}
+            </span>
+          </>
+        }
+        panelClassName="ml-5 mt-1 space-y-1.5"
       >
-        <ToolStatusDot part={part} />
-        <span className="font-mono text-[13px] leading-5 min-w-0 truncate">
-          <span className="font-semibold">{header.label}</span>
-          {argSummary && <span className="theme-muted-text">({argSummary})</span>}
-        </span>
-        <ChevronRightIcon
-          className={cx(
-            'w-3.5 h-3.5 mt-1 shrink-0 theme-muted-text transition-transform',
-            expanded && 'rotate-90',
-          )}
-        />
-      </button>
-      {!isDiff && (
+        {fullToolArgs(header.arg, part.args) && (
+          <pre className="overflow-x-auto rounded-md bg-(--theme-muted-panel-bg) p-2 font-mono text-xs whitespace-pre-wrap">
+            {fullToolArgs(header.arg, part.args)}
+          </pre>
+        )}
+        <ResultBody part={part} />
+      </Disclosure>
+      {!isDiff && !expanded && (
         <div
           className={cx(
             'ml-5 mt-0.5 text-[13px]',
-            part.status === 'error' ? 'text-red-600' : 'theme-muted-text',
+            part.status === 'error' ? 'text-(--theme-error)' : 'theme-muted-text',
           )}
         >
-          {expanded ? null : summary}
-        </div>
-      )}
-      {expanded && !isDiff && (
-        <div className="ml-5 mt-1 space-y-1.5">
-          {fullToolArgs(header.arg, part.args) && (
-            <pre className="overflow-x-auto rounded-md bg-(--theme-muted-panel-bg) p-2 font-mono text-xs whitespace-pre-wrap">
-              {fullToolArgs(header.arg, part.args)}
-            </pre>
-          )}
-          <ResultBody part={part} />
+          {summary}
         </div>
       )}
       {isDiff && (
@@ -318,67 +317,64 @@ function SubagentCard({ part }: { part: SubagentPart }) {
       : `${part.status === 'done' ? t.done : t.failed}${part.summary ? ` (${part.summary})` : ''}`
   return (
     <div className="py-1.5 text-sm" data-testid="subagent-part">
-      <button
-        type="button"
-        onClick={() => canExpand && setExpanded((v) => !v)}
-        aria-expanded={expanded}
-        className="flex min-h-6 items-start gap-2 w-full text-left"
-      >
-        {part.status === 'running' ? (
-          <span className="mt-[3px]">
-            <Loader inline decorative size={14} color="var(--theme-muted-text-color)" />
-          </span>
-        ) : (
-          <span
-            className={cx(
-              'leading-none',
-              part.status === 'failed' ? 'text-red-500' : 'text-green-600',
+      <Disclosure
+        open={expanded}
+        onOpenChange={setExpanded}
+        disabled={!canExpand}
+        summaryClassName={rowSummaryClasses}
+        summary={
+          <>
+            {part.status === 'running' ? (
+              <span className="mt-[3px]">
+                <Loader inline decorative size={14} color="var(--theme-muted-text-color)" />
+              </span>
+            ) : (
+              <span
+                className={cx(
+                  'leading-none',
+                  part.status === 'failed' ? 'text-(--theme-error)' : 'text-(--theme-success)',
+                )}
+                style={color && part.status !== 'failed' ? { color } : undefined}
+              >
+                ●
+              </span>
             )}
-            style={color && part.status !== 'failed' ? { color } : undefined}
-          >
-            ●
-          </span>
-        )}
-        <span className="font-mono text-[13px] leading-5 min-w-0 truncate">
-          <span className="font-semibold">{label}</span>
-          {part.description && <span className="theme-muted-text">({part.description})</span>}
-        </span>
-        {canExpand && (
-          <ChevronRightIcon
-            className={cx(
-              'w-3.5 h-3.5 mt-1 shrink-0 theme-muted-text transition-transform',
-              expanded && 'rotate-90',
-            )}
-          />
-        )}
-      </button>
-      <div
-        className={cx(
-          'ml-5 mt-0.5 text-[13px]',
-          part.status === 'failed' ? 'text-red-600' : 'theme-muted-text',
+            <span className="font-mono text-[13px] leading-5 min-w-0 truncate">
+              <span className="font-semibold">{label}</span>
+              {part.description && <span className="theme-muted-text">({part.description})</span>}
+            </span>
+          </>
+        }
+        panelClassName={cx(
+          'ml-5 mt-0.5 space-y-1 text-[13px]',
+          part.status === 'failed' ? 'text-(--theme-error)' : 'theme-muted-text',
         )}
       >
-        {expanded ? (
-          <div className="space-y-1">
-            {actions.length > 0 && (
-              <ul className="space-y-0.5">
-                {actions.map((a, i) => (
-                  // biome-ignore lint/suspicious/noArrayIndexKey: feed is append-only
-                  <li key={i}>{a}</li>
-                ))}
-                {part.status !== 'running' && <li>{outcome}</li>}
-              </ul>
-            )}
-            {part.report && (
-              <div className="border-l-2 theme-border pl-3 text-sm theme-muted-text">
-                <Markdown>{part.report}</Markdown>
-              </div>
-            )}
+        {actions.length > 0 && (
+          <ul className="space-y-0.5">
+            {actions.map((a, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: feed is append-only
+              <li key={i}>{a}</li>
+            ))}
+            {part.status !== 'running' && <li>{outcome}</li>}
+          </ul>
+        )}
+        {part.report && (
+          <div className="border-l-2 theme-border pl-3 text-sm theme-muted-text">
+            <Markdown>{part.report}</Markdown>
           </div>
-        ) : (
-          outcome
         )}
-      </div>
+      </Disclosure>
+      {!expanded && (
+        <div
+          className={cx(
+            'ml-5 mt-0.5 text-[13px]',
+            part.status === 'failed' ? 'text-(--theme-error)' : 'theme-muted-text',
+          )}
+        >
+          {outcome}
+        </div>
+      )}
     </div>
   )
 }
@@ -632,7 +628,6 @@ function TodoSnapshotBlock({ part }: { part: TodoSnapshotPart }) {
 }
 
 function NoticeBlock({ part }: { part: NoticePart }) {
-  const [expanded, setExpanded] = useState(false)
   if (part.kind === 'notice') {
     if (!part.detail) {
       return (
@@ -646,25 +641,13 @@ function NoticeBlock({ part }: { part: NoticePart }) {
     }
     return (
       <div className="my-1.5" data-testid="notice-part">
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          aria-expanded={expanded}
-          className="flex items-start gap-1.5 text-left text-[13px] theme-muted-text hover:theme-text"
+        <Disclosure
+          summary={<span className="min-w-0 flex-1 whitespace-pre-wrap">{part.text}</span>}
+          summaryClassName="w-full text-[13px] theme-muted-text hover:theme-text"
+          panelClassName="ml-4 mt-1 border-l-2 theme-border pl-3 text-sm theme-muted-text"
         >
-          <span className="min-w-0 flex-1 whitespace-pre-wrap">{part.text}</span>
-          <ChevronRightIcon
-            className={cx(
-              'mt-0.5 h-3.5 w-3.5 shrink-0 transition-transform',
-              expanded && 'rotate-90',
-            )}
-          />
-        </button>
-        {expanded && (
-          <div className="ml-4 mt-1 border-l-2 theme-border pl-3 text-sm theme-muted-text">
-            <Markdown>{part.detail}</Markdown>
-          </div>
-        )}
+          <Markdown>{part.detail}</Markdown>
+        </Disclosure>
       </div>
     )
   }
@@ -719,14 +702,9 @@ function ReasoningBlock({ part, isStreaming }: { part: ReasoningPart; isStreamin
   }
   return (
     <div className="py-1.5" data-testid="reasoning-part">
-      <ReasoningToggle open={expanded} onToggle={() => setExpanded((v) => !v)}>
-        {label}
-      </ReasoningToggle>
-      {expanded && (
-        <ReasoningBody>
-          <div data-testid="reasoning-body">{markdown}</div>
-        </ReasoningBody>
-      )}
+      <Reasoning label={label} open={expanded} onOpenChange={setExpanded}>
+        <div data-testid="reasoning-body">{markdown}</div>
+      </Reasoning>
     </div>
   )
 }
@@ -859,40 +837,31 @@ function RollupGroup({
   members: RunMember[]
   message: PartRendererProps['message']
 }) {
-  const [expanded, setExpanded] = useState(false)
   const sentence = rollupSentence(
     members.flatMap((m) => (m.part.kind === 'tool_call' ? [m.part.name] : [])),
   )
   return (
     <div className="py-1.5 text-sm" data-testid="tool-rollup">
-      <button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
-        aria-expanded={expanded}
-        className="flex min-h-6 items-center gap-2 w-full text-left"
-      >
-        <span className="text-green-600 leading-none" aria-hidden="true">
-          ●
-        </span>
-        <span className="font-mono text-[13px] theme-muted-text min-w-0 truncate">{sentence}</span>
-        <ChevronRightIcon
-          className={cx(
-            'w-3.5 h-3.5 shrink-0 theme-muted-text transition-transform',
-            expanded && 'rotate-90',
-          )}
-        />
-      </button>
-      {/* Members stay mounted so their own expand state survives refolding. */}
-      <div
-        className={cx(
-          'ml-1.5 mt-0.5 rounded-md',
-          expanded ? 'bg-(--theme-muted-panel-bg)/40 px-2' : 'hidden',
-        )}
+      <Disclosure
+        // Members stay mounted so their own expand state survives refolding.
+        keepMounted
+        summaryClassName={rowSummaryClasses}
+        summary={
+          <>
+            <span className="text-(--theme-success) leading-none" aria-hidden="true">
+              ●
+            </span>
+            <span className="font-mono text-[13px] theme-muted-text min-w-0 truncate">
+              {sentence}
+            </span>
+          </>
+        }
+        panelClassName="ml-1.5 mt-0.5 rounded-md bg-(--theme-muted-panel-bg)/40 px-2"
       >
         {members.map((m) => (
           <PartDispatch key={m.index} part={m.part} message={message} />
         ))}
-      </div>
+      </Disclosure>
     </div>
   )
 }

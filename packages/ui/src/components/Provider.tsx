@@ -161,6 +161,8 @@ export interface UIStrings {
     statusReason: (reason: string | undefined | null) => string | undefined
     /** A run's general log, beside its summary. */
     generalLog: string
+    previousStep: string
+    nextStep: string
   }
   jobActions: {
     openSubworkflowLogs: string
@@ -183,6 +185,8 @@ export interface UIStrings {
       previewTab: string
       preview: string
       openFullPreview: string
+      /** Names the choice between a quick look and the full window. */
+      previewLayout: string
       quickLook: string
       fullWindow: string
       streamed: string
@@ -444,8 +448,6 @@ export interface UIStrings {
     perPage: string
     paginationPrevious: string
     paginationNext: string
-    paginationShowing: (name: string, start: number | string, end: number | string) => ReactNode
-    paginationShowingTimeRange: (name: string, startTime: string, endTime: string) => ReactNode
     pagination: string
     removeSearchTerm: (term: string) => string
   }
@@ -716,6 +718,8 @@ const DEFAULTS: UIProviderValue = {
       statusLabel: (status) => status,
       statusReason: () => undefined,
       generalLog: 'General log',
+      previousStep: 'Previous step',
+      nextStep: 'Next step',
     },
     jobActions: {
       openSubworkflowLogs: 'Open subworkflow logs',
@@ -737,6 +741,7 @@ const DEFAULTS: UIProviderValue = {
         previewTab: 'Preview',
         preview: 'Preview',
         openFullPreview: 'Open full preview',
+        previewLayout: 'Preview layout',
         quickLook: 'Quick Look',
         fullWindow: 'Full window',
         streamed: 'Streamed',
@@ -1015,18 +1020,6 @@ const DEFAULTS: UIProviderValue = {
       perPage: 'Per page',
       paginationPrevious: 'Previous',
       paginationNext: 'Next',
-      paginationShowing: (name, start, end) => (
-        <>
-          Showing {name} <span className="font-medium">{start}</span> to{' '}
-          <span className="font-medium">{end}</span>
-        </>
-      ),
-      paginationShowingTimeRange: (name, startTime, endTime) => (
-        <>
-          Showing {name} from <span className="font-medium">{startTime}</span> to{' '}
-          <span className="font-medium">{endTime}</span>
-        </>
-      ),
       pagination: 'Pagination',
       removeSearchTerm: (term) => `Remove filter ${term}`,
     },

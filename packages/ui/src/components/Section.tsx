@@ -2,8 +2,9 @@ import { Collapsible } from '@base-ui/react/collapsible'
 import { clsx as cx } from 'clsx'
 import type { ReactNode } from 'react'
 import { AngleRightIcon } from '../icons'
+import { collapsePanelClassName } from './Disclosure'
 
-export type SectionVariant = 'plain' | 'card' | 'subtle'
+export type SectionVariant = 'plain' | 'card'
 
 export interface SectionProps {
   title: ReactNode
@@ -11,8 +12,8 @@ export interface SectionProps {
   beside?: ReactNode
   /** At the header's far end, such as an add button or a range picker. */
   actions?: ReactNode
-  /** `plain` rules the title off from a form's fields, `card` frames the
-   *  section as a panel, and `subtle` is a quiet toggle for secondary detail. */
+  /** `plain` rules the title off from the content under it; `card` frames the
+   *  section as a panel. */
   variant?: SectionVariant | undefined
   /** False shows the content always, under a title that doesn't fold. */
   collapsible?: boolean | undefined
@@ -29,30 +30,24 @@ export interface SectionProps {
 
 const rootClasses: Record<SectionVariant, string> = {
   plain: 'flex w-full flex-col',
-  card: 'group/section mb-1 flex w-full flex-col rounded-2xl border border-(--theme-border) bg-(--theme-panel-bg) text-(--theme-panel)',
-  subtle: 'flex w-full flex-col',
+  card: 'group/section panel mb-1 flex w-full flex-col',
 }
 
 const headerClasses: Record<SectionVariant, string> = {
   plain: 'mb-2 flex w-full items-center gap-2 border-b border-(--theme-border) pb-1',
   card: 'flex w-full items-center gap-2 px-2 py-3',
-  subtle: 'flex w-full items-center gap-2',
 }
 
 const titleClasses: Record<SectionVariant, string> = {
   plain: 'text-lg font-semibold',
   // A folded card's title recedes, so the open ones stand out in a long page.
   card: 'text-sm font-bold text-(--theme-muted-text-color) group-data-open/section:text-inherit',
-  subtle:
-    'text-xs font-medium text-(--theme-muted-text-color) hover:text-(--theme-app) transition-colors',
 }
 
-/** The panel's height, animated as it opens and closes. */
-const panelClasses =
-  'h-(--collapsible-panel-height) transition-[height] duration-300 ease-in-out motion-reduce:transition-none data-starting-style:h-0 data-ending-style:h-0 data-starting-style:overflow-hidden data-ending-style:overflow-hidden'
-
-/** A titled part of a page or form that can fold away. Folding keeps the
- *  content mounted, so fields hold their values and validation while closed. */
+/** A titled part of a page or form, its title a heading in the page's outline,
+ *  that can fold away. Folding keeps the content mounted, so fields hold their
+ *  values and validation while closed. For a line inside content that reveals
+ *  more detail, use Disclosure. */
 export function Section({
   title,
   beside,
@@ -108,7 +103,7 @@ export function Section({
               aria-hidden="true"
               className={cx(
                 'shrink-0 transition-transform group-data-panel-open:rotate-90 motion-reduce:transition-none',
-                variant === 'subtle' ? 'h-3 w-3' : 'px-1 text-[1.25rem]',
+                'px-1 text-[1.25rem]',
               )}
             />
             {title}
@@ -117,7 +112,7 @@ export function Section({
         {beside}
         {end}
       </div>
-      <Collapsible.Panel keepMounted className={panelClasses}>
+      <Collapsible.Panel keepMounted className={collapsePanelClassName}>
         {children}
       </Collapsible.Panel>
     </Collapsible.Root>

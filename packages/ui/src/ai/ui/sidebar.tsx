@@ -103,22 +103,6 @@ export function SidebarGroupHeading({
   )
 }
 
-/** What a list says in place of its rows: none yet, no matches, or why it
- *  could not load. Plain text, so an empty list reads the same in every list. */
-export function SidebarPlaceholder({
-  children,
-  testId,
-}: {
-  children: ReactNode
-  testId?: string | undefined
-}) {
-  return (
-    <p data-testid={testId} className="px-2 pt-1 text-sm theme-muted-text">
-      {children}
-    </p>
-  )
-}
-
 /** A row's first line, the same in every list: what it is, and when it last
  *  moved, abbreviated, on the right. */
 export function SidebarRowTitle({

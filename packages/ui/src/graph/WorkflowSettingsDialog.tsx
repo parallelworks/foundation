@@ -9,6 +9,7 @@ import {
   AddRowButton,
   asRecord,
   ChoiceButtons,
+  DialogSection,
   DialogShell,
   type DialogShellProps,
   diffPatch,
@@ -30,7 +31,6 @@ import {
   rowsError,
   rowsFrom,
   rowsTo,
-  Section,
   StringListEditor,
   type Strings,
   ToggleField,
@@ -520,7 +520,7 @@ function SettingsForm({
   const children = (
     <>
       {newInputs.dialog}
-      <Section title={t.sectionGeneral} open>
+      <DialogSection title={t.sectionGeneral} open>
         <FieldLabel label={t.fields.env} yamlKey="env" description={t.help.workflowEnv} />
         <KeyValueEditor
           rows={env}
@@ -536,8 +536,8 @@ function SettingsForm({
           error={errors.timeout}
           onChange={(e) => changeTimeout(e.target.value)}
         />
-      </Section>
-      <Section
+      </DialogSection>
+      <DialogSection
         title={t.sectionPermissions}
         description={t.help.permissions}
         open={permissions.length > 0}
@@ -551,8 +551,8 @@ function SettingsForm({
           placeholder="*"
           error={errors.permissions}
         />
-      </Section>
-      <Section
+      </DialogSection>
+      <DialogSection
         title={t.sectionSessions}
         description={t.help.sessions}
         open={sessions.length > 0}
@@ -653,8 +653,8 @@ function SettingsForm({
             ])
           }
         />
-      </Section>
-      <Section
+      </DialogSection>
+      <DialogSection
         title={t.sectionLinks}
         description={t.help.links}
         open={links.length > 0}
@@ -723,8 +723,8 @@ function SettingsForm({
             ])
           }
         />
-      </Section>
-      <Section
+      </DialogSection>
+      <DialogSection
         title={t.sectionRequiredVariables}
         open={
           orgVariables.length > 0 ||
@@ -780,8 +780,8 @@ function SettingsForm({
             addLabel={t.addUserVariable}
           />
         )}
-      </Section>
-      <Section title={t.sectionInputForm} open={wizardOn} alert={!!errors.wizard}>
+      </DialogSection>
+      <DialogSection title={t.sectionInputForm} open={wizardOn} alert={!!errors.wizard}>
         <FieldLabel
           label={t.fields.labelPosition}
           yamlKey="labelPosition"
@@ -840,7 +840,7 @@ function SettingsForm({
             />
           </>
         )}
-      </Section>
+      </DialogSection>
     </>
   )
   const shellProps: DialogShellProps = {

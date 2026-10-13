@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { IconButton } from '../components/IconButton'
+import { Pagination } from '../components/Pagination'
 import { Popover } from '../components/Popover'
 import { InfoIcon } from '../icons'
-import { ListPager } from './ListPager'
 import { ListDisplayMenu, ListFilterMenu } from './ListViewControls'
 import { ListCount, ListSearchControl, useListSearch } from './listSearch'
 import { useListView } from './listView'
@@ -92,7 +92,12 @@ function ControlsDemo({ searchable }: { searchable: boolean }) {
           </li>
         ))}
       </ul>
-      <ListPager page={0} pageSize={rows.length || 1} total={ROWS.length} onPageChange={() => {}} />
+      <Pagination
+        page={0}
+        pageSize={rows.length || 1}
+        total={ROWS.length}
+        onPageChange={() => {}}
+      />
     </div>
   )
 }
@@ -105,7 +110,7 @@ export const Controls: StoryObj<{ searchable: boolean }> = {
 export const CappedPager: StoryObj = {
   render: () => (
     <div className="max-w-2xl">
-      <ListPager page={200} pageSize={50} total={10000} hasNext onPageChange={() => {}} />
+      <Pagination page={200} pageSize={50} total={10000} hasNext onPageChange={() => {}} />
     </div>
   ),
 }

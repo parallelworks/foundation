@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { expect, screen, userEvent, waitFor, within } from 'storybook/test'
 import type { RunStatus } from '../engine'
 import { formatBytes } from '../format'
+import { Avatar } from './Avatar'
 import { Button } from './Button'
 import { buttonClasses } from './buttonClasses'
 import Callout from './Callout'
@@ -10,6 +11,7 @@ import { Autocomplete, Combobox } from './Combobox'
 import { ConfirmModal } from './ConfirmModal'
 import { CreateModal, CreateModalField } from './CreateModal'
 import { DatePicker } from './DatePicker'
+import { EmptyState } from './EmptyState'
 import { ExternalLink } from './ExternalLink'
 import { Indicator } from './Indicator'
 import { InfoTip } from './InfoTip'
@@ -73,6 +75,7 @@ export const Badges: StoryObj = {
   ),
 }
 
+/** Callouts in the theme's tones: a note for guidance, an alert for a warning or an error. */
 export const Feedback: StoryObj = {
   render: () => (
     <div className="flex flex-col gap-4 max-w-xl">
@@ -80,6 +83,56 @@ export const Feedback: StoryObj = {
       <Callout type="warning">Something needs attention.</Callout>
       <Callout type="error">Something went wrong.</Callout>
       <Loader label="Loading resources" size={40} />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getAllByRole('alert')).toHaveLength(2)
+    await expect(canvas.getByRole('note')).toHaveTextContent('Informational callout')
+  },
+}
+
+/** A picture, or initials until it loads and when it fails; one image to assistive
+ *  technology either way. */
+export const Avatars: StoryObj = {
+  render: () => (
+    <div className="flex items-end gap-3">
+      <Avatar name="Ada Lovelace" size="xs" />
+      <Avatar name="Ada Lovelace" size="sm" status="online" />
+      <Avatar name="Grace Hopper" size="md" status="away" />
+      <Avatar name="Alan Turing" size="lg" status="busy" />
+      <Avatar name="Katherine Johnson" src="/missing-avatar.png" size="xl" status="offline" />
+      <Avatar size="2xl" />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('img', { name: 'Grace Hopper' })).toHaveTextContent('GH')
+    // A picture that fails keeps the initials.
+    await waitFor(() =>
+      expect(canvas.getByRole('img', { name: 'Katherine Johnson' })).toHaveTextContent('KJ'),
+    )
+  },
+}
+
+/** Where there is nothing yet: a panel stands in for a whole list, and bare sits
+ *  inside something that already frames it. */
+export const EmptyStates: StoryObj<{ variant: 'panel' | 'bare' }> = {
+  args: { variant: 'panel' },
+  argTypes: { variant: { control: 'inline-radio', options: ['panel', 'bare'] } },
+  render: ({ variant }) => (
+    <div className="max-w-xl">
+      <EmptyState
+        variant={variant}
+        icon={<span aria-hidden="true">∅</span>}
+        title="No clusters yet"
+        description="Connect machines you run, or start new ones in the cloud."
+        action={
+          <Button variant="primary" size="sm">
+            Add cluster
+          </Button>
+        }
+      />
     </div>
   ),
 }
