@@ -4,6 +4,7 @@ import { type ReactNode, useLayoutEffect, useRef, useState } from 'react'
 import { CloseIcon } from '../icons'
 import { useStrings } from './Provider'
 import { useSplitter } from './splitter'
+import { pressedToast } from './Toast'
 
 export interface DrawerProps
   extends Omit<BaseDrawer.Popup.Props, 'className' | 'children' | 'render' | 'title'> {
@@ -94,7 +95,10 @@ export function Drawer({
     if (next) {
       return
     }
-    if (!dismissible && details.reason === 'escape-key') {
+    if (
+      (!dismissible && details.reason === 'escape-key') ||
+      (details.reason === 'outside-press' && pressedToast(details.event))
+    ) {
       details.cancel()
       return
     }
@@ -119,7 +123,7 @@ export function Drawer({
           <BaseDrawer.Backdrop
             className={cx(
               area,
-              'z-[9980] bg-black/40 opacity-[calc(1-var(--drawer-swipe-progress))] transition-opacity duration-300 data-ending-style:opacity-0 data-starting-style:opacity-0 data-swiping:duration-0 motion-reduce:transition-none',
+              'z-(--layer-drawer) bg-black/40 opacity-[calc(1-var(--drawer-swipe-progress))] transition-opacity duration-300 data-ending-style:opacity-0 data-starting-style:opacity-0 data-swiping:duration-0 motion-reduce:transition-none',
             )}
           />
         )}
@@ -128,7 +132,7 @@ export function Drawer({
           className={cx(
             area,
             // Passes presses through to the page beside the drawer when it isn't modal.
-            'pointer-events-none z-[9980] flex',
+            'pointer-events-none z-(--layer-drawer) flex',
             side === 'right'
               ? 'justify-end pl-[max(var(--app-inset-start,0px),2.5rem)]'
               : 'justify-start pl-(--app-inset-start,0px) pr-10',

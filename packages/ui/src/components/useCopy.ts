@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNotify, useStrings } from './Provider'
+import { useStrings } from './Provider'
+import { toast } from './Toast'
 
 export interface CopyOptions {
   /** Names what was copied in the toast, "Copied email address"; without it the
@@ -18,7 +19,6 @@ export function useCopy(): {
   copy: (text: string, options?: CopyOptions) => Promise<boolean>
   copied: boolean
 } {
-  const notify = useNotify()
   const { common: t } = useStrings()
   const [copied, setCopied] = useState(false)
   const reset = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -29,18 +29,18 @@ export function useCopy(): {
       try {
         await navigator.clipboard.writeText(text)
       } catch {
-        notify.error(label ? t.copyThingFailed(label) : t.copyFailed)
+        toast.error(label ? t.copyThingFailed(label) : t.copyFailed)
         return false
       }
       if (!quiet) {
-        notify.success(label ? t.copiedThing(label) : t.copiedToClipboard)
+        toast.success(label ? t.copiedThing(label) : t.copiedToClipboard)
       }
       setCopied(true)
       clearTimeout(reset.current)
       reset.current = setTimeout(() => setCopied(false), COPIED_FOR_MS)
       return true
     },
-    [notify, t],
+    [t],
   )
   return { copy, copied }
 }

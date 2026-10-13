@@ -6,39 +6,8 @@ import type { GraphEditorText, InputsEditorText } from '../graph/editorStrings'
 import type { RunLink } from '../graph/types'
 import { safeUrl } from '../safeUrl'
 import { useLocalPersistedState } from './persistedState'
+import { Toaster } from './Toast'
 import { TooltipProvider } from './Tooltip'
-
-export type UIToastId = string | number
-
-export interface UIToastOptions {
-  toastId?: UIToastId
-  /** false hides the default icon. */
-  icon?: false
-  closeButton?: boolean
-  autoClose?: number | false
-}
-
-export interface UIToastUpdate {
-  render?: ReactNode
-  type?: 'info' | 'success' | 'warning' | 'error'
-  /** false or null hides the icon. */
-  icon?: false | null
-  isLoading?: boolean
-  closeButton?: boolean | null
-  autoClose?: number | false | null
-}
-
-export interface UINotify {
-  info: (message: string) => void
-  success: (message: string) => void
-  warning: (message: string) => void
-  error: (message: string) => void
-  /** Persistent spinner toast; drive it with update/dismiss via the returned id. */
-  loading: (content: ReactNode, options?: UIToastOptions) => UIToastId
-  update: (id: UIToastId, update: UIToastUpdate) => void
-  /** Without an id, dismisses every open toast. */
-  dismiss: (id?: UIToastId) => void
-}
 
 export interface UIStrings {
   modal: {
@@ -61,6 +30,8 @@ export interface UIStrings {
     reset: string
     apply: string
     dismiss: string
+    /** Names the region toasts appear in. */
+    notifications: string
     rename: string
     share: string
     send: string
@@ -617,7 +588,6 @@ export interface UISlots {
 export type WorkflowEngineSource = WorkflowEngine | (() => Promise<WorkflowEngine>)
 
 interface UIProviderValue {
-  notify: UINotify
   strings: UIStrings
   navigation: UINavigation
   data: UIData
@@ -632,15 +602,6 @@ const defaultUseRunFile = (): RunFileResult => ({
 })
 
 const DEFAULTS: UIProviderValue = {
-  notify: {
-    info: () => {},
-    success: () => {},
-    warning: () => {},
-    error: () => {},
-    loading: () => 'toast',
-    update: () => {},
-    dismiss: () => {},
-  },
   strings: {
     modal: {
       creating: 'Creating…',
@@ -662,6 +623,7 @@ const DEFAULTS: UIProviderValue = {
       reset: 'Reset',
       apply: 'Apply',
       dismiss: 'Dismiss',
+      notifications: 'Notifications',
       rename: 'Rename',
       share: 'Share',
       send: 'Send',
@@ -1116,10 +1078,6 @@ const DEFAULTS: UIProviderValue = {
 
 const UIContext = createContext<UIProviderValue>(DEFAULTS)
 
-export function useNotify(): UINotify {
-  return useContext(UIContext).notify
-}
-
 export function useStrings(): UIStrings {
   return useContext(UIContext).strings
 }
@@ -1260,7 +1218,6 @@ export function usePersistedState<T>(
 }
 
 export function UIProvider({
-  notify,
   strings,
   navigation,
   data,
@@ -1268,7 +1225,6 @@ export function UIProvider({
   engine,
   children,
 }: {
-  notify?: Partial<UINotify>
   strings?: {
     [G in keyof UIStrings]?: UIStrings[G] extends object ? Partial<UIStrings[G]> : UIStrings[G]
   }
@@ -1287,7 +1243,6 @@ export function UIProvider({
   }, [engine])
   const value = useMemo(
     () => ({
-      notify: { ...DEFAULTS.notify, ...notify },
       strings: {
         modal: { ...DEFAULTS.strings.modal, ...strings?.modal },
         common: { ...DEFAULTS.strings.common, ...strings?.common },
@@ -1320,11 +1275,12 @@ export function UIProvider({
       slots: slots ?? DEFAULTS.slots,
       engine,
     }),
-    [notify, strings, navigation, data, slots, engine],
+    [strings, navigation, data, slots, engine],
   )
   return (
     <UIContext.Provider value={value}>
       <TooltipProvider>{children}</TooltipProvider>
+      <Toaster />
     </UIContext.Provider>
   )
 }

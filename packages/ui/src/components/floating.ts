@@ -1,7 +1,7 @@
 // One look for everything that floats: menus, selects, comboboxes, tooltips, infotips and hover cards.
 
 /** Above dialogs and sticky chrome; hidden while its anchor is scrolled out of view. */
-export const positionerClassName = 'z-[10000] outline-none data-anchor-hidden:invisible'
+export const positionerClassName = 'z-(--layer-popover) outline-none data-anchor-hidden:invisible'
 
 const enterExit =
   'origin-(--transform-origin) transition-[transform,opacity] duration-100 data-starting-style:scale-95 data-starting-style:opacity-0 data-ending-style:scale-95 data-ending-style:opacity-0'

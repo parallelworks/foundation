@@ -47,3 +47,25 @@ describe('package names', () => {
     expect(found).toEqual([])
   })
 })
+
+describe('stacking', () => {
+  const code = sources.filter(([file]) => !/\.(test|stories)\.tsx?$/.test(file))
+
+  // Whatever lies over the page takes its z-index from the --layer-* scale in base.css; a number
+  // picked to win fights the host's chrome and the package's other layers.
+  it('lift nothing over the page except through the layer scale', () => {
+    const found = code.flatMap(([file, source]) =>
+      (source.match(/z-\[\d{3,}\]|z-index:\s*\d{3,}|zIndex:\s*\d{3,}/g) ?? []).map(
+        (z) => `${file}: ${z}`,
+      ),
+    )
+    expect(found).toEqual([])
+  })
+
+  it('reads only layers base.css defines', () => {
+    const base = readFileSync(join(import.meta.dirname, 'styles/base.css'), 'utf8')
+    const defined = new Set(base.match(/--layer-[a-z]+(?=:)/g))
+    const used = new Set(code.flatMap(([, source]) => source.match(/--layer-[a-z]+/g) ?? []))
+    expect([...used].filter((layer) => !defined.has(layer))).toEqual([])
+  })
+})

@@ -3,7 +3,7 @@ import { render } from '@testing-library/react'
 import { act } from 'react'
 import type { ChatAdapter, StreamResult } from '../adapter/types'
 import ChatMessageList from '../components/ChatMessageList'
-import type { ChatModel, ChatNavigation, ChatNotify, Conversation } from '../types'
+import type { ChatModel, ChatNavigation, Conversation } from '../types'
 import { ChatProvider, useChat } from './ChatProvider'
 
 const SELECTED_MODEL_KEY = 'aiChat.model'
@@ -97,12 +97,6 @@ const navigation: ChatNavigation = {
   toNewChat: vi.fn(),
 }
 
-const notify: ChatNotify = {
-  success: vi.fn(),
-  error: vi.fn(),
-  info: vi.fn(),
-}
-
 let chat: ReturnType<typeof useChat>
 
 function Probe() {
@@ -113,12 +107,7 @@ function Probe() {
 async function renderProvider(adapter: ChatAdapter) {
   await act(async () => {
     render(
-      <ChatProvider
-        adapter={adapter}
-        currentUser={currentUser}
-        navigation={navigation}
-        notify={notify}
-      >
+      <ChatProvider adapter={adapter} currentUser={currentUser} navigation={navigation}>
         <Probe />
       </ChatProvider>,
     )
@@ -429,12 +418,7 @@ describe('queued message rendering', () => {
       },
     ]
     const { getByText, getByLabelText } = render(
-      <ChatProvider
-        adapter={adapter}
-        currentUser={currentUser}
-        navigation={navigation}
-        notify={notify}
-      >
+      <ChatProvider adapter={adapter} currentUser={currentUser} navigation={navigation}>
         <ChatMessageList
           messages={[]}
           allMessages={[]}

@@ -18,6 +18,7 @@ import * as overlays from './components/overlays.stories'
 import * as pageHeader from './components/pageHeader.stories'
 import * as primitives from './components/primitives.stories'
 import * as sections from './components/sections.stories'
+import * as toasts from './components/Toast.stories'
 import * as fileExplorer from './file-explorer/FileExplorer.stories'
 import * as form from './form/DynamicForm.stories'
 import * as layoutShowcase from './form/LayoutShowcase.stories'
@@ -58,6 +59,7 @@ const SUITES = {
   fields,
   menus,
   overlays,
+  toasts,
   pageHeader,
   logviewer,
   list,

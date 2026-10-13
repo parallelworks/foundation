@@ -2,14 +2,18 @@
 import '@testing-library/jest-dom/vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
+import { toast } from '../../components/Toast'
 import type { SidebarPresentation, SidebarState } from '../core/sidebarState'
 import ChatSidebar from './ChatSidebar'
 
 vi.mock('../../icons', () => ({
+  CloseIcon: () => <span />,
   ConnectIcon: () => <span />,
   DownloadIcon: () => <span />,
   EditIcon: () => <span />,
+  ErrorIcon: () => <span />,
   ImageIcon: () => <span />,
+  InfoIcon: () => <span />,
   MoreIcon: () => <span />,
   NewChatIcon: () => <span />,
   SearchIcon: () => <span />,
@@ -17,7 +21,9 @@ vi.mock('../../icons', () => ({
   ShareIcon: () => <span />,
   SharingIcon: () => <span />,
   SidebarIcon: () => <span />,
+  SuccessIcon: () => <span />,
   TrashIcon: () => <span />,
+  WarningIcon: () => <span />,
 }))
 
 const downloadTextMock = vi.fn()
@@ -43,7 +49,6 @@ const chatState = {
     conversations: { get: conversationsGet },
   },
   navigation: { toNewChat: vi.fn(), toConversation: vi.fn() },
-  notify: { error: vi.fn() },
   activeConversationId: null as string | null,
   conversations: [] as {
     id: string
@@ -347,10 +352,11 @@ describe('ChatSidebar export', () => {
   it('notifies on export failure', async () => {
     chatState.conversations = [conversation('1', 'Alpha planning')]
     conversationsGet.mockRejectedValue(new Error('nope'))
+    const error = vi.spyOn(toast, 'error')
     render(<ChatSidebar />)
     fireEvent.click(screen.getByLabelText('More actions'))
     fireEvent.click(await screen.findByText('Download'))
-    await vi.waitFor(() => expect(chatState.notify.error).toHaveBeenCalled())
+    await vi.waitFor(() => expect(error).toHaveBeenCalled())
     expect(downloadTextMock).not.toHaveBeenCalled()
   })
 })

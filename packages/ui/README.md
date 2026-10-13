@@ -17,8 +17,8 @@ so an application ships only what it imports:
 | `./ai`, `./ai/openai`, `./ai/mock` | chat interface and adapters |
 | `./theme.css`, `./base.css`, `./fonts.css`, `./styles.css`, `./logviewer.css`, `./ai.css` | stylesheets |
 
-Hosts bind notifications, strings, navigation, data hooks and the workflow
-engine through `UIProvider`.
+Hosts bind strings, navigation, data hooks and the workflow engine through
+`UIProvider`, which also shows the package's toasts.
 
 ## Which component?
 
@@ -47,6 +47,7 @@ Each need has one component. Reach for it before styling markup by hand.
 | A preview of what a link leads to | `HoverCard` |
 | A task that blocks the page | `Modal`; `ConfirmModal` to confirm one action |
 | A panel beside the page | `Drawer` |
+| A passing notice, or the progress of work in the background | `toast` |
 | How full something is, how far a task has come | `Meter`, `ProgressBar` |
 | Pages of a long list | `Pagination` |
 | A grouped page of settings | `SettingsCard` with `SettingRow`s |
@@ -132,7 +133,31 @@ component's trigger rather than styling a button by hand. A pressed toggle
 `Loader` is the one spinner. Inside a button, or beside text that already
 says what is happening, use `<Loader inline decorative />`.
 
-### Host chrome
+## Toasts
+
+`toast` shows a notice from anywhere, a component or not. `UIProvider` renders
+them along the top of the window, above dialogs, where they clear a modal's
+panel and stay usable while it is open: pressing one doesn't close the dialog.
+A screen reader hears each one; errors interrupt, the rest wait for a pause.
+
+```ts
+import { toast } from '@parallelworks/ui'
+
+toast.success('Saved')
+toast.error('Could not save', { action: { label: 'Retry', onClick: save } })
+
+const id = toast.loading('Uploading…')
+toast.update(id, { tone: 'success', message: 'Uploaded' })
+
+await toast.promise(save(), { loading: 'Saving…', success: 'Saved', error: 'Could not save' })
+```
+
+Tones are `info`, `success`, `warning` and `error`. A toast closes itself after
+five seconds, eight for a warning or an error, pausing while the pointer or focus
+is on it; `timeout: false` keeps it. `loading` stays until an update settles it
+into a tone. Pass an `id` to replace a toast rather than stack another.
+
+## Host chrome
 
 Popups, dialogs and drawers portal to `<body>` and read the tokens from the
 document root. A host with fixed chrome tells overlays where it is, on the same
@@ -147,6 +172,23 @@ root:
 document.documentElement.style.setProperty('--app-inset-top', '56px')
 document.documentElement.style.setProperty('--app-inset-start', '220px')
 ```
+
+Everything the package lays over the page stacks on one scale, set on the
+document root by `base.css`. Give the host's own fixed elements a place on it,
+such as `z-index: 100` for a top bar, rather than a z-index chosen to win:
+
+| Variable          | Default | For                                                    |
+| ----------------- | ------- | ------------------------------------------------------ |
+| `--layer-sticky`  | 10      | toolbars and tab strips that stick as the page scrolls |
+| `--layer-header`  | 20      | the page header, which sticks above them               |
+| `--layer-overlay` | 1000    | a panel over the page, such as a full-screen log       |
+| `--layer-drawer`  | 1100    | drawers                                                |
+| `--layer-modal`   | 1200    | modals                                                 |
+| `--layer-popover` | 1300    | menus, selects, popovers, hover cards and tooltips, so one opens over the dialog it belongs to |
+| `--layer-toast`   | 1400    | toasts                                                 |
+
+In Tailwind, `z-(--layer-modal)` reads one. Override a value on `:root` to move
+a layer; the defaults sit in a cascade layer, so the host's own rule wins.
 
 ## Icons
 
@@ -231,7 +273,6 @@ export function Chat() {
       adapter={createMockChatAdapter()}
       currentUser={{ id: 'u1', username: 'you', name: 'You' }}
       navigation={{ toConversation: id => {}, toNewChat: () => {}, toAttachments: () => {} }}
-      notify={{ success: console.log, error: console.error, info: console.log }}
     >
       <ChatLayout>
         <ChatThread />

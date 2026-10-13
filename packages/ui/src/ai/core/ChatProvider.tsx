@@ -11,6 +11,7 @@ import {
   useState,
 } from 'react'
 import { usePersistedState } from '../../components/Provider'
+import { toast } from '../../components/Toast'
 import type { CompletionMessage } from '../adapter/openai/wire'
 import type { ChatAdapter, PartDelta } from '../adapter/types'
 import type {
@@ -18,7 +19,6 @@ import type {
   AttachmentRef,
   ChatModel,
   ChatNavigation,
-  ChatNotify,
   ChatUser,
   Conversation,
   ConversationSummary,
@@ -119,7 +119,6 @@ interface ChatContextValue {
   adapter: ChatAdapter
   currentUser: ChatUser
   navigation: ChatNavigation
-  notify: ChatNotify
   activeConversationId: string | null
   conversations: ConversationSummary[]
   currentConversation: Conversation | null
@@ -191,7 +190,6 @@ export interface ChatProviderProps {
   adapter: ChatAdapter
   currentUser: ChatUser
   navigation: ChatNavigation
-  notify: ChatNotify
   activeConversationId?: string | null
   config?: ChatUIConfig
   /** Owns the sidebar's state. Omit to leave it to the reader, remembered
@@ -209,7 +207,6 @@ export function ChatProvider({
   adapter,
   currentUser,
   navigation,
-  notify,
   activeConversationId = null,
   config,
   sidebar: sidebarProp,
@@ -266,11 +263,11 @@ export function ChatProvider({
       dispatch({ type: 'SET_CONVERSATIONS', conversations })
       hasLoadedConversationsRef.current = true
     } catch (error) {
-      notify.error(errorText(error))
+      toast.error(errorText(error))
     } finally {
       dispatch({ type: 'SET_LOADING', isLoading: false })
     }
-  }, [adapter, notify])
+  }, [adapter])
 
   // Prevents redundant reloads while actively streaming to a conversation
   const streamingToConversationRef = useRef<string | null>(null)
@@ -310,7 +307,7 @@ export function ChatProvider({
           type: 'SET_LOADING_CONVERSATION',
           isLoadingConversation: false,
         })
-        notify.error(errorText(error))
+        toast.error(errorText(error))
         currentConversationIdRef.current = null
         dispatch({ type: 'SET_CURRENT_CONVERSATION', conversation: null })
         return
@@ -344,7 +341,6 @@ export function ChatProvider({
     },
     [
       adapter,
-      notify,
       resetAnimationRefs,
       streamingConversationIdRef,
       backgroundStreamsRef,
@@ -365,9 +361,9 @@ export function ChatProvider({
       dispatch({ type: 'SET_PROVIDERS', providers })
       hasLoadedProvidersRef.current = true
     } catch (error) {
-      notify.error(errorText(error))
+      toast.error(errorText(error))
     }
-  }, [adapter, notify])
+  }, [adapter])
 
   const refreshProviders = useCallback(async () => {
     hasLoadedProvidersRef.current = false
@@ -437,11 +433,11 @@ export function ChatProvider({
         dispatch({ type: 'ADD_CONVERSATION', conversation })
         return conversation.id
       } catch (error) {
-        notify.error(errorText(error))
+        toast.error(errorText(error))
         return null
       }
     },
-    [adapter, notify],
+    [adapter],
   )
 
   const deleteConversation = useCallback(
@@ -449,7 +445,7 @@ export function ChatProvider({
       try {
         await adapter.conversations.remove(id)
       } catch (error) {
-        notify.error(errorText(error))
+        toast.error(errorText(error))
         return false
       }
       dispatch({ type: 'REMOVE_CONVERSATION', conversationId: id })
@@ -461,7 +457,7 @@ export function ChatProvider({
 
       return true
     },
-    [adapter, notify, state.currentConversation, navigation],
+    [adapter, state.currentConversation, navigation],
   )
 
   const sendMessage = useCallback<SendMessage>(
@@ -474,7 +470,7 @@ export function ChatProvider({
 
         const MAX_QUEUED_MESSAGES = 10
         if (pendingQueueRef.current.length >= MAX_QUEUED_MESSAGES) {
-          notify.error(
+          toast.error(
             `You can queue up to ${MAX_QUEUED_MESSAGES} messages while waiting for a response`,
           )
           return false
@@ -505,7 +501,7 @@ export function ChatProvider({
 
       const modelString = state.selectedProvider
       if (!isSelectedModelAvailable || !modelString) {
-        notify.error(resolvedConfig.strings.modelPicker.selectFirst)
+        toast.error(resolvedConfig.strings.modelPicker.selectFirst)
         return false
       }
 
@@ -869,7 +865,6 @@ export function ChatProvider({
     },
     [
       adapter,
-      notify,
       resolvedConfig,
       isSelectedModelAvailable,
       state.selectedProvider,
@@ -898,7 +893,7 @@ export function ChatProvider({
       try {
         await adapter.conversations.rename(id, title)
       } catch (error) {
-        notify.error(errorText(error))
+        toast.error(errorText(error))
         return false
       }
 
@@ -916,7 +911,7 @@ export function ChatProvider({
 
       return true
     },
-    [adapter, notify, state.conversations, state.currentConversation],
+    [adapter, state.conversations, state.currentConversation],
   )
 
   const setSelectedProvider = useCallback(
@@ -1141,7 +1136,6 @@ export function ChatProvider({
       adapter,
       currentUser,
       navigation,
-      notify,
       activeConversationId,
       conversations: state.conversations,
       currentConversation: state.currentConversation,
@@ -1193,7 +1187,6 @@ export function ChatProvider({
       adapter,
       currentUser,
       navigation,
-      notify,
       activeConversationId,
       state,
       sidebar,

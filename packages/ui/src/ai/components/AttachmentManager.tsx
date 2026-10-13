@@ -5,6 +5,7 @@ import { EmptyState } from '../../components/EmptyState'
 import { Loader } from '../../components/Loader'
 import { useStrings } from '../../components/Provider'
 import { RelativeTime } from '../../components/relativeTime'
+import { toast } from '../../components/Toast'
 import { formatBytes } from '../../format'
 import { DownloadFileIcon, FileIcon, TrashIcon } from '../../icons'
 import { safeUrl } from '../../safeUrl'
@@ -26,7 +27,7 @@ function triggerDownload(url: string, filename: string) {
 }
 
 export default function AttachmentManager() {
-  const { adapter, notify } = useChat()
+  const { adapter } = useChat()
   const t = useChatConfig().strings.attachmentManager
   const { common } = useStrings()
   const attachmentsAdapter = adapter.attachments
@@ -70,12 +71,12 @@ export default function AttachmentManager() {
         await attachmentsAdapter.remove(attachmentId)
         await mutate()
       } catch (error) {
-        notify.error(error instanceof Error ? error.message : String(error))
+        toast.error(error instanceof Error ? error.message : String(error))
       } finally {
         setDeleting(null)
       }
     },
-    [attachmentsAdapter, mutate, notify],
+    [attachmentsAdapter, mutate],
   )
 
   if (!attachmentsAdapter) {

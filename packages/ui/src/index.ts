@@ -135,15 +135,10 @@ export {
   type UIData,
   type UILinkComponent,
   type UINavigation,
-  type UINotify,
   UIProvider,
   type UISlots,
   type UIStrings,
-  type UIToastId,
-  type UIToastOptions,
-  type UIToastUpdate,
   useNavigation,
-  useNotify,
   useOptionalWorkflowEngine,
   usePersistedState,
   useProvisionCorsRules,
@@ -195,6 +190,14 @@ export { Switch, type SwitchProps } from './components/Switch'
 export { isTextEntryContext, useShortcutKey } from './components/shortcutKey'
 export { CompactTable, Table } from './components/Table'
 export { type TabItem, TabPanel, Tabs, type TabsProps } from './components/Tabs'
+export {
+  type ToastAction,
+  type Toaster,
+  type ToastOptions,
+  type ToastTone,
+  type ToastUpdate,
+  toast,
+} from './components/Toast'
 export {
   Tooltip,
   type TooltipProps,

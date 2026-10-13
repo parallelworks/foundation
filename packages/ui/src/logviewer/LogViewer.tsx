@@ -688,7 +688,7 @@ export function LogViewer({
         'flex flex-col grow',
         roundedBottom && 'rounded-lg',
         // Over the page, below the host's top bar.
-        fullscreen && 'fixed inset-x-0 bottom-0 top-(--app-inset-top,0px) z-[9990]',
+        fullscreen && 'fixed inset-x-0 bottom-0 top-(--app-inset-top,0px) z-(--layer-overlay)',
       )}
       style={fullscreen ? undefined : { height, width }}
     >

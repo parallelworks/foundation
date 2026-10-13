@@ -2,6 +2,21 @@
  * entries can import them into their own cascade layer (theme.css's @utility
  * rules cannot be layered). Base layer so utilities still win. */
 @layer base {
+  /* The stacking scale: everything the package lays over the page takes one of
+   * these z-indexes, and a host slots its own fixed elements between them, such
+   * as a top bar at 100. Popups sit above dialogs so a select inside a modal
+   * opens over it; toasts sit above all, and stay usable while a modal is open.
+   * In this layer, so a host's own :root values win. */
+  :root {
+    --layer-sticky: 10; /* toolbars and tab strips that stick as their page scrolls */
+    --layer-header: 20; /* the page header, which sticks above them */
+    --layer-overlay: 1000; /* a panel over the page, such as a full-screen log */
+    --layer-drawer: 1100;
+    --layer-modal: 1200;
+    --layer-popover: 1300; /* menus, selects, popovers, hover cards and tooltips */
+    --layer-toast: 1400;
+  }
+
   body {
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;

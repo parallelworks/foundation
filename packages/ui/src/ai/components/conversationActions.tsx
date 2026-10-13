@@ -3,6 +3,7 @@ import { type ReactNode, useState } from 'react'
 import { type OpenMenu, useContextMenu } from '../../components/ContextMenu'
 import type { MenuAction, MenuEntry } from '../../components/MenuEntries'
 import { useStrings } from '../../components/Provider'
+import { toast } from '../../components/Toast'
 import { DownloadIcon, EditIcon, ShareIcon, TrashIcon } from '../../icons'
 import { useChat } from '../core/ChatProvider'
 import { useChatConfig } from '../core/config'
@@ -61,7 +62,7 @@ export function useConversationActions(): {
   const { strings } = useChatConfig()
   const { common } = useStrings()
   const t = strings.sidebar
-  const { adapter, notify, deleteConversation, updateConversationTitle } = useChat()
+  const { adapter, deleteConversation, updateConversationTitle } = useChat()
   const { openMenu, contextMenu } = useContextMenu()
   const [sharing, setSharing] = useState<string | null>(null)
   const { requestDelete, requestRename, dialogs } = useRowDialogs<ConversationSummary>({
@@ -84,7 +85,7 @@ export function useConversationActions(): {
       const conversation = await adapter.conversations.get(id)
       downloadText(exportFilename(conversation.title), conversationToMarkdown(conversation))
     } catch {
-      notify.error(strings.chrome.exportError)
+      toast.error(strings.chrome.exportError)
     }
   }
 

@@ -302,7 +302,7 @@ export function PageHeader({
   return (
     <div
       className={cx(
-        sticky && cx('sticky z-20', stickyTopClassName),
+        sticky && cx('sticky z-(--layer-header)', stickyTopClassName),
         'w-full bg-(--theme-app-bg)',
         className,
       )}

@@ -15,6 +15,10 @@ vi.mock('../../icons', () => ({
   DownloadFileIcon: () => null,
   ThinkingIcon: () => null,
   ChevronRightIcon: () => null,
+  CloseIcon: () => null,
+  InfoIcon: () => null,
+  SuccessIcon: () => null,
+  WarningIcon: () => null,
 }))
 vi.mock('../ui/Markdown', () => ({
   __esModule: true,

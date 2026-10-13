@@ -24,7 +24,7 @@ import { useObjectText } from './useObjectText'
 const CodePreviewEditor = lazy(() => import('./CodePreviewEditor'))
 
 // Streamdown's table/mermaid fullscreen overlays portal to <body> at z-50, which
-// renders behind the preview modal (z-9995). Disable them for previews.
+// renders behind the preview modal (--layer-modal). Disable them for previews.
 const PREVIEW_MARKDOWN_CONTROLS = {
   table: { fullscreen: false },
   mermaid: { fullscreen: false },

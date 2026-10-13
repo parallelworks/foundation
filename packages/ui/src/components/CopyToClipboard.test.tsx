@@ -2,19 +2,15 @@
 import '@testing-library/jest-dom/vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { CopyCodeBlock } from './CopyToClipboard'
-import { UIProvider } from './Provider'
+import { toast } from './Toast'
 
-const notifySuccess = vi.fn()
+const notifySuccess = vi.spyOn(toast, 'success')
 
 describe('CopyCodeBlock', () => {
   const setup = () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.assign(navigator, { clipboard: { writeText } })
-    render(
-      <UIProvider notify={{ success: notifySuccess }}>
-        <CopyCodeBlock textToCopy="npm install">npm install</CopyCodeBlock>
-      </UIProvider>,
-    )
+    render(<CopyCodeBlock textToCopy="npm install">npm install</CopyCodeBlock>)
     return writeText
   }
 

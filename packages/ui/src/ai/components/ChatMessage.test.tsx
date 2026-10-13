@@ -18,6 +18,10 @@ vi.mock('../../icons', () => ({
   ChevronRightIcon: () => <span data-testid="chevron-right-icon">›</span>,
   AngleLeftIcon: () => <span data-testid="angle-left-icon">‹</span>,
   AngleRightIcon: () => <span data-testid="angle-right-icon">›</span>,
+  CloseIcon: () => null,
+  InfoIcon: () => null,
+  SuccessIcon: () => null,
+  WarningIcon: () => null,
 }))
 
 // Parts messages delegate to the agent renderer; its internals are covered

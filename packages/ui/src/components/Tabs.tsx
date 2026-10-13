@@ -25,8 +25,8 @@ export interface TabItem<Value extends string = string> {
 // Detail pages pin their tabs under the breadcrumb strip (40px), or under the
 // strip and a pinned toolbar below it (40px + 48px).
 const stickyClasses = {
-  underHeader: 'sticky top-10 z-10 bg-(--theme-app-bg)',
-  underToolbar: 'sticky top-22 z-10 bg-(--theme-app-bg)',
+  underHeader: 'sticky top-10 z-(--layer-sticky) bg-(--theme-app-bg)',
+  underToolbar: 'sticky top-22 z-(--layer-sticky) bg-(--theme-app-bg)',
 }
 
 export interface TabsProps<Value extends string> extends SegmentLayout {

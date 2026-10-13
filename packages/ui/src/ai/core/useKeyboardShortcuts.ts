@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from 'react'
 import { useStrings } from '../../components/Provider'
+import { toast } from '../../components/Toast'
 import type { ChatMessage } from '../types'
 import { isMac } from '../utils'
 import { useChat } from './ChatProvider'
@@ -20,14 +21,8 @@ interface UseKeyboardShortcutsOptions {
 
 export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions = {}) {
   const { enabled = true } = options
-  const {
-    currentConversation,
-    isStreaming,
-    stopStreaming,
-    clearCurrentConversation,
-    navigation,
-    notify,
-  } = useChat()
+  const { currentConversation, isStreaming, stopStreaming, clearCurrentConversation, navigation } =
+    useChat()
   const { common } = useStrings()
   const { chrome: t } = useChatConfig().strings
 
@@ -53,14 +48,14 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions = {}) 
     if (content) {
       try {
         await navigator.clipboard.writeText(content)
-        notify.success(common.copiedToClipboard)
+        toast.success(common.copiedToClipboard)
       } catch {
-        notify.error(common.copyFailed)
+        toast.error(common.copyFailed)
       }
     } else {
-      notify.info(t.noResponseToCopy)
+      toast.info(t.noResponseToCopy)
     }
-  }, [getLastAssistantMessage, notify, common, t])
+  }, [getLastAssistantMessage, common, t])
 
   const handleStopGeneration = useCallback(() => {
     if (isStreaming) {

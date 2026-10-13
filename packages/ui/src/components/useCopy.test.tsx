@@ -1,13 +1,9 @@
 // @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react'
-import type { ReactNode } from 'react'
-import { UIProvider } from './Provider'
+import { toast } from './Toast'
 import { useCopy } from './useCopy'
 
-const notify = { success: vi.fn(), error: vi.fn() }
-const wrapper = ({ children }: { children: ReactNode }) => (
-  <UIProvider notify={notify}>{children}</UIProvider>
-)
+const notify = { success: vi.spyOn(toast, 'success'), error: vi.spyOn(toast, 'error') }
 
 function setClipboard(writeText: (text: string) => Promise<void>) {
   Object.assign(navigator, { clipboard: { writeText: vi.fn(writeText) } })
@@ -22,7 +18,7 @@ describe('useCopy', () => {
   it('copies, says what was copied, and shows copied for a moment', async () => {
     vi.useFakeTimers()
     setClipboard(async () => {})
-    const { result } = renderHook(() => useCopy(), { wrapper })
+    const { result } = renderHook(() => useCopy())
     await act(async () => {
       expect(await result.current.copy('a@b.c', { label: 'email address' })).toBe(true)
     })
@@ -38,7 +34,7 @@ describe('useCopy', () => {
 
   it('stays quiet on success when asked, and still reports a failure', async () => {
     setClipboard(async () => {})
-    const { result } = renderHook(() => useCopy(), { wrapper })
+    const { result } = renderHook(() => useCopy())
     await act(() => result.current.copy('x', { quiet: true }))
     expect(notify.success).not.toHaveBeenCalled()
 

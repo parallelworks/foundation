@@ -5,6 +5,7 @@ import { ConfirmModal } from '../../components/ConfirmModal'
 import { Loader } from '../../components/Loader'
 import { useStrings } from '../../components/Provider'
 import { Select } from '../../components/Select'
+import { toast } from '../../components/Toast'
 import { Tooltip } from '../../components/Tooltip'
 import { ShareIcon, TrashIcon } from '../../icons'
 import { useChat } from '../core/ChatProvider'
@@ -27,7 +28,7 @@ export default function ShareDialog({ conversationId, isOpen, onClose }: ShareDi
   const { strings } = useChatConfig()
   const { common } = useStrings()
   const t = strings.shareConversation
-  const { adapter, notify } = useChat()
+  const { adapter } = useChat()
   const sharing = adapter.sharing
   const [permissions, setPermissions] = useState<SharePermission[]>([])
   const [teams, setTeams] = useState<ShareGroup[]>([])
@@ -68,14 +69,14 @@ export default function ShareDialog({ conversationId, isOpen, onClose }: ShareDi
         setTeams(await sharing.listGroups())
       } catch (error) {
         console.error('Failed to load sharing data:', error)
-        notify.error(t.loadError)
+        toast.error(t.loadError)
       } finally {
         setLoading(false)
       }
     }
 
     loadData()
-  }, [isOpen, conversationId, sharing, notify, t.loadError])
+  }, [isOpen, conversationId, sharing, t.loadError])
 
   const handleSave = useCallback(() => {
     if (!sharing) {
@@ -133,11 +134,11 @@ export default function ShareDialog({ conversationId, isOpen, onClose }: ShareDi
           }
         }
       } catch (error) {
-        notify.error(error instanceof Error ? error.message : String(error))
+        toast.error(error instanceof Error ? error.message : String(error))
         return
       }
 
-      notify.success(t.saveSuccess)
+      toast.success(t.saveSuccess)
       onClose()
     })
   }, [
@@ -149,7 +150,6 @@ export default function ShareDialog({ conversationId, isOpen, onClose }: ShareDi
     orgCollaborateAccess,
     originalOrgCollaborateAccess,
     onClose,
-    notify,
     t.saveSuccess,
   ])
 

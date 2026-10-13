@@ -22,12 +22,13 @@ import { keyedByContent } from '../components/keys'
 import { Loader } from '../components/Loader'
 import { MenuItem, MenuPopup, MenuSeparator } from '../components/Menu'
 import type { MenuEntry } from '../components/MenuEntries'
-import { useNotify, usePersistedState, useSlots, useStrings } from '../components/Provider'
+import { usePersistedState, useSlots, useStrings } from '../components/Provider'
 import { RefreshButton } from '../components/RefreshButton'
 import { RelativeTime } from '../components/relativeTime'
 import { StatusBadge } from '../components/StatusBadge'
 import { useSplitter } from '../components/splitter'
 import { Table } from '../components/Table'
+import { toast } from '../components/Toast'
 import { Tooltip } from '../components/Tooltip'
 import { useCopy } from '../components/useCopy'
 import { formatBytes, formatDateTime } from '../format'
@@ -268,7 +269,6 @@ export default function FileExplorer({
   const copySubmenu = useCopySubmenu()
   const t = useStrings().fileExplorer
   const { common } = useStrings()
-  const notify = useNotify()
   const { copy } = useCopy()
   const slots = useSlots()
 
@@ -498,7 +498,7 @@ export default function FileExplorer({
   const getStorageProviderAndClient = async (storageId: string | undefined) => {
     const storage = findStorage(storageId)
     if (!storage) {
-      notify.error(t.messages.storageUnavailable)
+      toast.error(t.messages.storageUnavailable)
       return null
     }
     const { provider, client } = await getProviderAndClient(storage).catch(() => ({
@@ -804,11 +804,11 @@ export default function FileExplorer({
   const onDropFiles = async (targetPath: string, files: FileList | DataTransferItemList) => {
     const targetStorageId = treeMap[targetPath]?.storageId
     if (!storageCanWrite(targetStorageId)) {
-      notify.error(t.messages.noWriteAccess)
+      toast.error(t.messages.noWriteAccess)
       return
     }
     if (!storageCanUpload(targetStorageId)) {
-      notify.error(t.messages.uploadsUnsupported)
+      toast.error(t.messages.uploadsUnsupported)
       return
     }
 
@@ -816,7 +816,7 @@ export default function FileExplorer({
     let totalSize = 0
 
     if (waitForUpload) {
-      notify.warning(t.messages.waitForCurrentUpload)
+      toast.warning(t.messages.waitForCurrentUpload)
       return
     }
 
@@ -876,7 +876,7 @@ export default function FileExplorer({
     const filesToDownload = getFilesToDownload()
     const firstFile = filesToDownload[0]
     if (!firstFile) {
-      notify.error(t.messages.noFilesForDownload)
+      toast.error(t.messages.noFilesForDownload)
       return
     }
 
@@ -887,7 +887,7 @@ export default function FileExplorer({
     const { provider, client } = factory
 
     if (!provider.getFileInput) {
-      notify.error(t.messages.downloadUnsupported)
+      toast.error(t.messages.downloadUnsupported)
       return
     }
 
@@ -896,7 +896,7 @@ export default function FileExplorer({
       const [presignedUrl, error] = await client.getFile(input)
 
       if (error || !presignedUrl) {
-        notify.error(error?.message ?? t.messages.downloadLinkFailed)
+        toast.error(error?.message ?? t.messages.downloadLinkFailed)
         continue
       }
 
@@ -917,7 +917,7 @@ export default function FileExplorer({
     const { provider, client } = factory
 
     if (!provider.getFileInput) {
-      notify.error(t.messages.sharingUnsupported)
+      toast.error(t.messages.sharingUnsupported)
       return
     }
 
@@ -925,7 +925,7 @@ export default function FileExplorer({
     const [presignedUrl, error] = await client.getFile(input)
 
     if (error || !presignedUrl) {
-      notify.error(error?.message ?? t.messages.fileLinkFailed)
+      toast.error(error?.message ?? t.messages.fileLinkFailed)
       return
     }
 
@@ -1011,7 +1011,7 @@ export default function FileExplorer({
   const copyNodeUri = async (node: TreeNode) => {
     const uri = getNodeUris(node)[0]
     if (!uri) {
-      notify.error(t.messages.noUri)
+      toast.error(t.messages.noUri)
       return
     }
     await copy(uri, { label: t.uri })
@@ -1020,7 +1020,7 @@ export default function FileExplorer({
   const downloadNode = async (node: TreeNode) => {
     const [presignedUrl, error] = await getPresignedUrl(node, node.name)
     if (error || !presignedUrl) {
-      notify.error(error?.message ?? t.messages.downloadLinkFailed)
+      toast.error(error?.message ?? t.messages.downloadLinkFailed)
       return
     }
     triggerBrowserDownload(presignedUrl, node.name)
@@ -1028,7 +1028,7 @@ export default function FileExplorer({
 
   const deleteNode = (node: TreeNode) => {
     if (!storageCanDelete(findStorage(node.storageId))) {
-      notify.error(t.messages.noWriteAccess)
+      toast.error(t.messages.noWriteAccess)
       return
     }
     setPendingDelete([node])
@@ -1202,7 +1202,7 @@ export default function FileExplorer({
 
   const onDeleteClick = () => {
     if (!selectedNodeCanDelete) {
-      notify.error(t.messages.noWriteAccess)
+      toast.error(t.messages.noWriteAccess)
       return
     }
     let nodesToDelete: TreeNode[] = []
@@ -1262,7 +1262,7 @@ export default function FileExplorer({
   const handleDelete = async () => {
     const firstPending = pendingDelete?.[0]
     if (!pendingDelete || !firstPending) {
-      notify.error(t.messages.noItemsForDeletion)
+      toast.error(t.messages.noItemsForDeletion)
       return
     }
 
@@ -1276,15 +1276,14 @@ export default function FileExplorer({
     const { storage, provider, client } = factory
 
     if (!provider.deleteFilesInput) {
-      notify.error(t.messages.deleteUnsupported)
+      toast.error(t.messages.deleteUnsupported)
       return
     }
 
+    const deleting = toast.loading(t.messages.deleting)
     try {
-      notify.loading(t.messages.deleting)
       const input = provider.deleteFilesInput(storage.bucketName || storage.name, pendingDelete)
       const response = await client.deleteFiles(input)
-      notify.dismiss()
 
       // A node above the storage root (e.g. the bare user) is not in the
       // tree; skip the child refetch rather than dereference an undefined node.
@@ -1297,7 +1296,7 @@ export default function FileExplorer({
       setDeleteModalOpen(false)
 
       if (response?.Errors?.length) {
-        notify.error(t.messages.deleteSomeFailed)
+        toast.update(deleting, { tone: 'error', message: t.messages.deleteSomeFailed })
         return
       }
 
@@ -1315,10 +1314,12 @@ export default function FileExplorer({
       if (selectedNode && (selectedNode.type === 'directory' || selectedRemoved)) {
         handlePostDelete(selectedNode)
       }
-      notify.success(t.messages.deleteSuccess)
+      toast.update(deleting, { tone: 'success', message: t.messages.deleteSuccess })
     } catch (err) {
-      notify.dismiss()
-      notify.error(t.messages.deleteFailed(err instanceof Error ? err.message : String(err)))
+      toast.update(deleting, {
+        tone: 'error',
+        message: t.messages.deleteFailed(err instanceof Error ? err.message : String(err)),
+      })
     }
   }
 
@@ -1327,15 +1328,15 @@ export default function FileExplorer({
       return
     }
     if (!storageCanWrite(selectedNode.storageId)) {
-      notify.error(t.messages.noWriteAccess)
+      toast.error(t.messages.noWriteAccess)
       return
     }
     if (!storageCanUpload(selectedNode.storageId)) {
-      notify.error(t.messages.uploadsUnsupported)
+      toast.error(t.messages.uploadsUnsupported)
       return
     }
     if (waitForUpload) {
-      notify.warning(t.messages.waitForCurrentUpload)
+      toast.warning(t.messages.waitForCurrentUpload)
       return
     }
 
@@ -1362,23 +1363,23 @@ export default function FileExplorer({
 
   const handleUpload = async () => {
     if (!pendingUpload) {
-      notify.error(t.messages.noFilesToUpload)
+      toast.error(t.messages.noFilesToUpload)
       return
     }
     if (waitForUpload) {
-      notify.info(t.messages.waitForUpload)
+      toast.info(t.messages.waitForUpload)
       return
     }
 
     const targetNode = treeMap[pendingUpload.targetPath]
     if (!targetNode?.storageId) {
-      notify.error(t.messages.invalidUploadTarget)
+      toast.error(t.messages.invalidUploadTarget)
       return
     }
 
     const factory = await getStorageProviderAndClient(targetNode.storageId)
     if (!factory) {
-      notify.error(t.messages.connectFailed)
+      toast.error(t.messages.connectFailed)
       return
     }
     const { storage, provider, client } = factory
@@ -1389,7 +1390,7 @@ export default function FileExplorer({
       : removeLeadingAndTrailingSlashes(targetNode.relativePath || '')
 
     if (!provider.uploadFileInput) {
-      notify.error(t.messages.uploadUnsupported)
+      toast.error(t.messages.uploadUnsupported)
       return
     }
 
@@ -1405,24 +1406,19 @@ export default function FileExplorer({
 
     const sessionQueueIndex = fileExplorerContext.getUploadQueueIndex(sessionId)
     if (sessionQueueIndex === -1) {
-      notify.update(sessionId, {
-        render: t.messages.uploadInitFailed,
-        type: 'error',
-        icon: null,
-        isLoading: false,
-        closeButton: null,
+      toast.update(sessionId, {
+        message: t.messages.uploadInitFailed,
+        tone: 'error',
       })
       return
     } else if (
       sessionQueueIndex > 0 &&
       fileExplorerContext.uploadQueue[sessionQueueIndex - 1] !== sessionId
     ) {
-      notify.update(sessionId, {
-        render: t.messages.uploadQueuedInfo,
-        type: 'info',
-        icon: null,
-        isLoading: false,
-        autoClose: false,
+      toast.update(sessionId, {
+        message: t.messages.uploadQueuedInfo,
+        tone: 'info',
+        timeout: false,
       })
       return
     }
@@ -1444,15 +1440,15 @@ export default function FileExplorer({
 
   const handleCreateFolder = async (name: string): Promise<boolean> => {
     if (!isStorageDirectory(createFolderTarget)) {
-      notify.error(t.createFolder.invalidTarget)
+      toast.error(t.createFolder.invalidTarget)
       return false
     }
     if (!storageCanWrite(createFolderTarget.storageId)) {
-      notify.error(t.messages.noWriteAccess)
+      toast.error(t.messages.noWriteAccess)
       return false
     }
     if (!storageCanUpload(createFolderTarget.storageId)) {
-      notify.error(t.createFolder.unsupported)
+      toast.error(t.createFolder.unsupported)
       return false
     }
 
@@ -1463,7 +1459,7 @@ export default function FileExplorer({
       }
       const { storage, provider, client } = factory
       if (!provider.uploadFileInput) {
-        notify.error(t.createFolder.unsupported)
+        toast.error(t.createFolder.unsupported)
         return false
       }
 
@@ -1474,10 +1470,10 @@ export default function FileExplorer({
       )
       await client.uploadFile(input)
       await fetchNodeChildren(createFolderTarget, { replace: true })
-      notify.success(t.createFolder.success(name))
+      toast.success(t.createFolder.success(name))
       return true
     } catch (error) {
-      notify.error(t.createFolder.error(getErrorMessage(error)))
+      toast.error(t.createFolder.error(getErrorMessage(error)))
       return false
     }
   }

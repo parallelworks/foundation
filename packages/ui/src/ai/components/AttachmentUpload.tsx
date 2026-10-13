@@ -10,6 +10,7 @@ import {
 } from 'react'
 import { mutate } from 'swr'
 import { useStrings } from '../../components/Provider'
+import { toast } from '../../components/Toast'
 import { formatBytes } from '../../format'
 import {
   AddIcon,
@@ -76,7 +77,7 @@ const AttachmentUpload = forwardRef<AttachmentUploadHandle, AttachmentUploadProp
     },
     ref,
   ) {
-    const { adapter, notify } = useChat()
+    const { adapter } = useChat()
     const t = useChatConfig().strings.attachmentUpload
     const { common } = useStrings()
     const [isDragging, setIsDragging] = useState(false)
@@ -133,7 +134,7 @@ const AttachmentUpload = forwardRef<AttachmentUploadHandle, AttachmentUploadProp
         for (const file of fileArray) {
           const error = validateFile(file)
           if (error) {
-            notify.error(error)
+            toast.error(error)
             continue
           }
 
@@ -167,7 +168,7 @@ const AttachmentUpload = forwardRef<AttachmentUploadHandle, AttachmentUploadProp
         )
         onAttachmentsChange(finalAttachments)
       },
-      [attachments, notify, onAttachmentsChange, uploadFile, validateFile],
+      [attachments, onAttachmentsChange, uploadFile, validateFile],
     )
 
     const handleDragOver = useCallback((e: DragEvent) => {

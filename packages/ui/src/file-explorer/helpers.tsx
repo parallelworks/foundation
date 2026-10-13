@@ -5,9 +5,7 @@ import Callout from '../components/Callout'
 import { ProgressBar } from '../components/Meter'
 import {
   type UIData,
-  type UINotify,
   type UIStrings,
-  useNotify,
   usePersistedState,
   useProvisionCorsRules,
   useSlots,
@@ -15,6 +13,7 @@ import {
 } from '../components/Provider'
 import { useElapsed } from '../components/relativeTime'
 import { Skeleton } from '../components/Skeleton'
+import { toast } from '../components/Toast'
 import { formatBytes } from '../format'
 import {
   AlertIcon,
@@ -265,7 +264,6 @@ function CorsIssuePreview({
   const t = useStrings().fileExplorer.cors
   const messages = useStrings().fileExplorer.messages
   const { common } = useStrings()
-  const notify = useNotify()
   const provisionCorsRules = useProvisionCorsRules()
   const [isPending, startTransition] = useTransition()
   const handleAddCorsRules = () => {
@@ -275,7 +273,6 @@ function CorsIssuePreview({
     startTransition(async () => {
       await addCorsRules({
         provision: provisionCorsRules,
-        notify,
         strings: messages,
         csp: selectedStorage?.csp,
         type: selectedStorage?.type,
@@ -603,7 +600,6 @@ function ShareFileButton({ node, onShare }: IShareFileButtonProps) {
 
 async function addCorsRules({
   provision,
-  notify,
   strings,
   csp,
   type,
@@ -612,7 +608,6 @@ async function addCorsRules({
   onRefresh,
 }: {
   provision: NonNullable<UIData['provisionCorsRules']>
-  notify: UINotify
   strings: UIStrings['fileExplorer']['messages']
   csp: string | undefined
   type?: string | undefined
@@ -621,17 +616,17 @@ async function addCorsRules({
   onRefresh?: CorsAwareRefresh | undefined
 }) {
   if (!storageName || !username || !csp) {
-    notify.error(strings.corsNoStorage)
+    toast.error(strings.corsNoStorage)
     return
   }
 
   const res = await provision({ csp, type, username, storageName })
   if (res.error) {
-    notify.error(res.error)
+    toast.error(res.error)
     return
   }
   if (!onRefresh) {
-    notify.success(strings.corsAdded)
+    toast.success(strings.corsAdded)
     return
   }
   // Azure can take tens of seconds to propagate new CORS rules. Probe
@@ -648,12 +643,12 @@ async function addCorsRules({
     const result = await onRefresh({ silent: true })
     if (!result?.corsError) {
       await onRefresh()
-      notify.success(strings.corsAdded)
+      toast.success(strings.corsAdded)
       return
     }
     await new Promise((resolve) => setTimeout(resolve, pollIntervalMs))
   }
-  notify.warning(strings.corsPropagating)
+  toast.warning(strings.corsPropagating)
 }
 
 export {

@@ -1,12 +1,16 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useEffect, useState } from 'react'
 import { expect, screen, userEvent, waitFor, within } from 'storybook/test'
-import { DisplayIcon, FilterIcon, KeyboardIcon } from '../icons'
+import { DisplayIcon, FilterIcon, KeyboardIcon, MoreIcon } from '../icons'
+import { ActionMenu } from './ActionMenu'
 import { Button } from './Button'
 import { Drawer, type DrawerProps } from './Drawer'
 import { IconButton } from './IconButton'
+import { Modal } from './Modal'
 import { Popover, type PopoverProps, useClosePopover } from './Popover'
+import { Select } from './Select'
 import { Switch } from './Switch'
+import { toast } from './Toast'
 
 const meta: Meta = {
   title: 'UI/Overlays',
@@ -304,5 +308,93 @@ export const IconButtonTriggers: StoryObj<{ dot: boolean }> = {
     await userEvent.keyboard('f')
     const dialog = await screen.findByRole('dialog', { name: 'Filter' })
     await waitFor(() => expect(dialog).toBeVisible())
+  },
+}
+
+/** Whether the element drawn at an element's centre is that element or inside it, so nothing covers it. */
+const onTop = (el: Element) => {
+  const box = el.getBoundingClientRect()
+  const drawn = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+  return drawn !== null && el.contains(drawn)
+}
+
+const sizes = [
+  { value: 'small', label: 'Small' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'large', label: 'Large' },
+]
+
+function PopupsInDialogs() {
+  const [modal, setModal] = useState(false)
+  const [drawer, setDrawer] = useState(false)
+  const menu = [{ label: 'Duplicate' }, { label: 'Archive' }]
+  return (
+    <div className="flex gap-2 p-8">
+      <Button onClick={() => setModal(true)}>Open modal</Button>
+      <Button onClick={() => setDrawer(true)}>Open drawer</Button>
+      <Modal
+        open={modal}
+        onClose={() => setModal(false)}
+        aria-label="Resize"
+        className="flex w-80 flex-col gap-3 p-4"
+      >
+        <Select items={sizes} defaultValue="medium" aria-label="Size" />
+        <ActionMenu items={menu} label="Modal actions">
+          <MoreIcon />
+        </ActionMenu>
+        <Button onClick={() => setModal(false)}>Done</Button>
+      </Modal>
+      <Drawer open={drawer} onClose={() => setDrawer(false)} title="Details">
+        <div className="flex gap-2">
+          <ActionMenu items={menu} label="Drawer actions">
+            <MoreIcon />
+          </ActionMenu>
+          <Popover title="Filter" trigger={<Button size="sm">Filter</Button>}>
+            <Select items={sizes} defaultValue="small" aria-label="Filter size" />
+          </Popover>
+        </div>
+      </Drawer>
+    </div>
+  )
+}
+
+/** Menus, selects and popovers open over the modal or drawer they belong to,
+ *  however deep, and a toast stays above them all. */
+export const PopupsInDialogsStory: StoryObj = {
+  name: 'Popups in dialogs',
+  render: () => <PopupsInDialogs />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const shows = async (role: string, name: string) => {
+      const el = await screen.findByRole(role, { name })
+      await waitFor(() => expect(onTop(el), `${name} is covered`).toBe(true))
+    }
+
+    await userEvent.click(canvas.getByRole('button', { name: 'Open modal' }))
+    const modal = await screen.findByRole('dialog', { name: 'Resize' })
+    await userEvent.click(within(modal).getByRole('combobox', { name: 'Size' }))
+    await shows('option', 'Large')
+    toast.info('Over the open select')
+    const region = screen.getByRole('region', { name: 'Notifications' })
+    const shown = await within(region).findByText('Over the open select')
+    await waitFor(() => expect(onTop(shown)).toBe(true))
+    toast.dismiss()
+    await userEvent.keyboard('{Escape}')
+    await userEvent.click(within(modal).getByRole('button', { name: 'Modal actions' }))
+    await shows('menuitem', 'Archive')
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+    await userEvent.click(within(modal).getByRole('button', { name: 'Done' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Resize' })).toBeNull())
+
+    await userEvent.click(canvas.getByRole('button', { name: 'Open drawer' }))
+    const drawer = await screen.findByRole('dialog', { name: 'Details' })
+    await userEvent.click(within(drawer).getByRole('button', { name: 'Drawer actions' }))
+    await shows('menuitem', 'Duplicate')
+    await userEvent.keyboard('{Escape}')
+    await userEvent.click(within(drawer).getByRole('button', { name: 'Filter' }))
+    const filter = await screen.findByRole('dialog', { name: 'Filter' })
+    await userEvent.click(within(filter).getByRole('combobox', { name: 'Filter size' }))
+    await shows('option', 'Medium')
   },
 }

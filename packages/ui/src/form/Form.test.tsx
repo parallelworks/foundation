@@ -41,6 +41,11 @@ vi.mock('@parallelworks/ui/icons', () => ({
   AngleRightIcon: () => null,
   SuccessCheckmark: () => null,
   TrashIcon: () => null,
+  CloseIcon: () => null,
+  ErrorIcon: () => null,
+  InfoIcon: () => null,
+  SuccessIcon: () => null,
+  WarningIcon: () => null,
 }))
 
 vi.mock('./infraFieldRegistry', () => ({ INFRA_FIELD_COMPONENTS: {} }))
