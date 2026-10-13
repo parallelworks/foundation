@@ -15,19 +15,14 @@ describe('toFieldItems', () => {
     ])
   })
 
-  it('keeps headed groups, and gathers choices between them into untitled ones in place', () => {
+  it('keeps groups where they sit among loose choices', () => {
     expect(
       toFieldItems([
         'first',
         { category: 'Zones', options: [{ label: 'A', value: 'a' }] },
         'second',
-        'third',
       ]),
-    ).toEqual([
-      { label: '', items: ['first'] },
-      { label: 'Zones', items: [{ label: 'A', value: 'a' }] },
-      { label: '', items: ['second', 'third'] },
-    ])
+    ).toEqual(['first', { label: 'Zones', items: [{ label: 'A', value: 'a' }] }, 'second'])
   })
 })
 

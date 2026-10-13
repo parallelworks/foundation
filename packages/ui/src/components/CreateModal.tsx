@@ -5,7 +5,8 @@ import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from 'rea
 import { useEffect, useId, useRef, useState } from 'react'
 import { ChevronDownIcon, ChevronRightIcon, FavoriteIcon, FavoriteOutlineIcon } from '../icons'
 import { ActionMenu } from './ActionMenu'
-import { Autocomplete, Combobox, type ComboboxItem, type ComboboxItems } from './Combobox'
+import { Autocomplete, Combobox } from './Combobox'
+import { type ComboboxItems, comboboxLeaves } from './comboboxItems'
 import { ghostButtonClasses, primaryButtonClasses } from './ghostButton'
 import { InfoTip } from './InfoTip'
 import type { MenuEntry } from './MenuEntries'
@@ -501,7 +502,9 @@ export function CreateModalSelect({
   tooltip?: string
 }) {
   const t = useStrings().modal
-  const selected = leafItems(items).find((item) => item.value === value)
+  const selected = comboboxLeaves(items)
+    .map((item) => (typeof item === 'string' ? { value: item, label: item } : item))
+    .find((item) => item.value === value)
   // A prefilled value the list does not offer (stale region, a group the chosen
   // cloud account cannot reach) still has to read as set, or the pill looks
   // empty while the form submits it.
@@ -564,16 +567,4 @@ export function CreateModalSelect({
       }
     />
   )
-}
-
-function leafItems(items: ComboboxItems<string>): ComboboxItem<string>[] {
-  return items.flatMap((node) => {
-    if (typeof node === 'string') {
-      return [{ value: node, label: node }]
-    }
-    if ('items' in node) {
-      return leafItems(node.items)
-    }
-    return [node]
-  })
 }

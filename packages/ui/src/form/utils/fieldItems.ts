@@ -1,6 +1,11 @@
 import { dequal } from 'dequal'
 import type { ReactNode } from 'react'
-import type { ComboboxGroup, ComboboxItem, ComboboxItems } from '../../components/Combobox'
+import {
+  type ComboboxItem,
+  type ComboboxItems,
+  type ComboboxLeaf,
+  comboboxLeaves,
+} from '../../components/comboboxItems'
 
 /** A choice as workflow YAML writes it, or as a host's option hook builds one. */
 export interface FieldOptionItem<Value = string> {
@@ -45,36 +50,18 @@ function toItem<Value>(option: FieldOptionItem<Value> | string): ChoiceItem<Valu
   }
 }
 
-/** Options as picker items. Headed groups stay groups; choices between them join an untitled
- *  group in their place, since a picker lists either groups or plain items. */
+/** Options as picker items, groups kept where they sit. */
 export function toFieldItems<Value>(options: readonly FieldOption<Value>[]): ComboboxItems<Value> {
-  type Leaf = ComboboxGroup<Value>['items'][number]
-  if (!options.some(isGroup)) {
-    return options.map((option) => toItem(option as FieldOptionItem<Value> | string)) as Leaf[]
-  }
-  const groups: ComboboxGroup<Value>[] = []
-  // The untitled group collecting choices since the last headed one.
-  let loose: Leaf[] | undefined
-  for (const option of options) {
-    if (isGroup(option)) {
-      groups.push({ label: option.category ?? '', items: option.options.map(toItem) as Leaf[] })
-      loose = undefined
-    } else if (loose) {
-      loose.push(toItem(option) as Leaf)
-    } else {
-      loose = [toItem(option) as Leaf]
-      groups.push({ label: '', items: loose })
-    }
-  }
-  return groups
+  return options.map((option) =>
+    isGroup(option)
+      ? { label: option.category ?? '', items: option.options.map(toItem) as ComboboxLeaf<Value>[] }
+      : (toItem(option) as ComboboxLeaf<Value>),
+  )
 }
 
 /** Every item, groups flattened. */
-export function leaves(items: ComboboxItems<unknown>): (ChoiceItem | string)[] {
-  return items.flatMap((item) =>
-    typeof item === 'object' && 'items' in item ? (item as ComboboxGroup<unknown>).items : [item],
-  )
-}
+export const leaves = (items: ComboboxItems<unknown>) =>
+  comboboxLeaves(items) as (ChoiceItem | string)[]
 
 export const itemValue = (item: ChoiceItem | string) =>
   typeof item === 'string' ? item : item.value

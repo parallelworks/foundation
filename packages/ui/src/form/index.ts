@@ -55,7 +55,7 @@ export {
 } from './lib'
 export * from './types/fieldComponentTypes'
 export * from './types/fieldTypes'
-export { useAutoselect, useChoiceField } from './useChoiceField'
+export { type ChoiceItem, useChoiceField } from './useChoiceField'
 export { useFieldValue } from './useFieldValue'
 export { useParsedOpts } from './useParsedOpts'
 export { useDependentOptions, useFieldAt } from './utils/dependentOptions'
@@ -67,14 +67,6 @@ export {
   parseDuration,
   STANDARD_MAX_DURATION_RANGE,
 } from './utils/duration'
-export {
-  type ChoiceItem,
-  type FieldOption,
-  type FieldOptionGroup,
-  type FieldOptionItem,
-  findChoice,
-  toFieldItems,
-} from './utils/fieldItems'
 export { getPlaceholder } from './utils/getPlaceholder'
 export {
   applySecondaryField,
