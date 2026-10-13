@@ -1825,7 +1825,11 @@ export default function DependencyGraph({
   )
   const stepHeader = sublogIsStep ? (
     <div className="flex h-9 shrink-0 items-center justify-between gap-x-3">
-      <h2 id={stepTitleId} className="truncate text-base font-semibold" title={stepTitle}>
+      <h2
+        id={stepTitleId}
+        className="truncate text-base font-semibold text-[var(--theme-app)]"
+        title={stepTitle}
+      >
         {stepTitle}
       </h2>
       {stepTabs.length > 0 && (
