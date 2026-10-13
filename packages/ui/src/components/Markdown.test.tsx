@@ -67,6 +67,23 @@ describe('Markdown httpsImagesOnly', () => {
     await waitFor(() => expect(container.querySelector('picture source')).toBeInTheDocument())
     expect(container.querySelector('picture source')).not.toHaveAttribute('srcset')
   })
+
+  it('checks every candidate of a srcset, on a picture source and on an image', async () => {
+    const markup = [
+      '<picture><source srcset="https://example.com/a.png 1x, /api/me 2x"><img src="https://example.com/y.png" alt="y"></picture>',
+      '<picture><source srcset="https://example.com/a.png 1x, https://example.com/b.png 2x"><img src="https://example.com/z.png" alt="z"></picture>',
+      '<img src="https://example.com/w.png" srcset="https://example.com/w.png 1x, http://example.com/w2.png 2x" alt="w">',
+    ].join('\n\n')
+    const { container } = render(<Markdown httpsImagesOnly>{markup}</Markdown>)
+    await waitFor(() => expect(container.querySelectorAll('picture source')).toHaveLength(2))
+    const [unsafe, safe] = container.querySelectorAll('picture source')
+    expect(unsafe).not.toHaveAttribute('srcset')
+    expect(safe).toHaveAttribute(
+      'srcset',
+      'https://example.com/a.png 1x, https://example.com/b.png 2x',
+    )
+    expect(container.querySelector('img[alt="w"]')).not.toHaveAttribute('srcset')
+  })
 })
 
 describe('Markdown details', () => {

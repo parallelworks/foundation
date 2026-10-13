@@ -21,11 +21,14 @@ function isHttpsUrl(url: unknown): boolean {
   }
 }
 
-// A srcset entry is a URL followed by an optional width or density descriptor.
+// A srcset is a comma-separated list of URLs, each with an optional width or density descriptor.
+// A comma inside a URL splits it into pieces that fail the check, so such a srcset is dropped.
 function isHttpsSrcSet(srcSet: unknown): boolean {
   const entries = Array.isArray(srcSet) ? srcSet : [srcSet]
   return entries.every(
-    (entry) => typeof entry === 'string' && isHttpsUrl(entry.trim().split(/\s+/)[0]),
+    (entry) =>
+      typeof entry === 'string' &&
+      entry.split(',').every((candidate) => isHttpsUrl(candidate.trim().split(/\s+/)[0])),
   )
 }
 
@@ -35,7 +38,11 @@ function walk(node: HastNode) {
     if (properties && tagName === 'img' && !isHttpsUrl(properties['src'])) {
       delete properties['src']
     }
-    if (properties && tagName === 'source' && !isHttpsSrcSet(properties['srcSet'])) {
+    if (
+      properties &&
+      (tagName === 'img' || tagName === 'source') &&
+      !isHttpsSrcSet(properties['srcSet'])
+    ) {
       delete properties['srcSet']
     }
   }
