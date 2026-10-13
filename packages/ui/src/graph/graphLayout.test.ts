@@ -204,8 +204,8 @@ describe('computeGraphLayout', () => {
 
   // Eight times the jobs take twelve to fourteen times as long (more than eight, as the larger graphs
   // outgrow the caches), and would take sixty-four if the work grew with their square; the bound sits
-  // between. The two sizes run in turns so a busy machine slows both alike, and the fastest of each
-  // leaves out what a collection adds.
+  // between. Measured in the CPU time this process spends, which other work on a busy machine doesn't
+  // add to as it does to the time on the clock, and the fastest of a few runs leaves out a collection.
   it.each([
     ['a wide graph', (n: number) => layeredJobs(n, { columns: 40 })],
     ['a square graph', (n: number) => layeredJobs(n, { columns: Math.round(Math.sqrt(n)) })],
@@ -214,9 +214,10 @@ describe('computeGraphLayout', () => {
     const small = asJobs(make(2000))
     const large = asJobs(make(16000))
     const time = (jobs: Record<string, WorkflowJob>) => {
-      const start = performance.now()
+      const start = process.cpuUsage()
       layOut(jobs)
-      return performance.now() - start
+      const { user, system } = process.cpuUsage(start)
+      return user + system
     }
     time(small)
     time(large)
