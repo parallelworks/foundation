@@ -1228,6 +1228,8 @@ export default function DependencyGraph({
   viewMode = 'dag',
   setViewMode,
   openStep,
+  onCloseLog,
+  children,
 }: {
   run: GraphRun
   preview?: boolean
@@ -1235,8 +1237,14 @@ export default function DependencyGraph({
   viewMode?: ViewMode
   setViewMode?: (mode: ViewMode) => void
   openStep?: { job: string; step: number } | undefined
+  /** Called when the log dialog closes, so a host can forget the step it asked to open. */
+  onCloseLog?: (() => void) | undefined
+  /** Shown under the graph, which then takes only the height its jobs need. */
+  children?: ReactNode
 }) {
   const engine = useWorkflowEngine()
+  // A panel that fills the viewport would push what sits under it off screen.
+  const fitsContent = preview || Boolean(children)
   // Animation timing constant (seconds) — controls line draw, dot transitions, and stagger delay
   const animT = 0.125
   // Zoom limits for auto-fit and user panning
@@ -1312,9 +1320,10 @@ export default function DependencyGraph({
   // measurement retries until the graph is up.
   const [previewHeight, setPreviewHeight] = useState<number | null>(null)
   const previewViewRef = useRef<PreviewView | null>(null)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the panel only exists in the DAG view.
   useEffect(() => {
     const container = containerRef.current
-    if (!preview || !container) {
+    if (!fitsContent || !container) {
       return
     }
     let raf = 0
@@ -1340,7 +1349,7 @@ export default function DependencyGraph({
       observer.disconnect()
       cancelAnimationFrame(raf)
     }
-  }, [preview])
+  }, [fitsContent, viewMode])
 
   const { dag: dagStrings } = useStrings()
   const slots = useSlots()
@@ -1522,14 +1531,14 @@ export default function DependencyGraph({
   // settle, reset on the main graph). Re-root and initial fits stay instant.
   const animatedFit = useCallback(() => fitGraph(FIT_ANIMATION_MS), [fitGraph])
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: a resized window or a re-rooted graph re-fits the view.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a resized window or panel, or a re-rooted graph, re-fits the view.
   useEffect(() => {
     if (preview) {
       return
     }
     const raf = requestAnimationFrame(() => fitGraph())
     return () => cancelAnimationFrame(raf)
-  }, [preview, fitGraph, windowSize, executedJobsPathIdx])
+  }, [preview, fitGraph, windowSize, executedJobsPathIdx, previewHeight])
 
   const nestingDepth = currentPath.length / 5
   const levelPrefixes: string[] = []
@@ -1839,12 +1848,12 @@ export default function DependencyGraph({
             )}
             style={{
               height:
-                containerHeight !== null
-                  ? `${containerHeight}px`
-                  : previewHeight !== null
-                    ? `${Math.min(previewHeight, windowSize.h * 0.62)}px`
+                fitsContent && previewHeight !== null
+                  ? `${Math.min(previewHeight, windowSize.h * 0.62)}px`
+                  : !fitsContent && containerHeight !== null
+                    ? `${containerHeight}px`
                     : '62vh',
-              minHeight: previewHeight !== null ? 0 : 160,
+              minHeight: preview && previewHeight !== null ? 0 : 160,
             }}
           >
             <TransformWrapper
@@ -1955,10 +1964,14 @@ export default function DependencyGraph({
             </TransformWrapper>
           </div>
         )}
+        {children}
       </div>
       <BareModal
         open={sublogOpen !== ''}
-        onClose={() => setSublogOpen('')}
+        onClose={() => {
+          setSublogOpen('')
+          onCloseLog?.()
+        }}
         align="center"
         className={cx(modalPanelClasses, 'max-h-full overflow-y-auto p-4 sm:p-6')}
       >

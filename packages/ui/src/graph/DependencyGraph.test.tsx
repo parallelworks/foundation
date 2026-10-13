@@ -353,6 +353,35 @@ describe('DependencyGraph step summary', () => {
     expect(screen.getByTestId('log')).toHaveTextContent('step log')
     expect(calls.some(([path]) => path?.endsWith('summary.md'))).toBe(false)
   })
+  it('tells the host when the step it opened is closed', () => {
+    const onCloseLog = vi.fn()
+    render(
+      <UIProvider
+        data={{ useRunFile: () => ({ data: 'step log', isLoading: false, error: undefined }) }}
+      >
+        <DependencyGraph
+          run={summaryRun}
+          openStep={{ job: 'report', step: 1 }}
+          onCloseLog={onCloseLog}
+        />
+      </UIProvider>,
+    )
+    expect(screen.getByTestId('log')).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByTestId('log')).not.toBeInTheDocument()
+    expect(onCloseLog).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows what the host puts under the graph', () => {
+    render(
+      <UIProvider>
+        <DependencyGraph run={summaryRun}>
+          <p>Below the graph</p>
+        </DependencyGraph>
+      </UIProvider>,
+    )
+    expect(screen.getByText('Below the graph')).toBeInTheDocument()
+  })
 })
 
 describe('DependencyGraph general log', () => {
