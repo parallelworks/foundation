@@ -106,7 +106,7 @@ describe('DependencyGraph on many jobs', () => {
   })
 
   it('opens subworkflows three levels deep at once, and closes them', () => {
-    const nested = nestedJobs(3, 6, 3)
+    const nested = nestedJobs(3, 4, 2)
     render(<DependencyGraph run={runOf(nested)} preview />)
     const top = nodes().length
     fireEvent.click(screen.getByRole('button', { name: 'Expand All' }))

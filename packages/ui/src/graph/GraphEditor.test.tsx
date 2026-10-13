@@ -185,13 +185,16 @@ function field(label: string): HTMLElement {
   return element as HTMLElement
 }
 
-/** What a typed field offers from its list. */
-// The suggestions a field offers, as the dropdown stand-in lists them.
-// The editor loads lazily; once it has, every later graph draws it at once.
+// The editor loads lazily; once it has, every later graph draws it at once. A first load on a busy
+// machine can outlast findBy's usual second.
 beforeAll(async () => {
   await import('./GraphEditor')
   render(<DependencyGraphPreview yml={yml} editor={editor()} />)
-  await screen.findByRole('button', { name: GRAPH_EDITOR_STRINGS.resetLayout })
+  await screen.findByRole(
+    'button',
+    { name: GRAPH_EDITOR_STRINGS.resetLayout },
+    { timeout: 10_000 },
+  )
   cleanup()
 })
 
