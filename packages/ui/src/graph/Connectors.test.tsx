@@ -35,25 +35,28 @@ function graph(cols: string[][], deps: Record<string, string[]>) {
     boxes,
     37,
   )
-  const lineage = new Lineage((job) => {
-    // Hops along `deps` both ways, enough for these small graphs.
-    const hops = new Map([[job, 0]])
-    for (let changed = true; changed; ) {
-      changed = false
-      for (const [to, froms] of Object.entries(deps)) {
-        for (const from of froms) {
-          const near = hops.get(to) ?? hops.get(from)
-          for (const end of [from, to]) {
-            if (near !== undefined && !hops.has(end)) {
-              hops.set(end, near + 1)
-              changed = true
+  const lineage = new Lineage(
+    (job) => {
+      // Hops along `deps` both ways, enough for these small graphs.
+      const hops = new Map([[job, 0]])
+      for (let changed = true; changed; ) {
+        changed = false
+        for (const [to, froms] of Object.entries(deps)) {
+          for (const from of froms) {
+            const near = hops.get(to) ?? hops.get(from)
+            for (const end of [from, to]) {
+              if (near !== undefined && !hops.has(end)) {
+                hops.set(end, near + 1)
+                changed = true
+              }
             }
           }
         }
       }
-    }
-    return hops
-  }, 0.1)
+      return hops
+    },
+    { animT: 0.1 },
+  )
   const view = render(
     <LineageContext value={lineage}>
       <ConnectorLayers edges={edges} zBase={0} />
@@ -86,7 +89,9 @@ describe('ConnectorLayers', () => {
   it('draws a lit connector again above the nodes, and its dots in the highlight', () => {
     const { container, lineage } = graph([['a'], ['b'], ['c']], { b: ['a'], c: ['b'] })
     const [, top] = container.querySelectorAll('svg')
-    const lines = () => top?.querySelectorAll('path[stroke="var(--theme-border)"]').length
+    const lines = () =>
+      top?.querySelector('path[stroke="var(--theme-border)"]')?.getAttribute('d')?.match(/M/g)
+        ?.length ?? 0
     expect(lines()).toBe(0)
     act(() => lineage.hover('b'))
     expect(lines()).toBe(2)

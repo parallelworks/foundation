@@ -17,11 +17,20 @@ export class Lineage extends Store {
   private readonly walk: (job: string) => Map<string, number>
   /** Seconds each hop of the highlight takes. */
   readonly animT: number
+  /** How deeply the level nests, which names the classes that dim it. */
+  readonly depth: number
+  /** Whether its nodes fade as they dim, rather than dim at once. */
+  readonly fade: boolean
 
-  constructor(walk: (job: string) => Map<string, number>, animT: number) {
+  constructor(
+    walk: (job: string) => Map<string, number>,
+    { animT, depth = 0, fade = true }: { animT: number; depth?: number; fade?: boolean },
+  ) {
     super()
     this.walk = walk
     this.animT = animT
+    this.depth = depth
+    this.fade = fade
   }
 
   get hovering() {

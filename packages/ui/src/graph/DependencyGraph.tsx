@@ -46,7 +46,7 @@ import { ConnectorLayers } from './Connectors'
 import { type Box, type DrawnEdge, routeConnectors, sameBoxes } from './connectorGeometry'
 import type { DependencyGraphEditor } from './editorApi'
 import { EdgeEnds, EdgeHitPath, EmptyGraphEditor, GraphEditorCanvas, NodePorts } from './editorRows'
-import { JobNode, setDimmed } from './GraphNode'
+import { DimRules, JobNode, setDimmed } from './GraphNode'
 import {
   EDITOR_HANDLE_CLASS,
   type EdgeSelection,
@@ -449,6 +449,9 @@ function SubworkflowWell({
 // node's background instead of its base lines disappearing behind it. Large
 // enough to clear one level's full z range; accumulates with depth.
 const SUBGRAPH_Z_STEP = 100
+
+// The most nodes a level fades as a hover dims them; a larger level dims them at once.
+const FADE_NODES = 300
 // The editor loads only where a graph is edited, so runs and previews don't carry it.
 const GraphEditorOverlays = lazy(() => import('./GraphEditor'))
 const FIT_ANIMATION_MS = 300
@@ -606,12 +609,18 @@ const Subgraph = memo(function Subgraph({
   // The hovered job's lineage, walked only when hovered. Its nodes, connectors and dots follow it
   // themselves, so hovering re-renders neither this level nor what it leaves unchanged.
   const lineage = useMemo(
-    () => new Lineage((job) => hopDistances(job, directDeps, dependents), animT),
-    [directDeps, dependents, animT],
+    () =>
+      new Lineage((job) => hopDistances(job, directDeps, dependents), {
+        animT,
+        depth,
+        // Every node fading is a layer to composite, which past a few hundred stalls the hover.
+        fade: dependencyCols.reduce((n, col) => n + col.length, 0) <= FADE_NODES,
+      }),
+    [directDeps, dependents, animT, depth, dependencyCols],
   )
   useEffect(() => {
     const wrapper = wrapperRef.current
-    const dim = () => wrapper && setDimmed(wrapper, lineage.hovering)
+    const dim = () => wrapper && setDimmed(wrapper, lineage.depth, lineage.hovering)
     dim()
     const unsubscribe = lineage.subscribe(dim)
     return () => {
@@ -826,6 +835,7 @@ const Subgraph = memo(function Subgraph({
   return (
     <div ref={wrapperRef} className="relative">
       <LineageContext value={lineage}>
+        <DimRules depth={depth} />
         <ConnectorLayers edges={edges} zBase={zBase} />
         {editable && (
           <EditorEdges

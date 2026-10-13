@@ -8,7 +8,10 @@ const hops: Record<string, Record<string, number>> = {
   c: { a: 2, b: 1, c: 0 },
   d: { d: 0 },
 }
-const lineage = () => new Lineage((job) => new Map(Object.entries(hops[job] ?? {})), 0.1)
+const lineage = () =>
+  new Lineage((job) => new Map(Object.entries(hops[job] ?? {})), {
+    animT: 0.1,
+  })
 
 afterEach(() => {
   vi.useRealTimers()

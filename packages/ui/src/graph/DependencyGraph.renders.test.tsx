@@ -124,4 +124,36 @@ describe('DependencyGraph on many jobs', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Collapse All' }))
     expect(screen.getByRole('button', { name: 'Expand All' })).toBeInTheDocument()
   })
+
+  // A node's box, which dims and fades, inside the element its id is on.
+  const boxOf = (node: Element) => node.children[1] as HTMLElement
+
+  it('dims a hovered level by a class only its own nodes answer to', () => {
+    render(<DependencyGraph run={runOf(nestedJobs(2, 6, 3))} preview />)
+    fireEvent.click(screen.getByRole('button', { name: 'Expand All' }))
+    const [top] = nodes()
+    act(() => {
+      fireEvent.mouseEnter(top as HTMLElement)
+    })
+    expect(document.querySelectorAll('.dag-dim-0')).toHaveLength(1)
+    expect(document.querySelector('.dag-dim-1')).toBeNull()
+    const nested = nodes().filter((node) => node.id.includes('subworkflows/'))
+    expect(nested.length).toBeGreaterThan(0)
+    for (const node of nested) {
+      expect(boxOf(node)).not.toHaveClass('dag-node-0')
+    }
+    act(() => {
+      fireEvent.mouseLeave(top as HTMLElement)
+    })
+    expect(document.querySelector('.dag-dim-0')).toBeNull()
+  })
+
+  it('fades a small level’s nodes as they dim, and dims a large one’s at once', () => {
+    render(<DependencyGraph run={runOf(layeredJobs(20, { columns: 4 }))} preview />)
+    expect(nodes().every((node) => boxOf(node).style.transition !== '')).toBe(true)
+    cleanup()
+    render(<DependencyGraph run={runOf(layeredJobs(400, { columns: 10 }))} preview />)
+    expect(nodes().length).toBeGreaterThan(300)
+    expect(nodes().every((node) => boxOf(node).style.transition === '')).toBe(true)
+  })
 })
