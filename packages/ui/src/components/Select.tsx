@@ -2,12 +2,7 @@ import { Select as BaseSelect } from '@base-ui/react/select'
 import { clsx as cx } from 'clsx'
 import type { ReactElement, ReactNode } from 'react'
 import { AngleDownIcon, CheckIcon } from '../icons'
-import {
-  panelClassName,
-  panelItemClassName,
-  portalContainer,
-  positionerClassName,
-} from './floating'
+import { panelClassName, panelItemClassName, positionerClassName } from './floating'
 import { Tooltip } from './Tooltip'
 
 export interface SelectItem<Value> {
@@ -108,7 +103,7 @@ export function Select<Value, Multiple extends boolean | undefined = false>({
           </BaseSelect.Icon>
         </BaseSelect.Trigger>
       )}
-      <BaseSelect.Portal container={portalContainer()}>
+      <BaseSelect.Portal>
         <BaseSelect.Positioner
           alignItemWithTrigger={false}
           sideOffset={4}

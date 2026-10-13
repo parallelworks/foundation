@@ -1,7 +1,6 @@
 import { Menu } from '@base-ui/react/menu'
 import { clsx as cx } from 'clsx'
 import { DateTime } from 'luxon'
-import { Resizable } from 're-resizable'
 import {
   type ReactNode,
   useCallback,
@@ -12,7 +11,6 @@ import {
   useRef,
   useState,
 } from 'react'
-import { useLocalStorage } from 'usehooks-ts'
 import { Button } from '../components/Button'
 import { buttonClasses } from '../components/buttonClasses'
 import { ConfirmModal } from '../components/ConfirmModal'
@@ -24,10 +22,11 @@ import { keyedByContent } from '../components/keys'
 import { Loader } from '../components/Loader'
 import { MenuItem, MenuPopup, MenuSeparator } from '../components/Menu'
 import type { MenuEntry } from '../components/MenuEntries'
-import { useNotify, useSlots, useStrings } from '../components/Provider'
+import { useNotify, usePersistedState, useSlots, useStrings } from '../components/Provider'
 import { RefreshButton } from '../components/RefreshButton'
 import { RelativeTime } from '../components/relativeTime'
 import { StatusBadge } from '../components/StatusBadge'
+import { useSplitter } from '../components/splitter'
 import { Table } from '../components/Table'
 import { Tooltip } from '../components/Tooltip'
 import { formatBytes } from '../format'
@@ -223,33 +222,25 @@ function TreeFrame({
 }: {
   treeOnly: boolean
   sidebarWidth: number
-  onWidthChange: (next: (prev: number) => number) => void
+  onWidthChange: (width: number) => void
   children: ReactNode
 }) {
+  const splitter = useSplitter({
+    width: sidebarWidth,
+    onWidthChange,
+    min: 200,
+    max: 800,
+    side: 'right',
+    defaultWidth: SIDEBAR_WIDTH_DEFAULT,
+  })
   if (treeOnly) {
     return <div className="h-full w-full min-w-0">{children}</div>
   }
   return (
-    <Resizable
-      size={{ width: sidebarWidth, height: '100%' }}
-      minWidth={200}
-      maxWidth={800}
-      enable={{
-        top: false,
-        right: true,
-        bottom: false,
-        left: false,
-        topRight: false,
-        bottomRight: false,
-        bottomLeft: false,
-        topLeft: false,
-      }}
-      onResizeStop={(_e, _direction, _ref, d) => {
-        onWidthChange((prev) => prev + d.width)
-      }}
-    >
+    <div className="relative h-full shrink-0" style={{ width: splitter.width }}>
       {children}
-    </Resizable>
+      <div {...splitter.separatorProps} />
+    </div>
   )
 }
 
@@ -482,7 +473,7 @@ export default function FileExplorer({
   useEffect(() => clearPreviewCache, [])
   const { openMenu, contextMenu } = useContextMenu()
 
-  const [sidebarWidth, setSidebarWidth] = useLocalStorage(
+  const [sidebarWidth, setSidebarWidth] = usePersistedState(
     SIDEBAR_WIDTH_STORAGE_KEY,
     SIDEBAR_WIDTH_DEFAULT,
   )

@@ -116,8 +116,8 @@ const container = () => handle().parentElement as HTMLElement
 const pointerDown = (clientX: number) =>
   fireEvent(handle(), new MouseEvent('pointerdown', { bubbles: true, clientX }))
 const pointerMove = (clientX: number) =>
-  fireEvent(window, new MouseEvent('pointermove', { clientX }))
-const pointerUp = () => fireEvent(window, new MouseEvent('pointerup', {}))
+  fireEvent(handle(), new MouseEvent('pointermove', { bubbles: true, clientX }))
+const pointerUp = () => fireEvent(handle(), new MouseEvent('pointerup', { bubbles: true }))
 
 beforeEach(() => {
   storage.clear()

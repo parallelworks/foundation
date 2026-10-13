@@ -9,7 +9,8 @@ import {
   useRef,
   useState,
 } from 'react'
-import { type MenuAnchor, useContextMenu } from '../components/ContextMenu'
+import { useContextMenu } from '../components/ContextMenu'
+import type { FloatingAnchor } from '../components/floating'
 import { IconButton } from '../components/IconButton'
 import { type MenuEntry, type MenuSearch, menuDivider } from '../components/MenuEntries'
 import { useWorkflowEditing } from '../components/Provider'
@@ -189,8 +190,13 @@ interface InputsEditorApi {
   definition: (path: InputPath) => Json
   edit: (path: InputPath) => void
   remove: (path: InputPath) => void
-  openMenu: (at: MenuAnchor, path: InputPath) => void
-  openTypeMenu: (at: MenuAnchor, parent: InputPath, index: number, placement?: Placement) => void
+  openMenu: (at: FloatingAnchor, path: InputPath) => void
+  openTypeMenu: (
+    at: FloatingAnchor,
+    parent: InputPath,
+    index: number,
+    placement?: Placement,
+  ) => void
   startDrag: (e: Press, path: InputPath | null, label: string, how?: DragHow) => void
   startResize: (e: Press, edge: Edge) => void
   /** Moves an edge by `delta` percent, as the arrow keys do. */
@@ -1300,7 +1306,7 @@ export function InputsFormEditor({
     const unsplitPages = (parent: InputPath) =>
       sendAll(unsplitPagesEdits(listAt(parent), parent, childKeyAt(parent)))
     const openTypeMenu = (
-      at: MenuAnchor,
+      at: FloatingAnchor,
       parent: InputPath,
       index: number,
       placement?: Placement,

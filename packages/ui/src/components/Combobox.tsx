@@ -22,12 +22,7 @@ import {
   type ComboboxLeaf,
   isComboboxGroup as isGroup,
 } from './comboboxItems'
-import {
-  panelClassName,
-  panelItemClassName,
-  portalContainer,
-  positionerClassName,
-} from './floating'
+import { panelClassName, panelItemClassName, positionerClassName } from './floating'
 import { useStrings } from './Provider'
 import { useQueryMatch } from './search'
 import { Tooltip } from './Tooltip'
@@ -543,7 +538,7 @@ function ListPopup<Value>({
   renderItem: (entry: Entry<Value>, row: RowProps) => ReactElement
 }) {
   return (
-    <BaseCombobox.Portal container={portalContainer()}>
+    <BaseCombobox.Portal>
       <BaseCombobox.Positioner align="start" sideOffset={4} className={positionerClassName}>
         <BaseCombobox.Popup className={cx('overflow-hidden', className, panelClassName)}>
           {header}

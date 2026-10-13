@@ -35,7 +35,6 @@ export {
 } from './components/Combobox'
 export { ConfirmModal } from './components/ConfirmModal'
 export {
-  type MenuAnchor,
   type OpenMenu,
   type OpenMenuOptions,
   useContextMenu,
@@ -56,6 +55,7 @@ export { default as EmptyState } from './components/EmptyState'
 export { ExternalLink, type ExternalLinkProps } from './components/ExternalLink'
 export { default as Filter } from './components/Filter'
 export { FilterPill } from './components/FilterPill'
+export type { FloatingAnchor } from './components/floating'
 export { HoverCard, type HoverCardProps } from './components/HoverCard'
 export { IconButton, type IconButtonProps } from './components/IconButton'
 export { Indicator } from './components/Indicator'

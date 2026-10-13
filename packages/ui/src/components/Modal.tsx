@@ -2,7 +2,6 @@ import { AlertDialog } from '@base-ui/react/alert-dialog'
 import { Dialog } from '@base-ui/react/dialog'
 import { clsx as cx } from 'clsx'
 import type { ReactNode } from 'react'
-import { portalContainer } from './floating'
 
 /** The panel a modal draws by default; pass `panel={false}` to paint your own. */
 export const modalPanelClassName =
@@ -57,7 +56,7 @@ export function Modal({
     onClose()
   }
   const content = (
-    <Dialog.Portal container={portalContainer()}>
+    <Dialog.Portal>
       <Dialog.Backdrop className={cx('fixed inset-0 z-[9990]', backdropClassName)} />
       <Dialog.Viewport
         className={cx(

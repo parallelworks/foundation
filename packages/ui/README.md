@@ -75,6 +75,22 @@ component's trigger rather than styling a button by hand. A pressed toggle
 `Loader` is the one spinner. Inside a button, or beside text that already
 says what is happening, use `<Loader inline decorative />`.
 
+### Host chrome
+
+Popups, dialogs and drawers portal to `<body>` and read the tokens from the
+document root. A host with fixed chrome tells overlays where it is, on the same
+root:
+
+| Variable            | Meaning                                                                 |
+| ------------------- | ----------------------------------------------------------------------- |
+| `--app-inset-top`   | The height of a fixed top bar. A drawer starts below it.                |
+| `--app-inset-start` | The width of a fixed sidebar on the start side. A drawer at its widest leaves that strip, and never less than 2.5rem. |
+
+```ts
+document.documentElement.style.setProperty('--app-inset-top', '56px')
+document.documentElement.style.setProperty('--app-inset-start', '220px')
+```
+
 ## Icons
 
 ```tsx

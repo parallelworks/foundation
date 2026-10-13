@@ -1,18 +1,9 @@
 import { Drawer as BaseDrawer } from '@base-ui/react/drawer'
 import { clsx as cx } from 'clsx'
-import {
-  type KeyboardEvent as ReactKeyboardEvent,
-  type ReactNode,
-  type PointerEvent as ReactPointerEvent,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react'
+import { type ReactNode, useLayoutEffect, useRef, useState } from 'react'
 import { CloseIcon } from '../icons'
-import { portalContainer } from './floating'
 import { useStrings } from './Provider'
-
-const KEYBOARD_STEP_PX = 16
+import { useSplitter } from './splitter'
 
 export interface DrawerProps
   extends Omit<BaseDrawer.Popup.Props, 'className' | 'children' | 'render' | 'title'> {
@@ -56,9 +47,10 @@ export interface DrawerProps
 /** A panel that slides in from an edge over the page. A swipe toward that edge,
  *  Escape or a press outside closes it, and focus returns where it was.
  *
- *  A host whose chrome should stay uncovered sets `--ds-drawer-top` (for a top
- *  bar) and `--ds-drawer-gutter` (the strip left beside the drawer at its widest,
- *  2.5rem by default) on an ancestor. */
+ *  It leaves the host's fixed chrome uncovered: it starts below
+ *  `--app-inset-top` (a top bar's height), and at its widest leaves the strip
+ *  `--app-inset-start` (a start-side sidebar's width, at least 2.5rem). Set both
+ *  on the document root. */
 export function Drawer({
   open,
   onClose,
@@ -82,13 +74,21 @@ export function Drawer({
   const strings = useStrings().drawer
   const container = useRef<HTMLDivElement>(null)
   const viewport = useRef<HTMLDivElement>(null)
-  const popup = useRef<HTMLDivElement>(null)
-  const [dragWidth, setDragWidth] = useState<number | null>(null)
+  // In state, not a ref: the portal mounts it a render after it opens.
+  const [popup, setPopup] = useState<HTMLDivElement | null>(null)
+  // A width the reader chose with the handle, which then wins over `width`.
+  const [chosen, setChosen] = useState<number | null>(null)
+  const rendered = useRenderedWidth(resizable ? popup : null)
+  const splitter = useSplitter({
+    width: chosen ?? rendered ?? (typeof width === 'number' ? width : minWidth),
+    onWidthChange: setChosen,
+    min: minWidth,
+    max: () => innerWidth(viewport.current),
+    side: side === 'right' ? 'left' : 'right',
+  })
   const header = title !== undefined || description !== undefined || closeButton
   // A contained drawer fills its container; one over the window leaves the host's top bar uncovered.
-  const area = contained
-    ? 'absolute inset-0'
-    : 'fixed inset-x-0 bottom-0 top-[var(--ds-drawer-top,0px)]'
+  const area = contained ? 'absolute inset-0' : 'fixed inset-x-0 bottom-0 top-(--app-inset-top,0px)'
 
   const onOpenChange = (next: boolean, details: BaseDrawer.Root.ChangeEventDetails) => {
     if (next) {
@@ -111,7 +111,7 @@ export function Drawer({
     >
       {contained && <div ref={container} className="contents" />}
       <BaseDrawer.Portal
-        container={contained ? container : portalContainer()}
+        {...(contained ? { container } : {})}
         keepMounted={keepMounted}
         className={contained ? 'contents' : undefined}
       >
@@ -130,13 +130,13 @@ export function Drawer({
             // Passes presses through to the page beside the drawer when it isn't modal.
             'pointer-events-none z-[9980] flex',
             side === 'right'
-              ? 'justify-end pl-[var(--ds-drawer-gutter,2.5rem)]'
-              : 'justify-start pr-[var(--ds-drawer-gutter,2.5rem)]',
+              ? 'justify-end pl-[max(var(--app-inset-start,0px),2.5rem)]'
+              : 'justify-start pl-(--app-inset-start,0px) pr-10',
           )}
         >
           <BaseDrawer.Popup
             {...popupProps}
-            ref={popup}
+            ref={setPopup}
             className={cx(
               'pointer-events-auto relative flex h-full max-w-full flex-col border-(--theme-border) bg-(--theme-panel-bg) text-(--theme-app) shadow-xl outline-none',
               side === 'right' ? 'border-l' : 'border-r',
@@ -145,19 +145,11 @@ export function Drawer({
                 ? 'data-ending-style:[transform:translateX(100%)] data-starting-style:[transform:translateX(100%)]'
                 : 'data-ending-style:[transform:translateX(-100%)] data-starting-style:[transform:translateX(-100%)]',
             )}
-            style={{ width: dragWidth ?? width }}
+            style={{ width: splitter.resizing || chosen !== null ? splitter.width : width }}
           >
             {resizable && (
-              <ResizeHandle
-                side={side}
-                width={dragWidth}
-                minWidth={minWidth}
-                popup={popup}
-                viewport={viewport}
-                onWidth={setDragWidth}
-                label={strings.resize}
-                valueText={strings.width}
-              />
+              // Its drag resizes; it mustn't also swipe the drawer shut.
+              <div {...splitter.separatorProps} data-base-ui-swipe-ignore="" />
             )}
             <BaseDrawer.Content className="flex min-h-0 flex-1 flex-col">
               {header && (
@@ -206,48 +198,10 @@ export function Drawer({
   )
 }
 
-/** The inner edge's splitter: a drag, or arrow keys, set the width between
- *  `minWidth` and the space the viewport leaves beside its gutter. */
-function ResizeHandle({
-  side,
-  width,
-  minWidth,
-  popup,
-  viewport,
-  onWidth,
-  label,
-  valueText,
-}: {
-  side: 'left' | 'right'
-  width: number | null
-  minWidth: number
-  popup: { current: HTMLDivElement | null }
-  viewport: { current: HTMLDivElement | null }
-  onWidth: (width: number) => void
-  label: string
-  valueText: (px: number) => string
-}) {
-  const drag = useRef<{ x: number; width: number } | null>(null)
-  // The handle sits on the left of a right-hand drawer, so moving it left widens it.
-  const grows = side === 'right' ? -1 : 1
-
-  const maxWidth = () => {
-    const el = viewport.current
-    // Not laid out, as in a test: leave the width to the drawer's CSS max-width.
-    if (!el?.clientWidth) {
-      return Number.POSITIVE_INFINITY
-    }
-    const style = getComputedStyle(el)
-    return (
-      el.clientWidth -
-      (Number.parseFloat(style.paddingLeft) || 0) -
-      (Number.parseFloat(style.paddingRight) || 0)
-    )
-  }
-  // The width the drawer renders at, which its CSS may hold below the width asked for.
+/** The width an element renders at, which its CSS may hold below the width asked for. */
+function useRenderedWidth(el: HTMLElement | null): number | null {
   const [rendered, setRendered] = useState<number | null>(null)
   useLayoutEffect(() => {
-    const el = popup.current
     if (!el) {
       return
     }
@@ -256,59 +210,19 @@ function ResizeHandle({
     const observer = new ResizeObserver(measure)
     observer.observe(el)
     return () => observer.disconnect()
-  }, [popup])
-  const clamp = (px: number) => Math.round(Math.max(minWidth, Math.min(px, maxWidth())))
-  const current = () => width ?? rendered ?? minWidth
+  }, [el])
+  return rendered
+}
 
-  const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    e.currentTarget.setPointerCapture(e.pointerId)
-    drag.current = { x: e.clientX, width: current() }
+/** The room inside the drawer's viewport, past its gutter; unbounded before layout, as in a test. */
+function innerWidth(el: HTMLElement | null): number {
+  if (!el?.clientWidth) {
+    return Number.POSITIVE_INFINITY
   }
-  const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (drag.current) {
-      onWidth(clamp(drag.current.width + (e.clientX - drag.current.x) * grows))
-    }
-  }
-  const onPointerUp = () => {
-    drag.current = null
-  }
-  const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
-    const direction = { ArrowLeft: -1, ArrowRight: 1 }[e.key]
-    if (direction !== undefined) {
-      onWidth(clamp(current() + direction * grows * KEYBOARD_STEP_PX))
-    } else if (e.key === 'Home') {
-      onWidth(minWidth)
-    } else if (e.key === 'End') {
-      onWidth(clamp(Number.POSITIVE_INFINITY))
-    } else {
-      return
-    }
-    e.preventDefault()
-  }
-
-  const now = Math.round(current())
+  const style = getComputedStyle(el)
   return (
-    // biome-ignore lint/a11y/useSemanticElements: a window splitter is focusable and full height; <hr> can't host the drag surface.
-    <div
-      role="separator"
-      aria-label={label}
-      aria-orientation="vertical"
-      aria-valuenow={now}
-      aria-valuemin={minWidth}
-      aria-valuetext={valueText(now)}
-      tabIndex={0}
-      // Its drag resizes; it mustn't also swipe the drawer shut.
-      data-base-ui-swipe-ignore=""
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
-      onKeyDown={onKeyDown}
-      className={cx(
-        'absolute inset-y-0 z-[1] w-1.5 cursor-ew-resize touch-none transition-colors hover:bg-(--theme-border) focus-visible:bg-(--theme-link) focus-visible:outline-none',
-        side === 'right' ? '-left-0.75' : '-right-0.75',
-      )}
-    />
+    el.clientWidth -
+    (Number.parseFloat(style.paddingLeft) || 0) -
+    (Number.parseFloat(style.paddingRight) || 0)
   )
 }

@@ -45,11 +45,12 @@ describe('Drawer', () => {
   })
 
   it('resizes from its handle with the arrow keys, within its minimum', () => {
-    renderDrawer({ resizable: true, width: 400, minWidth: 320 })
+    renderDrawer({ resizable: true, width: 330, minWidth: 320 })
     const handle = screen.getByRole('separator', { name: 'Resize panel' })
-    // jsdom lays nothing out, so the drawer measures zero wide and starts at its minimum.
+    // jsdom lays nothing out, so the drawer starts at the width it asks for.
+    expect(handle).toHaveAttribute('aria-valuenow', '330')
     fireEvent.keyDown(handle, { key: 'ArrowLeft' })
-    expect(handle).toHaveAttribute('aria-valuenow', '336')
+    expect(handle).toHaveAttribute('aria-valuenow', '346')
     fireEvent.keyDown(handle, { key: 'ArrowRight' })
     fireEvent.keyDown(handle, { key: 'ArrowRight' })
     expect(handle).toHaveAttribute('aria-valuenow', '320')
@@ -61,7 +62,7 @@ describe('Drawer', () => {
     renderDrawer({ resizable: true, side: 'left', minWidth: 320 })
     const handle = screen.getByRole('separator')
     fireEvent.keyDown(handle, { key: 'ArrowRight' })
-    expect(handle).toHaveAttribute('aria-valuenow', '336')
+    expect(handle).toHaveAttribute('aria-valuenow', '496')
   })
 
   it('stays inside its container when contained, and keeps its content while closed', async () => {

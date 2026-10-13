@@ -80,3 +80,50 @@ export const Inline: StoryObj<typeof LogViewer> = {
     enableWorkflowCommands: false,
   },
 }
+
+const LONG_LOG = Array.from(
+  { length: 20000 },
+  (_, i) =>
+    `[2026-03-14T09:${String(Math.floor(i / 600) % 60).padStart(2, '0')}] step ${i + 1}: ok`,
+).join('\n')
+
+/** A long log follows its tail, and renders only the lines in view. */
+export const LongLog: StoryObj<typeof LogViewer> = {
+  args: {
+    log: LONG_LOG,
+    width: 720,
+    height: 320,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await waitFor(() => expect(canvas.getByText(/step 20000: ok/)).toBeVisible())
+    await expect(canvasElement.querySelectorAll('[data-line-number]').length).toBeLessThan(200)
+  },
+}
+
+/** Selecting text offers to copy it where the selection ended. */
+export const SelectionCopy: StoryObj<typeof LogViewer> = {
+  args: {
+    log: ANSI_LOG,
+    width: 720,
+    height: 320,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const line = canvas.getByText('Provisioning cluster nodes...')
+    const range = document.createRange()
+    range.selectNodeContents(line)
+    const selection = window.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+    const box = line.getBoundingClientRect()
+    canvas
+      .getByTestId('logviewer')
+      .dispatchEvent(
+        new MouseEvent('mouseup', { bubbles: true, clientX: box.right, clientY: box.bottom }),
+      )
+    await expect(await screen.findByRole('button', { name: 'Copy' })).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Copy' })).toBeNull())
+  },
+}

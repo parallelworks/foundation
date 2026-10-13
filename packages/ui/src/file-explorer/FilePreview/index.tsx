@@ -1,9 +1,8 @@
 import { clsx as cx } from 'clsx'
 import { useEffect, useState } from 'react'
-import { useLocalStorage } from 'usehooks-ts'
 import { IconButton } from '../../components/IconButton'
 import { Modal } from '../../components/Modal'
-import { useStrings } from '../../components/Provider'
+import { usePersistedState, useStrings } from '../../components/Provider'
 import { formatBytes } from '../../format'
 import {
   ChevronLeftIcon,
@@ -53,7 +52,10 @@ export function FilePreview({
   onCopyUri,
 }: FilePreviewProps) {
   const t = useStrings().fileExplorer
-  const [style, setStyle] = useLocalStorage<PreviewStyle>('fileExplorer.previewStyle', 'quicklook')
+  const [style, setStyle] = usePersistedState<PreviewStyle>(
+    'fileExplorer.previewStyle',
+    'quicklook',
+  )
   const [zoom, setZoom] = useState(100)
   const {
     url,

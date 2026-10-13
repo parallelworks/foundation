@@ -2,11 +2,12 @@ import { Popover as BasePopover } from '@base-ui/react/popover'
 import { clsx as cx } from 'clsx'
 import { createContext, type ReactElement, type ReactNode, use, useRef } from 'react'
 import {
+  type FloatingAnchor,
   panelClassName,
-  portalContainer,
   positionerClassName,
   tipArrowClassName,
   tipClassName,
+  toPositionerAnchor,
 } from './floating'
 
 /** A button that closes the popover it sits in. */
@@ -20,13 +21,27 @@ export function useClosePopover(): () => void {
   return use(CloseContext)
 }
 
-export interface PopoverProps
+/** What a popover opens from: a trigger that opens it on press, or an anchor
+ *  it opens at while `open`, such as the point where a selection ended. */
+type PopoverOpener =
+  | {
+      /** The button that opens it. It receives the trigger's props and ref, so it must pass them to its element. */
+      trigger: ReactElement
+      at?: never
+    }
+  | {
+      /** An element or pointer event it opens at, for a popover with no trigger. */
+      at: FloatingAnchor
+      trigger?: never
+    }
+
+export type PopoverProps = PopoverOpener & PopoverOptions
+
+export interface PopoverOptions
   extends Omit<
     BasePopover.Popup.Props,
     'className' | 'children' | 'render' | 'title' | 'initialFocus'
   > {
-  /** The button that opens it. It receives the trigger's props and ref, so it must pass them to its element. */
-  trigger: ReactElement
   /** A heading at the top that names the popover. Without one, name it with `aria-label`. */
   title?: ReactNode
   open?: boolean
@@ -37,9 +52,10 @@ export interface PopoverProps
   /** Also opens while the pointer rests on the trigger. A click or a tap still
    *  opens it, so touch and keyboard users reach it too. */
   openOnHover?: boolean
-  /** Where focus goes on opening: the first control in it, or the panel itself,
-   *  for a list read before one item in it is picked. */
-  initialFocus?: 'first-control' | 'popup'
+  /** Where focus goes on opening: the first control in it, the panel itself for
+   *  a list read before one item in it is picked, or nowhere, for a popover that
+   *  offers an action on what the reader is doing, such as copying a selection. */
+  initialFocus?: 'first-control' | 'popup' | 'none'
   /** `panel` holds controls or a list; `tip` is a tooltip-sized note with an arrow. */
   variant?: 'panel' | 'tip'
   /** On the popup: its width, padding or text size. */
@@ -53,6 +69,7 @@ export interface PopoverProps
  *  HoverCard for a preview a link already leads to. */
 export function Popover({
   trigger,
+  at,
   title,
   open,
   defaultOpen,
@@ -76,23 +93,26 @@ export function Popover({
       {...(defaultOpen === undefined ? {} : { defaultOpen })}
       {...(onOpenChange ? { onOpenChange: (next: boolean) => onOpenChange(next) } : {})}
     >
-      <BasePopover.Trigger
-        render={trigger}
-        openOnHover={openOnHover}
-        {...(openOnHover ? { delay: 300, closeDelay: 150 } : {})}
-      />
-      <BasePopover.Portal container={portalContainer()}>
+      {trigger && (
+        <BasePopover.Trigger
+          render={trigger}
+          openOnHover={openOnHover}
+          {...(openOnHover ? { delay: 300, closeDelay: 150 } : {})}
+        />
+      )}
+      <BasePopover.Portal>
         <BasePopover.Positioner
           side={side}
           align={align}
           sideOffset={tip ? 8 : 6}
           collisionPadding={8}
+          {...(at ? { anchor: toPositionerAnchor(at) } : {})}
           className={positionerClassName}
         >
           <BasePopover.Popup
             {...popupProps}
             ref={popup}
-            initialFocus={initialFocus === 'popup' ? popup : true}
+            initialFocus={initialFocus === 'popup' ? popup : initialFocus === 'first-control'}
             className={cx(
               tip
                 ? cx('max-w-sm text-left', tipClassName)

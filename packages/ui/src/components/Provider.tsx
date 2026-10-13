@@ -1,11 +1,11 @@
 import type { Dispatch, ReactNode, SetStateAction } from 'react'
 import { createContext, use, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { useLocalStorage } from 'usehooks-ts'
 import type { WorkflowAction, WorkflowEditing } from '../editing'
 import type { WorkflowEngine } from '../engine'
 import type { GraphEditorStrings, InputsEditorStrings } from '../graph/editorStrings'
 import type { RunLink } from '../graph/types'
 import { safeUrl } from '../safeUrl'
+import { useLocalPersistedState } from './persistedState'
 import { TooltipProvider } from './Tooltip'
 
 export type UIToastId = string | number
@@ -80,6 +80,10 @@ export interface UIStrings {
     no: string
     /** Read after a link that opens a new tab. */
     opensInNewTab: string
+    /** Names the handle that resizes a panel. */
+    resizePanel: string
+    /** A resizable panel's width, read aloud. */
+    panelWidth: (px: number) => string
     refresh: string
     refreshing: string
     /** A refresh button's label once it knows when the data was fetched. */
@@ -87,8 +91,6 @@ export interface UIStrings {
   }
   drawer: {
     close: string
-    resize: string
-    width: (px: number) => string
   }
   dropdown: {
     select: (type: string) => string
@@ -591,14 +593,6 @@ const defaultUseRunFile = (): RunFileResult => ({
   error: undefined,
 })
 
-function useLocalStoragePersistedState<T>(
-  key: string,
-  defaultValue: T,
-): [T, Dispatch<SetStateAction<T>>] {
-  const [value, setValue] = useLocalStorage(key, defaultValue)
-  return [value, setValue]
-}
-
 const DEFAULTS: UIProviderValue = {
   notify: {
     info: () => {},
@@ -648,14 +642,14 @@ const DEFAULTS: UIProviderValue = {
       yes: 'Yes',
       no: 'No',
       opensInNewTab: '(opens in a new tab)',
+      resizePanel: 'Resize panel',
+      panelWidth: (px) => `${px} pixels wide`,
       refresh: 'Refresh',
       refreshing: 'Refreshing',
       updated: (ago) => `Updated ${ago}`,
     },
     drawer: {
       close: 'Close',
-      resize: 'Resize panel',
-      width: (px) => `${px} pixels wide`,
     },
     dropdown: {
       select: (type) => `Select ${type}`,
@@ -1059,7 +1053,7 @@ const DEFAULTS: UIProviderValue = {
   },
   data: {
     useRunFile: defaultUseRunFile,
-    usePersistedState: useLocalStoragePersistedState,
+    usePersistedState: useLocalPersistedState,
   },
   slots: {},
 }

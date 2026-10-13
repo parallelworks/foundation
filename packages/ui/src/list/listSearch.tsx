@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useLocalStorage } from 'usehooks-ts'
 import { buttonClasses } from '../components/buttonClasses'
-import { useStrings } from '../components/Provider'
+import { usePersistedState, useStrings } from '../components/Provider'
 import { isTextEntryContext } from '../components/shortcutKey'
 import { Tooltip } from '../components/Tooltip'
 import { SearchIcon, XIcon } from '../icons'
@@ -12,7 +11,7 @@ const NO_TERMS: string[] = []
 export function useListSearch(enabled = true, storageKey?: string) {
   const [filter, setFilter] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
-  const [storedTerms, setStoredTerms] = useLocalStorage<string[]>(
+  const [storedTerms, setStoredTerms] = usePersistedState<string[]>(
     `${storageKey ?? 'list'}:searchTerms`,
     NO_TERMS,
   )

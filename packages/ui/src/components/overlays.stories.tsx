@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { expect, screen, userEvent, waitFor, within } from 'storybook/test'
 import { DisplayIcon, FilterIcon, KeyboardIcon } from '../icons'
 import { Button } from './Button'
@@ -118,17 +118,38 @@ export const DrawerNotDismissible: StoryObj = {
   },
 }
 
-/** Under a host's top bar: `--ds-drawer-top` keeps the bar uncovered. */
+/** Under a host's top bar: `--app-inset-top` keeps the bar uncovered, and
+ *  `--app-inset-start` the sidebar beside a drawer at its widest. */
+function HostChrome() {
+  // Hosts set the insets on the document root, where the drawer's portal reads them.
+  useEffect(() => {
+    const root = document.documentElement.style
+    root.setProperty('--app-inset-top', '56px')
+    root.setProperty('--app-inset-start', '220px')
+    return () => {
+      root.removeProperty('--app-inset-top')
+      root.removeProperty('--app-inset-start')
+    }
+  }, [])
+  return (
+    <div className="flex h-14 items-center border-b border-(--theme-border) px-4 text-sm font-semibold">
+      Top bar
+    </div>
+  )
+}
+
 export const DrawerUnderTopBar: StoryObj = {
   name: 'Drawer, under a top bar',
   render: () => (
-    <div style={{ ['--ds-drawer-top' as string]: '56px' }}>
-      <div className="flex h-14 items-center border-b border-(--theme-border) px-4 text-sm font-semibold">
-        Top bar
-      </div>
+    <>
+      <HostChrome />
       <DrawerDemo footer={false} />
-    </div>
+    </>
   ),
+  play: async ({ canvasElement }) => {
+    const dialog = await openDrawer(canvasElement)
+    await waitFor(() => expect(dialog.getBoundingClientRect().top).toBe(56))
+  },
 }
 
 /** Inside an embedded panel: it covers the panel, not the window. */

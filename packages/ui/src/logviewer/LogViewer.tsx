@@ -1,4 +1,4 @@
-import { Popover } from '@base-ui/react/popover'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { clsx as cx } from 'clsx'
 import { DateTime } from 'luxon'
 import {
@@ -15,10 +15,11 @@ import {
 import { Button } from '../components/Button'
 import { buttonClasses } from '../components/buttonClasses'
 import { DatePicker } from '../components/DatePicker'
-import { panelClassName, portalContainer, positionerClassName } from '../components/floating'
+import type { FloatingAnchor } from '../components/floating'
 import { IconButton } from '../components/IconButton'
 import { InfoTip } from '../components/InfoTip'
 import { Loader } from '../components/Loader'
+import { Popover } from '../components/Popover'
 import { useNotify, useOptionalWorkflowEngine, useStrings } from '../components/Provider'
 import type { LogCommand, LogSegment, ProcessedLogLine } from '../engine'
 import {
@@ -35,6 +36,9 @@ import {
   XIcon,
 } from '../icons'
 import { highlightSegments, parseAnsiSegments, plainSegments } from './segments'
+
+// A line's height before it is measured; a wrapped or annotated line is taller.
+const LINE_HEIGHT = 20
 
 function LogSegments({ segments }: { segments: LogSegment[] }) {
   return segments.map((segment, i) =>
@@ -354,24 +358,17 @@ export function LogViewer({
   useEffect(() => {
     setTimeRangeTo(initialTimeRangeTo)
   }, [initialTimeRangeTo])
-  const [visibleStart, setVisibleStart] = useState(0)
-  const [visibleEnd, setVisibleEnd] = useState(0)
-
   // Line selection state
   const [selectedLines, setSelectedLines] = useState<Set<number>>(new Set())
   const [lastClickedLine, setLastClickedLine] = useState<number | null>(null)
   const [copied, setCopied] = useState(false)
 
-  // Text highlight copy button state
-  const [highlightCopyPosition, setHighlightCopyPosition] = useState<{
-    x: number
-    y: number
-  } | null>(null)
-  const [highlightedText, setHighlightedText] = useState('')
+  // Text the reader selected, offered for copying where the selection ended.
+  const [selection, setSelection] = useState<{ text: string; at: FloatingAnchor } | null>(null)
 
   const logContainerRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
   const ansiCache = useRef<{ [line: string]: LogSegment[] }>({})
-  const scrollAnimationRef = useRef<number | null>(null)
   const prevLogLengthRef = useRef<number>(0)
   // Set by the native wheel handler when the user scrolls up (deltaY < 0).
   // The scroll handler reads and resets this flag to decide whether to
@@ -382,9 +379,6 @@ export function LogViewer({
   const prevScrollHeightRef = useRef(0)
   const prevPrependedSignalRef = useRef(prependedSignal)
   const pendingPrependRef = useRef(false)
-
-  const LINE_HEIGHT = 20
-  const OVERSCAN = 20 // Extra lines rendered above/below viewport for smooth scrolling
 
   // Handle line click for selection
   const handleLineClick = useCallback(
@@ -429,71 +423,26 @@ export function LogViewer({
     }
   }, [rawLines, notify])
 
-  // Handle text highlight selection on mouse up
+  // Offers the selected text for copying, where the pointer let go.
   const handleTextMouseUp = useCallback((e: React.MouseEvent) => {
-    const selection = window.getSelection()
-    const selectedText = selection?.toString().trim()
-
-    if (selectedText && selectedText.length > 0) {
-      // Position the button near the cursor
-      setHighlightCopyPosition({ x: e.clientX, y: e.clientY })
-      setHighlightedText(selectedText)
-    } else {
-      setHighlightCopyPosition(null)
-      setHighlightedText('')
-    }
+    const text = window.getSelection()?.toString().trim()
+    const { clientX, clientY } = e
+    setSelection(text ? { text, at: { clientX, clientY } } : null)
   }, [])
 
-  // Copy highlighted text to clipboard
-  const copyHighlightedText = useCallback(async () => {
-    if (!highlightedText) {
+  const copySelection = useCallback(async () => {
+    if (!selection) {
       return
     }
-
     try {
-      await navigator.clipboard.writeText(highlightedText)
+      await navigator.clipboard.writeText(selection.text)
       notify.success('Text copied to clipboard')
-      // Clear the selection and hide the button
       window.getSelection()?.removeAllRanges()
-      setHighlightCopyPosition(null)
-      setHighlightedText('')
+      setSelection(null)
     } catch (_err) {
       notify.error('Failed to copy text to clipboard')
     }
-  }, [highlightedText, notify])
-
-  // Hide highlight copy button when clicking outside or pressing escape
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      // Check if click is on the copy button itself
-      const target = e.target as HTMLElement
-      if (target.closest('[data-highlight-copy-button]')) {
-        return
-      }
-      // Small delay to allow the copy action to complete
-      setTimeout(() => {
-        setHighlightCopyPosition(null)
-        setHighlightedText('')
-      }, 100)
-    }
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setHighlightCopyPosition(null)
-        setHighlightedText('')
-      }
-    }
-
-    if (highlightCopyPosition) {
-      document.addEventListener('mousedown', handleClickOutside)
-      document.addEventListener('keydown', handleKeyDown)
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [highlightCopyPosition])
+  }, [selection, notify])
 
   // Copy selected lines to clipboard
   const copySelectedLines = useCallback(async () => {
@@ -560,57 +509,31 @@ export function LogViewer({
     return filtered
   }, [fullParsedLog, processedLines, filter, enableWorkflowCommands, showDebug, collapsedGroups])
 
-  // Smooth scroll to bottom using requestAnimationFrame
-  const smoothScrollToBottom = useCallback(() => {
-    if (!logContainerRef.current) {
-      return
+  const virtualizer = useVirtualizer({
+    count: parsedLog.length,
+    getScrollElement: () => logContainerRef.current,
+    estimateSize: () => LINE_HEIGHT,
+    overscan: 20,
+    // The list sits below the load-older banner in the scrolling element.
+    scrollMargin: listRef.current?.offsetTop ?? 0,
+    getItemKey: (i) => parsedLog[i]?.index ?? i,
+    enabled: !inline,
+  })
+  const parsedLogLengthRef = useRef(parsedLog.length)
+  parsedLogLengthRef.current = parsedLog.length
+
+  const scrollToEnd = useCallback(() => {
+    const last = parsedLogLengthRef.current - 1
+    if (last >= 0) {
+      virtualizer.scrollToIndex(last, { align: 'end' })
     }
-
-    // Cancel any pending animation
-    if (scrollAnimationRef.current) {
-      cancelAnimationFrame(scrollAnimationRef.current)
-      scrollAnimationRef.current = null
-    }
-
-    const container = logContainerRef.current
-    const targetScroll = container.scrollHeight - container.clientHeight
-    const currentScroll = container.scrollTop
-    const distance = targetScroll - currentScroll
-
-    // If very close, just snap to bottom
-    if (Math.abs(distance) < 5) {
-      container.scrollTop = targetScroll
-      return
-    }
-
-    // Smooth scroll with easing
-    const startTime = performance.now()
-    const duration = 150 // ms
-
-    const animate = (currentTime: number) => {
-      const elapsed = currentTime - startTime
-      const progress = Math.min(elapsed / duration, 1)
-
-      // Ease out cubic
-      const eased = 1 - (1 - progress) ** 3
-
-      container.scrollTop = currentScroll + distance * eased
-
-      if (progress < 1) {
-        scrollAnimationRef.current = requestAnimationFrame(animate)
-      } else {
-        scrollAnimationRef.current = null
-      }
-    }
-
-    scrollAnimationRef.current = requestAnimationFrame(animate)
-  }, [])
+  }, [virtualizer])
 
   const scrollToTop = () => {
     logContainerRef.current?.scroll({ top: 0, left: 0, behavior: 'smooth' })
   }
 
-  // Detect user-initiated scroll direction and cancel programmatic animation.
+  // Detect user-initiated scroll direction.
   // Registered as native passive listeners so the browser can scroll
   // immediately without waiting — React's onWheel is non-passive and blocks
   // native scrolling during momentum/trackpad input.
@@ -622,24 +545,16 @@ export function LogViewer({
 
     const onWheel = (e: WheelEvent) => {
       // Flag upward scroll so the scroll handler can disable follow mode.
-      // We don't use scrollTop comparison because dynamic content heights
-      // cause scrollTop to fluctuate, creating false "scroll up" signals.
+      // We don't use scrollTop comparison because measured row heights
+      // make scrollTop shift, creating false "scroll up" signals.
       if (e.deltaY < 0) {
         userScrollUpRef.current = true
       }
-      if (scrollAnimationRef.current) {
-        cancelAnimationFrame(scrollAnimationRef.current)
-        scrollAnimationRef.current = null
-      }
     }
 
+    // Touch = user taking control of scrolling
     const onTouchStart = () => {
-      // Touch = user taking control of scrolling
       userScrollUpRef.current = true
-      if (scrollAnimationRef.current) {
-        cancelAnimationFrame(scrollAnimationRef.current)
-        scrollAnimationRef.current = null
-      }
     }
 
     container.addEventListener('wheel', onWheel, { passive: true })
@@ -667,49 +582,16 @@ export function LogViewer({
 
   const handleLogScroll = (event: React.UIEvent<HTMLDivElement>) => {
     const { scrollTop, clientHeight, scrollHeight } = event.currentTarget
-
-    // Skip follow toggle while a programmatic smooth-scroll animation is
-    // running — the wheel handler above cancels the animation when the
-    // user actively scrolls, so this only guards against reacting to our
-    // own animation's scroll events.
-    const isAnimating = scrollAnimationRef.current !== null
-
-    const threshold = 2
-    const atBottom = scrollHeight - clientHeight - scrollTop < threshold
-
-    if (!isAnimating) {
-      if (atBottom && !follow) {
-        updateFollow(true)
-      } else if (userScrollUpRef.current && follow) {
-        // Only disable follow when the user physically scrolled up (wheel
-        // deltaY < 0). We can't rely on scrollTop < oldScroll because
-        // dynamic content heights cause scrollTop to fluctuate, which
-        // creates false "scroll up" signals and makes follow flicker.
-        updateFollow(false)
-      }
-      userScrollUpRef.current = false
+    const atBottom = scrollHeight - clientHeight - scrollTop < 2
+    if (atBottom && !follow) {
+      updateFollow(true)
+    } else if (userScrollUpRef.current && follow) {
+      // Only the reader scrolling up stops following; a scroll of ours to the
+      // end, or rows changing height as they are measured, don't.
+      updateFollow(false)
     }
-
+    userScrollUpRef.current = false
     maybeFireReachTop(scrollTop)
-
-    // When following, don't update the visible range — it stays frozen at
-    // the scroll-position-based values from when follow was enabled.  The
-    // frozen visibleEnd already extends past parsedLog.length (due to
-    // OVERSCAN), so new lines are included automatically.  Changing
-    // visibleStart here would shift paddingTop and cause a visible jump.
-    // The log processing effect extends visibleEnd when new data arrives.
-    if (!followRef.current) {
-      const visibleCount = Math.ceil(clientHeight / LINE_HEIGHT) + OVERSCAN * 2
-      // Clamp startIndex so the rendered range always contains content and
-      // can't overshoot parsedLog.length into an empty slice.
-      const maxStart = Math.max(0, parsedLog.length - visibleCount)
-      const startIndex = Math.min(
-        maxStart,
-        Math.max(0, Math.floor(scrollTop / LINE_HEIGHT) - OVERSCAN),
-      )
-      setVisibleStart(startIndex)
-      setVisibleEnd(startIndex + visibleCount)
-    }
   }
 
   // Process log changes efficiently
@@ -738,92 +620,33 @@ export function LogViewer({
       setProcessedLines(engine.processLogLines(processed, cleanedLines))
     }
 
-    // While following, keep visibleEnd extended to cover all parsed lines so
-    // newly-arrived content is rendered. We extend on every run (not only
-    // when appending) because StrictMode's double-invocation of effects in
-    // dev updates prevLogLengthRef on the first run, making the second run
-    // observe isAppending=false even on initial mount.
-    if (followRef.current && logContainerRef.current) {
-      setVisibleEnd((prev) => Math.max(prev, cleanedLines.length))
-      if (isAppending) {
-        // Double-rAF ensures the DOM has been committed and painted before
-        // we read scrollHeight. On first load the modal/container may not
-        // have its final dimensions in the very first frame.
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            smoothScrollToBottom()
-          })
-        })
-      }
+    if (followRef.current && isAppending) {
+      // After the new rows render.
+      requestAnimationFrame(scrollToEnd)
     }
 
     const file = new Blob([log], { type: 'text/plaintext' })
     const url = URL.createObjectURL(file)
     setLogUrl(url)
-    return () => {
-      URL.revokeObjectURL(url)
-      // Cleanup animation on unmount
-      if (scrollAnimationRef.current) {
-        cancelAnimationFrame(scrollAnimationRef.current)
-      }
-    }
-  }, [log, smoothScrollToBottom, enableWorkflowCommands, engine])
+    return () => URL.revokeObjectURL(url)
+  }, [log, scrollToEnd, enableWorkflowCommands, engine])
 
-  const parsedLogLengthRef = useRef(parsedLog.length)
-  parsedLogLengthRef.current = parsedLog.length
-
+  // A resize, such as going fullscreen, keeps a followed log at its end.
   useEffect(() => {
-    if (!logContainerRef.current) {
+    const container = logContainerRef.current
+    if (!container || inline) {
       return
     }
-
-    // Only handles actual container resizes (fullscreen toggle, window resize).
-    // Log data changes are handled by the log processing effect above.
     const observer = new ResizeObserver(() => {
-      if (!logContainerRef.current) {
-        return
-      }
-      // ResizeObserver fires synchronously on attach, which can happen before
-      // parsedLogLengthRef has been populated by the log-processing effect on
-      // the initial render. Skip this case so we don't clobber a pending
-      // setVisibleEnd from the log effect with a stale 0.
-      if (parsedLogLengthRef.current === 0) {
-        return
-      }
-      const container = logContainerRef.current
-      const clientHeight = container.clientHeight
-      const visibleCount = Math.ceil(clientHeight / LINE_HEIGHT) + OVERSCAN * 2
-
       if (followRef.current) {
-        // Only decrease visibleStart (render more lines above), never
-        // increase it — increasing would shift paddingTop under the scroll
-        // to the bottom below.
-        const minStart = Math.max(0, parsedLogLengthRef.current - visibleCount)
-        setVisibleStart((prev) => Math.min(prev, minStart))
-        setVisibleEnd(parsedLogLengthRef.current)
-        // Scroll after React commits the state update and the browser
-        // paints, so smoothScrollToBottom reads correct scrollHeight.
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            smoothScrollToBottom()
-          })
-        })
-      } else {
-        const maxStart = Math.max(0, parsedLogLengthRef.current - visibleCount)
-        const startIndex = Math.min(
-          maxStart,
-          Math.max(0, Math.floor(container.scrollTop / LINE_HEIGHT) - OVERSCAN),
-        )
-        setVisibleStart(startIndex)
-        setVisibleEnd(startIndex + visibleCount)
+        scrollToEnd()
       }
     })
-
-    observer.observe(logContainerRef.current)
-
+    observer.observe(container)
     return () => observer.disconnect()
-  }, [smoothScrollToBottom])
+  }, [inline, scrollToEnd])
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: parsedLog.length re-runs it once the older lines have rendered.
   useLayoutEffect(() => {
     if (prependedSignal > prevPrependedSignalRef.current) {
       pendingPrependRef.current = true
@@ -843,17 +666,8 @@ export function LogViewer({
       return
     }
     pendingPrependRef.current = false
+    // Older lines came in above: keep the ones being read where they were.
     container.scrollTop += delta
-    if (!followRef.current) {
-      const visibleCount = Math.ceil(container.clientHeight / LINE_HEIGHT) + OVERSCAN * 2
-      const maxStart = Math.max(0, parsedLog.length - visibleCount)
-      const startIndex = Math.min(
-        maxStart,
-        Math.max(0, Math.floor(container.scrollTop / LINE_HEIGHT) - OVERSCAN),
-      )
-      setVisibleStart(startIndex)
-      setVisibleEnd(startIndex + visibleCount)
-    }
   }, [prependedSignal, parsedLog.length])
 
   useLayoutEffect(() => {
@@ -866,43 +680,32 @@ export function LogViewer({
     const newFilter = event.target.value
     setFilter(newFilter)
     updateFollow(false)
-    if (logContainerRef.current) {
-      const clientHeight = logContainerRef.current.clientHeight
-      const visibleCount = Math.ceil(clientHeight / LINE_HEIGHT) + OVERSCAN * 2
-      setVisibleStart(0)
-      setVisibleEnd(Math.min(parsedLog.length, visibleCount))
-      scrollToTop()
-    } else {
-      setVisibleStart(0)
-      setVisibleEnd(50)
-    }
+    scrollToTop()
   }
 
   const ExpandButtonIcon = fullscreen ? ShrinkIcon : ExpandIcon
   const expandButtonText = fullscreen ? 'Collapse' : 'Expand'
 
-  const paddingTop = visibleStart * LINE_HEIGHT
-  const paddingBottom = Math.max(0, parsedLog.length - visibleEnd) * LINE_HEIGHT
+  const rows = virtualizer.getVirtualItems()
+  // Inline renders every line; otherwise only those in view, measured as they render.
   const visibleLogs = inline
-    ? parsedLog // In inline mode, render all logs
-    : parsedLog.slice(visibleStart, Math.min(parsedLog.length, visibleEnd))
+    ? parsedLog.map((item, index) => ({ item, index }))
+    : rows.flatMap((row) => {
+        const item = parsedLog[row.index]
+        return item ? [{ item, index: row.index }] : []
+      })
+  const offset = (rows[0]?.start ?? 0) - virtualizer.options.scrollMargin
 
   return (
     <div
       data-testid="logviewer-container"
-      className={cx('flex flex-col grow', roundedBottom && 'rounded-lg')}
-      style={
-        !fullscreen
-          ? { height: height, width: width }
-          : {
-              height: 'calc(100% - 50px)',
-              width: '100%',
-              position: 'fixed',
-              left: 0,
-              top: 50, // account for navbar
-              zIndex: 9999,
-            }
-      }
+      className={cx(
+        'flex flex-col grow',
+        roundedBottom && 'rounded-lg',
+        // Over the page, below the host's top bar.
+        fullscreen && 'fixed inset-x-0 bottom-0 top-(--app-inset-top,0px) z-[9990]',
+      )}
+      style={fullscreen ? undefined : { height, width }}
     >
       {/* log viewer tool/top bar */}
       <div
@@ -941,10 +744,7 @@ export function LogViewer({
                   onClick={() => {
                     if (!follow) {
                       updateFollow(true)
-                      setVisibleEnd((prev) => Math.max(prev, parsedLog.length))
-                      requestAnimationFrame(() => {
-                        smoothScrollToBottom()
-                      })
+                      scrollToEnd()
                     } else {
                       updateFollow(false)
                     }
@@ -997,92 +797,97 @@ export function LogViewer({
               </Button>
             )}
             {enableTimeRangeFilter && (
-              <Popover.Root open={timeRangeOpen} onOpenChange={setTimeRangeOpen}>
-                <Popover.Trigger className={buttonClasses({ variant: 'secondary', size: 'sm' })}>
-                  <ClockIcon />
-                  <span>{t.timeRange}</span>
+              <Popover
+                open={timeRangeOpen}
+                onOpenChange={setTimeRangeOpen}
+                align="start"
+                aria-label={t.filterByTimeRange}
+                className="flex w-80 flex-col gap-y-3"
+                trigger={
+                  <button
+                    type="button"
+                    className={buttonClasses({ variant: 'secondary', size: 'sm' })}
+                  >
+                    <ClockIcon />
+                    <span>{t.timeRange}</span>
+                    {(timeRangeFrom !== '' || timeRangeTo !== '') && (
+                      <span
+                        title={t.timeRangeActive}
+                        className="ml-1 px-1.5 py-0.5 text-[10px] rounded-full bg-[var(--theme-element)]/15 text-[var(--theme-element)]"
+                      >
+                        {t.timeRangeOn}
+                      </span>
+                    )}
+                  </button>
+                }
+              >
+                <div className="flex items-center gap-x-1.5">
+                  <span className="text-xs font-semibold text-[var(--theme-app)]">
+                    {t.filterByTimeRange}
+                  </span>
+                  <InfoTip text={t.timeRangeHelp} />
+                </div>
+                <div className="flex flex-col gap-y-1">
+                  <span
+                    id={`${timeRangeId}-timeRangeFrom`}
+                    className="text-[11px] uppercase tracking-wide text-[var(--theme-muted-text-color)]"
+                  >
+                    {t.timeRangeFrom}
+                  </span>
+                  <DatePicker
+                    withTime
+                    aria-labelledby={`${timeRangeId}-timeRangeFrom`}
+                    value={timeRangeFrom}
+                    onValueChange={setTimeRangeFrom}
+                  />
+                </div>
+                <div className="flex flex-col gap-y-1">
+                  <span
+                    id={`${timeRangeId}-timeRangeTo`}
+                    className="text-[11px] uppercase tracking-wide text-[var(--theme-muted-text-color)]"
+                  >
+                    {t.timeRangeTo}
+                  </span>
+                  <DatePicker
+                    withTime
+                    aria-labelledby={`${timeRangeId}-timeRangeTo`}
+                    value={timeRangeTo}
+                    onValueChange={setTimeRangeTo}
+                  />
+                </div>
+                {timeRangeError !== '' && (
+                  <span className="text-[11px] text-red-500">{t[timeRangeError]}</span>
+                )}
+                <div className="flex gap-x-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={timeRangeError !== ''}
+                    className="flex-1"
+                    onClick={() => {
+                      onTimeRangeChange?.(timeRangeFrom, timeRangeTo)
+                      setTimeRangeOpen(false)
+                    }}
+                  >
+                    {t.apply}
+                  </Button>
                   {(timeRangeFrom !== '' || timeRangeTo !== '') && (
-                    <span
-                      title={t.timeRangeActive}
-                      className="ml-1 px-1.5 py-0.5 text-[10px] rounded-full bg-[var(--theme-element)]/15 text-[var(--theme-element)]"
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => {
+                        setTimeRangeFrom('')
+                        setTimeRangeTo('')
+                        onTimeRangeChange?.('', '')
+                        setTimeRangeOpen(false)
+                      }}
                     >
-                      {t.timeRangeOn}
-                    </span>
+                      {t.clear}
+                    </Button>
                   )}
-                </Popover.Trigger>
-                <Popover.Portal container={portalContainer()}>
-                  <Popover.Positioner align="start" sideOffset={4} className={positionerClassName}>
-                    <Popover.Popup className={cx('flex w-80 flex-col gap-y-3 p-3', panelClassName)}>
-                      <div className="flex items-center gap-x-1.5">
-                        <span className="text-xs font-semibold text-[var(--theme-app)]">
-                          {t.filterByTimeRange}
-                        </span>
-                        <InfoTip text={t.timeRangeHelp} />
-                      </div>
-                      <div className="flex flex-col gap-y-1">
-                        <span
-                          id={`${timeRangeId}-timeRangeFrom`}
-                          className="text-[11px] uppercase tracking-wide text-[var(--theme-muted-text-color)]"
-                        >
-                          {t.timeRangeFrom}
-                        </span>
-                        <DatePicker
-                          withTime
-                          aria-labelledby={`${timeRangeId}-timeRangeFrom`}
-                          value={timeRangeFrom}
-                          onValueChange={setTimeRangeFrom}
-                        />
-                      </div>
-                      <div className="flex flex-col gap-y-1">
-                        <span
-                          id={`${timeRangeId}-timeRangeTo`}
-                          className="text-[11px] uppercase tracking-wide text-[var(--theme-muted-text-color)]"
-                        >
-                          {t.timeRangeTo}
-                        </span>
-                        <DatePicker
-                          withTime
-                          aria-labelledby={`${timeRangeId}-timeRangeTo`}
-                          value={timeRangeTo}
-                          onValueChange={setTimeRangeTo}
-                        />
-                      </div>
-                      {timeRangeError !== '' && (
-                        <span className="text-[11px] text-red-500">{t[timeRangeError]}</span>
-                      )}
-                      <div className="flex gap-x-2">
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          disabled={timeRangeError !== ''}
-                          className="flex-1"
-                          onClick={() => {
-                            onTimeRangeChange?.(timeRangeFrom, timeRangeTo)
-                            setTimeRangeOpen(false)
-                          }}
-                        >
-                          {t.apply}
-                        </Button>
-                        {(timeRangeFrom !== '' || timeRangeTo !== '') && (
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="flex-1"
-                            onClick={() => {
-                              setTimeRangeFrom('')
-                              setTimeRangeTo('')
-                              onTimeRangeChange?.('', '')
-                              setTimeRangeOpen(false)
-                            }}
-                          >
-                            {t.clear}
-                          </Button>
-                        )}
-                      </div>
-                    </Popover.Popup>
-                  </Popover.Positioner>
-                </Popover.Portal>
-              </Popover.Root>
+                </div>
+              </Popover>
             )}
           </div>
           <input
@@ -1144,59 +949,63 @@ export function LogViewer({
             onLoadOlder={onReachTop}
           />
         )}
-        <div className="min-w-max" style={inline ? undefined : { paddingTop, paddingBottom }}>
-          {visibleLogs.map((item) => (
-            <LogLine
-              key={item.index}
-              index={item.index}
-              segments={item.segments}
-              lineNumbers={lineNumbers}
-              isSelected={selectedLines.has(item.index + 1)}
-              lineHeight={LINE_HEIGHT}
-              onLineClick={handleLineClick}
-              searchTerm={filter}
-              command={enableWorkflowCommands ? (item as ProcessedLogLine).command : undefined}
-              groupDepth={enableWorkflowCommands ? (item as ProcessedLogLine).groupDepth : 0}
-              isGroupCollapsed={
-                enableWorkflowCommands && (item as ProcessedLogLine).command?.type === 'group'
-                  ? collapsedGroups.has(item.index)
-                  : undefined
-              }
-              onGroupToggle={enableWorkflowCommands ? handleGroupToggle : undefined}
-              annotationLabels={annotationLabels}
-            />
-          ))}
+        <div
+          ref={listRef}
+          className={cx(!inline && 'relative')}
+          style={inline ? undefined : { height: virtualizer.getTotalSize() }}
+        >
+          {/* One layer of rows as wide as the widest, so every row's band spans it. */}
+          <div
+            className={cx('min-w-max', !inline && 'absolute top-0 left-0 min-w-full')}
+            style={inline ? undefined : { transform: `translateY(${offset}px)` }}
+          >
+            {visibleLogs.map(({ item, index }) => (
+              <div
+                key={item.index}
+                data-index={index}
+                ref={inline ? undefined : virtualizer.measureElement}
+              >
+                <LogLine
+                  index={item.index}
+                  segments={item.segments}
+                  lineNumbers={lineNumbers}
+                  isSelected={selectedLines.has(item.index + 1)}
+                  lineHeight={LINE_HEIGHT}
+                  onLineClick={handleLineClick}
+                  searchTerm={filter}
+                  command={enableWorkflowCommands ? (item as ProcessedLogLine).command : undefined}
+                  groupDepth={enableWorkflowCommands ? (item as ProcessedLogLine).groupDepth : 0}
+                  isGroupCollapsed={
+                    enableWorkflowCommands && (item as ProcessedLogLine).command?.type === 'group'
+                      ? collapsedGroups.has(item.index)
+                      : undefined
+                  }
+                  onGroupToggle={enableWorkflowCommands ? handleGroupToggle : undefined}
+                  annotationLabels={annotationLabels}
+                />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-      {/* Floating copy button for text highlight */}
-      {highlightCopyPosition && highlightedText && (
-        <button
-          type="button"
-          data-highlight-copy-button
-          className={cx(
-            'fixed z-[10000] flex items-center gap-1 px-2 py-1.5 text-xs font-medium',
-            'rounded-md shadow-lg border cursor-pointer transition-colors duration-150',
-            'bg-(--theme-panel-bg) border-(--theme-border) hover:bg-(--theme-hover) text-(--theme-app)',
-          )}
-          style={{
-            left: highlightCopyPosition.x,
-            top: highlightCopyPosition.y + 8,
-            transform: 'translateX(-50%)',
-          }}
-          onClick={copyHighlightedText}
+      {selection && (
+        <Popover
+          open
+          onOpenChange={(open) => !open && setSelection(null)}
+          at={selection.at}
+          initialFocus="none"
+          aria-label={tCommon.copy}
+          className="p-1"
         >
-          {copied ? (
-            <>
-              <CheckIcon className="text-green-500 w-3.5 h-3.5" />
-              <span>{tCommon.copied}</span>
-            </>
-          ) : (
-            <>
-              <CopyIcon className="w-3.5 h-3.5" />
-              <span>{tCommon.copy}</span>
-            </>
-          )}
-        </button>
+          <button
+            type="button"
+            onClick={copySelection}
+            className="flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-xs font-medium hover:bg-(--theme-hover)"
+          >
+            <CopyIcon className="w-3.5 h-3.5" />
+            <span>{tCommon.copy}</span>
+          </button>
+        </Popover>
       )}
       {/* log viewer bottom bar (only with custom nodes) */}
       {(additionalBottomLeftBarComponents || additionalBottomRightBarComponents) && (

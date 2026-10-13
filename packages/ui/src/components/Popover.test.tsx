@@ -3,13 +3,13 @@ import '@testing-library/jest-dom/vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { IconButton } from './IconButton'
-import { Popover, PopoverClose, type PopoverProps, useClosePopover } from './Popover'
+import { Popover, PopoverClose, type PopoverOptions, useClosePopover } from './Popover'
 import { Tooltip } from './Tooltip'
 
 function Toolbar({
   onPaneKey = () => {},
   ...props
-}: { onPaneKey?: (key: string) => void } & Partial<PopoverProps>) {
+}: { onPaneKey?: (key: string) => void } & Partial<PopoverOptions>) {
   const [open, setOpen] = useState(false)
   return (
     // A graph pane listens on its own element, as the editors do.

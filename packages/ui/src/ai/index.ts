@@ -99,7 +99,6 @@ export {
   ConversationSidebar,
   type ConversationSidebarGroup,
   sidebarDrawerProps,
-  useResizableSidebarWidth,
 } from './ui/ConversationSidebar'
 export { NoticeBar, NoticeCard, type NoticeTone, OutputCard } from './ui/Notice'
 export {

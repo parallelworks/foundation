@@ -4,7 +4,7 @@ import { clsx as cx } from 'clsx'
 import { useState } from 'react'
 import { AngleLeftIcon, AngleRightIcon, CalendarIcon } from '../icons'
 import { buttonClasses } from './buttonClasses'
-import { panelClassName, portalContainer, positionerClassName } from './floating'
+import { panelClassName, positionerClassName } from './floating'
 import { useStrings } from './Provider'
 
 export interface DatePickerProps {
@@ -169,7 +169,7 @@ export function DatePicker({
             {day ? shownDay.format(day) : (placeholder ?? t.pickDate)}
           </span>
         </Popover.Trigger>
-        <Popover.Portal container={portalContainer()}>
+        <Popover.Portal>
           <Popover.Positioner align="start" sideOffset={4} className={positionerClassName}>
             <Popover.Popup className={panelClassName}>
               <DayPicker

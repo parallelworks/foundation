@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { usePersistedState } from '../../components/Provider'
 import type { CompletionMessage } from '../adapter/openai/wire'
 import type { ChatAdapter, PartDelta } from '../adapter/types'
 import type {
@@ -33,31 +34,12 @@ import { applyPartDelta, finalizeParts, toolTurnMessages } from './parts'
 import { providerIssueFor } from './providerIssues'
 import {
   ReportSidebarPresentationContext,
-  readStoredSidebar,
   type SidebarPresentation,
   type SidebarState,
-  storeSidebar,
   useControllable,
+  useOwnSidebar,
 } from './sidebarState'
 import { useSSEStream } from './useSSEStream'
-
-const SELECTED_MODEL_STORAGE_KEY = 'aiChatSelectedModel'
-
-function readStoredModel(): string | null {
-  try {
-    return globalThis.localStorage?.getItem(SELECTED_MODEL_STORAGE_KEY) ?? null
-  } catch {
-    return null
-  }
-}
-
-function storeSelectedModel(modelId: string) {
-  try {
-    globalThis.localStorage?.setItem(SELECTED_MODEL_STORAGE_KEY, modelId)
-  } catch {
-    // Storage unavailable (SSR, disabled storage): the selection just doesn't persist.
-  }
-}
 
 function generateTitleFromMessage(content: string): string {
   const cleaned = content
@@ -256,6 +238,11 @@ export function ChatProvider({
   // Do NOT auto-sync with state - that causes race conditions
   const currentConversationIdRef = useRef<string | null>(null)
 
+  // The model last chosen, offered again once the models load.
+  const [storedModel, storeModel] = usePersistedState<string | null>('aiChat.model', null)
+  const storedModelRef = useRef(storedModel)
+  storedModelRef.current = storedModel
+
   const selectedProviderRef = useRef(state.selectedProvider)
   useEffect(() => {
     selectedProviderRef.current = state.selectedProvider
@@ -404,7 +391,7 @@ export function ChatProvider({
       })
       hasLoadedModelsRef.current = true
       const current = selectedProviderRef.current
-      const stored = readStoredModel()
+      const stored = storedModelRef.current
       const offers = (id: string | null) => !!id && models.some((m) => m.id === id)
       // A remembered choice survives even when its provider is broken (the
       // banner explains); only the fresh default skips broken providers.
@@ -932,11 +919,11 @@ export function ChatProvider({
   const setSelectedProvider = useCallback(
     (providerId: string | null) => {
       if (providerId && state.models.some((m) => m.id === providerId)) {
-        storeSelectedModel(providerId)
+        storeModel(providerId)
       }
       dispatch({ type: 'SET_SELECTED_PROVIDER', providerId })
     },
-    [state.models],
+    [state.models, storeModel],
   )
 
   const setSelectedAllocation = useCallback((allocation: string | null) => {
@@ -1063,13 +1050,12 @@ export function ChatProvider({
 
   const [sidebar, setSidebar, sidebarRef] = useControllable(
     sidebarProp,
-    readStoredSidebar,
+    useOwnSidebar(),
     onSidebarChange,
-    storeSidebar,
   )
   const [drawerOpen, setDrawerOpen, drawerOpenRef] = useControllable(
     drawerOpenProp,
-    () => false,
+    useState(false),
     onDrawerOpenChange,
   )
   const [sidebarPresentation, setSidebarPresentation] = useState<SidebarPresentation>('inline')

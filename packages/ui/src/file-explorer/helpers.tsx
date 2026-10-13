@@ -1,6 +1,5 @@
 import { clsx as cx } from 'clsx'
 import { type JSX, useState, useTransition } from 'react'
-import { useLocalStorage } from 'usehooks-ts'
 import { Button } from '../components/Button'
 import Callout from '../components/Callout'
 import { ProgressBar } from '../components/Meter'
@@ -9,6 +8,7 @@ import {
   type UINotify,
   type UIStrings,
   useNotify,
+  usePersistedState,
   useProvisionCorsRules,
   useSlots,
   useStrings,
@@ -506,7 +506,7 @@ function NoDataAvailablePreview({
 }
 
 function SkeletonPreview() {
-  const [sidebarWidth] = useLocalStorage(SIDEBAR_WIDTH_STORAGE_KEY, SIDEBAR_WIDTH_DEFAULT)
+  const [sidebarWidth] = usePersistedState(SIDEBAR_WIDTH_STORAGE_KEY, SIDEBAR_WIDTH_DEFAULT)
   // Mirror the real explorer chrome so nothing shifts when it swaps in.
   return (
     <div className="w-full h-full flex">
