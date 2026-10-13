@@ -1,7 +1,7 @@
-import { cx } from '../../cx'
 import { Button } from '../../components/Button'
 import { Popover, useClosePopover } from '../../components/Popover'
 import { useStrings } from '../../components/Provider'
+import { cx } from '../../cx'
 import { CheckIcon, WarningIcon } from '../../icons'
 import type { WizardStepIndicatorProps } from './types'
 import { stepText } from './utils'

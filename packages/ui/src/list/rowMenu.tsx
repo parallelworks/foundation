@@ -1,10 +1,10 @@
-import { cx } from '../cx'
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import { useCallback, useState } from 'react'
 import type { OpenMenu } from '../components/ContextMenu'
 import { IconButton } from '../components/IconButton'
 import type { MenuAction, MenuEntry, MenuSubmenu } from '../components/MenuEntries'
 import { useStrings } from '../components/Provider'
+import { cx } from '../cx'
 import { CopyIcon, IdCardIcon, KeyIcon, LinkIcon, MailIcon, MoreIcon, UserIcon } from '../icons'
 
 /** An action on a row, which its menu lists and its pinned buttons show, named by `key`. */

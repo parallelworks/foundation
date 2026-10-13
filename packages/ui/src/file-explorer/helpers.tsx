@@ -24,6 +24,7 @@ import {
   ImageIcon,
   PdfIcon,
   RefreshIcon,
+  RetryIcon,
   ShareIcon,
   SpreadsheetIcon,
   UserIcon,
@@ -240,7 +241,7 @@ function NotFoundPreview({ path, onRetry }: { path: string; onRetry: () => void 
         </div>
         <h2 className="text-base font-semibold mb-1">{t.title(name)}</h2>
         <p className="text-sm theme-muted-text mb-4">{t.description}</p>
-        <Button variant="primary" icon={<RefreshIcon />} onClick={onRetry}>
+        <Button variant="primary" icon={<RetryIcon />} onClick={onRetry}>
           {common.retry}
         </Button>
       </div>

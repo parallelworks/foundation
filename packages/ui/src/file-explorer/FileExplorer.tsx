@@ -33,20 +33,20 @@ import { useCopy } from '../components/useCopy'
 import { cx } from '../cx'
 import { formatBytes, formatDateTime } from '../format'
 import {
+  AccessIcon,
   ChevronDownIcon,
   ChevronRightIcon,
   CollapseIcon,
   CopyIcon,
   DownloadIcon,
-  EyeIcon,
   FileIcon,
   FileTextIcon,
   FolderIcon,
   LinkIcon,
+  PreviewIcon,
   ShareIcon,
   TrashIcon,
   UploadIcon,
-  UsersIcon,
   WarningIcon,
 } from '../icons'
 import {
@@ -1072,7 +1072,7 @@ export default function FileExplorer({
       actions.push({
         key: 'preview',
         label: t.preview.preview,
-        icon: <EyeIcon />,
+        icon: <PreviewIcon />,
         onClick: () => openPreview(node),
       })
     }
@@ -1741,7 +1741,7 @@ export default function FileExplorer({
                         variant="primary"
                         size="sm"
                         aria-label={t.chrome.access}
-                        icon={<UsersIcon />}
+                        icon={<AccessIcon />}
                         disabled={!selectedNode.storageId}
                         onClick={() => setAccessDrawerOpen(true)}
                       >

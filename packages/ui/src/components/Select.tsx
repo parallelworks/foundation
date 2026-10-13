@@ -1,6 +1,6 @@
 import { Select as BaseSelect } from '@base-ui/react/select'
-import { cx } from '../cx'
 import type { ReactElement, ReactNode } from 'react'
+import { cx } from '../cx'
 import { CheckIcon, ChevronDownIcon } from '../icons'
 import { fieldBox } from './fieldBox'
 import { panelClassName, panelItemClassName, positionerClassName } from './floating'

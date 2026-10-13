@@ -1,5 +1,5 @@
-import { cx } from '../cx'
 import type { ComponentPropsWithRef } from 'react'
+import { cx } from '../cx'
 import { ExternalLinkIcon } from '../icons'
 import { useStrings } from './Provider'
 

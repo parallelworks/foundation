@@ -1,6 +1,6 @@
 import { Collapsible } from '@base-ui/react/collapsible'
-import { cx } from '../cx'
 import type { ReactNode } from 'react'
+import { cx } from '../cx'
 import { ChevronRightIcon } from '../icons'
 import { collapsePanelClassName } from './Disclosure'
 

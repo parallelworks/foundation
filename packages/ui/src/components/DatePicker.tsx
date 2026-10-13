@@ -1,7 +1,7 @@
 import { Popover } from '@base-ui/react/popover'
 import { type ClassNames, DayPicker, type Matcher } from '@daypicker/react'
-import { cx } from '../cx'
 import { useState } from 'react'
+import { cx } from '../cx'
 import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon } from '../icons'
 import { buttonClasses } from './buttonClasses'
 import { fieldBox } from './fieldBox'

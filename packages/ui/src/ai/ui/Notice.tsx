@@ -1,5 +1,5 @@
-import { cx } from '../../cx'
 import type { ReactNode } from 'react'
+import { cx } from '../../cx'
 import { CloseIcon, ErrorIcon, InfoIcon } from '../../icons'
 
 export type NoticeTone = 'neutral' | 'info' | 'warning' | 'danger'

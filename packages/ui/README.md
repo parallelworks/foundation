@@ -224,6 +224,13 @@ meaning across the apps.
   it says what it means.
 - **Filled variants:** a filled glyph marks a state, such as `PinFilledIcon`
   for pinned.
+- **One name per meaning:** pick the name for what the thing is, even where a
+  nearby name would look similar. For compute, `ClusterIcon` is a group of
+  nodes, `NodeIcon` one host or node in it, and `InstanceIcon` a VM or cloud
+  instance. `RemoveIcon` takes an item out of a list, while `CloseIcon` closes,
+  dismisses or clears; they share the X glyph, the convention for both.
+  `DestroyIcon` tears down what was provisioned, while `TrashIcon` deletes a
+  record.
 - **Adding an icon:** pick the [Lucide glyph](https://lucide.dev/icons) and add
   `export const NameIcon = /* @__PURE__ */ icon(Glyph)` to `src/icons.tsx`,
   named for what it means rather than what it shows. Reuse an existing name

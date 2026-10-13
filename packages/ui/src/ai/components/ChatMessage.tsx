@@ -13,7 +13,6 @@ import {
   EditIcon,
   ErrorIcon,
   FileIcon,
-  RefreshIcon,
   RetryIcon,
 } from '../../icons'
 import { safeUrl } from '../../safeUrl'
@@ -521,7 +520,7 @@ function ChatMessage({
                     className="p-1.5 rounded-md hover:chat-tint theme-muted-text hover:theme-text transition-colors"
                     title={t.regenerate}
                   >
-                    <RefreshIcon className="w-4 h-4" />
+                    <RetryIcon className="w-4 h-4" />
                   </button>
                 )}
 

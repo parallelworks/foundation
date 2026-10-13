@@ -1,5 +1,5 @@
-import { cx } from '../cx'
 import type { InputHTMLAttributes, Ref } from 'react'
+import { cx } from '../cx'
 import { CloseIcon, SearchIcon } from '../icons'
 import { type FieldBoxSize, fieldBox } from './fieldBox'
 import { useStrings } from './Provider'

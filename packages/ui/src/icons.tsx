@@ -18,6 +18,7 @@ import {
   Bell,
   BellOff,
   BellRing,
+  BookUser,
   Bot,
   Boxes,
   Braces,
@@ -26,7 +27,9 @@ import {
   Briefcase,
   Building2,
   Calendar,
+  CalendarClock,
   CalendarX,
+  Camera,
   ChartLine,
   ChartPie,
   Check,
@@ -47,33 +50,44 @@ import {
   CircleMinus,
   CirclePlay,
   CircleSlash,
-  CircleStop,
   CircleX,
   ClipboardCheck,
   Clock,
   Cloud,
   CloudCog,
+  CloudOff,
   Code,
+  CodeXml,
   Cog,
   Columns3,
   Copy,
   CopyPlus,
   CornerUpRight,
+  Cpu,
+  CreditCard,
   Database,
+  DatabaseSearch,
+  DatabaseZap,
+  Disc3,
   DollarSign,
   Download,
   Earth,
   Ellipsis,
+  EthernetPort,
   ExternalLink,
   Eye,
   EyeOff,
   File,
   FileArchive,
+  FileCode,
   FileImage,
   FileJson,
+  FileKey,
   Files,
   FileText,
   FileType,
+  Fingerprint,
+  Flag,
   FlaskConical,
   Folder,
   FolderOpen,
@@ -87,6 +101,7 @@ import {
   GitPullRequest,
   Globe,
   GraduationCap,
+  Grid3x3,
   GripHorizontal,
   Group,
   Handshake,
@@ -108,8 +123,9 @@ import {
   LayoutGrid,
   Link,
   List,
-  ListChecks,
   ListOrdered,
+  ListTodo,
+  ListVideo,
   LoaderCircle,
   Lock,
   LogOut,
@@ -119,15 +135,20 @@ import {
   MapPinned,
   Maximize,
   Megaphone,
+  MemoryStick,
   MessageSquare,
   MessagesSquare,
   Minimize,
+  Minimize2,
   Minus,
   Monitor,
   MonitorDown,
+  MonitorPlay,
+  MonitorSmartphone,
   Moon,
   Music,
   Network,
+  NotebookText,
   PaintBucket,
   PanelLeft,
   PanelLeftClose,
@@ -135,7 +156,9 @@ import {
   Paperclip,
   PartyPopper,
   Pause,
+  PcCase,
   Pencil,
+  PencilLine,
   Phone,
   Pin,
   Play,
@@ -148,9 +171,11 @@ import {
   RefreshCw,
   Rocket,
   RotateCcw,
+  RotateCcwSquare,
   Route,
   Save,
   Scale,
+  ScanEye,
   Search,
   Send,
   Server,
@@ -163,6 +188,7 @@ import {
   Smartphone,
   Sparkles,
   Square,
+  SquareChevronRight,
   SquareCode,
   SquareDashed,
   SquarePen,
@@ -179,14 +205,18 @@ import {
   Undo2,
   UndoDot,
   Unlink,
+  Unplug,
   Upload,
   User,
   UserCheck,
+  UserLock,
   UserPlus,
   Users,
   UserX,
   Video,
+  Wallet,
   WandSparkles,
+  Waypoints,
   Webhook,
   Wrench,
   X,
@@ -240,15 +270,20 @@ function icon(Glyph: LucideIcon, defaults?: LucideProps): IconType {
 // A filled glyph marks a state its outline doesn't have, such as pinned.
 const filled: LucideProps = { fill: 'currentColor' }
 
+export const AccessIcon = /* @__PURE__ */ icon(UserLock)
 export const AddIcon = /* @__PURE__ */ icon(Plus)
 export const AddUserIcon = /* @__PURE__ */ icon(UserPlus)
-export const APIIcon = /* @__PURE__ */ icon(Webhook)
+export const AgentIcon = /* @__PURE__ */ icon(Bot)
+export const AllocationIcon = /* @__PURE__ */ icon(Wallet)
+export const APIIcon = /* @__PURE__ */ icon(CodeXml)
 export const ArchiveIcon = /* @__PURE__ */ icon(Archive)
 export const ArrowDownIcon = /* @__PURE__ */ icon(ArrowDown)
 export const ArrowLeftIcon = /* @__PURE__ */ icon(ArrowLeft)
 export const ArrowRightIcon = /* @__PURE__ */ icon(ArrowRight)
 export const ArrowUpIcon = /* @__PURE__ */ icon(ArrowUp)
 export const AttachmentIcon = /* @__PURE__ */ icon(Paperclip)
+export const AuthenticationIcon = /* @__PURE__ */ icon(Fingerprint)
+export const BillingIcon = /* @__PURE__ */ icon(CreditCard)
 export const BriefcaseIcon = /* @__PURE__ */ icon(Briefcase)
 export const BucketIcon = /* @__PURE__ */ icon(PaintBucket)
 export const BuildWorkflowIcon = /* @__PURE__ */ icon(Wrench)
@@ -256,6 +291,7 @@ export const CalendarIcon = /* @__PURE__ */ icon(Calendar)
 export const CalendarOffIcon = /* @__PURE__ */ icon(CalendarX)
 export const CancelIcon = /* @__PURE__ */ icon(Ban)
 export const CelebrateIcon = /* @__PURE__ */ icon(PartyPopper)
+export const CertificateIcon = /* @__PURE__ */ icon(FileKey)
 export const ChartIcon = /* @__PURE__ */ icon(ChartLine)
 export const ChatIcon = /* @__PURE__ */ icon(MessagesSquare)
 export const CheckIcon = /* @__PURE__ */ icon(Check)
@@ -269,7 +305,7 @@ export const ClipboardCheckIcon = /* @__PURE__ */ icon(ClipboardCheck)
 export const ClockIcon = /* @__PURE__ */ icon(Clock)
 export const CloseIcon = /* @__PURE__ */ icon(X)
 export const CloudIcon = /* @__PURE__ */ icon(Cloud)
-export const ClusterIcon = /* @__PURE__ */ icon(Boxes)
+export const ClusterIcon = /* @__PURE__ */ icon(Server)
 export const CodeIcon = /* @__PURE__ */ icon(Code)
 export const CollapseIcon = /* @__PURE__ */ icon(ChevronsDownUp)
 export const ColumnsIcon = /* @__PURE__ */ icon(Columns3)
@@ -279,8 +315,13 @@ export const ComputeIcon = /* @__PURE__ */ icon(CloudCog)
 export const ConnectIcon = /* @__PURE__ */ icon(PlugZap)
 export const CopyIcon = /* @__PURE__ */ icon(Copy)
 export const CustomizeIcon = /* @__PURE__ */ icon(WandSparkles)
+export const DesktopIcon = /* @__PURE__ */ icon(Monitor)
+export const DestroyIcon = /* @__PURE__ */ icon(CloudOff)
+export const DeviceIcon = /* @__PURE__ */ icon(MonitorSmartphone)
+export const DirectoryIcon = /* @__PURE__ */ icon(BookUser)
 export const DisableCostIcon = /* @__PURE__ */ icon(BanknoteX)
 export const DisableUserIcon = /* @__PURE__ */ icon(UserX)
+export const DisconnectIcon = /* @__PURE__ */ icon(Unplug)
 export const DiskIcon = /* @__PURE__ */ icon(HardDrive)
 export const DisplayIcon = /* @__PURE__ */ icon(Settings2)
 export const DownloadIcon = /* @__PURE__ */ icon(Download)
@@ -329,12 +370,16 @@ export const IdCardIcon = /* @__PURE__ */ icon(IdCard)
 export const ImageIcon = /* @__PURE__ */ icon(FileImage)
 export const ImpersonateIcon = /* @__PURE__ */ icon(HatGlasses)
 export const InboxIcon = /* @__PURE__ */ icon(Inbox)
+export const IndexIcon = /* @__PURE__ */ icon(DatabaseSearch)
 export const InfoIcon = /* @__PURE__ */ icon(Info)
 export const InfrastructureLayersIcon = /* @__PURE__ */ icon(Layers)
 export const InputFormIcon = /* @__PURE__ */ icon(TextCursorInput)
 export const InstallIcon = /* @__PURE__ */ icon(MonitorDown)
+export const InstanceIcon = /* @__PURE__ */ icon(PcCase)
+export const InstanceTypeIcon = /* @__PURE__ */ icon(MemoryStick)
 export const IpAddressIcon = /* @__PURE__ */ icon(MapPinned)
 export const IssueIcon = /* @__PURE__ */ icon(CircleDot)
+export const JobIcon = /* @__PURE__ */ icon(ListTodo)
 export const JsonIcon = /* @__PURE__ */ icon(FileJson)
 export const KeyboardIcon = /* @__PURE__ */ icon(Keyboard)
 export const KeyIcon = /* @__PURE__ */ icon(Key)
@@ -345,23 +390,29 @@ export const LicenseIcon = /* @__PURE__ */ icon(BadgeCheck)
 export const LinkIcon = /* @__PURE__ */ icon(Link)
 export const ListViewIcon = /* @__PURE__ */ icon(List)
 export const LockIcon = /* @__PURE__ */ icon(Lock)
+export const MachineImageIcon = /* @__PURE__ */ icon(Disc3)
 export const MailIcon = /* @__PURE__ */ icon(Mail)
 export const MapPinIcon = /* @__PURE__ */ icon(MapPin)
 export const MarketplaceIcon = /* @__PURE__ */ icon(Store)
+export const MatrixIcon = /* @__PURE__ */ icon(Grid3x3)
 export const MegaphoneIcon = /* @__PURE__ */ icon(Megaphone)
 export const MFAIcon = /* @__PURE__ */ icon(Smartphone)
-export const MinimizeIcon = /* @__PURE__ */ icon(Minus)
+export const MigrationIcon = /* @__PURE__ */ icon(DatabaseZap)
+export const MinimizeIcon = /* @__PURE__ */ icon(Minimize2)
 export const MinusIcon = /* @__PURE__ */ icon(Minus)
 export const MlIcon = /* @__PURE__ */ icon(BrainCircuit)
 export const MoneyIcon = /* @__PURE__ */ icon(DollarSign)
-export const MonitorIcon = /* @__PURE__ */ icon(ListChecks)
 export const MoonIcon = /* @__PURE__ */ icon(Moon)
 export const MoreIcon = /* @__PURE__ */ icon(Ellipsis)
 export const MusicIcon = /* @__PURE__ */ icon(Music)
 export const MuteIcon = /* @__PURE__ */ icon(BellOff)
+export const NetworkInterfaceIcon = /* @__PURE__ */ icon(EthernetPort)
 export const NewChatIcon = /* @__PURE__ */ icon(SquarePen)
+export const NodeIcon = /* @__PURE__ */ icon(Cpu)
+export const NotebookIcon = /* @__PURE__ */ icon(NotebookText)
 export const NotificationIcon = /* @__PURE__ */ icon(Bell)
 export const NotRunningIcon = /* @__PURE__ */ icon(Circle)
+export const OnboardingIcon = /* @__PURE__ */ icon(Flag)
 export const OpenInNewGraphIcon = /* @__PURE__ */ icon(CornerUpRight)
 export const OrganizationIcon = /* @__PURE__ */ icon(Building2)
 export const PartnerIcon = /* @__PURE__ */ icon(Handshake)
@@ -373,25 +424,33 @@ export const PieChartIcon = /* @__PURE__ */ icon(ChartPie)
 export const PinFilledIcon = /* @__PURE__ */ icon(Pin, filled)
 export const PinIcon = /* @__PURE__ */ icon(Pin)
 export const PowerIcon = /* @__PURE__ */ icon(Power)
-export const PowershellIcon = /* @__PURE__ */ icon(SquareTerminal)
+export const PowershellIcon = /* @__PURE__ */ icon(SquareChevronRight)
+export const PreviewIcon = /* @__PURE__ */ icon(ScanEye)
 export const PrintIcon = /* @__PURE__ */ icon(Printer)
 export const PublishIcon = /* @__PURE__ */ icon(Rocket)
 export const PullRequestIcon = /* @__PURE__ */ icon(GitPullRequest)
 export const QRCodeIcon = /* @__PURE__ */ icon(QrCode)
+export const QueueIcon = /* @__PURE__ */ icon(ListOrdered)
 export const QuotaIcon = /* @__PURE__ */ icon(Gauge)
 export const RedoIcon = /* @__PURE__ */ icon(Redo2)
 export const RefreshIcon = /* @__PURE__ */ icon(RefreshCw)
+export const RemoveIcon = /* @__PURE__ */ icon(X)
+export const RenameIcon = /* @__PURE__ */ icon(PencilLine)
+export const ResetLayoutIcon = /* @__PURE__ */ icon(RotateCcwSquare)
 export const ResourceGroupIcon = /* @__PURE__ */ icon(Group)
+export const ResourceIcon = /* @__PURE__ */ icon(Boxes)
 export const RetryIcon = /* @__PURE__ */ icon(RotateCcw)
-export const RobotIcon = /* @__PURE__ */ icon(Bot)
 export const RollbackIcon = /* @__PURE__ */ icon(UndoDot)
 export const RunningIcon = /* @__PURE__ */ icon(LoaderCircle)
+export const RunsIcon = /* @__PURE__ */ icon(ListVideo)
 export const RunWorkflowIcon = /* @__PURE__ */ icon(CirclePlay)
 export const SaveIcon = /* @__PURE__ */ icon(Save)
-export const SchedulerIcon = /* @__PURE__ */ icon(ListOrdered)
+export const SchedulerIcon = /* @__PURE__ */ icon(CalendarClock)
+export const ScriptIcon = /* @__PURE__ */ icon(FileCode)
 export const SearchIcon = /* @__PURE__ */ icon(Search)
 export const SendIcon = /* @__PURE__ */ icon(Send)
-export const ServerIcon = /* @__PURE__ */ icon(Server)
+export const ServiceIcon = /* @__PURE__ */ icon(Waypoints)
+export const SessionIcon = /* @__PURE__ */ icon(MonitorPlay)
 export const SettingsIcon = /* @__PURE__ */ icon(Settings)
 export const ShareIcon = /* @__PURE__ */ icon(Share2)
 export const ShieldIcon = /* @__PURE__ */ icon(Shield)
@@ -402,7 +461,7 @@ export const SidebarIcon = /* @__PURE__ */ icon(PanelLeft)
 export const SidebarOpenIcon = /* @__PURE__ */ icon(PanelLeftOpen)
 export const SignOutIcon = /* @__PURE__ */ icon(LogOut)
 export const SkipIcon = /* @__PURE__ */ icon(CircleMinus)
-export const SnapshotIcon = /* @__PURE__ */ icon(Monitor)
+export const SnapshotIcon = /* @__PURE__ */ icon(Camera)
 export const SortDownIcon = /* @__PURE__ */ icon(ArrowDownWideNarrow)
 export const SortUnsortedIcon = /* @__PURE__ */ icon(ArrowUpDown)
 export const SortUpIcon = /* @__PURE__ */ icon(ArrowUpNarrowWide)
@@ -410,8 +469,7 @@ export const SparklesIcon = /* @__PURE__ */ icon(Sparkles)
 export const SplitIcon = /* @__PURE__ */ icon(SquareSplitHorizontal)
 export const SpreadsheetIcon = /* @__PURE__ */ icon(Sheet)
 export const StartIcon = /* @__PURE__ */ icon(Play)
-export const StopCircleIcon = /* @__PURE__ */ icon(CircleStop)
-export const StopIcon = /* @__PURE__ */ icon(Square, filled)
+export const StopIcon = /* @__PURE__ */ icon(Square)
 export const StorageIcon = /* @__PURE__ */ icon(Database)
 export const SubdomainIcon = /* @__PURE__ */ icon(AtSign)
 export const SuccessIcon = /* @__PURE__ */ icon(CircleCheck)
@@ -431,6 +489,7 @@ export const UsersIcon = /* @__PURE__ */ icon(Users)
 export const UserWorkspaceIcon = /* @__PURE__ */ icon(SquareTerminal)
 export const VideoIcon = /* @__PURE__ */ icon(Video)
 export const WarningIcon = /* @__PURE__ */ icon(TriangleAlert)
+export const WebhookIcon = /* @__PURE__ */ icon(Webhook)
 export const ZapIcon = /* @__PURE__ */ icon(Zap)
 export const ZipIcon = /* @__PURE__ */ icon(FileArchive)
 export const ZoomInIcon = /* @__PURE__ */ icon(ZoomIn)

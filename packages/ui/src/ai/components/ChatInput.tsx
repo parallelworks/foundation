@@ -1,4 +1,3 @@
-import { cx } from '../../cx'
 import {
   type ClipboardEvent,
   forwardRef,
@@ -10,6 +9,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { cx } from '../../cx'
 import { AddIcon, ArrowUpIcon, StopIcon } from '../../icons'
 import { useChat } from '../core/ChatProvider'
 import { useChatConfig } from '../core/config'

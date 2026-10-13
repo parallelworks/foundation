@@ -1,7 +1,7 @@
-import { cx } from '../../cx'
 import { useMemo } from 'react'
 import { Combobox, type ComboboxGroup } from '../../components/Combobox'
 import { useStrings } from '../../components/Provider'
+import { cx } from '../../cx'
 import { ChevronDownIcon, CloudIcon, RetryIcon, WarningIcon } from '../../icons'
 import { useChat } from '../core/ChatProvider'
 import { useChatConfig } from '../core/config'

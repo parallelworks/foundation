@@ -1,6 +1,6 @@
 import { Button as BaseButton } from '@base-ui/react/button'
-import { cx } from '../cx'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import { cx } from '../cx'
 import { ChevronRightIcon } from '../icons'
 import { type ButtonStyle, buttonClasses } from './buttonClasses'
 import { Loader } from './Loader'
