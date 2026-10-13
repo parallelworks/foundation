@@ -114,6 +114,9 @@ export interface UIStrings {
     loadingSummary: string
     hasSummary: string
     summaryLoadFailed: string
+    summaryTab: string
+    logsTab: string
+    scriptTab: string
     statusLabel: (status: string) => string
     statusReason: (reason: string | undefined | null) => string | undefined
   }
@@ -619,6 +622,9 @@ const DEFAULTS: UIProviderValue = {
       loadingSummary: 'Loading summary',
       hasSummary: 'Has a summary',
       summaryLoadFailed: 'Summary could not be loaded',
+      summaryTab: 'Summary',
+      logsTab: 'Logs',
+      scriptTab: 'Script',
       statusLabel: (status) => status,
       statusReason: () => undefined,
     },

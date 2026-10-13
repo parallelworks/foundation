@@ -349,19 +349,41 @@ describe('DependencyGraph step summary', () => {
     return calls
   }
 
-  it('opens the step and shows its summary above its log, without polling', async () => {
+  it('opens the step on its summary without polling, and swaps to its log and script', async () => {
     const calls = renderOpen(0)
-    const heading = await screen.findByRole('heading', { name: 'Tests' })
-    const log = screen.getByTestId('log')
-    expect(log).toHaveTextContent('step log')
-    expect(heading.compareDocumentPosition(log) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Tests' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Report › test' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Summary' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByTestId('log')).not.toBeInTheDocument()
     expect(calls).toContainEqual(['logs/report/step_0/summary.md', undefined])
+    expect(calls.some(([path]) => path?.endsWith('logs.out'))).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Logs' }))
+    expect(screen.getByTestId('log')).toHaveTextContent('step log')
+    expect(screen.queryByRole('heading', { name: 'Tests' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Script' }))
+    expect(screen.getByRole('button', { name: 'Script' })).toHaveAttribute('aria-pressed', 'true')
+    expect(calls).toContainEqual([
+      'logs/report/step_0/script-unstable-redacted.sh',
+      { refreshInterval: 2000 },
+    ])
   })
 
-  it('fetches no summary for a step without one', () => {
+  it('opens a step without a summary on its log, with no summary to show', () => {
     const calls = renderOpen(1)
     expect(screen.getByTestId('log')).toHaveTextContent('step log')
+    expect(screen.getByRole('button', { name: 'Logs' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('button', { name: 'Summary' })).not.toBeInTheDocument()
     expect(calls.some(([path]) => path?.endsWith('summary.md'))).toBe(false)
+  })
+
+  it('pages from a summary to the log of a step without one, and back', async () => {
+    renderOpen(0)
+    await screen.findByRole('heading', { name: 'Tests' })
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    expect(screen.getByRole('heading', { name: 'Report › lint' })).toBeInTheDocument()
+    expect(screen.getByTestId('log')).toHaveTextContent('step log')
+    fireEvent.click(screen.getByRole('button', { name: 'Prev' }))
+    expect(await screen.findByRole('heading', { name: 'Tests' })).toBeInTheDocument()
   })
   it('tells the host when the step it opened is closed', () => {
     const onCloseLog = vi.fn()
@@ -426,7 +448,7 @@ describe('DependencyGraph step summary', () => {
       </UIProvider>,
     )
     expect(await screen.findByRole('heading', { name: 'Refined' })).toBeInTheDocument()
-    expect(screen.getByText(/Step: refine/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Mesh › refine' })).toBeInTheDocument()
     expect(calls).toContain('subworkflows/report/step_0/logs/mesh/step_0/summary.md')
   })
 
@@ -569,16 +591,17 @@ describe('DependencyGraph general log', () => {
   })
 
   // A subworkflow's general log IS its parent step's log file, so paging and the
-  // script toggle do belong there.
+  // script tab do belong there.
   it('keeps step paging on a subworkflow general log', () => {
     renderGraph(run)
     fireEvent.click(screen.getAllByText('Build')[0]!)
     fireEvent.click(screen.getAllByRole('button', { name: 'Open in new graph' })[0]!)
     fireEvent.click(screen.getByRole('button', { name: 'General log' }))
-    expect(footerButtons()).toEqual(['Prev', 'Next', 'Show Script'])
+    expect(footerButtons()).toEqual(['Prev', 'Next'])
+    expect(screen.getByRole('button', { name: 'Script' })).toBeInTheDocument()
     // And paging still resolves to a real step rather than throwing.
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    expect(footerButtons()).toEqual(['Prev', 'Next', 'Show Script'])
+    expect(footerButtons()).toEqual(['Prev', 'Next'])
   })
 })
 

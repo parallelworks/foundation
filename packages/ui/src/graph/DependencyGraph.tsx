@@ -1,6 +1,14 @@
 import cx from 'classnames'
 import { DateTime } from 'luxon'
-import React, { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { flushSync } from 'react-dom'
 import {
   type ReactZoomPanPinchContentRef,
@@ -28,6 +36,61 @@ import { jobLabel, toggled } from './util'
 
 export type ViewMode = 'dag' | 'tree'
 
+const segmentClasses = (active: boolean) =>
+  cx(
+    'px-3 py-1.5 transition-colors',
+    active
+      ? 'bg-[var(--theme-element)] text-[var(--theme-element-text)]'
+      : 'text-[var(--theme-muted-text-color)] hover:text-[var(--theme-app)] hover:bg-[var(--theme-hover)]',
+  )
+
+type StepTab = 'summary' | 'logs' | 'script'
+
+const stepTabFiles: Record<StepTab, string> = {
+  summary: 'summary.md',
+  logs: 'logs.out',
+  script: 'script-unstable-redacted.sh',
+}
+
+const fileBeside = (path: string, file: string) => path.slice(0, path.lastIndexOf('/') + 1) + file
+
+function StepTabs({
+  tabs,
+  active,
+  labelledBy,
+  onSelect,
+}: {
+  tabs: StepTab[]
+  active: StepTab
+  labelledBy: string
+  onSelect: (tab: StepTab) => void
+}) {
+  const { dag } = useStrings()
+  const labels: Record<StepTab, string> = {
+    summary: dag.summaryTab,
+    logs: dag.logsTab,
+    script: dag.scriptTab,
+  }
+  return (
+    <fieldset
+      aria-labelledby={labelledBy}
+      className="flex shrink-0 border border-[var(--theme-border)] rounded overflow-hidden"
+    >
+      {tabs.map((tab) => (
+        <button
+          key={tab}
+          type="button"
+          aria-pressed={tab === active}
+          onClick={() => onSelect(tab)}
+          className={cx('text-sm', segmentClasses(tab === active))}
+        >
+          {labels[tab]}
+        </button>
+      ))}
+    </fieldset>
+  )
+}
+
 function ViewToggle({
   viewMode,
   setViewMode,
@@ -40,24 +103,14 @@ function ViewToggle({
       <button
         type="button"
         onClick={() => setViewMode('dag')}
-        className={cx(
-          'px-3 py-1.5 text-xs font-mono transition-colors',
-          viewMode === 'dag'
-            ? 'bg-[var(--theme-element)] text-[var(--theme-element-text)]'
-            : 'text-[var(--theme-muted-text-color)] hover:text-[var(--theme-app)] hover:bg-[var(--theme-hover)]',
-        )}
+        className={cx('text-xs font-mono', segmentClasses(viewMode === 'dag'))}
       >
         DAG
       </button>
       <button
         type="button"
         onClick={() => setViewMode('tree')}
-        className={cx(
-          'px-3 py-1.5 text-xs font-mono transition-colors',
-          viewMode === 'tree'
-            ? 'bg-[var(--theme-element)] text-[var(--theme-element-text)]'
-            : 'text-[var(--theme-muted-text-color)] hover:text-[var(--theme-app)] hover:bg-[var(--theme-hover)]',
-        )}
+        className={cx('text-xs font-mono', segmentClasses(viewMode === 'tree'))}
       >
         Tree
       </button>
@@ -1268,6 +1321,7 @@ export default function DependencyGraph({
   const workflowName = run.workflowName ?? ''
   const runStatus = toStatus(run.status)
   const [sublogOpen, setSublogOpen] = useState<string>('')
+  const stepTitleId = useId()
   // Which jobs have their step list open, keyed by namespaced path
   // (`${pathPrefix}${jobName}`). A Set so multiple jobs — across nesting levels —
   // can be open at once, which is what makes "Expand all" able to reveal everything.
@@ -1427,23 +1481,6 @@ export default function DependencyGraph({
     [invalidateConnectors],
   )
 
-  const {
-    data: sublogs,
-    isLoading: sublogsLoading,
-    error: sublogsError,
-  } = useRunFile(runSlug, sublogOpen || null, preview ? undefined : { refreshInterval: 2000 })
-
-  // Runs executed before the redacted sibling existed only have the raw script.
-  useEffect(() => {
-    if (
-      sublogOpen.endsWith('/script-unstable-redacted.sh') &&
-      !sublogsLoading &&
-      (sublogsError || !sublogs)
-    ) {
-      setSublogOpen(sublogOpen.replace(/script-unstable-redacted\.sh$/, 'script-unstable.sh'))
-    }
-  }, [sublogOpen, sublogs, sublogsError, sublogsLoading])
-
   const nestingDepth = currentPath.length / 5
   const levelPrefixes: string[] = []
   for (let i = 0; i < nestingDepth; i++) {
@@ -1464,7 +1501,9 @@ export default function DependencyGraph({
   const openPrefix = openStep?.prefix ?? ''
   useEffect(() => {
     if (openJob !== undefined && openStepIndex !== undefined) {
-      setSublogOpen(engine.stepLogPath(openPrefix, openJob, openStepIndex))
+      setSublogOpen(
+        fileBeside(engine.stepLogPath(openPrefix, openJob, openStepIndex), 'summary.md'),
+      )
     }
   }, [engine, openJob, openStepIndex, openPrefix])
 
@@ -1480,17 +1519,52 @@ export default function DependencyGraph({
       ? jobs
       : walkJobPath(rootJobs, parsePrefixToPath(sublogOpen.split('/').slice(0, -4).join('/')))
   const sublogStepData = sublogIsStep ? sublogJobs[sublogJob]?.steps[Number(sublogStep)] : undefined
-  const logName = sublogIsStep
-    ? `Job: ${jobLabel(sublogJob)} \nStep: ${sublogStepData?.name || `Step ${sublogStep}`}`
+  const stepTitle = sublogIsStep
+    ? `${jobLabel(sublogJob, sublogJobs[sublogJob])} › ${engine.stepLabel(sublogStepData ?? {}, Number(sublogStep))}`
     : ''
   const sublogIsSubworkflow = !!sublogStepData?.subworkflow
-  // The step's log and its script sit side by side; the toggle swaps one for the other.
-  const sublogFileStart = sublogOpen.lastIndexOf('/') + 1
-  const sublogShowsLog = sublogOpen.slice(sublogFileStart) === 'logs.out'
-  const sublogSummaryPath =
-    !preview && sublogShowsLog && sublogStepData?.summary
-      ? `${sublogOpen.slice(0, sublogFileStart)}summary.md`
-      : null
+  // A step's summary, log and script sit side by side in its directory; the tabs swap between them.
+  const sublogDir = sublogOpen.slice(0, sublogOpen.lastIndexOf('/') + 1)
+  const sublogFile = sublogOpen.slice(sublogDir.length)
+  const sublogHasSummary = !preview && !!sublogStepData?.summary
+  // Paging from a summary to a step without one shows that step's log.
+  const sublogTab: StepTab =
+    sublogFile === 'summary.md' && sublogHasSummary
+      ? 'summary'
+      : sublogFile === 'logs.out' || sublogFile === 'summary.md'
+        ? 'logs'
+        : 'script'
+  const stepTabs: StepTab[] =
+    !sublogIsStep || preview || sublogIsSubworkflow
+      ? []
+      : sublogHasSummary
+        ? ['summary', 'logs', 'script']
+        : ['logs', 'script']
+
+  const {
+    data: sublogs,
+    isLoading: sublogsLoading,
+    error: sublogsError,
+  } = useRunFile(
+    runSlug,
+    sublogOpen === '' || sublogTab === 'summary'
+      ? null
+      : sublogFile === 'summary.md'
+        ? `${sublogDir}logs.out`
+        : sublogOpen,
+    preview ? undefined : { refreshInterval: 2000 },
+  )
+
+  // Runs executed before the redacted sibling existed only have the raw script.
+  useEffect(() => {
+    if (
+      sublogOpen.endsWith('/script-unstable-redacted.sh') &&
+      !sublogsLoading &&
+      (sublogsError || !sublogs)
+    ) {
+      setSublogOpen(sublogOpen.replace(/script-unstable-redacted\.sh$/, 'script-unstable.sh'))
+    }
+  }, [sublogOpen, sublogs, sublogsError, sublogsLoading])
 
   const matrixGroups = useMemo(() => engine.matrixGroups(jobs), [engine, jobs])
   const { dependencyCols } = useMemo(
@@ -1726,39 +1800,50 @@ export default function DependencyGraph({
         <ArrowRightIcon />
         <span>Next</span>
       </button>
-      <span className="pt-0.5 whitespace-pre-wrap text-xs">{logName}</span>
     </>
   ) : undefined
 
   const additionalBottomRightBarComponents =
-    (!preview || sublogIsSubworkflow) && sublogIsStep ? (
+    sublogIsStep && sublogIsSubworkflow ? (
       <button
         type="button"
         className="btn btn-neutral"
         onClick={() => {
-          if (sublogIsSubworkflow) {
-            openInNewGraph(pathAppend, sublogJob, parseInt(sublogStep ?? '', 10))
-            setSublogOpen('')
-          } else {
-            setSublogOpen(
-              sublogOpen.slice(0, sublogFileStart) +
-                (sublogShowsLog ? 'script-unstable-redacted.sh' : 'logs.out'),
-            )
-          }
+          openInNewGraph(pathAppend, sublogJob, parseInt(sublogStep ?? '', 10))
+          setSublogOpen('')
         }}
       >
-        <span>
-          {sublogIsSubworkflow ? 'Open Subworkflow' : sublogShowsLog ? 'Show Script' : 'Show Logs'}
-        </span>
+        <span>Open Subworkflow</span>
       </button>
     ) : undefined
 
-  // The summary takes its height from the log, so the log's bar stays on screen.
-  const stepSummaryMaxHeight = Math.round(windowSize.h * 0.3)
+  const stepBar = (
+    <div className="flex theme-panel select-none items-center gap-x-2 p-2">
+      <div className="flex gap-x-2 w-full">{additionalBottomLeftBarComponents}</div>
+      {additionalBottomRightBarComponents}
+    </div>
+  )
+  const stepHeader = sublogIsStep ? (
+    <div className="flex h-9 shrink-0 items-center justify-between gap-x-3">
+      <h2 id={stepTitleId} className="truncate text-base font-semibold" title={stepTitle}>
+        {stepTitle}
+      </h2>
+      {stepTabs.length > 0 && (
+        <StepTabs
+          tabs={stepTabs}
+          active={sublogTab}
+          labelledBy={stepTitleId}
+          onSelect={(tab) => setSublogOpen(sublogDir + stepTabFiles[tab])}
+        />
+      )}
+    </div>
+  ) : undefined
+  // The header and its gap (h-9 + gap-y-3) come off the body, so the dialog keeps its size.
+  const stepBodyHeight = windowSize.h / 1.2 - (sublogIsStep ? 48 : 0)
   const stepLogViewer = (
     <LogViewer
       log={currentSublog.slice(-100000)}
-      height={windowSize.h / 1.2 - (sublogSummaryPath ? stepSummaryMaxHeight + 8 : 0)}
+      height={stepBodyHeight}
       width={windowSize.w / 1.2}
       hideExpand={true}
       additionalBottomLeftBarComponents={additionalBottomLeftBarComponents}
@@ -2007,7 +2092,8 @@ export default function DependencyGraph({
           {sublogsLoading && (!sublogs || !runNumber) ? (
             <Loader text={dagStrings.loadingLogs} size={70} textSize={18} />
           ) : preview ? (
-            <div>
+            <div className="flex flex-col gap-y-3">
+              {stepHeader}
               {slots.yamlViewer?.({
                 value: currentSublog,
                 height: window.innerHeight / 1.4,
@@ -2024,21 +2110,22 @@ export default function DependencyGraph({
                   {currentSublog}
                 </pre>
               )}
-              <div className="flex theme-panel select-none items-center gap-x-2 p-2">
-                <div className="w-full flex flex-row gap-x-2 items-center">
-                  <div className="flex gap-x-2 w-full">{additionalBottomLeftBarComponents}</div>
-                </div>
-                {additionalBottomRightBarComponents}
-              </div>
+              {stepBar}
             </div>
-          ) : sublogSummaryPath ? (
-            <div className="flex flex-col gap-y-2">
-              <StepSummary
-                runSlug={runSlug}
-                path={sublogSummaryPath}
-                maxHeight={stepSummaryMaxHeight}
-              />
-              {stepLogViewer}
+          ) : sublogIsStep ? (
+            <div className="flex flex-col gap-y-3">
+              {stepHeader}
+              {sublogTab === 'summary' ? (
+                <div
+                  className="flex flex-col gap-y-2"
+                  style={{ height: stepBodyHeight, width: windowSize.w / 1.2 }}
+                >
+                  <StepSummary runSlug={runSlug} path={`${sublogDir}summary.md`} />
+                  {stepBar}
+                </div>
+              ) : (
+                stepLogViewer
+              )}
             </div>
           ) : (
             stepLogViewer
