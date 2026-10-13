@@ -9,7 +9,7 @@ import { formatBytes, formatDuration } from '../../format'
 import {
   CheckIcon,
   CopyIcon,
-  DownloadFileIcon,
+  DownloadIcon,
   EditIcon,
   ErrorIcon,
   FileIcon,
@@ -450,7 +450,7 @@ function ChatMessage({
                         {att.size ? (
                           <span className="theme-muted-text">({formatBytes(att.size)})</span>
                         ) : null}
-                        <DownloadFileIcon className="w-3 h-3 flex-shrink-0" />
+                        <DownloadIcon className="w-3 h-3 flex-shrink-0" />
                       </button>
                     )
                   }

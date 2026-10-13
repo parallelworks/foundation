@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useState } from 'react'
 import { expect, fireEvent, screen, userEvent, waitFor, within } from 'storybook/test'
-import { AddIcon, ClipboardIcon, EditIcon, TrashIcon } from '../icons'
+import { AddIcon, CopyIcon, EditIcon, TrashIcon } from '../icons'
 import { MoreButton, rowContextMenuProps, useRowMenuActive } from '../list/rowMenu'
 import { ActionMenu } from './ActionMenu'
 import { type OpenMenu, useContextMenu } from './ContextMenu'
@@ -21,7 +21,7 @@ function useItems(): MenuEntry[] {
     { label: 'Open in a new tab', href: '#details' },
     {
       label: 'Copy',
-      icon: <ClipboardIcon />,
+      icon: <CopyIcon />,
       items: [
         { label: 'Copy name', copy: { text: 'gpu-cluster', label: 'name' } },
         { label: 'Copy ID', copy: { text: 'c-123', label: 'ID' } },

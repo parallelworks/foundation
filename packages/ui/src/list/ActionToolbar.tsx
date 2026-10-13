@@ -1,5 +1,6 @@
 import { Menu } from '@base-ui/react/menu'
 import { Toggle } from '@base-ui/react/toggle'
+import { cx } from '../cx'
 import { createContext, Fragment, useContext, useLayoutEffect, useRef, useState } from 'react'
 import { Button } from '../components/Button'
 import { buttonClasses } from '../components/buttonClasses'
@@ -7,8 +8,7 @@ import { MenuPopup } from '../components/Menu'
 import { MenuEntries } from '../components/MenuEntries'
 import { useLink, useStrings } from '../components/Provider'
 import { Tooltip } from '../components/Tooltip'
-import { cx } from '../cx'
-import { MenuIcon } from '../icons'
+import { MoreIcon } from '../icons'
 import type { RowAction } from './rowMenu'
 
 // True inside the `…` menu, so pre-rendered element items whose buttons
@@ -105,7 +105,7 @@ function OverflowMenu({ items }: { items: ToolbarItem[] }) {
           className={buttonClasses({ variant: 'outline', size: 'md', iconOnly: true })}
           data-testid="action-toolbar-menu-button"
         >
-          <MenuIcon />
+          <MoreIcon />
         </Menu.Trigger>
       </Tooltip>
       {/* Element items own their modal state (e.g. delete confirmations), and

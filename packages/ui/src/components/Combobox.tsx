@@ -1,6 +1,7 @@
 import { Autocomplete as BaseAutocomplete } from '@base-ui/react/autocomplete'
 import { Combobox as BaseCombobox } from '@base-ui/react/combobox'
 import { useVirtualizer, type Virtualizer } from '@tanstack/react-virtual'
+import { cx } from '../cx'
 import { dequal } from 'dequal'
 import {
   type CSSProperties,
@@ -14,8 +15,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { cx } from '../cx'
-import { AddIcon, CaretDownIcon, CheckIcon, XIcon } from '../icons'
+import { AddIcon, CheckIcon, ChevronDownIcon, CloseIcon } from '../icons'
 import {
   type ComboboxItem,
   type ComboboxItems,
@@ -329,7 +329,7 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
                       aria-label={`${strings.common.remove} ${entry.label}`}
                       className="flex size-4 items-center justify-center rounded hover:bg-(--theme-hover)"
                     >
-                      <XIcon className="size-3" />
+                      <CloseIcon className="size-3" />
                     </BaseCombobox.ChipRemove>
                   </BaseCombobox.Chip>
                 ))
@@ -350,7 +350,7 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
           data-testid="combobox-button"
           className={triggerClassName}
         >
-          <CaretDownIcon className="size-3" />
+          <ChevronDownIcon className="size-3" />
         </BaseCombobox.Trigger>
       </BaseCombobox.InputGroup>
       <ListPopup<Value>
@@ -452,7 +452,7 @@ export function Autocomplete({
             data-testid="combobox-button"
             className={triggerClassName}
           >
-            <CaretDownIcon className="size-3" />
+            <ChevronDownIcon className="size-3" />
           </BaseAutocomplete.Trigger>
         )}
       </BaseAutocomplete.InputGroup>
