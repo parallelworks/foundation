@@ -15,6 +15,7 @@ import {
 import { Button } from '../components/Button'
 import { buttonClasses } from '../components/buttonClasses'
 import { DatePicker } from '../components/DatePicker'
+import { fieldBox } from '../components/fieldBox'
 import type { FloatingAnchor } from '../components/floating'
 import { IconButton } from '../components/IconButton'
 import { InfoTip } from '../components/InfoTip'
@@ -876,7 +877,7 @@ export function LogViewer({
           </div>
           <input
             type="text"
-            className="rounded-md text-sm h-8"
+            className={cx(fieldBox(), 'w-48')}
             placeholder={t.filterLogs}
             onChange={handleFilterChange}
           />

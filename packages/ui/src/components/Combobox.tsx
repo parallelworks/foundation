@@ -22,6 +22,7 @@ import {
   type ComboboxLeaf,
   isComboboxGroup as isGroup,
 } from './comboboxItems'
+import { fieldBox } from './fieldBox'
 import { panelClassName, panelItemClassName, positionerClassName } from './floating'
 import { useStrings } from './Provider'
 import { useQueryMatch } from './search'
@@ -43,6 +44,7 @@ interface FieldProps {
   'aria-labelledby'?: string | undefined
   'aria-describedby'?: string | undefined
   'aria-invalid'?: boolean | undefined
+  'aria-required'?: boolean | undefined
   /** Classes for the field box: border, background, size. */
   className?: string | undefined
 }
@@ -170,14 +172,15 @@ function useEntryFilter() {
 
 const entryLabel = <Value,>(entry: Entry<Value> | null) => entry?.label ?? ''
 
-const fieldClassName =
-  'theme-input relative flex min-h-8 w-full items-center gap-1 rounded-md border text-sm focus-within:border-(--theme-element) focus-within:ring-1 focus-within:ring-(--theme-element) has-[[aria-invalid=true]]:border-(--theme-error) has-[input:disabled]:cursor-not-allowed has-[input:disabled]:bg-(--theme-input-disabled-bg) has-[input:disabled]:text-(--theme-input-disabled-text)'
+const fieldClassName = cx(
+  fieldBox({ within: true, multiline: true, padded: false }),
+  'relative flex items-center gap-1',
+)
 const inputClassName =
   'h-full min-w-12 flex-1 self-stretch border-0 bg-transparent py-1.5 pl-3 text-inherit outline-none placeholder:text-(--theme-muted-text-color) disabled:cursor-not-allowed'
 const triggerClassName =
   'flex shrink-0 items-center self-stretch px-2 text-(--theme-muted-text-color) disabled:cursor-not-allowed'
-const popupInputClassName =
-  'theme-input h-7 w-full rounded-md border px-2 text-sm outline-none placeholder:text-(--theme-muted-text-color) focus:border-(--theme-element)'
+const popupInputClassName = fieldBox({ size: 'sm' })
 
 /** A pick-from-the-list field: one value, or several with `multiple`. Typing filters the list. */
 export function Combobox<Value = string>(props: ComboboxProps<Value>) {
@@ -194,6 +197,7 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
     'aria-labelledby': ariaLabelledBy,
     'aria-describedby': ariaDescribedBy,
     'aria-invalid': ariaInvalid,
+    'aria-required': ariaRequired,
     trigger,
     triggerTooltip,
   } = props
@@ -263,6 +267,7 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
       aria-labelledby={ariaLabelledBy}
       aria-describedby={ariaDescribedBy}
       aria-invalid={ariaInvalid || undefined}
+      aria-required={ariaRequired || required || undefined}
       autoComplete="off"
       className={trigger ? popupInputClassName : inputClassName}
     />
@@ -292,6 +297,7 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
           aria-labelledby={ariaLabelledBy}
           aria-describedby={ariaDescribedBy}
           aria-invalid={ariaInvalid || undefined}
+          aria-required={ariaRequired || required || undefined}
           render={trigger}
         />
       </Tooltip>
@@ -407,6 +413,7 @@ export function Autocomplete({
   'aria-labelledby': ariaLabelledBy,
   'aria-describedby': ariaDescribedBy,
   'aria-invalid': ariaInvalid,
+  'aria-required': ariaRequired,
 }: AutocompleteProps) {
   const entries = useEntries(items)
   const filter = useEntryFilter()
@@ -435,6 +442,7 @@ export function Autocomplete({
           aria-labelledby={ariaLabelledBy}
           aria-describedby={ariaDescribedBy}
           aria-invalid={ariaInvalid || undefined}
+          aria-required={ariaRequired || required || undefined}
           autoComplete="off"
           className={inputClassName}
         />

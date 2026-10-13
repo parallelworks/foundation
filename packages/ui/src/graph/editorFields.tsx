@@ -10,6 +10,7 @@ import {
   useState,
 } from 'react'
 import { Button } from '../components/Button'
+import { Checkbox } from '../components/Checkbox'
 import { FilterPill } from '../components/FilterPill'
 import { IconButton } from '../components/IconButton'
 import { Input, Textarea } from '../components/Input'
@@ -301,7 +302,7 @@ export function KeyHint({ label, yamlKey }: { label: string; yamlKey: string }) 
 
 /** Label props for an Input or Textarea that sets `yamlKey`. */
 export function labelled(label: string, yamlKey: string) {
-  return { label, labelHint: <KeyHint label={label} yamlKey={yamlKey} /> }
+  return { label, hint: <KeyHint label={label} yamlKey={yamlKey} /> }
 }
 
 /** A field's name and help text, for controls without their own label; `actions` sit at its right. */
@@ -712,12 +713,7 @@ function OpenOnAddSwitch({ open, onChange }: OpenOnAdd) {
   return (
     <Tooltip content={t.openOnAddHelp}>
       <label className="flex cursor-pointer items-center gap-2 text-xs theme-muted-text">
-        <input
-          type="checkbox"
-          className="h-4 w-4 cursor-pointer accent-(--theme-element)"
-          checked={open}
-          onChange={(e) => onChange(e.target.checked)}
-        />
+        <Checkbox checked={open} onCheckedChange={(next) => onChange(next)} />
         {t.openOnAdd}
       </label>
     </Tooltip>

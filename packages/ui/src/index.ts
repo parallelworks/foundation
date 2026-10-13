@@ -24,6 +24,7 @@ export {
 } from './components/buttonClasses'
 export { default as Callout } from './components/Callout'
 export { Card, CardHeader, type CardProps } from './components/Card'
+export { Checkbox, CheckboxGroup, type CheckboxProps } from './components/Checkbox'
 export {
   Autocomplete,
   type AutocompleteProps,
@@ -42,26 +43,32 @@ export {
 export { CopyCodeBlock, default as CopyToClipboard } from './components/CopyToClipboard'
 export {
   CreateModal,
-  CreateModalAutocompleteField,
-  CreateModalField,
   CreateModalSelect,
   CreateModalSwitch,
-  CreateModalTextarea,
 } from './components/CreateModal'
 export { DatePicker, type DatePickerProps } from './components/DatePicker'
 export { DescriptionListItem, default as DescriptionList } from './components/DescriptionList'
 export { Drawer, type DrawerProps } from './components/Drawer'
 export { EmptyState, type EmptyStateProps } from './components/EmptyState'
 export { ExternalLink, type ExternalLinkProps } from './components/ExternalLink'
+export {
+  Field,
+  type FieldControlProps,
+  type FieldLayout,
+  FieldOption,
+  type FieldProps,
+  RevealToggle,
+  useFieldControl,
+} from './components/Field'
 export { default as Filter } from './components/Filter'
 export { FilterPill } from './components/FilterPill'
+export { type FieldBoxOptions, type FieldBoxSize, fieldBox } from './components/fieldBox'
 export type { FloatingAnchor } from './components/floating'
 export { HoverCard, type HoverCardProps } from './components/HoverCard'
 export { IconButton, type IconButtonProps } from './components/IconButton'
 export { Indicator } from './components/Indicator'
 export { formatInfoTipContent, InfoTip } from './components/InfoTip'
-export { Input, Textarea } from './components/Input'
-export { inputClasses } from './components/inputClasses'
+export { Input, type InputProps, Textarea, type TextareaProps } from './components/Input'
 export { LetterBadge } from './components/LetterBadge'
 export { Loader, type LoaderProps } from './components/Loader'
 export type { MarkdownProps } from './components/Markdown'
@@ -175,6 +182,7 @@ export {
   SettingsHeading,
 } from './components/SettingsCard'
 export { LoadingRegion, Skeleton, type SkeletonProps } from './components/Skeleton'
+export { Slider, type SliderProps } from './components/Slider'
 export { default as Sort, type TDirection } from './components/Sort'
 export {
   type BadgeVariant,

@@ -1,5 +1,6 @@
 import { clsx as cx } from 'clsx'
 import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { Checkbox } from '../components/Checkbox'
 import { Combobox } from '../components/Combobox'
 import { FilterPill } from '../components/FilterPill'
 import { IconButton } from '../components/IconButton'
@@ -1557,15 +1558,14 @@ function PropField({
           {...field}
           actions={
             <label className="flex cursor-pointer items-center gap-1.5 text-xs theme-muted-text">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={perCopy.list}
-                onChange={(e) =>
+                onCheckedChange={(list) =>
                   onChange({
                     ...perCopy,
-                    list: e.target.checked,
+                    list,
                     values:
-                      e.target.checked && perCopy.values.length === 0 && perCopy.text.trim()
+                      list && perCopy.values.length === 0 && perCopy.text.trim()
                         ? [perCopy.text]
                         : perCopy.values,
                   })

@@ -8,7 +8,7 @@ export interface RadioProps<Value> extends Omit<BaseRadio.Root.Props<Value>, 'cl
 }
 
 /** One choice in a `RadioGroup`, which holds the value. Name it with an
- *  enclosing `<label>`. */
+ *  enclosing `<label>`, or a `FieldOption` inside a `Field`. */
 export function Radio<Value>({ className, ...props }: RadioProps<Value>) {
   return (
     <BaseRadio.Root

@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
+import { Field } from '../../components/Field'
 import { NumberInput } from '../../components/NumberInput'
-import { FieldWrapper } from '../FieldWrapper'
+import { fieldFrame } from '../fieldFrame'
 import type { FieldComponentProps } from '../types/fieldComponentTypes'
 import type { BaseField } from '../types/fieldTypes'
 import { useFieldValue } from '../useFieldValue'
@@ -29,16 +30,8 @@ function toNumber(value: unknown): number | null {
   return null
 }
 
-export default function NumberField({
-  field,
-  label,
-  labelPosition,
-  missing,
-  disabled,
-  onChange,
-  tooltipComponent,
-  spaceCompact,
-}: FieldComponentProps<INumberField>) {
+export default function NumberField(props: FieldComponentProps<INumberField>) {
+  const { field, disabled, onChange } = props
   // The form names every field before it renders one.
   const [value, change] = useFieldValue<unknown>(field.name ?? '')
 
@@ -54,17 +47,10 @@ export default function NumberField({
   }, [seed, change])
 
   return (
-    <FieldWrapper
-      optional={field.optional}
-      label={label}
-      tooltipComponent={tooltipComponent}
-      description={field.description}
-      labelPosition={labelPosition}
-      spaceCompact={spaceCompact}
-    >
-      {({ id, describedBy }) => (
+    <Field {...fieldFrame(props)}>
+      {(control) => (
         <NumberInput
-          id={id}
+          {...control}
           name={field.name}
           value={toNumber(value)}
           onValueChange={(next) => {
@@ -76,13 +62,10 @@ export default function NumberField({
           max={field.max}
           step={field.step}
           disabled={disabled}
-          aria-required={!field.optional}
           format={{ useGrouping: field.thousandsSeparator ?? false }}
           placeholder={getPlaceholder(field.placeholder, field.default)}
-          aria-describedby={describedBy}
-          aria-invalid={missing}
         />
       )}
-    </FieldWrapper>
+    </Field>
   )
 }

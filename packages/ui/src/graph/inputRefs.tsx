@@ -1,6 +1,10 @@
 import { useId, useRef, useState } from 'react'
+import { ActionMenu } from '../components/ActionMenu'
 import { IconButton } from '../components/IconButton'
-import { fieldBoxClasses, Textarea } from '../components/Input'
+import { Textarea } from '../components/Input'
+import type { MenuEntry } from '../components/MenuEntries'
+import { useStrings } from '../components/Provider'
+import { Select } from '../components/Select'
 import { Switch } from '../components/Switch'
 import type { WorkflowEditing } from '../editing'
 import { AddIcon } from '../icons'
@@ -133,38 +137,35 @@ export function InputRefSelect({
   label: string
 }) {
   const t = useGraphEditorStrings()
-  const id = useId()
   const matching = refs.filter((ref) => types.includes(ref.type))
   const current = value ? pathKey(value) : ''
   const known = matching.some((ref) => pathKey(ref.path) === current)
+  // An input the field names that isn't offered still shows, marked so choosing it does nothing.
+  const items = [
+    ...(!known && current ? [{ value: `?${current}`, label: `inputs.${current}` }] : []),
+    ...matching.map((ref) => ({
+      value: pathKey(ref.path),
+      label:
+        ref.label === ref.path.at(-1)
+          ? `inputs.${pathKey(ref.path)}`
+          : `${ref.label} (inputs.${pathKey(ref.path)})`,
+    })),
+    ...(onNew ? [{ value: '+', label: newLabel ?? t.newInput }] : []),
+  ]
   return (
-    <select
-      id={id}
+    <Select<string>
       aria-label={label}
-      value={known || !current ? current : `?${current}`}
-      onChange={(e) => {
-        const next = e.target.value
+      placeholder={matching.length > 0 ? t.chooseInput : t.noMatchingInputs}
+      items={items}
+      value={known || !current ? current || null : `?${current}`}
+      onValueChange={(next) => {
         if (next === '+') {
           onNew?.()
         } else if (next && !next.startsWith('?')) {
           onChange(next.split('.'))
         }
       }}
-      className={fieldBoxClasses}
-    >
-      <option value="" disabled>
-        {matching.length > 0 ? t.chooseInput : t.noMatchingInputs}
-      </option>
-      {!known && current && <option value={`?${current}`}>{`inputs.${current}`}</option>}
-      {matching.map((ref) => (
-        <option key={pathKey(ref.path)} value={pathKey(ref.path)}>
-          {ref.label === ref.path.at(-1)
-            ? `inputs.${pathKey(ref.path)}`
-            : `${ref.label} (inputs.${pathKey(ref.path)})`}
-        </option>
-      ))}
-      {onNew && <option value="+">{newLabel ?? t.newInput}</option>}
-    </select>
+    />
   )
 }
 
@@ -580,39 +581,29 @@ function InsertRefSelect({
   onInsert: (reference: string) => void
 }) {
   const t = useGraphEditorStrings()
+  const strings = useStrings()
   const all = allRefs(source)
-  // A select dressed as a button: the grouped list and keyboard handling come with it.
+  const groups = GROUP_ORDER.map((group) => ({
+    group,
+    items: all
+      .filter((item) => item.group === group)
+      .map((item) => ({ label: item.label, onClick: () => onInsert(item.expression) })),
+  })).filter((group) => group.items.length > 0)
+  // One kind of reference lists them all; several make a submenu each.
+  const entries: MenuEntry[] =
+    groups.length === 1
+      ? (groups[0]?.items ?? [])
+      : groups.map(({ group, items }) => ({ label: t.refGroups[group], items }))
   return (
-    <span className="relative inline-flex shrink-0 items-center">
-      <AddIcon
-        aria-hidden="true"
-        className="pointer-events-none absolute left-2 h-3 w-3 theme-muted-text"
-      />
-      <select
-        aria-label={label}
-        value=""
-        onChange={(e) => {
-          if (e.target.value) {
-            onInsert(e.target.value)
-          }
-        }}
-        className="cursor-pointer appearance-none rounded-md border border-(--theme-border) bg-(--theme-panel-bg) py-1 pr-2 pl-6 text-xs text-(--theme-app) hover:bg-(--theme-muted-panel-bg)"
-      >
-        <option value="">{label}</option>
-        {GROUP_ORDER.map((group) => {
-          const refs = all.filter((item) => item.group === group)
-          return refs.length > 0 ? (
-            <optgroup key={group} label={t.refGroups[group]}>
-              {refs.map((item) => (
-                <option key={item.label} value={item.expression}>
-                  {item.label}
-                </option>
-              ))}
-            </optgroup>
-          ) : null
-        })}
-      </select>
-    </span>
+    <ActionMenu
+      label={label}
+      items={entries}
+      search={{ placeholder: strings.common.search, empty: strings.dropdown.noOptionsFound }}
+      triggerClassName="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-(--theme-border) bg-(--theme-panel-bg) px-2 py-1 text-xs text-(--theme-app) hover:bg-(--theme-muted-panel-bg)"
+    >
+      <AddIcon aria-hidden="true" className="size-3 theme-muted-text" />
+      {label}
+    </ActionMenu>
   )
 }
 

@@ -1,6 +1,7 @@
 import { NumberField } from '@base-ui/react/number-field'
 import { clsx as cx } from 'clsx'
 import { AngleDownIcon, AngleUpIcon } from '../icons'
+import { type FieldBoxSize, fieldBox } from './fieldBox'
 
 export interface NumberInputProps
   extends Omit<NumberField.Root.Props, 'className' | 'children' | 'render'> {
@@ -18,6 +19,7 @@ export interface NumberInputProps
   'aria-invalid'?: boolean | undefined
   /** Marks the field required for assistive technology without the native check `required` adds. */
   'aria-required'?: boolean | undefined
+  size?: FieldBoxSize | undefined
   /** Applied to the box around the input and its steppers, such as a width. */
   className?: string | undefined
 }
@@ -38,6 +40,7 @@ export function NumberInput({
   'aria-describedby': ariaDescribedBy,
   'aria-invalid': ariaInvalid,
   'aria-required': ariaRequired,
+  size = 'md',
   className,
   ...rootProps
 }: NumberInputProps) {
@@ -46,7 +49,9 @@ export function NumberInput({
       {...rootProps}
       format={{ maximumFractionDigits: 20, useGrouping: false, ...format }}
     >
-      <NumberField.Group className={cx('relative w-full', className)}>
+      <NumberField.Group
+        className={cx(fieldBox({ size, within: true, padded: false }), 'relative', className)}
+      >
         <NumberField.Input
           placeholder={placeholder}
           autoFocus={autoFocus}
@@ -57,12 +62,13 @@ export function NumberInput({
           aria-required={ariaRequired || undefined}
           data-1p-ignore
           className={cx(
-            'w-full tabular-nums aria-invalid:border-(--theme-error)',
+            'h-full w-full min-w-0 bg-transparent tabular-nums outline-none',
+            size === 'sm' ? 'px-2' : 'px-3',
             steppers && 'pr-6',
           )}
         />
         {steppers && (
-          <div className="absolute inset-y-px right-px flex flex-col">
+          <div className="absolute inset-y-0 right-0 flex flex-col">
             <NumberField.Increment className={stepperClassName}>
               <AngleUpIcon aria-hidden="true" className="size-3" />
             </NumberField.Increment>

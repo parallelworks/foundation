@@ -4,6 +4,7 @@ import { clsx as cx } from 'clsx'
 import { useState } from 'react'
 import { AngleLeftIcon, AngleRightIcon, CalendarIcon } from '../icons'
 import { buttonClasses } from './buttonClasses'
+import { fieldBox } from './fieldBox'
 import { panelClassName, positionerClassName } from './floating'
 import { useStrings } from './Provider'
 
@@ -29,6 +30,7 @@ export interface DatePickerProps {
   'aria-labelledby'?: string | undefined
   'aria-describedby'?: string | undefined
   'aria-invalid'?: boolean | undefined
+  'aria-required'?: boolean | undefined
   className?: string | undefined
 }
 
@@ -92,9 +94,8 @@ const calendarClassNames: Partial<ClassNames> = {
 }
 
 const triggerClassName = cx(
-  'flex h-8 min-w-40 items-center gap-2 rounded-md border border-(--theme-border) bg-(--theme-input-bg) px-3 text-left text-sm text-(--theme-app) cursor-pointer outline-none',
-  'focus-visible:border-(--theme-element) focus-visible:ring-1 focus-visible:ring-(--theme-element)',
-  'aria-invalid:border-(--theme-error) disabled:cursor-not-allowed disabled:bg-(--theme-input-disabled-bg) disabled:text-(--theme-input-disabled-text)',
+  fieldBox(),
+  'flex w-auto min-w-40 cursor-pointer items-center gap-2 text-left',
 )
 
 /**
@@ -117,6 +118,7 @@ export function DatePicker({
   'aria-labelledby': ariaLabelledBy,
   'aria-describedby': ariaDescribedBy,
   'aria-invalid': ariaInvalid,
+  'aria-required': ariaRequired,
   className,
 }: DatePickerProps) {
   const t = useStrings().datePicker
@@ -160,6 +162,7 @@ export function DatePicker({
           aria-labelledby={ariaLabelledBy}
           aria-describedby={ariaDescribedBy}
           aria-invalid={ariaInvalid || undefined}
+          aria-required={ariaRequired || undefined}
           className={triggerClassName}
         >
           <CalendarIcon
@@ -242,7 +245,7 @@ export function DatePicker({
               emit(day ?? earliest ?? new Date(), next)
             }
           }}
-          className="h-8 rounded-md px-2 tabular-nums aria-invalid:border-(--theme-error)"
+          className={cx(fieldBox(), 'w-auto tabular-nums')}
         />
       )}
     </div>

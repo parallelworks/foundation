@@ -1,6 +1,7 @@
+import { Field } from '../../components/Field'
 import { Switch } from '../../components/Switch'
 import { Tooltip } from '../../components/Tooltip'
-import { FieldWrapper } from '../FieldWrapper'
+import { fieldFrame } from '../fieldFrame'
 import type { FieldComponentProps } from '../types/fieldComponentTypes'
 import type { BaseField } from '../types/fieldTypes'
 import { useFieldValue } from '../useFieldValue'
@@ -15,16 +16,7 @@ export interface IBooleanField extends BaseField {
 }
 
 export default function BooleanField(props: FieldComponentProps<IBooleanField>) {
-  const {
-    field,
-    label,
-    labelPosition,
-    missing,
-    disabled,
-    onChange,
-    tooltipComponent,
-    spaceCompact,
-  } = props
+  const { field, disabled, onChange } = props
   // The form names every field before it renders one.
   const [value, change] = useFieldValue<boolean | string>(field.name ?? '')
 
@@ -47,19 +39,12 @@ export default function BooleanField(props: FieldComponentProps<IBooleanField>) 
       : undefined
 
   return (
-    <FieldWrapper
-      // A boolean is always set, so the field is never missing a value.
-      optional
-      label={label}
-      tooltipComponent={tooltipComponent}
-      description={field.description}
-      labelPosition={labelPosition}
-      spaceCompact={spaceCompact}
-    >
-      {({ id, describedBy }) => (
+    // A boolean is always set, so the field is never missing a value.
+    <Field {...fieldFrame(props)} required={false}>
+      {(control) => (
         <Tooltip content={field.disabled_message} disabled={!disabled}>
           <Switch
-            id={id}
+            {...control}
             nativeButton
             render={<button type="button" />}
             checked={checked}
@@ -67,11 +52,9 @@ export default function BooleanField(props: FieldComponentProps<IBooleanField>) 
             onLabel={stateName(onOption)}
             offLabel={stateName(offOption)}
             disabled={disabled}
-            aria-describedby={describedBy}
-            aria-invalid={missing || undefined}
           />
         </Tooltip>
       )}
-    </FieldWrapper>
+    </Field>
   )
 }

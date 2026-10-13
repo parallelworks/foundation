@@ -1,15 +1,14 @@
 import { Toggle } from '@base-ui/react/toggle'
 import { clsx as cx } from 'clsx'
-import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from 'react'
-import { useEffect, useId, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ChevronDownIcon, FavoriteIcon, FavoriteOutlineIcon } from '../icons'
 import { ActionMenu } from './ActionMenu'
 import { Button } from './Button'
 import { buttonClasses } from './buttonClasses'
-import { Autocomplete, Combobox } from './Combobox'
+import { Combobox } from './Combobox'
 import { type ComboboxItems, comboboxLeaves } from './comboboxItems'
 import { Disclosure } from './Disclosure'
-import { InfoTip } from './InfoTip'
 import type { MenuEntry } from './MenuEntries'
 import { Modal } from './Modal'
 import { useStrings } from './Provider'
@@ -34,7 +33,9 @@ interface CreateModalProps {
   /** Normalize the name as the user types (e.g. strip disallowed characters). */
   sanitizeName?: (name: string) => string
   nameHint?: ((name: string) => ReactNode) | undefined
+  /** The dialog's fields: an `Input`, or a `Field` around any other control. */
   children?: ReactNode
+  /** Compact pills, such as `CreateModalSelect` and `CreateModalSwitch`, in a row under the name. */
   properties?: ReactNode
   advanced?: ReactNode
   submitDisabled?: boolean
@@ -265,7 +266,8 @@ export function CreateModal({
               )}
             </>
           )}
-          {children}
+          {/* The dialog's own fields, such as Input, Textarea or a Field around a picker. */}
+          {children && <div className="mb-3 flex flex-col gap-3">{children}</div>}
         </div>
         {properties && (
           <div className="flex flex-wrap items-center gap-1.5 px-4 pt-1 pb-3">{properties}</div>
@@ -320,120 +322,6 @@ export function CreateModal({
         </div>
       </div>
     </Modal>
-  )
-}
-
-const fieldInputClasses =
-  'w-full h-8 px-2.5 rounded-md border border-(--theme-border) bg-(--theme-input-bg) shadow-none text-sm text-(--theme-app) placeholder:text-(--theme-muted-text-color) transition-colors focus:outline-none focus:ring-0 focus:border-(--theme-element)'
-
-const fieldLabelClasses = 'block mb-1 text-xs font-medium text-(--theme-muted-text-color)'
-
-/** A field's label, with its help beside it rather than inside the label, so
- *  the label names the field and not the help button. */
-function FieldLabel({
-  id,
-  label,
-  tooltip,
-}: {
-  id: string
-  label: string
-  tooltip?: string | undefined
-}) {
-  return (
-    <div className={cx(fieldLabelClasses, 'flex items-center gap-1')}>
-      <label htmlFor={id}>{label}</label>
-      {tooltip && <InfoTip text={tooltip} />}
-    </div>
-  )
-}
-
-/** Labeled single-line input row for the dialog's extra fields. */
-export function CreateModalField({
-  label,
-  tooltip,
-  id,
-  ...props
-}: InputHTMLAttributes<HTMLInputElement> & {
-  label: string
-  /** Help text surfaced via an info icon next to the label. */
-  tooltip?: string | undefined
-}) {
-  const fallbackId = useId()
-  const fieldId = id ?? fallbackId
-  return (
-    <div className="mb-3">
-      <FieldLabel id={fieldId} label={label} tooltip={tooltip} />
-      <input
-        type="text"
-        autoComplete="off"
-        data-1p-ignore
-        {...props}
-        id={fieldId}
-        className={fieldInputClasses}
-      />
-    </div>
-  )
-}
-
-/** Labeled multi-line field for credential blobs (JSON keys, PEM keys). */
-export function CreateModalTextarea({
-  label,
-  tooltip,
-  rows = 4,
-  id,
-  ...props
-}: TextareaHTMLAttributes<HTMLTextAreaElement> & {
-  label: string
-  /** Help text surfaced via an info icon next to the label. */
-  tooltip?: string | undefined
-}) {
-  const fallbackId = useId()
-  const fieldId = id ?? fallbackId
-  return (
-    <div className="mb-3">
-      <FieldLabel id={fieldId} label={label} tooltip={tooltip} />
-      <textarea
-        autoComplete="off"
-        data-1p-ignore
-        rows={rows}
-        {...props}
-        id={fieldId}
-        className={cx(fieldInputClasses, 'h-auto py-2 font-mono text-xs leading-relaxed resize-y')}
-      />
-    </div>
-  )
-}
-
-/** Labeled input with suggestions; any text is allowed. */
-export function CreateModalAutocompleteField({
-  label,
-  tooltip,
-  value,
-  onValueChange,
-  items,
-  placeholder,
-}: {
-  label: string
-  /** Help text surfaced via an info icon next to the label. */
-  tooltip?: string
-  value: string
-  onValueChange: (value: string) => void
-  /** Suggestions, filtered by what's typed. */
-  items: string[]
-  placeholder?: string
-}) {
-  const id = useId()
-  return (
-    <div className="mb-3">
-      <FieldLabel id={id} label={label} tooltip={tooltip} />
-      <Autocomplete
-        id={id}
-        items={items}
-        value={value}
-        onValueChange={onValueChange}
-        placeholder={placeholder}
-      />
-    </div>
   )
 }
 

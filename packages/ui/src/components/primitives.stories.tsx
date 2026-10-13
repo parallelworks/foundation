@@ -9,12 +9,13 @@ import { buttonClasses } from './buttonClasses'
 import Callout from './Callout'
 import { Autocomplete, Combobox } from './Combobox'
 import { ConfirmModal } from './ConfirmModal'
-import { CreateModal, CreateModalField } from './CreateModal'
+import { CreateModal, CreateModalSwitch } from './CreateModal'
 import { DatePicker } from './DatePicker'
 import { EmptyState } from './EmptyState'
 import { ExternalLink } from './ExternalLink'
 import { Indicator } from './Indicator'
 import { InfoTip } from './InfoTip'
+import { Input } from './Input'
 import { Loader } from './Loader'
 import { type BarTone, Meter, ProgressBar } from './Meter'
 import { Modal, ModalDescription, type ModalProps, ModalTitle } from './Modal'
@@ -246,6 +247,7 @@ export const DestructiveConfirmModal: StoryObj = {
 
 function CreateModalDemo() {
   const [open, setOpen] = useState(false)
+  const [shared, setShared] = useState(false)
   return (
     <>
       <Button variant="primary" onClick={() => setOpen(true)}>
@@ -258,8 +260,10 @@ function CreateModalDemo() {
         namePlaceholder="widget-name"
         validateName={(name) => (name.includes(' ') ? 'No spaces allowed' : null)}
         onSubmit={async () => true}
-        properties={<CreateModalField label="Size" placeholder="medium" />}
-        advanced={<CreateModalField label="Region" placeholder="nearest" />}
+        properties={
+          <CreateModalSwitch label="Public" checked={shared} onCheckedChange={setShared} />
+        }
+        advanced={<Input label="Region" placeholder="nearest" />}
       />
     </>
   )

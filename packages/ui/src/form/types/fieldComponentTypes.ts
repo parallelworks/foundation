@@ -4,6 +4,7 @@ import type { BaseField, LabelPosition, RuntimeFieldExtensions } from './fieldTy
 interface FieldBase {
   type?: string
   label?: string
+  description?: string
   hidden?: boolean | string
   disabled?: boolean | string
   optional?: boolean | string

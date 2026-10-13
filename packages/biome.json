@@ -32,7 +32,7 @@
       "a11y": {
         "noLabelWithoutControl": {
           "level": "error",
-          "options": { "inputComponents": ["Radio", "Switch"] }
+          "options": { "inputComponents": ["Checkbox", "Radio", "Switch"] }
         }
       }
     }

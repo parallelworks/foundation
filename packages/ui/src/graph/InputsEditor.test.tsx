@@ -332,6 +332,8 @@ describe('InputsFormEditor', () => {
       document.querySelector(`[data-input-path='${JSON.stringify(['second', 'b'])}']`),
     ).toBeNull()
     fireEvent.change(screen.getByLabelText('Page shown'), { target: { value: '2' } })
+    // Pressing the button below takes focus from the box, which then shows the page it turned to.
+    fireEvent.blur(screen.getByLabelText('Page shown'))
     expect(row(['second', 'b'])).toBeInTheDocument()
     expect(within(row(['second'])).getByText('Wizard step')).toBeInTheDocument()
     expect(
@@ -339,7 +341,7 @@ describe('InputsFormEditor', () => {
     ).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Go to previous step' }))
     expect(row(['first', 'a'])).toBeInTheDocument()
-    expect(screen.getByLabelText('Page shown')).toHaveValue(1)
+    expect(screen.getByLabelText('Page shown')).toHaveValue('1')
   })
 
   it('edits a repeated page’s fields from any copy, the bar counting each copy as a page', async () => {
@@ -718,7 +720,7 @@ describe('InputsFormEditor', () => {
       </InputsFormEditor>,
     )
     expect(await screen.findByText('/ 4')).toBeInTheDocument()
-    expect(screen.getByLabelText('Page shown')).toHaveValue(4)
+    expect(screen.getByLabelText('Page shown')).toHaveValue('4')
     expect(within(row(['step_3'])).getByText('Wizard step')).toBeInTheDocument()
   })
 

@@ -3,6 +3,8 @@ import '@testing-library/jest-dom/vitest'
 import { screen } from '@testing-library/react'
 import type React from 'react'
 import { renderInForm } from '../test/form'
+import CheckboxGroupField from './Fields/CheckboxGroupField'
+import DurationField from './Fields/DurationField'
 import RadioField from './Fields/RadioField'
 import StringField from './Fields/StringField'
 import TextAreaField from './Fields/TextAreaField'
@@ -15,7 +17,7 @@ const baseProps = {
 
 const renderField = (node: React.ReactElement) => renderInForm(node, { testField: '' })
 
-describe('FieldWrapper labelling', () => {
+describe('a form field’s frame', () => {
   it('links the label to the input it wraps', () => {
     renderField(
       <StringField
@@ -67,7 +69,7 @@ describe('FieldWrapper labelling', () => {
   })
 })
 
-describe('FieldWrapper required mark', () => {
+describe('a form field’s required mark', () => {
   const requiredMark = () => screen.queryByText('*')
 
   it('treats an unevaluated optional expression as required', () => {
@@ -94,5 +96,37 @@ describe('FieldWrapper required mark', () => {
       />,
     )
     expect(requiredMark()).not.toBeInTheDocument()
+  })
+})
+
+describe('a field missing its value', () => {
+  const missing = { ...baseProps, missing: true }
+
+  it('marks a text input invalid', () => {
+    renderField(
+      <StringField {...missing} field={{ type: 'string', name: 'testField' }} label="Region" />,
+    )
+    expect(screen.getByRole('textbox', { name: /Region/ })).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('marks a duration invalid', () => {
+    renderField(
+      <DurationField {...missing} field={{ type: 'duration', name: 'testField' }} label="Wait" />,
+    )
+    expect(screen.getByRole('textbox', { name: /Wait/ })).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('marks a group of checkboxes invalid', () => {
+    renderField(
+      <CheckboxGroupField
+        {...missing}
+        field={{ type: 'checkbox-group', name: 'testField', options: ['a', 'b'] }}
+        label="Zones"
+      />,
+    )
+    expect(screen.getByRole('group', { name: /Zones/ })).toHaveAttribute('aria-invalid', 'true')
+    for (const box of screen.getAllByRole('checkbox')) {
+      expect(box).toHaveAttribute('aria-invalid', 'true')
+    }
   })
 })

@@ -1,5 +1,6 @@
 import { clsx as cx } from 'clsx'
-import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
+import type { ReactNode } from 'react'
+import { Checkbox } from '../components/Checkbox'
 import { positionKeys } from '../components/keys'
 import { useLink, useStrings } from '../components/Provider'
 import { LoadingRegion, Skeleton } from '../components/Skeleton'
@@ -160,24 +161,21 @@ export function RowSelectCheckbox({
 }: {
   checked: boolean
   label: string
-  onToggle: (e: ReactMouseEvent) => void
+  /** Gets the press, a click or a key, so a host can extend a range on Shift. */
+  onToggle: (event: Event) => void
 }) {
   return (
-    <input
-      type="checkbox"
+    <Checkbox
       aria-label={label}
       checked={checked}
-      onChange={() => {}}
-      onClick={(e) => {
-        e.stopPropagation()
-        onToggle(e)
-      }}
+      onCheckedChange={(_, details) => onToggle(details.event)}
+      // The row opens on a click; ticking its box mustn't.
+      onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => {
         if (e.shiftKey) {
           e.preventDefault()
         }
       }}
-      className="h-4 w-4 shrink-0 rounded border-(--theme-border) text-blue-500 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer"
     />
   )
 }

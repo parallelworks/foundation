@@ -2,6 +2,7 @@ import { clsx as cx } from 'clsx'
 import { type CSSProperties, type ReactNode, useState } from 'react'
 import { ConfirmModal } from '../../components/ConfirmModal'
 import type { OpenMenu } from '../../components/ContextMenu'
+import { fieldBox } from '../../components/fieldBox'
 import { focusOnMount } from '../../components/focus'
 import { IconButton } from '../../components/IconButton'
 import type { MenuEntry } from '../../components/MenuEntries'
@@ -237,7 +238,7 @@ export function RenameDialog({
           }}
           placeholder={placeholder}
           ref={focusOnMount}
-          className="w-full rounded-md border theme-border bg-(--theme-input-bg) px-3 py-2 text-sm theme-text placeholder:theme-muted-text focus:border-(--theme-element) focus:outline-none"
+          className={fieldBox()}
         />
       </label>
     </ConfirmModal>

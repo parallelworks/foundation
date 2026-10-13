@@ -14,6 +14,7 @@ import { EmptyState } from '../components/EmptyState'
 import type { FloatingAnchor } from '../components/floating'
 import { IconButton } from '../components/IconButton'
 import { type MenuEntry, type MenuSearch, menuDivider } from '../components/MenuEntries'
+import { NumberInput } from '../components/NumberInput'
 import { useWorkflowEditing } from '../components/Provider'
 import { Tooltip } from '../components/Tooltip'
 import type { GraphEdit, InputPath, WorkflowEditing } from '../editing'
@@ -594,24 +595,24 @@ function PageNumber({
   const t = useInputsEditorStrings()
   const shown = Math.min(Math.max(page, 0), Math.max(count - 1, 0))
   return (
-    <label className="flex h-7 items-center gap-1 px-1 text-xs theme-muted-text">
+    <div className="flex h-7 items-center gap-1 px-1 text-xs theme-muted-text">
       {t.page}
-      <input
-        type="number"
+      <NumberInput
+        size="sm"
         min={1}
         max={count}
+        step={1}
         value={shown + 1}
         aria-label={t.pageNumber}
-        className="h-6 w-10 rounded border theme-border bg-(--theme-input-bg) px-1 text-center text-(--theme-input) text-xs"
-        onChange={(e) => {
-          const typed = Number(e.target.value)
-          if (Number.isInteger(typed) && typed >= 1 && typed <= count) {
+        className="w-12"
+        onValueChange={(typed) => {
+          if (typed !== null && Number.isInteger(typed) && typed >= 1 && typed <= count) {
             onChange(typed - 1)
           }
         }}
       />
       <span>/ {count}</span>
-    </label>
+    </div>
   )
 }
 

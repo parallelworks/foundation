@@ -1,5 +1,6 @@
 import { clsx as cx } from 'clsx'
 import { FilterIcon } from '../icons'
+import { fieldBox } from './fieldBox'
 import { useStrings } from './Provider'
 
 interface FilterPill {
@@ -34,7 +35,7 @@ export default function Filter({
           type="text"
           value={filter}
           onChange={(e) => setFilter(e.target.value.toLowerCase())}
-          className="shadow-sm focus:ring-1 block w-full pr-3 sm:text-sm theme-border rounded-md py-1.5 pl-8"
+          className={cx(fieldBox(), 'pl-8')}
         />
         <div className="absolute inset-y-0 left-0 flex py-2.5 pl-2">
           <FilterIcon />

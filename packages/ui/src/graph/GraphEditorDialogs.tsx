@@ -1,9 +1,11 @@
 import { clsx as cx } from 'clsx'
 import { type ReactNode, useId, useMemo, useRef, useState } from 'react'
+import { Checkbox } from '../components/Checkbox'
 import { IconButton } from '../components/IconButton'
-import { fieldBoxClasses, Input } from '../components/Input'
+import { Input } from '../components/Input'
 import { withPositionKeys } from '../components/keys'
 import { useWorkflowActions, useWorkflowEditing } from '../components/Provider'
+import { Select } from '../components/Select'
 import type { GraphEdit, WorkflowEditing } from '../editing'
 import { useLintContext, useLintEditing } from '../editor/lintContext'
 import type { NestedWorkflowText } from '../editor/nestedText'
@@ -461,21 +463,14 @@ function OutputsEditor({
           ) : (
             <>
               <div className="w-1/3">
-                <select
+                <Select<string>
                   aria-label={t.outputStep}
-                  value={row.step}
-                  onChange={(e) => update(i, { step: e.target.value })}
-                  className={fieldBoxClasses}
-                >
-                  <option value="" disabled>
-                    {t.outputStep}
-                  </option>
-                  {stepIds.map((id) => (
-                    <option key={id} value={id}>
-                      {id}
-                    </option>
-                  ))}
-                </select>
+                  placeholder={t.outputStep}
+                  items={stepIds.map((id) => ({ value: id, label: id }))}
+                  value={row.step || null}
+                  onValueChange={(step) => update(i, { step: step ?? '' })}
+                  className="font-mono"
+                />
               </div>
               <div className="flex-1">
                 <Input
@@ -1003,11 +998,10 @@ function JobForm({
                     )}
                     title={cycle ? t.dependsOnThisJob : undefined}
                   >
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={!!entry}
                       disabled={cycle}
-                      onChange={(e) => toggleNeed(other, e.target.checked)}
+                      onCheckedChange={(on) => toggleNeed(other, on)}
                     />
                     <span className="font-mono">{other}</span>
                     {!Object.hasOwn(jobs, other) && (
@@ -1019,10 +1013,9 @@ function JobForm({
                       className="flex cursor-pointer items-center gap-1.5 text-xs theme-muted-text"
                       title={t.help.waitForAny}
                     >
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={entry.endsWith(':any')}
-                        onChange={(e) => toggleAny(other, e.target.checked)}
+                        onCheckedChange={(on) => toggleAny(other, on)}
                       />
                       {t.waitForAny}
                     </label>

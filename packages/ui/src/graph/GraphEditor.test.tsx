@@ -181,7 +181,7 @@ function field(label: string): HTMLElement {
   const top = screen.queryAllByRole('dialog').at(-1)
   let element: HTMLElement | null =
     (top ? within(top) : screen).getAllByText(label, { selector: 'span, label' })[0] ?? null
-  // Not a select: the Insert a value menu beside a label is one.
+  // Not the Insert a value menu beside a label: it holds no input.
   while (element && !element.querySelector('input, textarea')) {
     element = element.parentElement
   }
@@ -322,7 +322,7 @@ describe('DependencyGraphPreview editor', () => {
     expect(screen.getByText('A job with this name already exists.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
     fireEvent.change(name, { target: { value: 'macos' } })
-    fireEvent.click(screen.getByLabelText('linux'))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'linux' }))
     fireEvent.change(screen.getByLabelText('Time limit'), {
       target: { value: 'soon' },
     })
@@ -786,7 +786,7 @@ describe('DependencyGraphPreview editor', () => {
     )
   })
 
-  it('runs a job when an output of a job it needs is a value', () => {
+  it('runs a job when an output of a job it needs is a value', async () => {
     const e = editor()
     const outputs = {
       jobs: {
@@ -801,12 +801,11 @@ describe('DependencyGraphPreview editor', () => {
     fireEvent.contextMenu(jobRow('deploy'), { clientX: 5, clientY: 5 })
     fireEvent.click(screen.getByText('Edit job'))
     const condition = field('When to run')
-    const insert = within(condition).getByLabelText('Insert a value…')
+    fireEvent.click(within(condition).getByRole('button', { name: 'Insert a value…' }))
     expect(
-      within(insert).getByRole('option', {
-        name: 'needs.build.outputs.version',
-      }),
+      await screen.findByRole('menuitem', { name: 'needs.build.outputs.version' }),
     ).toBeInTheDocument()
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
     fireEvent.change(within(condition).getByLabelText('When to run'), {
       target: { value: "${{ needs.build.outputs.version == '2' }}" },
     })

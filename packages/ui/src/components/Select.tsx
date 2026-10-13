@@ -2,6 +2,7 @@ import { Select as BaseSelect } from '@base-ui/react/select'
 import { clsx as cx } from 'clsx'
 import type { ReactElement, ReactNode } from 'react'
 import { AngleDownIcon, CheckIcon } from '../icons'
+import { fieldBox } from './fieldBox'
 import { panelClassName, panelItemClassName, positionerClassName } from './floating'
 import { Tooltip } from './Tooltip'
 
@@ -23,8 +24,10 @@ export type SelectProps<Value, Multiple extends boolean | undefined = false> = O
   /** Applied to the trigger. */
   className?: string | undefined
   'aria-label'?: string | undefined
+  'aria-labelledby'?: string | undefined
   'aria-describedby'?: string | undefined
   'aria-invalid'?: boolean | undefined
+  'aria-required'?: boolean | undefined
   /** Renders the field as this button, for compact pickers such as a toolbar pill. The
    *  button shows the selection itself; `placeholder` and `className` then go unused. */
   trigger?: ReactElement | undefined
@@ -37,16 +40,7 @@ export type SelectProps<Value, Multiple extends boolean | undefined = false> = O
   onItemHighlighted?: ((value: Value | undefined) => void) | undefined
 }
 
-const triggerSizes = {
-  sm: 'h-7 pl-2 pr-1.5 text-xs',
-  md: 'py-2 pl-3 pr-2 text-sm',
-}
-
-const triggerClassName = cx(
-  'flex w-full items-center justify-between gap-2 rounded-md border border-(--theme-border) bg-(--theme-input-bg) text-left text-(--theme-app) cursor-pointer outline-none',
-  'focus-visible:border-(--theme-element) focus-visible:ring-1 focus-visible:ring-(--theme-element)',
-  'aria-invalid:border-(--theme-error) data-disabled:cursor-not-allowed data-disabled:bg-(--theme-input-disabled-bg) data-disabled:text-(--theme-input-disabled-text)',
-)
+const triggerClassName = 'flex cursor-pointer items-center justify-between gap-2 pr-1.5 text-left'
 
 /** Picks one value, or several with `multiple`, from a short list. Use
  *  Combobox when the list is long enough to need filtering. */
@@ -55,8 +49,10 @@ export function Select<Value, Multiple extends boolean | undefined = false>({
   placeholder,
   className,
   'aria-label': ariaLabel,
+  'aria-labelledby': labelledBy,
   'aria-describedby': describedBy,
   'aria-invalid': invalid,
+  'aria-required': required,
   trigger,
   triggerTooltip,
   size = 'md',
@@ -66,8 +62,10 @@ export function Select<Value, Multiple extends boolean | undefined = false>({
   const labelOf = (value: Value) => items.find((item) => Object.is(item.value, value))?.label
   const triggerProps = {
     'aria-label': ariaLabel,
+    'aria-labelledby': labelledBy,
     'aria-describedby': describedBy,
     'aria-invalid': invalid || undefined,
+    'aria-required': required || undefined,
   }
   return (
     <BaseSelect.Root
@@ -87,7 +85,7 @@ export function Select<Value, Multiple extends boolean | undefined = false>({
       ) : (
         <BaseSelect.Trigger
           {...triggerProps}
-          className={cx(triggerClassName, triggerSizes[size], className)}
+          className={cx(fieldBox({ size }), triggerClassName, className)}
         >
           <BaseSelect.Value
             placeholder={placeholder}

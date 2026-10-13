@@ -7,7 +7,6 @@ export {
   type INumberField,
 } from './Fields/NumberField'
 export { ResourceOptionIcon } from './Fields/ResourceOptionIcon'
-export { type FieldLabelBinding, FieldWrapper } from './FieldWrapper'
 export {
   collectFieldsWithDefaults,
   DynamicDefaultsSync,
@@ -20,13 +19,7 @@ export {
   resolveMetaOverrides,
   useDynamicDefaultsSync,
 } from './Form'
-export {
-  type FieldContextValue,
-  FieldProvider,
-  useFieldControlProps,
-  useFieldLabelledByProps,
-  useFieldRequired,
-} from './fieldContext'
+export { fieldFrame } from './fieldFrame'
 export {
   type FieldComponent,
   FieldRegistryContext,

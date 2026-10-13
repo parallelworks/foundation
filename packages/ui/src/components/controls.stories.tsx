@@ -117,7 +117,7 @@ export const Inputs: StoryObj = {
       <Input label="Cluster name" placeholder="gpu-cluster" />
       <Input
         label="Job name"
-        labelHint={<code className="text-xs theme-muted-text">name</code>}
+        hint={<code className="text-xs theme-muted-text">name</code>}
         description="Letters, numbers, dashes and underscores."
         defaultValue="build"
       />

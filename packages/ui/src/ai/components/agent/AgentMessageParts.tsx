@@ -1,6 +1,7 @@
 import { clsx as cx } from 'clsx'
 import { useEffect, useMemo, useState } from 'react'
 import { Disclosure } from '../../../components/Disclosure'
+import { fieldBox } from '../../../components/fieldBox'
 import { Loader } from '../../../components/Loader'
 import { useStrings } from '../../../components/Provider'
 import { useCssIsDark } from '../../../components/useCssIsDark'
@@ -451,7 +452,7 @@ function ConfirmApproval({
             value={feedback}
             onChange={(e) => setFeedback(e.target.value)}
             placeholder={t.feedbackPlaceholder}
-            className="flex-1 text-xs rounded-md border theme-border bg-(--theme-input-bg) px-2 py-1"
+            className={cx(fieldBox({ size: 'sm' }), 'flex-1')}
           />
           <button
             type="button"
@@ -528,7 +529,7 @@ function AskApproval({
           <input
             value={own}
             onChange={(e) => setOwn(e.target.value)}
-            className="flex-1 text-xs rounded-md border theme-border bg-(--theme-input-bg) px-2 py-1"
+            className={cx(fieldBox({ size: 'sm' }), 'flex-1')}
           />
           <button
             type="button"

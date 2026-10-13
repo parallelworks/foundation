@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, useTransition } from 'react'
+import { Checkbox } from '../../components/Checkbox'
 import { Combobox } from '../../components/Combobox'
 import { ConfirmModal } from '../../components/ConfirmModal'
 import { Loader } from '../../components/Loader'
@@ -218,26 +219,22 @@ export default function ShareDialog({ conversationId, isOpen, onClose }: ShareDi
               <h3 className="font-medium text-sm mb-2">{t.orgAccess}</h3>
               <div className="space-y-2">
                 <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={orgViewAccess}
-                    onChange={(e) => {
-                      setOrgViewAccess(e.target.checked)
-                      if (!e.target.checked) {
+                    onCheckedChange={(on) => {
+                      setOrgViewAccess(on)
+                      if (!on) {
                         setOrgCollaborateAccess(false)
                       }
                     }}
-                    className="rounded"
                   />
                   <span className="text-sm">{t.orgCanView}</span>
                 </label>
                 <label className="flex items-center gap-2 ml-4">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={orgCollaborateAccess}
-                    onChange={(e) => setOrgCollaborateAccess(e.target.checked)}
+                    onCheckedChange={setOrgCollaborateAccess}
                     disabled={!orgViewAccess}
-                    className="rounded"
                   />
                   <span className="text-sm">{t.allowCollaboration}</span>
                 </label>
