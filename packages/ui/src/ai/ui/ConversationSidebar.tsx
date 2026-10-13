@@ -2,6 +2,7 @@ import { clsx as cx } from 'clsx'
 import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react'
 import { Drawer } from '../../components/Drawer'
 import { positionKeys } from '../../components/keys'
+import { LoadingRegion, Skeleton } from '../../components/Skeleton'
 import {
   SIDEBAR_DEFAULT_WIDTH_PX,
   SidebarGroupHeading,
@@ -245,16 +246,11 @@ export function ConversationSidebar<T>({
           )}
         >
           {loading ? (
-            <div className="space-y-3 px-2 pt-2">
+            <LoadingRegion className="space-y-3 px-2 pt-2">
               {positionKeys(5, 'skeleton').map((key, i) => (
-                <div key={key} className="animate-pulse">
-                  <div
-                    className="h-4 rounded theme-muted-panel"
-                    style={{ width: `${70 - i * 10}%` }}
-                  />
-                </div>
+                <Skeleton key={key} width={`${70 - i * 10}%`} height={16} />
               ))}
-            </div>
+            </LoadingRegion>
           ) : groups.length === 0 ? (
             placeholder
           ) : (

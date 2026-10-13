@@ -216,12 +216,6 @@ function CollapsibleRight({ items }: { items: ToolbarItem[] }) {
 /** Pins a detail-page toolbar just below the sticky breadcrumb strip (top-10 matches the strip's 40px height). */
 export const stickyToolbarClasses = 'sticky top-10 z-10 bg-(--theme-app-bg)'
 
-/** Pins a detail-page tabs row under the pinned toolbar (top-22 = 40px strip + 48px toolbar block). */
-export const stickyTabsClasses = 'sticky top-22 z-10 bg-(--theme-app-bg)'
-
-/** Pins a detail-page tabs row directly under the breadcrumb strip when the page has no pinned toolbar (top-10 = the strip's height). */
-export const stickyTabsUnderHeaderClasses = 'sticky top-10 z-10 bg-(--theme-app-bg)'
-
 /** Action groups left, secondary actions right (collapsing into a `…` menu). */
 export function ActionToolbar({
   groups,

@@ -1714,7 +1714,7 @@ export function InputsFormEditor({
           return
         }
         const selected = store.get().selection.includes(rowKey)
-        const title = e.target.closest<HTMLElement>('[data-field-label]')
+        const title = e.target.closest<HTMLElement>('[data-field-label], [data-section-title]')
         const ownTitle = title !== null && title.closest('[data-input-path]') === row
         // A field takes its own press; pressing one outside the selection lets the selection go.
         if (!ownTitle && e.target.closest(CONTROLS)) {

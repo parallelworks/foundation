@@ -2,6 +2,7 @@ import { clsx as cx } from 'clsx'
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import { positionKeys } from '../components/keys'
 import { useLink, useStrings } from '../components/Provider'
+import { LoadingRegion, Skeleton } from '../components/Skeleton'
 import { Table } from '../components/Table'
 import { ErrorIcon } from '../icons'
 
@@ -119,29 +120,19 @@ export function ListError({ error, noun = 'data' }: { error: unknown; noun?: str
 }
 
 export function ListSkeleton({ rows = 6 }: { rows?: number }) {
-  const { loading } = useStrings()
   return (
-    <div
-      role="status"
-      aria-label={loading}
-      className="divide-y border-b border-(--theme-border) divide-(--theme-border)"
-    >
+    <LoadingRegion className="divide-y border-b border-(--theme-border) divide-(--theme-border)">
       {positionKeys(rows, 'skeleton').map((key) => (
-        <div
-          key={key}
-          aria-hidden="true"
-          className="flex items-center gap-3 px-4 py-2.5 animate-pulse"
-        >
-          <div className="h-5 w-5 rounded bg-(--theme-muted-panel-bg)" />
+        <div key={key} className="flex items-center gap-3 px-4 py-2.5">
+          <Skeleton width={20} height={20} />
           <div className="space-y-1.5">
-            <div className="h-3 w-40 rounded bg-(--theme-muted-panel-bg)" />
-            <div className="h-2.5 w-24 rounded bg-(--theme-muted-panel-bg)" />
+            <Skeleton width={160} height={12} />
+            <Skeleton width={96} height={10} />
           </div>
-          <div className="ml-auto h-3 w-20 rounded bg-(--theme-muted-panel-bg)" />
+          <Skeleton width={80} height={12} className="ml-auto" />
         </div>
       ))}
-      <span className="sr-only">{loading}</span>
-    </div>
+    </LoadingRegion>
   )
 }
 

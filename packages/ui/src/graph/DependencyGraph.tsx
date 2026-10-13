@@ -23,7 +23,7 @@ import {
 import { IconButton } from '../components/IconButton'
 import { Indicator } from '../components/Indicator'
 import { InfoTip } from '../components/InfoTip'
-import Loader from '../components/Loader'
+import { Loader } from '../components/Loader'
 import { Modal } from '../components/Modal'
 import { useRunFile, useSlots, useStrings, useWorkflowEngine } from '../components/Provider'
 import { toAbsHumanDuration } from '../duration'
@@ -2059,7 +2059,7 @@ export default function DependencyGraph({
       >
         <div className="flex w-full">
           {sublogsLoading && (!sublogs || !runNumber) ? (
-            <Loader text={dagStrings.loadingLogs} size={70} textSize={18} />
+            <Loader label={dagStrings.loadingLogs} size={70} />
           ) : preview ? (
             <div>
               {slots.yamlViewer?.({

@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import Loader from '../components/Loader'
+import { Loader } from '../components/Loader'
 import { useStrings } from '../components/Provider'
 import { useNearEnd } from './useNearEnd'
 
@@ -60,10 +60,7 @@ export function LoadMoreRow({
             </button>
           </span>
         ) : loading ? (
-          <span className="flex items-center gap-2">
-            <Loader size={16} full={false} />
-            <span>{t.loadingMore}</span>
-          </span>
+          <Loader size={16} inline label={t.loadingMore} />
         ) : (
           <button
             type="button"

@@ -2,6 +2,7 @@ import { clsx as cx } from 'clsx'
 import type { ReactNode } from 'react'
 import { Avatar } from '../components/Avatar'
 import { type UILinkComponent, useLink, useNotify, useStrings } from '../components/Provider'
+import { LoadingRegion, Skeleton } from '../components/Skeleton'
 import { Tooltip } from '../components/Tooltip'
 import { CopyIcon } from '../icons'
 
@@ -107,15 +108,10 @@ export function UserHoverCard({
         )}
       </div>
       {loading ? (
-        <div
-          role="status"
-          aria-label={strings.loading}
-          className="mt-3 space-y-2 border-t border-(--theme-border) pt-3"
-        >
-          <div aria-hidden="true" className="h-3 w-24 animate-pulse rounded theme-muted-panel" />
-          <div aria-hidden="true" className="h-3 w-36 animate-pulse rounded theme-muted-panel" />
-          <span className="sr-only">{strings.loading}</span>
-        </div>
+        <LoadingRegion className="mt-3 space-y-2 border-t border-(--theme-border) pt-3">
+          <Skeleton width={96} height={12} />
+          <Skeleton width={144} height={12} />
+        </LoadingRegion>
       ) : children ? (
         <div className="mt-3 space-y-2 border-t border-(--theme-border) pt-3 text-[13px]">
           {children}

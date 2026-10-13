@@ -9,7 +9,7 @@ import { CreateModal, CreateModalField } from './CreateModal'
 import { primaryButtonClasses } from './ghostButton'
 import { Indicator } from './Indicator'
 import { InfoTip } from './InfoTip'
-import Loader from './Loader'
+import { Loader } from './Loader'
 import { Modal, ModalDescription, type ModalProps, ModalTitle } from './Modal'
 import { Overview } from './Overview'
 import { SegmentedControl } from './SegmentedControl'
@@ -72,18 +72,7 @@ export const Feedback: StoryObj = {
       <Callout type="info">Informational callout with guidance.</Callout>
       <Callout type="warning">Something needs attention.</Callout>
       <Callout type="error">Something went wrong.</Callout>
-      <Loader text="Loading resources" size={40} />
-    </div>
-  ),
-}
-
-export const Loaders: StoryObj<{ size: number; text: string }> = {
-  args: { size: 48, text: 'Loading resources' },
-  argTypes: { size: { control: { type: 'range', min: 16, max: 160 } } },
-  render: (args) => (
-    <div className="flex items-start" style={{ gap: 48 }}>
-      <Loader {...args} variant="spinner" full={false} />
-      <Loader {...args} variant="logo" full={false} />
+      <Loader label="Loading resources" size={40} />
     </div>
   ),
 }
@@ -210,6 +199,7 @@ function CreateModalDemo() {
         validateName={(name) => (name.includes(' ') ? 'No spaces allowed' : null)}
         onSubmit={async () => true}
         properties={<CreateModalField label="Size" placeholder="medium" />}
+        advanced={<CreateModalField label="Region" placeholder="nearest" />}
       />
     </>
   )
@@ -222,6 +212,11 @@ export const CreateModalStory: StoryObj = {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: 'New widget' }))
     await expect(await screen.findByPlaceholderText('widget-name')).toBeVisible()
+    // Secondary detail waits behind its own toggle.
+    const advanced = screen.getByRole('button', { name: 'Advanced' })
+    await expect(advanced).toHaveAttribute('aria-expanded', 'false')
+    await userEvent.click(advanced)
+    await waitFor(() => expect(screen.getByPlaceholderText('nearest')).toBeVisible())
   },
 }
 

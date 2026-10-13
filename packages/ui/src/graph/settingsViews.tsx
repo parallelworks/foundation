@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import Loader from '../components/Loader'
+import { Loader } from '../components/Loader'
 import { Tooltip } from '../components/Tooltip'
 import type { WorkflowEditing } from '../editing'
 import type { EditorMarker } from '../editor/Monaco'

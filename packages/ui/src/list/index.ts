@@ -1,7 +1,5 @@
 export {
   ActionToolbar,
-  stickyTabsClasses,
-  stickyTabsUnderHeaderClasses,
   stickyToolbarClasses,
   type ToolbarAction,
   ToolbarButton,

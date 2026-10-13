@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import Loader from '../../components/Loader'
+import { Loader } from '../../components/Loader'
 import type { WizardNavigationProps } from './types'
 
 export function WizardNavigation({
@@ -98,7 +98,7 @@ export function WizardNavigation({
             }}
             aria-label={submitLabel}
           >
-            {isLoading && <Loader size={16} full={false} />}
+            {isLoading && <Loader size={16} inline color="currentColor" />}
             {submitLabel}
           </button>
         ) : (
@@ -120,7 +120,7 @@ export function WizardNavigation({
             }}
             aria-label="Go to next step"
           >
-            {isLoading && <Loader size={16} full={false} />}
+            {isLoading && <Loader size={16} inline color="currentColor" />}
             {nextLabel || 'Next →'}
           </button>
         )}

@@ -3,6 +3,7 @@ import { clsx as cx } from 'clsx'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { positionKeys } from '../components/keys'
 import { useStrings } from '../components/Provider'
+import { Skeleton } from '../components/Skeleton'
 import { AngleRightIcon, FolderIcon, FolderOpenIcon } from '../icons'
 import { canPreview } from './FilePreview/previewType'
 import { getNodeIcon } from './helpers'
@@ -395,9 +396,7 @@ function TreeSkeletonRow({ depth }: { depth: number }) {
         className="flex h-full flex-col justify-center gap-1.5 py-1 pr-2"
         style={{ paddingLeft: depth * INDENT_PER_LEVEL + ROW_PAD_FILE }}
       >
-        {[0, 1, 2].map((i) => (
-          <div key={i} className="h-3 shrink-0 animate-pulse rounded bg-(--theme-muted-panel-bg)" />
-        ))}
+        <Skeleton count={3} height={12} className="shrink-0" />
       </div>
     </div>
   )

@@ -22,10 +22,10 @@ import {
   useWatch,
 } from 'react-hook-form'
 import { InfoTip } from '../components/InfoTip'
-import Loader from '../components/Loader'
+import { Loader } from '../components/Loader'
 import { useWorkflowEngine } from '../components/Provider'
+import { Section } from '../components/Section'
 import type { WorkflowVariables } from '../engine'
-import { FieldGroup } from './FieldGroup'
 import { FormLayout, LayoutCSSContext } from './FormLayout'
 import { type FieldComponent, FieldRegistryContext, Registry } from './fieldRegistry'
 import { EditingScope, useFormEditing } from './formEditing'
@@ -666,11 +666,7 @@ const FormField = memo(function FormField({
   if (field.type === 'group') {
     const meta = resolveMetaOverrides(field.options, labelPosition, spaceCompact)
     const group = (
-      <FieldGroup
-        title={field.label}
-        collapsible={!field.noCollapse}
-        defaultOpen={!field.collapsed}
-      >
+      <Section title={field.label} collapsible={!field.noCollapse} defaultOpen={!field.collapsed}>
         <EditingScope editing={editing} path={path}>
           <FieldsFromOptions
             options={field.options ?? {}}
@@ -679,7 +675,7 @@ const FormField = memo(function FormField({
             spaceCompact={meta.spaceCompact}
           />
         </EditingScope>
-      </FieldGroup>
+      </Section>
     )
     return editing && path ? (
       <editing.Row path={path} instance={instance}>

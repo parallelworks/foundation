@@ -2,9 +2,10 @@ import { clsx as cx } from 'clsx'
 import { DateTime } from 'luxon'
 import { useCallback, useId, useMemo, useState } from 'react'
 import { Indicator } from '../components/Indicator'
+import { Loader } from '../components/Loader'
 import { useRunFile, useSlots, useStrings, useWorkflowEngine } from '../components/Provider'
 import { toAbsHumanDuration } from '../duration'
-import { ChevronRightIcon, LoaderIcon } from '../icons'
+import { ChevronRightIcon } from '../icons'
 import { LogViewer } from '../logviewer'
 import { Collapse } from './Collapse'
 import type { WorkflowJob as Job, WorkflowStep as Step } from './types'
@@ -54,12 +55,12 @@ function StepLogs({
   const engine = useWorkflowEngine()
   const logPath = engine.stepLogPath(prefix, jobName, stepIndex)
   const { data: logs, isLoading, error } = useRunFile(slug, logPath, { refreshInterval: 2000 })
+  const { dag: t } = useStrings()
 
   if (isLoading && !logs) {
     return (
-      <div className="flex items-center gap-2 px-5 py-4 text-sm text-[var(--theme-muted-text-color)]">
-        <LoaderIcon className="w-4 h-4" />
-        <span>Loading logs...</span>
+      <div className="px-5 py-4">
+        <Loader size={16} inline label={t.loadingLogs} />
       </div>
     )
   }

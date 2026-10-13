@@ -985,7 +985,7 @@ describe('selecting inputs', () => {
 
   // A field's own label, or a group's title.
   const titleOf = (path: string[]) => {
-    const title = row(path).querySelector('[data-field-label]')
+    const title = row(path).querySelector('[data-field-label], [data-section-title]')
     if (!(title instanceof HTMLElement)) {
       throw new Error(`no label for ${path.join('.')}`)
     }

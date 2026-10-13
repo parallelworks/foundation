@@ -68,6 +68,10 @@ export interface UIStrings {
     sort: string
     userAvatar: string
     moreInfo: string
+    refresh: string
+    refreshing: string
+    /** A refresh button's label once it knows when the data was fetched. */
+    updated: (ago: string) => string
   }
   drawer: {
     close: string
@@ -268,7 +272,6 @@ export interface UIStrings {
     }
     chrome: {
       explorer: string
-      refresh: string
       collapse: string
       upload: string
       download: string
@@ -595,6 +598,9 @@ const DEFAULTS: UIProviderValue = {
       sort: 'Sort',
       userAvatar: 'User avatar',
       moreInfo: 'More information',
+      refresh: 'Refresh',
+      refreshing: 'Refreshing',
+      updated: (ago) => `Updated ${ago}`,
     },
     drawer: {
       close: 'Close',
@@ -810,7 +816,6 @@ const DEFAULTS: UIProviderValue = {
       },
       chrome: {
         explorer: 'Explorer',
-        refresh: 'Refresh',
         collapse: 'Collapse',
         upload: 'Upload',
         download: 'Download',

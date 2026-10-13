@@ -19,10 +19,11 @@ import CopyToClipboard, { CopyCodeBlock } from '../components/CopyToClipboard'
 import { CreateModal } from '../components/CreateModal'
 import { InfoTip } from '../components/InfoTip'
 import { keyedByContent } from '../components/keys'
-import Loader from '../components/Loader'
+import { Loader } from '../components/Loader'
 import { MenuItem, MenuPopup, MenuSeparator } from '../components/Menu'
 import type { MenuEntry } from '../components/MenuEntries'
 import { useNotify, useSlots, useStrings } from '../components/Provider'
+import { RefreshButton } from '../components/RefreshButton'
 import { StatusBadge } from '../components/StatusBadge'
 import { Table } from '../components/Table'
 import { Tooltip } from '../components/Tooltip'
@@ -39,7 +40,6 @@ import {
   FileTextIcon,
   FolderIcon,
   LinkIcon,
-  RefreshIcon,
   ShareIcon,
   TrashIcon,
   UploadIcon,
@@ -1528,16 +1528,7 @@ export default function FileExplorer({
           <div className="h-full flex flex-col border-r theme-border bg-(--theme-panel-bg)/60">
             <div className="flex items-center justify-end h-10 px-3 shrink-0 border-b theme-border">
               <div className="flex gap-x-0.5">
-                <Tooltip content={t.chrome.refresh}>
-                  <button
-                    type="button"
-                    aria-label={t.chrome.refresh}
-                    className="inline-flex items-center justify-center h-7 w-7 rounded-md cursor-pointer theme-muted-text hover:theme-text hover:theme-hover transition-colors duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-(--theme-link)"
-                    onClick={() => handleRefresh()}
-                  >
-                    <RefreshIcon className="h-3.5 w-3.5" />
-                  </button>
-                </Tooltip>
+                <RefreshButton iconOnly onRefresh={() => handleRefresh()} />
 
                 <Tooltip content={t.chrome.collapse}>
                   <button
@@ -2062,7 +2053,7 @@ export default function FileExplorer({
 
       {waitForUpload && (
         <div className="absolute inset-0 bg-(--theme-app-bg)/75 backdrop-blur-[2px] transition-opacity flex items-center justify-center z-50">
-          <Loader full />
+          <Loader />
         </div>
       )}
 

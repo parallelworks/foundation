@@ -64,7 +64,7 @@ export { formatInfoTipContent, InfoTip } from './components/InfoTip'
 export { Input, Textarea } from './components/Input'
 export { inputClasses } from './components/inputClasses'
 export { LetterBadge } from './components/LetterBadge'
-export { default as Loader } from './components/Loader'
+export { Loader, type LoaderProps } from './components/Loader'
 export type { MarkdownProps } from './components/Markdown'
 export { default as Markdown } from './components/Markdown'
 export {
@@ -139,8 +139,14 @@ export {
   type WorkflowJsonRef,
 } from './components/Provider'
 export { Radio, RadioGroup, type RadioProps } from './components/Radio'
+export { RefreshButton, type RefreshButtonProps } from './components/RefreshButton'
 export { RequiredMark } from './components/RequiredMark'
 export { useRelativeTime } from './components/relativeTime'
+export {
+  Section,
+  type SectionProps,
+  type SectionVariant,
+} from './components/Section'
 export { default as SectionHeader } from './components/SectionHeader'
 export { SegmentedControl, type SegmentedOption } from './components/SegmentedControl'
 export { Select, type SelectItem, type SelectProps } from './components/Select'
@@ -148,6 +154,7 @@ export { SettingModeOption } from './components/SettingModeOption'
 export { SettingRow, SettingSection } from './components/SettingRow'
 export { default as SettingsCard } from './components/SettingsCard'
 export { default as SettingsGroup } from './components/SettingsGroup'
+export { LoadingRegion, Skeleton, type SkeletonProps } from './components/Skeleton'
 export { default as Sort, type TDirection } from './components/Sort'
 export {
   type BadgeVariant,
@@ -158,6 +165,7 @@ export {
 export { Switch, type SwitchProps } from './components/Switch'
 export { isTextEntryContext, useShortcutKey } from './components/shortcutKey'
 export { CompactTable, Table } from './components/Table'
+export { type TabItem, TabPanel, Tabs, type TabsProps } from './components/Tabs'
 export {
   Tooltip,
   type TooltipProps,

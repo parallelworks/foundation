@@ -1,4 +1,3 @@
-export { FieldGroup } from './FieldGroup'
 export {
   getInvalidDurationPaths,
   setDurationValidity,

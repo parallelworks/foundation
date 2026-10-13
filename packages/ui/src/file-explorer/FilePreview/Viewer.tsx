@@ -1,7 +1,7 @@
 import { clsx as cx } from 'clsx'
 import { lazy, Suspense, useCallback, useMemo, useState } from 'react'
 import { positionKeys, withPositionKeys } from '../../components/keys'
-import Loader from '../../components/Loader'
+import { Loader } from '../../components/Loader'
 import Markdown from '../../components/Markdown'
 import { useStrings } from '../../components/Provider'
 import { DownloadFileIcon, FileIcon, LockIcon, MusicIcon, ZipIcon } from '../../icons'
@@ -110,7 +110,7 @@ export function FilePreviewViewer({
   if (urlLoading || !url) {
     return (
       <div className="flex h-full w-full items-center justify-center">
-        <Loader size={40} text={t.preview.loading} />
+        <Loader size={40} label={t.preview.loading} />
       </div>
     )
   }

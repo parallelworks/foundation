@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, useTransition } from 'react'
 import { Combobox } from '../../components/Combobox'
 import { ConfirmModal } from '../../components/ConfirmModal'
-import Loader from '../../components/Loader'
+import { Loader } from '../../components/Loader'
 import { Select } from '../../components/Select'
 import { Tooltip } from '../../components/Tooltip'
 import { ShareIcon, TrashIcon } from '../../icons'
@@ -207,7 +207,7 @@ export default function ShareDialog({ conversationId, isOpen, onClose }: ShareDi
       <div className="space-y-4">
         {loading ? (
           <div className="py-4">
-            <Loader size={24} text={strings.modal.loading} />
+            <Loader size={24} label={strings.modal.loading} />
           </div>
         ) : (
           <>

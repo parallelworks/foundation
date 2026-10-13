@@ -3,7 +3,7 @@ import { Toggle } from '@base-ui/react/toggle'
 import { clsx as cx } from 'clsx'
 import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from 'react'
 import { useEffect, useId, useRef, useState } from 'react'
-import { ChevronDownIcon, ChevronRightIcon, FavoriteIcon, FavoriteOutlineIcon } from '../icons'
+import { ChevronDownIcon, FavoriteIcon, FavoriteOutlineIcon } from '../icons'
 import { ActionMenu } from './ActionMenu'
 import { Autocomplete, Combobox } from './Combobox'
 import { type ComboboxItems, comboboxLeaves } from './comboboxItems'
@@ -12,6 +12,7 @@ import { InfoTip } from './InfoTip'
 import type { MenuEntry } from './MenuEntries'
 import { Modal } from './Modal'
 import { useStrings } from './Provider'
+import { Section } from './Section'
 import { Switch } from './Switch'
 import { Tooltip } from './Tooltip'
 
@@ -86,7 +87,6 @@ export function CreateModal({
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [advancedOpen, setAdvancedOpen] = useState(false)
   const [favorite, setFavorite] = useState(false)
   const [nameFlash, setNameFlash] = useState(false)
   const [nameTouched, setNameTouched] = useState(false)
@@ -98,7 +98,6 @@ export function CreateModal({
       setName(initialName ?? '')
       setDescription('')
       setSubmitting(false)
-      setAdvancedOpen(false)
       setFavorite(false)
       setNameTouched(false)
       setInteracted(false)
@@ -272,17 +271,9 @@ export function CreateModal({
         )}
         {advanced && (
           <div className="px-4 pb-3">
-            <button
-              type="button"
-              onClick={() => setAdvancedOpen((o) => !o)}
-              className="inline-flex items-center gap-1 text-xs font-medium text-(--theme-muted-text-color) hover:text-(--theme-app) transition-colors"
-            >
-              <ChevronRightIcon
-                className={cx('w-3 h-3 transition-transform', advancedOpen && 'rotate-90')}
-              />
-              {t.advanced}
-            </button>
-            {advancedOpen && <div className="mt-2">{advanced}</div>}
+            <Section title={t.advanced} variant="subtle" defaultOpen={false}>
+              <div className="mt-2">{advanced}</div>
+            </Section>
           </div>
         )}
       </div>
