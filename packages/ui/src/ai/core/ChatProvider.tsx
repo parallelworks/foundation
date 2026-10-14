@@ -209,6 +209,8 @@ export interface ChatProviderProps {
   currentUser: ChatUser
   navigation: ChatNavigation
   activeConversationId?: string | null
+  /** Resolved once per object: keep it stable (a module constant or a
+   *  `useMemo`), or every reader of the config re-renders with the provider. */
   config?: ChatUIConfig
   /** Owns the sidebar's state. Omit to leave it to the reader, remembered
    *  per browser. */
