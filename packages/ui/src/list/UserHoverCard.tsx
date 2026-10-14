@@ -87,7 +87,8 @@ export function UserHoverCard({
             label={copyLabel}
             size="xs"
             className={cx(
-              'opacity-0',
+              // The negative margin gives its padding back to the name beside it.
+              '-mr-1 opacity-0',
               // Shown while the value or the button is under the pointer, on keyboard
               // focus, and always where there is no hover to reveal it.
               'hover:opacity-100 group-has-[[data-copy-value]:hover]/copy:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100',
