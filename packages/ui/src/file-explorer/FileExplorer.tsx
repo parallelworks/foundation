@@ -1672,30 +1672,40 @@ export default function FileExplorer({
                       }}
                     />
 
+                    {/* Outlined, like the rest of a toolbar, but for the one thing the
+                        view is for: Upload into a folder, Download of a file. Labels
+                        fold into tooltips below @4xl. */}
                     {selectedNodeCanWrite && selectedNodeCanUpload && (
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        aria-label={t.createFolder.action}
-                        icon={<FolderIcon />}
-                        disabled={selectedNode.type === 'file' || !selectedNode.storageId}
-                        onClick={() => setCreateFolderTarget(selectedNode)}
-                      >
-                        <span className="hidden @4xl:inline">{t.createFolder.action}</span>
-                      </Button>
+                      <Tooltip content={t.createFolder.action} side="bottom">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          aria-label={t.createFolder.action}
+                          icon={<FolderIcon />}
+                          disabled={selectedNode.type === 'file' || !selectedNode.storageId}
+                          onClick={() => setCreateFolderTarget(selectedNode)}
+                        >
+                          <span className="hidden @4xl:inline">{t.createFolder.action}</span>
+                        </Button>
+                      </Tooltip>
                     )}
 
                     {selectedNodeCanWrite && selectedNodeCanUpload && (
                       <Menu.Root>
-                        <Menu.Trigger
-                          aria-label={t.chrome.upload}
-                          className={buttonClasses({ variant: 'primary', size: 'sm' })}
-                          disabled={selectedNode.type === 'file' || !selectedNode.storageId}
-                        >
-                          <UploadIcon />
-                          <span className="hidden @4xl:inline">{t.chrome.upload}</span>
-                          <ChevronDownIcon />
-                        </Menu.Trigger>
+                        <Tooltip content={t.chrome.upload} side="bottom">
+                          <Menu.Trigger
+                            aria-label={t.chrome.upload}
+                            className={buttonClasses({
+                              variant: selectedNode.type === 'directory' ? 'primary' : 'outline',
+                              size: 'sm',
+                            })}
+                            disabled={selectedNode.type === 'file' || !selectedNode.storageId}
+                          >
+                            <UploadIcon />
+                            <span className="hidden @4xl:inline">{t.chrome.upload}</span>
+                            <ChevronDownIcon />
+                          </Menu.Trigger>
+                        </Tooltip>
                         <MenuPopup align="end" className="w-36">
                           <MenuItem onClick={() => fileInputRef.current?.click()}>
                             {t.chrome.selectFiles}
@@ -1708,19 +1718,24 @@ export default function FileExplorer({
                     )}
 
                     <Menu.Root>
-                      <Menu.Trigger
-                        aria-label={common.download}
-                        className={buttonClasses({ variant: 'primary', size: 'sm' })}
-                        disabled={
-                          (checkedItems.size === 0 && selectedNode.type !== 'file') ||
-                          hasFolderSelected() ||
-                          !selectedNode.storageId
-                        }
-                      >
-                        <DownloadIcon />
-                        <span className="hidden @4xl:inline">{common.download}</span>
-                        <ChevronDownIcon />
-                      </Menu.Trigger>
+                      <Tooltip content={common.download} side="bottom">
+                        <Menu.Trigger
+                          aria-label={common.download}
+                          className={buttonClasses({
+                            variant: selectedNode.type === 'file' ? 'primary' : 'outline',
+                            size: 'sm',
+                          })}
+                          disabled={
+                            (checkedItems.size === 0 && selectedNode.type !== 'file') ||
+                            hasFolderSelected() ||
+                            !selectedNode.storageId
+                          }
+                        >
+                          <DownloadIcon />
+                          <span className="hidden @4xl:inline">{common.download}</span>
+                          <ChevronDownIcon />
+                        </Menu.Trigger>
+                      </Tooltip>
                       <MenuPopup align="end" className="w-72">
                         <MenuItem onClick={handleDownload}>{t.chrome.downloadFromBrowser}</MenuItem>
                         {downloadCommand && downloadCommandText && (
@@ -1747,32 +1762,41 @@ export default function FileExplorer({
                     </Menu.Root>
 
                     {groups.length > 0 && selectedNodeCanManageAccess && (
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        aria-label={t.chrome.access}
-                        icon={<AccessIcon />}
-                        disabled={!selectedNode.storageId}
-                        onClick={() => setAccessDrawerOpen(true)}
-                      >
-                        <span className="hidden @4xl:inline">{t.chrome.manageAccess}</span>
-                      </Button>
+                      <Tooltip content={t.chrome.manageAccess} side="bottom">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          aria-label={t.chrome.access}
+                          icon={<AccessIcon />}
+                          disabled={!selectedNode.storageId}
+                          onClick={() => setAccessDrawerOpen(true)}
+                        >
+                          <span className="hidden @4xl:inline">{t.chrome.manageAccess}</span>
+                        </Button>
+                      </Tooltip>
                     )}
 
                     {selectedNodeCanDelete && (
-                      <Button
-                        variant="danger"
-                        size="sm"
-                        aria-label={common.delete}
-                        icon={<TrashIcon />}
-                        disabled={
-                          (checkedItems.size === 0 && selectedNode.type !== 'file') ||
-                          !selectedNode.storageId
-                        }
-                        onClick={onDeleteClick}
-                      >
-                        <span className="hidden @4xl:inline">{common.delete}</span>
-                      </Button>
+                      <Tooltip content={common.delete} side="bottom">
+                        {/* Destructive by its text, not a red fill: the confirmation
+                            that follows carries the solid danger button. The tone
+                            colors the children so it can't lose to the recipe's
+                            own text color by stylesheet order. */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          aria-label={common.delete}
+                          icon={<TrashIcon />}
+                          className="*:text-(--theme-error-text)"
+                          disabled={
+                            (checkedItems.size === 0 && selectedNode.type !== 'file') ||
+                            !selectedNode.storageId
+                          }
+                          onClick={onDeleteClick}
+                        >
+                          <span className="hidden @4xl:inline">{common.delete}</span>
+                        </Button>
+                      </Tooltip>
                     )}
                   </div>
                 </div>

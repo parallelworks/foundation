@@ -426,8 +426,14 @@ export function UploadSessionToast({
             {/* Action Buttons */}
             <div className="flex items-center justify-end">
               {shouldShowSessionCancelButton && (
-                <Button variant="danger" size="xs" onClick={handleCancelClick}>
-                  {common.cancel}
+                // Quiet until confirmed: the Yes that follows is the solid danger button.
+                <Button
+                  variant="outline"
+                  size="xs"
+                  className="*:text-(--theme-error-text)"
+                  onClick={handleCancelClick}
+                >
+                  <span>{common.cancel}</span>
                 </Button>
               )}
 
