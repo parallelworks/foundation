@@ -381,6 +381,69 @@ export const Settings: StoryObj = {
   },
 }
 
+const MESSAGES = [
+  'The scheduler restarts Saturday at 09:00 UTC. Running jobs keep running.',
+  'New GPU nodes are available in the west region.',
+  'Storage quotas rise to 2 TB next month.',
+  'Office hours move to Thursdays.',
+]
+
+/** Content that frames its own parts, such as a card per entry, sits under the
+ *  title without the card's panel around it. */
+export const SettingsUnframed: StoryObj<{ framed: boolean }> = {
+  args: { framed: false },
+  render: ({ framed }) => (
+    <SettingsCard
+      title="Messages"
+      description="Each message is its own card."
+      action={
+        <Button variant="outline" size="sm" icon={<AddIcon className="h-4 w-4" />}>
+          Add message
+        </Button>
+      }
+      framed={framed}
+    >
+      <ul className="flex flex-col gap-3">
+        {MESSAGES.map((message) => (
+          <li key={message}>
+            <Card size="sm">{message}</Card>
+          </li>
+        ))}
+      </ul>
+    </SettingsCard>
+  ),
+}
+
+/** A preview beside a longer list stays in view while the list scrolls. Both
+ *  cards span a header row and a panel row, so their panels start level. */
+export const SettingsSticky: StoryObj<{ sticky: boolean }> = {
+  args: { sticky: true },
+  render: ({ sticky }) => (
+    <div className="h-96 overflow-auto">
+      <div className="grid gap-x-6 md:grid-cols-[minmax(0,1fr)_16rem]">
+        <SettingsCard
+          title="Messages"
+          description="The first one shows in the preview."
+          className="md:row-span-2 md:grid md:grid-rows-subgrid"
+        >
+          {MESSAGES.map((message, i) => (
+            <SettingRow key={message} label={`Message ${i + 1}`} fill>
+              <Textarea aria-label={`Message ${i + 1}`} defaultValue={message} rows={3} />
+            </SettingRow>
+          ))}
+        </SettingsCard>
+        <SettingsCard
+          title="Preview"
+          sticky={sticky}
+          className="md:row-span-2 md:mt-0 md:grid md:grid-rows-subgrid"
+        >
+          <p className="p-4 text-sm theme-text">{MESSAGES[0]}</p>
+        </SettingsCard>
+      </div>
+    </div>
+  ),
+}
+
 export const BadgesAndIconButtons: StoryObj = {
   render: () => (
     <div className="flex items-center gap-3">
