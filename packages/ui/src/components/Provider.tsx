@@ -535,6 +535,8 @@ export interface UIStrings {
     descending: string
     columnHeaders: string
     showColumnHeaders: string
+    /** The header checkbox that ticks every row, or clears them all. */
+    selectAll: string
     showActions: string
     showRowActions: string
     alwaysShowActions: string
@@ -1231,6 +1233,7 @@ const DEFAULTS: UIProviderValue = {
       descending: 'Descending',
       columnHeaders: 'Column headers',
       showColumnHeaders: 'Show column headers',
+      selectAll: 'Select all',
       showActions: 'Show actions',
       showRowActions: 'Show row actions',
       alwaysShowActions: 'Always show actions',

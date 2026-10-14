@@ -14,7 +14,6 @@ import {
 import { type UILinkComponent, UIProvider, useNavigation } from '../components/Provider'
 import { StatusBadge } from '../components/StatusBadge'
 import { Table } from '../components/Table'
-import { cx } from '../cx'
 import {
   ClusterIcon,
   EditIcon,
@@ -30,6 +29,7 @@ import { ListColumns, ListPage, ListRow, useListNavigate } from './ListPage'
 import {
   GroupRow,
   ListError,
+  ListSelectAllHeader,
   ListSkeleton,
   listTableProps,
   NameCell,
@@ -271,6 +271,12 @@ function ClustersPage({
     return view.applyOrder(view.applyFilters(matched))
   }, [all, query, view])
 
+  // Ticks every row shown, or clears them once all are ticked.
+  const toggleAll = () =>
+    setChecked((prev) =>
+      rows.every((row) => prev.has(row.id)) ? new Set() : new Set(rows.map((row) => row.id)),
+    )
+
   const menuItems = (row: ShellRow): MenuEntry[] => [
     {
       label: 'Open',
@@ -404,18 +410,13 @@ function ClustersPage({
             </p>
           </div>
         ) : (
-          <Table
-            {...listTableProps}
-            // Collapsed rather than left out, so the columns keep their widths.
-            theadClassName={cx(
-              listTableProps.theadClassName,
-              !view.showColumnHeaders && 'collapse',
-            )}
-          >
+          <Table {...listTableProps}>
             {selectable && (
-              <Table.Header caps={false} className="w-10">
-                <span className="sr-only">Select</span>
-              </Table.Header>
+              <ListSelectAllHeader
+                selected={rows.filter((row) => checked.has(row.id)).length}
+                total={rows.length}
+                onToggle={toggleAll}
+              />
             )}
             <ListColumns view={view} />
             {view.groupBy === 'status'
