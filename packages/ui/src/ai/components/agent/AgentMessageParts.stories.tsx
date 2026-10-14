@@ -11,8 +11,9 @@ import {
   makeWriteFilePart,
   useStreamedText,
 } from '../../stories/harness'
+import { defaultChatStrings } from '../../strings'
 import type { ToolCallStatus } from '../../types'
-import ActivityLine, { activityWords } from './ActivityLine'
+import ActivityLine from './ActivityLine'
 import AgentMessageParts from './AgentMessageParts'
 
 const meta: Meta = {
@@ -278,7 +279,7 @@ export const Activity: StoryObj<{
     stoppable: true,
   },
   argTypes: {
-    word: { control: 'select', options: [...activityWords] },
+    word: { control: 'select', options: [...defaultChatStrings.activity.words] },
     minutesRunning: { control: { type: 'range', min: 0, max: 90 } },
   },
   render: ({ word, minutesRunning, inputTokens, outputTokens, stoppable }) => (
