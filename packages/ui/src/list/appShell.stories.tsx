@@ -488,7 +488,7 @@ export const DetailPageShell: StoryObj = {
               />
               <section className="space-y-2 p-4">
                 <h2 className="m-0 text-sm font-medium text-(--theme-app)">Logs</h2>
-                <ActionToolbar groups={LOG_GROUPS} right={LOG_RIGHT} />
+                <ActionToolbar label="Log controls" groups={LOG_GROUPS} right={LOG_RIGHT} />
                 <pre className="m-0 rounded-md border border-(--theme-border) p-3 text-xs text-(--theme-muted-text-color)">
                   {'node-0  ready\nnode-1  ready\nscheduler  accepting jobs'}
                 </pre>
@@ -509,5 +509,87 @@ export const DetailPageShell: StoryObj = {
       stop.compareDocumentPosition(autoRefresh) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
     await expect(autoRefresh).toHaveAttribute('aria-pressed', 'true')
+  },
+}
+
+// A panel's full set of controls: a primary, plain actions, toggles, and a
+// destructive one held back with its reason.
+const PANEL_GROUPS: ToolbarItem[][] = [
+  [
+    { key: 'run', label: 'Run', icon: <PowerIcon />, onClick: () => {}, primary: true },
+    { key: 'stop', label: 'Stop', icon: <StopIcon />, onClick: () => {} },
+  ],
+  [
+    { key: 'snapshot', label: 'Snapshot', icon: <SnapshotIcon />, onClick: () => {} },
+    {
+      key: 'terminal',
+      label: 'Terminal',
+      icon: <TerminalIcon />,
+      href: '/clusters/gpu-trainer-01/terminal',
+    },
+  ],
+  LOG_GROUPS[0] ?? [],
+]
+
+const PANEL_RIGHT: ToolbarItem[] = [
+  { key: 'refresh', label: 'Refresh', icon: <RefreshIcon />, onClick: () => {} },
+  {
+    key: 'delete',
+    label: 'Delete',
+    icon: <TrashIcon />,
+    onClick: () => {},
+    destructive: true,
+    disabled: true,
+    disabledReason: 'Stop the cluster before deleting it',
+  },
+]
+
+function PanelToolbar({ width }: { width: string }) {
+  return (
+    <MockHost>
+      {() => (
+        // Inline: the package's stylesheet doesn't scan stories.
+        <div className="p-4" style={{ maxWidth: width }}>
+          <ActionToolbar label="Cluster controls" groups={PANEL_GROUPS} right={PANEL_RIGHT} />
+        </div>
+      )}
+    </MockHost>
+  )
+}
+
+/** `ActionToolbar` on its own. One primary action is filled and the rest are
+ *  outlined; a pressed toggle reads in the link color, and a destructive action
+ *  in the error color. It is one tab stop: the arrow keys move between its
+ *  items, the disabled Delete included, whose reason is part of its name. */
+export const Toolbar: StoryObj<{ width: string }> = {
+  args: { width: '64rem' },
+  argTypes: { width: { control: 'text', description: 'The space the toolbar has.' } },
+  render: ({ width }) => <PanelToolbar width={width} />,
+  play: async ({ canvasElement }) => {
+    const toolbar = within(canvasElement).getByRole('toolbar', { name: 'Cluster controls' })
+    const run = within(toolbar).getByRole('button', { name: 'Run' })
+    const stop = within(toolbar).getByRole('button', { name: 'Stop' })
+    // One tab stop: the items after the first wait for the arrow keys.
+    await expect(stop).toHaveAttribute('tabindex', '-1')
+    run.focus()
+    await userEvent.keyboard('{ArrowRight}')
+    await expect(stop).toHaveFocus()
+    await expect(
+      within(toolbar).getByRole('button', {
+        name: /^Delete\W+Stop the cluster before deleting it$/,
+      }),
+    ).toHaveAttribute('aria-disabled', 'true')
+  },
+}
+
+/** In a narrow panel the groups wrap onto more lines rather than run off it,
+ *  and drop their separators; the right-hand actions take the last line, and
+ *  fold into the `…` menu only when even that is too narrow. */
+export const ToolbarNarrow: StoryObj<{ width: string }> = {
+  ...Toolbar,
+  args: { width: '22rem' },
+  play: async ({ canvasElement }) => {
+    const toolbar = within(canvasElement).getByRole('toolbar', { name: 'Cluster controls' })
+    await expect(toolbar.scrollWidth).toBeLessThanOrEqual(toolbar.clientWidth)
   },
 }

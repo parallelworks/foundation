@@ -46,3 +46,47 @@ describe('ActionToolbar toggles', () => {
     )
   })
 })
+
+describe('ActionToolbar', () => {
+  it('is one named toolbar whose disabled actions stay reachable and say why', () => {
+    render(
+      <ActionToolbar
+        label="Cluster controls"
+        groups={[
+          [
+            { key: 'open', label: 'Open', icon, href: '/open', primary: true },
+            {
+              key: 'delete',
+              label: 'Delete',
+              icon,
+              onClick: () => {},
+              destructive: true,
+              disabled: true,
+              disabledReason: 'Stop it first',
+            },
+          ],
+        ]}
+      />,
+    )
+    const toolbar = screen.getByRole('toolbar', { name: 'Cluster controls' })
+    expect(toolbar).toContainElement(screen.getByRole('link', { name: 'Open' }))
+    const remove = screen.getByRole('button', { name: 'Delete. Stop it first' })
+    expect(remove).toHaveAttribute('aria-disabled', 'true')
+    expect(remove).not.toHaveAttribute('disabled')
+  })
+
+  it('warns once when more than one action is primary', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const groups = [
+      [
+        { key: 'a', label: 'Start', icon, onClick: () => {}, primary: true },
+        { key: 'b', label: 'Stop', icon, onClick: () => {}, primary: true },
+      ],
+    ]
+    const { rerender } = render(<ActionToolbar groups={groups} />)
+    rerender(<ActionToolbar groups={groups} />)
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('"Start", "Stop" are all primary'))
+    warn.mockRestore()
+  })
+})
