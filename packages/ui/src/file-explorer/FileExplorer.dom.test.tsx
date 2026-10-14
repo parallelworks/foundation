@@ -480,7 +480,7 @@ describe('FileExplorer listing failures', () => {
       <UIProvider data={{ provisionCorsRules: provision }}>{explorer(ROOT, script)}</UIProvider>,
     )
     const addRules = await screen.findByRole('button', {
-      name: 'Add CORS Rules',
+      name: 'Add CORS rules',
     })
 
     script.recover('')
@@ -508,7 +508,7 @@ describe('FileExplorer mutations', () => {
     await screen.findByLabelText('Select one.txt')
     check('one.txt')
     fireEvent.click(deleteButton())
-    await screen.findByText('Confirm Delete')
+    await screen.findByText('Confirm delete')
     fireEvent.click(screen.getAllByRole('button', { name: 'Delete' }).at(-1)!)
 
     await waitFor(() => expect(screen.queryByLabelText('Select one.txt')).not.toBeInTheDocument())
@@ -650,7 +650,7 @@ describe('FileExplorer selection across navigation', () => {
     check('three.txt')
     fireEvent.click(deleteButton())
 
-    const confirm = await screen.findByText(/Confirm Delete/)
+    const confirm = await screen.findByText(/Confirm delete/)
     expect(confirm).toBeInTheDocument()
     expect(screen.getByText(`${FOLDER_B}/three.txt`)).toBeInTheDocument()
     expect(screen.queryByText(`${FOLDER_A}/one.txt`)).not.toBeInTheDocument()

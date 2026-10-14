@@ -537,7 +537,7 @@ function dispatchRowKey(
   }
   if (e.key === ' ') {
     e.preventDefault()
-    // A previewable file delegates Space upward for Quick Look; everything else
+    // A previewable file delegates Space upward to open its preview; everything else
     // falls back to select/toggle.
     if (!isDirectory && canPreview(node)) {
       onDelegate(e, node)

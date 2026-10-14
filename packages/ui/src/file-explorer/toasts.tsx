@@ -363,7 +363,7 @@ export function UploadSessionToast({
               </Callout>
             )}
 
-            {/* Overall Progress Bar */}
+            {/* Overall progress bar */}
             {session.uploadNodes.length > 1 && isUploading && (
               <ProgressBar
                 value={totalProgress}
