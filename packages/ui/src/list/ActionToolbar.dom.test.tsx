@@ -56,6 +56,14 @@ describe('ActionToolbar', () => {
           [
             { key: 'open', label: 'Open', icon, href: '/open', primary: true },
             {
+              key: 'logs',
+              label: 'Logs',
+              icon,
+              href: '/logs',
+              disabled: true,
+              disabledReason: 'No logs yet',
+            },
+            {
               key: 'delete',
               label: 'Delete',
               icon,
@@ -73,6 +81,11 @@ describe('ActionToolbar', () => {
     const remove = screen.getByRole('button', { name: 'Delete. Stop it first' })
     expect(remove).toHaveAttribute('aria-disabled', 'true')
     expect(remove).not.toHaveAttribute('disabled')
+    // A disabled link stays a link, in the toolbar's arrow-key order, going nowhere.
+    const logs = screen.getByRole('link', { name: 'Logs. No logs yet' })
+    expect(logs).toHaveAttribute('aria-disabled', 'true')
+    expect(logs).not.toHaveAttribute('href')
+    expect(logs).toHaveAttribute('tabindex', '-1')
   })
 
   it('warns once when more than one action is primary', () => {

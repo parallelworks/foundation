@@ -11,10 +11,11 @@ import {
   useRef,
   useState,
 } from 'react'
+import { AppLink } from '../components/AppLink'
 import { buttonClasses } from '../components/buttonClasses'
 import { MenuPopup } from '../components/Menu'
 import { MenuEntries, useRunAction, warnIfInert } from '../components/MenuEntries'
-import { useLink, useStrings } from '../components/Provider'
+import { useStrings } from '../components/Provider'
 import { Tooltip } from '../components/Tooltip'
 import { cx } from '../cx'
 import { MoreIcon } from '../icons'
@@ -58,7 +59,6 @@ function ToolbarItemView({ item }: { item: ToolbarItem }) {
  *  In an ActionToolbar it is one of its items, reached with the arrow keys. */
 export function ToolbarButton({ action }: { action: ToolbarAction }) {
   const placement = use(PlacementContext)
-  const Link = useLink()
   const runAction = useRunAction()
   if (placement === 'menu') {
     return <MenuEntries entries={[action]} />
@@ -84,8 +84,17 @@ export function ToolbarButton({ action }: { action: ToolbarAction }) {
   const run = () => runAction(action)
   const inToolbar = placement === 'toolbar'
   let control: React.ReactElement
-  if (action.href && !action.disabled) {
-    const link = <Link href={action.href} className={className} />
+  if (action.href) {
+    // A disabled link stays a link, without its href and still focusable.
+    const link = (
+      <AppLink
+        href={action.href}
+        reloadDocument={action.reloadDocument}
+        target={action.target}
+        disabled={action.disabled}
+        className={className}
+      />
+    )
     control = inToolbar ? (
       <Toolbar.Link render={link}>{content}</Toolbar.Link>
     ) : (
