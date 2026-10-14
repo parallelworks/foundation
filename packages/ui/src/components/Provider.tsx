@@ -1,5 +1,6 @@
+import { dequal } from 'dequal'
 import type { Dispatch, ReactNode, SetStateAction } from 'react'
-import { createContext, use, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, use, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import type { WorkflowAction, WorkflowEditing } from '../editing'
 import type { WorkflowEngine } from '../engine'
 import type { GraphEditorText, InputsEditorText } from '../graph/editorStrings'
@@ -81,6 +82,10 @@ export interface UIStrings {
     remove: string
     sort: string
     userAvatar: string
+    /** A person's presence beside their avatar, read with their name. */
+    presence: Record<'online' | 'offline' | 'busy' | 'away', string>
+    /** An avatar's name with the person's presence, such as "Ada Lovelace, online". */
+    withPresence: (name: string, presence: string) => string
     moreInfo: string
     /** The name of a menu of actions on a page or row. */
     actions: string
@@ -96,6 +101,10 @@ export interface UIStrings {
     no: string
     /** Read after a link that opens a new tab. */
     opensInNewTab: string
+    /** Names a code editor that has no label of its own. */
+    codeEditor: string
+    /** Shown when someone types in a read-only code editor. */
+    readOnlyText: string
     /** Names the handle that resizes a panel. */
     resizePanel: string
     /** A resizable panel's width, read aloud. */
@@ -203,6 +212,8 @@ export interface UIStrings {
     endInFuture: string
     follow: string
     following: string
+    /** A line number's name: it selects the line for copying. */
+    selectLine: (line: number) => string
   }
   dag: {
     workflow: string
@@ -257,9 +268,10 @@ export interface UIStrings {
       previewTab: string
       preview: string
       openFullPreview: string
-      /** Names the choice between a quick look and the full window. */
+      /** Names the choice between a compact preview and the full window. */
       previewLayout: string
-      quickLook: string
+      /** The preview in a panel over the page, beside `fullWindow`. */
+      compact: string
       fullWindow: string
       streamed: string
       streamedTooltip: string
@@ -366,6 +378,10 @@ export interface UIStrings {
       corsAdded: string
       corsPropagating: string
       previewUnsupported: string
+      /** A folder's listing failed; `name` is the folder. */
+      loadFailed: (name: string, message: string) => string
+      /** A failure that came with no message of its own. */
+      unknownError: string
     }
     chrome: {
       explorer: string
@@ -388,6 +404,14 @@ export interface UIStrings {
       details: string
       selectFiles: string
       selectFolder: string
+      /** Names the table of a folder's contents. */
+      files: string
+      /** Names the folder tree. */
+      folders: string
+      /** Names the trail from the storage down to the open folder. */
+      location: string
+      /** Explains a share link, beside Share. */
+      shareHelp: string
     }
     confirmUpload: {
       title: string
@@ -474,8 +498,6 @@ export interface UIStrings {
     stepDone: string
     /** A step with a value to fix. */
     stepNeedsAttention: string
-    previousStep: string
-    nextStep: string
     /** A wizard's last button, unless its config names its own. */
     runWizard: string
     fixErrorsToContinue: string
@@ -500,6 +522,12 @@ export interface UIStrings {
     labelId: string
     labelUrl: string
     couldNotLoad: (noun: string) => string
+    /** What `ListError` names when the host gives no noun. */
+    data: string
+    /** A list's size, as `ListCount` shows it; `count` is formatted and `noun` agrees with it. */
+    count: (count: string, noun: string) => string
+    /** How many rows a filter left, of how many. */
+    matchCount: (matches: string, total: string, nounPlural: string) => string
     displayOptions: string
     grouping: string
     ordering: string
@@ -526,6 +554,39 @@ export interface UIStrings {
     pagination: string
     removeSearchTerm: (term: string) => string
   }
+}
+
+/** What a host passes to translate the strings: any group, any string in it, at any depth.
+ *  A string it leaves out stays in English. */
+export type UIStringOverrides = Overrides<UIStrings>
+
+type Overrides<T> = {
+  [K in keyof T]?: T[K] extends (...args: never[]) => unknown
+    ? T[K]
+    : T[K] extends readonly unknown[]
+      ? T[K]
+      : T[K] extends object
+        ? Overrides<T[K]>
+        : T[K]
+}
+
+const isGroup = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+// Overrides laid over the defaults group by group, so a host can translate one string of a
+// nested group, such as the file explorer's preview, without restating the rest of it.
+function mergeStrings<T>(defaults: T, overrides: unknown): T {
+  if (!isGroup(overrides) || !isGroup(defaults)) {
+    return defaults
+  }
+  const merged: Record<string, unknown> = { ...defaults }
+  for (const [key, value] of Object.entries(overrides)) {
+    if (value === undefined) {
+      continue
+    }
+    merged[key] = isGroup(value) && isGroup(merged[key]) ? mergeStrings(merged[key], value) : value
+  }
+  return merged as T
 }
 
 export interface UINavigation {
@@ -601,7 +662,7 @@ const DefaultLink: UILinkComponent = ({ href, ...rest }) => <a href={safeUrl(hre
 
 /** The provider's link slot, with a plain anchor fallback. */
 export function useLink(): UILinkComponent {
-  return useContext(UIContext).slots.link ?? DefaultLink
+  return useContext(SlotsContext).link ?? DefaultLink
 }
 
 export interface UISlots {
@@ -739,6 +800,8 @@ const DEFAULTS: UIProviderValue = {
       remove: 'Remove',
       sort: 'Sort',
       userAvatar: 'User avatar',
+      presence: { online: 'online', offline: 'offline', busy: 'busy', away: 'away' },
+      withPresence: (name, presence) => `${name}, ${presence}`,
       moreInfo: 'More information',
       actions: 'Actions',
       edit: 'Edit',
@@ -751,6 +814,8 @@ const DEFAULTS: UIProviderValue = {
       yes: 'Yes',
       no: 'No',
       opensInNewTab: '(opens in a new tab)',
+      codeEditor: 'Code editor',
+      readOnlyText: 'This text is read-only.',
       resizePanel: 'Resize panel',
       panelWidth: (px) => `${px} pixels wide`,
       refresh: 'Refresh',
@@ -828,9 +893,9 @@ const DEFAULTS: UIProviderValue = {
       top: 'Top',
       clearSelection: 'Clear selection',
       copyLines: (count) => (count === 1 ? 'Copy 1 line' : `Copy ${count} lines`),
-      copyAll: 'Copy All',
-      hideDebug: 'Hide Debug',
-      showDebug: 'Show Debug',
+      copyAll: 'Copy all',
+      hideDebug: 'Hide debug',
+      showDebug: 'Show debug',
       filterLogs: 'Filter logs',
       beginningOfLog: 'Beginning of log',
       loadingOlderEntries: 'Loading older entries…',
@@ -849,6 +914,7 @@ const DEFAULTS: UIProviderValue = {
       endInFuture: 'End time cannot be in the future.',
       follow: 'Follow',
       following: 'Following',
+      selectLine: (line) => `Select line ${line}`,
     },
     dag: {
       workflow: 'Workflow',
@@ -856,7 +922,7 @@ const DEFAULTS: UIProviderValue = {
       status: 'Status',
       runtime: 'Runtime',
       submitted: 'Submitted',
-      resetView: 'Reset View',
+      resetView: 'Reset view',
       previousGraph: 'Back to the previous graph',
       nextGraph: 'Forward to the next graph',
       matrixOf: (name) => `Matrix: ${name}`,
@@ -899,7 +965,7 @@ const DEFAULTS: UIProviderValue = {
         preview: 'Preview',
         openFullPreview: 'Open full preview',
         previewLayout: 'Preview layout',
-        quickLook: 'Quick Look',
+        compact: 'Compact',
         fullWindow: 'Full window',
         streamed: 'Streamed',
         streamedTooltip:
@@ -952,14 +1018,14 @@ const DEFAULTS: UIProviderValue = {
       uri: 'URI',
       cors: {
         explanation: {
-          title: 'CORS Configuration Required',
+          title: 'CORS configuration required',
           description:
             'This storage location cannot be accessed from the browser because it is missing Cross-Origin Resource Sharing (CORS) rules.',
           action: 'You can automatically configure these rules to allow access from this domain.',
           note: 'Note: Changes may take up to 30 seconds to propagate.',
         },
         actions: {
-          addRules: 'Add CORS Rules',
+          addRules: 'Add CORS rules',
         },
         propagating: {
           title: 'Propagating CORS rules',
@@ -1007,7 +1073,7 @@ const DEFAULTS: UIProviderValue = {
         noItemsForDeletion: 'No items selected for deletion.',
         deleting: 'Deleting item(s) from storage...',
         deleteSomeFailed: 'Failed to delete one or more items. Please try again.',
-        deleteSuccess: 'Deleted item(s) from storage successfully!',
+        deleteSuccess: 'Deleted from storage.',
         deleteFailed: (message: string) => `Failed to delete item(s): ${message}`,
         noFilesToUpload: 'No files to upload or target path not selected.',
         invalidUploadTarget: 'This target path is not valid for upload.',
@@ -1020,13 +1086,15 @@ const DEFAULTS: UIProviderValue = {
         corsAdded: 'CORS rules added successfully',
         corsPropagating: 'CORS rules were added, but are still propagating. Try again in a moment.',
         previewUnsupported: 'Preview is not supported for this storage.',
+        loadFailed: (name, message) => `Failed to load contents for ${name}: ${message}`,
+        unknownError: 'Unknown error',
       },
       chrome: {
         explorer: 'Explorer',
         upload: 'Upload',
         downloadFromBrowser: 'From browser',
         access: 'Access',
-        manageAccess: 'Manage Access',
+        manageAccess: 'Manage access',
         selectAll: 'Select all',
         name: 'Name',
         size: 'Size',
@@ -1042,22 +1110,27 @@ const DEFAULTS: UIProviderValue = {
         details: 'Details',
         selectFiles: 'Select files',
         selectFolder: 'Select folder',
+        files: 'Files',
+        folders: 'Folders',
+        location: 'Location',
+        shareHelp:
+          "This will generate a pre-signed URL for this file. Anyone with this link can temporarily access and download the file, even if they don't have an account. The link will automatically expire after 12 hours.",
       },
       confirmUpload: {
-        title: 'Confirm Upload',
+        title: 'Confirm upload',
         text: (path: string) =>
           `Please confirm the following objects you want to upload to ${path}.`,
         defaultPath: 'the selected path',
         noPath: 'No path selected',
         confirm: 'Confirm',
         target: 'Target:',
-        sizeLimitTitle: 'Upload Size Limit Exceeded',
+        sizeLimitTitle: 'Upload size limit exceeded',
         sizeLimitBody: (total: string, max: string) =>
           `The total upload size (${total}) exceeds the maximum allowed limit of ${max}.`,
         sizeLimitHint: 'Please reduce the number of files or upload them in smaller batches.',
       },
       confirmDelete: {
-        title: 'Confirm Delete',
+        title: 'Confirm delete',
         text: 'Are you sure you want to delete the following item(s)? Folders are deleted with everything inside them. This action cannot be undone.',
       },
       empty: {
@@ -1070,14 +1143,14 @@ const DEFAULTS: UIProviderValue = {
         shareThisFile: 'Share this file',
       },
       upload: {
-        inQueue: (position: number, total: number) => `In Queue (#${position} of ${total})`,
+        inQueue: (position: number, total: number) => `In queue (#${position} of ${total})`,
         queuedShort: (position: number, total: number) => `Queued #${position} / ${total}`,
         destination: 'Destination:',
         eta: 'ETA:',
         uploading: 'Uploading...',
-        completeTitle: 'Upload Complete!',
-        failedTitle: 'Upload Failed',
-        unknownTitle: 'Unknown Status',
+        completeTitle: 'Upload complete',
+        failedTitle: 'Upload failed',
+        unknownTitle: 'Unknown status',
         unknownShort: 'Unknown',
         canceled: 'Canceled',
         completed: 'Completed',
@@ -1091,9 +1164,9 @@ const DEFAULTS: UIProviderValue = {
         sessionNotQueued: (id: string, status: string) =>
           `Upload session with ID ${id} is not queued, current status is ${status}`,
         allCanceled: (count: number) => `All ${count} file(s) were canceled by user.`,
-        someUploaded: (count: number) => `${count} file(s) uploaded successfully!`,
+        someUploaded: (count: number) => `${count} file(s) uploaded.`,
         someCanceled: (count: number) => `${count} file(s) canceled by user.`,
-        allUploaded: 'Upload file(s) successfully!',
+        allUploaded: 'Uploaded the file(s).',
         failedSummary: (failed: number, total: number) =>
           `${failed}/${total} files failed to upload:`,
         failReasonGeneric:
@@ -1101,7 +1174,7 @@ const DEFAULTS: UIProviderValue = {
         refreshFailed: (name: string, message: string) =>
           `Failed to refresh storage data for ${name}. ${message}. Please try again.`,
         unknownError: 'Unknown error',
-        overallProgress: 'Overall Progress',
+        overallProgress: 'Overall progress',
         cancelFile: (name) => `Cancel ${name}`,
         confirmCancelFile: 'Cancel?',
         confirmCancelAll: 'Cancel all uploading files?',
@@ -1128,8 +1201,6 @@ const DEFAULTS: UIProviderValue = {
       allSteps: 'All steps',
       stepDone: 'Done',
       stepNeedsAttention: 'Needs a fix',
-      previousStep: 'Go to previous step',
-      nextStep: 'Go to next step',
       runWizard: 'Execute',
       fixErrorsToContinue: 'Please fix errors before proceeding',
       stepFailed: 'An error occurred',
@@ -1151,6 +1222,9 @@ const DEFAULTS: UIProviderValue = {
       labelId: 'ID',
       labelUrl: 'URL',
       couldNotLoad: (noun) => `Couldn't load ${noun}`,
+      data: 'data',
+      count: (count, noun) => `${count} ${noun}`,
+      matchCount: (matches, total, nounPlural) => `${matches} of ${total} ${nounPlural}`,
       displayOptions: 'Display options',
       grouping: 'Grouping',
       ordering: 'Ordering',
@@ -1205,36 +1279,42 @@ const DEFAULTS: UIProviderValue = {
   slots: {},
 }
 
-const UIContext = createContext<UIProviderValue>(DEFAULTS)
+// One context per concern, so a change to one, such as the host's data hooks, re-renders only the
+// components that read it rather than every string and link under the provider.
+const StringsContext = createContext<UIStrings>(DEFAULTS.strings)
+const NavigationContext = createContext<UINavigation>(DEFAULTS.navigation)
+const DataContext = createContext<UIData>(DEFAULTS.data)
+const SlotsContext = createContext<UISlots>(DEFAULTS.slots)
+const EngineContext = createContext<WorkflowEngineSource | undefined>(undefined)
 
 export function useStrings(): UIStrings {
-  return useContext(UIContext).strings
+  return useContext(StringsContext)
 }
 
 export function useNavigation(): UINavigation {
-  return useContext(UIContext).navigation
+  return useContext(NavigationContext)
 }
 
 export function useWorkflowJsonResolver(): UIData['resolveWorkflowJson'] {
-  return useContext(UIContext).data.resolveWorkflowJson
+  return useContext(DataContext).resolveWorkflowJson
 }
 
 export function useRepoSuggestions(): UIData['repoSuggestions'] {
-  return useContext(UIContext).data.repoSuggestions
+  return useContext(DataContext).repoSuggestions
 }
 
 const NO_ACTIONS: Record<string, WorkflowAction> = {}
 
 export function useWorkflowActions(): Record<string, WorkflowAction> {
-  return useContext(UIContext).data.workflowActions ?? NO_ACTIONS
+  return useContext(DataContext).workflowActions ?? NO_ACTIONS
 }
 
 export function useSecretVariablesResolver(): UIData['resolveSecretVariables'] {
-  return useContext(UIContext).data.resolveSecretVariables
+  return useContext(DataContext).resolveSecretVariables
 }
 
 export function useSlots(): UISlots {
-  return useContext(UIContext).slots
+  return useContext(SlotsContext)
 }
 
 interface LoadedEngine {
@@ -1267,7 +1347,7 @@ function resolveEngine(source: WorkflowEngineSource): WorkflowEngine {
 
 /** The engine when one is provided and `enabled`; suspends while a loader resolves. */
 export function useOptionalWorkflowEngine(enabled = true): WorkflowEngine | undefined {
-  const source = useContext(UIContext).engine
+  const source = useContext(EngineContext)
   if (!enabled || !source) {
     return undefined
   }
@@ -1275,7 +1355,7 @@ export function useOptionalWorkflowEngine(enabled = true): WorkflowEngine | unde
 }
 
 export function useWorkflowEngine(): WorkflowEngine {
-  const source = useContext(UIContext).engine
+  const source = useContext(EngineContext)
   if (!source) {
     throw new Error('Workflow forms and graphs need a UIProvider with an engine.')
   }
@@ -1284,7 +1364,7 @@ export function useWorkflowEngine(): WorkflowEngine {
 
 /** The engine once it has loaded, without suspending; renders again when a loader resolves. */
 export function useLoadedWorkflowEngine(): WorkflowEngine | undefined {
-  const source = useContext(UIContext).engine
+  const source = useContext(EngineContext)
   const [, setLoaded] = useState(0)
   const entry = typeof source === 'function' ? loadEngine(source) : undefined
   const engine = typeof source === 'function' ? entry?.engine : source
@@ -1316,7 +1396,7 @@ export function useWorkflowEditing(): WorkflowEditing {
 
 /** Resolves the engine without suspending, for async callers such as editor completions. */
 export function useWorkflowEngineLoader(): () => Promise<WorkflowEngine | undefined> {
-  const source = useContext(UIContext).engine
+  const source = useContext(EngineContext)
   return useCallback(async () => {
     if (!source) {
       return undefined
@@ -1326,7 +1406,7 @@ export function useWorkflowEngineLoader(): () => Promise<WorkflowEngine | undefi
 }
 
 export function useProvisionCorsRules(): UIData['provisionCorsRules'] {
-  return useContext(UIContext).data.provisionCorsRules
+  return useContext(DataContext).provisionCorsRules
 }
 
 export function useRunFile(
@@ -1334,7 +1414,7 @@ export function useRunFile(
   path: string | null,
   options?: { refreshInterval?: number },
 ): RunFileResult {
-  const { useRunFile: boundUseRunFile } = useContext(UIContext).data
+  const { useRunFile: boundUseRunFile } = useContext(DataContext)
   return boundUseRunFile(slug, path, options)
 }
 
@@ -1342,8 +1422,45 @@ export function usePersistedState<T>(
   key: string,
   defaultValue: T,
 ): [T, Dispatch<SetStateAction<T>>] {
-  const { usePersistedState: boundUsePersistedState } = useContext(UIContext).data
+  const { usePersistedState: boundUsePersistedState } = useContext(DataContext)
   return boundUsePersistedState(key, defaultValue)
+}
+
+export interface UIProviderProps {
+  /** Translations over the English defaults, at any depth. Define them outside a component, or
+   *  memoize them: the provider compares them by value, but a function made each render differs. */
+  strings?: UIStringOverrides | undefined
+  /** How the package navigates; read at the moment it navigates, so a new one never re-renders. */
+  navigation?: Partial<UINavigation> | undefined
+  /** The host's data hooks and resolvers. `useRunFile` and `usePersistedState` are called as
+   *  hooks, so each must stay the same function for the life of the app. */
+  data?: Partial<UIData> | undefined
+  /** Components the host renders inside the package's; a component made each render would
+   *  remount everything it renders. */
+  slots?: UISlots | undefined
+  /** The engine, or a loader that resolves to it. A loader is called once, the first one
+   *  passed, so it may be written inline. */
+  engine?: WorkflowEngineSource | undefined
+  children: React.ReactNode
+}
+
+// The value last seen while each new one equals it, so a host passing an object literal each
+// render hands consumers the same object and none of them re-render.
+function useByValue<T>(value: T): T {
+  const ref = useRef(value)
+  if (ref.current !== value && !dequal(ref.current, value)) {
+    ref.current = value
+  }
+  return ref.current
+}
+
+function useMerged<T>(compute: () => T, input: unknown): T {
+  const stableInput = useByValue(input)
+  const ref = useRef<{ input: unknown; value: T } | null>(null)
+  if (!ref.current || ref.current.input !== stableInput) {
+    ref.current = { input: stableInput, value: compute() }
+  }
+  return ref.current.value
 }
 
 export function UIProvider({
@@ -1351,18 +1468,13 @@ export function UIProvider({
   navigation,
   data,
   slots,
-  engine,
+  engine: engineProp,
   children,
-}: {
-  strings?: {
-    [G in keyof UIStrings]?: UIStrings[G] extends object ? Partial<UIStrings[G]> : UIStrings[G]
-  }
-  navigation?: Partial<UINavigation>
-  data?: Partial<UIData>
-  slots?: UISlots
-  engine?: WorkflowEngineSource
-  children: React.ReactNode
-}) {
+}: UIProviderProps) {
+  // A loader is the first one passed: an inline arrow is a new function each render, and each
+  // new one would load the engine again.
+  const [firstLoader] = useState(() => (typeof engineProp === 'function' ? engineProp : undefined))
+  const engine = typeof engineProp === 'function' ? (firstLoader ?? engineProp) : engineProp
   // Loading after mount keeps the engine off the first paint, and means the
   // first form or graph rarely has to suspend for it.
   useEffect(() => {
@@ -1370,49 +1482,34 @@ export function UIProvider({
       loadEngine(engine)
     }
   }, [engine])
-  const value = useMemo(
-    () => ({
-      strings: {
-        modal: { ...DEFAULTS.strings.modal, ...strings?.modal },
-        common: { ...DEFAULTS.strings.common, ...strings?.common },
-        dropdown: { ...DEFAULTS.strings.dropdown, ...strings?.dropdown },
-        datePicker: { ...DEFAULTS.strings.datePicker, ...strings?.datePicker },
-        colorInput: { ...DEFAULTS.strings.colorInput, ...strings?.colorInput },
-        oneTimeCode: { ...DEFAULTS.strings.oneTimeCode, ...strings?.oneTimeCode },
-        theme: { ...DEFAULTS.strings.theme, ...strings?.theme },
-        logviewer: { ...DEFAULTS.strings.logviewer, ...strings?.logviewer },
-        dag: { ...DEFAULTS.strings.dag, ...strings?.dag },
-        jobActions: {
-          ...DEFAULTS.strings.jobActions,
-          ...strings?.jobActions,
-        },
-        graphEditor: {
-          ...DEFAULTS.strings.graphEditor,
-          ...strings?.graphEditor,
-        },
-        inputsEditor: {
-          ...DEFAULTS.strings.inputsEditor,
-          ...strings?.inputsEditor,
-        },
-        fileExplorer: {
-          ...DEFAULTS.strings.fileExplorer,
-          ...strings?.fileExplorer,
-        },
-        form: { ...DEFAULTS.strings.form, ...strings?.form },
-        time: { ...DEFAULTS.strings.time, ...strings?.time },
-        list: { ...DEFAULTS.strings.list, ...strings?.list },
-      },
-      navigation: { ...DEFAULTS.navigation, ...navigation },
-      data: { ...DEFAULTS.data, ...data },
-      slots: slots ?? DEFAULTS.slots,
-      engine,
-    }),
-    [strings, navigation, data, slots, engine],
-  )
+  const mergedStrings = useMerged(() => mergeStrings(DEFAULTS.strings, strings), strings)
+  const mergedData = useMerged(() => ({ ...DEFAULTS.data, ...data }), data)
+  const stableSlots = useByValue(slots ?? DEFAULTS.slots)
+  // Each call reads the host's navigation as it is now, so the object consumers hold never changes.
+  const navigationRef = useRef(navigation)
+  navigationRef.current = navigation
+  const [stableNavigation] = useState<UINavigation>(() => ({
+    goTo: (to) => (navigationRef.current?.goTo ?? DEFAULTS.navigation.goTo)(to),
+    openStepSource: (uses, sourceUrl) =>
+      (navigationRef.current?.openStepSource ?? DEFAULTS.navigation.openStepSource)(
+        uses,
+        sourceUrl,
+      ),
+    openExternal: (href) =>
+      (navigationRef.current?.openExternal ?? DEFAULTS.navigation.openExternal)(href),
+  }))
   return (
-    <UIContext.Provider value={value}>
-      <TooltipProvider>{children}</TooltipProvider>
-      <Toaster />
-    </UIContext.Provider>
+    <StringsContext value={mergedStrings}>
+      <NavigationContext value={stableNavigation}>
+        <DataContext value={mergedData}>
+          <SlotsContext value={stableSlots}>
+            <EngineContext value={engine}>
+              <TooltipProvider>{children}</TooltipProvider>
+              <Toaster />
+            </EngineContext>
+          </SlotsContext>
+        </DataContext>
+      </NavigationContext>
+    </StringsContext>
   )
 }

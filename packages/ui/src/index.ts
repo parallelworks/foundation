@@ -19,7 +19,7 @@ export {
   type ButtonVariant,
   buttonClasses,
 } from './components/buttonClasses'
-export { default as Callout } from './components/Callout'
+export { Callout, type CalloutProps, type CalloutTone } from './components/Callout'
 export { Card, CardHeader, type CardProps } from './components/Card'
 export { Checkbox, CheckboxGroup, type CheckboxProps } from './components/Checkbox'
 export { ColorInput, type ColorInputProps } from './components/ColorInput'
@@ -38,7 +38,12 @@ export {
   type OpenMenuOptions,
   useContextMenu,
 } from './components/ContextMenu'
-export { CopyCodeBlock, default as CopyToClipboard } from './components/CopyToClipboard'
+export {
+  CopyButton,
+  type CopyButtonProps,
+  CopyCodeBlock,
+  type CopyCodeBlockProps,
+} from './components/CopyButton'
 export {
   CreateModal,
   CreateModalSelect,
@@ -46,6 +51,7 @@ export {
 } from './components/CreateModal'
 export { DatePicker, type DatePickerProps } from './components/DatePicker'
 export {
+  DescriptionListGroup,
   DescriptionListItem,
   type DescriptionListItemProps,
   type DescriptionListProps,
@@ -145,7 +151,9 @@ export {
   type UILinkComponent,
   type UINavigation,
   UIProvider,
+  type UIProviderProps,
   type UISlots,
+  type UIStringOverrides,
   type UIStrings,
   useNavigation,
   useOptionalWorkflowEngine,
@@ -190,7 +198,6 @@ export {
 } from './components/SettingsCard'
 export { LoadingRegion, Skeleton, type SkeletonProps } from './components/Skeleton'
 export { Slider, type SliderProps } from './components/Slider'
-export { default as Sort, type TDirection } from './components/Sort'
 export {
   type BadgeVariant,
   StatusBadge,
@@ -199,7 +206,7 @@ export {
 } from './components/StatusBadge'
 export { Switch, type SwitchProps } from './components/Switch'
 export { isTextEntryContext, useShortcutKey } from './components/shortcutKey'
-export { CompactTable, Table } from './components/Table'
+export { type SortDirection, Table, type TableDensity } from './components/Table'
 export { type TabItem, TabPanel, Tabs, type TabsProps } from './components/Tabs'
 export { ThemeEditor, type ThemeEditorProps, ThemePreview } from './components/ThemeEditor'
 export {

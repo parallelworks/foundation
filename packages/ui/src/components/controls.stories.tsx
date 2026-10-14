@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useState } from 'react'
 import { expect, userEvent, within } from 'storybook/test'
-import { AddIcon } from '../icons'
+import { AddIcon, KeyIcon, MailIcon, SaveIcon, ShieldIcon } from '../icons'
 import { Button, MethodButton } from './Button'
 import type { ButtonSize, ButtonVariant } from './buttonClasses'
 import { Card, CardHeader } from './Card'
@@ -14,7 +14,6 @@ import { SearchInput } from './SearchInput'
 import { SegmentedControl } from './SegmentedControl'
 import { SettingModeOption } from './SettingModeOption'
 import { SettingRow, SettingsCard, SettingsHeading } from './SettingsCard'
-import Sort, { type TDirection } from './Sort'
 import { Switch } from './Switch'
 
 const meta: Meta = {
@@ -109,6 +108,62 @@ export const Buttons: StoryObj = {
     await expect(canvas.getByRole('link', { name: 'Read the docs' })).toBeInTheDocument()
     await expect(canvas.getAllByRole('button', { name: 'Add' })).toHaveLength(15)
   },
+}
+
+function SaveDemo() {
+  const [saving, setSaving] = useState(false)
+  const save = () => {
+    setSaving(true)
+    setTimeout(() => setSaving(false), 1500)
+  }
+  return (
+    <div className="p-8">
+      <Button variant="primary" icon={<SaveIcon />} loading={saving} onClick={save}>
+        {saving ? 'Saving' : 'Save'}
+      </Button>
+    </div>
+  )
+}
+
+/** A button that turns busy keeps keyboard focus while it works, so the reader
+ *  isn't sent back to the top of the page, and can't be pressed again. */
+export const ButtonKeepsFocusWhileBusy: StoryObj = {
+  render: () => <SaveDemo />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: 'Save' }))
+    const busy = canvas.getByRole('button', { name: 'Saving' })
+    await expect(busy).toHaveAttribute('aria-busy', 'true')
+    await expect(busy).toHaveFocus()
+  },
+}
+
+/** Ways to go on, such as sign-in methods, spaced by their container: one
+ *  loading and one unavailable. The icon reads in the accent's text color, so it
+ *  stays legible on the dark theme's light accent. */
+export const MethodButtons: StoryObj = {
+  render: () => (
+    <div className="max-w-sm space-y-3 p-8">
+      <MethodButton
+        icon={<ShieldIcon />}
+        label="Single sign-on"
+        description="Use your organization identity provider"
+        href="/sso"
+      />
+      <MethodButton
+        icon={<MailIcon />}
+        label="Email link"
+        description="Sent to your inbox"
+        loading
+      />
+      <MethodButton
+        icon={<KeyIcon />}
+        label="Security key"
+        description="Not set up on this account"
+        disabled
+      />
+    </div>
+  ),
 }
 
 interface ButtonLinkArgs {
@@ -233,8 +288,6 @@ type RunFilter = 'all' | 'running' | 'failed'
 function SearchSortDemo({ size }: { size: 'sm' | 'md' }) {
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState<RunFilter>('all')
-  const [sorted, setSorted] = useState<'name' | ''>('name')
-  const [direction, setDirection] = useState<TDirection>('ascending')
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-3">
@@ -255,16 +308,6 @@ function SearchSortDemo({ size }: { size: 'sm' | 'md' }) {
           value={status}
           onValueChange={setStatus}
         />
-        <span className="text-sm">
-          Name
-          <Sort
-            currentlySorted={sorted || null}
-            name="name"
-            currentDirection={direction}
-            setCurrentDirection={setDirection}
-            setCurrentlySorted={setSorted}
-          />
-        </span>
       </div>
       <span data-testid="shown" className="text-xs text-(--theme-muted-text-color)">
         {query ? `Matching “${query}”` : 'Every run'}, {status}
@@ -273,7 +316,8 @@ function SearchSortDemo({ size }: { size: 'sm' | 'md' }) {
   )
 }
 
-/** A search box narrows the rows, a segmented control picks a status, and a column sorts. */
+/** A search box narrows the rows, and a segmented control picks a status. Columns sort
+ *  from their headers: see `UI/Primitives/Tables`. */
 export const SearchAndSort: StoryObj<{ size: 'sm' | 'md' }> = {
   args: { size: 'md' },
   argTypes: { size: { control: 'inline-radio', options: ['sm', 'md'] } },
@@ -377,7 +421,9 @@ export const Settings: StoryObj = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByText('Daily'))
-    await expect(canvas.getByRole('radio', { name: /Daily/ })).toBeChecked()
+    const daily = canvas.getByRole('radio', { name: 'Daily' })
+    await expect(daily).toBeChecked()
+    await expect(daily).toHaveAccessibleDescription('One digest every morning')
   },
 }
 
