@@ -27,7 +27,8 @@ Each need has one component. Reach for it before styling markup by hand.
 | Need | Use |
 | --- | --- |
 | An action | `Button`; `IconButton` for an icon alone, named by its tooltip |
-| A link or another component's trigger that looks like a button | `buttonClasses()` |
+| Navigation, in any form | the component's `href` (see [Links](#links)); `AppLink` for a link of your own |
+| Another component's trigger that looks like a button | `buttonClasses()` |
 | A link out of the app | `ExternalLink` |
 | Work under way | `Loader`; `Skeleton` in a `LoadingRegion` for the shape of content still loading |
 | Nothing to show yet, or nothing matches | `EmptyState` |
@@ -384,12 +385,41 @@ Every pressable thing has one look, from `buttonClasses({ variant, size, iconOnl
 
 Sizes are `xs`, `sm` and `md`. `Button` and `IconButton` apply it. An
 `IconButton` is named by its tooltip, and takes `pressed` for a toggle and
-`dot` for an indicator. Pass `buttonClasses()` to a host link or to another
-component's trigger rather than styling a button by hand. A pressed toggle
+`dot` for an indicator. Either takes `href` to be a link in the same look. Pass
+`buttonClasses()` to another component's trigger rather than styling a button
+by hand. A pressed toggle
 (`aria-pressed`) and an open popup's trigger read as selected.
 
 `Loader` is the one spinner. Inside a button, or beside text that already
 says what is happening, use `<Loader inline decorative />`.
+
+## Links
+
+Navigation is a link, never a button whose `onClick` navigates: a link opens
+in a new tab with a middle or modified click, can be copied, shows its URL on
+hover, and reads as a link. Every component that can navigate takes `href`,
+with `reloadDocument` for a path the host's router doesn't serve and `target`
+where it opens elsewhere, and renders it through `AppLink`:
+
+| Surface | Navigates with |
+| --- | --- |
+| `Button`, `IconButton`, `Card` | `href` |
+| Menu rows, `RowAction`s (a list row's menu and pinned buttons), `ToolbarAction`s | `href` on the action, with `target: '_blank'` for a new tab |
+| `PageHeaderAction`, `PageHeaderAddButton`, `PageHeader` breadcrumbs | `href`; `external` opens a new tab |
+| `Tabs` that are pages, `Pagination` | `href` on the item, `pageHref` |
+| A list row | `ListRow` `href` with a `NameCell` of the same `href`: the name's link covers the row |
+| A toast's action | `action: { label, href }` |
+| `SidebarRailItem` | `href`; `onSelect` then runs only on a plain click |
+| `EmptyState`, `SettingsCard` actions | a `Button` with `href` |
+
+`AppLink` routes in-app URLs through the provider's `link` slot, so a host
+binds its router's `Link` there once. That link receives the whole URL, search
+and hash included, and routes it client-side on a plain click, leaving
+modified and middle clicks to the browser. `AppLink` passes every href through
+`safeUrl`, gives a `reloadDocument` or another origin a plain anchor, and
+renders a disabled link with no href and `aria-disabled`, still focusable for
+its tooltip. Work a link's `onClick` does beside navigating, such as closing a
+drawer, belongs to a plain click only: check `isPlainClick(event)`.
 
 ## Toasts
 
@@ -551,29 +581,38 @@ Without them, those views still edit, but check nothing against the schema.
 `@parallelworks/ui/ai` is a chat interface (thread, composer, streaming,
 sidebar, model selector, attachments, sharing, branching) decoupled from any
 backend through a `ChatAdapter`. State lives in `ChatProvider` and is read
-with `useChat`:
+with `useChat`; the reply being streamed is read with `useChatStream`, apart
+from the rest, so only what draws the reply re-renders for each token:
 
 ```tsx
-import { ChatProvider, ChatLayout, ChatThread } from '@parallelworks/ui/ai'
+import { ChatEmptyState, ChatLayout, ChatProvider, ChatThread } from '@parallelworks/ui/ai'
 import { createMockChatAdapter } from '@parallelworks/ui/ai/mock'
 
-export function Chat() {
+export function Chat({ conversationId }: { conversationId: string | null }) {
   return (
     <ChatProvider
       adapter={createMockChatAdapter()}
       currentUser={{ id: 'u1', username: 'you', name: 'You' }}
-      navigation={{ toConversation: id => {}, toNewChat: () => {}, toAttachments: () => {} }}
+      navigation={{ toConversation: id => {}, toNewChat: () => {} }}
+      activeConversationId={conversationId}
     >
       <ChatLayout>
-        <ChatThread />
+        {conversationId ? <ChatThread conversationId={conversationId} /> : <ChatEmptyState />}
       </ChatLayout>
     </ChatProvider>
   )
 }
 ```
 
+The chat's links (each conversation, a new chat, attachments, and the
+`extraLinks` pages) render through the config's `LinkComponent`, which gets a
+`ChatLinkTarget`; without one they go to `/chat/:id`, `/chat` and
+`/chat/attachments` through `UIProvider`'s link slot. Navigation in the chat is
+these links, so `navigation` handles only the moves that aren't clicks, such as
+keyboard shortcuts.
+
 `ChatLayout sidebarMode="auto"` shows the conversation list as a drawer over
-the thread when the chat is narrower than `drawerBelowPx` (768 by default),
+the thread when the chat is narrower than `drawerBelowPx` (`DRAWER_BELOW_PX`, 896, by default),
 measured on the chat's own box; `"drawer"` always does, and `"inline"` (the
 default) never does. The reader's toggle drives the list unless the host
 passes `sidebar` (`'expanded' | 'collapsed' | 'hidden'`) and `drawerOpen` to

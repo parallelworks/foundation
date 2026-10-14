@@ -1,13 +1,16 @@
-import type { ReactNode } from 'react'
+import type { ComponentPropsWithRef, ReactNode } from 'react'
 import { cx } from '../cx'
 import { CheckIcon, CopyIcon, EyeIcon, EyeOffIcon } from '../icons'
-import { buttonClasses } from './buttonClasses'
-import { IconButton, type IconButtonProps } from './IconButton'
+import { type ButtonSize, type ButtonVariant, buttonClasses } from './buttonClasses'
+import { IconButton } from './IconButton'
 import { useStrings } from './Provider'
 import { useCopy } from './useCopy'
 
+// Always a button: a copy is never navigation, so it takes none of IconButton's link props.
 export interface CopyButtonProps
-  extends Omit<IconButtonProps, 'icon' | 'label' | 'onClick' | 'pressed' | 'dot' | 'shortcut'> {
+  extends Omit<ComponentPropsWithRef<'button'>, 'onClick' | 'children' | 'type'> {
+  variant?: ButtonVariant | undefined
+  size?: ButtonSize | undefined
   /** What it copies, or a function that reads it when pressed, such as from the page. */
   text: string | (() => string)
   /** Names what it copies, such as "email address": the button reads "Copy email
