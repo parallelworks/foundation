@@ -1,4 +1,5 @@
 import { type MouseEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { isPlainClick } from '../../components/AppLink'
 import type { OpenMenu } from '../../components/ContextMenu'
 import { EmptyState } from '../../components/EmptyState'
 import type { MenuEntry } from '../../components/MenuEntries'
@@ -12,7 +13,6 @@ import { FOCUS_SIDEBAR_SEARCH_EVENT } from '../core/events'
 import type { ConversationSummary } from '../types'
 import { ConversationSidebar } from '../ui/ConversationSidebar'
 import { SidebarRow, SidebarRowTitle } from '../ui/sidebar'
-import { isPlainClick } from '../utils'
 import { ManageProvidersLink } from './ComposerChrome'
 import { groupConversationsByDate, useConversationActions } from './conversationActions'
 
@@ -37,7 +37,11 @@ function ConversationRow({
       <LinkComponent
         target={{ kind: 'conversation', id: conv.id }}
         className="flex min-w-0 flex-1 items-center gap-1.5 py-1 text-left"
-        onClick={onOpen}
+        onClick={(e) => {
+          if (isPlainClick(e)) {
+            onOpen()
+          }
+        }}
       >
         {conv.isOwner === false && (
           <UsersIcon className="h-3 w-3 shrink-0 theme-muted-text" title={t.sharedWithYou} />
@@ -136,12 +140,11 @@ export default function ChatSidebar({
     [filteredConversations, tSidebar],
   )
 
-  // The link navigates; a plain click also drops the open conversation at
-  // once, so its stream never shows on the new chat while the route changes.
-  // A click that opens a new tab leaves this one as it is.
+  // The link navigates; this clears the open chat at once, but only for a
+  // click that opens the new chat here rather than in another tab.
   const handleNewChat = (e: MouseEvent) => {
-    closeDrawer()
     if (isPlainClick(e)) {
+      closeDrawer()
       clearCurrentConversation()
     }
   }

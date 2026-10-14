@@ -6,7 +6,7 @@ import {
   useContext,
 } from 'react'
 import type { Components } from 'streamdown'
-import { safeUrl } from '../../safeUrl'
+import { AppLink } from '../../components/AppLink'
 import { type ChatStrings, defaultChatStrings } from '../strings'
 import type {
   ApprovalAnswerValue,
@@ -47,11 +47,13 @@ function hrefFor(target: ChatLinkTarget): string {
   }
 }
 
+// Through the UI provider's link, so a host that binds only its router there
+// still routes the chat client-side.
 function DefaultLink({ target, className, title, onClick, children }: ChatLinkProps) {
   return (
-    <a href={safeUrl(hrefFor(target))} className={className} title={title} onClick={onClick}>
+    <AppLink href={hrefFor(target)} className={className} title={title} onClick={onClick}>
       {children}
-    </a>
+    </AppLink>
   )
 }
 

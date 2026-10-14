@@ -1,11 +1,11 @@
 import type { MouseEvent, ReactNode } from 'react'
+import { isPlainClick } from '../../components/AppLink'
 import { cx } from '../../cx'
 import { formatBytes } from '../../format'
 import { DownloadIcon, FileIcon } from '../../icons'
 import { safeUrl } from '../../safeUrl'
 import { useChatConfig } from '../core/config'
 import type { AttachmentRef } from '../types'
-import { isPlainClick } from '../utils'
 
 const chipClasses =
   'inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg bg-(--theme-muted-panel-bg)'
