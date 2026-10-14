@@ -1,9 +1,12 @@
-import cx from 'classnames'
 import type { ReactNode, Ref } from 'react'
 import { useDeferredValue, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { SearchIcon, XIcon } from '../../icons'
+import { cx } from '../../cx'
+import { CloseIcon, SearchIcon } from '../../icons'
+import { Button } from '../Button'
+import { Checkbox } from '../Checkbox'
 import { Drawer } from '../Drawer'
-import { ghostButtonClasses, primaryButtonClasses } from '../ghostButton'
+import { IconButton } from '../IconButton'
+import { Input } from '../Input'
 import { useStrings } from '../Provider'
 import {
   type AccessGroup,
@@ -30,11 +33,10 @@ export interface GrantAccessDrawerProps {
 
 const ALL = '\u0000all'
 
-const checkboxClasses = 'h-[15px] w-[15px] shrink-0 [accent-color:var(--theme-element)]'
 const boxClasses =
   'overflow-hidden rounded-lg border border-(--theme-border) bg-(--theme-muted-panel-bg)'
 const optionClasses =
-  'flex cursor-pointer items-center gap-2.5 px-3 py-1.5 hover:bg-(--theme-hover) has-[:disabled]:cursor-not-allowed'
+  'flex cursor-pointer items-center gap-2.5 px-3 py-1.5 hover:bg-(--theme-hover) has-data-disabled:cursor-not-allowed'
 
 function toggled<T>(list: readonly T[], item: T): T[] {
   return list.includes(item) ? list.filter((x) => x !== item) : [...list, item]
@@ -51,9 +53,9 @@ export function GrantAccessDrawer({
   saving,
   preventClose,
   onGrant,
-  width,
+  width = 640,
 }: GrantAccessDrawerProps) {
-  const strings = useStrings().access
+  const { access: strings, common } = useStrings()
   const [subjects, setSubjects] = useState<AccessSubject[]>([])
   const [keys, setKeys] = useState<string[]>([])
   const [groupQuery, setGroupQuery] = useState('')
@@ -148,25 +150,21 @@ export function GrantAccessDrawer({
   }
 
   const footer = (
-    <div className="flex items-center gap-2">
+    <div className="flex w-full items-center gap-2">
       <p aria-live="polite" className="min-w-0 flex-1 text-[13px] text-(--theme-muted-text-color)">
         {summary}
       </p>
-      <button type="button" onClick={onClose} disabled={saving} className={ghostButtonClasses}>
-        {strings.cancel}
-      </button>
-      <button
-        type="button"
+      <Button variant="ghost" onClick={onClose} disabled={saving}>
+        {common.cancel}
+      </Button>
+      <Button
+        variant="primary"
+        loading={saving}
         onClick={() => onGrant(subjects, keys)}
-        disabled={saving || !subjects.length || !keys.length}
-        className={cx(
-          primaryButtonClasses,
-          'h-8 px-3 disabled:cursor-not-allowed disabled:opacity-50',
-          saving && 'cursor-wait',
-        )}
+        disabled={!subjects.length || !keys.length}
       >
-        {saving ? strings.saving : strings.save}
-      </button>
+        {common.save}
+      </Button>
     </div>
   )
 
@@ -177,10 +175,11 @@ export function GrantAccessDrawer({
       title={strings.grantAccess}
       description={description}
       footer={footer}
-      preventClose={preventClose || saving}
+      dismissible={!preventClose && !saving}
       width={width}
+      className="gap-6"
     >
-      <div className="flex flex-col gap-6 px-6 py-5">
+      <div className="flex flex-col gap-6">
         <section aria-labelledby={`${id}-groups`} className="flex flex-col gap-2">
           <div>
             <h3 id={`${id}-groups`} className="text-sm font-semibold">
@@ -210,12 +209,10 @@ export function GrantAccessDrawer({
               {groupOptions.map((option) => (
                 <li key={option.subject ?? ''}>
                   <label className={optionClasses}>
-                    <input
-                      type="checkbox"
-                      className={checkboxClasses}
+                    <Checkbox
                       checked={subjects.includes(option.subject)}
                       disabled={Boolean(option.disabledReason)}
-                      onChange={() => setSubjects(toggled(subjects, option.subject))}
+                      onCheckedChange={() => setSubjects(toggled(subjects, option.subject))}
                     />
                     {option.subject === null ? (
                       // The organization's note can be long (a host's reason), so it goes under the name.
@@ -307,7 +304,7 @@ export function GrantAccessDrawer({
                         className={cx(
                           'flex h-8 shrink-0 cursor-pointer items-center gap-2 rounded-md px-2.5 text-start text-[13px] whitespace-nowrap',
                           current
-                            ? 'bg-[color-mix(in_srgb,var(--theme-element)_14%,transparent)] font-semibold'
+                            ? 'bg-[color-mix(in_srgb,var(--theme-accent)_14%,transparent)] font-semibold'
                             : 'hover:bg-(--theme-hover)',
                         )}
                       >
@@ -316,7 +313,7 @@ export function GrantAccessDrawer({
                           className={cx(
                             'text-[11px]',
                             picked
-                              ? 'rounded-full bg-[color-mix(in_srgb,var(--theme-element)_14%,transparent)] px-1.5 font-semibold'
+                              ? 'rounded-full bg-[color-mix(in_srgb,var(--theme-accent)_14%,transparent)] px-1.5 font-semibold'
                               : 'text-(--theme-muted-text-color)',
                           )}
                         >
@@ -331,11 +328,9 @@ export function GrantAccessDrawer({
                 {permissionOptions.map((p) => (
                   <li key={p.key}>
                     <label className={optionClasses} title={p.description}>
-                      <input
-                        type="checkbox"
-                        className={checkboxClasses}
+                      <Checkbox
                         checked={keys.includes(p.key)}
-                        onChange={() => setKeys(toggled(keys, p.key))}
+                        onCheckedChange={() => setKeys(toggled(keys, p.key))}
                       />
                       <span className="flex min-w-0 flex-1 flex-col">
                         <span className="text-[13px]">{p.label}</span>
@@ -377,21 +372,22 @@ function SearchField({
   inputRef?: Ref<HTMLInputElement>
 }) {
   return (
-    <label className="relative flex items-center border-b border-(--theme-border)">
+    <div className="relative flex items-center border-b border-(--theme-border)">
       <SearchIcon
         aria-hidden="true"
-        className="pointer-events-none absolute start-3 h-3 w-3 text-(--theme-muted-text-color)"
+        className="pointer-events-none absolute start-3 z-[1] h-3 w-3 text-(--theme-muted-text-color)"
       />
-      <input
+      <Input
         ref={inputRef}
         type="search"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         aria-label={placeholder}
-        className="h-9 w-full bg-transparent ps-8 pe-3 text-[13px] text-(--theme-input) placeholder:text-(--theme-muted-text-color) focus:outline-none"
+        // It sits inside the bordered picker, which frames it.
+        className="rounded-none border-0 bg-transparent ps-8 focus:ring-0"
       />
-    </label>
+    </div>
   )
 }
 
@@ -411,18 +407,17 @@ function Chips({
       {items.map((item) => (
         <li
           key={item.id}
-          className="flex h-[26px] items-center gap-1 rounded-full border border-(--theme-element) bg-[color-mix(in_srgb,var(--theme-element)_14%,transparent)] ps-2.5 pe-1.5 text-xs font-medium"
+          className="flex h-[26px] items-center gap-1 rounded-full border border-(--theme-accent) bg-[color-mix(in_srgb,var(--theme-accent)_14%,transparent)] ps-2.5 pe-1.5 text-xs font-medium"
         >
           <span>{item.label}</span>
           {item.onRemove && (
-            <button
-              type="button"
+            <IconButton
+              icon={<CloseIcon aria-hidden="true" />}
+              label={strings.removeChip(item.label)}
               onClick={item.onRemove}
-              aria-label={strings.removeChip(item.label)}
-              className="flex h-5 w-5 cursor-pointer items-center justify-center rounded-full text-(--theme-muted-text-color) hover:bg-(--theme-hover) hover:text-(--theme-app)"
-            >
-              <XIcon className="h-2.5 w-2.5" />
-            </button>
+              size="xs"
+              className="size-5 rounded-full"
+            />
           )}
         </li>
       ))}

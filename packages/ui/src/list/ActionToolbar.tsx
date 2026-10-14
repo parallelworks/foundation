@@ -1,33 +1,24 @@
-import { Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/react'
-import cx from 'classnames'
+import { Menu } from '@base-ui/react/menu'
+import { Toggle } from '@base-ui/react/toggle'
 import { createContext, Fragment, useContext, useLayoutEffect, useRef, useState } from 'react'
+import { Button } from '../components/Button'
+import { buttonClasses } from '../components/buttonClasses'
+import { MenuPopup } from '../components/Menu'
+import { MenuEntries } from '../components/MenuEntries'
 import { useLink, useStrings } from '../components/Provider'
-import { TOOLTIP_ID } from '../components/Tooltip'
-import { MenuIcon } from '../icons'
+import { Tooltip } from '../components/Tooltip'
+import { cx } from '../cx'
+import { MoreIcon } from '../icons'
+import type { RowAction } from './rowMenu'
 
 // True inside the `…` menu, so pre-rendered element items whose buttons
 // normally render as chips restyle themselves as menu rows.
 const OverflowMenuContext = createContext(false)
 
-/** Omits data-tooltip-content when absent — react-tooltip treats an explicit undefined as an empty tooltip anchor. */
-function tipProps(content: string | undefined, place: 'bottom' | 'left') {
-  return {
-    'data-tooltip-id': TOOLTIP_ID,
-    'data-tooltip-place': place,
-    ...(content !== undefined && { 'data-tooltip-content': content }),
-  }
-}
-
-export interface ToolbarAction {
-  key: string
-  label: string
-  icon: React.ComponentType<{ className?: string }>
-  iconClassName?: string
-  onClick?: (() => void) | undefined
-  href?: string | undefined
-  disabled?: boolean | undefined
-  enabledTooltip?: string
-  disabledTooltip?: string | undefined
+/** A toolbar button, which moves into the `…` menu as a row when the toolbar runs out of room. */
+export interface ToolbarAction extends RowAction {
+  /** A hint on the enabled button. */
+  tooltip?: string | undefined
   hidden?: boolean
 }
 
@@ -47,136 +38,95 @@ function ToolbarItemView({ item }: { item: ToolbarItem }) {
   return <ToolbarButton action={item} />
 }
 
+/** A toolbar action as a button: a link with `href`, a toggle with `checked`. */
 export function ToolbarButton({ action }: { action: ToolbarAction }) {
   const inOverflowMenu = useContext(OverflowMenuContext)
   const Link = useLink()
   if (inOverflowMenu) {
-    return <OverflowRow item={action} />
+    return <MenuEntries entries={[action]} />
   }
-  const className = cx(
-    'inline-flex items-center gap-x-0.5 h-9 px-2 rounded-md text-[13.5px] uppercase font-semibold transition-colors whitespace-nowrap',
-    'bg-(--theme-element) text-(--theme-element-text)',
-    action.disabled
-      ? 'opacity-50 cursor-not-allowed'
-      : 'cursor-pointer hover:bg-(--theme-element-hover)',
-  )
-  const tooltipProps = tipProps(
-    action.disabled ? action.disabledTooltip : action.enabledTooltip,
-    'bottom',
-  )
-  const Icon = action.icon
+  // A toggle that's off reads outlined; every other action is filled.
+  const className = buttonClasses({
+    variant: action.checked === false ? 'outline' : 'primary',
+    size: 'md',
+  })
   const content = (
     <>
-      <div className="h-6 flex items-center">
-        <Icon className={cx('w-auto', action.iconClassName)} />
-      </div>
+      {action.icon}
       {action.label}
     </>
   )
+  let control: React.ReactElement
   if (action.href && !action.disabled) {
-    return (
-      <Link to={action.href} className={className} {...tooltipProps}>
+    control = (
+      <Link href={action.href} className={className}>
         {content}
       </Link>
     )
-  }
-  if (action.disabled) {
-    // A disabled <button> fires no hover events, so react-tooltip never shows
-    // the "why is this disabled" copy; anchor it on a wrapping span instead.
-    return (
-      <span className="inline-flex" {...tooltipProps}>
-        <button type="button" disabled className={className}>
-          {content}
-        </button>
-      </span>
-    )
-  }
-  return (
-    <button type="button" onClick={action.onClick} className={className} {...tooltipProps}>
-      {content}
-    </button>
-  )
-}
-
-/** A single overflowed item rendered as a full-width row inside the `…` menu. */
-function OverflowRow({ item }: { item: ToolbarAction }) {
-  const Link = useLink()
-  const Icon = item.icon
-  const className = cx(
-    'flex w-full items-center gap-x-1 px-4 py-2 text-[13px] uppercase font-semibold link hover:theme-hover',
-    item.disabled && 'opacity-50 cursor-not-allowed',
-  )
-  // Opens left, away from the menu panel, so the tooltip never covers other rows.
-  const tooltipProps = tipProps(item.disabled ? item.disabledTooltip : item.enabledTooltip, 'left')
-  const content = (
-    <>
-      <div className="w-5 h-6 flex items-center">
-        <Icon className={cx(item.iconClassName)} />
-      </div>
-      {item.label}
-    </>
-  )
-  // MenuItem must render the interactive element itself (not a Fragment
-  // around it) so headlessui's injected props — close-on-select, keyboard
-  // activation, menuitem role — land on the DOM node.
-  if (item.href && !item.disabled) {
-    return (
-      <MenuItem as={Link} to={item.href} className={className} {...tooltipProps}>
+  } else if (action.checked !== undefined) {
+    control = (
+      <Toggle
+        pressed={action.checked}
+        onPressedChange={() => action.onClick?.()}
+        disabled={action.disabled}
+        className={className}
+      >
         {content}
-      </MenuItem>
+      </Toggle>
+    )
+  } else {
+    // Focusable while disabled, so keyboard users can reach the reason.
+    control = (
+      <Button
+        variant="primary"
+        size="md"
+        onClick={action.onClick}
+        disabled={action.disabled}
+        focusableWhenDisabled
+      >
+        {content}
+      </Button>
     )
   }
   return (
-    <MenuItem
-      as="button"
-      type="button"
-      onClick={item.onClick}
-      disabled={item.disabled ?? false}
-      className={className}
-      {...tooltipProps}
-    >
-      {content}
-    </MenuItem>
+    <Tooltip content={action.disabled ? action.disabledReason : action.tooltip} side="bottom">
+      {control}
+    </Tooltip>
   )
 }
 
 function OverflowMenu({ items }: { items: ToolbarItem[] }) {
   const { list: t } = useStrings()
   return (
-    <Menu as="div" className="relative inline-block text-left">
-      <MenuButton
-        aria-label={t.moreActions}
-        className="inline-flex items-center justify-center h-9 w-9 rounded-md border theme-border link hover:theme-hover transition-colors"
-        data-tooltip-id={TOOLTIP_ID}
-        data-tooltip-content={t.moreActions}
-        data-testid="action-toolbar-menu-button"
-      >
-        <MenuIcon />
-      </MenuButton>
-      {/* unmount={false}: element items own their modal state (e.g. delete
-          confirmations); unmounting on close would destroy an open modal,
-          since opening it already closes the menu via the outside-click. */}
-      <MenuItems
-        unmount={false}
-        anchor={{ to: 'bottom end', gap: 4 }}
-        className="z-50 min-w-56 rounded-md border theme-border bg-(--theme-app-bg) shadow-lg py-1 focus:outline-none"
-      >
+    <Menu.Root>
+      <Tooltip content={t.moreActions}>
+        <Menu.Trigger
+          aria-label={t.moreActions}
+          className={buttonClasses({ variant: 'outline', size: 'md', iconOnly: true })}
+          data-testid="action-toolbar-menu-button"
+        >
+          <MoreIcon />
+        </Menu.Trigger>
+      </Tooltip>
+      {/* Element items own their modal state (e.g. delete confirmations), and
+          opening one closes the menu, so unmounting on close would destroy it. */}
+      <MenuPopup keepMounted align="end" className="min-w-56">
         <OverflowMenuContext.Provider value={true}>
           {items.map((item) =>
             'element' in item ? (
               <Fragment key={item.key}>{item.element}</Fragment>
             ) : (
-              <OverflowRow key={item.key} item={item} />
+              <MenuEntries key={item.key} entries={[item]} />
             ),
           )}
         </OverflowMenuContext.Provider>
-      </MenuItems>
-    </Menu>
+      </MenuPopup>
+    </Menu.Root>
   )
 }
 
-// Width reserved for the `…` overflow button (h-9 w-9 chip) plus its leading gap.
-const MENU_BUTTON_WIDTH = 44
+// Width reserved for the `…` overflow button (a 32px square) plus its leading gap.
+const MENU_BUTTON_WIDTH = 40
 // gap-1 between toolbar chips.
 const ITEM_GAP = 4
 
@@ -259,13 +209,7 @@ function CollapsibleRight({ items }: { items: ToolbarItem[] }) {
 }
 
 /** Pins a detail-page toolbar just below the sticky breadcrumb strip (top-10 matches the strip's 40px height). */
-export const stickyToolbarClasses = 'sticky top-10 z-10 bg-(--theme-app-bg)'
-
-/** Pins a detail-page tabs row under the pinned toolbar (top-22 = 40px strip + 48px toolbar block). */
-export const stickyTabsClasses = 'sticky top-22 z-10 bg-(--theme-app-bg)'
-
-/** Pins a detail-page tabs row directly under the breadcrumb strip when the page has no pinned toolbar (top-10 = the strip's height). */
-export const stickyTabsUnderHeaderClasses = 'sticky top-10 z-10 bg-(--theme-app-bg)'
+export const stickyToolbarClasses = 'sticky top-10 z-(--layer-sticky) bg-(--theme-app-bg)'
 
 /** Action groups left, secondary actions right (collapsing into a `…` menu). */
 export function ActionToolbar({

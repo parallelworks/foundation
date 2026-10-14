@@ -30,6 +30,7 @@ export type TStorage = {
   canShare?: boolean | undefined
   canManageAccess?: boolean | undefined
   previewLimits?: Partial<PreviewLimits> | undefined
+  rootPath?: string | undefined
 }
 
 /** A file the host is asked to name or download: its storage, key and name. */
@@ -88,7 +89,7 @@ export interface UploadFileProgress {
   totalBytes?: number
   percentage?: number
   abortController?: AbortController
-  status?: 'pending' | 'uploading' | 'completed' | 'failed' | 'cancelled'
+  status?: 'pending' | 'uploading' | 'completed' | 'failed' | 'canceled'
 }
 
 export interface UploadSession {
@@ -96,7 +97,7 @@ export interface UploadSession {
   storageName: string
   targetPath: string
   uploadNodes: UploadNode[]
-  status: 'queued' | 'uploading' | 'completed' | 'failed' | 'cancelled'
+  status: 'queued' | 'uploading' | 'completed' | 'failed' | 'canceled'
   queueIndex: number
   client: IFileExplorerClient
   provider: IFileExplorerProvider

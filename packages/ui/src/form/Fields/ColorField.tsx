@@ -1,8 +1,9 @@
-import { Field, useField, useFormikContext } from 'formik'
-import type React from 'react'
-import { FieldWrapper } from '../FieldWrapper'
+import { ColorInput } from '../../components/ColorInput'
+import { Field } from '../../components/Field'
+import { fieldFrame } from '../fieldFrame'
 import type { FieldComponentProps } from '../types/fieldComponentTypes'
 import type { BaseField } from '../types/fieldTypes'
+import { useFieldValue } from '../useFieldValue'
 
 export interface IColorField extends BaseField {
   type: 'color'
@@ -10,40 +11,24 @@ export interface IColorField extends BaseField {
 }
 
 export default function ColorField(props: FieldComponentProps<IColorField>) {
-  const { field, label, labelPosition, onChange, tooltipComponent, spaceCompact } = props
+  const { field, disabled, onChange } = props
   // The form names every field before it renders one.
-  const fieldName = field.name ?? ''
-
-  const [fieldState] = useField<string>(fieldName)
-  const { setFieldValue, setFieldTouched } = useFormikContext()
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value
-
-    onChange?.(val)
-    setFieldTouched(fieldName, true)
-    setFieldValue(fieldName, val)
-  }
+  const [value, change] = useFieldValue<string | undefined>(field.name ?? '')
 
   return (
-    <FieldWrapper
-      optional={field.optional}
-      label={label}
-      tooltipComponent={tooltipComponent}
-      labelPosition={labelPosition}
-      spaceCompact={spaceCompact}
-    >
-      {({ id }) => (
-        <Field
-          className="theme-input h-8 w-18 rounded border border-neutral-400 placeholder:text-xs"
-          id={id}
+    <Field {...fieldFrame(props)}>
+      {(control) => (
+        <ColorInput
+          {...control}
           name={field.name}
-          value={fieldState.value || '#fbbf24'}
-          type="color"
-          aria-required={field.optional ? undefined : true}
-          onChange={handleChange}
+          value={value || '#fbbf24'}
+          disabled={disabled}
+          onValueChange={(color) => {
+            onChange?.(color)
+            change(color)
+          }}
         />
       )}
-    </FieldWrapper>
+    </Field>
   )
 }

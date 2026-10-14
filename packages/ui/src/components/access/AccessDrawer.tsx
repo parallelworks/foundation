@@ -1,11 +1,12 @@
-import cx from 'classnames'
 import type { ReactNode } from 'react'
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { cx } from '../../cx'
 import { AddIcon, ChevronRightIcon, SearchIcon, TrashIcon, UsersIcon } from '../../icons'
+import { Button } from '../Button'
 import { ConfirmModal } from '../ConfirmModal'
-import { Drawer, shown } from '../Drawer'
-import EmptyState from '../EmptyState'
-import { dangerButtonClasses, ghostButtonClasses, primaryButtonClasses } from '../ghostButton'
+import { Drawer } from '../Drawer'
+import { EmptyState } from '../EmptyState'
+import { Input } from '../Input'
 import { positionKeys } from '../keys'
 import { useStrings } from '../Provider'
 import {
@@ -60,6 +61,10 @@ const NO_IMPLIED: ImpliedPermissions = {}
 const EMPTY: AccessValue = { organization: {}, groups: {} }
 const ORGANIZATION: { disabledReason?: ReactNode } = {}
 
+function shown(node: ReactNode): boolean {
+  return node !== undefined && node !== null && node !== false
+}
+
 /**
  * Runs on the grants as they are when the save starts, not when it was asked for, so a
  * refetch that lands while a confirmation is open isn't overwritten. `undo` reverses just
@@ -93,7 +98,7 @@ export function AccessDrawer({
   onSave,
   width,
 }: AccessDrawerProps) {
-  const strings = useStrings().access
+  const { access: strings, common } = useStrings()
   const [current, setCurrent] = useState(value)
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState<{ text: string; undo?: Change } | null>(null)
@@ -247,34 +252,30 @@ export function AccessDrawer({
       {ready && (
         <div className="flex flex-wrap items-center gap-2.5">
           {!readOnly && (
-            <button
-              type="button"
+            <Button
+              variant="primary"
+              icon={<AddIcon aria-hidden="true" />}
               onClick={() => setGranting(true)}
               disabled={saving}
-              className={cx(
-                primaryButtonClasses,
-                'h-9 px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50',
-              )}
             >
-              <AddIcon aria-hidden="true" className="h-3 w-3" />
               {strings.grantAccess}
-            </button>
+            </Button>
           )}
-          <label className="relative flex min-w-48 flex-1 items-center">
+          <div className="relative flex min-w-48 flex-1 items-center">
             <SearchIcon
               aria-hidden="true"
-              className="pointer-events-none absolute start-3 h-3.5 w-3.5 text-(--theme-muted-text-color)"
+              className="pointer-events-none absolute start-2.5 z-[1] h-3.5 w-3.5 text-(--theme-muted-text-color)"
             />
-            <input
+            <Input
               ref={filterRef}
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={strings.filter}
               aria-label={strings.filter}
-              className="h-9 w-full rounded-md border border-(--theme-border) bg-(--theme-input-bg) ps-9 pe-3 text-sm text-(--theme-input) placeholder:text-(--theme-muted-text-color) focus:border-(--theme-element) focus:outline-none"
+              className="ps-8"
             />
-          </label>
+          </div>
           <span className="shrink-0 text-[13px] text-(--theme-muted-text-color)">
             {strings.grantedSummary(holders.size, permissions.length)}
           </span>
@@ -288,109 +289,120 @@ export function AccessDrawer({
   )
 
   const footer = notice ? (
-    <div className="flex items-center gap-2">
+    <div className="flex w-full items-center gap-2">
       <p className="min-w-0 flex-1 text-[13px]">{notice.text}</p>
       {notice.undo && !readOnly && (
-        <button
-          type="button"
+        <Button
+          variant="ghost"
           disabled={saving}
           onClick={() => notice.undo && request({ change: notice.undo, notice: strings.undone })}
-          className={cx(ghostButtonClasses, 'font-medium text-(--theme-link)')}
+          className="text-(--theme-link)"
         >
-          {strings.undo}
-        </button>
+          {common.undo}
+        </Button>
       )}
-      <button type="button" onClick={() => setNotice(null)} className={ghostButtonClasses}>
-        {strings.dismiss}
-      </button>
+      <Button variant="ghost" onClick={() => setNotice(null)}>
+        {common.dismiss}
+      </Button>
     </div>
   ) : undefined
 
   const grantedNothing = holders.size === 0
+  const blocked = granting || saving || pending !== null
 
   return (
     <>
       <Drawer
         open={open}
-        onClose={onClose}
+        // The header's close button ignores `dismissible`, so the drawer holds itself open too.
+        onClose={() => {
+          if (!blocked) {
+            onClose()
+          }
+        }}
         title={title ?? strings.title}
         description={description}
-        toolbar={shown(extra) || ready ? toolbar : undefined}
         footer={footer}
-        preventClose={granting || saving || pending !== null}
-        width={width}
+        dismissible={!blocked}
+        padded={false}
+        width={width ?? 640}
       >
-        {loading || (error === undefined && current === undefined) ? (
-          <RowsSkeleton />
-        ) : error !== undefined ? (
-          <div className="px-6 py-5">{error}</div>
-        ) : grantedNothing ? (
-          <div className="p-6">
-            <EmptyState
-              title={strings.noGrants}
-              {...(readOnly ? {} : { description: strings.noGrantsHint })}
-              action={emptyAction}
-            />
-          </div>
-        ) : sections.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 px-6 py-12 text-center">
-            <p className="font-medium">{strings.noMatches(deferredQuery.trim())}</p>
-            <p className="text-[13px] text-(--theme-muted-text-color)">{strings.noMatchesHint}</p>
-            <button
-              type="button"
-              onClick={() => setQuery('')}
-              className={cx(ghostButtonClasses, 'mt-2 border border-(--theme-border)')}
-            >
-              {strings.clearFilter}
-            </button>
-          </div>
-        ) : (
-          sections.map((section) => (
-            <section key={section.name ?? ''} aria-label={section.name ?? strings.title}>
-              {section.name !== null && (
-                <h3 className="sticky top-0 z-[1] flex gap-2 border-b border-(--theme-border) bg-(--theme-muted-panel-bg) px-6 py-2 text-[13px] font-semibold">
-                  <span className="flex-1">{section.name}</span>
-                  <span className="font-medium text-(--theme-muted-text-color)">
-                    {strings.categoryGranted(section.granted)}
-                  </span>
-                </h3>
-              )}
-              <ul>
-                {section.rows.map(({ permission, holders: list, matchedHolder }) => (
-                  <PermissionRow
-                    key={permission.key}
-                    permission={permission}
-                    holders={list}
-                    expanded={expanded.has(permission.key) || matchedHolder}
-                    onToggle={() =>
-                      setExpanded((prev) => {
-                        const next = new Set(prev)
-                        if (next.has(permission.key)) {
-                          next.delete(permission.key)
-                        } else {
-                          next.add(permission.key)
-                        }
-                        return next
-                      })
-                    }
-                    labelOf={labelOf}
-                    labelOfPermission={(key) => byKey.get(key)?.label ?? key}
-                    readOnly={readOnly}
-                    saving={saving}
-                    removing={removing?.key === permission.key ? removing.subject : undefined}
-                    onAskRemove={(subject) =>
-                      confirmSave
-                        ? removeHolder(subject, permission)
-                        : setRemoving({ subject, key: permission.key })
-                    }
-                    onCancelRemove={() => setRemoving(null)}
-                    onRemove={(subject) => removeHolder(subject, permission)}
-                  />
-                ))}
-              </ul>
-            </section>
-          ))
+        {(shown(extra) || ready) && (
+          <div className="shrink-0 border-b border-(--theme-border) px-4 py-3">{toolbar}</div>
         )}
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {loading || (error === undefined && current === undefined) ? (
+            <RowsSkeleton />
+          ) : error !== undefined ? (
+            <div className="px-4 py-5">{error}</div>
+          ) : grantedNothing ? (
+            <div className="p-4">
+              <EmptyState
+                variant="bare"
+                title={strings.noGrants}
+                {...(readOnly ? {} : { description: strings.noGrantsHint })}
+                action={emptyAction}
+              />
+            </div>
+          ) : sections.length === 0 ? (
+            <EmptyState
+              variant="bare"
+              title={strings.noMatches(deferredQuery.trim())}
+              description={strings.noMatchesHint}
+              action={
+                <Button variant="outline" onClick={() => setQuery('')}>
+                  {strings.clearFilter}
+                </Button>
+              }
+            />
+          ) : (
+            sections.map((section) => (
+              <section key={section.name ?? ''} aria-label={section.name ?? strings.title}>
+                {section.name !== null && (
+                  <h3 className="sticky top-0 z-[1] flex gap-2 border-b border-(--theme-border) bg-(--theme-muted-panel-bg) px-4 py-2 text-[13px] font-semibold">
+                    <span className="flex-1">{section.name}</span>
+                    <span className="font-medium text-(--theme-muted-text-color)">
+                      {strings.categoryGranted(section.granted)}
+                    </span>
+                  </h3>
+                )}
+                <ul>
+                  {section.rows.map(({ permission, holders: list, matchedHolder }) => (
+                    <PermissionRow
+                      key={permission.key}
+                      permission={permission}
+                      holders={list}
+                      expanded={expanded.has(permission.key) || matchedHolder}
+                      onToggle={() =>
+                        setExpanded((prev) => {
+                          const next = new Set(prev)
+                          if (next.has(permission.key)) {
+                            next.delete(permission.key)
+                          } else {
+                            next.add(permission.key)
+                          }
+                          return next
+                        })
+                      }
+                      labelOf={labelOf}
+                      labelOfPermission={(key) => byKey.get(key)?.label ?? key}
+                      readOnly={readOnly}
+                      saving={saving}
+                      removing={removing?.key === permission.key ? removing.subject : undefined}
+                      onAskRemove={(subject) =>
+                        confirmSave
+                          ? removeHolder(subject, permission)
+                          : setRemoving({ subject, key: permission.key })
+                      }
+                      onCancelRemove={() => setRemoving(null)}
+                      onRemove={(subject) => removeHolder(subject, permission)}
+                    />
+                  ))}
+                </ul>
+              </section>
+            ))
+          )}
+        </div>
       </Drawer>
       {granting && current !== undefined && (
         <GrantAccessDrawer
@@ -403,7 +415,7 @@ export function AccessDrawer({
           value={current}
           saving={saving}
           preventClose={pending !== null}
-          width={width}
+          width={width ?? 640}
           onGrant={(subjects, keys) =>
             request({
               change: (base) => {
@@ -435,7 +447,7 @@ export function AccessDrawer({
           onClose={() => setPending(null)}
           title={confirmSave.title}
           description={confirmSave.description}
-          confirmLabel={strings.save}
+          confirmLabel={common.save}
           onConfirm={async () => {
             if (pending) {
               await save(pending)
@@ -475,7 +487,7 @@ function PermissionRow({
   onCancelRemove: () => void
   onRemove: (subject: AccessSubject) => void
 }) {
-  const strings = useStrings().access
+  const { access: strings, common } = useStrings()
   const toggleRef = useRef<HTMLButtonElement>(null)
   // The holder whose Remove button takes focus back from a cancelled confirmation.
   const refocus = useRef<AccessSubject | undefined>(undefined)
@@ -489,7 +501,7 @@ function PermissionRow({
         type="button"
         aria-expanded={expanded}
         onClick={onToggle}
-        className="flex min-h-13 w-full cursor-pointer items-center gap-2.5 px-6 py-1.5 text-start hover:bg-(--theme-hover)"
+        className="flex min-h-13 w-full cursor-pointer items-center gap-2.5 px-4 py-1.5 text-start hover:bg-(--theme-hover)"
       >
         <ChevronRightIcon
           aria-hidden="true"
@@ -521,7 +533,7 @@ function PermissionRow({
             return (
               <li
                 key={holder.subject ?? ''}
-                className="flex min-h-11 flex-wrap items-center gap-x-2.5 gap-y-1 py-1 ps-12 pe-6"
+                className="flex min-h-11 flex-wrap items-center gap-x-2.5 gap-y-1 py-1 ps-10 pe-4"
               >
                 <span
                   aria-hidden="true"
@@ -564,25 +576,22 @@ function PermissionRow({
                   />
                 )}
                 {!readOnly && holder.via === null && !confirming && (
-                  <button
-                    ref={(button) => {
+                  <Button
+                    ref={(button: HTMLButtonElement | null) => {
                       if (button && refocus.current === holder.subject) {
                         refocus.current = undefined
                         button.focus()
                       }
                     }}
-                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    icon={<TrashIcon aria-hidden="true" />}
                     onClick={() => onAskRemove(holder.subject)}
                     disabled={saving}
                     aria-label={strings.removeFrom(name, permission.label)}
-                    className={cx(
-                      ghostButtonClasses,
-                      'h-7 px-2 text-xs disabled:cursor-not-allowed disabled:opacity-50',
-                    )}
                   >
-                    <TrashIcon aria-hidden="true" className="h-3 w-3" />
-                    {strings.remove}
-                  </button>
+                    {common.remove}
+                  </Button>
                 )}
               </li>
             )
@@ -602,7 +611,7 @@ function ConfirmRemove({
   onCancel: () => void
   onRemove: () => void
 }) {
-  const strings = useStrings().access
+  const { access: strings, common } = useStrings()
   const cancelRef = useRef<HTMLButtonElement>(null)
   // It replaces the focused Remove button, so focus would otherwise fall out of the drawer.
   useEffect(() => {
@@ -611,35 +620,25 @@ function ConfirmRemove({
   return (
     <span className="flex items-center gap-1.5">
       <span className="text-xs text-(--theme-muted-text-color)">{strings.confirmRemove}</span>
-      <button
-        ref={cancelRef}
-        type="button"
-        onClick={onCancel}
-        className={cx(ghostButtonClasses, 'h-7 px-2 text-xs')}
-      >
-        {strings.cancel}
-      </button>
-      <button
-        type="button"
-        onClick={onRemove}
-        disabled={saving}
-        className={cx(dangerButtonClasses, 'disabled:opacity-50')}
-      >
-        {strings.remove}
-      </button>
+      <Button ref={cancelRef} variant="ghost" size="sm" onClick={onCancel}>
+        {common.cancel}
+      </Button>
+      <Button variant="danger" size="sm" onClick={onRemove} disabled={saving}>
+        {common.remove}
+      </Button>
     </span>
   )
 }
 
 function RowsSkeleton() {
-  const { loading } = useStrings()
+  const { loading } = useStrings().common
   return (
     <div role="status" aria-label={loading}>
       {positionKeys(6, 'access-skeleton').map((key) => (
         <div
           key={key}
           aria-hidden="true"
-          className="flex items-center gap-3 border-b border-(--theme-border) px-6 py-3.5 motion-safe:animate-pulse"
+          className="flex items-center gap-3 border-b border-(--theme-border) px-4 py-3.5 motion-safe:animate-pulse"
         >
           <div className="h-3.5 w-3.5 rounded bg-(--theme-muted-panel-bg)" />
           <div className="flex-1 space-y-1.5">

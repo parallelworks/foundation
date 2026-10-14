@@ -427,7 +427,7 @@ describe('FileExplorer listing failures', () => {
     expect(script.callsFor('a/')).toHaveLength(1)
 
     script.recover('a/')
-    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
 
     expect(await screen.findByLabelText('Select one.txt')).toBeInTheDocument()
     expect(script.callsFor('a/')).toHaveLength(2)
@@ -439,7 +439,7 @@ describe('FileExplorer listing failures', () => {
     script.fixture.set('', [[dir('a/'), dir('b/'), dir('nope/')]])
     script.fixture.set('nope/', [[file('nope/found.txt')]])
 
-    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
 
     expect(await screen.findByLabelText('Select found.txt')).toBeInTheDocument()
     expect(script.calls).toEqual([listCall(''), listCall(''), listCall('nope/')])
@@ -457,10 +457,11 @@ describe('FileExplorer listing failures', () => {
     await waitFor(() => expect(script.callsFor('')).toHaveLength(2))
     script.failWith('', new Error('boom'))
     await script.release('', '1')
-    await screen.findByText("Couldn't find deep")
+    const notFound = (await screen.findByText("Couldn't find deep")).parentElement as HTMLElement
     script.recover('')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    // The tree's failed row has its own Retry; this is the panel's.
+    fireEvent.click(within(notFound).getByRole('button', { name: 'Retry' }))
 
     expect(await screen.findByLabelText('Select found.txt')).toBeInTheDocument()
     expect(script.calls).toEqual([
@@ -600,6 +601,39 @@ describe('FileExplorer storage removal', () => {
     expect(bucket.callsFor('a/')).toHaveLength(1)
     expect(otherBucket.callsFor('')).toHaveLength(1)
   })
+
+  it('lists a storage whose root moves from its new root and moves a selection inside it there', async () => {
+    const { bucket, otherBucket, onPathChange, rerender } = await renderTwo(FOLDER_A)
+    await screen.findByLabelText('Select one.txt')
+    expect(bucket.callsFor('')).toHaveLength(1)
+
+    bucket.fixture.set('', [[dir('c/')]])
+    const rerooted = [{ ...storage, rootPath: '/data' }, other]
+    await rerender(FOLDER_A, rerooted)
+
+    const root = `${storage.user}/${storage.name}/`
+    expect(onPathChange).toHaveBeenCalledWith(root)
+    await rerender(root, rerooted)
+
+    await waitFor(() => expect(bucket.callsFor('')).toHaveLength(2))
+    expect(await findTreeItem('c')).toBeInTheDocument()
+    expect(screen.getAllByRole('treeitem').filter((el) => el.textContent === 'a')).toHaveLength(1)
+    expect(bucket.callsFor('a/')).toHaveLength(1)
+    expect(otherBucket.callsFor('')).toHaveLength(1)
+  })
+
+  it('unchecks rows at the root of a storage whose root moves', async () => {
+    const root = `${storage.user}/${storage.name}/`
+    const { bucket, rerender } = await renderTwo(root)
+    check('a')
+
+    bucket.fixture.set('', [[dir('a/'), dir('c/')]])
+    await rerender(root, [{ ...storage, rootPath: '/data' }, other])
+
+    expect(await findTreeItem('c')).toBeInTheDocument()
+    expect(screen.getByLabelText('Select a')).not.toBeChecked()
+    expect(deleteButton()).toBeDisabled()
+  })
 })
 
 describe('FileExplorer selection across navigation', () => {
@@ -654,7 +688,7 @@ describe('FileExplorer host extensions', () => {
                     key: 'host',
                     label: 'Host action',
                     icon: null,
-                    onSelect: () => onSelect(node.name),
+                    onClick: () => onSelect(node.name),
                   },
                 ]
               : []
@@ -668,7 +702,7 @@ describe('FileExplorer host extensions', () => {
     expect(await screen.findByText('header for a')).toBeInTheDocument()
 
     fireEvent.contextMenu(await findTreeItem('b'))
-    fireEvent.click(await screen.findByRole('button', { name: 'Host action' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Host action' }))
     expect(onSelect).toHaveBeenCalledWith('b')
   })
 })
@@ -684,9 +718,7 @@ describe('FileExplorer write without delete', () => {
     expect(screen.queryByLabelText('Delete')).not.toBeInTheDocument()
 
     fireEvent.contextMenu(await findTreeItem('b'))
-    await waitFor(() =>
-      expect(screen.getAllByRole('button', { name: 'New folder' })).toHaveLength(2),
-    )
-    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
+    expect(await screen.findByRole('menuitem', { name: 'New folder' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Delete' })).not.toBeInTheDocument()
   })
 })

@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 // Portable-stories smoke test: every composed story must render under the
 // provider defaults the preview decorator supplies. The Editor stories are
-// excluded — monaco does not run in jsdom; the editor's own tests cover it.
+// excluded — monaco does not run in jsdom; the editor's own tests cover it —
+// and the workflow dialogs' YAML views render nothing in its place.
 import '@testing-library/jest-dom/vitest'
 import { composeStories } from '@storybook/react-vite'
 import { cleanup, render } from '@testing-library/react'
@@ -10,29 +11,44 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import * as accessDrawer from './components/access/AccessDrawer.stories'
 import * as grantAccessDrawer from './components/access/GrantAccessDrawer.stories'
-import * as drawer from './components/Drawer.stories'
+import * as combobox from './components/Combobox.stories'
+import * as controls from './components/controls.stories'
+import * as fields from './components/fields.stories'
+import * as loading from './components/loading.stories'
+import * as menus from './components/Menu.stories'
+import * as overlays from './components/overlays.stories'
+import * as pageHeader from './components/pageHeader.stories'
 import * as primitives from './components/primitives.stories'
+import * as sections from './components/sections.stories'
+import * as themeEditor from './components/ThemeEditor.stories'
+import * as toasts from './components/Toast.stories'
+import * as toggleGroup from './components/ToggleGroup.stories'
 import * as fileExplorer from './file-explorer/FileExplorer.stories'
 import * as form from './form/DynamicForm.stories'
+import * as layoutShowcase from './form/LayoutShowcase.stories'
 import * as workflow from './graph/DependencyGraph.stories'
+import * as editorDialogs from './graph/GraphEditorDialogs.stories'
+import * as inputDialog from './graph/InputDialog.stories'
+import * as inputsEditor from './graph/InputsEditor.stories'
+import * as problemsButton from './graph/ProblemsButton.stories'
+import * as settingsDialog from './graph/WorkflowSettingsDialog.stories'
+import * as icons from './icons.stories'
 import * as appShell from './list/appShell.stories'
 import * as list from './list/ListTable.stories'
 import * as listControls from './list/listControls.stories'
 import * as userHoverCard from './list/UserHoverCard.stories'
 import * as logviewer from './logviewer/LogViewer.stories'
+import * as themeGenerator from './theme/theme.stories'
 
 // jsdom lacks these; the DAG and explorer rely on them for layout plumbing.
-global.ResizeObserver = class {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
-} as unknown as typeof ResizeObserver
 global.requestAnimationFrame = (() => 0) as typeof requestAnimationFrame
 global.cancelAnimationFrame = (() => {}) as typeof cancelAnimationFrame
 
 vi.mock('./components/Provider', async (importOriginal) =>
   (await import('./test/engine')).mockEngineHooks(importOriginal),
 )
+
+vi.mock('./editor/Monaco', () => ({ default: () => null }))
 
 vi.mock('react-zoom-pan-pinch', () => ({
   TransformWrapper: ({ children }: { children: unknown }) =>
@@ -42,17 +58,35 @@ vi.mock('react-zoom-pan-pinch', () => ({
 
 const SUITES = {
   primitives,
-  drawer,
   accessDrawer,
   grantAccessDrawer,
+  icons,
+  sections,
+  loading,
+  combobox,
+  controls,
+  fields,
+  menus,
+  overlays,
+  toasts,
+  toggleGroup,
+  pageHeader,
   logviewer,
   list,
   listControls,
   appShell,
   userHoverCard,
   form,
+  layoutShowcase,
   workflow,
+  editorDialogs,
+  inputDialog,
+  inputsEditor,
+  problemsButton,
+  settingsDialog,
   fileExplorer,
+  themeEditor,
+  themeGenerator,
 } as const
 
 afterEach(cleanup)

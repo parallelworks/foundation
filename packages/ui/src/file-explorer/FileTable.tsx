@@ -1,8 +1,10 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import cx from 'classnames'
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { OpenMenu } from '../components/ContextMenu'
+import type { MenuEntry } from '../components/MenuEntries'
 import { Table } from '../components/Table'
-import { listTableFixedProps, type OpenMenu, type RowMenuItem } from '../list/index'
+import { cx } from '../cx'
+import { listTableFixedProps } from '../list/index'
 import { fileRowHeight, ROW_HEIGHT_SHORT } from './FileRow'
 import { FileRowsWindow, spacerHeights } from './FileRowsWindow'
 import { FileTableHeaders } from './FileTableHeaders'
@@ -15,7 +17,7 @@ interface FileTableProps {
   allSelected: boolean
   someSelected: boolean
   onSelectAll: () => void
-  getItems: (node: TreeNode) => RowMenuItem[]
+  getItems: (node: TreeNode) => MenuEntry[]
   openMenu: OpenMenu
   onOpen: (node: TreeNode) => void
   onToggleCheck: (node: TreeNode, checked: boolean) => void
@@ -230,7 +232,7 @@ export function FileTable({
     // virtualizer at scrollTop 0 forever.
     <div ref={setScrollEl} className="h-full overflow-auto">
       {/* tabIndex and onKeyDown sit on the <table>, not on the scroll container:
-          aria-activedescendant is only honoured on the element that actually holds
+          aria-activedescendant is only honored on the element that actually holds
           focus, so the grid, the cursor attribute and the focus have to be one
           element or assistive tech never hears the cursor move.
           aria-rowcount pairs with each row's aria-rowindex to report the true

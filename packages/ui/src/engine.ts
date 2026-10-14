@@ -1,3 +1,5 @@
+import type { WorkflowEditing } from './editing'
+
 export type RunStatus =
   | 'started'
   | 'running'
@@ -120,4 +122,6 @@ export interface WorkflowEngine {
     rawLines: string[],
   ): ProcessedLogLine[]
   toYaml(value: unknown): string
+  /** What the visual editor and stored graph layouts need; without it, graphs lay themselves out. */
+  editing?: WorkflowEditing | undefined
 }

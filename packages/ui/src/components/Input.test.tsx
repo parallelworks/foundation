@@ -4,6 +4,15 @@ import { render, screen } from '@testing-library/react'
 import { Input, Textarea } from './Input'
 
 describe('Input', () => {
+  it('draws the small box at size sm, and lets a host class win over its own', () => {
+    render(<Input aria-label="Filter" size="sm" className="w-40" />)
+
+    const input = screen.getByRole('textbox', { name: 'Filter' })
+    expect(input).toHaveClass('h-7', 'text-xs', 'w-40')
+    expect(input).not.toHaveClass('w-full')
+    expect(input).not.toHaveAttribute('size')
+  })
+
   it('associates the label with the input when no id is given', () => {
     render(<Input label="Email" />)
 
@@ -47,6 +56,22 @@ describe('Input', () => {
 
     expect(screen.getByLabelText('Email')).not.toBeRequired()
     expect(screen.queryByText('*')).not.toBeInTheDocument()
+  })
+
+  it('describes the input with its description, and keeps a hint beside the label out of its name', () => {
+    render(<Input label="Email" description="Where receipts go." hint={<code>email</code>} />)
+
+    const input = screen.getByRole('textbox', { name: 'Email' })
+    expect(input).toHaveAccessibleDescription('Where receipts go.')
+    expect(screen.getByText('email')).toBeInTheDocument()
+  })
+
+  it('describes a text area with its description', () => {
+    render(<Textarea label="Notes" description="Shown on the run." />)
+
+    expect(screen.getByRole('textbox', { name: 'Notes' })).toHaveAccessibleDescription(
+      'Shown on the run.',
+    )
   })
 
   it('keeps an existing aria-describedby alongside the error', () => {

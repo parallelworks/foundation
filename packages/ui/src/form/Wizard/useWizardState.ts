@@ -79,6 +79,12 @@ export function useWizardState({ stepOrder, steps, validateStep }: UseWizardStat
     [stepOrder, visitedSteps, currentStep],
   )
 
+  // A page the person just made, such as a repeated page's new copy, is shown and counts as visited.
+  const showStep = useCallback((stepKey: string) => {
+    setCurrentStep(stepKey)
+    setVisitedSteps((prev) => new Set([...prev, stepKey]))
+  }, [])
+
   return {
     currentStep,
     visitedSteps,
@@ -88,5 +94,6 @@ export function useWizardState({ stepOrder, steps, validateStep }: UseWizardStat
     goToNext,
     goToPrevious,
     jumpToStep,
+    showStep,
   }
 }

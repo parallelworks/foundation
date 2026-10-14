@@ -1,4 +1,3 @@
-import cx from 'classnames'
 import {
   type ClipboardEvent,
   forwardRef,
@@ -10,54 +9,19 @@ import {
   useRef,
   useState,
 } from 'react'
-import { ArrowUpIcon, AttachmentIcon, StopSolidIcon } from '../../icons'
+import { cx } from '../../cx'
+import { AddIcon, ArrowUpIcon, StopIcon } from '../../icons'
 import { useChat } from '../core/ChatProvider'
 import { useChatConfig } from '../core/config'
 import useDragDrop from '../core/useDragDrop'
 import type { AttachmentMeta, MessagePaste } from '../types'
 import AttachmentUpload, { type Attachment, type AttachmentUploadHandle } from './AttachmentUpload'
-import { ComposerContext, ComposerSettings } from './ComposerChrome'
+import { ComposerContext, ComposerControls, ComposerSettings } from './ComposerChrome'
+import { clearDraft, readDraft, storeDraft, sweepDrafts } from './chatDraft'
 import DragOverlay from './DragOverlay'
 import { PasteFileCard } from './PastedText'
 import { SlashMenu, type SlashMenuConfig, useSlashMenu } from './SlashMenu'
 import { type ComposerPastes, usePasteCards } from './usePasteCards'
-
-const DRAFT_STORAGE_PREFIX = 'aiChatDraft:'
-// Beyond this a draft is likely pasted bulk content; persisting it risks
-// blowing the storage quota shared with the rest of the app.
-const DRAFT_MAX_LENGTH = 10_000
-
-function draftKey(conversationId?: string): string {
-  return `${DRAFT_STORAGE_PREFIX}${conversationId ?? 'new'}`
-}
-
-function readDraft(conversationId?: string): string {
-  try {
-    return window.localStorage.getItem(draftKey(conversationId)) ?? ''
-  } catch {
-    return ''
-  }
-}
-
-function storeDraft(conversationId: string | undefined, text: string) {
-  try {
-    if (!text || text.length > DRAFT_MAX_LENGTH) {
-      window.localStorage.removeItem(draftKey(conversationId))
-    } else {
-      window.localStorage.setItem(draftKey(conversationId), text)
-    }
-  } catch {
-    // Storage unavailable (SSR, disabled storage): drafts simply don't persist.
-  }
-}
-
-function clearDraft(conversationId?: string) {
-  try {
-    window.localStorage.removeItem(draftKey(conversationId))
-  } catch {
-    // Storage unavailable: nothing to clear.
-  }
-}
 
 interface ChatInputProps {
   onSend: (
@@ -70,9 +34,6 @@ interface ChatInputProps {
   placeholder?: string | undefined
   conversationId?: string
   onEditLastMessage?: () => void
-  /** Only the box: no page padding, width cap, or settings row, for a host
-   *  that lays out its own controls around it. */
-  flush?: boolean
   /** Send with nothing typed, for a surface where the text is optional. */
   allowEmpty?: boolean
   /** Attach, paste, and drop files. Off for a target that takes text only. */
@@ -85,10 +46,21 @@ interface ChatInputProps {
   sendTestId?: string
   /** Offers the host's slash commands as the input starts with /. */
   slash?: SlashMenuConfig | undefined
+  /** Cards above everything else, such as a warning about this turn. */
+  notices?: ReactNode
+  /** Sits where a terminal's spinner line would, just above the box. */
+  activity?: ReactNode
   /** Pills naming where the turn runs, rendered above the input. */
   context?: ReactNode
+  /** Keeps the row of pills above the box even with none, so the box sits
+   *  where it does on a surface that has them. */
+  reserveContext?: boolean
+  /** Under the box, on the left. */
   settingsLeft?: ReactNode
+  /** In the box beside send. Defaults to the model and allocation pickers. */
   settingsRight?: ReactNode
+  /** One centered line under everything. */
+  hint?: string | undefined
   /** A turn the chat provider does not run, such as an agent session's: it
    *  drives the Stop button in place of the provider's stream and queue. */
   turn?: { running: boolean; onStop: () => void; stopping?: boolean }
@@ -152,14 +124,16 @@ function AttachButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
+      aria-expanded={open}
       className={cx(
-        'flex-shrink-0 p-3 ml-1 mb-1 rounded-xl transition-colors',
-        open ? 'text-blue-600' : 'theme-muted-text hover:theme-text',
+        'flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition-colors',
+        open ? 'theme-text chat-tint-strong' : 'theme-muted-text hover:theme-text hover:chat-tint',
         'disabled:opacity-50 disabled:cursor-not-allowed',
       )}
       aria-label={label}
+      title={label}
     >
-      <AttachmentIcon className="h-5 w-5" />
+      <AddIcon className={cx('h-5 w-5 transition-transform duration-200', open && 'rotate-45')} />
     </button>
   )
 }
@@ -184,9 +158,9 @@ function SendButton({
       disabled={!enabled}
       data-testid={testId}
       className={cx(
-        'p-2.5 rounded-xl transition-all duration-200',
-        emphasised ? 'theme-element hover:opacity-90' : 'theme-muted-panel theme-muted-text',
-        !enabled && 'cursor-not-allowed',
+        'flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition-[background-color,color,transform] duration-150 active:scale-95',
+        emphasised ? 'theme-accent hover:opacity-90' : 'chat-send-idle',
+        !enabled && 'cursor-not-allowed active:scale-100',
       )}
       aria-label={label}
       title={label}
@@ -212,6 +186,8 @@ function streamControls(chat: ReturnType<typeof useChat>, turn: ChatInputProps['
   }
 }
 
+let draftsSwept = false
+
 const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput(
   {
     onSend,
@@ -219,7 +195,6 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput
     placeholder,
     conversationId,
     onEditLastMessage,
-    flush = false,
     allowEmpty = false,
     attachments: attachmentsWanted = true,
     requireModel = true,
@@ -227,15 +202,25 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput
     sendLabel,
     sendTestId,
     slash,
+    notices,
+    activity,
     context,
+    reserveContext = false,
     settingsLeft,
-    settingsRight,
+    settingsRight = <ComposerControls />,
+    hint,
     turn,
     pastes,
   },
   ref,
 ) {
   const [input, setInput] = useState(() => readDraft(conversationId))
+  useEffect(() => {
+    if (!draftsSwept) {
+      draftsSwept = true
+      sweepDrafts()
+    }
+  }, [])
   const {
     cards,
     handleTextPaste,
@@ -301,7 +286,7 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput
 
   const uploadedCount = attachments.filter((a) => a.uploaded).length
   const pendingCount = attachments.length - uploadedCount
-  // A queue held across a cancelled or failed turn can be sent on its own.
+  // A queue held across a canceled or failed turn can be sent on its own.
   const canFlushQueue = !isStreaming && queuedCount > 0 && !disabled
   const { canSend, emphasised } = sendability({
     hasText: input.trim().length > 0 || cards.length > 0,
@@ -391,151 +376,155 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput
     onFilesDropped: handleFilesDropped,
   })
 
+  const toolbar = attachmentsAvailable || !!settingsRight
+  const action =
+    isStreaming && !input.trim() ? (
+      <button
+        type="button"
+        onClick={stopStreaming}
+        disabled={turn?.stopping}
+        className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-(--theme-app) text-(--theme-panel-bg) transition-opacity hover:opacity-85 disabled:opacity-50"
+        aria-label={t.stopGenerating}
+        title={t.stopGenerating}
+      >
+        <StopIcon className="h-3 w-3" />
+      </button>
+    ) : (
+      <SendButton
+        onClick={handleSubmit}
+        enabled={canSend}
+        emphasised={emphasised}
+        label={sendLabel ?? t.sendMessage}
+        testId={sendTestId}
+      />
+    )
+
   return (
     <div
-      className={cx('relative', !flush && 'px-4 pb-6 pt-2 bg-(--theme-panel-bg)')}
+      className="chat-composer-dock relative bg-(--theme-panel-bg) px-4 pt-2 pb-5"
       {...(attachmentsAvailable ? dragHandlers : {})}
     >
-      {/* Drag overlay */}
       {isDragging && <DragOverlay className="rounded-2xl" />}
-      <div className={cx(!flush && 'w-full max-w-[50rem] mx-auto px-4')}>
-        {/* Attachment Upload Area */}
-        {showAttachments && attachmentsAvailable && (
-          <div className="mb-3 p-3 rounded-2xl border theme-border shadow-sm bg-(--theme-panel-bg)">
-            <AttachmentUpload
-              ref={attachmentUploadRef}
-              conversationId={conversationId}
-              attachments={attachments}
-              onAttachmentsChange={setAttachments}
-              maxFiles={10}
-            />
-          </div>
-        )}
+      <div className="mx-auto w-full max-w-[var(--chat-column,50rem)] space-y-2 px-4">
+        {notices}
+        <div>
+          {activity && <div className="mb-2">{activity}</div>}
+          {(context || reserveContext) && <ComposerContext>{context}</ComposerContext>}
 
-        {context && <ComposerContext>{context}</ComposerContext>}
-
-        {cards.length > 0 && (
-          <div className="mb-2 flex flex-wrap gap-2" data-testid="composer-pastes">
-            {cards.map((card) => (
-              <PasteFileCard
-                key={card.key}
-                id={card.paste?.id}
-                lines={card.lines}
-                bytes={card.bytes}
-                saving={!card.paste && !card.error}
-                error={card.error}
-                onRemove={() => removeCard(card.key)}
-              />
-            ))}
-          </div>
-        )}
-
-        <div className="relative">
-          {slash && slashMenu.open && (
-            <SlashMenu
-              label={slash.label}
-              matches={slashMenu.matches}
-              active={slashMenu.active}
-              onChoose={(name) => {
-                slashMenu.choose(name)
-                textareaRef.current?.focus()
-              }}
-            />
-          )}
-          {/* Main Input Container */}
-          <div
-            className={cx(
-              'relative flex items-end gap-2',
-              'rounded-3xl border shadow-sm',
-              'px-2 overflow-hidden',
-              'transition-all duration-200',
-              'focus-within:shadow-md',
-              'theme-border',
-              'bg-(--theme-panel-bg)',
-            )}
-          >
-            {attachmentsAvailable && (
-              <AttachButton
-                open={showAttachments}
-                disabled={disabled}
-                label={t.attachFiles}
-                onClick={() => setShowAttachments(!showAttachments)}
-              />
-            )}
-
-            {/* Text Input with Send Button */}
-            <div className="flex-1 relative max-h-[200px] overflow-y-auto">
-              <div className="flex items-end">
-                <textarea
-                  ref={textareaRef}
-                  value={input}
-                  onChange={(e) => setInputAndPersist(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  onPaste={handlePaste}
-                  placeholder={effectivePlaceholder}
-                  aria-label={inputLabel}
-                  disabled={disabled}
-                  rows={1}
-                  className={cx(
-                    'theme-text',
-                    'flex-1 resize-none py-3.5 px-2 pr-3',
-                    'bg-transparent border-0',
-                    'placeholder:theme-muted-text',
-                    'focus:outline-none focus:ring-0',
-                    'disabled:opacity-50 disabled:cursor-not-allowed',
-                    'text-base leading-relaxed',
-                    'overflow-hidden',
-                  )}
+          {cards.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-2" data-testid="composer-pastes">
+              {cards.map((card) => (
+                <PasteFileCard
+                  key={card.key}
+                  id={card.paste?.id}
+                  lines={card.lines}
+                  bytes={card.bytes}
+                  saving={!card.paste && !card.error}
+                  error={card.error}
+                  onRemove={() => removeCard(card.key)}
                 />
-                {/* Send/Stop Button */}
-                <div className="flex-shrink-0 p-1.5 mr-1 sticky bottom-1 flex items-center">
-                  {isStreaming && !input.trim() ? (
-                    <button
-                      type="button"
-                      onClick={stopStreaming}
-                      disabled={turn?.stopping}
-                      className={cx(
-                        'p-2.5 rounded-xl',
-                        'theme-muted-panel',
-                        'hover:theme-hover',
-                        'transition-colors',
-                      )}
-                      aria-label={t.stopGenerating}
-                      title={t.stopGenerating}
-                    >
-                      <StopSolidIcon className="h-4 w-4" />
-                    </button>
-                  ) : (
-                    <SendButton
-                      onClick={handleSubmit}
-                      enabled={canSend}
-                      emphasised={emphasised}
-                      label={sendLabel ?? t.sendMessage}
-                      testId={sendTestId}
+              ))}
+            </div>
+          )}
+
+          <div className="relative">
+            {slash && slashMenu.open && (
+              <SlashMenu
+                label={slash.label}
+                listId={slashMenu.listId}
+                matches={slashMenu.matches}
+                active={slashMenu.active}
+                onChoose={(name) => {
+                  slashMenu.choose(name)
+                  textareaRef.current?.focus()
+                }}
+              />
+            )}
+            {/* One box holds the text and everything that acts on it: what is
+              attached above, the attach and send controls in a toolbar
+              under the text, and the model on that toolbar's right, so the
+              eye never leaves the box to see where it goes. */}
+            <div className="chat-composer @container flex flex-col rounded-[1.25rem] bg-(--theme-panel-bg)">
+              {showAttachments && attachmentsAvailable && (
+                <div className="px-3 pt-3">
+                  <AttachmentUpload
+                    ref={attachmentUploadRef}
+                    conversationId={conversationId}
+                    attachments={attachments}
+                    onAttachmentsChange={setAttachments}
+                    maxFiles={10}
+                  />
+                </div>
+              )}
+
+              {/* With nothing to put beside it, send sits at the end of the
+                text's own row rather than alone on an empty toolbar. */}
+              <div className={cx(!toolbar && 'flex items-end gap-2 pr-2 pb-2')}>
+                <div className="max-h-[200px] min-w-0 flex-1 overflow-y-auto">
+                  <textarea
+                    ref={textareaRef}
+                    value={input}
+                    onChange={(e) => setInputAndPersist(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    onPaste={handlePaste}
+                    {...slashMenu.inputProps}
+                    placeholder={effectivePlaceholder}
+                    aria-label={inputLabel ?? effectivePlaceholder}
+                    disabled={disabled}
+                    rows={1}
+                    className={cx(
+                      'theme-text block w-full resize-none overflow-hidden',
+                      'bg-transparent border-0 px-4',
+                      toolbar ? 'pt-3.5 pb-1' : 'pt-3 pb-1',
+                      'placeholder:text-(--theme-placeholder)',
+                      'focus:outline-none focus:ring-0',
+                      'disabled:opacity-50 disabled:cursor-not-allowed',
+                      'text-[1rem] leading-relaxed',
+                    )}
+                  />
+                </div>
+                {!toolbar && action}
+              </div>
+
+              {toolbar && (
+                <div className="flex items-center gap-1 px-2 pb-2">
+                  {attachmentsAvailable && (
+                    <AttachButton
+                      open={showAttachments}
+                      disabled={disabled}
+                      label={t.attachFiles}
+                      onClick={() => setShowAttachments(!showAttachments)}
                     />
                   )}
+                  {/* Send stays in the box however wide the host's controls
+                    are; they give up their room first. */}
+                  <div className="ml-auto flex min-w-0 items-center gap-1">
+                    <div className="flex min-w-0 items-center justify-end gap-1">
+                      {settingsRight}
+                    </div>
+                    <div className="shrink-0">{action}</div>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
-        </div>
 
-        {!flush && (
-          <ComposerSettings
-            left={
-              <>
-                {settingsLeft}
-                {uploadedCount > 0 && (
-                  <span className="text-[11px] theme-muted-text">
-                    {t.filesAttached(uploadedCount)}
-                  </span>
-                )}
-              </>
-            }
-          >
-            {settingsRight}
-          </ComposerSettings>
-        )}
+          {(settingsLeft || uploadedCount > 0) && (
+            <ComposerSettings
+              left={
+                <>
+                  {settingsLeft}
+                  {uploadedCount > 0 && (
+                    <span className="text-[11px] theme-muted-text">
+                      {t.filesAttached(uploadedCount)}
+                    </span>
+                  )}
+                </>
+              }
+            />
+          )}
+          {hint && <p className="mt-1 text-center text-[11px] theme-muted-text">{hint}</p>}
+        </div>
       </div>
     </div>
   )

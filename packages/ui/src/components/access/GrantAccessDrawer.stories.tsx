@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useMemo, useState } from 'react'
 import { expect, screen, userEvent } from 'storybook/test'
 import { type Catalog, description, makeGroups, makeValue, PERMISSIONS } from '../../test/access'
-import { primaryButtonClasses } from '../ghostButton'
+import { Button } from '../Button'
 import { GrantAccessDrawer } from './GrantAccessDrawer'
 
 interface GrantArgs {
@@ -17,9 +17,9 @@ function GrantHarness(args: GrantArgs) {
   const groups = useMemo(() => makeGroups(args.groupCount), [args.groupCount])
   return (
     <div className="p-6">
-      <button type="button" className={primaryButtonClasses} onClick={() => setOpen(true)}>
+      <Button variant="primary" onClick={() => setOpen(true)}>
         Grant access
-      </button>
+      </Button>
       <GrantAccessDrawer
         open={open}
         onClose={() => setOpen(false)}

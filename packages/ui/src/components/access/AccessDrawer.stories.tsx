@@ -9,7 +9,7 @@ import {
   makeValue,
   PERMISSIONS,
 } from '../../test/access'
-import { primaryButtonClasses } from '../ghostButton'
+import { Button } from '../Button'
 import { AccessDrawer } from './AccessDrawer'
 
 interface HarnessArgs {
@@ -40,9 +40,9 @@ function Harness(args: HarnessArgs) {
   useEffect(() => setValue(initial), [initial])
   return (
     <div className="p-6">
-      <button type="button" className={primaryButtonClasses} onClick={() => setOpen(true)}>
+      <Button variant="primary" onClick={() => setOpen(true)}>
         Manage access
-      </button>
+      </Button>
       <AccessDrawer
         open={open}
         onClose={() => setOpen(false)}
@@ -74,11 +74,7 @@ function Harness(args: HarnessArgs) {
             </div>
           ) : undefined
         }
-        emptyAction={
-          <button type="button" className={primaryButtonClasses}>
-            Create a group
-          </button>
-        }
+        emptyAction={<Button variant="primary">Create a group</Button>}
         confirmSave={
           args.confirmSave
             ? {

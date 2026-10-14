@@ -1,7 +1,10 @@
 import { useCallback, useEffect } from 'react'
+import { useStrings } from '../../components/Provider'
+import { toast } from '../../components/Toast'
 import type { ChatMessage } from '../types'
 import { isMac } from '../utils'
 import { useChat } from './ChatProvider'
+import { useChatConfig } from './config'
 import { FOCUS_SIDEBAR_SEARCH_EVENT } from './events'
 
 export function lastAssistantContent(messages: ChatMessage[]): string | null {
@@ -18,14 +21,10 @@ interface UseKeyboardShortcutsOptions {
 
 export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions = {}) {
   const { enabled = true } = options
-  const {
-    currentConversation,
-    isStreaming,
-    stopStreaming,
-    clearCurrentConversation,
-    navigation,
-    notify,
-  } = useChat()
+  const { currentConversation, isStreaming, stopStreaming, clearCurrentConversation, navigation } =
+    useChat()
+  const { common } = useStrings()
+  const { chrome: t } = useChatConfig().strings
 
   // Get last assistant message for copy functionality
   const getLastAssistantMessage = useCallback(
@@ -49,14 +48,14 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions = {}) 
     if (content) {
       try {
         await navigator.clipboard.writeText(content)
-        notify.success('Copied to clipboard')
+        toast.success(common.copiedToClipboard)
       } catch {
-        notify.error('Failed to copy')
+        toast.error(common.copyFailed)
       }
     } else {
-      notify.info('No response to copy')
+      toast.info(t.noResponseToCopy)
     }
-  }, [getLastAssistantMessage, notify])
+  }, [getLastAssistantMessage, common, t])
 
   const handleStopGeneration = useCallback(() => {
     if (isStreaming) {
@@ -74,7 +73,9 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions = {}) 
 
       // Escape - Stop generation
       if (e.key === 'Escape') {
-        handleStopGeneration()
+        if (!escapeClosesLayer(e.target)) {
+          handleStopGeneration()
+        }
         return
       }
 
@@ -112,4 +113,15 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions = {}) 
     handleCopyLastResponse,
     handleStopGeneration,
   }
+}
+
+/** Escape pressed in a dialog, a drawer, a menu or an open list closes that
+ *  layer and nothing else. Those layers dismiss from a listener on the
+ *  document too, so stopping propagation can't keep the event from here. */
+export function escapeClosesLayer(target: EventTarget | null): boolean {
+  return (
+    target instanceof Element &&
+    (target.matches('[aria-expanded="true"]') ||
+      !!target.closest('[role="dialog"], [role="alertdialog"], [role="menu"]'))
+  )
 }

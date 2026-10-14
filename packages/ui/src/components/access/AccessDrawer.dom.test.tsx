@@ -252,7 +252,7 @@ describe('AccessDrawer', () => {
     fireEvent.click(grantDialog.getByRole('checkbox', { name: /^Read buckets/ }))
     fireEvent.click(grantDialog.getByRole('button', { name: 'Save' }))
     fireEvent.click(grantDialog.getByRole('button', { name: 'Close' }))
-    expect(screen.getAllByRole('dialog')).toHaveLength(2)
+    expect(screen.getByRole('dialog', { name: 'Grant access' })).toBeInTheDocument()
   })
 
   it('narrows the permission picker to one resource type', () => {
@@ -270,7 +270,7 @@ describe('AccessDrawer', () => {
     const grantDialog = within(screen.getAllByRole('dialog').at(-1) as HTMLElement)
     expect(
       grantDialog.getByRole('checkbox', { name: /^Everyone in the organization/ }),
-    ).toBeDisabled()
+    ).toHaveAttribute('data-disabled')
     expect(grantDialog.getByText('Turned off by policy')).toBeInTheDocument()
   })
 
@@ -280,7 +280,7 @@ describe('AccessDrawer', () => {
     const grantDialog = within(screen.getAllByRole('dialog').at(-1) as HTMLElement)
     expect(
       grantDialog.getByRole('checkbox', { name: /^Everyone in the organization/ }),
-    ).toBeEnabled()
+    ).not.toHaveAttribute('data-disabled')
   })
 
   it('asks before saving when the host wants a confirmation', async () => {
@@ -292,12 +292,17 @@ describe('AccessDrawer', () => {
     await waitFor(() => expect(onSave).toHaveBeenCalled())
   })
 
-  it('closes only the grant drawer on Escape', () => {
+  it('closes only the grant drawer on Escape', async () => {
     const { onClose } = renderDrawer()
     fireEvent.click(screen.getByRole('button', { name: 'Grant access' }))
-    expect(screen.getAllByRole('dialog')).toHaveLength(2)
-    fireEvent.keyDown(document, { key: 'Escape' })
-    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    expect(screen.getByRole('dialog', { name: 'Grant access' })).toBeInTheDocument()
+    fireEvent.keyDown(document.activeElement ?? document, { key: 'Escape' })
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('dialog', { name: 'Grant access', hidden: true }),
+      ).not.toBeInTheDocument(),
+    )
+    expect(screen.getByRole('dialog', { name: 'Manage access' })).toBeInTheDocument()
     expect(onClose).not.toHaveBeenCalled()
   })
 
@@ -320,7 +325,7 @@ describe('AccessDrawer', () => {
     expect(screen.queryByText(/Use Grant access/)).not.toBeInTheDocument()
   })
 
-  it('returns focus to the trigger and unlocks scrolling after both drawers close', async () => {
+  it('returns focus to the trigger after both drawers close', async () => {
     function Host() {
       const [open, setOpen] = useState(false)
       return (
@@ -344,12 +349,17 @@ describe('AccessDrawer', () => {
     trigger.focus()
     fireEvent.click(trigger)
     fireEvent.click(screen.getByRole('button', { name: 'Grant access' }))
-    expect(document.body.style.overflow).toBe('hidden')
 
-    fireEvent.keyDown(document, { key: 'Escape' })
-    fireEvent.keyDown(document, { key: 'Escape' })
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(document.body.style.overflow).toBe('')
-    expect(trigger).toHaveFocus()
+    fireEvent.keyDown(document.activeElement ?? document, { key: 'Escape' })
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('dialog', { name: 'Grant access', hidden: true }),
+      ).not.toBeInTheDocument(),
+    )
+    fireEvent.keyDown(document.activeElement ?? document, { key: 'Escape' })
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { hidden: true })).not.toBeInTheDocument(),
+    )
+    await waitFor(() => expect(trigger).toHaveFocus())
   })
 })

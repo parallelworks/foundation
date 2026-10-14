@@ -2,22 +2,9 @@
 import '@testing-library/jest-dom/vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
+import { toast } from '../../components/Toast'
+import type { SidebarPresentation, SidebarState } from '../core/sidebarState'
 import ChatSidebar from './ChatSidebar'
-
-vi.mock('../../icons', () => ({
-  ConnectIcon: () => <span />,
-  DownloadIcon: () => <span />,
-  EditIcon: () => <span />,
-  ImageIcon: () => <span />,
-  MoreIcon: () => <span />,
-  NewChatIcon: () => <span />,
-  SearchIcon: () => <span />,
-  SettingsIcon: () => <span />,
-  ShareIcon: () => <span />,
-  SharingIcon: () => <span />,
-  SidebarIcon: () => <span />,
-  TrashIcon: () => <span />,
-}))
 
 const downloadTextMock = vi.fn()
 vi.mock('../core/exportConversation', async (importOriginal) => ({
@@ -37,13 +24,12 @@ vi.mock('./ShareDialog', () => ({
 const conversationsGet = vi.fn()
 const chatState = {
   adapter: {
-    sharing: undefined,
+    sharing: undefined as object | undefined,
     attachments: undefined,
     conversations: { get: conversationsGet },
   },
-  navigation: { toNewChat: vi.fn() },
-  notify: { error: vi.fn() },
-  activeConversationId: null,
+  navigation: { toNewChat: vi.fn(), toConversation: vi.fn() },
+  activeConversationId: null as string | null,
   conversations: [] as {
     id: string
     title?: string
@@ -51,8 +37,13 @@ const chatState = {
     canCollaborate: boolean
     isOwner: boolean
     messageCount: number
+    updatedAt?: string
   }[],
-  sidebarCollapsed: false,
+  sidebar: 'expanded' as SidebarState,
+  sidebarPresentation: 'inline' as SidebarPresentation,
+  drawerOpen: false,
+  setSidebar: vi.fn(),
+  setDrawerOpen: vi.fn(),
   toggleSidebar: vi.fn(),
   isLoading: false,
   loadConversations: vi.fn(),
@@ -72,7 +63,23 @@ vi.mock('../core/config', async (importOriginal) => {
     useChatConfig: () => ({
       ...actual.resolveChatConfig(),
       extraLinks: [],
-      LinkComponent: ({ children }: { children: ReactNode }) => <a href="/">{children}</a>,
+      LinkComponent: ({
+        children,
+        onClick,
+      }: {
+        children: ReactNode
+        onClick?: React.MouseEventHandler
+      }) => (
+        <a
+          href="/"
+          onClick={(e) => {
+            e.preventDefault()
+            onClick?.(e)
+          }}
+        >
+          {children}
+        </a>
+      ),
     }),
   }
 })
@@ -94,15 +101,22 @@ const container = () => handle().parentElement as HTMLElement
 const pointerDown = (clientX: number) =>
   fireEvent(handle(), new MouseEvent('pointerdown', { bubbles: true, clientX }))
 const pointerMove = (clientX: number) =>
-  fireEvent(window, new MouseEvent('pointermove', { clientX }))
-const pointerUp = () => fireEvent(window, new MouseEvent('pointerup', {}))
+  fireEvent(handle(), new MouseEvent('pointermove', { bubbles: true, clientX }))
+const pointerUp = () => fireEvent(handle(), new MouseEvent('pointerup', { bubbles: true }))
 
 beforeEach(() => {
   storage.clear()
-  chatState.sidebarCollapsed = false
+  chatState.sidebar = 'expanded'
+  chatState.sidebarPresentation = 'inline'
+  chatState.drawerOpen = false
   chatState.conversations = []
+  chatState.activeConversationId = null
+  chatState.setSidebar.mockClear()
+  chatState.setDrawerOpen.mockClear()
   chatState.toggleSidebar.mockClear()
+  chatState.navigation.toConversation.mockClear()
   conversationsGet.mockReset()
+  chatState.adapter.sharing = undefined
   downloadTextMock.mockClear()
 })
 
@@ -146,11 +160,11 @@ describe('ChatSidebar resizing', () => {
     const { rerender } = render(<ChatSidebar />)
     expect(container().style.width).toBe('400px')
 
-    chatState.sidebarCollapsed = true
+    chatState.sidebar = 'collapsed'
     rerender(<ChatSidebar />)
     expect(screen.queryByRole('separator')).not.toBeInTheDocument()
 
-    chatState.sidebarCollapsed = false
+    chatState.sidebar = 'expanded'
     rerender(<ChatSidebar />)
     expect(container().style.width).toBe('400px')
   })
@@ -204,12 +218,22 @@ describe('ChatSidebar search', () => {
   })
 
   it('the focus event expands a collapsed sidebar and focuses the input', async () => {
-    chatState.sidebarCollapsed = true
+    chatState.sidebar = 'collapsed'
     chatState.conversations = [conversation('1', 'Alpha planning')]
     render(<ChatSidebar />)
     document.dispatchEvent(new Event('aichat:focus-sidebar-search'))
-    expect(chatState.toggleSidebar).toHaveBeenCalled()
+    expect(chatState.setSidebar).toHaveBeenCalledWith('expanded')
     await new Promise((resolve) => requestAnimationFrame(resolve))
+  })
+})
+
+describe('ChatSidebar keyboard cycling', () => {
+  it('opens the next conversation in the list on ⌘⌥↓', () => {
+    chatState.conversations = [conversation('1', 'Alpha'), conversation('2', 'Beta')]
+    chatState.activeConversationId = '1'
+    render(<ChatSidebar />)
+    fireEvent.keyDown(document, { key: 'ArrowDown', metaKey: true, altKey: true })
+    expect(chatState.navigation.toConversation).toHaveBeenCalledWith('2')
   })
 })
 
@@ -223,10 +247,62 @@ describe('ChatSidebar with host actions', () => {
   })
 
   it('ignores the sidebar search shortcut', () => {
-    chatState.sidebarCollapsed = true
+    chatState.sidebar = 'collapsed'
     render(<ChatSidebar actions={false} />)
     document.dispatchEvent(new Event('aichat:focus-sidebar-search'))
-    expect(chatState.toggleSidebar).not.toHaveBeenCalled()
+    expect(chatState.setSidebar).not.toHaveBeenCalled()
+  })
+})
+
+describe('ChatSidebar hidden and in a drawer', () => {
+  it('shows no list while the host hides it', () => {
+    chatState.sidebar = 'hidden'
+    chatState.conversations = [conversation('1', 'Alpha planning')]
+    render(<ChatSidebar />)
+    expect(screen.queryByText('Alpha planning')).not.toBeInTheDocument()
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+  })
+
+  it('opens the full list in the drawer even when the column was a rail', () => {
+    chatState.sidebar = 'collapsed'
+    chatState.sidebarPresentation = 'drawer'
+    chatState.drawerOpen = true
+    chatState.conversations = [conversation('1', 'Alpha planning')]
+    render(<ChatSidebar />)
+    expect(screen.getByRole('dialog', { name: 'Conversations' })).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Search conversations')).toBeInTheDocument()
+    expect(screen.queryByRole('separator')).not.toBeInTheDocument()
+  })
+
+  it('closes the drawer once a conversation or new chat is picked', () => {
+    chatState.sidebarPresentation = 'drawer'
+    chatState.drawerOpen = true
+    chatState.conversations = [conversation('1', 'Alpha planning')]
+    render(<ChatSidebar />)
+    fireEvent.click(screen.getByText('Alpha planning'))
+    expect(chatState.setDrawerOpen).toHaveBeenLastCalledWith(false)
+    chatState.setDrawerOpen.mockClear()
+    fireEvent.click(screen.getByText('New chat'))
+    expect(chatState.setDrawerOpen).toHaveBeenLastCalledWith(false)
+  })
+
+  it('closes on Escape and on a tap outside', () => {
+    chatState.sidebarPresentation = 'drawer'
+    chatState.drawerOpen = true
+    render(<ChatSidebar />)
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+    expect(chatState.setDrawerOpen).toHaveBeenCalledWith(false)
+    chatState.setDrawerOpen.mockClear()
+    fireEvent.pointerDown(document.body)
+    fireEvent.click(document.body)
+    expect(chatState.setDrawerOpen).toHaveBeenCalledWith(false)
+  })
+
+  it('the search shortcut opens a closed drawer', () => {
+    chatState.sidebarPresentation = 'drawer'
+    render(<ChatSidebar />)
+    document.dispatchEvent(new Event('aichat:focus-sidebar-search'))
+    expect(chatState.setDrawerOpen).toHaveBeenCalledWith(true)
   })
 })
 
@@ -256,10 +332,42 @@ describe('ChatSidebar export', () => {
   it('notifies on export failure', async () => {
     chatState.conversations = [conversation('1', 'Alpha planning')]
     conversationsGet.mockRejectedValue(new Error('nope'))
+    const error = vi.spyOn(toast, 'error')
     render(<ChatSidebar />)
     fireEvent.click(screen.getByLabelText('More actions'))
     fireEvent.click(await screen.findByText('Download'))
-    await vi.waitFor(() => expect(chatState.notify.error).toHaveBeenCalled())
+    await vi.waitFor(() => expect(error).toHaveBeenCalled())
     expect(downloadTextMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('ChatSidebar sharing', () => {
+  it('offers sharing on the conversations the reader owns only', async () => {
+    chatState.adapter.sharing = {}
+    chatState.conversations = [
+      conversation('1', 'Mine'),
+      { ...conversation('2', 'Theirs'), isOwner: false },
+    ]
+    render(<ChatSidebar />)
+    const [mine, theirs] = screen.getAllByLabelText('More actions')
+    fireEvent.click(mine as HTMLElement)
+    expect(await screen.findByText('Share')).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    fireEvent.click(theirs as HTMLElement)
+    await screen.findAllByText('Download')
+    expect(screen.queryByText('Share')).not.toBeInTheDocument()
+  })
+})
+
+describe('ChatSidebar rows', () => {
+  it('say when each conversation last changed', () => {
+    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
+    chatState.conversations = [
+      { ...conversation('1', 'Fresh'), updatedAt: new Date().toISOString() },
+      { ...conversation('2', 'Older'), createdAt: threeDaysAgo },
+    ]
+    render(<ChatSidebar />)
+    expect(screen.getByText('Fresh').parentElement).toHaveTextContent(/^Freshnow$/)
+    expect(screen.getByText('Older').parentElement).toHaveTextContent(/^Older3d$/)
   })
 })

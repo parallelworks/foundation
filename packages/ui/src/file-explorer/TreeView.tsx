@@ -1,10 +1,10 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import cx from 'classnames'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Skeleton from 'react-loading-skeleton'
 import { positionKeys } from '../components/keys'
 import { useStrings } from '../components/Provider'
-import { AngleRightIcon, FolderIcon, FolderOpenIcon } from '../icons'
+import { Skeleton } from '../components/Skeleton'
+import { cx } from '../cx'
+import { ChevronRightIcon, FolderIcon, FolderOpenIcon } from '../icons'
 import { canPreview } from './FilePreview/previewType'
 import { getNodeIcon } from './helpers'
 import type { TreeNode } from './lib/types'
@@ -320,7 +320,7 @@ function RowIcons({
   )
   return (
     <>
-      <AngleRightIcon
+      <ChevronRightIcon
         className={cx(
           'h-3.5 w-3.5 shrink-0 theme-muted-text transition-transform duration-150',
           isExpanded && 'rotate-90',
@@ -352,13 +352,14 @@ function TreeMoreRow({
   onReveal: () => void
 }) {
   const t = useStrings().fileExplorer
+  const { common } = useStrings()
 
   const label = () => {
     if (failed) {
-      return t.retry
+      return common.retry
     }
     if (hiddenFiles === 0) {
-      return t.loadMore
+      return common.loadMore
     }
     return partial ? t.treeMoreCountPartial(hiddenFiles) : t.treeMoreCount(hiddenFiles)
   }
@@ -386,9 +387,8 @@ function TreeMoreRow({
   )
 }
 
-/** Sized by the slot, not by its contents: react-loading-skeleton wraps each bar
- *  in an inline span, so a bar occupies a line box taller than its `height` and
- *  the overflow would sit on top of the absolutely positioned row below. */
+/** Sized by the slot, not by its contents, so the bars never spill onto the
+ *  absolutely positioned row below. */
 function TreeSkeletonRow({ depth }: { depth: number }) {
   return (
     <div className="relative h-full overflow-hidden">
@@ -397,9 +397,7 @@ function TreeSkeletonRow({ depth }: { depth: number }) {
         className="flex h-full flex-col justify-center gap-1.5 py-1 pr-2"
         style={{ paddingLeft: depth * INDENT_PER_LEVEL + ROW_PAD_FILE }}
       >
-        {[0, 1, 2].map((i) => (
-          <Skeleton key={i} height={12} containerClassName="block leading-none" />
-        ))}
+        <Skeleton count={3} height={12} className="shrink-0" />
       </div>
     </div>
   )
@@ -607,7 +605,7 @@ const TreeRowItem = memo(function TreeRowItem({
           'transition-colors duration-150',
           'focus:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-(--theme-link)',
           isSelected
-            ? 'bg-(--theme-element)/15 font-medium'
+            ? 'bg-(--theme-accent)/15 font-medium'
             : dragActive
               ? 'theme-hover'
               : 'hover:theme-hover',

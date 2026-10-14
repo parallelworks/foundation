@@ -1,10 +1,10 @@
-import type { TSetFormDirty } from '../Form'
 import type { BaseField, LabelPosition, RuntimeFieldExtensions } from './fieldTypes'
 
 /** Intentionally loose to allow both manual types and schema-generated types. */
 interface FieldBase {
   type?: string
   label?: string
+  description?: string
   hidden?: boolean | string
   disabled?: boolean | string
   optional?: boolean | string
@@ -13,28 +13,26 @@ interface FieldBase {
   default?: unknown
 }
 
-export interface FieldComponentProps<TField extends FieldBase = FieldBase, TValue = unknown> {
+/**
+ * What the form hands a field component. The field binds to its own value by `field.name`, with
+ * `useFieldValue`, which also gives the form its rules, and reads any other with `useWatch`, so it
+ * renders again only when what it reads changes.
+ */
+export interface FieldComponentProps<TField extends FieldBase = FieldBase> {
   field: TField
   label: string
   labelPosition: LabelPosition
-  missing: boolean
-  missingFields: string[]
-  values: Record<string, unknown>
-  setFormDirty: TSetFormDirty
+  /** What the form found wrong with the field's value, such as a value it needs or one the server
+   *  rejected, shown under it; undefined while it has nothing to say. */
+  error?: string | undefined
   onChange?: ((val: unknown) => void) | undefined
   disabled: boolean
   computeOn?: boolean | undefined
   spaceCompact?: boolean
   tooltipComponent?: React.ReactNode
-  workflowForm?: boolean
-  /*-- Formik Context fields --*/
-  currentValue: TValue
-  setFieldValue?: (field: string, value: unknown, shouldValidate?: boolean) => void
-  setFieldTouched?: (field: string, isTouched?: boolean, shouldValidate?: boolean) => void
 }
 
 /** Props for a field component, given the field definition it renders. */
-export type FieldProps<
-  TField extends FieldBase = BaseField,
-  TValue = unknown,
-> = FieldComponentProps<TField & RuntimeFieldExtensions, TValue>
+export type FieldProps<TField extends FieldBase = BaseField> = FieldComponentProps<
+  TField & RuntimeFieldExtensions
+>

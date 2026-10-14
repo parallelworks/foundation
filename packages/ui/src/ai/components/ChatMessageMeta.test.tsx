@@ -5,21 +5,6 @@ import { DateTime } from 'luxon'
 import type { ChatMessage as Message } from '../types'
 import ChatMessage from './ChatMessage'
 
-vi.mock('../../icons', () => ({
-  CheckIcon: () => <span data-testid="check-icon">✓</span>,
-  RefreshIcon: () => <span data-testid="refresh-icon">↻</span>,
-  EditIcon: () => <span data-testid="edit-icon">✎</span>,
-  CopyIcon: () => <span data-testid="copy-icon">📋</span>,
-  ErrorIcon: () => <span data-testid="error-icon">⚠</span>,
-  RetryIcon: () => <span data-testid="retry-icon">↺</span>,
-  FileIcon: () => <span data-testid="file-icon">📄</span>,
-  DownloadFileIcon: () => <span data-testid="download-file-icon">⬇</span>,
-  ThinkingIcon: () => <span data-testid="thinking-icon">💭</span>,
-  ChevronRightIcon: () => <span data-testid="chevron-right-icon">›</span>,
-  AngleLeftIcon: () => <span data-testid="angle-left-icon">‹</span>,
-  AngleRightIcon: () => <span data-testid="angle-right-icon">›</span>,
-}))
-
 vi.mock('./agent/AgentMessageParts', () => ({
   __esModule: true,
   default: () => <div data-testid="agent-parts-mock" />,
@@ -59,10 +44,11 @@ afterEach(() => {
 })
 
 describe('message metadata row', () => {
-  it('renders a relative timestamp with an absolute title', () => {
+  it('renders a relative timestamp as a machine-readable time', () => {
     render(<ChatMessage {...defaultProps} message={message({ timestamp: recentIso })} />)
     const el = screen.getByText('2 hours ago')
-    expect(el).toHaveAttribute('title')
+    expect(el.tagName).toBe('TIME')
+    expect(el).toHaveAttribute('dateTime', DateTime.fromISO(recentIso).toISO())
   })
 
   it('ignores an invalid or empty timestamp', () => {
@@ -147,6 +133,13 @@ describe('long message collapse', () => {
   it('never clamps while streaming', () => {
     mockScrollHeight(2000)
     const { container } = render(<ChatMessage {...defaultProps} message={message()} isStreaming />)
+    expect(container.querySelector('.chat-message-clamp')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Show more' })).not.toBeInTheDocument()
+  })
+
+  it('never clamps the latest reply', () => {
+    mockScrollHeight(2000)
+    const { container } = render(<ChatMessage {...defaultProps} message={message()} latest />)
     expect(container.querySelector('.chat-message-clamp')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Show more' })).not.toBeInTheDocument()
   })
