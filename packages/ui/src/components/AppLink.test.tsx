@@ -7,6 +7,7 @@ import { SidebarRailItem } from '../ai/ui/sidebar'
 import { ToolbarButton } from '../list/ActionToolbar'
 import { ListRow } from '../list/ListPage'
 import { NameCell } from '../list/ListTable'
+import { ActionMenu } from './ActionMenu'
 import { AppLink } from './AppLink'
 import { Button, MethodButton } from './Button'
 import { Card } from './Card'
@@ -168,6 +169,21 @@ describe.each(surfaces)('%s', (_, ui, name, role = 'link') => {
     expect(routed).toEqual([])
     fireEvent.click(link)
     expect(routed).toEqual([HREF])
+  })
+})
+
+describe('menu link row', () => {
+  it('is a link through the host’s router, as a folded crumb or any menu href is', async () => {
+    renderWithRouter(
+      <ActionMenu label="More" items={[{ label: 'Storage', href: HREF }]}>
+        …
+      </ActionMenu>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'More' }))
+    const row = await screen.findByRole('menuitem', { name: 'Storage' })
+    expect(row.tagName).toBe('A')
+    expect(row).toHaveAttribute('href', HREF)
+    expect(row).toHaveAttribute('data-router-link')
   })
 })
 

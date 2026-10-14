@@ -72,7 +72,7 @@ function HeaderControl({
           target={external ? '_blank' : undefined}
           disabled={disabled}
           aria-label={
-            reason ? `${name}. ${reason}` : external ? `${name} (${common.opensInNewTab})` : name
+            reason ? `${name}. ${reason}` : external ? `${name} ${common.opensInNewTab}` : name
           }
           className={className}
         >

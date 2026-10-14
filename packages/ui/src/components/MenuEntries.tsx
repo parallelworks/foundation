@@ -1,7 +1,7 @@
 import { Menu } from '@base-ui/react/menu'
 import { type ReactNode, useCallback, useState } from 'react'
 import { cx } from '../cx'
-import { safeUrl } from '../safeUrl'
+import { AppLink } from './AppLink'
 import { EmptyState } from './EmptyState'
 import { keyedByContent } from './keys'
 import {
@@ -12,7 +12,6 @@ import {
   MenuSeparator,
   MenuSubmenuTrigger,
 } from './Menu'
-import { useLink } from './Provider'
 import { useQueryMatch } from './search'
 import { Tooltip } from './Tooltip'
 import { useCopy } from './useCopy'
@@ -229,7 +228,6 @@ export function useRunAction(): (action: MenuAction) => void {
 
 function ActionRow({ action }: { action: MenuAction }) {
   warnIfInert(action, 'MenuEntries')
-  const Link = useLink()
   const runAction = useRunAction()
   const className = cx(action.destructive && destructiveClassName)
   const content = (
@@ -239,12 +237,11 @@ function ActionRow({ action }: { action: MenuAction }) {
     </>
   )
   if (action.href && !action.disabled) {
-    return action.reloadDocument ? (
-      <MenuLinkItem href={safeUrl(action.href)} className={className}>
-        {content}
-      </MenuLinkItem>
-    ) : (
-      <MenuLinkItem render={<Link href={action.href} />} className={className}>
+    return (
+      <MenuLinkItem
+        render={<AppLink href={action.href} reloadDocument={action.reloadDocument} />}
+        className={className}
+      >
         {content}
       </MenuLinkItem>
     )
