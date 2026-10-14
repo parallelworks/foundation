@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.48.0](https://github.com/parallelworks/foundation/compare/ui-v0.47.0...ui-v0.48.0) (2026-10-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* **ui:** icons for signing in, removing access, swapping, help desks, mail, expiry and review ([#248](https://github.com/parallelworks/foundation/issues/248))
+
+### Features
+
+* **ui:** icons for signing in, removing access, swapping, help desks, mail, expiry and review ([#248](https://github.com/parallelworks/foundation/issues/248)) ([c8dd6f3](https://github.com/parallelworks/foundation/commit/c8dd6f3181ad5581b6c28b4c254e08938babcc76))
+
+## [0.47.0](https://github.com/parallelworks/foundation/compare/ui-v0.46.0...ui-v0.47.0) (2026-10-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* **ui:** fill the field gaps: placeholder color, size, ColorInput, OneTimeCodeInput, FieldValue ([#246](https://github.com/parallelworks/foundation/issues/246))
+
+### Features
+
+* **ui:** fill the field gaps: placeholder color, size, ColorInput, OneTimeCodeInput, FieldValue ([#246](https://github.com/parallelworks/foundation/issues/246)) ([836d279](https://github.com/parallelworks/foundation/commit/836d2799a8a0cac22abbc289463de7b556ae5ad9))
+* **ui:** Section takes a description and an id; sticky link tabs stay pinned ([#245](https://github.com/parallelworks/foundation/issues/245)) ([a765681](https://github.com/parallelworks/foundation/commit/a765681d6a4a39119672b26b081e55d377aa8115))
+* **ui:** ToggleGroup for filters that take several values ([#244](https://github.com/parallelworks/foundation/issues/244)) ([90f0699](https://github.com/parallelworks/foundation/commit/90f0699ca5ea2b93dabaeb7af94e50217ccd4492))
+
+## [0.46.0](https://github.com/parallelworks/foundation/compare/ui-v0.45.0...ui-v0.46.0) (2026-10-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* **ui:** use American spelling, including the canceled upload status ([#243](https://github.com/parallelworks/foundation/issues/243))
+
+### Bug Fixes
+
+* **ui:** toasts centre over the page beside the host's sidebar, below its top bar ([#241](https://github.com/parallelworks/foundation/issues/241)) ([8042f95](https://github.com/parallelworks/foundation/commit/8042f95ab208e0888e406ad4f62a93cefe51d5a4))
+* **ui:** use American spelling, including the canceled upload status ([#243](https://github.com/parallelworks/foundation/issues/243)) ([e2efe30](https://github.com/parallelworks/foundation/commit/e2efe301b464bdb97ac6c64eafab8147e4774977))
+
 ## [0.45.0](https://github.com/parallelworks/foundation/compare/ui-v0.44.0...ui-v0.45.0) (2026-10-13)
 
 

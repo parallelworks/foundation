@@ -7,6 +7,7 @@ import {
   ArrowDown,
   ArrowDownWideNarrow,
   ArrowLeft,
+  ArrowLeftRight,
   ArrowRight,
   ArrowUp,
   ArrowUpDown,
@@ -28,6 +29,7 @@ import {
   Building2,
   Calendar,
   CalendarClock,
+  CalendarSync,
   CalendarX,
   Camera,
   ChartLine,
@@ -53,6 +55,7 @@ import {
   CircleX,
   ClipboardCheck,
   ClipboardList,
+  ClipboardPen,
   Clock,
   Cloud,
   CloudCog,
@@ -84,6 +87,7 @@ import {
   FileImage,
   FileJson,
   FileKey,
+  FilePenLine,
   Files,
   FileText,
   FileType,
@@ -92,6 +96,7 @@ import {
   FlaskConical,
   Folder,
   FolderOpen,
+  FolderPlus,
   Folders,
   FolderTree,
   Funnel,
@@ -108,9 +113,11 @@ import {
   Handshake,
   HardDrive,
   HatGlasses,
+  Headset,
   Heart,
   HeartOff,
   History,
+  Hourglass,
   House,
   IdCard,
   Inbox,
@@ -129,15 +136,20 @@ import {
   ListVideo,
   LoaderCircle,
   Lock,
+  LogIn,
   LogOut,
   Logs,
   Mail,
+  MailCheck,
+  MailX,
   MapPin,
   MapPinned,
   Maximize,
   Megaphone,
   MemoryStick,
+  Menu,
   MessageSquare,
+  MessageSquareWarning,
   MessagesSquare,
   Minimize,
   Minimize2,
@@ -186,6 +198,7 @@ import {
   Sheet,
   Shield,
   ShieldOff,
+  ShieldUser,
   Smartphone,
   Sparkles,
   Square,
@@ -211,6 +224,7 @@ import {
   User,
   UserCheck,
   UserLock,
+  UserMinus,
   UserPlus,
   Users,
   UserX,
@@ -240,7 +254,7 @@ export type IconType = (props: IconProps) => ReactNode
 // another and the weight of the text beside them.
 const STROKE_WIDTH = 2
 
-/** The text's size and colour by default, so a class such as `size-4` or a
+/** The text's size and color by default, so a class such as `size-4` or a
  *  parent's font size sets it. */
 function icon(Glyph: LucideIcon, defaults?: LucideProps): IconType {
   function Icon({ title, children, ...props }: IconProps) {
@@ -273,6 +287,7 @@ const filled: LucideProps = { fill: 'currentColor' }
 
 export const AccessIcon = /* @__PURE__ */ icon(UserLock)
 export const AddIcon = /* @__PURE__ */ icon(Plus)
+export const AddProjectIcon = /* @__PURE__ */ icon(FolderPlus)
 export const AddUserIcon = /* @__PURE__ */ icon(UserPlus)
 export const AgentIcon = /* @__PURE__ */ icon(Bot)
 export const AllocationIcon = /* @__PURE__ */ icon(Wallet)
@@ -289,10 +304,10 @@ export const BriefcaseIcon = /* @__PURE__ */ icon(Briefcase)
 export const BucketIcon = /* @__PURE__ */ icon(PaintBucket)
 export const BuildWorkflowIcon = /* @__PURE__ */ icon(Wrench)
 export const CalendarIcon = /* @__PURE__ */ icon(Calendar)
-export const CalendarOffIcon = /* @__PURE__ */ icon(CalendarX)
 export const CancelIcon = /* @__PURE__ */ icon(Ban)
 export const CelebrateIcon = /* @__PURE__ */ icon(PartyPopper)
 export const CertificateIcon = /* @__PURE__ */ icon(FileKey)
+export const ChangesRequestedIcon = /* @__PURE__ */ icon(MessageSquareWarning)
 export const ChartIcon = /* @__PURE__ */ icon(ChartLine)
 export const ChatIcon = /* @__PURE__ */ icon(MessagesSquare)
 export const CheckIcon = /* @__PURE__ */ icon(Check)
@@ -314,6 +329,7 @@ export const CommentIcon = /* @__PURE__ */ icon(MessageSquare)
 export const CommitIcon = /* @__PURE__ */ icon(GitCommitHorizontal)
 export const ComputeIcon = /* @__PURE__ */ icon(CloudCog)
 export const ConnectIcon = /* @__PURE__ */ icon(PlugZap)
+export const ContractIcon = /* @__PURE__ */ icon(FilePenLine)
 export const CopyIcon = /* @__PURE__ */ icon(Copy)
 export const CustomizeIcon = /* @__PURE__ */ icon(WandSparkles)
 export const DesktopIcon = /* @__PURE__ */ icon(Monitor)
@@ -338,6 +354,8 @@ export const ErrorIcon = /* @__PURE__ */ icon(CircleAlert)
 export const EventsIcon = /* @__PURE__ */ icon(Logs)
 export const ExpandIcon = /* @__PURE__ */ icon(Maximize)
 export const ExpandVerticalIcon = /* @__PURE__ */ icon(ChevronsUpDown)
+export const ExpiredIcon = /* @__PURE__ */ icon(CalendarX)
+export const ExpiringIcon = /* @__PURE__ */ icon(Hourglass)
 export const ExpressionIcon = /* @__PURE__ */ icon(Braces)
 export const ExternalLinkIcon = /* @__PURE__ */ icon(ExternalLink)
 export const EyeIcon = /* @__PURE__ */ icon(Eye)
@@ -352,6 +370,7 @@ export const FilesystemIcon = /* @__PURE__ */ icon(Folders)
 export const FileTextIcon = /* @__PURE__ */ icon(FileText)
 export const FilterClearIcon = /* @__PURE__ */ icon(FunnelX)
 export const FilterIcon = /* @__PURE__ */ icon(Funnel)
+export const FlaggedIcon = /* @__PURE__ */ icon(Flag)
 export const FlaskIcon = /* @__PURE__ */ icon(FlaskConical)
 export const FolderIcon = /* @__PURE__ */ icon(Folder)
 export const FolderOpenIcon = /* @__PURE__ */ icon(FolderOpen)
@@ -392,7 +411,9 @@ export const LinkIcon = /* @__PURE__ */ icon(Link)
 export const ListViewIcon = /* @__PURE__ */ icon(List)
 export const LockIcon = /* @__PURE__ */ icon(Lock)
 export const MachineImageIcon = /* @__PURE__ */ icon(Disc3)
+export const MailFailedIcon = /* @__PURE__ */ icon(MailX)
 export const MailIcon = /* @__PURE__ */ icon(Mail)
+export const MailVerifiedIcon = /* @__PURE__ */ icon(MailCheck)
 export const MapPinIcon = /* @__PURE__ */ icon(MapPin)
 export const MarketplaceIcon = /* @__PURE__ */ icon(Store)
 export const MatrixIcon = /* @__PURE__ */ icon(Grid3x3)
@@ -407,6 +428,7 @@ export const MoonIcon = /* @__PURE__ */ icon(Moon)
 export const MoreIcon = /* @__PURE__ */ icon(Ellipsis)
 export const MusicIcon = /* @__PURE__ */ icon(Music)
 export const MuteIcon = /* @__PURE__ */ icon(BellOff)
+export const NavigationIcon = /* @__PURE__ */ icon(Menu)
 export const NetworkInterfaceIcon = /* @__PURE__ */ icon(EthernetPort)
 export const NewChatIcon = /* @__PURE__ */ icon(SquarePen)
 export const NodeIcon = /* @__PURE__ */ icon(Cpu)
@@ -420,6 +442,7 @@ export const PartnerIcon = /* @__PURE__ */ icon(Handshake)
 export const PasswordIcon = /* @__PURE__ */ icon(KeyRound)
 export const PauseIcon = /* @__PURE__ */ icon(Pause)
 export const PdfIcon = /* @__PURE__ */ icon(FileType)
+export const PendingIcon = /* @__PURE__ */ icon(Circle)
 export const PhoneIcon = /* @__PURE__ */ icon(Phone)
 export const PieChartIcon = /* @__PURE__ */ icon(ChartPie)
 export const PinFilledIcon = /* @__PURE__ */ icon(Pin, filled)
@@ -436,11 +459,14 @@ export const QuotaIcon = /* @__PURE__ */ icon(Gauge)
 export const RedoIcon = /* @__PURE__ */ icon(Redo2)
 export const RefreshIcon = /* @__PURE__ */ icon(RefreshCw)
 export const RemoveIcon = /* @__PURE__ */ icon(X)
+export const RemoveUserIcon = /* @__PURE__ */ icon(UserMinus)
 export const RenameIcon = /* @__PURE__ */ icon(PencilLine)
+export const RenewIcon = /* @__PURE__ */ icon(CalendarSync)
 export const ResetLayoutIcon = /* @__PURE__ */ icon(RotateCcwSquare)
 export const ResourceGroupIcon = /* @__PURE__ */ icon(Group)
 export const ResourceIcon = /* @__PURE__ */ icon(Boxes)
 export const RetryIcon = /* @__PURE__ */ icon(RotateCcw)
+export const RoleIcon = /* @__PURE__ */ icon(ShieldUser)
 export const RollbackIcon = /* @__PURE__ */ icon(UndoDot)
 export const RunningIcon = /* @__PURE__ */ icon(LoaderCircle)
 export const RunsIcon = /* @__PURE__ */ icon(ListVideo)
@@ -460,6 +486,7 @@ export const ShrinkIcon = /* @__PURE__ */ icon(Minimize)
 export const SidebarCloseIcon = /* @__PURE__ */ icon(PanelLeftClose)
 export const SidebarIcon = /* @__PURE__ */ icon(PanelLeft)
 export const SidebarOpenIcon = /* @__PURE__ */ icon(PanelLeftOpen)
+export const SignInIcon = /* @__PURE__ */ icon(LogIn)
 export const SignOutIcon = /* @__PURE__ */ icon(LogOut)
 export const SkipIcon = /* @__PURE__ */ icon(CircleMinus)
 export const SnapshotIcon = /* @__PURE__ */ icon(Camera)
@@ -476,9 +503,12 @@ export const SubdomainIcon = /* @__PURE__ */ icon(AtSign)
 export const SuccessIcon = /* @__PURE__ */ icon(CircleCheck)
 export const SummaryIcon = /* @__PURE__ */ icon(ClipboardList)
 export const SunIcon = /* @__PURE__ */ icon(Sun)
+export const SupportIcon = /* @__PURE__ */ icon(Headset)
+export const SwapIcon = /* @__PURE__ */ icon(ArrowLeftRight)
 export const TagIcon = /* @__PURE__ */ icon(Tag)
 export const TerminalIcon = /* @__PURE__ */ icon(Terminal)
 export const ThinkingIcon = /* @__PURE__ */ icon(Brain)
+export const TodoIcon = /* @__PURE__ */ icon(ClipboardPen)
 export const TrashIcon = /* @__PURE__ */ icon(Trash2)
 export const TunnelIcon = /* @__PURE__ */ icon(Route)
 export const UndoIcon = /* @__PURE__ */ icon(Undo2)

@@ -20,8 +20,10 @@ export interface SegmentedOption<T extends string> {
 
 /** A few mutually exclusive choices side by side, one always current, such as
  *  a time range or what to group by. To move between views or pages, use
- *  `Tabs` with `variant="segmented"`, which looks the same. Name it with
- *  `label`, or leave that out inside a `Field group`, whose legend names it. */
+ *  `Tabs` with `variant="segmented"`, which looks the same. To filter a list
+ *  by values that may all be off, or several at once, use `ToggleGroup`. Name
+ *  it with `label`, or leave that out inside a `Field group`, whose legend
+ *  names it. */
 export function SegmentedControl<T extends string>({
   label,
   options,
@@ -53,7 +55,7 @@ export function SegmentedControl<T extends string>({
       }}
     >
       {options.map((option) => (
-        // A labelled segment shows its name already; only an icon needs the tooltip.
+        // A labeled segment shows its name already; only an icon needs the tooltip.
         <Tooltip key={option.value} content={option.label} side="right" disabled={!iconOnly}>
           <Toggle
             value={option.value}

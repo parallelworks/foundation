@@ -32,9 +32,14 @@ Each need has one component. Reach for it before styling markup by hand.
 | Work under way | `Loader`; `Skeleton` in a `LoadingRegion` for the shape of content still loading |
 | Nothing to show yet, or nothing matches | `EmptyState` |
 | A text field | `Input`, `Textarea`, or a control framed by `Field`, whose `actions` hold buttons that act on it |
-| A number, a date | `NumberInput`, `DatePicker` |
+| A number, a date, a color | `NumberInput`, `DatePicker`, `ColorInput` |
+| A one-time code, such as a sign-in check | `OneTimeCodeInput` |
+| A labeled value nobody edits, among fields | `FieldValue` in a `Field`; `DescriptionList` for a set of them alone |
+| An error beside a control outside a `Field` | `ErrorText` |
+| A dense field in a toolbar or a table cell | any field control with `size="sm"`; a width in `className` wins, and `cx` merges classes the same way |
 | On or off | `Switch`; `Checkbox` in a list of things to tick, several of which may be on |
 | One of a few choices, all shown | `RadioGroup` in a form; `SegmentedControl` in a toolbar, or as a field's control in a `Field group` |
+| Narrowing a list by values, such as statuses: several at once, or one or none | `ToggleGroup` |
 | Narrowing what is shown by typing | `SearchInput`; `ListSearchControl` on a list page's toolbar |
 | A value from a list | `Select`, or `Combobox` when the list needs filtering |
 | Free text with suggestions, or tags | `Autocomplete`; `Combobox` with `multiple creatable` |
@@ -78,6 +83,12 @@ Some pairs look alike and are split on purpose:
   thing, each with its own panel or route. A `SegmentedControl` sets a value,
   such as a time range, that changes what one view shows. `Tabs` with
   `variant="segmented"` look the same, so the choice rests on what pressing does.
+- **SegmentedControl or ToggleGroup.** A `SegmentedControl` holds a setting
+  that always has exactly one value, such as a time range or which view of the
+  data to show. A `ToggleGroup` filters a list by values and may be off: its
+  options are pressed independently, or one or none with `multiple={false}`,
+  and `all` leads with an All option for "no filter". Each option can carry a
+  status dot or icon and a count.
 - **SearchInput or ListSearchControl.** A `SearchInput` is a box that is
   always shown and narrows what sits beside it, such as a panel's rows or a
   log's lines. `ListSearchControl` belongs to a list page's toolbar: it folds to
@@ -300,8 +311,8 @@ root:
 
 | Variable            | Meaning                                                                 |
 | ------------------- | ----------------------------------------------------------------------- |
-| `--app-inset-top`   | The height of a fixed top bar. A drawer starts below it.                |
-| `--app-inset-start` | The width of a fixed sidebar on the start side. A drawer at its widest leaves that strip, and never less than 2.5rem. |
+| `--app-inset-top`   | The height of a fixed top bar. Drawers and toasts start below it.       |
+| `--app-inset-start` | The width of a fixed sidebar on the start side. Toasts center over the page beside it, and a drawer at its widest leaves that strip, and never less than 2.5rem. Update it when the sidebar collapses. |
 
 ```ts
 document.documentElement.style.setProperty('--app-inset-top', '56px')
@@ -340,7 +351,7 @@ name is a meaning, such as `RetryIcon` or `WarningIcon`, drawn from
 stroke. Don't import `lucide-react` directly: a name here keeps one glyph per
 meaning across the apps.
 
-- **Size and colour:** an icon is `1em` square in `currentColor`, so it follows
+- **Size and color:** an icon is `1em` square in `currentColor`, so it follows
   the text around it. A class such as `size-4` or `h-3 w-3` sets another size,
   and `size` takes pixels.
 - **Accessibility:** an icon is decoration, hidden from assistive technology,
@@ -354,7 +365,11 @@ meaning across the apps.
   instance. `RemoveIcon` takes an item out of a list, while `CloseIcon` closes,
   dismisses or clears; they share the X glyph, the convention for both.
   `DestroyIcon` tears down what was provisioned, while `TrashIcon` deletes a
-  record.
+  record. `RemoveUserIcon` takes someone out of a group or project, while
+  `DisableUserIcon` turns off their account. `ChangesRequestedIcon` asks for
+  changes to something sent, while `FlaggedIcon` marks an item for attention.
+  `PendingIcon` is a requirement not met yet and `NotRunningIcon` a run not
+  started; they share the empty circle, so keep them out of the same list.
 - **Adding an icon:** pick the [Lucide glyph](https://lucide.dev/icons) and add
   `export const NameIcon = /* @__PURE__ */ icon(Glyph)` to `src/icons.tsx`,
   named for what it means rather than what it shows. Reuse an existing name
@@ -362,7 +377,7 @@ meaning across the apps.
 
 Logos of other companies' products, such as `GitHubIcon` or `UbuntuIcon`, are
 in `@parallelworks/ui/brand-icons`. They take the same props, are filled in the
-text's colour, and are only for naming the product. They come from Simple Icons
+text's color, and are only for naming the product. They come from Simple Icons
 (CC0) and Bootstrap Icons (MIT), and the file carries their notices.
 
 The `UI/Icons` story shows every icon and logo by name.

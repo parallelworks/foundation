@@ -95,7 +95,7 @@ export function Tabs<Value extends string>({
         <SegmentContent {...item} iconOnly={layout.iconOnly} />
       </BaseTabs.Tab>
     )
-    // A labelled tab shows its name already; only an icon needs the tooltip.
+    // A labeled tab shows its name already; only an icon needs the tooltip.
     return layout.iconOnly ? (
       <Tooltip key={item.value} content={item.label} side="right">
         {tab}
@@ -114,6 +114,10 @@ export function Tabs<Value extends string>({
       }}
       orientation={layout.iconOnly ? 'vertical' : 'horizontal'}
       data-testid={testId}
+      // Without panels the root holds only the row, so a sticky row would have
+      // no room to stick in and would scroll away with it. Dropping the root's
+      // box lets the row stick within the page that holds it.
+      className={children ? undefined : 'contents'}
     >
       {showRow && (
         <div

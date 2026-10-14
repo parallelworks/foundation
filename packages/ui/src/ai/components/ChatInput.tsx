@@ -286,7 +286,7 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput
 
   const uploadedCount = attachments.filter((a) => a.uploaded).length
   const pendingCount = attachments.length - uploadedCount
-  // A queue held across a cancelled or failed turn can be sent on its own.
+  // A queue held across a canceled or failed turn can be sent on its own.
   const canFlushQueue = !isStreaming && queuedCount > 0 && !disabled
   const { canSend, emphasised } = sendability({
     hasText: input.trim().length > 0 || cards.length > 0,
@@ -476,7 +476,7 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput
                       'theme-text block w-full resize-none overflow-hidden',
                       'bg-transparent border-0 px-4',
                       toolbar ? 'pt-3.5 pb-1' : 'pt-3 pb-1',
-                      'placeholder:theme-muted-text',
+                      'placeholder:text-(--theme-placeholder)',
                       'focus:outline-none focus:ring-0',
                       'disabled:opacity-50 disabled:cursor-not-allowed',
                       'text-[1rem] leading-relaxed',

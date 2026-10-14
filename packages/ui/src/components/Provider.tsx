@@ -36,6 +36,8 @@ export interface UIStrings {
     share: string
     send: string
     filter: string
+    /** A filter's choice that turns it off, showing everything. */
+    all: string
     loading: string
     loadMore: string
     showMore: string
@@ -116,6 +118,16 @@ export interface UIStrings {
     previousMonth: string
     nextMonth: string
   }
+  colorInput: {
+    /** Names the picker beside the hex field: the field's name, or none when it has no plain one. */
+    pick: (name?: string) => string
+    /** Under the hex field while what is typed isn't a color. */
+    invalid: string
+  }
+  oneTimeCode: {
+    /** Names each box after the first, which the field's label names. */
+    character: (position: number, length: number) => string
+  }
   theme: {
     /** Names the light, dark or system choice. */
     appearance: string
@@ -137,9 +149,6 @@ export interface UIStrings {
     sidebarAccent: string
     code: string
     codeStyle: (style: 'balanced' | 'vivid' | 'muted' | 'mono') => string
-    /** Names a color input's picker, beside its hex field. */
-    pick: (name: string) => string
-    invalidColor: string
     copy: string
     /** The thing a copy toast names. */
     copied: string
@@ -415,7 +424,7 @@ export interface UIStrings {
       failedTitle: string
       unknownTitle: string
       unknownShort: string
-      cancelled: string
+      canceled: string
       completed: string
       failed: string
       totalSize: string
@@ -426,9 +435,9 @@ export interface UIStrings {
       expandDetails: string
       minimizeDetails: string
       sessionNotQueued: (id: string, status: string) => string
-      allCancelled: (count: number) => string
+      allCanceled: (count: number) => string
       someUploaded: (count: number) => string
-      someCancelled: (count: number) => string
+      someCanceled: (count: number) => string
       allUploaded: string
       failedSummary: (failed: number, total: number) => string
       failReasonGeneric: string
@@ -688,6 +697,7 @@ const DEFAULTS: UIProviderValue = {
       share: 'Share',
       send: 'Send',
       filter: 'Filter',
+      all: 'All',
       loading: 'Loading…',
       loadMore: 'Load more',
       showMore: 'Show more',
@@ -756,6 +766,13 @@ const DEFAULTS: UIProviderValue = {
       previousMonth: 'Previous month',
       nextMonth: 'Next month',
     },
+    colorInput: {
+      pick: (name) => (name ? `Pick ${name.toLowerCase()}` : 'Pick a color'),
+      invalid: 'Enter a hex color, such as #1f6feb.',
+    },
+    oneTimeCode: {
+      character: (position, length) => `Character ${position} of ${length}`,
+    },
     theme: {
       appearance: 'Appearance',
       light: 'Light',
@@ -773,8 +790,6 @@ const DEFAULTS: UIProviderValue = {
       code: 'Code',
       codeStyle: (style) =>
         ({ balanced: 'Balanced', vivid: 'Vivid', muted: 'Muted', mono: 'Monochrome' })[style],
-      pick: (name) => `Pick ${name.toLowerCase()}`,
-      invalidColor: 'Enter a hex color, such as #1f6feb.',
       copy: 'Copy theme',
       copied: 'theme',
       import: 'Import theme',
@@ -1066,7 +1081,7 @@ const DEFAULTS: UIProviderValue = {
         failedTitle: 'Upload Failed',
         unknownTitle: 'Unknown Status',
         unknownShort: 'Unknown',
-        cancelled: 'Cancelled',
+        canceled: 'Canceled',
         completed: 'Completed',
         failed: 'Failed',
         totalSize: 'Total size:',
@@ -1077,9 +1092,9 @@ const DEFAULTS: UIProviderValue = {
         minimizeDetails: 'Minimize details',
         sessionNotQueued: (id: string, status: string) =>
           `Upload session with ID ${id} is not queued, current status is ${status}`,
-        allCancelled: (count: number) => `All ${count} file(s) were cancelled by user.`,
+        allCanceled: (count: number) => `All ${count} file(s) were canceled by user.`,
         someUploaded: (count: number) => `${count} file(s) uploaded successfully!`,
-        someCancelled: (count: number) => `${count} file(s) cancelled by user.`,
+        someCanceled: (count: number) => `${count} file(s) canceled by user.`,
         allUploaded: 'Upload file(s) successfully!',
         failedSummary: (failed: number, total: number) =>
           `${failed}/${total} files failed to upload:`,
@@ -1364,6 +1379,8 @@ export function UIProvider({
         common: { ...DEFAULTS.strings.common, ...strings?.common },
         dropdown: { ...DEFAULTS.strings.dropdown, ...strings?.dropdown },
         datePicker: { ...DEFAULTS.strings.datePicker, ...strings?.datePicker },
+        colorInput: { ...DEFAULTS.strings.colorInput, ...strings?.colorInput },
+        oneTimeCode: { ...DEFAULTS.strings.oneTimeCode, ...strings?.oneTimeCode },
         theme: { ...DEFAULTS.strings.theme, ...strings?.theme },
         logviewer: { ...DEFAULTS.strings.logviewer, ...strings?.logviewer },
         dag: { ...DEFAULTS.strings.dag, ...strings?.dag },
