@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useState } from 'react'
 import { expect, fireEvent, screen, userEvent, waitFor, within } from 'storybook/test'
-import { AddIcon, CopyIcon, RenameIcon, TrashIcon } from '../icons'
+import { AddIcon, CopyIcon, MoreIcon, RenameIcon, TrashIcon } from '../icons'
 import { MoreButton, rowContextMenuProps, useRowMenuActive } from '../list/rowMenu'
 import { ActionMenu } from './ActionMenu'
 import { type OpenMenu, useContextMenu } from './ContextMenu'
@@ -32,6 +32,7 @@ function useItems(): MenuEntry[] {
       label: 'Archive',
       disabled: true,
       disabledReason: 'Stop the cluster before archiving it',
+      onClick: () => {},
     },
     menuDivider,
     { label: 'Delete', icon: <TrashIcon />, destructive: true, onClick: () => {} },
@@ -68,6 +69,25 @@ export const Actions: StoryObj<{ align: 'start' | 'end' }> = {
     await userEvent.hover(screen.getByRole('menuitem', { name: 'Copy' }))
     const copyId = await screen.findByRole('menuitem', { name: 'Copy ID' })
     await waitFor(() => expect(copyId).toBeVisible())
+  },
+}
+
+/** With no `triggerClassName`, the trigger is a ghost icon button named by its
+ *  label, which its tooltip shows. */
+export const IconTrigger: StoryObj = {
+  render: function Render() {
+    return (
+      <div className="p-8">
+        <ActionMenu label="More actions" items={useItems()}>
+          <MoreIcon />
+        </ActionMenu>
+      </div>
+    )
+  },
+  play: async ({ canvasElement }) => {
+    const trigger = within(canvasElement).getByRole('button', { name: 'More actions' })
+    await userEvent.click(trigger)
+    await expect(await screen.findByRole('menu')).toBeVisible()
   },
 }
 

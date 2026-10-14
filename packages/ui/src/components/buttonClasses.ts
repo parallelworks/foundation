@@ -14,10 +14,11 @@ export interface ButtonStyle {
   iconOnly?: boolean | undefined
 }
 
+// Focus draws in --theme-focus, the token the theme solves for focus indicators.
 // Hover classes carry not-disabled and not-aria-disabled so a button that
 // can't be pressed doesn't react. Written out in full for Tailwind's scanner.
 const base =
-  'relative inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-md font-medium no-underline transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--theme-link) disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50'
+  'relative inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-md font-medium no-underline transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--theme-focus) disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50'
 
 const variants: Record<ButtonVariant, string> = {
   primary:
@@ -29,7 +30,7 @@ const variants: Record<ButtonVariant, string> = {
   ghost:
     'text-(--theme-muted-text-color) hover:not-disabled:not-aria-disabled:bg-(--theme-muted-panel-bg) hover:not-disabled:not-aria-disabled:text-(--theme-app) aria-pressed:bg-(--theme-muted-panel-bg) aria-pressed:text-(--theme-link) data-selected:bg-(--theme-muted-panel-bg) data-selected:text-(--theme-link) data-popup-open:bg-(--theme-muted-panel-bg) data-popup-open:text-(--theme-app)',
   danger:
-    'bg-(--theme-error) text-white hover:not-disabled:not-aria-disabled:bg-(--theme-error)/90',
+    'bg-(--theme-error-solid) text-white hover:not-disabled:not-aria-disabled:bg-(--theme-error-solid)/90',
 }
 
 // Each size names every box property once: a utility overriding another for the

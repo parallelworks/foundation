@@ -6,7 +6,7 @@ import { formatBytes } from '../format'
 import { Avatar } from './Avatar'
 import { Button } from './Button'
 import { buttonClasses } from './buttonClasses'
-import Callout from './Callout'
+import { Checkbox } from './Checkbox'
 import { Autocomplete, Combobox } from './Combobox'
 import { ConfirmModal } from './ConfirmModal'
 import { CreateModal, CreateModalSwitch } from './CreateModal'
@@ -15,9 +15,9 @@ import { EmptyState } from './EmptyState'
 import { ExternalLink } from './ExternalLink'
 import { InfoTip } from './InfoTip'
 import { Input } from './Input'
-import { Loader } from './Loader'
+import { positionKeys } from './keys'
 import { type BarTone, Meter, ProgressBar } from './Meter'
-import { Modal, ModalDescription, type ModalProps, ModalTitle } from './Modal'
+import { Modal, type ModalProps } from './Modal'
 import { NumberInput } from './NumberInput'
 import { Overview } from './Overview'
 import { RunStatusIcon, runStatusTone } from './RunStatusIcon'
@@ -26,7 +26,7 @@ import { SegmentedControl } from './SegmentedControl'
 import { Select } from './Select'
 import { StatusBadge, StatusDot } from './StatusBadge'
 import { Switch } from './Switch'
-import { CompactTable, Table } from './Table'
+import { type SortDirection, Table, type TableDensity } from './Table'
 import { Tooltip } from './Tooltip'
 
 const meta: Meta = {
@@ -85,23 +85,6 @@ export const Badges: StoryObj = {
   ),
 }
 
-/** Callouts in the theme's tones: a note for guidance, an alert for a warning or an error. */
-export const Feedback: StoryObj = {
-  render: () => (
-    <div className="flex flex-col gap-4 max-w-xl">
-      <Callout type="info">Informational callout with guidance.</Callout>
-      <Callout type="warning">Something needs attention.</Callout>
-      <Callout type="error">Something went wrong.</Callout>
-      <Loader label="Loading resources" size={40} />
-    </div>
-  ),
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(canvas.getAllByRole('alert')).toHaveLength(2)
-    await expect(canvas.getByRole('note')).toHaveTextContent('Informational callout')
-  },
-}
-
 /** A picture, or initials until it loads and when it fails; one image to assistive
  *  technology either way. */
 export const Avatars: StoryObj = {
@@ -117,10 +100,13 @@ export const Avatars: StoryObj = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('img', { name: 'Grace Hopper' })).toHaveTextContent('GH')
+    // The name says the presence the dot shows.
+    await expect(canvas.getByRole('img', { name: 'Grace Hopper, away' })).toHaveTextContent('GH')
     // A picture that fails keeps the initials.
     await waitFor(() =>
-      expect(canvas.getByRole('img', { name: 'Katherine Johnson' })).toHaveTextContent('KJ'),
+      expect(canvas.getByRole('img', { name: 'Katherine Johnson, offline' })).toHaveTextContent(
+        'KJ',
+      ),
     )
   },
 }
@@ -147,7 +133,9 @@ export const EmptyStates: StoryObj<{ variant: 'panel' | 'bare' }> = {
   ),
 }
 
-function ModalDemo({ align, dismissible }: Pick<ModalProps, 'align' | 'dismissible'>) {
+type ModalArgs = Pick<ModalProps, 'align' | 'dismissible' | 'size'> & { paragraphs: number }
+
+function ModalDemo({ align, dismissible, size = 'md', paragraphs = 1 }: Partial<ModalArgs>) {
   const [open, setOpen] = useState(false)
   return (
     <>
@@ -159,17 +147,21 @@ function ModalDemo({ align, dismissible }: Pick<ModalProps, 'align' | 'dismissib
         onClose={() => setOpen(false)}
         align={align}
         dismissible={dismissible}
-        className="w-[480px] max-w-full p-6"
-      >
-        <ModalTitle className="text-lg font-semibold">Release notes</ModalTitle>
-        <ModalDescription className="mt-1.5 text-sm text-(--theme-muted-text-color)">
-          Focus stays inside until the modal closes, then returns to the button that opened it.
-        </ModalDescription>
-        <div className="mt-5 flex justify-end">
-          <Button variant="primary" onClick={() => setOpen(false)}>
+        size={size}
+        title="Release notes"
+        description="Focus stays inside until the modal closes, then returns to the button that opened it."
+        footer={
+          <Button variant="primary" size="sm" onClick={() => setOpen(false)}>
             Done
           </Button>
-        </div>
+        }
+      >
+        {positionKeys(paragraphs, 'note').map((key) => (
+          <p key={key} className="mb-3 text-sm last:mb-0">
+            This version speeds up the scheduler, adds a retry policy to every job, and keeps logs
+            for thirty days instead of seven.
+          </p>
+        ))}
       </Modal>
     </>
   )
@@ -179,21 +171,40 @@ const openModal = async (canvasElement: HTMLElement, name = 'Open modal') => {
   await userEvent.click(within(canvasElement).getByRole('button', { name }))
 }
 
-/** A plain modal: Escape and the backdrop close it. */
-export const ModalStory: StoryObj<Pick<ModalProps, 'align' | 'dismissible'>> = {
+/** The standard layout: a title that names it, a description, a body and a footer. Escape
+ *  and the backdrop close it. */
+export const ModalStory: StoryObj<ModalArgs> = {
   name: 'Modal',
-  args: { align: 'top', dismissible: true },
+  args: { align: 'top', dismissible: true, size: 'md', paragraphs: 1 },
   argTypes: {
     align: { control: 'inline-radio', options: ['top', 'center'] },
     dismissible: { control: 'boolean', description: 'False ignores Escape and the backdrop.' },
+    size: { control: 'inline-radio', options: ['sm', 'md', 'lg', 'xl'] },
+    paragraphs: {
+      control: { type: 'range', min: 1, max: 30 },
+      description: 'How long the body runs.',
+    },
   },
   render: (args) => <ModalDemo {...args} />,
   play: async ({ canvasElement }) => {
     await openModal(canvasElement)
     const dialog = await screen.findByRole('dialog', { name: 'Release notes' })
     await waitFor(() => expect(dialog).toBeVisible())
-    await userEvent.keyboard('{Escape}')
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    await expect(dialog).toHaveAccessibleDescription(/Focus stays inside/)
+  },
+}
+
+/** A body taller than the window scrolls on its own, keeping the title and the footer in view. */
+export const ModalLongBody: StoryObj = {
+  name: 'Modal, long body',
+  render: () => <ModalDemo paragraphs={30} />,
+  play: async ({ canvasElement }) => {
+    await openModal(canvasElement)
+    const dialog = await screen.findByRole('dialog', { name: 'Release notes' })
+    await waitFor(() => expect(dialog).toBeVisible())
+    const done = within(dialog).getByRole('button', { name: 'Done' })
+    const bottom = done.getBoundingClientRect().bottom
+    await expect(bottom).toBeLessThanOrEqual(window.innerHeight)
   },
 }
 
@@ -211,6 +222,7 @@ export const ModalNotDismissible: StoryObj = {
 
 function ConfirmDemo({ destructive = false }: { destructive?: boolean }) {
   const [open, setOpen] = useState(false)
+  const [snapshots, setSnapshots] = useState(false)
   return (
     <>
       <Button variant="primary" onClick={() => setOpen(true)}>
@@ -226,7 +238,14 @@ function ConfirmDemo({ destructive = false }: { destructive?: boolean }) {
         }
         confirmLabel={destructive ? 'Delete' : 'Confirm'}
         onConfirm={() => setOpen(false)}
-      />
+      >
+        {destructive && (
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox checked={snapshots} onCheckedChange={setSnapshots} />
+            Also delete its snapshots
+          </label>
+        )}
+      </ConfirmModal>
     </>
   )
 }
@@ -269,6 +288,7 @@ function CreateModalDemo() {
         namePlaceholder="widget-name"
         validateName={(name) => (name.includes(' ') ? 'No spaces allowed' : null)}
         onSubmit={async () => true}
+        showFavorite
         properties={
           <CreateModalSwitch label="Public" checked={shared} onCheckedChange={setShared} />
         }
@@ -293,33 +313,116 @@ export const CreateModalStory: StoryObj = {
   },
 }
 
-export const Tables: StoryObj = {
-  render: () => (
+const clusters = [
+  { name: 'alpha', status: 'ready', region: 'us-east-1', nodes: 4 },
+  { name: 'gamma', status: 'ready', region: 'eu-west-2', nodes: 12 },
+  { name: 'beta', status: 'ready', region: 'us-west-2', nodes: 2 },
+]
+
+function TablesDemo({ density }: { density: TableDensity }) {
+  const [sort, setSort] = useState<{ key: 'name' | 'nodes'; direction: SortDirection }>({
+    key: 'name',
+    direction: 'ascending',
+  })
+  const sorted = [...clusters].sort((a, b) => {
+    const order = a[sort.key] < b[sort.key] ? -1 : a[sort.key] > b[sort.key] ? 1 : 0
+    return sort.direction === 'descending' ? -order : order
+  })
+  const sortBy = (key: 'name' | 'nodes') => () =>
+    setSort((now) => ({
+      key,
+      direction: now.key === key && now.direction === 'ascending' ? 'descending' : 'ascending',
+    }))
+  const directionOf = (key: 'name' | 'nodes'): SortDirection =>
+    sort.key === key ? sort.direction : 'none'
+  return (
     <div className="flex flex-col gap-6">
-      <Table roundedTop>
-        <Table.Header>Name</Table.Header>
+      <Table roundedTop density={density}>
+        <Table.Header sort={directionOf('name')} onSort={sortBy('name')}>
+          Name
+        </Table.Header>
         <Table.Header>Status</Table.Header>
         <Table.Header>Region</Table.Header>
-        {['alpha', 'beta'].map((name) => (
-          <tr key={name}>
-            <Table.Item>{name}</Table.Item>
+        <Table.Header sort={directionOf('nodes')} onSort={sortBy('nodes')} className="text-right">
+          Nodes
+        </Table.Header>
+        {sorted.map((cluster) => (
+          <tr key={cluster.name}>
+            <Table.Item>{cluster.name}</Table.Item>
             <Table.Item>
-              <StatusBadge variant="success">ready</StatusBadge>
+              <StatusBadge variant="success">{cluster.status}</StatusBadge>
             </Table.Item>
-            <Table.Item>us-east-1</Table.Item>
+            <Table.Item>{cluster.region}</Table.Item>
+            <Table.Item className="text-right tabular-nums">{cluster.nodes}</Table.Item>
           </tr>
         ))}
       </Table>
-      <CompactTable>
-        <CompactTable.Header>Key</CompactTable.Header>
-        <CompactTable.Header>Value</CompactTable.Header>
+      <Table density="compact" rounded>
+        <Table.Header>Key</Table.Header>
+        <Table.Header>Value</Table.Header>
         <tr>
-          <CompactTable.Item>version</CompactTable.Item>
-          <CompactTable.Item>0.3.0</CompactTable.Item>
+          <Table.Item>version</Table.Item>
+          <Table.Item>0.3.0</Table.Item>
         </tr>
-      </CompactTable>
+        <tr>
+          <Table.Item>channel</Table.Item>
+          <Table.Item>stable</Table.Item>
+        </tr>
+      </Table>
+    </div>
+  )
+}
+
+/** In a box that scrolls, `stickyHeader` keeps the column titles in view
+ *  while the rows pass under them. */
+export const StickyTableHeader: StoryObj<{ stickyHeader: boolean }> = {
+  args: { stickyHeader: true },
+  argTypes: { stickyHeader: { control: 'boolean' } },
+  render: ({ stickyHeader }) => (
+    // Sizes are inline: the package's stylesheet doesn't scan stories.
+    <div className="overflow-auto rounded-md border theme-border" style={{ height: '16rem' }}>
+      <Table borderless panel={false} stickyHeader={stickyHeader}>
+        <Table.Header>Name</Table.Header>
+        <Table.Header>Region</Table.Header>
+        <Table.Header className="text-right">Nodes</Table.Header>
+        {Array.from({ length: 24 }, (_, i) => {
+          const cluster = clusters[i % clusters.length] ?? clusters[0]
+          const name = `${cluster?.name}-${i + 1}`
+          return (
+            <tr key={name}>
+              <Table.Item>{name}</Table.Item>
+              <Table.Item>{cluster?.region}</Table.Item>
+              <Table.Item className="text-right tabular-nums">{cluster?.nodes}</Table.Item>
+            </tr>
+          )
+        })}
+      </Table>
     </div>
   ),
+}
+
+/** Column titles line up with the values under them. A sortable column's title is a
+ *  button that says its direction; an unsorted one shows its mark on hover and focus.
+ *  `compact` fits a short list of keys and values. */
+export const Tables: StoryObj<{ density: TableDensity }> = {
+  args: { density: 'comfortable' },
+  argTypes: { density: { control: 'inline-radio', options: ['comfortable', 'compact'] } },
+  render: (args) => <TablesDemo {...args} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const name = canvas.getByRole('columnheader', { name: 'Name' })
+    await expect(name).toHaveAttribute('aria-sort', 'ascending')
+    await expect(canvas.getByRole('columnheader', { name: 'Nodes' })).toHaveAttribute(
+      'aria-sort',
+      'none',
+    )
+    await expect(canvas.getByRole('columnheader', { name: 'Status' })).not.toHaveAttribute(
+      'aria-sort',
+    )
+    await userEvent.click(within(name).getByRole('button'))
+    await expect(name).toHaveAttribute('aria-sort', 'descending')
+    await expect(canvas.getAllByRole('row')[1]).toHaveTextContent('gamma')
+  },
 }
 
 function InputsDemo() {
@@ -447,9 +550,30 @@ export const InfoTips: StoryObj = {
   },
 }
 
+/** A thing's summary: its mark, name and kind, a row of badges, and its actions. */
+export const OverviewStory: StoryObj<{ loading: boolean }> = {
+  name: 'Overview',
+  args: { loading: false },
+  render: ({ loading }) => (
+    <Overview
+      className="max-w-xl"
+      loading={loading}
+      iconSize={48}
+      icon={<Avatar name="Grace Hopper" size="2xl" />}
+      name="gpu-trainer-01"
+      type="Cluster"
+      actions={<Button size="sm">Restart</Button>}
+    >
+      <StatusBadge variant="success" dot>
+        Running
+      </StatusBadge>
+    </Overview>
+  ),
+}
+
 export const OverviewLoading: StoryObj = {
   name: 'Overview loading',
-  render: () => <Overview Icon={null} name="Resource" loading className="max-w-sm gap-3" />,
+  render: () => <Overview icon={null} name="Resource" loading className="max-w-sm" />,
 }
 
 export const Switches: StoryObj<{
@@ -457,11 +581,13 @@ export const Switches: StoryObj<{
   disabled: boolean
   invalid: boolean
   stateNames: boolean
+  rightToLeft: boolean
 }> = {
-  args: { size: 'md', disabled: false, invalid: false, stateNames: true },
+  args: { size: 'md', disabled: false, invalid: false, stateNames: true, rightToLeft: false },
   argTypes: { size: { control: 'inline-radio', options: ['sm', 'md'] } },
-  render: ({ size, disabled, invalid, stateNames }) => (
-    <div className="flex flex-col gap-3 text-sm">
+  render: ({ size, disabled, invalid, stateNames, rightToLeft }) => (
+    // In a right-to-left page an on switch's thumb sits at the left, the end of the line.
+    <div dir={rightToLeft ? 'rtl' : undefined} className="flex flex-col gap-3 text-sm">
       <label className="flex items-center gap-2">
         <Switch size={size} disabled={disabled} aria-invalid={invalid || undefined} />
         Email notifications
@@ -503,10 +629,17 @@ export const Switches: StoryObj<{
   },
 }
 
+/** Switches in a right-to-left page, whose thumbs slide to the left when on. */
+export const SwitchesRightToLeft: typeof Switches = {
+  ...Switches,
+  args: { ...Switches.args, rightToLeft: true },
+}
+
+// Described as a Combobox's options are, so the two lists can be compared.
 const SIZES = [
-  { value: 'small', label: 'Small' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'large', label: 'Large', disabled: true },
+  { value: 'small', label: 'Small', description: '2 vCPU, 8 GB' },
+  { value: 'medium', label: 'Medium', description: '4 vCPU, 16 GB' },
+  { value: 'large', label: 'Large', description: '8 vCPU, 32 GB', disabled: true },
 ]
 
 function SelectsDemo({

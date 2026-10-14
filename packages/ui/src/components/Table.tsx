@@ -1,79 +1,100 @@
-import React from 'react'
+import React, { createContext, useContext } from 'react'
 import { cx } from '../cx'
+import { SortDownIcon, SortUnsortedIcon, SortUpIcon } from '../icons'
 import { Loader } from './Loader'
-import type { TDirection } from './Sort'
 
-interface IItemProps extends React.TdHTMLAttributes<HTMLTableCellElement> {
+/** Which way a column sorts, as `aria-sort` names it. */
+export type SortDirection = 'ascending' | 'descending' | 'none'
+
+/** `comfortable` gives each row room; `compact` fits a short key and value list. */
+export type TableDensity = 'comfortable' | 'compact'
+
+const DensityContext = createContext<TableDensity>('comfortable')
+
+// A header and the cells under it share their side padding, so a column's
+// title lines up with its values.
+const cellX = 'px-3'
+
+interface ItemProps extends React.TdHTMLAttributes<HTMLTableCellElement> {
+  /** Lets the text wrap; by default a cell keeps to one line. */
   wrap?: boolean
-  colspan?: number
 }
 
-function Item({ wrap = false, children, className, colspan = 1, ...tdProps }: IItemProps) {
-  const yPadding = className?.includes('py-') ? '' : 'py-4'
-  const xPadding = className?.includes('px-') ? '' : 'px-2'
-
+function Item({ wrap = false, children, className, ...tdProps }: ItemProps) {
+  const density = useContext(DensityContext)
   return (
     <td
       {...tdProps}
-      colSpan={colspan}
-      className={cx(yPadding, xPadding, wrap ? '' : 'whitespace-nowrap', className)}
+      className={cx(
+        cellX,
+        density === 'compact' ? 'py-1.5 text-sm' : 'py-4',
+        !wrap && 'whitespace-nowrap',
+        className,
+      )}
     >
       {children}
     </td>
   )
 }
 
-function CompactItem({ wrap = false, children, className, colspan = 1, ...tdProps }: IItemProps) {
-  return (
-    <td
-      {...tdProps}
-      colSpan={colspan}
-      className={cx('px-2 text-sm font-medium', !wrap && 'whitespace-nowrap', className)}
-    >
-      {children}
-    </td>
-  )
-}
-
-interface ITableHeaderProps {
+interface HeaderProps {
   children?: React.ReactNode
-  className?: string
+  className?: string | undefined
   style?: React.CSSProperties | undefined
-  colspan?: number
-  onClick?: (() => void) | undefined
-  sort?: TDirection | 'none'
-  /** When false, drops uppercase + tracking-wider for a sentence-case header. */
-  caps?: boolean
+  colSpan?: number | undefined
+  /** Which way the column sorts now. With `onSort`, the header is a button
+   *  that shows it; `none` for a sortable column that isn't the sorted one. */
+  sort?: SortDirection | undefined
+  /** Sorts by this column, or flips its direction. */
+  onSort?: (() => void) | undefined
+  /** False sets the title in sentence case instead of small capitals. */
+  caps?: boolean | undefined
 }
 
-function Header({
-  children,
-  className,
-  style,
-  colspan = 1,
-  onClick,
-  sort,
-  caps = true,
-}: ITableHeaderProps) {
-  const yPadding = className?.includes('py-') ? '' : 'py-3'
-  const xPadding = className?.includes('px-') ? '' : 'px-3'
-  const textAlign = className?.includes('text-') ? '' : 'text-left'
-  const casingClasses = caps ? 'uppercase tracking-wider' : ''
+const sortIcons = {
+  ascending: SortUpIcon,
+  descending: SortDownIcon,
+  none: SortUnsortedIcon,
+} as const
+
+function Header({ children, className, style, colSpan, sort, onSort, caps = true }: HeaderProps) {
+  const density = useContext(DensityContext)
+  const Icon = sortIcons[sort ?? 'none']
   return (
     <th
       scope="col"
-      colSpan={colspan}
+      colSpan={colSpan}
       style={style}
-      aria-sort={sort === 'unsorted' ? 'none' : sort}
-      className={cx(className, yPadding, xPadding, textAlign, 'text-xs font-medium', casingClasses)}
+      aria-sort={onSort ? (sort ?? 'none') : undefined}
+      className={cx(
+        cellX,
+        density === 'compact' ? 'py-2' : 'py-3',
+        'text-left text-xs font-medium',
+        caps && 'uppercase tracking-wider',
+        className,
+      )}
     >
-      {onClick ? (
+      {onSort ? (
         <button
           type="button"
-          onClick={onClick}
-          className="w-full cursor-pointer text-inherit [text-align:inherit] hover:opacity-80 transition-opacity"
+          onClick={onSort}
+          // In a right-aligned column the mark leads, so the title still lines up with the values.
+          className="group/sort -mx-1 -my-1 inline-flex cursor-pointer py-1 align-middle items-center gap-1 rounded px-1 text-inherit [text-transform:inherit] hover:text-(--theme-app) focus-visible:outline-2 focus-visible:outline-(--theme-link) in-[.text-right]:flex-row-reverse"
         >
           {children}
+          {/* Only the sorted column shows its mark at rest: a mark on every
+           * column is noise across the row. An unsorted one shows a faint mark
+           * under the pointer or keyboard focus, and always on a touch screen,
+           * which has no hover to find it with. Its space stays reserved, so
+           * the title never moves. */}
+          <Icon
+            aria-hidden="true"
+            className={cx(
+              'size-3.5 shrink-0',
+              (sort ?? 'none') === 'none' &&
+                'opacity-0 group-hover/sort:opacity-40 group-focus-visible/sort:opacity-40 pointer-coarse:opacity-40',
+            )}
+          />
         </button>
       ) : (
         children
@@ -82,8 +103,9 @@ function Header({
   )
 }
 
-interface ITableProps {
+interface TableProps {
   children?: React.ReactNode
+  density?: TableDensity | undefined
   borderless?: boolean
   /** When false, drops the theme-panel background. */
   panel?: boolean
@@ -95,6 +117,13 @@ interface ITableProps {
   rounded?: boolean
   roundedBottom?: boolean
   isLoading?: boolean
+  /** The header row stays in view while the rows scroll under it. It sticks
+   *  to the nearest scrolling ancestor, `--table-header-top` below its top
+   *  edge (0 unless an ancestor sets it), so the table no longer scrolls or
+   *  clips on its own: a box that scrolls itself is all a sticky header can
+   *  stick to. Its ancestor scrolls it sideways as well as down. Rows pass
+   *  under the header, so a `theadClassName` of your own needs a background. */
+  stickyHeader?: boolean | undefined
   /** Forwarded to the `<table>`, for attributes that must sit on the element owning
    *  the rows — `role='grid'`, aria-activedescendant, aria-rowcount. `className` is
    *  excluded because it is spread after the table's own classes; use the
@@ -118,13 +147,13 @@ const isHeaderChild = (child: unknown): boolean => {
   )
 }
 
-const getHeaders = (children: ReturnType<typeof React.Children.toArray>) =>
-  children.filter(isHeaderChild)
-
+/** Rows of values under a row of column titles. Put `Table.Header`s first among
+ *  the children, then `<tr>`s of `Table.Item`s. */
 export function Table({
+  density = 'comfortable',
   borderless = false,
   panel = true,
-  className = '',
+  className,
   wrapperClassName = '',
   tbodyClassName = 'divide-y',
   theadClassName = 'theme-muted-panel',
@@ -133,94 +162,59 @@ export function Table({
   rounded = false,
   roundedBottom = false,
   isLoading = false,
+  stickyHeader = false,
   tableProps,
-}: ITableProps) {
-  const ChildrenArr = React.Children.toArray(children)
-  const Headers = getHeaders(ChildrenArr)
+}: TableProps) {
+  const childList = React.Children.toArray(children)
   const hasOverflow = wrapperClassName.split(' ').some((cls) => cls.startsWith('overflow-'))
 
   return (
-    <div
-      aria-busy={isLoading}
-      className={cx(
-        'flex flex-col w-full',
-        !hasOverflow && 'overflow-hidden', // only apply overflow-hidden if no overflow is set
-        wrapperClassName,
-      )}
-    >
-      {isLoading ? (
-        <div className="flex justify-center items-center h-32">
-          <Loader />
-        </div>
-      ) : (
-        <div
-          className={cx(
-            'align-middle inline-block min-w-full overflow-x-auto',
-            panel && 'theme-panel',
-            !borderless && 'border theme-border',
-            rounded && 'rounded-2xl',
-            roundedBottom && 'rounded-b-2xl',
-            roundedTop && 'rounded-t-2xl',
-          )}
-        >
-          <table className={cx(className, 'min-w-full divide-y theme-border')} {...tableProps}>
-            <thead className={theadClassName}>
-              <tr>{Headers}</tr>
-            </thead>
-            <tbody className={tbodyClassName}>{ChildrenArr.filter((c) => !isHeaderChild(c))}</tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  )
-}
-
-export function CompactTable({
-  wrapperClassName = '',
-  className = '',
-  tbodyClassName = 'divide-y',
-  children,
-  roundedTop = false,
-  rounded = false,
-  roundedBottom = false,
-}: Pick<
-  ITableProps,
-  | 'wrapperClassName'
-  | 'className'
-  | 'tbodyClassName'
-  | 'children'
-  | 'roundedTop'
-  | 'rounded'
-  | 'roundedBottom'
->) {
-  const ChildrenArr = React.Children.toArray(children)
-  const Headers = getHeaders(ChildrenArr)
-  const hasOverflow = wrapperClassName.split(' ').some((cls) => cls.startsWith('overflow-'))
-
-  return (
-    <div
-      className={cx('flex flex-col w-full', !hasOverflow && 'overflow-hidden', wrapperClassName)}
-    >
+    <DensityContext value={density}>
       <div
+        aria-busy={isLoading}
         className={cx(
-          'theme-panel inline-block min-w-full align-middle overflow-x-auto',
-          rounded && 'rounded-2xl',
-          roundedBottom && 'rounded-b-2xl pb-1',
-          roundedTop && 'rounded-t-2xl',
+          'flex w-full flex-col',
+          !hasOverflow && !stickyHeader && 'overflow-hidden',
+          wrapperClassName,
         )}
       >
-        <table className={cx('min-w-full divide-y theme-border', className)}>
-          <thead className="theme-muted-panel">
-            <tr className="divide-x">{Headers}</tr>
-          </thead>
-          <tbody className={tbodyClassName}>{ChildrenArr.filter((c) => !isHeaderChild(c))}</tbody>
-        </table>
+        {isLoading ? (
+          <div className="flex h-32 items-center justify-center">
+            <Loader />
+          </div>
+        ) : (
+          <div
+            className={cx(
+              'inline-block min-w-full align-middle',
+              !stickyHeader && 'overflow-x-auto',
+              panel && 'theme-panel',
+              !borderless && 'border theme-border',
+              rounded && 'rounded-2xl',
+              roundedBottom && 'rounded-b-2xl',
+              roundedTop && 'rounded-t-2xl',
+            )}
+          >
+            <table className={cx('min-w-full divide-y theme-border', className)} {...tableProps}>
+              <thead
+                className={cx(
+                  // Collapsed borders stay where the row was, so the line under
+                  // a stuck header is a shadow that moves with it. It sits on
+                  // the sticky layer, under menus and popovers.
+                  stickyHeader &&
+                    'sticky top-(--table-header-top,0px) z-(--layer-sticky) border-b-0 shadow-[inset_0_-1px_0_var(--theme-border)]',
+                  theadClassName,
+                )}
+              >
+                <tr>{childList.filter(isHeaderChild)}</tr>
+              </thead>
+              <tbody className={tbodyClassName}>{childList.filter((c) => !isHeaderChild(c))}</tbody>
+            </table>
+          </div>
+        )}
       </div>
-    </div>
+    </DensityContext>
   )
 }
 
 Table.Header = Header
 Table.Item = Item
-CompactTable.Header = Header
-CompactTable.Item = CompactItem

@@ -2,18 +2,19 @@ import { Toast as BaseToast } from '@base-ui/react/toast'
 import { type ReactNode, useEffect, useId, useSyncExternalStore } from 'react'
 import { cx } from '../cx'
 import { CloseIcon, ErrorIcon, InfoIcon, SuccessIcon, WarningIcon } from '../icons'
+import { AppLink, type LinkTarget } from './AppLink'
 import { buttonClasses } from './buttonClasses'
 import { Loader } from './Loader'
 import { useStrings } from './Provider'
-import { toneText } from './tone'
+import { toneIcon } from './tone'
 
 export type ToastTone = 'info' | 'success' | 'warning' | 'error'
 
-export interface ToastAction {
-  label: ReactNode
-  /** Runs, then the toast closes. */
-  onClick: () => void
-}
+/** Runs `onClick`, or with `href` is a link, such as to what the toast reports
+ *  on; either way the toast then closes. */
+export type ToastAction =
+  | { label: ReactNode; onClick: () => void; href?: undefined }
+  | ({ label: ReactNode; onClick?: undefined } & LinkTarget & { href: string })
 
 export interface ToastOptions {
   /** Shows the toast in place of an open one with this id, rather than stacking another. */
@@ -67,6 +68,18 @@ interface ToastData {
   kind: Kind
   icon: boolean
   dismissible: boolean
+  /** An action that navigates, which Base UI's action button can't render. */
+  link?: ({ label: ReactNode } & LinkTarget) | undefined
+}
+
+// Base UI's toast action is a button, so an action with an href rides in the
+// toast's data and renders as a link instead.
+function actionFields(action: ToastAction) {
+  if (action.href === undefined) {
+    return { actionProps: { children: action.label, onClick: action.onClick }, link: undefined }
+  }
+  const { onClick: _, ...link } = action
+  return { actionProps: undefined, link }
 }
 
 const manager = BaseToast.createToastManager<ToastData>()
@@ -81,7 +94,7 @@ const TIMEOUT: Record<Kind, number> = {
 
 /** Everything a toast shows, from its kind's defaults and the options that override them. */
 function toastOptions(kind: Kind, message: ReactNode, options: Omit<ToastOptions, 'id'>) {
-  const { action } = options
+  const action = options.action && actionFields(options.action)
   return {
     type: kind,
     title: options.title,
@@ -89,11 +102,12 @@ function toastOptions(kind: Kind, message: ReactNode, options: Omit<ToastOptions
     // Base UI keeps a toast for a timeout of 0.
     timeout: options.timeout === false ? 0 : (options.timeout ?? TIMEOUT[kind]),
     priority: kind === 'error' ? ('high' as const) : ('low' as const),
-    actionProps: action && { children: action.label, onClick: action.onClick },
+    actionProps: action?.actionProps,
     data: {
       kind,
       icon: options.icon ?? true,
       dismissible: options.dismissible ?? kind !== 'loading',
+      link: action?.link,
     },
   }
 }
@@ -118,19 +132,19 @@ export const toast: Toaster = {
         return toastOptions(tone, message ?? previous.description, options)
       }
       const data = previous.data ?? { kind: 'info', icon: true, dismissible: true }
+      const action = options.action && actionFields(options.action)
       return {
         ...(message === undefined ? {} : { description: message }),
         ...('title' in options ? { title: options.title } : {}),
         ...(options.timeout === undefined
           ? {}
           : { timeout: options.timeout === false ? 0 : options.timeout }),
-        ...(options.action === undefined
-          ? {}
-          : { actionProps: { children: options.action.label, onClick: options.action.onClick } }),
+        ...(action ? { actionProps: action.actionProps } : {}),
         data: {
           kind: data.kind,
           icon: options.icon ?? data.icon,
           dismissible: options.dismissible ?? data.dismissible,
+          link: action ? action.link : data.link,
         },
       }
     })
@@ -232,14 +246,16 @@ const ICONS: Record<ToastTone, typeof InfoIcon> = {
 
 function ToneIcon({ tone }: { tone: ToastTone }) {
   const Icon = ICONS[tone]
-  return <Icon aria-hidden="true" className={cx('mt-0.5 size-4 shrink-0', toneText[tone])} />
+  return <Icon aria-hidden="true" className={cx('mt-0.5 size-4 shrink-0', toneIcon[tone])} />
 }
+
+const actionClasses = buttonClasses({ variant: 'outline', size: 'xs' })
 
 function ToastList() {
   const { toasts } = BaseToast.useToastManager<ToastData>()
   const { common } = useStrings()
   return toasts.map((item) => {
-    const { kind = 'info', icon = true, dismissible = true } = item.data ?? {}
+    const { kind = 'info', icon = true, dismissible = true, link } = item.data ?? {}
     return (
       <BaseToast.Root
         key={item.id}
@@ -257,7 +273,7 @@ function ToastList() {
           '[&[data-ending-style]:not([data-limited]):not([data-swipe-direction])]:[transform:translateY(-150%)]',
           'data-ending-style:data-[swipe-direction=up]:[transform:translateY(calc(var(--toast-swipe-movement-y)-150%))]',
           'data-ending-style:data-[swipe-direction=right]:[transform:translateX(calc(var(--toast-swipe-movement-x)+150%))_translateY(var(--offset-y))]',
-          'rounded-lg border border-(--theme-border) bg-(--theme-app-bg) text-(--theme-app) shadow-(--theme-shadow-lg) outline-none focus-visible:outline-2 focus-visible:outline-(--theme-link)',
+          'rounded-lg border border-(--theme-border) bg-(--theme-app-bg) text-(--theme-app) shadow-(--theme-shadow-lg) outline-hidden focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-(--theme-focus)',
           '[transition:transform_0.4s_cubic-bezier(0.22,1,0.36,1),opacity_0.4s,height_0.15s] motion-reduce:transition-none',
           "after:absolute after:inset-x-0 after:top-full after:h-[calc(var(--gap)+1px)] after:content-['']",
         )}
@@ -278,17 +294,28 @@ function ToastList() {
             <BaseToast.Description render={<div />} className="break-words" />
           </div>
           {item.actionProps && (
-            <BaseToast.Action
+            <BaseToast.Action onClick={() => manager.close(item.id)} className={actionClasses} />
+          )}
+          {link && (
+            <AppLink
+              href={link.href}
+              reloadDocument={link.reloadDocument}
+              target={link.target}
               onClick={() => manager.close(item.id)}
-              className={buttonClasses({ variant: 'outline', size: 'xs' })}
-            />
+              className={actionClasses}
+            >
+              {link.label}
+            </AppLink>
           )}
           {dismissible && (
             <BaseToast.Close
               aria-label={common.close}
-              className="-m-1 shrink-0 cursor-pointer rounded-md p-1 text-(--theme-muted-text-color) transition-colors hover:bg-(--theme-muted-panel-bg) hover:text-(--theme-app)"
+              className={cx(
+                buttonClasses({ variant: 'ghost', size: 'sm', iconOnly: true }),
+                '-m-1.5',
+              )}
             >
-              <CloseIcon className="size-4" />
+              <CloseIcon />
             </BaseToast.Close>
           )}
         </BaseToast.Content>

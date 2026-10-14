@@ -1,13 +1,26 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { Table } from '../components/Table'
+import { memoryStorage } from '../test/storage'
 import { openTooltip } from '../test/tooltip'
-import { ListRow, ListRowActionsProvider } from './ListPage'
-import { NameCell } from './ListTable'
-import type { ListViewChrome } from './listView'
+import { ListColumns, ListPage, ListRow, ListRowActionsProvider } from './ListPage'
+import { HEADERS_OFF, ListError, ListSelectAllHeader, listTableProps, NameCell } from './ListTable'
+import { ListDisplayMenu } from './ListViewControls'
+import { type ListViewChrome, useListView } from './listView'
+import type { RowAction } from './rowMenu'
 
 function renderRow(disabled: boolean, onSelect: () => void) {
+  return renderPinned({
+    key: 'stop',
+    label: 'Stop',
+    icon: <span data-testid="stop-icon" />,
+    onClick: onSelect,
+    disabled,
+  })
+}
+
+function renderPinned(action: RowAction) {
   return render(
     <table>
       <tbody>
@@ -16,15 +29,7 @@ function renderRow(disabled: boolean, onSelect: () => void) {
           items={[]}
           goTo={() => {}}
           openMenu={() => {}}
-          pinnedActions={[
-            {
-              key: 'stop',
-              label: 'Stop',
-              icon: <span data-testid="stop-icon" />,
-              onClick: onSelect,
-              disabled,
-            },
-          ]}
+          pinnedActions={[action]}
         >
           <Table.Item>row</Table.Item>
         </ListRow>
@@ -57,6 +62,23 @@ describe('ListRow pinned actions', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Stop' }))
     expect(onSelect).toHaveBeenCalledOnce()
+  })
+
+  it('copies a copy action’s text', () => {
+    const writeText = vi.fn(() => Promise.resolve())
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    renderPinned({ key: 'copy-id', label: 'Copy ID', copy: { text: 'c-1', label: 'ID' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy ID' }))
+    expect(writeText).toHaveBeenCalledWith('c-1')
+  })
+
+  it('warns about an action with no behavior', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    // A cast stands in for a JavaScript caller, which the types don't reach.
+    renderPinned({ key: 'restart', label: 'Restart' } as RowAction)
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('"Restart" has no onClick'))
+    warn.mockRestore()
   })
 })
 
@@ -175,5 +197,208 @@ describe('ListRow stacked columns', () => {
       </ListRowActionsProvider>,
     )
     expect(screen.getAllByRole('cell')[0]?.querySelector('[data-stacked]')).toBeNull()
+  })
+})
+
+describe('ListPage bleed', () => {
+  it("reaches past the host's padding only when asked", () => {
+    const { container, rerender } = render(<ListPage>rows</ListPage>)
+    expect(container.firstElementChild).not.toHaveClass('-m-4')
+    rerender(<ListPage bleed>rows</ListPage>)
+    expect(container.firstElementChild).toHaveClass('-m-4')
+  })
+})
+
+describe('ListError', () => {
+  it('announces the failure and names what failed', () => {
+    render(<ListError error={new Error('upstream timed out')} noun="clusters" />)
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load clusters")
+    expect(screen.getByRole('alert')).toHaveTextContent('upstream timed out')
+  })
+
+  it("falls back to the provider's noun", () => {
+    render(<ListError error={null} />)
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load data")
+  })
+})
+
+type Host = { name: string; nodes: number; favorite: boolean }
+
+const HOSTS: Host[] = [
+  { name: 'beta', nodes: 1, favorite: false },
+  { name: 'alpha', nodes: 3, favorite: true },
+  { name: 'gamma', nodes: 2, favorite: false },
+]
+
+function SortableList({ favorites = false }: { favorites?: boolean }) {
+  const view = useListView<Host>({
+    storageKey: 'sortable-list',
+    columns: [
+      { key: 'name', label: 'Name', alwaysVisible: true, orderBy: 'name' },
+      { key: 'nodes', label: 'Nodes', orderBy: 'nodes' },
+      // Names an order the view doesn't offer, so it stays a plain title.
+      { key: 'owner', label: 'Owner', orderBy: 'owner' },
+    ],
+    orderBys: [
+      { value: 'name', label: 'Name', compare: (a, b) => a.name.localeCompare(b.name) },
+      { value: 'nodes', label: 'Nodes', compare: (a, b) => a.nodes - b.nodes },
+    ],
+    ...(favorites && { isFavorite: (row: Host) => row.favorite }),
+  })
+  return (
+    <>
+      <ListDisplayMenu view={view} />
+      <Table {...listTableProps}>
+        <ListColumns view={view} />
+        {view.applyOrder(HOSTS).map((row) => (
+          <tr key={row.name}>
+            <Table.Item>{row.name}</Table.Item>
+            <Table.Item>{row.nodes}</Table.Item>
+            <Table.Item />
+          </tr>
+        ))}
+      </Table>
+    </>
+  )
+}
+
+const header = (name: string) => screen.getByRole('columnheader', { name })
+const names = () =>
+  screen
+    .getAllByRole('row')
+    .slice(1)
+    .map((row) => row.firstChild?.textContent)
+const openDisplay = () => fireEvent.click(screen.getByRole('button', { name: 'Display options' }))
+
+describe('ListColumns sorting', () => {
+  beforeEach(() => {
+    Object.defineProperty(window, 'localStorage', { value: memoryStorage(), configurable: true })
+  })
+
+  it('marks the column the list orders by, and only sortable columns', () => {
+    render(<SortableList />)
+    expect(header('Name')).toHaveAttribute('aria-sort', 'ascending')
+    expect(header('Nodes')).toHaveAttribute('aria-sort', 'none')
+    expect(header('Owner')).not.toHaveAttribute('aria-sort')
+    expect(within(header('Owner')).queryByRole('button')).toBeNull()
+  })
+
+  it('orders by an unsorted column ascending, then flips it, and Display options follows', () => {
+    render(<SortableList />)
+    fireEvent.click(within(header('Nodes')).getByRole('button'))
+    expect(header('Nodes')).toHaveAttribute('aria-sort', 'ascending')
+    expect(header('Name')).toHaveAttribute('aria-sort', 'none')
+    expect(names()).toEqual(['beta', 'gamma', 'alpha'])
+
+    fireEvent.click(within(header('Nodes')).getByRole('button'))
+    expect(header('Nodes')).toHaveAttribute('aria-sort', 'descending')
+    expect(names()).toEqual(['alpha', 'gamma', 'beta'])
+
+    openDisplay()
+    expect(screen.getByRole('combobox', { name: 'Ordering' })).toHaveTextContent('Nodes')
+    expect(screen.getByRole('button', { name: 'Descending' })).toBeInTheDocument()
+  })
+
+  it('a third click flips it back rather than dropping the order', () => {
+    render(<SortableList />)
+    const nodes = () => within(header('Nodes')).getByRole('button')
+    fireEvent.click(nodes())
+    fireEvent.click(nodes())
+    fireEvent.click(nodes())
+    expect(header('Nodes')).toHaveAttribute('aria-sort', 'ascending')
+  })
+
+  it('follows Display options', async () => {
+    render(<SortableList />)
+    openDisplay()
+    fireEvent.click(screen.getByRole('button', { name: 'Ascending' }))
+    expect(header('Name')).toHaveAttribute('aria-sort', 'descending')
+    expect(names()).toEqual(['gamma', 'beta', 'alpha'])
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Ordering' }))
+    const nodes = await screen.findByRole('option', { name: 'Nodes' })
+    // Base UI commits a mouse click only when the press started on the option.
+    fireEvent.pointerDown(nodes)
+    fireEvent.click(nodes)
+    await waitFor(() => expect(header('Nodes')).toHaveAttribute('aria-sort', 'descending'))
+    expect(header('Name')).toHaveAttribute('aria-sort', 'none')
+  })
+
+  it('persists the order a header picks', () => {
+    const { unmount } = render(<SortableList />)
+    fireEvent.click(within(header('Nodes')).getByRole('button'))
+    unmount()
+    render(<SortableList />)
+    expect(header('Nodes')).toHaveAttribute('aria-sort', 'ascending')
+  })
+
+  it('shows no column as sorted under the built-in default order', () => {
+    render(<SortableList favorites />)
+    expect(header('Name')).toHaveAttribute('aria-sort', 'none')
+    expect(header('Nodes')).toHaveAttribute('aria-sort', 'none')
+    fireEvent.click(within(header('Name')).getByRole('button'))
+    expect(header('Name')).toHaveAttribute('aria-sort', 'ascending')
+  })
+
+  it('keeps the header row in view as the rows scroll', () => {
+    render(<SortableList />)
+    const thead = screen.getAllByRole('rowgroup')[0]
+    expect(thead?.tagName).toBe('THEAD')
+    expect(thead).toHaveClass('sticky', 'top-(--table-header-top,0px)', 'z-(--layer-sticky)')
+  })
+})
+
+describe('ListColumns with headers off', () => {
+  beforeEach(() => {
+    Object.defineProperty(window, 'localStorage', { value: memoryStorage(), configurable: true })
+  })
+
+  it('collapses the header row when Display options turns headers off, keeping its cells', () => {
+    render(<SortableList />)
+    const thead = screen.getAllByRole('rowgroup')[0] as HTMLElement
+    // The list's own thead class collapses the row once a cell carries the marker.
+    expect(thead).toHaveClass('has-[.list-headers-off]:collapse')
+    expect(thead.querySelector(`.${HEADERS_OFF}`)).toBeNull()
+
+    openDisplay()
+    fireEvent.click(screen.getByRole('switch', { name: 'Show column headers' }))
+    // The columns' cells stay to size the columns; the actions header rides along.
+    expect(thead.querySelectorAll(`th.${HEADERS_OFF}`)).toHaveLength(3)
+  })
+})
+
+describe('ListSelectAllHeader', () => {
+  const renderHeader = (selected: number, total: number, onToggle = () => {}) =>
+    render(
+      <Table>
+        <ListSelectAllHeader selected={selected} total={total} onToggle={onToggle} />
+      </Table>,
+    )
+  const box = () => screen.getByRole('checkbox', { name: 'Select all' })
+
+  it('sits in the header row', () => {
+    renderHeader(0, 3)
+    expect(box().closest('thead')).not.toBeNull()
+  })
+
+  it('is clear with nothing selected, mixed with some, and ticked with all', () => {
+    const { unmount } = renderHeader(0, 3)
+    expect(box()).toHaveAttribute('aria-checked', 'false')
+    unmount()
+    const some = renderHeader(1, 3)
+    expect(box()).toHaveAttribute('aria-checked', 'mixed')
+    some.unmount()
+    renderHeader(3, 3)
+    expect(box()).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('toggles on press, and is off with no rows', () => {
+    const onToggle = vi.fn()
+    const { unmount } = renderHeader(1, 3, onToggle)
+    fireEvent.click(box())
+    expect(onToggle).toHaveBeenCalledOnce()
+    unmount()
+    renderHeader(0, 0)
+    expect(box()).toHaveAttribute('aria-disabled', 'true')
   })
 })

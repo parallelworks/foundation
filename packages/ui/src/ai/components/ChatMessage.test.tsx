@@ -203,7 +203,7 @@ describe('ChatMessage', () => {
       render(<ChatMessage {...defaultProps} message={message} isEditing />)
 
       expect(screen.getByRole('textbox')).toBeInTheDocument()
-      expect(screen.getByPlaceholderText('Edit your message...')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('Edit your message…')).toBeInTheDocument()
     })
 
     it('pre-fills textarea with message content', () => {
@@ -327,6 +327,12 @@ describe('ChatMessage', () => {
       await waitFor(() => {
         expect(screen.getByRole('button', { name: 'Copy message' })).toBeInTheDocument()
       })
+    })
+
+    it('offers no copy for a failed reply with nothing to copy', () => {
+      const message = createMockMessage({ role: 'assistant', content: '', error: 'Rate limited' })
+      render(<ChatMessage {...defaultProps} message={message} />)
+      expect(screen.queryByRole('button', { name: 'Copy message' })).not.toBeInTheDocument()
     })
 
     it('shows regenerate button for assistant messages', () => {

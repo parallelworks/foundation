@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import { expect, userEvent, within } from 'storybook/test'
 import {
   makeAgentTurn,
   makeApprovalPart,
@@ -10,8 +11,9 @@ import {
   makeWriteFilePart,
   useStreamedText,
 } from '../../stories/harness'
+import { defaultChatStrings } from '../../strings'
 import type { ToolCallStatus } from '../../types'
-import ActivityLine, { activityWords } from './ActivityLine'
+import ActivityLine from './ActivityLine'
 import AgentMessageParts from './AgentMessageParts'
 
 const meta: Meta = {
@@ -139,6 +141,33 @@ export const Approvals: StoryObj<{
   ),
 }
 
+// Denying with a reason: the field takes focus, says what it is for, and Enter
+// sends it.
+export const ApprovalFeedback: StoryObj<{ kind: 'confirm' | 'ask' }> = {
+  args: { kind: 'confirm' },
+  argTypes: { kind: { control: 'inline-radio', options: ['confirm', 'ask'] } },
+  render: (args) => (
+    <AgentMessageParts
+      message={makeMessage({ content: null, parts: [makeApprovalPart(args)] })}
+      onApprovalAnswer={logAnswer}
+    />
+  ),
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(
+      canvas.getByRole('button', {
+        name: args.kind === 'confirm' ? /provide feedback/ : /Write my own answer/,
+      }),
+    )
+    const field = canvas.getByRole('textbox')
+    await expect(field).toHaveFocus()
+    await userEvent.type(
+      field,
+      args.kind === 'confirm' ? 'Scale the deployment to zero instead' : 'Only the failed shards',
+    )
+  },
+}
+
 export const TodoChecklist: StoryObj<{ pending: number; completed: number }> = {
   args: { pending: 2, completed: 2 },
   argTypes: {
@@ -250,7 +279,7 @@ export const Activity: StoryObj<{
     stoppable: true,
   },
   argTypes: {
-    word: { control: 'select', options: [...activityWords] },
+    word: { control: 'select', options: [...defaultChatStrings.activity.words] },
     minutesRunning: { control: { type: 'range', min: 0, max: 90 } },
   },
   render: ({ word, minutesRunning, inputTokens, outputTokens, stoppable }) => (

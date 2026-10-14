@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { memo, type ReactNode, useEffect, useId, useMemo, useState } from 'react'
 import { Disclosure } from '../../../components/Disclosure'
 import { fieldBox } from '../../../components/fieldBox'
+import { focusOnMount } from '../../../components/focus'
 import { Loader } from '../../../components/Loader'
 import { useStrings } from '../../../components/Provider'
 import { cx } from '../../../cx'
@@ -216,7 +217,7 @@ function ResultBody({ part }: { part: ToolCallPart }) {
           onClick={() => setShowAll(true)}
           className="text-xs text-(--theme-link) hover:underline"
         >
-          {t.moreLines.replace('{count}', String(hidden))}
+          {t.moreLines(hidden)}
         </button>
       )}
       {showAll && lines.length > COLLAPSED_RESULT_LINES && (
@@ -232,14 +233,40 @@ function ResultBody({ part }: { part: ToolCallPart }) {
   )
 }
 
+/** A status mark, which color alone tells apart, with its status in words for
+ *  a screen reader. */
+function StatusMark({ status, children }: { status: string; children: ReactNode }) {
+  return (
+    <>
+      <span aria-hidden="true" className="contents">
+        {children}
+      </span>
+      <span className="sr-only">{status}</span>
+    </>
+  )
+}
+
 function ToolStatusDot({ part }: { part: ToolCallPart }) {
+  const t = useChatConfig().strings.agentTranscript
   if (part.status === 'running') {
-    return <Loader inline decorative size={14} color="var(--theme-muted-text-color)" />
+    return (
+      <StatusMark status={t.running}>
+        <Loader inline decorative size={14} color="var(--theme-muted-text-color)" />
+      </StatusMark>
+    )
   }
   if (part.status === 'error') {
-    return <span className="text-red-500 leading-none">●</span>
+    return (
+      <StatusMark status={t.failed}>
+        <span className="text-red-500 leading-none">●</span>
+      </StatusMark>
+    )
   }
-  return <span className="text-green-600 leading-none">●</span>
+  return (
+    <StatusMark status={t.done}>
+      <span className="text-green-600 leading-none">●</span>
+    </StatusMark>
+  )
 }
 
 /** A part's toggle row: its status mark and name, across the transcript's width. */
@@ -288,7 +315,7 @@ function ToolCallBlock({ part }: { part: ToolCallPart }) {
         <div
           className={cx(
             'ml-5 mt-0.5 text-[13px]',
-            part.status === 'error' ? 'text-(--theme-error)' : 'theme-muted-text',
+            part.status === 'error' ? 'text-(--theme-error-text)' : 'theme-muted-text',
           )}
         >
           {summary}
@@ -328,21 +355,27 @@ function SubagentCard({ part }: { part: SubagentPart }) {
         summaryClassName={rowSummaryClasses}
         summary={
           <>
-            {part.status === 'running' ? (
-              <span className="mt-[3px]">
-                <Loader inline decorative size={14} color="var(--theme-muted-text-color)" />
-              </span>
-            ) : (
-              <span
-                className={cx(
-                  'leading-none',
-                  part.status === 'failed' ? 'text-(--theme-error)' : 'text-(--theme-success)',
-                )}
-                style={color && part.status !== 'failed' ? { color } : undefined}
-              >
-                ●
-              </span>
-            )}
+            <StatusMark
+              status={
+                part.status === 'running' ? t.running : part.status === 'failed' ? t.failed : t.done
+              }
+            >
+              {part.status === 'running' ? (
+                <span className="mt-[3px]">
+                  <Loader inline decorative size={14} color="var(--theme-muted-text-color)" />
+                </span>
+              ) : (
+                <span
+                  className={cx(
+                    'leading-none',
+                    part.status === 'failed' ? 'text-(--theme-error)' : 'text-(--theme-success)',
+                  )}
+                  style={color && part.status !== 'failed' ? { color } : undefined}
+                >
+                  ●
+                </span>
+              )}
+            </StatusMark>
             <span className="font-mono text-[13px] leading-5 min-w-0 truncate">
               <span className="font-semibold">{label}</span>
               {part.description && <span className="theme-muted-text">({part.description})</span>}
@@ -351,7 +384,7 @@ function SubagentCard({ part }: { part: SubagentPart }) {
         }
         panelClassName={cx(
           'ml-5 mt-0.5 space-y-1 text-[13px]',
-          part.status === 'failed' ? 'text-(--theme-error)' : 'theme-muted-text',
+          part.status === 'failed' ? 'text-(--theme-error-text)' : 'theme-muted-text',
         )}
       >
         {actions.length > 0 && (
@@ -373,7 +406,7 @@ function SubagentCard({ part }: { part: SubagentPart }) {
         <div
           className={cx(
             'ml-5 mt-0.5 text-[13px]',
-            part.status === 'failed' ? 'text-(--theme-error)' : 'theme-muted-text',
+            part.status === 'failed' ? 'text-(--theme-error-text)' : 'theme-muted-text',
           )}
         >
           {outcome}
@@ -445,28 +478,31 @@ function ConfirmApproval({
           </button>
         </div>
       ) : (
-        <div className="flex gap-2">
+        <form
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (feedback.trim()) {
+              answer({ kind: 'confirm', allowed: false, denyMessage: feedback.trim() })
+            }
+          }}
+        >
           <input
+            ref={focusOnMount}
             value={feedback}
             onChange={(e) => setFeedback(e.target.value)}
+            aria-label={t.feedbackLabel}
             placeholder={t.feedbackPlaceholder}
             className={cx(fieldBox({ size: 'sm' }), 'flex-1')}
           />
           <button
-            type="button"
+            type="submit"
             disabled={!feedback.trim()}
-            onClick={() =>
-              answer({
-                kind: 'confirm',
-                allowed: false,
-                denyMessage: feedback.trim(),
-              })
-            }
             className="px-3 py-1 text-xs font-medium rounded-full bg-(--theme-accent) text-(--theme-accent-text) disabled:opacity-50"
           >
             {common.send}
           </button>
-        </div>
+        </form>
       )}
     </>
   )
@@ -523,21 +559,31 @@ function AskApproval({
           </button>
         </div>
       ) : (
-        <div className="flex gap-2">
+        <form
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (own.trim()) {
+              answer(own.trim())
+            }
+          }}
+        >
           <input
+            ref={focusOnMount}
             value={own}
             onChange={(e) => setOwn(e.target.value)}
+            aria-label={t.ownAnswerLabel}
+            placeholder={t.ownAnswerLabel}
             className={cx(fieldBox({ size: 'sm' }), 'flex-1')}
           />
           <button
-            type="button"
+            type="submit"
             disabled={!own.trim()}
-            onClick={() => answer(own.trim())}
             className="px-3 py-1 text-xs font-medium rounded-full bg-(--theme-accent) text-(--theme-accent-text) disabled:opacity-50"
           >
             {common.send}
           </button>
-        </div>
+        </form>
       )}
     </>
   )
@@ -552,6 +598,8 @@ export function ApprovalBlock({
 }) {
   const { strings } = useChatConfig()
   const t = strings.agentTranscript
+  const headingId = useId()
+  const heading = part.header ?? part.toolName
   if (part.resolved) {
     return (
       <div
@@ -570,12 +618,18 @@ export function ApprovalBlock({
     )
   }
   return (
-    <div
-      className="my-1.5 rounded-lg border border-(--theme-accent) p-3 space-y-2"
+    // A question the turn waits on: one named group, so a screen reader hears
+    // what is being asked before the answers.
+    <fieldset
+      aria-labelledby={heading ? headingId : undefined}
+      aria-label={heading ? undefined : t.approvalLabel}
+      className="my-1.5 min-w-0 rounded-lg border border-(--theme-accent) p-3 space-y-2"
       data-testid="approval-part"
     >
-      {(part.header || part.toolName) && (
-        <div className="text-xs font-semibold">{part.header ?? part.toolName}</div>
+      {heading && (
+        <div id={headingId} className="text-xs font-semibold">
+          {heading}
+        </div>
       )}
       {part.approvalKind === 'confirm' ? (
         <ConfirmApproval part={part} onAnswer={onApprovalAnswer} />
@@ -584,7 +638,7 @@ export function ApprovalBlock({
       ) : (
         <AskApproval part={part} onAnswer={onApprovalAnswer} />
       )}
-    </div>
+    </fieldset>
   )
 }
 
@@ -620,8 +674,15 @@ function TodoSnapshotBlock({ part }: { part: TodoSnapshotPart }) {
               todo.status === 'in_progress' && 'font-semibold',
             )}
           >
-            <span className="select-none font-mono">
+            <span aria-hidden="true" className="select-none font-mono">
               {todo.status === 'completed' ? '✔' : todo.status === 'in_progress' ? '■' : '□'}
+            </span>
+            <span className="sr-only">
+              {todo.status === 'completed'
+                ? t.todoCompleted
+                : todo.status === 'in_progress'
+                  ? t.todoInProgress
+                  : t.todoPending}
             </span>
             <span>
               {todo.status === 'in_progress' && todo.activeForm ? todo.activeForm : todo.content}
@@ -673,7 +734,13 @@ function NoticeBlock({ part }: { part: NoticePart }) {
 /** The TUI's thought, drawn like a chat reply's: while it streams its label
  *  shimmers over the latest lines, then it folds to the label and opens in
  *  place on request. */
-function ReasoningBlock({ part, isStreaming }: { part: ReasoningPart; isStreaming?: boolean }) {
+const ReasoningBlock = memo(function ReasoningBlock({
+  part,
+  isStreaming,
+}: {
+  part: ReasoningPart
+  isStreaming?: boolean
+}) {
   const { strings } = useChatConfig()
   const t = strings.thinking
   const [expanded, setExpanded] = useState(false)
@@ -713,7 +780,7 @@ function ReasoningBlock({ part, isStreaming }: { part: ReasoningPart; isStreamin
       </Reasoning>
     </div>
   )
-}
+})
 
 function TextBlock({ part, isStreaming }: { part: TextPart; isStreaming?: boolean }) {
   return (
@@ -729,18 +796,38 @@ function PartDispatch(props: PartRendererProps) {
   if (Override) {
     return <Override {...props} />
   }
-  const { part } = props
+  return (
+    <BuiltinPart
+      part={props.part}
+      isStreaming={props.isStreaming ?? false}
+      onApprovalAnswer={props.onApprovalAnswer}
+    />
+  )
+}
+
+/** The package's own drawing of a part. Memoized on the part itself, which
+ *  keeps its identity until a delta changes it, so a streamed token re-renders
+ *  only the part it lands in, not every finished call and answer before it. */
+const BuiltinPart = memo(function BuiltinPart({
+  part,
+  isStreaming,
+  onApprovalAnswer,
+}: {
+  part: MessagePart
+  isStreaming: boolean
+  onApprovalAnswer: PartRendererProps['onApprovalAnswer']
+}) {
   switch (part.kind) {
     case 'text':
-      return <TextBlock part={part} isStreaming={props.isStreaming ?? false} />
+      return <TextBlock part={part} isStreaming={isStreaming} />
     case 'reasoning':
-      return <ReasoningBlock part={part} isStreaming={props.isStreaming ?? false} />
+      return <ReasoningBlock part={part} isStreaming={isStreaming} />
     case 'tool_call':
       return <ToolCallBlock part={part} />
     case 'subagent':
       return <SubagentCard part={part} />
     case 'approval':
-      return <ApprovalBlock part={part} onApprovalAnswer={props.onApprovalAnswer} />
+      return <ApprovalBlock part={part} onApprovalAnswer={onApprovalAnswer} />
     case 'notice':
     case 'warning':
     case 'error':
@@ -750,7 +837,7 @@ function PartDispatch(props: PartRendererProps) {
     default:
       return null
   }
-}
+})
 
 type RunMember = { part: ToolCallPart | ReasoningPart; index: number }
 
@@ -767,6 +854,10 @@ function isReasoning(m: RunMember): m is { part: ReasoningPart; index: number } 
 /** Two thoughts with nothing visible between them read as one, not as a
  *  stack of identical lines. */
 function mergeReasoning(parts: ReasoningPart[]): ReasoningPart {
+  // A lone thought keeps its identity, so its memoized block holds.
+  if (parts.length === 1 && parts[0]) {
+    return parts[0]
+  }
   const durationMs = parts.reduce((sum, p) => sum + (p.durationMs ?? 0), 0)
   return {
     kind: 'reasoning',

@@ -1,20 +1,17 @@
 export { ActionMenu } from './components/ActionMenu'
 export {
+  AppLink,
+  type AppLinkProps,
+  isPlainClick,
+  type LinkTarget,
+} from './components/AppLink'
+export {
   Avatar,
   type AvatarProps,
   type AvatarSize,
   type AvatarStatus,
   avatarInitials,
 } from './components/Avatar'
-export {
-  BreadcrumbProvider,
-  type IBreadcrumbItem,
-  useBreadcrumb,
-  useClearBreadcrumbs,
-  useHideBreadcrumbs,
-  useSetBreadcrumbs,
-  useSetDefaultBreadcrumbs,
-} from './components/Breadcrumbs'
 export { Button, type ButtonProps, MethodButton } from './components/Button'
 export {
   type ButtonSize,
@@ -22,8 +19,8 @@ export {
   type ButtonVariant,
   buttonClasses,
 } from './components/buttonClasses'
-export { default as Callout } from './components/Callout'
-export { Card, CardHeader, type CardProps } from './components/Card'
+export { Callout, type CalloutProps, type CalloutTone } from './components/Callout'
+export { Card, CardHeader, type CardHeaderProps, type CardProps } from './components/Card'
 export { Checkbox, CheckboxGroup, type CheckboxProps } from './components/Checkbox'
 export { ColorInput, type ColorInputProps } from './components/ColorInput'
 export {
@@ -35,20 +32,32 @@ export {
   type ComboboxItems,
   type ComboboxProps,
 } from './components/Combobox'
-export { ConfirmModal } from './components/ConfirmModal'
+export { ConfirmModal, type ConfirmModalProps } from './components/ConfirmModal'
 export {
   type OpenMenu,
   type OpenMenuOptions,
   useContextMenu,
 } from './components/ContextMenu'
-export { CopyCodeBlock, default as CopyToClipboard } from './components/CopyToClipboard'
+export {
+  CopyButton,
+  type CopyButtonProps,
+  CopyCodeBlock,
+  type CopyCodeBlockProps,
+} from './components/CopyButton'
 export {
   CreateModal,
   CreateModalSelect,
   CreateModalSwitch,
 } from './components/CreateModal'
 export { DatePicker, type DatePickerProps } from './components/DatePicker'
-export { DescriptionListItem, default as DescriptionList } from './components/DescriptionList'
+export {
+  DescriptionListGroup,
+  DescriptionListItem,
+  type DescriptionListItemProps,
+  type DescriptionListProps,
+  type DescriptionListVariant,
+  default as DescriptionList,
+} from './components/DescriptionList'
 export { Disclosure, DisclosurePanel, type DisclosureProps } from './components/Disclosure'
 export { Drawer, type DrawerProps } from './components/Drawer'
 export { EmptyState, type EmptyStateProps } from './components/EmptyState'
@@ -107,23 +116,28 @@ export {
   Modal,
   ModalDescription,
   type ModalProps,
+  type ModalSize,
   ModalTitle,
   modalPanelClassName,
 } from './components/Modal'
 export { NumberInput, type NumberInputProps } from './components/NumberInput'
 export { OneTimeCodeInput, type OneTimeCodeInputProps } from './components/OneTimeCodeInput'
-export { Overview } from './components/Overview'
+export { Overview, type OverviewProps } from './components/Overview'
 export {
-  BreadcrumbsActionButton,
-  BreadcrumbsRightAction,
-  BreadcrumbsTitleAction,
-  HeaderActionMenu,
-  HeaderAddButton,
-  HeaderEditButton,
+  type Breadcrumb,
   PageHeader,
-  type PageHeaderBreadcrumb,
-  type PageHeaderCrumb,
+  PageHeaderBar,
+  type PageHeaderBarProps,
+  type PageHeaderProps,
+  PageHeaderProvider,
 } from './components/PageHeader'
+export {
+  PageHeaderAction,
+  type PageHeaderActionProps,
+  PageHeaderAddButton,
+  type PageHeaderAddButtonProps,
+  PageHeaderMenu,
+} from './components/PageHeaderAction'
 export { PAGE_SIZES, Pagination, type PaginationProps } from './components/Pagination'
 export {
   Popover,
@@ -138,7 +152,9 @@ export {
   type UILinkComponent,
   type UINavigation,
   UIProvider,
+  type UIProviderProps,
   type UISlots,
+  type UIStringOverrides,
   type UIStrings,
   useNavigation,
   useOptionalWorkflowEngine,
@@ -183,7 +199,6 @@ export {
 } from './components/SettingsCard'
 export { LoadingRegion, Skeleton, type SkeletonProps } from './components/Skeleton'
 export { Slider, type SliderProps } from './components/Slider'
-export { default as Sort, type TDirection } from './components/Sort'
 export {
   type BadgeVariant,
   StatusBadge,
@@ -192,7 +207,7 @@ export {
 } from './components/StatusBadge'
 export { Switch, type SwitchProps } from './components/Switch'
 export { isTextEntryContext, useShortcutKey } from './components/shortcutKey'
-export { CompactTable, Table } from './components/Table'
+export { type SortDirection, Table, type TableDensity } from './components/Table'
 export { type TabItem, TabPanel, Tabs, type TabsProps } from './components/Tabs'
 export { ThemeEditor, type ThemeEditorProps, ThemePreview } from './components/ThemeEditor'
 export {
