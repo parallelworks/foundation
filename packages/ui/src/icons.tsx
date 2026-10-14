@@ -29,6 +29,7 @@ import {
   Building2,
   Calendar,
   CalendarClock,
+  CalendarSync,
   CalendarX,
   Camera,
   ChartLine,
@@ -53,6 +54,7 @@ import {
   CircleSlash,
   CircleX,
   ClipboardCheck,
+  ClipboardPen,
   Clock,
   Cloud,
   CloudCog,
@@ -169,7 +171,6 @@ import {
   PcCase,
   Pencil,
   PencilLine,
-  PenLine,
   Phone,
   Pin,
   Play,
@@ -196,6 +197,7 @@ import {
   Sheet,
   Shield,
   ShieldOff,
+  ShieldUser,
   Smartphone,
   Sparkles,
   Square,
@@ -301,7 +303,6 @@ export const BriefcaseIcon = /* @__PURE__ */ icon(Briefcase)
 export const BucketIcon = /* @__PURE__ */ icon(PaintBucket)
 export const BuildWorkflowIcon = /* @__PURE__ */ icon(Wrench)
 export const CalendarIcon = /* @__PURE__ */ icon(Calendar)
-export const CalendarOffIcon = /* @__PURE__ */ icon(CalendarX)
 export const CancelIcon = /* @__PURE__ */ icon(Ban)
 export const CelebrateIcon = /* @__PURE__ */ icon(PartyPopper)
 export const CertificateIcon = /* @__PURE__ */ icon(FileKey)
@@ -354,7 +355,6 @@ export const ExpandIcon = /* @__PURE__ */ icon(Maximize)
 export const ExpandVerticalIcon = /* @__PURE__ */ icon(ChevronsUpDown)
 export const ExpiredIcon = /* @__PURE__ */ icon(CalendarX)
 export const ExpiringIcon = /* @__PURE__ */ icon(Hourglass)
-export const ExpiryIcon = /* @__PURE__ */ icon(CalendarClock)
 export const ExpressionIcon = /* @__PURE__ */ icon(Braces)
 export const ExternalLinkIcon = /* @__PURE__ */ icon(ExternalLink)
 export const EyeIcon = /* @__PURE__ */ icon(Eye)
@@ -460,12 +460,12 @@ export const RefreshIcon = /* @__PURE__ */ icon(RefreshCw)
 export const RemoveIcon = /* @__PURE__ */ icon(X)
 export const RemoveUserIcon = /* @__PURE__ */ icon(UserMinus)
 export const RenameIcon = /* @__PURE__ */ icon(PencilLine)
-export const RenewIcon = /* @__PURE__ */ icon(RefreshCw)
+export const RenewIcon = /* @__PURE__ */ icon(CalendarSync)
 export const ResetLayoutIcon = /* @__PURE__ */ icon(RotateCcwSquare)
 export const ResourceGroupIcon = /* @__PURE__ */ icon(Group)
 export const ResourceIcon = /* @__PURE__ */ icon(Boxes)
 export const RetryIcon = /* @__PURE__ */ icon(RotateCcw)
-export const RoleIcon = /* @__PURE__ */ icon(BadgeCheck)
+export const RoleIcon = /* @__PURE__ */ icon(ShieldUser)
 export const RollbackIcon = /* @__PURE__ */ icon(UndoDot)
 export const RunningIcon = /* @__PURE__ */ icon(LoaderCircle)
 export const RunsIcon = /* @__PURE__ */ icon(ListVideo)
@@ -502,11 +502,11 @@ export const SubdomainIcon = /* @__PURE__ */ icon(AtSign)
 export const SuccessIcon = /* @__PURE__ */ icon(CircleCheck)
 export const SunIcon = /* @__PURE__ */ icon(Sun)
 export const SupportIcon = /* @__PURE__ */ icon(Headset)
-export const SwitchIcon = /* @__PURE__ */ icon(ArrowLeftRight)
+export const SwapIcon = /* @__PURE__ */ icon(ArrowLeftRight)
 export const TagIcon = /* @__PURE__ */ icon(Tag)
 export const TerminalIcon = /* @__PURE__ */ icon(Terminal)
 export const ThinkingIcon = /* @__PURE__ */ icon(Brain)
-export const TodoIcon = /* @__PURE__ */ icon(PenLine)
+export const TodoIcon = /* @__PURE__ */ icon(ClipboardPen)
 export const TrashIcon = /* @__PURE__ */ icon(Trash2)
 export const TunnelIcon = /* @__PURE__ */ icon(Route)
 export const UndoIcon = /* @__PURE__ */ icon(Undo2)
