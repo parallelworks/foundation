@@ -1,13 +1,13 @@
 import { DateTime } from 'luxon'
 import { type KeyboardEvent, memo, useEffect, useRef, useState } from 'react'
 import { Avatar } from '../../components/Avatar'
+import { CopyButton } from '../../components/CopyButton'
 import { IconButton } from '../../components/IconButton'
 import { useStrings } from '../../components/Provider'
 import { RelativeTime } from '../../components/relativeTime'
-import { useCopy } from '../../components/useCopy'
 import { cx } from '../../cx'
 import { formatDuration } from '../../format'
-import { CheckIcon, CopyIcon, EditIcon, ErrorIcon, RetryIcon } from '../../icons'
+import { EditIcon, ErrorIcon, RetryIcon } from '../../icons'
 import { useChatConfig } from '../core/config'
 import type { ApprovalAnswerValue, AttachmentRef, ChatMessage as Message } from '../types'
 import Markdown from '../ui/Markdown'
@@ -102,7 +102,6 @@ function ChatMessage({
 
   const { messageMeta: t, thinking: tThinking } = useChatConfig().strings
   const { common } = useStrings()
-  const { copy, copied } = useCopy()
   const [editContent, setEditContent] = useState(message.content || '')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -203,12 +202,6 @@ function ChatMessage({
   const timestamp = parseTimestamp(message.timestamp)
   const totalTokens = message.tokensUsed?.total_tokens
   const collapsed = !isUser && collapsible && !expanded && !isStreaming && !latest
-
-  const copyToClipboard = async () => {
-    if (message.content) {
-      await copy(message.content, { quiet: true })
-    }
-  }
 
   return (
     <div
@@ -402,13 +395,15 @@ function ChatMessage({
                 )}
               >
                 {/* Copy */}
-                <IconButton
-                  label={t.copy}
-                  onClick={copyToClipboard}
-                  size="md"
-                  className={actionClasses}
-                  icon={copied ? <CheckIcon className="text-green-500" /> : <CopyIcon />}
-                />
+                {message.content && (
+                  <CopyButton
+                    text={message.content ?? ''}
+                    label={t.copyLabel}
+                    quiet
+                    size="md"
+                    className={actionClasses}
+                  />
+                )}
 
                 {/* Edit (current user's messages only) */}
                 {isUser && !isOtherUser && onEdit && (

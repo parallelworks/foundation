@@ -177,7 +177,8 @@ export interface ChatStrings {
     // {total} token count for the turn.
     tokens: (total: number) => string
     tokensBreakdown: (prompt: number, completion: number) => string
-    copy: string
+    /** What a message's copy button names: "Copy message", then "Copied message". */
+    copyLabel: string
     edit: string
     regenerate: string
     editPlaceholder: string
@@ -443,7 +444,7 @@ export const defaultChatStrings: ChatStrings = {
     tokens: (total) => countOf(total, 'token', 'tokens'),
     tokensBreakdown: (prompt, completion) =>
       `${prompt.toLocaleString()} in · ${completion.toLocaleString()} out`,
-    copy: 'Copy message',
+    copyLabel: 'message',
     edit: 'Edit message',
     regenerate: 'Regenerate response',
     editPlaceholder: 'Edit your message\u2026',
