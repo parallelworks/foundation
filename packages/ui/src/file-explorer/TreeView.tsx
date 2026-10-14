@@ -4,6 +4,7 @@ import { positionKeys } from '../components/keys'
 import { useStrings } from '../components/Provider'
 import { Skeleton } from '../components/Skeleton'
 import { cx } from '../cx'
+import { isDev } from '../dev'
 import { ChevronRightIcon, FolderIcon, FolderOpenIcon } from '../icons'
 import { canPreview } from './FilePreview/previewType'
 import { getNodeIcon } from './helpers'
@@ -637,7 +638,7 @@ function useTreePitchAudit(
   items: readonly { index: number }[],
 ) {
   useEffect(() => {
-    if (!import.meta.env.DEV || !scrollEl || items.length < 2) {
+    if (!isDev() || !scrollEl || items.length < 2) {
       return
     }
     for (const item of items) {
