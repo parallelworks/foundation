@@ -87,7 +87,7 @@ export function Tabs<Value extends string>({
         className={
           segmented
             ? segmentClassName(item.value === current, layout)
-            : 'flex cursor-pointer select-none items-center gap-1.5 whitespace-nowrap px-2 py-2 text-sm font-semibold theme-muted-text outline-none transition-colors hover:theme-text focus-visible:rounded-sm focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-(--theme-link) data-active:text-(--theme-link) data-disabled:cursor-not-allowed data-disabled:opacity-50'
+            : 'flex cursor-pointer select-none items-center gap-1.5 whitespace-nowrap px-2 py-2 text-sm font-semibold theme-muted-text transition-colors hover:theme-text focus-visible:rounded-sm focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-(--theme-focus) data-active:text-(--theme-link) data-disabled:cursor-not-allowed data-disabled:opacity-50'
         }
       >
         <SegmentContent {...item} iconOnly={layout.iconOnly} />
@@ -162,7 +162,10 @@ export function TabPanel({
     <BaseTabs.Panel
       value={value}
       keepMounted={keepMounted}
-      className={cx('outline-none', className)}
+      className={cx(
+        'rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--theme-focus)',
+        className,
+      )}
     >
       {children}
     </BaseTabs.Panel>
