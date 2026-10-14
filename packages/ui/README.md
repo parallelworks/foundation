@@ -36,7 +36,7 @@ Each need has one component. Reach for it before styling markup by hand.
 | A number, a date, a color | `NumberInput`, `DatePicker`, `ColorInput` |
 | A one-time code, such as a sign-in check | `OneTimeCodeInput` |
 | A labeled value nobody edits, among fields | `FieldValue` in a `Field` |
-| A record's details, such as in a drawer or a card: names and values on their own | `DescriptionList` of `DescriptionListItem`s; `copy` on an ID, `mono` on a path, `variant="card"` to frame them |
+| A record's details, such as in a drawer or a card: names and values on their own | `DescriptionList` of `DescriptionListItem`s; `copy` on an ID, `mono` on a path, `variant="card"` to frame them; titled lists in a `DescriptionListGroup` to share one label column |
 | An error beside a control outside a `Field` | `ErrorText` |
 | A dense field in a toolbar or a table cell | any field control with `size="sm"`; a width in `className` wins, and `cx` merges classes the same way |
 | On or off | `Switch`; `Checkbox` in a list of things to tick, several of which may be on |
@@ -57,6 +57,7 @@ Each need has one component. Reach for it before styling markup by hand.
 | A preview of what a link leads to | `HoverCard` |
 | A task that blocks the page | `Modal`; `ConfirmModal` to confirm one action |
 | A panel beside the page | `Drawer` |
+| A message set into the page: guidance, a warning, an error | `Callout`; `variant="bar"` across a surface under its header |
 | A passing notice, or the progress of work in the background | `toast` |
 | How full something is, how far a task has come | `Meter`, `ProgressBar` |
 | Pages of a long list | `Pagination` |
@@ -67,6 +68,7 @@ Each need has one component. Reach for it before styling markup by hand.
 | A copy action | `useCopy`, or `CopyToClipboard` for its button |
 | A live relative time or duration | `RelativeTime`, `Elapsed` |
 | Rendered Markdown | `Markdown` |
+| Code or YAML to read or edit | `Editor` from `./editor`; `EditorField` as a form field, `FormCodePanel` for a form's values as JSON |
 | A value that survives a reload | `usePersistedState` |
 | Choosing the app's colors | `ThemeEditor`, applied with `useApplyTheme` |
 
@@ -574,7 +576,14 @@ configureEditorYaml([
 ])
 ```
 
-Without them, those views still edit, but check nothing against the schema.
+Without them, those views still edit, but check nothing against the schema. Registering a schema
+under a `uri` already registered replaces it, and `configureEditorYaml` returns a function that
+removes what it added.
+
+`Editor` is controlled like an input: pass `value` and `onChange`, and hand back the text it sent.
+Text that comes back unchanged leaves the cursor alone, and a reset from outside keeps the cursor
+and scroll where they were. Each editor has a model of its own unless it is given a `path`, and it
+is named `UIStrings.common.codeEditor` unless given an `ariaLabel`.
 
 ## AI chat
 

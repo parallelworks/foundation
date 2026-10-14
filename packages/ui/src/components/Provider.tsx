@@ -81,6 +81,10 @@ export interface UIStrings {
     remove: string
     sort: string
     userAvatar: string
+    /** A person's presence beside their avatar, read with their name. */
+    presence: Record<'online' | 'offline' | 'busy' | 'away', string>
+    /** An avatar's name with the person's presence, such as "Ada Lovelace, online". */
+    withPresence: (name: string, presence: string) => string
     moreInfo: string
     /** The name of a menu of actions on a page or row. */
     actions: string
@@ -96,6 +100,10 @@ export interface UIStrings {
     no: string
     /** Read after a link that opens a new tab. */
     opensInNewTab: string
+    /** Names a code editor that has no label of its own. */
+    codeEditor: string
+    /** Shown when someone types in a read-only code editor. */
+    readOnlyText: string
     /** Names the handle that resizes a panel. */
     resizePanel: string
     /** A resizable panel's width, read aloud. */
@@ -201,6 +209,8 @@ export interface UIStrings {
     endInFuture: string
     follow: string
     following: string
+    /** A line number's name: it selects the line for copying. */
+    selectLine: (line: number) => string
   }
   dag: {
     workflow: string
@@ -255,9 +265,10 @@ export interface UIStrings {
       previewTab: string
       preview: string
       openFullPreview: string
-      /** Names the choice between a quick look and the full window. */
+      /** Names the choice between a compact preview and the full window. */
       previewLayout: string
-      quickLook: string
+      /** The preview in a panel over the page, beside `fullWindow`. */
+      compact: string
       fullWindow: string
       streamed: string
       streamedTooltip: string
@@ -364,6 +375,10 @@ export interface UIStrings {
       corsAdded: string
       corsPropagating: string
       previewUnsupported: string
+      /** A folder's listing failed; `name` is the folder. */
+      loadFailed: (name: string, message: string) => string
+      /** A failure that came with no message of its own. */
+      unknownError: string
     }
     chrome: {
       explorer: string
@@ -386,6 +401,14 @@ export interface UIStrings {
       details: string
       selectFiles: string
       selectFolder: string
+      /** Names the table of a folder's contents. */
+      files: string
+      /** Names the folder tree. */
+      folders: string
+      /** Names the trail from the storage down to the open folder. */
+      location: string
+      /** Explains a share link, beside Share. */
+      shareHelp: string
     }
     confirmUpload: {
       title: string
@@ -498,6 +521,12 @@ export interface UIStrings {
     labelId: string
     labelUrl: string
     couldNotLoad: (noun: string) => string
+    /** What `ListError` names when the host gives no noun. */
+    data: string
+    /** A list's size, as `ListCount` shows it; `count` is formatted and `noun` agrees with it. */
+    count: (count: string, noun: string) => string
+    /** How many rows a filter left, of how many. */
+    matchCount: (matches: string, total: string, nounPlural: string) => string
     displayOptions: string
     grouping: string
     ordering: string
@@ -737,6 +766,8 @@ const DEFAULTS: UIProviderValue = {
       remove: 'Remove',
       sort: 'Sort',
       userAvatar: 'User avatar',
+      presence: { online: 'online', offline: 'offline', busy: 'busy', away: 'away' },
+      withPresence: (name, presence) => `${name}, ${presence}`,
       moreInfo: 'More information',
       actions: 'Actions',
       edit: 'Edit',
@@ -749,6 +780,8 @@ const DEFAULTS: UIProviderValue = {
       yes: 'Yes',
       no: 'No',
       opensInNewTab: '(opens in a new tab)',
+      codeEditor: 'Code editor',
+      readOnlyText: 'This text is read-only.',
       resizePanel: 'Resize panel',
       panelWidth: (px) => `${px} pixels wide`,
       refresh: 'Refresh',
@@ -846,6 +879,7 @@ const DEFAULTS: UIProviderValue = {
       endInFuture: 'End time cannot be in the future.',
       follow: 'Follow',
       following: 'Following',
+      selectLine: (line) => `Select line ${line}`,
     },
     dag: {
       workflow: 'Workflow',
@@ -896,7 +930,7 @@ const DEFAULTS: UIProviderValue = {
         preview: 'Preview',
         openFullPreview: 'Open full preview',
         previewLayout: 'Preview layout',
-        quickLook: 'Quick Look',
+        compact: 'Compact',
         fullWindow: 'Full window',
         streamed: 'Streamed',
         streamedTooltip:
@@ -949,14 +983,14 @@ const DEFAULTS: UIProviderValue = {
       uri: 'URI',
       cors: {
         explanation: {
-          title: 'CORS Configuration Required',
+          title: 'CORS configuration required',
           description:
             'This storage location cannot be accessed from the browser because it is missing Cross-Origin Resource Sharing (CORS) rules.',
           action: 'You can automatically configure these rules to allow access from this domain.',
           note: 'Note: Changes may take up to 30 seconds to propagate.',
         },
         actions: {
-          addRules: 'Add CORS Rules',
+          addRules: 'Add CORS rules',
         },
         propagating: {
           title: 'Propagating CORS rules',
@@ -1004,7 +1038,7 @@ const DEFAULTS: UIProviderValue = {
         noItemsForDeletion: 'No items selected for deletion.',
         deleting: 'Deleting item(s) from storage...',
         deleteSomeFailed: 'Failed to delete one or more items. Please try again.',
-        deleteSuccess: 'Deleted item(s) from storage successfully!',
+        deleteSuccess: 'Deleted from storage.',
         deleteFailed: (message: string) => `Failed to delete item(s): ${message}`,
         noFilesToUpload: 'No files to upload or target path not selected.',
         invalidUploadTarget: 'This target path is not valid for upload.',
@@ -1017,13 +1051,15 @@ const DEFAULTS: UIProviderValue = {
         corsAdded: 'CORS rules added successfully',
         corsPropagating: 'CORS rules were added, but are still propagating. Try again in a moment.',
         previewUnsupported: 'Preview is not supported for this storage.',
+        loadFailed: (name, message) => `Failed to load contents for ${name}: ${message}`,
+        unknownError: 'Unknown error',
       },
       chrome: {
         explorer: 'Explorer',
         upload: 'Upload',
         downloadFromBrowser: 'From browser',
         access: 'Access',
-        manageAccess: 'Manage Access',
+        manageAccess: 'Manage access',
         selectAll: 'Select all',
         name: 'Name',
         size: 'Size',
@@ -1039,22 +1075,27 @@ const DEFAULTS: UIProviderValue = {
         details: 'Details',
         selectFiles: 'Select files',
         selectFolder: 'Select folder',
+        files: 'Files',
+        folders: 'Folders',
+        location: 'Location',
+        shareHelp:
+          "This will generate a pre-signed URL for this file. Anyone with this link can temporarily access and download the file, even if they don't have an account. The link will automatically expire after 12 hours.",
       },
       confirmUpload: {
-        title: 'Confirm Upload',
+        title: 'Confirm upload',
         text: (path: string) =>
           `Please confirm the following objects you want to upload to ${path}.`,
         defaultPath: 'the selected path',
         noPath: 'No path selected',
         confirm: 'Confirm',
         target: 'Target:',
-        sizeLimitTitle: 'Upload Size Limit Exceeded',
+        sizeLimitTitle: 'Upload size limit exceeded',
         sizeLimitBody: (total: string, max: string) =>
           `The total upload size (${total}) exceeds the maximum allowed limit of ${max}.`,
         sizeLimitHint: 'Please reduce the number of files or upload them in smaller batches.',
       },
       confirmDelete: {
-        title: 'Confirm Delete',
+        title: 'Confirm delete',
         text: 'Are you sure you want to delete the following item(s)? Folders are deleted with everything inside them. This action cannot be undone.',
       },
       empty: {
@@ -1067,14 +1108,14 @@ const DEFAULTS: UIProviderValue = {
         shareThisFile: 'Share this file',
       },
       upload: {
-        inQueue: (position: number, total: number) => `In Queue (#${position} of ${total})`,
+        inQueue: (position: number, total: number) => `In queue (#${position} of ${total})`,
         queuedShort: (position: number, total: number) => `Queued #${position} / ${total}`,
         destination: 'Destination:',
         eta: 'ETA:',
         uploading: 'Uploading...',
-        completeTitle: 'Upload Complete!',
-        failedTitle: 'Upload Failed',
-        unknownTitle: 'Unknown Status',
+        completeTitle: 'Upload complete',
+        failedTitle: 'Upload failed',
+        unknownTitle: 'Unknown status',
         unknownShort: 'Unknown',
         canceled: 'Canceled',
         completed: 'Completed',
@@ -1088,9 +1129,9 @@ const DEFAULTS: UIProviderValue = {
         sessionNotQueued: (id: string, status: string) =>
           `Upload session with ID ${id} is not queued, current status is ${status}`,
         allCanceled: (count: number) => `All ${count} file(s) were canceled by user.`,
-        someUploaded: (count: number) => `${count} file(s) uploaded successfully!`,
+        someUploaded: (count: number) => `${count} file(s) uploaded.`,
         someCanceled: (count: number) => `${count} file(s) canceled by user.`,
-        allUploaded: 'Upload file(s) successfully!',
+        allUploaded: 'Uploaded the file(s).',
         failedSummary: (failed: number, total: number) =>
           `${failed}/${total} files failed to upload:`,
         failReasonGeneric:
@@ -1098,7 +1139,7 @@ const DEFAULTS: UIProviderValue = {
         refreshFailed: (name: string, message: string) =>
           `Failed to refresh storage data for ${name}. ${message}. Please try again.`,
         unknownError: 'Unknown error',
-        overallProgress: 'Overall Progress',
+        overallProgress: 'Overall progress',
         cancelFile: (name) => `Cancel ${name}`,
         confirmCancelFile: 'Cancel?',
         confirmCancelAll: 'Cancel all uploading files?',
@@ -1148,6 +1189,9 @@ const DEFAULTS: UIProviderValue = {
       labelId: 'ID',
       labelUrl: 'URL',
       couldNotLoad: (noun) => `Couldn't load ${noun}`,
+      data: 'data',
+      count: (count, noun) => `${count} ${noun}`,
+      matchCount: (matches, total, nounPlural) => `${matches} of ${total} ${nounPlural}`,
       displayOptions: 'Display options',
       grouping: 'Grouping',
       ordering: 'Ordering',
