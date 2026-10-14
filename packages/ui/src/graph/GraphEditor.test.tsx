@@ -697,7 +697,7 @@ describe('DependencyGraphPreview editor', () => {
     // A labeled suggestion shows the value it writes beneath its label.
     expect(
       (await optionsOf(condition)).map((option) => option.description ?? option.label),
-    ).toEqual(expect.arrayContaining(['always', 'failure()', 'cancelled()', 'success()', 'false']))
+    ).toEqual(expect.arrayContaining(['always', 'failure()', 'canceled()', 'success()', 'false']))
     fireEvent.change(condition, { target: { value: 'failure()' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(e.onEdit).toHaveBeenCalledWith({

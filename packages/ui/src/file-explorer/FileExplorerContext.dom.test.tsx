@@ -68,7 +68,7 @@ describe('upload summary', () => {
     const progress = queued?.get('/b.txt')
     expect(progress?.status).toBe('pending')
     if (queued && progress) {
-      queued.set('/b.txt', { ...progress, status: 'cancelled' })
+      queued.set('/b.txt', { ...progress, status: 'canceled' })
     }
 
     await act(async () => finishFirst())
