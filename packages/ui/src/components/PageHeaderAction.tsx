@@ -131,7 +131,7 @@ export function PageHeaderAction({
   // The tone colors the icon and label rather than the control, so it can't
   // lose to the button recipe's own text color by stylesheet order.
   const tone = destructive
-    ? '*:text-(--theme-error)'
+    ? '*:text-(--theme-error-text)'
     : iconOnly
       ? undefined
       : '*:text-(--theme-link)'

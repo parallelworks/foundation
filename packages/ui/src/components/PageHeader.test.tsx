@@ -290,7 +290,9 @@ describe('PageHeaderAction', () => {
         <PageHeaderAction icon={Icon} label="Open" href="/somewhere" />
       </>,
     )
-    expect(screen.getByRole('button', { name: 'Remove' })).toHaveClass('*:text-(--theme-error)')
+    expect(screen.getByRole('button', { name: 'Remove' })).toHaveClass(
+      '*:text-(--theme-error-text)',
+    )
     expect(screen.getByRole('link', { name: 'Open' })).toHaveClass('*:text-(--theme-link)')
   })
 

@@ -34,7 +34,8 @@ Each need has one component. Reach for it before styling markup by hand.
 | A text field | `Input`, `Textarea`, or a control framed by `Field`, whose `actions` hold buttons that act on it |
 | A number, a date, a color | `NumberInput`, `DatePicker`, `ColorInput` |
 | A one-time code, such as a sign-in check | `OneTimeCodeInput` |
-| A labeled value nobody edits, among fields | `FieldValue` in a `Field`; `DescriptionList` for a set of them alone |
+| A labeled value nobody edits, among fields | `FieldValue` in a `Field` |
+| A record's details, such as in a drawer or a card: names and values on their own | `DescriptionList` of `DescriptionListItem`s; `copy` on an ID, `mono` on a path, `variant="card"` to frame them |
 | An error beside a control outside a `Field` | `ErrorText` |
 | A dense field in a toolbar or a table cell | any field control with `size="sm"`; a width in `className` wins, and `cx` merges classes the same way |
 | On or off | `Switch`; `Checkbox` in a list of things to tick, several of which may be on |
@@ -162,6 +163,30 @@ new tab), a button (`onClick`, with `pressed` for a toggle) or a menu (`menu`).
 `destructive` takes the error color. A `disabled` one stays focusable and says
 its `disabledReason` in its tooltip and name.
 
+## Menu and row actions
+
+A `MenuAction`, and the `RowAction` and `ToolbarAction` built on it, does
+exactly one thing: runs `onClick`, navigates to `href`, or copies `copy`. An
+action with none of them, or with two, doesn't compile, so a row that silently
+does nothing when chosen can't ship. `checked` makes an `onClick` row an on/off
+choice, and `reloadDocument` belongs to an `href`. A disabled action keeps its
+behavior. In development, a menu row, pinned row button or toolbar button warns
+in the console when it gets an action with no behavior anyway, from JavaScript
+or a cast.
+
+Moving to it:
+
+- Rename a handler kept under another name, such as `onSelect`, to `onClick`.
+  An action built apart from its array, typed loosely or by another interface,
+  slipped past the old type; it now fails where it joins the array.
+- Leave out an action that can't run, rather than passing
+  `onClick: cond ? run : undefined` or `href: url ?? undefined`:
+  `...(cond ? [{ key, label, onClick: run }] : [])`.
+- Drop `onClick` from a `copy` or `href` action, and `checked` from an `href`
+  or `copy` one. To copy and also do something, call `useCopy` in an `onClick`.
+- Write `RowAction` and `ToolbarAction` as types, not interfaces to extend:
+  `type MyAction = RowAction & { … }`.
+
 ## Themes
 
 Every color a component may use is one of the closed set of `--theme-*` CSS
@@ -211,14 +236,29 @@ until it reaches its target against every surface it sits on.
 | Pair | WCAG at 0 / 30 / 100 | APCA Lc |
 | --- | --- | --- |
 | Body text | 4.5 / 7 / 12 | 75 / 90 / 105 |
-| Secondary text, links, status, syntax and terminal colors | 4.5 / 4.5 / 7 | 60 / 70 / 85 |
+| Secondary text, links, status text, syntax and terminal colors | 4.5 / 4.5 / 7 | 60 / 70 / 85 |
 | Placeholders | 3 / 3 / 4.5 | 45 / 50 / 65 |
-| Focus ring | 3 / 3 / 4.5 | |
+| Focus ring, status icons, dots, borders and bars | 3 / 3 / 4.5 | |
 | Control borders | 1.6 / 2.2 / 3 | |
-| Text on the accent | 4.5 | |
+| Text on the accent, white text on a solid status fill | 4.5 | |
 
 Status colors (success, error, warning, info, favorite) and terminal colors keep
-fixed hues, so red means the same thing in every theme. Syntax colors turn away
+fixed hues, so red means the same thing in every theme.
+
+Each status comes in four tokens, so a red icon stays bright while red words stay
+readable:
+
+| Token | For | Solved to |
+| --- | --- | --- |
+| `--theme-error` | Icons, dots, borders, rings, bars: anything but words | 3:1 on every surface and on the muted tint (WCAG 1.4.11) |
+| `--theme-error-text` | Words in the status: error messages, a destructive menu item or text button, a badge's label | Secondary text's targets, on the surfaces and on the muted tint |
+| `--theme-error-solid` | A fill under a white label, such as a destructive button | White on it at 4.5:1 |
+| `--theme-error-muted` | A tinted background, such as a callout or badge | The vivid shade at 10% (15% in dark mode) |
+
+The same four exist for `success`, `warning`, `info` and `favorite`. Words never
+take the bare token: `--theme-error` meets only the 3:1 that graphics need. An
+icon beside an error message may keep the message's text shade through
+`currentColor`. Syntax colors turn away
 from the accent's hue when they come within 30° of it, so a keyword never looks
 like a link.
 
@@ -319,6 +359,11 @@ one is meant to differ.
 | `--theme-sidebar-hover-text` | `--theme-sidebar-text` |
 | `--theme-bg` | `--theme-sidebar-bg` |
 | `theme-element` (utility) | `theme-accent` |
+
+`--theme-<status>` (`success`, `error`, `warning`, `info`, `favorite`) was once
+solved as text. It is now the vivid graphic shade, so words that read it move to
+`--theme-<status>-text`, and a fill under a white label to
+`--theme-<status>-solid`.
 
 ## Buttons and spinners
 
