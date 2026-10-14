@@ -105,6 +105,8 @@ export function AnnotationBanner({ executedJobs }: AnnotationBannerProps) {
         type="button"
         aria-expanded={expanded}
         aria-controls={listId}
+        // The badges are numbers beside icons; the name says what each counts.
+        aria-label={t.annotationsLabel(counts)}
         onClick={() => setExpanded((prev) => !prev)}
         className={cx(
           'flex w-full items-center gap-3 px-4 py-2.5 text-left',
@@ -120,8 +122,6 @@ export function AnnotationBanner({ executedJobs }: AnnotationBannerProps) {
           )}
         />
         <span className="text-sm font-medium text-(--theme-app)">{t.annotations}</span>
-        {/* The badges show each count beside its icon; read aloud, the counts say what they count. */}
-        <span className="sr-only">, {t.annotationCounts(counts)}</span>
         <span aria-hidden className="flex items-center gap-1.5">
           {(['error', 'warning', 'notice'] as const).map((type) => {
             if (!counts[type]) {

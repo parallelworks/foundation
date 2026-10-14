@@ -28,7 +28,7 @@ describe('AnnotationBanner', () => {
     render(<AnnotationBanner executedJobs={RUN_JOBS} />)
     const toggle = screen.getByRole('button', { name: /Annotations/ })
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
-    expect(toggle).toHaveAccessibleName('Annotations, 1 error, 1 warning, 1 notice')
+    expect(toggle).toHaveAccessibleName('Annotations: 1 error, 1 warning, 1 notice')
 
     fireEvent.click(toggle)
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
