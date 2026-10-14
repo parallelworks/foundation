@@ -54,7 +54,7 @@ Each need has one component. Reach for it before styling markup by hand.
 | A panel of controls anchored to a trigger | `Popover` |
 | A hint for a control | `Tooltip`; `InfoTip` for help everyone must reach |
 | A preview of what a link leads to | `HoverCard` |
-| A task that blocks the page | `Modal`; `ConfirmModal` to confirm one action |
+| A task that blocks the page | `Modal`, laid out with `title`, `description` and `footer` as a `Drawer` is; `ConfirmModal` to confirm one action; `CreateModal` to name and create one thing |
 | A panel beside the page | `Drawer` |
 | A passing notice, or the progress of work in the background | `toast` |
 | How full something is, how far a task has come | `Meter`, `ProgressBar` |

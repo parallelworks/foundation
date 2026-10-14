@@ -26,7 +26,7 @@ export {
   type ComboboxItems,
   type ComboboxProps,
 } from './components/Combobox'
-export { ConfirmModal } from './components/ConfirmModal'
+export { ConfirmModal, type ConfirmModalProps } from './components/ConfirmModal'
 export {
   type OpenMenu,
   type OpenMenuOptions,
@@ -104,6 +104,7 @@ export {
   Modal,
   ModalDescription,
   type ModalProps,
+  type ModalSize,
   ModalTitle,
   modalPanelClassName,
 } from './components/Modal'
