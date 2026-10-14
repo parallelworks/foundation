@@ -122,6 +122,8 @@ export interface UIStrings {
     add: (text: string) => string
     /** In place of the placeholder once a field holds as many values as it takes. */
     limitReached: (max: number) => string
+    /** Names the button on a chosen value's chip that takes it out. */
+    removeValue: (label: string) => string
   }
   datePicker: {
     /** The button's text while no date is chosen. */
@@ -241,6 +243,9 @@ export interface UIStrings {
     subworkflow: string
     annotations: string
     annotationType: { error: string; warning: string; notice: string }
+    /** Names the annotations' toggle for a screen reader, in place of its count badges, such as
+     *  "Annotations: 2 errors, 1 warning". It starts with `annotations`, the toggle's visible text. */
+    annotationsLabel: (counts: { error: number; warning: number; notice: number }) => string
     /** Where an annotation came from, under its message. */
     annotationSource: (job: string, step: string) => string
     /** A step without a name, numbered from 0 as the run reports it. */
@@ -535,6 +540,8 @@ export interface UIStrings {
     descending: string
     columnHeaders: string
     showColumnHeaders: string
+    /** The header checkbox that ticks every row, or clears them all. */
+    selectAll: string
     showActions: string
     showRowActions: string
     alwaysShowActions: string
@@ -826,6 +833,7 @@ const DEFAULTS: UIProviderValue = {
       showOptions: 'Show options',
       add: (text) => `Add “${text}”`,
       limitReached: (max) => `Up to ${max}`,
+      removeValue: (label) => `Remove ${label}`,
     },
     datePicker: {
       pickDate: 'Pick a date',
@@ -939,6 +947,15 @@ const DEFAULTS: UIProviderValue = {
       subworkflow: '(subworkflow)',
       annotations: 'Annotations',
       annotationType: { error: 'Error', warning: 'Warning', notice: 'Notice' },
+      annotationsLabel: ({ error, warning, notice }) =>
+        `Annotations: ${[
+          [error, 'error', 'errors'],
+          [warning, 'warning', 'warnings'],
+          [notice, 'notice', 'notices'],
+        ]
+          .filter(([count]) => count)
+          .map(([count, one, many]) => `${count} ${count === 1 ? one : many}`)
+          .join(', ')}`,
       annotationSource: (job, step) => `in ${job} → ${step}`,
       stepNumber: (index) => `step ${index}`,
     },
@@ -1231,6 +1248,7 @@ const DEFAULTS: UIProviderValue = {
       descending: 'Descending',
       columnHeaders: 'Column headers',
       showColumnHeaders: 'Show column headers',
+      selectAll: 'Select all',
       showActions: 'Show actions',
       showRowActions: 'Show row actions',
       alwaysShowActions: 'Always show actions',
