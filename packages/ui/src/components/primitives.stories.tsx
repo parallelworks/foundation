@@ -6,7 +6,6 @@ import { formatBytes } from '../format'
 import { Avatar } from './Avatar'
 import { Button } from './Button'
 import { buttonClasses } from './buttonClasses'
-import Callout from './Callout'
 import { Checkbox } from './Checkbox'
 import { Autocomplete, Combobox } from './Combobox'
 import { ConfirmModal } from './ConfirmModal'
@@ -17,7 +16,6 @@ import { ExternalLink } from './ExternalLink'
 import { InfoTip } from './InfoTip'
 import { Input } from './Input'
 import { positionKeys } from './keys'
-import { Loader } from './Loader'
 import { type BarTone, Meter, ProgressBar } from './Meter'
 import { Modal, type ModalProps } from './Modal'
 import { NumberInput } from './NumberInput'
@@ -28,7 +26,7 @@ import { SegmentedControl } from './SegmentedControl'
 import { Select } from './Select'
 import { StatusBadge, StatusDot } from './StatusBadge'
 import { Switch } from './Switch'
-import { CompactTable, Table } from './Table'
+import { type SortDirection, Table, type TableDensity } from './Table'
 import { Tooltip } from './Tooltip'
 
 const meta: Meta = {
@@ -87,23 +85,6 @@ export const Badges: StoryObj = {
   ),
 }
 
-/** Callouts in the theme's tones: a note for guidance, an alert for a warning or an error. */
-export const Feedback: StoryObj = {
-  render: () => (
-    <div className="flex flex-col gap-4 max-w-xl">
-      <Callout type="info">Informational callout with guidance.</Callout>
-      <Callout type="warning">Something needs attention.</Callout>
-      <Callout type="error">Something went wrong.</Callout>
-      <Loader label="Loading resources" size={40} />
-    </div>
-  ),
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(canvas.getAllByRole('alert')).toHaveLength(2)
-    await expect(canvas.getByRole('note')).toHaveTextContent('Informational callout')
-  },
-}
-
 /** A picture, or initials until it loads and when it fails; one image to assistive
  *  technology either way. */
 export const Avatars: StoryObj = {
@@ -119,10 +100,13 @@ export const Avatars: StoryObj = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('img', { name: 'Grace Hopper' })).toHaveTextContent('GH')
+    // The name says the presence the dot shows.
+    await expect(canvas.getByRole('img', { name: 'Grace Hopper, away' })).toHaveTextContent('GH')
     // A picture that fails keeps the initials.
     await waitFor(() =>
-      expect(canvas.getByRole('img', { name: 'Katherine Johnson' })).toHaveTextContent('KJ'),
+      expect(canvas.getByRole('img', { name: 'Katherine Johnson, offline' })).toHaveTextContent(
+        'KJ',
+      ),
     )
   },
 }
@@ -329,33 +313,88 @@ export const CreateModalStory: StoryObj = {
   },
 }
 
-export const Tables: StoryObj = {
-  render: () => (
+const clusters = [
+  { name: 'alpha', status: 'ready', region: 'us-east-1', nodes: 4 },
+  { name: 'gamma', status: 'ready', region: 'eu-west-2', nodes: 12 },
+  { name: 'beta', status: 'ready', region: 'us-west-2', nodes: 2 },
+]
+
+function TablesDemo({ density }: { density: TableDensity }) {
+  const [sort, setSort] = useState<{ key: 'name' | 'nodes'; direction: SortDirection }>({
+    key: 'name',
+    direction: 'ascending',
+  })
+  const sorted = [...clusters].sort((a, b) => {
+    const order = a[sort.key] < b[sort.key] ? -1 : a[sort.key] > b[sort.key] ? 1 : 0
+    return sort.direction === 'descending' ? -order : order
+  })
+  const sortBy = (key: 'name' | 'nodes') => () =>
+    setSort((now) => ({
+      key,
+      direction: now.key === key && now.direction === 'ascending' ? 'descending' : 'ascending',
+    }))
+  const directionOf = (key: 'name' | 'nodes'): SortDirection =>
+    sort.key === key ? sort.direction : 'none'
+  return (
     <div className="flex flex-col gap-6">
-      <Table roundedTop>
-        <Table.Header>Name</Table.Header>
+      <Table roundedTop density={density}>
+        <Table.Header sort={directionOf('name')} onSort={sortBy('name')}>
+          Name
+        </Table.Header>
         <Table.Header>Status</Table.Header>
         <Table.Header>Region</Table.Header>
-        {['alpha', 'beta'].map((name) => (
-          <tr key={name}>
-            <Table.Item>{name}</Table.Item>
+        <Table.Header sort={directionOf('nodes')} onSort={sortBy('nodes')} className="text-right">
+          Nodes
+        </Table.Header>
+        {sorted.map((cluster) => (
+          <tr key={cluster.name}>
+            <Table.Item>{cluster.name}</Table.Item>
             <Table.Item>
-              <StatusBadge variant="success">ready</StatusBadge>
+              <StatusBadge variant="success">{cluster.status}</StatusBadge>
             </Table.Item>
-            <Table.Item>us-east-1</Table.Item>
+            <Table.Item>{cluster.region}</Table.Item>
+            <Table.Item className="text-right tabular-nums">{cluster.nodes}</Table.Item>
           </tr>
         ))}
       </Table>
-      <CompactTable>
-        <CompactTable.Header>Key</CompactTable.Header>
-        <CompactTable.Header>Value</CompactTable.Header>
+      <Table density="compact" rounded>
+        <Table.Header>Key</Table.Header>
+        <Table.Header>Value</Table.Header>
         <tr>
-          <CompactTable.Item>version</CompactTable.Item>
-          <CompactTable.Item>0.3.0</CompactTable.Item>
+          <Table.Item>version</Table.Item>
+          <Table.Item>0.3.0</Table.Item>
         </tr>
-      </CompactTable>
+        <tr>
+          <Table.Item>channel</Table.Item>
+          <Table.Item>stable</Table.Item>
+        </tr>
+      </Table>
     </div>
-  ),
+  )
+}
+
+/** Column titles line up with the values under them. A sortable column's title is a
+ *  button that says its direction; an unsorted one shows its mark on hover and focus.
+ *  `compact` fits a short list of keys and values. */
+export const Tables: StoryObj<{ density: TableDensity }> = {
+  args: { density: 'comfortable' },
+  argTypes: { density: { control: 'inline-radio', options: ['comfortable', 'compact'] } },
+  render: (args) => <TablesDemo {...args} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const name = canvas.getByRole('columnheader', { name: 'Name' })
+    await expect(name).toHaveAttribute('aria-sort', 'ascending')
+    await expect(canvas.getByRole('columnheader', { name: 'Nodes' })).toHaveAttribute(
+      'aria-sort',
+      'none',
+    )
+    await expect(canvas.getByRole('columnheader', { name: 'Status' })).not.toHaveAttribute(
+      'aria-sort',
+    )
+    await userEvent.click(within(name).getByRole('button'))
+    await expect(name).toHaveAttribute('aria-sort', 'descending')
+    await expect(canvas.getAllByRole('row')[1]).toHaveTextContent('gamma')
+  },
 }
 
 function InputsDemo() {
@@ -493,11 +532,13 @@ export const Switches: StoryObj<{
   disabled: boolean
   invalid: boolean
   stateNames: boolean
+  rightToLeft: boolean
 }> = {
-  args: { size: 'md', disabled: false, invalid: false, stateNames: true },
+  args: { size: 'md', disabled: false, invalid: false, stateNames: true, rightToLeft: false },
   argTypes: { size: { control: 'inline-radio', options: ['sm', 'md'] } },
-  render: ({ size, disabled, invalid, stateNames }) => (
-    <div className="flex flex-col gap-3 text-sm">
+  render: ({ size, disabled, invalid, stateNames, rightToLeft }) => (
+    // In a right-to-left page an on switch's thumb sits at the left, the end of the line.
+    <div dir={rightToLeft ? 'rtl' : undefined} className="flex flex-col gap-3 text-sm">
       <label className="flex items-center gap-2">
         <Switch size={size} disabled={disabled} aria-invalid={invalid || undefined} />
         Email notifications
@@ -537,6 +578,12 @@ export const Switches: StoryObj<{
       await expect(canvas.getByText('Private')).not.toBeVisible()
     }
   },
+}
+
+/** Switches in a right-to-left page, whose thumbs slide to the left when on. */
+export const SwitchesRightToLeft: typeof Switches = {
+  ...Switches,
+  args: { ...Switches.args, rightToLeft: true },
 }
 
 const SIZES = [

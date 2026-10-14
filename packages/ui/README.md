@@ -18,7 +18,27 @@ so an application ships only what it imports:
 | `./theme.css`, `./base.css`, `./fonts.css`, `./styles.css`, `./logviewer.css`, `./ai.css` | stylesheets |
 
 Hosts bind strings, navigation, data hooks and the workflow engine through
-`UIProvider`, which also shows the package's toasts.
+`UIProvider`, which also shows the package's toasts:
+
+```tsx
+<UIProvider
+  strings={{ common: { save: 'Speichern' }, fileExplorer: { preview: { open: 'Öffnen' } } }}
+  navigation={{ goTo: navigate }}
+  data={{ useRunFile, usePersistedState }}
+  slots={{ link: RouterLink }}
+  engine={() => import('./engine').then((m) => m.engine)}
+>
+  {app}
+</UIProvider>
+```
+
+Every string has an English default, and `strings` overrides any of them at
+any depth. Each concern has its own context, compared by value, so a host may
+pass object literals: a render that passes equal ones re-renders nothing, and
+new `data` re-renders only what reads data. `navigation` is read when the
+package navigates and never re-renders anything. Define slot components and
+string functions outside a component: one made each render is a new value, and
+a new slot component remounts what it renders.
 
 ## Which component?
 
@@ -36,7 +56,7 @@ Each need has one component. Reach for it before styling markup by hand.
 | A number, a date, a color | `NumberInput`, `DatePicker`, `ColorInput` |
 | A one-time code, such as a sign-in check | `OneTimeCodeInput` |
 | A labeled value nobody edits, among fields | `FieldValue` in a `Field` |
-| A record's details, such as in a drawer or a card: names and values on their own | `DescriptionList` of `DescriptionListItem`s; `copy` on an ID, `mono` on a path, `variant="card"` to frame them |
+| A record's details, such as in a drawer or a card: names and values on their own | `DescriptionList` of `DescriptionListItem`s; `copy` on an ID, `mono` on a path, `variant="card"` to frame them; titled lists in a `DescriptionListGroup` to share one label column |
 | An error beside a control outside a `Field` | `ErrorText` |
 | A dense field in a toolbar or a table cell | any field control with `size="sm"`; a width in `className` wins, and `cx` merges classes the same way |
 | On or off | `Switch`; `Checkbox` in a list of things to tick, several of which may be on |
@@ -57,6 +77,7 @@ Each need has one component. Reach for it before styling markup by hand.
 | A preview of what a link leads to | `HoverCard` |
 | A task that blocks the page | `Modal`, laid out with `title`, `description` and `footer` as a `Drawer` is; `ConfirmModal` to confirm one action; `CreateModal` to name and create one thing |
 | A panel beside the page | `Drawer` |
+| A message set into the page: guidance, a warning, an error | `Callout`; `variant="bar"` across a surface under its header |
 | A passing notice, or the progress of work in the background | `toast` |
 | How full something is, how far a task has come | `Meter`, `ProgressBar` |
 | Pages of a long list | `Pagination` |
@@ -64,9 +85,10 @@ Each need has one component. Reach for it before styling markup by hand.
 | A person | `Avatar` |
 | A status in words | `StatusBadge`, or `StatusDot` beside text that says it |
 | A run's, job's or step's status beside its name | `RunStatusIcon`; `StatusBadge` with `runStatusTone` to say it in words |
-| A copy action | `useCopy`, or `CopyToClipboard` for its button |
+| A copy action | `CopyButton`; `CopyCodeBlock` for a command or snippet; `useCopy` for a menu row or a control of your own |
 | A live relative time or duration | `RelativeTime`, `Elapsed` |
 | Rendered Markdown | `Markdown` |
+| Code or YAML to read or edit | `Editor` from `./editor`; `EditorField` as a form field, `FormCodePanel` for a form's values as JSON |
 | A value that survives a reload | `usePersistedState` |
 | Choosing the app's colors | `ThemeEditor`, applied with `useApplyTheme` |
 
@@ -574,28 +596,37 @@ configureEditorYaml([
 ])
 ```
 
-Without them, those views still edit, but check nothing against the schema.
+Without them, those views still edit, but check nothing against the schema. Registering a schema
+under a `uri` already registered replaces it, and `configureEditorYaml` returns a function that
+removes what it added.
+
+`Editor` is controlled like an input: pass `value` and `onChange`, and hand back the text it sent.
+Text that comes back unchanged leaves the cursor alone, and a reset from outside keeps the cursor
+and scroll where they were. Each editor has a model of its own unless it is given a `path`, and it
+is named `UIStrings.common.codeEditor` unless given an `ariaLabel`.
 
 ## AI chat
 
 `@parallelworks/ui/ai` is a chat interface (thread, composer, streaming,
 sidebar, model selector, attachments, sharing, branching) decoupled from any
 backend through a `ChatAdapter`. State lives in `ChatProvider` and is read
-with `useChat`:
+with `useChat`; the reply being streamed is read with `useChatStream`, apart
+from the rest, so only what draws the reply re-renders for each token:
 
 ```tsx
-import { ChatProvider, ChatLayout, ChatThread } from '@parallelworks/ui/ai'
+import { ChatEmptyState, ChatLayout, ChatProvider, ChatThread } from '@parallelworks/ui/ai'
 import { createMockChatAdapter } from '@parallelworks/ui/ai/mock'
 
-export function Chat() {
+export function Chat({ conversationId }: { conversationId: string | null }) {
   return (
     <ChatProvider
       adapter={createMockChatAdapter()}
       currentUser={{ id: 'u1', username: 'you', name: 'You' }}
-      navigation={{ toConversation: id => {}, toNewChat: () => {}, toAttachments: () => {} }}
+      navigation={{ toConversation: id => {}, toNewChat: () => {} }}
+      activeConversationId={conversationId}
     >
       <ChatLayout>
-        <ChatThread />
+        {conversationId ? <ChatThread conversationId={conversationId} /> : <ChatEmptyState />}
       </ChatLayout>
     </ChatProvider>
   )
@@ -610,7 +641,7 @@ these links, so `navigation` handles only the moves that aren't clicks, such as
 keyboard shortcuts.
 
 `ChatLayout sidebarMode="auto"` shows the conversation list as a drawer over
-the thread when the chat is narrower than `drawerBelowPx` (768 by default),
+the thread when the chat is narrower than `drawerBelowPx` (`DRAWER_BELOW_PX`, 896, by default),
 measured on the chat's own box; `"drawer"` always does, and `"inline"` (the
 default) never does. The reader's toggle drives the list unless the host
 passes `sidebar` (`'expanded' | 'collapsed' | 'hidden'`) and `drawerOpen` to
