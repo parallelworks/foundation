@@ -271,7 +271,7 @@ export function FileExplorerProvider({ children }: IFileExplorerProviderProps) {
             return
           }
           // Throwing, not returning, is what makes the settled results count the file
-          // as not uploaded; the summary then tells cancelled from failed by
+          // as not uploaded; the summary then tells canceled from failed by
           // the message.
           if (fileProgress.status === 'cancelled') {
             throw new Error('Upload cancelled by user')

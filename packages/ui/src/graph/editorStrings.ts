@@ -675,9 +675,9 @@ export const INPUTS_EDITOR_STRINGS = {
       'Hide the field from the form; its default is still used. Use an expression to decide when.',
     disabled: 'Show the field but don’t let users change it. Use an expression to decide when.',
     ignore: 'Don’t pass this field’s value to the run. Use an expression to decide when.',
-    placeholder: 'Grey hint text shown while the field is empty.',
+    placeholder: 'Gray hint text shown while the field is empty.',
     prefillDefault:
-      'Put the default in the field as its value. When off, the field starts empty and shows the default as grey hint text.',
+      'Put the default in the field as its value. When off, the field starts empty and shows the default as gray hint text.',
     textarea: 'Show a bigger box for several lines of text.',
     minLength: 'The fewest characters the value can have.',
     maxLength: 'The most characters the value can have.',
