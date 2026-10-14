@@ -19,7 +19,6 @@ import {
   Bell,
   BellOff,
   BellRing,
-  BookOpenText,
   BookUser,
   Bot,
   Boxes,
@@ -130,6 +129,7 @@ import {
   Languages,
   Layers,
   LayoutGrid,
+  LibraryBig,
   Link,
   List,
   ListOrdered,
@@ -407,7 +407,7 @@ export const KeyIcon = /* @__PURE__ */ icon(Key)
 export const KubernetesNamespaceIcon = /* @__PURE__ */ icon(SquareDashed)
 export const LanguageIcon = /* @__PURE__ */ icon(Languages)
 export const LegalIcon = /* @__PURE__ */ icon(Scale)
-export const LibraryIcon = /* @__PURE__ */ icon(BookOpenText)
+export const LibraryIcon = /* @__PURE__ */ icon(LibraryBig)
 export const LicenseIcon = /* @__PURE__ */ icon(BadgeCheck)
 export const LinkIcon = /* @__PURE__ */ icon(Link)
 export const ListViewIcon = /* @__PURE__ */ icon(List)
