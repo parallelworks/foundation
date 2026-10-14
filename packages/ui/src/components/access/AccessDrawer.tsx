@@ -162,7 +162,9 @@ export function AccessDrawer({
   useEffect(() => {
     if (refocusFilter.current) {
       refocusFilter.current = false
-      if (document.activeElement === document.body) {
+      // The drawer's focus manager may already have caught the lost focus on its panel.
+      const active = document.activeElement
+      if (!active || active === document.body || active.getAttribute('role') === 'dialog') {
         filterRef.current?.focus()
       }
     }
@@ -396,6 +398,7 @@ export function AccessDrawer({
                       }
                       onCancelRemove={() => setRemoving(null)}
                       onRemove={(subject) => removeHolder(subject, permission)}
+                      focusFilter={() => filterRef.current?.focus()}
                     />
                   ))}
                 </ul>
@@ -472,6 +475,7 @@ function PermissionRow({
   onAskRemove,
   onCancelRemove,
   onRemove,
+  focusFilter,
 }: {
   permission: AccessPermission
   holders: readonly Holder[]
@@ -486,6 +490,8 @@ function PermissionRow({
   onAskRemove: (subject: AccessSubject) => void
   onCancelRemove: () => void
   onRemove: (subject: AccessSubject) => void
+  /** Moves focus somewhere that outlives this row. */
+  focusFilter: () => void
 }) {
   const { access: strings, common } = useStrings()
   const toggleRef = useRef<HTMLButtonElement>(null)
@@ -570,7 +576,13 @@ function PermissionRow({
                       onCancelRemove()
                     }}
                     onRemove={() => {
-                      toggleRef.current?.focus()
+                      // Focus moves before the save so it never sits on a node about to unmount:
+                      // removing the only holder takes the whole row away.
+                      if (holders.length === 1) {
+                        focusFilter()
+                      } else {
+                        toggleRef.current?.focus()
+                      }
                       onRemove(holder.subject)
                     }}
                   />
