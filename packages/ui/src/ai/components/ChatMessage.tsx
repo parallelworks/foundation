@@ -1,26 +1,18 @@
 import { DateTime } from 'luxon'
 import { type KeyboardEvent, memo, useEffect, useRef, useState } from 'react'
 import { Avatar } from '../../components/Avatar'
+import { Button } from '../../components/Button'
+import { Callout } from '../../components/Callout'
 import { useStrings } from '../../components/Provider'
 import { RelativeTime } from '../../components/relativeTime'
-import { toneIcon, toneSurface } from '../../components/tone'
 import { useCopy } from '../../components/useCopy'
 import { cx } from '../../cx'
 import { formatBytes, formatDuration } from '../../format'
-import {
-  CheckIcon,
-  CopyIcon,
-  DownloadIcon,
-  EditIcon,
-  ErrorIcon,
-  FileIcon,
-  RetryIcon,
-} from '../../icons'
+import { CheckIcon, CopyIcon, DownloadIcon, EditIcon, FileIcon, RetryIcon } from '../../icons'
 import { safeUrl } from '../../safeUrl'
 import { useChatConfig } from '../core/config'
 import type { ApprovalAnswerValue, AttachmentRef, ChatMessage as Message } from '../types'
 import Markdown from '../ui/Markdown'
-import { noticeActionClassName } from '../ui/Notice'
 import { chatProseClasses } from '../ui/prose'
 import AgentMessageParts from './agent/AgentMessageParts'
 import BranchNavigator from './BranchNavigator'
@@ -387,25 +379,21 @@ function ChatMessage({
 
             {/* Error Display */}
             {hasError && (
-              <div
-                className={cx(
-                  'flex items-center gap-2 mt-2 p-3 rounded-lg border',
-                  toneSurface.error,
-                )}
+              <Callout
+                tone="error"
+                size="sm"
+                className="mt-2"
+                action={
+                  onRetry && (
+                    <Button size="sm" variant="outline" onClick={() => onRetry(message.id)}>
+                      <RetryIcon />
+                      {common.retry}
+                    </Button>
+                  )
+                }
               >
-                <ErrorIcon className={cx('w-4 h-4 flex-shrink-0', toneIcon.error)} />
-                <span className="text-sm flex-1">{message.error}</span>
-                {onRetry && (
-                  <button
-                    type="button"
-                    onClick={() => onRetry(message.id)}
-                    className={noticeActionClassName('error')}
-                  >
-                    <RetryIcon className="w-3 h-3" />
-                    {common.retry}
-                  </button>
-                )}
-              </div>
+                {message.error}
+              </Callout>
             )}
 
             {/* Attachments */}
@@ -501,7 +489,7 @@ function ChatMessage({
                   title={t.copy}
                 >
                   {copied ? (
-                    <CheckIcon className={cx('w-4 h-4', toneIcon.success)} />
+                    <CheckIcon className="w-4 h-4 text-green-500" />
                   ) : (
                     <CopyIcon className="w-4 h-4" />
                   )}

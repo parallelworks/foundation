@@ -1,6 +1,6 @@
+import { Callout } from '../../components/Callout'
 import { useChat } from '../core/ChatProvider'
 import { useChatConfig } from '../core/config'
-import { NoticeCard } from '../ui/Notice'
 import { getProviderKeyFromModelId } from './ModelSelector'
 
 export default function BlockedGroupBanner() {
@@ -18,13 +18,13 @@ export default function BlockedGroupBanner() {
   }
 
   return (
-    <div className="mx-4 mt-2">
-      <NoticeCard
-        tone="warning"
-        title={strings.blockedGroup.title.replace('{group}', provider.group)}
-      >
-        {strings.blockedGroup.message}
-      </NoticeCard>
-    </div>
+    <Callout
+      tone="warning"
+      size="sm"
+      className="mx-4 mt-2"
+      title={strings.blockedGroup.title(provider.group)}
+    >
+      {strings.blockedGroup.message}
+    </Callout>
   )
 }

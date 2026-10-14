@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Button } from '../../components/Button'
+import { Callout } from '../../components/Callout'
 import { keyedByContent } from '../../components/keys'
 import { useStrings } from '../../components/Provider'
 import { AddIcon, CloudIcon } from '../../icons'
@@ -7,7 +9,6 @@ import { useChatConfig } from '../core/config'
 import { getGreeting } from '../core/greeting'
 import useDragDrop from '../core/useDragDrop'
 import type { AttachmentMeta } from '../types'
-import { NoticeCard, noticeActionClassName } from '../ui/Notice'
 import BlockedGroupBanner from './BlockedGroupBanner'
 import ChatInput, { type ChatInputHandle } from './ChatInput'
 import ChatStage from './ChatStage'
@@ -120,23 +121,19 @@ export default function ChatEmptyState({
         <ProviderIssueBanner />
         {sessionUnreachable && !sessionBannerDismissed && (
           <div className="mx-4 mt-2">
-            <NoticeCard
+            <Callout
               tone="warning"
+              size="sm"
               title={t.sessionUnreachableTitle(targetSession?.split(':').pop() ?? '')}
               action={
-                <button
-                  type="button"
-                  onClick={() => refreshModels()}
-                  className={noticeActionClassName('warning')}
-                >
+                <Button size="sm" variant="outline" onClick={() => refreshModels()}>
                   {common.retry}
-                </button>
+                </Button>
               }
               onDismiss={() => setSessionBannerDismissed(true)}
-              dismissLabel={common.dismiss}
             >
               {t.sessionUnreachableBody}
-            </NoticeCard>
+            </Callout>
           </div>
         )}
         <div

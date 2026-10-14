@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { memo, useEffect, useMemo, useState } from 'react'
 import { Disclosure } from '../../../components/Disclosure'
 import { fieldBox } from '../../../components/fieldBox'
 import { Loader } from '../../../components/Loader'
@@ -217,7 +217,7 @@ function ResultBody({ part }: { part: ToolCallPart }) {
           onClick={() => setShowAll(true)}
           className="text-xs text-(--theme-link) hover:underline"
         >
-          {t.moreLines.replace('{count}', String(hidden))}
+          {t.moreLines(hidden)}
         </button>
       )}
       {showAll && lines.length > COLLAPSED_RESULT_LINES && (
@@ -674,7 +674,13 @@ function NoticeBlock({ part }: { part: NoticePart }) {
 /** The TUI's thought, drawn like a chat reply's: while it streams its label
  *  shimmers over the latest lines, then it folds to the label and opens in
  *  place on request. */
-function ReasoningBlock({ part, isStreaming }: { part: ReasoningPart; isStreaming?: boolean }) {
+const ReasoningBlock = memo(function ReasoningBlock({
+  part,
+  isStreaming,
+}: {
+  part: ReasoningPart
+  isStreaming?: boolean
+}) {
   const { strings } = useChatConfig()
   const t = strings.thinking
   const [expanded, setExpanded] = useState(false)
@@ -714,7 +720,7 @@ function ReasoningBlock({ part, isStreaming }: { part: ReasoningPart; isStreamin
       </Reasoning>
     </div>
   )
-}
+})
 
 function TextBlock({ part, isStreaming }: { part: TextPart; isStreaming?: boolean }) {
   return (
@@ -730,18 +736,38 @@ function PartDispatch(props: PartRendererProps) {
   if (Override) {
     return <Override {...props} />
   }
-  const { part } = props
+  return (
+    <BuiltinPart
+      part={props.part}
+      isStreaming={props.isStreaming ?? false}
+      onApprovalAnswer={props.onApprovalAnswer}
+    />
+  )
+}
+
+/** The package's own drawing of a part. Memoized on the part itself, which
+ *  keeps its identity until a delta changes it, so a streamed token re-renders
+ *  only the part it lands in, not every finished call and answer before it. */
+const BuiltinPart = memo(function BuiltinPart({
+  part,
+  isStreaming,
+  onApprovalAnswer,
+}: {
+  part: MessagePart
+  isStreaming: boolean
+  onApprovalAnswer: PartRendererProps['onApprovalAnswer']
+}) {
   switch (part.kind) {
     case 'text':
-      return <TextBlock part={part} isStreaming={props.isStreaming ?? false} />
+      return <TextBlock part={part} isStreaming={isStreaming} />
     case 'reasoning':
-      return <ReasoningBlock part={part} isStreaming={props.isStreaming ?? false} />
+      return <ReasoningBlock part={part} isStreaming={isStreaming} />
     case 'tool_call':
       return <ToolCallBlock part={part} />
     case 'subagent':
       return <SubagentCard part={part} />
     case 'approval':
-      return <ApprovalBlock part={part} onApprovalAnswer={props.onApprovalAnswer} />
+      return <ApprovalBlock part={part} onApprovalAnswer={onApprovalAnswer} />
     case 'notice':
     case 'warning':
     case 'error':
@@ -751,7 +777,7 @@ function PartDispatch(props: PartRendererProps) {
     default:
       return null
   }
-}
+})
 
 type RunMember = { part: ToolCallPart | ReasoningPart; index: number }
 
@@ -768,6 +794,10 @@ function isReasoning(m: RunMember): m is { part: ReasoningPart; index: number } 
 /** Two thoughts with nothing visible between them read as one, not as a
  *  stack of identical lines. */
 function mergeReasoning(parts: ReasoningPart[]): ReasoningPart {
+  // A lone thought keeps its identity, so its memoized block holds.
+  if (parts.length === 1 && parts[0]) {
+    return parts[0]
+  }
   const durationMs = parts.reduce((sum, p) => sum + (p.durationMs ?? 0), 0)
   return {
     kind: 'reasoning',

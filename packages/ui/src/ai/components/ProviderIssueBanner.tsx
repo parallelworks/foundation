@@ -1,8 +1,9 @@
+import { buttonClasses } from '../../components/buttonClasses'
+import { Callout } from '../../components/Callout'
 import { SettingsIcon } from '../../icons'
 import { useChat } from '../core/ChatProvider'
 import { useChatConfig } from '../core/config'
 import { issueDetail, providerIssueFor } from '../core/providerIssues'
-import { NoticeCard, noticeActionClassName } from '../ui/Notice'
 import { getProviderKeyFromModelId } from './ModelSelector'
 
 /** Why the selected model can't answer, with a way to fix it for the
@@ -30,24 +31,24 @@ export default function ProviderIssueBanner() {
       : undefined
 
   return (
-    <div className="mx-4 mt-2">
-      <NoticeCard
-        tone="warning"
-        title={title}
-        action={
-          settingsHref && (
-            <LinkComponent
-              target={{ kind: 'external', href: settingsHref }}
-              className={noticeActionClassName('warning')}
-            >
-              <SettingsIcon className="h-3.5 w-3.5" />
-              {strings.modelPicker.manageProvider}
-            </LinkComponent>
-          )
-        }
-      >
-        {issueDetail(t, issue)}
-      </NoticeCard>
-    </div>
+    <Callout
+      tone="warning"
+      size="sm"
+      className="mx-4 mt-2"
+      title={title}
+      action={
+        settingsHref && (
+          <LinkComponent
+            target={{ kind: 'external', href: settingsHref }}
+            className={buttonClasses({ variant: 'outline', size: 'sm' })}
+          >
+            <SettingsIcon />
+            {strings.modelPicker.manageProvider}
+          </LinkComponent>
+        )
+      }
+    >
+      {issueDetail(t, issue)}
+    </Callout>
   )
 }

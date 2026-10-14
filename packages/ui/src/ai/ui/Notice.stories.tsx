@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useState } from 'react'
-import { NoticeBar, NoticeCard, type NoticeTone, noticeActionClassName, OutputCard } from './Notice'
+import { NoticeBar, NoticeCard, type NoticeTone, OutputCard } from './Notice'
 
 const meta: Meta = {
   title: 'Chat/Notices',
@@ -8,7 +8,7 @@ const meta: Meta = {
 
 export default meta
 
-const TONES: NoticeTone[] = ['default', 'info', 'warning', 'error']
+const TONES: NoticeTone[] = ['neutral', 'info', 'warning', 'danger']
 
 export const Bars: StoryObj = {
   render: () => (
@@ -31,44 +31,9 @@ export const Bars: StoryObj = {
 export const Cards: StoryObj = {
   render: () => (
     <div className="flex max-w-xl flex-col gap-2 p-4">
-      {TONES.map((tone) => (
-        <NoticeCard key={tone} tone={tone}>
-          The model fell back to a smaller context window.
-        </NoticeCard>
-      ))}
-      <NoticeCard tone="warning" onDismiss={() => {}} dismissLabel="Dismiss">
-        A notice the reader can put away.
-      </NoticeCard>
-    </div>
-  ),
-}
-
-// A card with a title leads with the tone's icon, explains under it, and ends
-// in the one thing the reader can do, the way the chat's banners read.
-export const TitledCards: StoryObj = {
-  render: () => (
-    <div className="flex max-w-2xl flex-col gap-2 p-4">
-      {TONES.map((tone) => (
-        <NoticeCard
-          key={tone}
-          tone={tone}
-          title="The machine stopped answering"
-          action={
-            <button type="button" className={noticeActionClassName(tone)}>
-              Check again
-            </button>
-          }
-        >
-          Messages wait here until it is back.
-        </NoticeCard>
-      ))}
-      <NoticeCard
-        tone="warning"
-        title="Session is not reachable"
-        onDismiss={() => {}}
-        dismissLabel="Dismiss"
-      >
-        It may be offline or still starting up.
+      <NoticeCard>The session ended.</NoticeCard>
+      <NoticeCard tone="warning" onDismiss={() => {}}>
+        The model fell back to a smaller context window.
       </NoticeCard>
     </div>
   ),
