@@ -9,7 +9,9 @@ import { cleanup, render } from '@testing-library/react'
 import type React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import * as callout from './components/Callout.stories'
 import * as combobox from './components/Combobox.stories'
+import * as copy from './components/CopyButton.stories'
 import * as controls from './components/controls.stories'
 import * as descriptionList from './components/DescriptionList.stories'
 import * as fields from './components/fields.stories'
@@ -25,6 +27,7 @@ import * as toggleGroup from './components/ToggleGroup.stories'
 import * as fileExplorer from './file-explorer/FileExplorer.stories'
 import * as form from './form/DynamicForm.stories'
 import * as layoutShowcase from './form/LayoutShowcase.stories'
+import * as annotations from './graph/AnnotationBanner.stories'
 import * as workflow from './graph/DependencyGraph.stories'
 import * as editorDialogs from './graph/GraphEditorDialogs.stories'
 import * as inputDialog from './graph/InputDialog.stories'
@@ -57,12 +60,14 @@ vi.mock('react-zoom-pan-pinch', () => ({
 
 const SUITES = {
   primitives,
+  callout,
   icons,
   sections,
   descriptionList,
   loading,
   combobox,
   controls,
+  copy,
   fields,
   menus,
   overlays,
@@ -77,6 +82,7 @@ const SUITES = {
   form,
   layoutShowcase,
   workflow,
+  annotations,
   editorDialogs,
   inputDialog,
   inputsEditor,

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { cx } from '../cx'
 import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon } from '../icons'
 import { buttonClasses } from './buttonClasses'
+import { useFieldControl, useFieldLabelId } from './Field'
 import { type FieldBoxSize, fieldBox } from './fieldBox'
 import { panelClassName, positionerClassName } from './floating'
 import { useStrings } from './Provider'
@@ -72,6 +73,7 @@ const caption = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numer
 const weekday = new Intl.DateTimeFormat(undefined, { weekday: 'narrow' })
 const longDay = new Intl.DateTimeFormat(undefined, { dateStyle: 'full' })
 const shownDay = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' })
+const longWeekday = new Intl.DateTimeFormat(undefined, { weekday: 'long' })
 
 const calendarClassNames: Partial<ClassNames> = {
   root: 'relative p-3',
@@ -88,7 +90,7 @@ const calendarClassNames: Partial<ClassNames> = {
   week: '',
   day: 'size-9 p-0 text-center text-sm',
   day_button:
-    'size-9 rounded-md cursor-pointer outline-none hover:bg-(--theme-hover) focus-visible:ring-2 focus-visible:ring-(--theme-focus-ring) disabled:cursor-not-allowed disabled:hover:bg-transparent',
+    'size-9 rounded-md cursor-pointer hover:bg-(--theme-hover) focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--theme-focus) disabled:cursor-not-allowed disabled:hover:bg-transparent',
   selected:
     '[&>button]:bg-(--theme-accent) [&>button]:text-(--theme-accent-text) [&>button]:hover:bg-(--theme-accent)',
   today: 'font-semibold [&>button]:underline [&>button]:underline-offset-4',
@@ -130,6 +132,9 @@ export function DatePicker({
 }: DatePickerProps) {
   const t = useStrings().datePicker
   const { common } = useStrings()
+  // The trigger is a button Base UI doesn't name from a Field's label, so it reads the Field.
+  const field = useFieldControl()
+  const fieldLabelId = useFieldLabelId()
   const [open, setOpen] = useState(false)
   const [weekStartsOn] = useState(firstWeekday)
   const day = parseDay(value)
@@ -166,10 +171,10 @@ export function DatePicker({
           id={id}
           disabled={disabled}
           aria-label={ariaLabel}
-          aria-labelledby={ariaLabelledBy}
-          aria-describedby={ariaDescribedBy}
-          aria-invalid={ariaInvalid || undefined}
-          aria-required={ariaRequired || undefined}
+          aria-labelledby={ariaLabelledBy ?? (ariaLabel ? undefined : fieldLabelId)}
+          aria-describedby={ariaDescribedBy ?? field?.['aria-describedby']}
+          aria-invalid={ariaInvalid || field?.['aria-invalid']}
+          aria-required={ariaRequired || field?.['aria-required']}
           className={triggerClassName(size)}
         >
           <CalendarIcon
@@ -208,8 +213,7 @@ export function DatePicker({
                   labelPrevious: () => t.previousMonth,
                   labelNext: () => t.nextMonth,
                   labelGrid: (month) => caption.format(month),
-                  labelWeekday: (date) =>
-                    new Intl.DateTimeFormat(undefined, { weekday: 'long' }).format(date),
+                  labelWeekday: (date) => longWeekday.format(date),
                 }}
                 components={{
                   Chevron: ({ orientation }) =>
@@ -247,7 +251,7 @@ export function DatePicker({
           min={sameDay(min) ? timeOf(min) : undefined}
           max={sameDay(max) ? timeOf(max) : undefined}
           disabled={disabled}
-          aria-invalid={ariaInvalid || undefined}
+          aria-invalid={ariaInvalid || field?.['aria-invalid']}
           onChange={(event) => {
             const next = event.target.value
             if (next) {
