@@ -135,11 +135,6 @@ interface ChatContextValue {
   hasLoadedModels: boolean
   modelsError: string | null
   isStreaming: boolean
-  isThinking: boolean
-  streamingContent: string
-  streamingReasoning: string
-  streamingParts: MessagePart[]
-  thinkingStartTime: number | null
   sidebar: SidebarState
   /** True unless the sidebar is expanded. */
   sidebarCollapsed: boolean
@@ -176,12 +171,35 @@ interface ChatContextValue {
   clearCurrentConversation: () => void
 }
 
+/** The reply being written, which changes with every streamed token. It has
+ *  its own context so that only what draws the reply re-renders per token,
+ *  not the composer, the conversation list and every other `useChat` reader. */
+export interface ChatStream {
+  /** True while the model is reasoning, before its answer starts. */
+  isThinking: boolean
+  streamingContent: string
+  streamingReasoning: string
+  streamingParts: MessagePart[]
+  thinkingStartTime: number | null
+}
+
 const ChatContext = createContext<ChatContextValue | undefined>(undefined)
+const ChatStreamContext = createContext<ChatStream | undefined>(undefined)
 
 export function useChat() {
   const context = useContext(ChatContext)
   if (!context) {
     throw new Error('useChat must be used within a ChatProvider')
+  }
+  return context
+}
+
+/** The reply being streamed. A component that reads it re-renders on every
+ *  token, so read it only where the reply is drawn. */
+export function useChatStream(): ChatStream {
+  const context = useContext(ChatStreamContext)
+  if (!context) {
+    throw new Error('useChatStream must be used within a ChatProvider')
   }
   return context
 }
@@ -1152,11 +1170,6 @@ export function ChatProvider({
       hasLoadedModels: state.hasLoadedModels,
       modelsError: state.modelsError,
       isStreaming: state.isStreaming,
-      isThinking: state.isThinking,
-      streamingContent: state.streamingContent,
-      streamingReasoning: state.streamingReasoning,
-      streamingParts: state.streamingParts,
-      thinkingStartTime: state.thinkingStartTime,
       sidebar,
       sidebarCollapsed: sidebar !== 'expanded',
       sidebarPresentation,
@@ -1188,7 +1201,21 @@ export function ChatProvider({
       currentUser,
       navigation,
       activeConversationId,
-      state,
+      state.conversations,
+      state.currentConversation,
+      state.providers,
+      state.models,
+      state.unreachableSessions,
+      state.providerIssues,
+      state.selectedProvider,
+      state.selectedAllocation,
+      state.isLoading,
+      state.isLoadingConversation,
+      state.isLoadingModels,
+      state.hasLoadedModels,
+      state.modelsError,
+      state.isStreaming,
+      state.queuedMessages,
       sidebar,
       sidebarPresentation,
       drawerOpen,
@@ -1216,10 +1243,29 @@ export function ChatProvider({
     ],
   )
 
+  const stream = useMemo<ChatStream>(
+    () => ({
+      isThinking: state.isThinking,
+      streamingContent: state.streamingContent,
+      streamingReasoning: state.streamingReasoning,
+      streamingParts: state.streamingParts,
+      thinkingStartTime: state.thinkingStartTime,
+    }),
+    [
+      state.isThinking,
+      state.streamingContent,
+      state.streamingReasoning,
+      state.streamingParts,
+      state.thinkingStartTime,
+    ],
+  )
+
   return (
     <ChatConfigProvider value={resolvedConfig}>
       <ReportSidebarPresentationContext.Provider value={reportSidebarPresentation}>
-        <ChatContext.Provider value={value}>{children}</ChatContext.Provider>
+        <ChatContext.Provider value={value}>
+          <ChatStreamContext.Provider value={stream}>{children}</ChatStreamContext.Provider>
+        </ChatContext.Provider>
       </ReportSidebarPresentationContext.Provider>
     </ChatConfigProvider>
   )
