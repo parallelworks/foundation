@@ -40,8 +40,12 @@ const rootClasses: Record<SectionVariant, string> = {
 
 const headerClasses: Record<SectionVariant, string> = {
   plain: 'mb-2 flex w-full items-center gap-2 border-b border-(--theme-border) pb-1',
-  card: 'flex w-full items-center gap-2 px-2 py-3',
+  card: 'flex w-full items-center gap-2 px-3 py-3',
 }
+
+// A card frames its content, so it pads it in line with the header. The padding sits
+// inside the folding panel, whose own height animates to nothing.
+const cardBodyClassName = 'px-3 pb-3'
 
 const titleClasses: Record<SectionVariant, string> = {
   plain: 'text-lg font-semibold',
@@ -117,7 +121,7 @@ export function Section({
             {title}
           </Heading>,
         )}
-        {children}
+        {variant === 'card' ? <div className={cardBodyClassName}>{children}</div> : children}
       </section>
     )
   }
@@ -154,7 +158,7 @@ export function Section({
         </Heading>,
       )}
       <Collapsible.Panel keepMounted className={collapsePanelClassName}>
-        {children}
+        {variant === 'card' ? <div className={cardBodyClassName}>{children}</div> : children}
       </Collapsible.Panel>
     </Collapsible.Root>
   )

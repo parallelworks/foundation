@@ -76,7 +76,7 @@ export const SettingsSections: StoryObj = {
           </button>
         }
       >
-        <div className="px-2 pb-3">{body}</div>
+        {body}
       </Section>
       <Section
         variant="card"
@@ -85,7 +85,7 @@ export const SettingsSections: StoryObj = {
         title="Retention"
         description="How long finished runs are kept."
       >
-        <div className="px-2 pb-3">{body}</div>
+        {body}
       </Section>
     </div>
   ),
