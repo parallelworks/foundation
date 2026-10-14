@@ -104,3 +104,65 @@ export const DestructiveAction: StoryObj<ActionButtonArgs> = {
     await expect(getComputedStyle(remove).color).not.toBe(getComputedStyle(add).color)
   },
 }
+
+interface ActionLinkArgs {
+  href: string
+  reloadDocument: boolean
+  disabled: boolean
+}
+
+/** Header actions that navigate are links: each opens in a new tab, shows its URL on hover and
+ *  routes through the host's link on a plain click. Disabled, each stays a focusable link that
+ *  goes nowhere. */
+export const ActionLinks: StoryObj<ActionLinkArgs> = {
+  args: {
+    href: '/storage/buckets/training-data?tab=objects#upload',
+    reloadDocument: false,
+    disabled: false,
+  },
+  argTypes: {
+    href: { control: 'text', description: 'Where every action goes, search and hash included.' },
+    reloadDocument: {
+      control: 'boolean',
+      description: 'Loads the page instead of routing, for a path the router does not serve.',
+    },
+  },
+  render: ({ href, reloadDocument, disabled }) => {
+    const link = { href, reloadDocument, disabled }
+    return (
+      <PageHeader
+        breadcrumbs={[{ label: 'Storage', href: '/storage' }]}
+        title="training-data"
+        actions={
+          <>
+            <HeaderEditButton {...link} />
+            <HeaderAddButton label="Add object" {...link} disabledHint="Needs write access" />
+          </>
+        }
+        toolbar={
+          <div className="flex items-center gap-3 py-1.5">
+            <BreadcrumbsActionButton icon={AddIcon} label="Upload" {...link} />
+          </div>
+        }
+      />
+    )
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    for (const name of ['Edit', /Add object/, 'Upload']) {
+      const link = canvas.getByRole('link', { name })
+      if (args.disabled) {
+        await expect(link).toHaveAttribute('aria-disabled', 'true')
+        await expect(link).not.toHaveAttribute('href')
+      } else {
+        await expect(link).toHaveAttribute('href', args.href)
+      }
+    }
+  },
+}
+
+/** The same actions, disabled: links that go nowhere, still reachable for the tooltip saying why. */
+export const ActionLinksDisabled: StoryObj<ActionLinkArgs> = {
+  ...ActionLinks,
+  args: { ...ActionLinks.args, disabled: true },
+}

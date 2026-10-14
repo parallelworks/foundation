@@ -1,13 +1,14 @@
 import type { ReactElement, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import { Children, cloneElement, createContext, isValidElement, useContext, useMemo } from 'react'
+import { AppLink, isPlainClick } from '../components/AppLink'
 import type { OpenMenu } from '../components/ContextMenu'
 import { isMenuDivider, isMenuSubmenu, type MenuEntry } from '../components/MenuEntries'
 import { PageHeader, type PageHeaderBreadcrumb } from '../components/PageHeader'
-import { useLink, useNavigation } from '../components/Provider'
+import { useNavigation } from '../components/Provider'
 import { Table } from '../components/Table'
 import { Tooltip } from '../components/Tooltip'
 import { cx } from '../cx'
-import { ListActionsHeader, NAME_MIN_WIDTH_PX } from './ListTable'
+import { ListActionsHeader, NAME_MIN_WIDTH_PX, StretchRowLinkContext } from './ListTable'
 import type { ListView, ListViewChrome } from './listView'
 import { MoreButton, type RowAction, rowContextMenuProps, useRowMenuActive } from './rowMenu'
 
@@ -131,6 +132,8 @@ export function ListRow({
   className,
   children,
 }: {
+  /** Where the row goes. Its `NameCell` with the same href becomes a link
+   *  covering the row; a click the link doesn't catch still goes there. */
   href: string | null
   /** Plain-click handler for rows that open something in place instead of navigating. */
   onActivate?: (() => void) | undefined
@@ -201,6 +204,9 @@ export function ListRow({
     return cloneElement(el, { className: cx(el.props.className, cls) })
   })
 
+  // While selecting, a plain click on the row selects it, so the link stays in its cell.
+  const stretch = !!href && !selectionActive
+
   const handleRowClick = (e: ReactMouseEvent) => {
     if ((e.target as HTMLElement).closest('a,button,input,label')) {
       return
@@ -210,7 +216,10 @@ export function ListRow({
       return
     }
     if (href) {
-      goTo(href)
+      // A modified click asks for a new tab, which only the link can give.
+      if (isPlainClick(e)) {
+        goTo(href)
+      }
     } else {
       onActivate?.()
     }
@@ -230,13 +239,16 @@ export function ListRow({
         'group',
         selected ? 'bg-blue-500/5' : menuActive ? 'theme-hover' : 'hover:theme-hover',
         (href || onActivate || selectionActive) && 'cursor-pointer',
+        // The row is its stretched link's box; other controls rise above the link.
+        stretch &&
+          'relative [&_:is(a,button,input,label):not([data-row-link])]:relative [&_:is(a,button,input,label):not([data-row-link])]:z-[1]',
         className,
       )}
       onClick={handleRowClick}
       {...rowContextMenuProps(openRowMenu, items)}
     >
       {leading}
-      {styledCells}
+      <StretchRowLinkContext.Provider value={stretch}>{styledCells}</StretchRowLinkContext.Provider>
       {/* Actions off by default (Display toggle); right-click still opens the
        * menu. Buttons are absolutely positioned so toggling them never changes
        * row height. */}
@@ -272,21 +284,25 @@ export function ListRow({
 }
 
 function PinnedActionButton({ action, visible }: { action: RowAction; visible: boolean }) {
-  const Link = useLink()
   const reason = action.disabled ? action.disabledReason : undefined
   const props = {
     'aria-label': reason ? `${action.label}. ${reason}` : action.label,
     className: cx(
-      'rounded p-1 cursor-pointer text-(--theme-muted-text-color) transition-colors hover:bg-(--theme-muted-panel-bg) hover:text-(--theme-app) aria-disabled:cursor-not-allowed aria-disabled:opacity-20 aria-disabled:hover:bg-transparent aria-disabled:hover:text-(--theme-muted-text-color) [&>svg]:h-4 [&>svg]:w-4',
+      'rounded p-1 cursor-pointer text-(--theme-muted-text-color) transition-colors hover:bg-(--theme-muted-panel-bg) hover:text-(--theme-app) focus-visible:outline-2 focus-visible:outline-(--theme-link) aria-disabled:cursor-not-allowed aria-disabled:opacity-20 aria-disabled:hover:bg-transparent aria-disabled:hover:text-(--theme-muted-text-color) [&>svg]:h-4 [&>svg]:w-4',
       visible ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
     ),
   }
   return (
     <Tooltip content={reason ?? action.label} side="bottom">
-      {action.href && !action.disabled ? (
-        <Link href={action.href} {...props}>
+      {action.href ? (
+        <AppLink
+          href={action.href}
+          reloadDocument={action.reloadDocument}
+          disabled={action.disabled}
+          {...props}
+        >
           {action.icon}
-        </Link>
+        </AppLink>
       ) : (
         <button
           type="button"

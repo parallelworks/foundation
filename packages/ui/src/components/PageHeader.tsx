@@ -4,11 +4,12 @@ import { createPortal } from 'react-dom'
 import { cx } from '../cx'
 import { AddIcon, ChevronRightIcon, EditIcon, MoreIcon } from '../icons'
 import { ActionMenu } from './ActionMenu'
+import { AppLink, type LinkTarget } from './AppLink'
 import { useBreadcrumb } from './Breadcrumbs'
 import { buttonClasses } from './buttonClasses'
 import { keyedByContent } from './keys'
 import type { MenuEntry } from './MenuEntries'
-import { useLink, useSlots, useStrings } from './Provider'
+import { useSlots, useStrings } from './Provider'
 import { Tooltip } from './Tooltip'
 
 export interface PageHeaderBreadcrumb {
@@ -30,24 +31,23 @@ const headerAddButtonClasses = buttonClasses({ variant: 'outline', size: 'xs' })
  * the tooltip and screen readers. */
 export function HeaderAddButton({
   href,
+  reloadDocument,
+  target,
   onClick,
   label,
   word = 'add',
   menu,
   disabled = false,
   disabledHint,
-}: {
-  href?: string
+}: LinkTarget & {
   onClick?: () => void
   label: string
   word?: 'add' | 'create'
   menu?: MenuEntry[]
-  /** Button mode only. */
   disabled?: boolean
   disabledHint?: string
 }) {
   const { common } = useStrings()
-  const Link = useLink()
   const content = (
     <>
       <AddIcon className="w-3 h-3" />
@@ -61,27 +61,31 @@ export function HeaderAddButton({
       </ActionMenu>
     )
   }
-  if (href) {
-    return (
-      <Tooltip content={label}>
-        <Link href={href} aria-label={label} className={headerAddButtonClasses}>
-          {content}
-        </Link>
-      </Tooltip>
-    )
-  }
   const hint = disabled ? disabledHint : undefined
   return (
     <Tooltip content={hint ?? label}>
-      <button
-        type="button"
-        onClick={disabled ? undefined : onClick}
-        aria-label={hint ? `${label}. ${hint}` : label}
-        aria-disabled={disabled || undefined}
-        className={headerAddButtonClasses}
-      >
-        {content}
-      </button>
+      {href ? (
+        <AppLink
+          href={href}
+          reloadDocument={reloadDocument}
+          target={target}
+          disabled={disabled}
+          aria-label={hint ? `${label}. ${hint}` : label}
+          className={headerAddButtonClasses}
+        >
+          {content}
+        </AppLink>
+      ) : (
+        <button
+          type="button"
+          onClick={disabled ? undefined : onClick}
+          aria-label={hint ? `${label}. ${hint}` : label}
+          aria-disabled={disabled || undefined}
+          className={headerAddButtonClasses}
+        >
+          {content}
+        </button>
+      )}
     </Tooltip>
   )
 }
@@ -105,26 +109,33 @@ export function HeaderActionMenu({ items, label }: { items: MenuEntry[]; label?:
 
 export function HeaderEditButton({
   href,
+  reloadDocument,
+  target,
   onClick,
   label: labelProp,
   disabled,
   tooltip,
-}: {
-  href?: string
+}: LinkTarget & {
   onClick?: () => void
   label?: string
   disabled?: boolean
   tooltip?: string | undefined
 }) {
-  const Link = useLink()
   const { common } = useStrings()
   const label = labelProp ?? common.edit
   return (
     <Tooltip content={tooltip ?? label}>
-      {href && !disabled ? (
-        <Link href={href} aria-label={label} className={headerActionButtonClasses}>
+      {href ? (
+        <AppLink
+          href={href}
+          reloadDocument={reloadDocument}
+          target={target}
+          disabled={disabled}
+          aria-label={label}
+          className={headerActionButtonClasses}
+        >
           <EditIcon className="w-3 h-3" />
-        </Link>
+        </AppLink>
       ) : (
         <button
           type="button"
@@ -160,22 +171,23 @@ export function BreadcrumbsRightAction({ children }: { children: ReactNode }) {
 // Colored from the theme rather than by a host's `link` class, which would outrank the
 // destructive color.
 const breadcrumbsActionClasses =
-  'flex cursor-pointer items-center gap-1 text-xs whitespace-nowrap hover:not-disabled:underline disabled:cursor-not-allowed disabled:opacity-50'
+  'flex cursor-pointer items-center gap-1 text-xs whitespace-nowrap rounded-sm hover:not-disabled:not-aria-disabled:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--theme-link) disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50'
 
 export function BreadcrumbsActionButton({
   icon: Icon,
   label,
   ariaLabel,
   href,
+  reloadDocument,
+  target,
   onClick,
   disabled,
   tooltip,
   destructive = false,
-}: {
+}: LinkTarget & {
   icon: ComponentType<{ className?: string }>
   label: string
   ariaLabel?: string
-  href?: string
   onClick?: (() => void) | undefined
   disabled?: boolean
   tooltip?: string | undefined
@@ -183,7 +195,6 @@ export function BreadcrumbsActionButton({
    *  something. */
   destructive?: boolean | undefined
 }) {
-  const Link = useLink()
   const className = cx(
     breadcrumbsActionClasses,
     destructive ? 'text-(--theme-error)' : 'text-(--theme-link)',
@@ -196,10 +207,17 @@ export function BreadcrumbsActionButton({
   )
   return (
     <Tooltip content={tooltip}>
-      {href && !disabled ? (
-        <Link href={href} className={className} aria-label={ariaLabel}>
+      {href ? (
+        <AppLink
+          href={href}
+          reloadDocument={reloadDocument}
+          target={target}
+          disabled={disabled}
+          className={className}
+          aria-label={ariaLabel}
+        >
           {content}
-        </Link>
+        </AppLink>
       ) : (
         <button
           type="button"
@@ -238,7 +256,6 @@ export function PageHeader({
   stickyTopClassName = 'top-0',
 }: PageHeaderProps) {
   const { setHidden } = useBreadcrumb()
-  const Link = useLink()
   const { breadcrumbPin, navToggle } = useSlots()
   const { common } = useStrings()
   // This header is the page's own breadcrumb trail, so keep the global strip out
@@ -275,12 +292,12 @@ export function PageHeader({
           return (
             <Fragment key={key}>
               {crumb.href ? (
-                <Link
+                <AppLink
                   href={crumb.href}
                   className="text-(--theme-muted-text-color) hover:text-(--theme-app) transition-colors cursor-pointer whitespace-nowrap"
                 >
                   {crumb.label}
-                </Link>
+                </AppLink>
               ) : (
                 <span className="text-(--theme-muted-text-color) whitespace-nowrap">
                   {crumb.label}
