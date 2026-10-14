@@ -364,6 +364,10 @@ export interface UIStrings {
       corsAdded: string
       corsPropagating: string
       previewUnsupported: string
+      /** A folder's listing failed; `name` is the folder. */
+      loadFailed: (name: string, message: string) => string
+      /** A failure that came with no message of its own. */
+      unknownError: string
     }
     chrome: {
       explorer: string
@@ -386,6 +390,14 @@ export interface UIStrings {
       details: string
       selectFiles: string
       selectFolder: string
+      /** Names the table of a folder's contents. */
+      files: string
+      /** Names the folder tree. */
+      folders: string
+      /** Names the trail from the storage down to the open folder. */
+      location: string
+      /** Explains a share link, beside Share. */
+      shareHelp: string
     }
     confirmUpload: {
       title: string
@@ -1014,6 +1026,8 @@ const DEFAULTS: UIProviderValue = {
         corsAdded: 'CORS rules added successfully',
         corsPropagating: 'CORS rules were added, but are still propagating. Try again in a moment.',
         previewUnsupported: 'Preview is not supported for this storage.',
+        loadFailed: (name, message) => `Failed to load contents for ${name}: ${message}`,
+        unknownError: 'Unknown error',
       },
       chrome: {
         explorer: 'Explorer',
@@ -1036,6 +1050,11 @@ const DEFAULTS: UIProviderValue = {
         details: 'Details',
         selectFiles: 'Select files',
         selectFolder: 'Select folder',
+        files: 'Files',
+        folders: 'Folders',
+        location: 'Location',
+        shareHelp:
+          "This will generate a pre-signed URL for this file. Anyone with this link can temporarily access and download the file, even if they don't have an account. The link will automatically expire after 12 hours.",
       },
       confirmUpload: {
         title: 'Confirm Upload',

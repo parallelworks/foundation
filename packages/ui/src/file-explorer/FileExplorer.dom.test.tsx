@@ -722,3 +722,19 @@ describe('FileExplorer write without delete', () => {
     expect(screen.queryByRole('menuitem', { name: 'Delete' })).not.toBeInTheDocument()
   })
 })
+
+describe('FileExplorer landmarks and names', () => {
+  it("names the folder's trail and marks the open folder", async () => {
+    await renderExplorer(FOLDER_A)
+    const trail = await screen.findByRole('navigation', { name: 'Location' })
+    const current = within(trail).getByText('a')
+    expect(current).toHaveAttribute('aria-current', 'location')
+    expect(within(trail).getAllByRole('listitem').length).toBeGreaterThan(1)
+  })
+
+  it('names the file grid and the folder tree from the provider', async () => {
+    await renderExplorer(FOLDER_A)
+    expect(await screen.findByRole('grid', { name: 'Files' })).toBeInTheDocument()
+    expect(screen.getByRole('tree', { name: 'Folders' })).toBeInTheDocument()
+  })
+})
