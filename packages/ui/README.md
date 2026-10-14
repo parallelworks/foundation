@@ -566,6 +566,12 @@ export function Chat() {
 }
 ```
 
+Every place the chat leads is a link, drawn by `config.LinkComponent` from a
+`ChatLinkTarget`: a `conversation`, a `newChat`, the `attachments` page or an
+`external` URL. Bind it to the router so each one opens in a new tab like any
+other link; the default is a plain anchor to `/chat/<id>`, `/chat` and
+`/chat/attachments`.
+
 `ChatLayout sidebarMode="auto"` shows the conversation list as a drawer over
 the thread when the chat is narrower than `drawerBelowPx` (768 by default),
 measured on the chat's own box; `"drawer"` always does, and `"inline"` (the
