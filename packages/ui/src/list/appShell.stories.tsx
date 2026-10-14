@@ -582,12 +582,12 @@ const PANEL_RIGHT: ToolbarItem[] = [
   },
 ]
 
-function PanelToolbar({ width }: { width: string }) {
+function PanelToolbar({ width }: { width: number }) {
   return (
     <MockHost>
       {() => (
         // Inline: the package's stylesheet doesn't scan stories.
-        <div className="p-4" style={{ maxWidth: width }}>
+        <div className="p-4" style={{ maxWidth: width + 32 }}>
           <ActionToolbar label="Cluster controls" groups={PANEL_GROUPS} right={PANEL_RIGHT} />
         </div>
       )}
@@ -598,10 +598,16 @@ function PanelToolbar({ width }: { width: string }) {
 /** `ActionToolbar` on its own. One primary action is filled and the rest are
  *  outlined; a pressed toggle reads in the link color, and a destructive action
  *  in the error color. It is one tab stop: the arrow keys move between its
- *  items, the disabled Delete included, whose reason is part of its name. */
-export const Toolbar: StoryObj<{ width: string }> = {
-  args: { width: '64rem' },
-  argTypes: { width: { control: 'text', description: 'The space the toolbar has.' } },
+ *  items, the disabled Delete included, whose reason is part of its name. Drag
+ *  the width to see it fold. */
+export const Toolbar: StoryObj<{ width: number }> = {
+  args: { width: 1000 },
+  argTypes: {
+    width: {
+      control: { type: 'range', min: 240, max: 1100, step: 10 },
+      description: "The toolbar's width, in pixels.",
+    },
+  },
   render: ({ width }) => <PanelToolbar width={width} />,
   play: async ({ canvasElement }) => {
     const toolbar = within(canvasElement).getByRole('toolbar', { name: 'Cluster controls' })
@@ -617,17 +623,49 @@ export const Toolbar: StoryObj<{ width: string }> = {
         name: /^Delete\W+Stop the cluster before deleting it$/,
       }),
     ).toHaveAttribute('aria-disabled', 'true')
+    await expect(within(toolbar).queryByRole('button', { name: 'More actions' })).toBeNull()
   },
 }
 
-/** In a narrow panel the groups wrap onto more lines rather than run off it,
- *  and drop their separators; the right-hand actions take the last line, and
- *  fold into the `…` menu only when even that is too narrow. */
-export const ToolbarNarrow: StoryObj<{ width: string }> = {
+/** Short of room for every label, the labels fold to their icons, which keep
+ *  them as their names and show them in tooltips. The primary action keeps its
+ *  label. */
+export const ToolbarFolded: StoryObj<{ width: number }> = {
   ...Toolbar,
-  args: { width: '22rem' },
+  args: { width: 640 },
   play: async ({ canvasElement }) => {
     const toolbar = within(canvasElement).getByRole('toolbar', { name: 'Cluster controls' })
     await expect(toolbar.scrollWidth).toBeLessThanOrEqual(toolbar.clientWidth)
+    // Its label stays its name, read but not seen.
+    await expect(
+      within(toolbar).getByRole('button', { name: 'Snapshot' }).querySelector('.sr-only'),
+    ).toHaveTextContent('Snapshot')
+    await expect(within(toolbar).queryByRole('button', { name: 'More actions' })).toBeNull()
+  },
+}
+
+/** Narrower still, it stays one row: actions move into the `…` menu from the
+ *  end, the right-hand ones first and the primary Run never. The menu keeps a
+ *  toggle a checkbox, a link a link, and Delete in the error color with its
+ *  reason, and the arrow keys reach its button as one of the toolbar's items. */
+export const ToolbarNarrow: StoryObj<{ width: number }> = {
+  ...Toolbar,
+  args: { width: 320 },
+  play: async ({ canvasElement }) => {
+    const toolbar = within(canvasElement).getByRole('toolbar', { name: 'Cluster controls' })
+    await expect(toolbar.scrollWidth).toBeLessThanOrEqual(toolbar.clientWidth)
+    const more = within(toolbar).getByRole('button', { name: 'More actions' })
+    within(toolbar).getByRole('button', { name: 'Run' }).focus()
+    // The arrow keys loop, so the `…` button is one step back from the first item.
+    await userEvent.keyboard('{ArrowLeft}')
+    await expect(more).toHaveFocus()
+    await userEvent.keyboard('{Enter}')
+    const menu = await within(document.body).findByRole('menu')
+    await expect(
+      within(menu).getByRole('menuitem', {
+        name: /^Delete\W+Stop the cluster before deleting it$/,
+      }),
+    ).toHaveAttribute('aria-disabled', 'true')
+    await userEvent.keyboard('{Escape}')
   },
 }
