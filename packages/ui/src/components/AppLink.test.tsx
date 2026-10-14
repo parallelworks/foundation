@@ -187,6 +187,57 @@ describe('menu link row', () => {
   })
 })
 
+describe('a link action with target _blank', () => {
+  const action = {
+    key: 'console',
+    label: 'Console',
+    icon: '↗',
+    href: HREF,
+    target: '_blank',
+  } as const
+  const expectNewTab = (link: HTMLElement) => {
+    expect(link).toHaveAttribute('href', HREF)
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+    expect(link).toHaveTextContent('(opens in a new tab)')
+  }
+
+  it('opens a menu row in a new tab', async () => {
+    renderWithRouter(
+      <ActionMenu label="More" items={[action]}>
+        …
+      </ActionMenu>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'More' }))
+    expectNewTab(await screen.findByRole('menuitem', { name: /Console/ }))
+  })
+
+  it('opens a toolbar button in a new tab', () => {
+    renderWithRouter(<ToolbarButton action={action} />)
+    expectNewTab(screen.getByRole('link', { name: /Console/ }))
+  })
+
+  it('opens a pinned row action in a new tab', () => {
+    renderWithRouter(
+      <table>
+        <tbody>
+          <ListRow
+            href={null}
+            items={[]}
+            goTo={() => {}}
+            openMenu={() => {}}
+            pinnedActions={[action]}
+          >
+            <Table.Item>row</Table.Item>
+          </ListRow>
+        </tbody>
+      </table>,
+    )
+    // Its name is the aria-label; the new tab rides in its content.
+    expectNewTab(screen.getByRole('link', { name: 'Console' }))
+  })
+})
+
 describe('Toast link action', () => {
   it('is a link through the host’s router, and closes the toast', async () => {
     renderWithRouter(null)
@@ -219,7 +270,7 @@ describe('AppLink', () => {
         Docs
       </AppLink>,
     )
-    const link = screen.getByRole('link', { name: 'Docs' })
+    const link = screen.getByRole('link', { name: /^Docs/ })
     expect(link).not.toHaveAttribute('data-router-link')
     expect(link).toHaveAttribute('rel', 'noopener noreferrer')
   })

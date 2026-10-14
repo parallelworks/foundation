@@ -67,6 +67,7 @@ export function ToolbarButton({ action }: { action: ToolbarAction }) {
       <AppLink
         href={action.href}
         reloadDocument={action.reloadDocument}
+        target={action.target}
         disabled={action.disabled}
         className={className}
       >

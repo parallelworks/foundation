@@ -1,6 +1,6 @@
 import type { ComponentPropsWithRef, MouseEvent } from 'react'
 import { safeUrl } from '../safeUrl'
-import { useLink } from './Provider'
+import { useLink, useStrings } from './Provider'
 
 /** Where a control navigates, for any component that can be a link instead of a button. */
 export interface LinkTarget {
@@ -58,20 +58,36 @@ export function AppLink({
   disabled = false,
   rel,
   onClick,
+  children,
   ...props
 }: AppLinkProps) {
   const Link = useLink()
+  const { common } = useStrings()
   const url = disabled ? undefined : safeUrl(href)
   if (!url) {
     // A disabled link keeps its role, and its place in the tab order for a
     // tooltip saying why, but goes nowhere.
-    return <a {...props} role="link" aria-disabled="true" tabIndex={props.tabIndex ?? 0} />
+    return (
+      <a {...props} role="link" aria-disabled="true" tabIndex={props.tabIndex ?? 0}>
+        {children}
+      </a>
+    )
   }
   const linkProps = {
     ...props,
     target,
     rel: rel ?? (target === '_blank' ? 'noopener noreferrer' : undefined),
     onClick,
+    // Said after the name, as `ExternalLink` does, so a new tab isn't a surprise.
+    children:
+      target === '_blank' ? (
+        <>
+          {children}
+          <span className="sr-only"> {common.opensInNewTab}</span>
+        </>
+      ) : (
+        children
+      ),
   }
   return reloadDocument || leavesApp(url) ? (
     <a {...linkProps} href={url} />

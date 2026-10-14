@@ -404,7 +404,7 @@ where it opens elsewhere, and renders it through `AppLink`:
 | Surface | Navigates with |
 | --- | --- |
 | `Button`, `IconButton`, `Card` | `href` |
-| Menu rows, `RowAction`s (a list row's menu and pinned buttons), `ToolbarAction`s | `href` on the action |
+| Menu rows, `RowAction`s (a list row's menu and pinned buttons), `ToolbarAction`s | `href` on the action, with `target: '_blank'` for a new tab |
 | `PageHeaderAction`, `PageHeaderAddButton`, `PageHeader` breadcrumbs | `href`; `external` opens a new tab |
 | `Tabs` that are pages, `Pagination` | `href` on the item, `pageHref` |
 | A list row | `ListRow` `href` with a `NameCell` of the same `href`: the name's link covers the row |

@@ -275,6 +275,7 @@ function PinnedActionButton({ action, visible }: { action: RowAction; visible: b
         <AppLink
           href={action.href}
           reloadDocument={action.reloadDocument}
+          target={action.target}
           disabled={action.disabled}
           {...props}
         >

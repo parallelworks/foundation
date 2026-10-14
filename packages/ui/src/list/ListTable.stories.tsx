@@ -45,6 +45,7 @@ const ROWS = [
 function rowMenuItems(name: string): MenuEntry[] {
   return [
     { label: 'Open', onClick: () => {} },
+    { label: 'Open console', href: 'https://example.com/console', target: '_blank' },
     { label: 'Copy name', copy: { text: name, label: 'name' } },
     { label: 'Delete', destructive: true, onClick: () => {} },
   ]
