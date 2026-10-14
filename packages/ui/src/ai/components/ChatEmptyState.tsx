@@ -7,7 +7,7 @@ import { useChatConfig } from '../core/config'
 import { getGreeting } from '../core/greeting'
 import useDragDrop from '../core/useDragDrop'
 import type { AttachmentMeta } from '../types'
-import { NoticeCard } from '../ui/Notice'
+import { NoticeCard, noticeActionClassName } from '../ui/Notice'
 import BlockedGroupBanner from './BlockedGroupBanner'
 import ChatInput, { type ChatInputHandle } from './ChatInput'
 import ChatStage from './ChatStage'
@@ -122,20 +122,20 @@ export default function ChatEmptyState({
           <div className="mx-4 mt-2">
             <NoticeCard
               tone="warning"
+              title={t.sessionUnreachableTitle(targetSession?.split(':').pop() ?? '')}
+              action={
+                <button
+                  type="button"
+                  onClick={() => refreshModels()}
+                  className={noticeActionClassName('warning')}
+                >
+                  {common.retry}
+                </button>
+              }
               onDismiss={() => setSessionBannerDismissed(true)}
               dismissLabel={common.dismiss}
             >
-              <span className="block font-medium">
-                {t.sessionUnreachableTitle(targetSession?.split(':').pop() ?? '')}
-              </span>
-              <span className="mt-0.5 block">{t.sessionUnreachableBody}</span>
-              <button
-                type="button"
-                onClick={() => refreshModels()}
-                className="mt-1 font-medium underline-offset-2 hover:underline"
-              >
-                {common.retry}
-              </button>
+              {t.sessionUnreachableBody}
             </NoticeCard>
           </div>
         )}

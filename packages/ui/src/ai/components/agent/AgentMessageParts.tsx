@@ -3,6 +3,7 @@ import { Disclosure } from '../../../components/Disclosure'
 import { fieldBox } from '../../../components/fieldBox'
 import { Loader } from '../../../components/Loader'
 import { useStrings } from '../../../components/Provider'
+import { toneSurface } from '../../../components/tone'
 import { cx } from '../../../cx'
 import { formatDuration } from '../../../format'
 import { CheckIcon } from '../../../icons'
@@ -84,7 +85,7 @@ function LineSpans({
       out.push(
         <span
           key={key++}
-          className={emphasized ? 'bg-green-500/30 rounded-[2px]' : undefined}
+          className={emphasized ? 'bg-(--theme-success)/30 rounded-[2px]' : undefined}
           style={t.color ? { color: t.color } : undefined}
         >
           {t.content.slice(start, end)}
@@ -127,8 +128,8 @@ function DiffRows({ rows, lang }: { rows: DiffRow[]; lang: string | null }) {
           key={i}
           className={cx(
             'flex whitespace-pre',
-            row.kind === 'add' && 'bg-green-500/15',
-            row.kind === 'del' && 'bg-red-500/15',
+            row.kind === 'add' && 'bg-(--theme-success)/15',
+            row.kind === 'del' && 'bg-(--theme-error)/15',
             row.kind === 'gap' && 'theme-muted-text',
           )}
         >
@@ -237,9 +238,9 @@ function ToolStatusDot({ part }: { part: ToolCallPart }) {
     return <Loader inline decorative size={14} color="var(--theme-muted-text-color)" />
   }
   if (part.status === 'error') {
-    return <span className="text-red-500 leading-none">●</span>
+    return <span className="leading-none text-(--theme-error)">●</span>
   }
-  return <span className="text-green-600 leading-none">●</span>
+  return <span className="leading-none text-(--theme-success)">●</span>
 }
 
 /** A part's toggle row: its status mark and name, across the transcript's width. */
@@ -432,7 +433,7 @@ function ConfirmApproval({
           <button
             type="button"
             onClick={() => answer({ kind: 'confirm', allowed: false })}
-            className="px-3 py-1 text-xs font-medium rounded-full border theme-border hover:theme-hover text-red-600"
+            className="px-3 py-1 text-xs font-medium rounded-full border theme-border hover:theme-hover text-(--theme-error-text)"
           >
             {denyLabel}
           </button>
@@ -660,8 +661,8 @@ function NoticeBlock({ part }: { part: NoticePart }) {
   return (
     <div
       className={cx(
-        'my-1 text-xs rounded-md px-2.5 py-1.5',
-        part.kind === 'error' ? 'bg-red-500/10 text-red-700' : 'bg-yellow-500/10 text-yellow-700',
+        'my-1 text-xs rounded-md border px-2.5 py-1.5',
+        toneSurface[part.kind === 'error' ? 'error' : 'warning'],
       )}
       data-testid={`${part.kind}-part`}
     >

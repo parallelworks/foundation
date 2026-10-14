@@ -239,7 +239,7 @@ const AttachmentUpload = forwardRef<AttachmentUploadHandle, AttachmentUploadProp
                     key={attachment.id || index}
                     className={cx(
                       'flex items-center gap-2 px-2 py-1 rounded border theme-border theme-muted-panel',
-                      attachment.error && 'border-red-500',
+                      attachment.error && 'border-(--theme-error)',
                     )}
                   >
                     <Icon className="w-4 h-4 theme-muted-text" />
@@ -248,21 +248,21 @@ const AttachmentUpload = forwardRef<AttachmentUploadHandle, AttachmentUploadProp
                     </span>
                     <span className="text-xs theme-muted-text">{formatBytes(attachment.size)}</span>
                     {attachment.uploading && (
-                      <span className="text-xs text-blue-500 animate-pulse">{t.uploading}</span>
+                      <span className="text-xs theme-muted-text animate-pulse">{t.uploading}</span>
                     )}
                     {attachment.error && (
                       <span role="img" aria-label={attachment.error} title={attachment.error}>
-                        <WarningIcon className="h-3.5 w-3.5 text-red-500" />
+                        <WarningIcon className="h-3.5 w-3.5 text-(--theme-error)" />
                       </span>
                     )}
                     <button
                       type="button"
                       onClick={() => handleRemove(index)}
-                      className="p-0.5 rounded hover:bg-red-500/10"
+                      className="p-0.5 rounded hover:bg-(--theme-error-muted)"
                       title={common.remove}
                       disabled={disabled}
                     >
-                      <TrashIcon className="w-3 h-3 text-red-500" />
+                      <TrashIcon className="w-3 h-3 text-(--theme-error)" />
                     </button>
                   </div>
                 )
@@ -278,7 +278,9 @@ const AttachmentUpload = forwardRef<AttachmentUploadHandle, AttachmentUploadProp
             onDrop={handleDrop}
             className={cx(
               'relative block w-full border-2 border-dashed rounded-lg p-3 text-center transition-colors',
-              isDragging ? 'border-blue-500 bg-blue-500/10' : 'theme-border hover:theme-border',
+              isDragging
+                ? 'border-(--theme-accent) bg-(--theme-accent)/10'
+                : 'theme-border hover:theme-border',
               disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
             )}
             onClick={disabled ? undefined : handleClick}

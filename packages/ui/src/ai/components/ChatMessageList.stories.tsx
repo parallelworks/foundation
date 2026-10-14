@@ -151,3 +151,25 @@ export const ReasoningOpened: StoryObj<{ open: boolean }> = {
     }
   },
 }
+
+const failed: ChatMessage[] = [
+  makeMessage({ role: 'user', content: 'Summarize the last build log.' }),
+  makeMessage({
+    role: 'assistant',
+    content: '',
+    error: 'The provider returned 429 Too Many Requests. Try again in a minute.',
+  }),
+]
+
+// A reply that failed, in the theme's error tone, with retry when the host
+// passes onRetryMessage.
+export const FailedReply: StoryObj<{ retry: boolean }> = {
+  args: { retry: true },
+  render: ({ retry }) => (
+    <MessageList
+      messages={failed}
+      allMessages={failed}
+      {...(retry ? { onRetryMessage: () => {} } : {})}
+    />
+  ),
+}

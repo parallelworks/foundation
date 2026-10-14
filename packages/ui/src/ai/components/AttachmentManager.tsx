@@ -173,7 +173,7 @@ export default function AttachmentManager() {
                               type="button"
                               onClick={() => handleDelete(att.id)}
                               disabled={isDeleting}
-                              className="p-1.5 rounded-lg hover:bg-red-500/15 theme-muted-text hover:text-red-600 transition-colors"
+                              className="p-1.5 rounded-lg hover:bg-(--theme-error-muted) theme-muted-text hover:text-(--theme-error-text) transition-colors"
                               title={common.delete}
                             >
                               <TrashIcon className="w-4 h-4" />
