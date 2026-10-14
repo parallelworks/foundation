@@ -70,6 +70,10 @@ type Migrations struct {
 	LockKey int64
 	// Logger defaults to slog.Default().
 	Logger *slog.Logger
+	// AllowOutOfOrder applies a migration numbered below ones already
+	// applied instead of refusing to start, for applications whose
+	// independent changes merge in any order.
+	AllowOutOfOrder bool
 }
 
 // Migrate creates the pool's schema, installs or upgrades hopper's tables in
@@ -117,16 +121,20 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, m Migrations) (err error) 
 	if _, err := hoppermigrate.Up(ctx, HopperDriver(pool), &hoppermigrate.Options{Logger: logger}); err != nil {
 		return fmt.Errorf("pgdb: migrate hopper: %w", err)
 	}
-	return migrateApp(ctx, pool, m.FS, logger)
+	return migrateApp(ctx, pool, m, logger)
 }
 
-func migrateApp(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS, logger *slog.Logger) error {
-	if fsys == nil {
+func migrateApp(ctx context.Context, pool *pgxpool.Pool, m Migrations, logger *slog.Logger) error {
+	if m.FS == nil {
 		return nil
 	}
 	db := stdlib.OpenDBFromPool(pool)
 	defer db.Close()
-	provider, err := goose.NewProvider(goose.DialectPostgres, db, fsys)
+	var opts []goose.ProviderOption
+	if m.AllowOutOfOrder {
+		opts = append(opts, goose.WithAllowOutofOrder(true))
+	}
+	provider, err := goose.NewProvider(goose.DialectPostgres, db, m.FS, opts...)
 	if err != nil {
 		return fmt.Errorf("pgdb: goose: %w", err)
 	}

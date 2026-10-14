@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"testing"
+	"testing/fstest"
 
 	"github.com/parallelworks/hopper/hoppermigrate"
 	"golang.org/x/sync/errgroup"
@@ -86,5 +87,31 @@ func TestSchemaIsDroppedAfterTheTest(t *testing.T) {
 	if err := pool.QueryRow(context.WithoutCancel(t.Context()),
 		"SELECT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = $1)", schema).Scan(&exists); err != nil || exists {
 		t.Errorf("schema %s left behind (%v)", schema, err)
+	}
+}
+
+func TestMigrateOutOfOrder(t *testing.T) {
+	ctx := t.Context()
+	pool := pgdbtest.Open(t, urlEnv, "")
+	migration := func(table string) *fstest.MapFile {
+		return &fstest.MapFile{Data: []byte("-- +goose Up\nCREATE TABLE " + table + " (id int);\n-- +goose Down\nDROP TABLE " + table + ";\n")}
+	}
+	first := fstest.MapFS{"00001_a.sql": migration("a"), "00003_c.sql": migration("c")}
+	later := fstest.MapFS{"00001_a.sql": migration("a"), "00002_b.sql": migration("b"), "00003_c.sql": migration("c")}
+	quiet := slog.New(slog.DiscardHandler)
+
+	if err := pgdb.Migrate(ctx, pool, pgdb.Migrations{FS: first, Logger: quiet}); err != nil {
+		t.Fatal(err)
+	}
+	// A migration merged after a higher-numbered one is refused by default...
+	if err := pgdb.Migrate(ctx, pool, pgdb.Migrations{FS: later, Logger: quiet}); err == nil {
+		t.Fatal("migrated a missing lower version without AllowOutOfOrder")
+	}
+	// ...and applied when the application allows it.
+	if err := pgdb.Migrate(ctx, pool, pgdb.Migrations{FS: later, Logger: quiet, AllowOutOfOrder: true}); err != nil {
+		t.Fatalf("out of order: %v", err)
+	}
+	if _, err := pool.Exec(ctx, "INSERT INTO b VALUES (1)"); err != nil {
+		t.Errorf("version 2 not applied: %v", err)
 	}
 }
