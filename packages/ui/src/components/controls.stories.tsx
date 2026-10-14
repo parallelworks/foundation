@@ -419,12 +419,13 @@ export const SettingsUnframed: StoryObj<{ framed: boolean }> = {
 export const SettingsSticky: StoryObj<{ sticky: boolean }> = {
   args: { sticky: true },
   render: ({ sticky }) => (
-    <div className="h-96 overflow-auto">
-      <div className="grid gap-x-6 md:grid-cols-[minmax(0,1fr)_16rem]">
+    // Inline styles where the compiled stylesheet, which skips stories, lacks the utility.
+    <div className="overflow-y-auto" style={{ height: '24rem' }}>
+      <div className="grid gap-x-6" style={{ gridTemplateColumns: 'minmax(0, 1fr) 16rem' }}>
         <SettingsCard
           title="Messages"
           description="The first one shows in the preview."
-          className="md:row-span-2 md:grid md:grid-rows-subgrid"
+          className="row-span-2 grid grid-rows-subgrid"
         >
           {MESSAGES.map((message, i) => (
             <SettingRow key={message} label={`Message ${i + 1}`} fill>
@@ -435,7 +436,7 @@ export const SettingsSticky: StoryObj<{ sticky: boolean }> = {
         <SettingsCard
           title="Preview"
           sticky={sticky}
-          className="md:row-span-2 md:mt-0 md:grid md:grid-rows-subgrid"
+          className="row-span-2 mt-0 grid grid-rows-subgrid"
         >
           <p className="p-4 text-sm theme-text">{MESSAGES[0]}</p>
         </SettingsCard>
