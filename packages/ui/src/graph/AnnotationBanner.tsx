@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { keyedByContent } from '../components/keys'
 import { useStrings } from '../components/Provider'
+import { type Tone, toneIcon, toneSurface, toneText } from '../components/tone'
 import { cx } from '../cx'
-import { ChevronDownIcon, ChevronRightIcon, ErrorIcon, InfoIcon, WarningIcon } from '../icons'
+import { ChevronRightIcon, ErrorIcon, InfoIcon, WarningIcon } from '../icons'
 import type { WorkflowJob } from './types'
 
 type AnnotationType = 'error' | 'warning' | 'notice'
@@ -19,7 +20,7 @@ interface CollectedAnnotation {
   stepIndex: number
 }
 
-interface AnnotationBannerProps {
+export interface AnnotationBannerProps {
   executedJobs: Record<string, WorkflowJob>
 }
 
@@ -29,33 +30,11 @@ const typeOrder: Record<AnnotationType, number> = {
   notice: 2,
 }
 
-const typeConfig: Record<
-  AnnotationType,
-  {
-    icon: typeof ErrorIcon
-    accentClass: string
-    bgClass: string
-    countBg: string
-  }
-> = {
-  error: {
-    icon: ErrorIcon,
-    accentClass: 'text-red-500',
-    bgClass: 'bg-red-500/5 dark:bg-red-500/10',
-    countBg: 'bg-red-500/15 text-red-700 dark:text-red-400',
-  },
-  warning: {
-    icon: WarningIcon,
-    accentClass: 'text-yellow-500',
-    bgClass: 'bg-yellow-500/5 dark:bg-yellow-500/10',
-    countBg: 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-400',
-  },
-  notice: {
-    icon: InfoIcon,
-    accentClass: 'text-blue-500',
-    bgClass: 'bg-blue-500/5 dark:bg-blue-500/10',
-    countBg: 'bg-blue-500/15 text-blue-700 dark:text-blue-400',
-  },
+// Each kind of annotation in its status tone: words in the text shade, icons in the vivid one.
+const typeConfig: Record<AnnotationType, { icon: typeof ErrorIcon; tone: Tone }> = {
+  error: { icon: ErrorIcon, tone: 'error' },
+  warning: { icon: WarningIcon, tone: 'warning' },
+  notice: { icon: InfoIcon, tone: 'info' },
 }
 
 function collectAnnotations(
@@ -108,6 +87,7 @@ function collectAnnotations(
 export function AnnotationBanner({ executedJobs }: AnnotationBannerProps) {
   const [expanded, setExpanded] = useState(false)
   const { dag: t } = useStrings()
+  const listId = useId()
 
   const annotations = collectAnnotations(executedJobs)
   if (annotations.length === 0) {
@@ -119,87 +99,79 @@ export function AnnotationBanner({ executedJobs }: AnnotationBannerProps) {
     counts[a.type]++
   }
 
-  const ChevronIcon = expanded ? ChevronDownIcon : ChevronRightIcon
-
   return (
-    <div
-      className={cx(
-        'rounded-lg border border-[var(--theme-border)] overflow-hidden',
-        'bg-[var(--theme-panel-bg)]',
-      )}
-    >
-      {/* Clickable header — always visible */}
+    <div className="overflow-hidden rounded-lg border border-(--theme-border) bg-(--theme-panel-bg)">
       <button
         type="button"
+        aria-expanded={expanded}
+        aria-controls={listId}
         onClick={() => setExpanded((prev) => !prev)}
         className={cx(
-          'w-full flex items-center gap-3 px-4 py-2.5 text-left',
-          'hover:bg-[var(--theme-hover)] transition-colors',
-          expanded && 'border-b border-[var(--theme-border)]',
+          'flex w-full items-center gap-3 px-4 py-2.5 text-left',
+          'transition-colors hover:bg-(--theme-hover) motion-reduce:transition-none',
+          'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-(--theme-link)',
+          expanded && 'border-b border-(--theme-border)',
         )}
       >
-        <ChevronIcon className="w-3.5 h-3.5 text-[var(--theme-muted-text-color)] shrink-0" />
-
-        <span className="text-sm font-medium text-[var(--theme-app)]">{t.annotations}</span>
-
-        {/* Count badges */}
-        <div className="flex items-center gap-1.5">
+        <ChevronRightIcon
+          className={cx(
+            'size-3.5 shrink-0 text-(--theme-muted-text-color) transition-transform motion-reduce:transition-none',
+            expanded && 'rotate-90',
+          )}
+        />
+        <span className="text-sm font-medium text-(--theme-app)">{t.annotations}</span>
+        {/* The badges show each count beside its icon; read aloud, the counts say what they count. */}
+        <span className="sr-only">, {t.annotationCounts(counts)}</span>
+        <span aria-hidden className="flex items-center gap-1.5">
           {(['error', 'warning', 'notice'] as const).map((type) => {
             if (!counts[type]) {
               return null
             }
-            const config = typeConfig[type]
-            const Icon = config.icon
+            const { icon: Icon, tone } = typeConfig[type]
             return (
               <span
                 key={type}
                 className={cx(
-                  'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium',
-                  config.countBg,
+                  'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium tabular-nums',
+                  toneSurface[tone],
                 )}
               >
-                <Icon className="w-3 h-3" />
+                <Icon className={cx('size-3', toneIcon[tone])} />
                 {counts[type]}
               </span>
             )
           })}
-        </div>
+        </span>
       </button>
 
-      {/* Annotation list — shown when expanded */}
       {expanded && (
-        <div className="divide-y divide-[var(--theme-border)] max-h-[400px] overflow-y-auto">
+        <ul id={listId} className="max-h-[400px] divide-y divide-(--theme-border) overflow-y-auto">
           {keyedByContent(annotations, (a) => a.id ?? `${a.type}:${a.title}:${a.message}`).map(
             ({ key, item: annotation }) => {
-              const config = typeConfig[annotation.type] || typeConfig.notice
-              const Icon = config.icon
-
+              const { icon: Icon, tone } = typeConfig[annotation.type] || typeConfig.notice
               return (
-                <div
-                  key={key}
-                  className={cx('flex items-start gap-2.5 px-4 py-2 text-sm', config.bgClass)}
-                >
-                  <Icon className={cx('w-4 h-4 mt-0.5 shrink-0', config.accentClass)} />
-                  <div className="flex-1 min-w-0">
-                    <span className={cx('font-medium', config.accentClass)}>
+                <li key={key} className="flex items-start gap-2.5 px-4 py-2 text-sm">
+                  <Icon className={cx('mt-0.5 size-4 shrink-0', toneIcon[tone])} />
+                  <div className="min-w-0 flex-1">
+                    <span className={cx('font-medium', toneText[tone])}>
                       {annotation.title ||
                         t.annotationType[annotation.type] ||
                         t.annotationType.notice}
                       :
                     </span>{' '}
-                    <span className="text-[var(--theme-app)]">{annotation.message}</span>
-                    <span className="text-[var(--theme-muted-text-color)] ml-2 text-xs">
+                    <span className="text-(--theme-app)">{annotation.message}</span>
+                    <span className="ml-2 text-xs text-(--theme-muted-text-color)">
                       {t.annotationSource(
                         annotation.jobName,
                         annotation.stepName || t.stepNumber(annotation.stepIndex),
                       )}
                     </span>
                   </div>
-                </div>
+                </li>
               )
             },
           )}
-        </div>
+        </ul>
       )}
     </div>
   )

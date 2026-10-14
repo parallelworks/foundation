@@ -230,6 +230,8 @@ export interface UIStrings {
     subworkflow: string
     annotations: string
     annotationType: { error: string; warning: string; notice: string }
+    /** Read after "Annotations" in place of the count badges, such as "2 errors, 1 warning". */
+    annotationCounts: (counts: { error: number; warning: number; notice: number }) => string
     /** Where an annotation came from, under its message. */
     annotationSource: (job: string, step: string) => string
     /** A step without a name, numbered from 0 as the run reports it. */
@@ -870,6 +872,15 @@ const DEFAULTS: UIProviderValue = {
       subworkflow: '(subworkflow)',
       annotations: 'Annotations',
       annotationType: { error: 'Error', warning: 'Warning', notice: 'Notice' },
+      annotationCounts: ({ error, warning, notice }) =>
+        [
+          [error, 'error', 'errors'],
+          [warning, 'warning', 'warnings'],
+          [notice, 'notice', 'notices'],
+        ]
+          .filter(([count]) => count)
+          .map(([count, one, many]) => `${count} ${count === 1 ? one : many}`)
+          .join(', '),
       annotationSource: (job, step) => `in ${job} → ${step}`,
       stepNumber: (index) => `step ${index}`,
     },
