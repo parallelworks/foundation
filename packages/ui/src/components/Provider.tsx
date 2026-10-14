@@ -113,6 +113,8 @@ export interface UIStrings {
     add: (text: string) => string
     /** In place of the placeholder once a field holds as many values as it takes. */
     limitReached: (max: number) => string
+    /** Names the button on a chosen value's chip that takes it out. */
+    removeValue: (label: string) => string
   }
   datePicker: {
     /** The button's text while no date is chosen. */
@@ -761,6 +763,7 @@ const DEFAULTS: UIProviderValue = {
       showOptions: 'Show options',
       add: (text) => `Add “${text}”`,
       limitReached: (max) => `Up to ${max}`,
+      removeValue: (label) => `Remove ${label}`,
     },
     datePicker: {
       pickDate: 'Pick a date',
