@@ -27,8 +27,9 @@ afterEach(() => vi.restoreAllMocks())
 const noop = () => {}
 
 // Full: Run 62 + Stop 70 | Logs 70, Follow 86 | Refresh 94, Delete 86 with the
-// gaps comes to 511px; folded to icons (Run keeps its label) it is 245px, and
-// at 150px only Run and Stop fit beside the `…` button.
+// gaps comes to 511px. Labels fold from the end, each 28px folded: Delete,
+// Refresh, Follow, Logs, Stop, down to 245px; at 150px only Run and Stop fit
+// beside the `…` button.
 const GROUPS: ToolbarItem[][] = [
   [
     { key: 'run', label: 'Run', icon, onClick: noop, primary: true },
@@ -67,14 +68,28 @@ describe('ActionToolbar fitting its width', () => {
     expect(menuButton()).toBeNull()
   })
 
-  it('folds the labels to icons first, keeping them as names, and the primary label', () => {
+  it('folds labels one at a time from the end, keeping each as the name', () => {
+    // Delete and Refresh folded make 387px; Follow folded too, 329px.
     renderAt(400)
     expect(menuButton()).toBeNull()
-    // Named by its label still, which now only a screen reader and the tooltip show.
-    const stop = screen.getByRole('button', { name: 'Stop' })
-    expect(stop.querySelector('.sr-only')).toHaveTextContent('Stop')
-    expect(screen.getByRole('button', { name: 'Run' }).querySelector('.sr-only')).toBeNull()
-    expect(screen.getByRole('button', { name: /^Delete\W+Stop it first$/ })).toBeInTheDocument()
+    const folded = (name: string | RegExp) =>
+      screen.getByRole('button', { name }).querySelector('.sr-only:first-of-type')?.textContent
+    // Named by its label still, which only a screen reader and the tooltip show.
+    expect(folded('Refresh')).toBe('Refresh')
+    expect(folded(/^Delete/)).toBe('Delete')
+    expect(folded('Follow')).toBeUndefined()
+    expect(folded('Stop')).toBeUndefined()
+    expect(folded('Run')).toBeUndefined()
+  })
+
+  it('folds the earlier groups only once the later ones are folded', () => {
+    // Everything but Run and Stop folded makes 287px.
+    renderAt(300)
+    expect(menuButton()).toBeNull()
+    const label = (name: string) => screen.getByRole('button', { name }).querySelector('.sr-only')
+    expect(label('Follow')).toHaveTextContent('Follow')
+    expect(screen.getByRole('link', { name: /^Logs/ }).querySelector('.sr-only')).not.toBeNull()
+    expect(label('Stop')).toBeNull()
   })
 
   it('then moves the right-hand actions into the menu, then the last group, never the primary', () => {
@@ -116,23 +131,20 @@ describe('fitToolbar', () => {
   // With no icon, it keeps its label folded.
   const right = [{ ...item('refresh', 80), folded: 80 }]
 
-  it('moves the end first and keeps the primary action, folding it last', () => {
-    expect(fitToolbar(groups, right, 1000)).toEqual({
-      folded: false,
-      overflow: [],
-      primaryFolded: false,
+  // Full, it is 355px. Logs folds first (303px), then Stop (251px); Refresh
+  // has no icon, so it doesn't fold but moves first.
+  it('folds labels from the end, then moves items from the end, folding the primary last', () => {
+    expect(fitToolbar(groups, right, 1000)).toEqual({ folded: [], overflow: [] })
+    expect(fitToolbar(groups, right, 320)).toEqual({ folded: ['logs'], overflow: [] })
+    expect(fitToolbar(groups, right, 260)).toEqual({ folded: ['logs', 'stop'], overflow: [] })
+    expect(fitToolbar(groups, right, 200)).toEqual({
+      folded: ['logs', 'stop'],
+      overflow: ['refresh'],
     })
-    expect(fitToolbar(groups, right, 260)).toEqual({
-      folded: true,
-      overflow: [],
-      primaryFolded: false,
-    })
-    expect(fitToolbar(groups, right, 200).overflow).toEqual(['refresh'])
     expect(fitToolbar(groups, right, 150).overflow).toEqual(['refresh', 'logs'])
     expect(fitToolbar(groups, right, 50)).toEqual({
-      folded: true,
+      folded: ['logs', 'stop', 'run'],
       overflow: ['refresh', 'logs', 'stop'],
-      primaryFolded: true,
     })
   })
 })
@@ -217,6 +229,23 @@ describe('ActionToolbar', () => {
     expect(logs).toHaveAttribute('aria-disabled', 'true')
     expect(logs).not.toHaveAttribute('href')
     expect(logs).toHaveAttribute('tabindex', '-1')
+  })
+
+  it('warns once when two actions share an icon component', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const Same = () => <svg />
+    const groups = [
+      [
+        { key: 'a', label: 'Refresh', icon: <Same />, onClick: noop },
+        { key: 'b', label: 'Auto refresh', icon: <Same />, onClick: noop, checked: true },
+      ],
+    ]
+    const { rerender } = render(<ActionToolbar groups={groups} />)
+    rerender(<ActionToolbar groups={groups} />)
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('"Refresh", "Auto refresh" share an icon'),
+    )
   })
 
   it('warns once when more than one action is primary', () => {

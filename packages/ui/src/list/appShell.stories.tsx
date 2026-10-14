@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import type { ReactNode } from 'react'
 import { useCallback, useMemo, useState } from 'react'
-import { expect, screen, userEvent, within } from 'storybook/test'
+import { expect, screen, userEvent, waitFor, within } from 'storybook/test'
 import { useContextMenu } from '../components/ContextMenu'
 import { keyedByContent } from '../components/keys'
 import type { MenuEntry } from '../components/MenuEntries'
@@ -15,6 +15,8 @@ import { type UILinkComponent, UIProvider, useNavigation } from '../components/P
 import { StatusBadge } from '../components/StatusBadge'
 import { Table } from '../components/Table'
 import {
+  ChevronDoubleDownIcon,
+  ClockIcon,
   ClusterIcon,
   EditIcon,
   PowerIcon,
@@ -459,11 +461,17 @@ const LOG_GROUPS: ToolbarItem[][] = [
     {
       key: 'auto-refresh',
       label: 'Auto refresh',
-      icon: <RefreshIcon />,
+      icon: <ClockIcon />,
       onClick: () => {},
       checked: true,
     },
-    { key: 'follow', label: 'Follow', icon: <TerminalIcon />, onClick: () => {}, checked: false },
+    {
+      key: 'follow',
+      label: 'Follow',
+      icon: <ChevronDoubleDownIcon />,
+      onClick: () => {},
+      checked: false,
+    },
   ],
 ]
 
@@ -627,20 +635,22 @@ export const Toolbar: StoryObj<{ width: number }> = {
   },
 }
 
-/** Short of room for every label, the labels fold to their icons, which keep
- *  them as their names and show them in tooltips. The primary action keeps its
- *  label. */
+/** Short of room for every label, labels fold to their icons one at a time
+ *  from the end, the right-hand ones first, until the row fits, so it keeps
+ *  every label it has room for. A folded button keeps its label as its name and
+ *  shows it in a tooltip. */
 export const ToolbarFolded: StoryObj<{ width: number }> = {
   ...Toolbar,
   args: { width: 640 },
   play: async ({ canvasElement }) => {
     const toolbar = within(canvasElement).getByRole('toolbar', { name: 'Cluster controls' })
     await expect(toolbar.scrollWidth).toBeLessThanOrEqual(toolbar.clientWidth)
-    // Its label stays its name, read but not seen.
-    await expect(
-      within(toolbar).getByRole('button', { name: 'Snapshot' }).querySelector('.sr-only'),
-    ).toHaveTextContent('Snapshot')
     await expect(within(toolbar).queryByRole('button', { name: 'More actions' })).toBeNull()
+    const label = (name: string) =>
+      within(toolbar).getByRole('button', { name }).querySelector('.sr-only')
+    // The right-hand actions folded, read but not seen; the first groups keep theirs.
+    await waitFor(() => expect(label('Refresh')).toHaveTextContent('Refresh'), { timeout: 5000 })
+    await expect(label('Snapshot')).toBeNull()
   },
 }
 

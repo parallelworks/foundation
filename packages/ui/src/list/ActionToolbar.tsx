@@ -6,6 +6,7 @@ import {
   cloneElement,
   createContext,
   Fragment,
+  isValidElement,
   use,
   useLayoutEffect,
   useRef,
@@ -29,9 +30,9 @@ type Placement = 'toolbar' | 'menu' | 'alone'
 // wherever the toolbar put the element: an item, or a row once it overflows.
 const PlacementContext = createContext<Placement>('alone')
 
-// How the toolbar fits its row, which folds a ToolbarButton's label to its
-// icon, an element item's included.
-const FitContext = createContext<ToolbarFit>({ folded: false, overflow: [], primaryFolded: false })
+// Whether the toolbar folded this item's label to its icon to fit its row,
+// which a ToolbarButton in an element item follows too.
+const FoldedContext = createContext(false)
 
 /** A toolbar button's classes: outlined unless it's the view's one primary
  *  action, so the toolbar has a hierarchy; a toggle shows its state by
@@ -69,15 +70,12 @@ export type ToolbarItem = ToolbarAction | ToolbarElement
 export function ToolbarButton({ action }: { action: ToolbarAction }) {
   const placement = use(PlacementContext)
   const runAction = useRunAction()
-  const fit = use(FitContext)
+  const folded = use(FoldedContext)
   if (placement === 'menu') {
     return <MenuEntries entries={[action]} />
   }
   warnIfInert(action, 'ActionToolbar')
-  const iconOnly =
-    Boolean(action.icon) &&
-    placement === 'toolbar' &&
-    (action.primary ? fit.primaryFolded : fit.folded)
+  const iconOnly = Boolean(action.icon) && placement === 'toolbar' && folded
   const className = actionClasses(action, iconOnly)
   const reason = action.disabled ? action.disabledReason : undefined
   const content = (
@@ -179,15 +177,14 @@ function OverflowMenu({ items }: { items: ToolbarItem[][] }) {
   )
 }
 
-/** How the toolbar fits its row: labels folded to icons, the actions moved
- *  into the `…` menu, and, last of all, the primary action's label folded too. */
+/** How the toolbar fits its row: the items whose labels fold to their icons,
+ *  and those moved into the `…` menu, by key. */
 export interface ToolbarFit {
-  folded: boolean
+  folded: readonly string[]
   overflow: readonly string[]
-  primaryFolded: boolean
 }
 
-const FITS_ALL: ToolbarFit = { folded: false, overflow: [], primaryFolded: false }
+const FITS_ALL: ToolbarFit = { folded: [], overflow: [] }
 
 /** An item's widths with its label and folded to its icon. */
 export interface ItemWidth {
@@ -206,8 +203,8 @@ const MENU_BUTTON_WIDTH = 28
 
 function rowWidth(groups: ItemWidth[][], right: ItemWidth[], fit: ToolbarFit) {
   const hidden = new Set(fit.overflow)
-  const width = (item: ItemWidth) =>
-    (item.primary ? fit.primaryFolded : fit.folded) ? item.folded : item.full
+  const folded = new Set(fit.folded)
+  const width = (item: ItemWidth) => (folded.has(item.key) ? item.folded : item.full)
   const run = (items: ItemWidth[]) =>
     items.reduce((sum, item) => sum + width(item), 0) + ITEM_GAP * (items.length - 1)
   const shownGroups = groups
@@ -226,11 +223,12 @@ function rowWidth(groups: ItemWidth[][], right: ItemWidth[], fit: ToolbarFit) {
 }
 
 /**
- * Fits a toolbar to `available` pixels in steps, each taken only when the one
- * before isn't enough: every label but the primary action's folds to its icon,
- * then the actions move into the `…` menu from the end (the right-hand ones,
- * then the last group's, and so on), the primary action never among them, and
- * last the primary action folds to its icon too.
+ * Fits a toolbar to `available` pixels one item at a time, stopping as soon as
+ * it fits, so it keeps every label the width allows. Items go lowest priority
+ * first: the right-hand ones, then the last group's, and so on, each from the
+ * end. First their labels fold to their icons, one by one; then, all folded,
+ * they move into the `…` menu in the same order; the primary action never
+ * moves, and its label folds only once nothing else is left to try.
  */
 export function fitToolbar(
   groups: ItemWidth[][],
@@ -242,31 +240,36 @@ export function fitToolbar(
   if (fits(FITS_ALL)) {
     return FITS_ALL
   }
-  const folded: ToolbarFit = { folded: true, overflow: [], primaryFolded: false }
-  if (fits(folded)) {
-    return folded
-  }
   const byPriority = [...right]
     .reverse()
     .concat(...[...groups].reverse().map((g) => [...g].reverse()))
-  const overflow: string[] = []
-  for (const item of byPriority) {
-    if (item.primary) {
+  const rest = byPriority.filter((item) => !item.primary)
+  const folded: string[] = []
+  for (const item of rest) {
+    if (item.folded >= item.full) {
+      // Nothing to fold, such as an action without an icon.
       continue
     }
-    overflow.push(item.key)
-    const fit = { folded: true, overflow: [...overflow], primaryFolded: false }
+    folded.push(item.key)
+    const fit = { folded: [...folded], overflow: [] }
     if (fits(fit)) {
       return fit
     }
   }
-  return { folded: true, overflow, primaryFolded: true }
+  const overflow: string[] = []
+  for (const item of rest) {
+    overflow.push(item.key)
+    const fit = { folded: [...folded], overflow: [...overflow] }
+    if (fits(fit)) {
+      return fit
+    }
+  }
+  const primary = byPriority.filter((item) => item.primary).map((item) => item.key)
+  return { folded: [...folded, ...primary], overflow }
 }
 
 const sameFit = (a: ToolbarFit, b: ToolbarFit) =>
-  a.folded === b.folded &&
-  a.primaryFolded === b.primaryFolded &&
-  a.overflow.join('\n') === b.overflow.join('\n')
+  a.folded.join('\n') === b.folded.join('\n') && a.overflow.join('\n') === b.overflow.join('\n')
 
 const isPrimary = (item: ToolbarItem) => 'label' in item && Boolean(item.primary)
 
@@ -302,7 +305,7 @@ function useToolbarFit(
     for (const el of root.querySelectorAll<HTMLElement>('[data-toolbar-element]')) {
       const key = el.dataset['toolbarElement'] ?? ''
       const widths = elementWidths.current.get(key) ?? {}
-      widths[fit.folded ? 'folded' : 'full'] = el.getBoundingClientRect().width
+      widths[fit.folded.includes(key) ? 'folded' : 'full'] = el.getBoundingClientRect().width
       elementWidths.current.set(key, widths)
     }
     const widthsOf = (item: ToolbarItem): ItemWidth => {
@@ -370,16 +373,19 @@ function MeasuringCopy({ items, ref }: { items: ToolbarItem[]; ref: React.Ref<HT
   )
 }
 
-function ItemSlot({ item }: { item: ToolbarItem }) {
-  if ('element' in item) {
-    // Measured as it renders, since only the host knows what it draws.
-    return (
-      <span data-toolbar-element={item.key} className="inline-flex shrink-0">
-        {item.element}
-      </span>
-    )
-  }
-  return <ToolbarButton action={item} />
+function ItemSlot({ item, folded }: { item: ToolbarItem; folded: boolean }) {
+  return (
+    <FoldedContext value={folded}>
+      {'element' in item ? (
+        // Measured as it renders, since only the host knows what it draws.
+        <span data-toolbar-element={item.key} className="inline-flex shrink-0">
+          {item.element}
+        </span>
+      ) : (
+        <ToolbarButton action={item} />
+      )}
+    </FoldedContext>
+  )
 }
 
 /** Pins a toolbar to the top of the page's scroll area while the content scrolls under it. */
@@ -388,9 +394,10 @@ export const stickyToolbarClasses = 'sticky top-0 z-(--layer-sticky) bg-(--theme
 /** A view's controls in one WAI-ARIA toolbar: a single tab stop, with the arrow
  *  keys moving between its items, the `…` menu and disabled ones included, so
  *  their reasons stay reachable. Action groups sit on the left and `right` holds
- *  secondary actions at the end. It stays one row: when it runs out of room the
- *  labels fold to their icons, then actions move into a `…` menu, the
- *  right-hand ones first and the primary action never. Mark the one action the
+ *  secondary actions at the end. It stays one row: when it runs out of room
+ *  labels fold to their icons one at a time, then actions move into a `…` menu,
+ *  the right-hand ones first and the primary action never. Give each action its
+ *  own icon, since a folded one is known by it, and mark the one action the
  *  view leads to `primary`. */
 export function ActionToolbar({
   groups,
@@ -415,8 +422,10 @@ export function ActionToolbar({
   const visibleRight = right.filter((a) => !a.hidden)
   const all = [...visibleGroups.flat(), ...visibleRight]
   warnIfManyPrimary(all)
+  warnIfIconsRepeat(all)
   const fit = useToolbarFit(root, copy, visibleGroups, visibleRight)
   const overflow = new Set(fit.overflow)
+  const folded = new Set(fit.folded)
   const shown = (items: ToolbarItem[]) => items.filter((item) => !overflow.has(item.key))
   const shownGroups = visibleGroups.map(shown).filter((group) => group.length > 0)
   const shownRight = shown(visibleRight)
@@ -435,31 +444,29 @@ export function ActionToolbar({
     >
       <MeasuringCopy ref={setCopy} items={all} />
       <PlacementContext value="toolbar">
-        <FitContext value={fit}>
-          {shownGroups.map((group, i) => (
-            <Fragment key={group[0]?.key ?? i}>
-              {i > 0 && (
-                <Toolbar.Separator
-                  orientation="vertical"
-                  className="h-5 w-px shrink-0 bg-(--theme-border)"
-                />
-              )}
-              <Toolbar.Group className="flex shrink-0 items-center gap-1">
-                {group.map((item) => (
-                  <ItemSlot key={item.key} item={item} />
-                ))}
-              </Toolbar.Group>
-            </Fragment>
-          ))}
-          {(shownRight.length > 0 || menu.length > 0) && (
-            <div className="ml-auto flex shrink-0 items-center gap-1">
-              {shownRight.map((item) => (
-                <ItemSlot key={item.key} item={item} />
+        {shownGroups.map((group, i) => (
+          <Fragment key={group[0]?.key ?? i}>
+            {i > 0 && (
+              <Toolbar.Separator
+                orientation="vertical"
+                className="h-5 w-px shrink-0 bg-(--theme-border)"
+              />
+            )}
+            <Toolbar.Group className="flex shrink-0 items-center gap-1">
+              {group.map((item) => (
+                <ItemSlot key={item.key} item={item} folded={folded.has(item.key)} />
               ))}
-              {menu.length > 0 && <OverflowMenu items={menu} />}
-            </div>
-          )}
-        </FitContext>
+            </Toolbar.Group>
+          </Fragment>
+        ))}
+        {(shownRight.length > 0 || menu.length > 0) && (
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            {shownRight.map((item) => (
+              <ItemSlot key={item.key} item={item} folded={folded.has(item.key)} />
+            ))}
+            {menu.length > 0 && <OverflowMenu items={menu} />}
+          </div>
+        )}
       </PlacementContext>
     </Toolbar.Root>
   )
@@ -481,4 +488,33 @@ function warnIfManyPrimary(items: ToolbarItem[]) {
   }
   warnedPrimary.add(names)
   console.warn(`ActionToolbar: ${names} are all primary; mark one action at most.`)
+}
+
+const warnedIcons = new Set<string>()
+
+/** Warns in development when two actions share an icon: folded to their icons
+ *  in a narrow toolbar, they would look the same. */
+function warnIfIconsRepeat(items: ToolbarItem[]) {
+  // Checked first and on its own, so a production build drops the rest.
+  if (process.env.NODE_ENV === 'production') {
+    return
+  }
+  const byIcon = new Map<unknown, string[]>()
+  for (const item of items) {
+    // An icon component, not a bare <svg>, which every inline icon would share.
+    if ('element' in item || !isValidElement(item.icon) || typeof item.icon.type === 'string') {
+      continue
+    }
+    byIcon.set(item.icon.type, [...(byIcon.get(item.icon.type) ?? []), item.label])
+  }
+  for (const labels of byIcon.values()) {
+    const names = labels.map((label) => `"${label}"`).join(', ')
+    if (labels.length < 2 || warnedIcons.has(names)) {
+      continue
+    }
+    warnedIcons.add(names)
+    console.warn(
+      `ActionToolbar: ${names} share an icon, so they look the same once their labels fold; give each its own.`,
+    )
+  }
 }
