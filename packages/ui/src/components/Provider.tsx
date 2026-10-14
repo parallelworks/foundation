@@ -62,6 +62,8 @@ export interface UIStrings {
     copyThing: (label: string) => string
     copiedThing: (label: string) => string
     copyThingFailed: (label: string) => string
+    /** Read out where a value is missing, which shows as a dash. */
+    noValue: string
     /** A name field's rule: the characters a key or identifier allows. */
     invalidName: string
     invalidNumber: string
@@ -578,7 +580,7 @@ export interface UIData {
 }
 
 import type { FieldComponent } from '../form/fieldRegistry'
-import type { PageHeaderCrumb } from './PageHeader'
+import type { Breadcrumb } from './pageHeaderStore'
 
 /** An internal navigation link, which hosts bind to their router's Link. Its
  *  `href` is a full in-app URL that may carry a search and a hash, such as
@@ -643,7 +645,7 @@ export interface UISlots {
     groups?: unknown
   }) => ReactNode
   /** Pin affordance rendered after the page header's crumb trail; absent hides it. */
-  breadcrumbPin?: (args: { crumbs: readonly PageHeaderCrumb[] }) => ReactNode
+  breadcrumbPin?: (args: { crumbs: readonly Breadcrumb[] }) => ReactNode
   /** Control rendered at the start of the page header row, before the crumb
    * trail — the host's app-nav toggle. Absent hides it. */
   navToggle?: () => ReactNode
@@ -716,6 +718,7 @@ const DEFAULTS: UIProviderValue = {
       copyThing: (label) => `Copy ${label}`,
       copiedThing: (label) => `Copied ${label}`,
       copyThingFailed: (label) => `Couldn't copy ${label}`,
+      noValue: 'None',
       invalidName: 'Use letters, numbers, dashes, and underscores.',
       invalidNumber: 'Use a number.',
       copy: 'Copy',

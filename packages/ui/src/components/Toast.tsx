@@ -6,7 +6,7 @@ import { AppLink, type LinkTarget } from './AppLink'
 import { buttonClasses } from './buttonClasses'
 import { Loader } from './Loader'
 import { useStrings } from './Provider'
-import { toneText } from './tone'
+import { toneIcon } from './tone'
 
 export type ToastTone = 'info' | 'success' | 'warning' | 'error'
 
@@ -246,7 +246,7 @@ const ICONS: Record<ToastTone, typeof InfoIcon> = {
 
 function ToneIcon({ tone }: { tone: ToastTone }) {
   const Icon = ICONS[tone]
-  return <Icon aria-hidden="true" className={cx('mt-0.5 size-4 shrink-0', toneText[tone])} />
+  return <Icon aria-hidden="true" className={cx('mt-0.5 size-4 shrink-0', toneIcon[tone])} />
 }
 
 const actionClasses = buttonClasses({ variant: 'outline', size: 'xs' })

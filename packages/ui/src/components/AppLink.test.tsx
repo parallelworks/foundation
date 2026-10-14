@@ -11,12 +11,8 @@ import { AppLink } from './AppLink'
 import { Button, MethodButton } from './Button'
 import { Card } from './Card'
 import { IconButton } from './IconButton'
-import {
-  BreadcrumbsActionButton,
-  HeaderAddButton,
-  HeaderEditButton,
-  PageHeader,
-} from './PageHeader'
+import { PageHeader } from './PageHeader'
+import { PageHeaderAction, PageHeaderAddButton } from './PageHeaderAction'
 import { Pagination } from './Pagination'
 import { type UILinkComponent, UIProvider } from './Provider'
 import { Table } from './Table'
@@ -60,16 +56,15 @@ const surfaces: [string, () => ReactNode, string | RegExp, ('link' | 'tab')?][] 
   ['IconButton', () => <IconButton href={HREF} label="Open" icon="→" />, 'Open'],
   ['MethodButton', () => <MethodButton href={HREF} label="Open" />, /Open/],
   ['Card', () => <Card href={HREF}>Open</Card>, 'Open'],
-  ['HeaderAddButton', () => <HeaderAddButton href={HREF} label="Open" />, 'Open'],
-  ['HeaderEditButton', () => <HeaderEditButton href={HREF} label="Open" />, 'Open'],
+  ['PageHeaderAddButton', () => <PageHeaderAddButton href={HREF} label="Open" />, 'Open'],
   [
-    'BreadcrumbsActionButton',
-    () => <BreadcrumbsActionButton href={HREF} label="Open" icon={() => null} />,
+    'PageHeaderAction',
+    () => <PageHeaderAction href={HREF} label="Open" icon={() => null} />,
     'Open',
   ],
   [
     'PageHeader crumb',
-    () => <PageHeader breadcrumbs={[{ label: 'Open', href: HREF }]} title="Run" />,
+    () => <PageHeader breadcrumbs={[{ label: 'Open', href: HREF }, { label: 'Run' }]} />,
     'Open',
   ],
   [

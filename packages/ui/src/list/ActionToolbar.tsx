@@ -5,7 +5,7 @@ import { AppLink } from '../components/AppLink'
 import { Button } from '../components/Button'
 import { buttonClasses } from '../components/buttonClasses'
 import { MenuPopup } from '../components/Menu'
-import { MenuEntries } from '../components/MenuEntries'
+import { MenuEntries, useRunAction, warnIfInert } from '../components/MenuEntries'
 import { useStrings } from '../components/Provider'
 import { Tooltip } from '../components/Tooltip'
 import { cx } from '../cx'
@@ -17,7 +17,7 @@ import type { RowAction } from './rowMenu'
 const OverflowMenuContext = createContext(false)
 
 /** A toolbar button, which moves into the `…` menu as a row when the toolbar runs out of room. */
-export interface ToolbarAction extends RowAction {
+export type ToolbarAction = RowAction & {
   /** A hint on the enabled button. */
   tooltip?: string | undefined
   hidden?: boolean
@@ -42,6 +42,7 @@ function ToolbarItemView({ item }: { item: ToolbarItem }) {
 /** A toolbar action as a button: a link with `href`, a toggle with `checked`. */
 export function ToolbarButton({ action }: { action: ToolbarAction }) {
   const inOverflowMenu = useContext(OverflowMenuContext)
+  const runAction = useRunAction()
   if (inOverflowMenu) {
     return <MenuEntries entries={[action]} />
   }
@@ -56,6 +57,8 @@ export function ToolbarButton({ action }: { action: ToolbarAction }) {
       {action.label}
     </>
   )
+  warnIfInert(action, 'ActionToolbar')
+  const run = () => runAction(action)
   let control: React.ReactElement
   if (action.href) {
     control = (
@@ -72,7 +75,7 @@ export function ToolbarButton({ action }: { action: ToolbarAction }) {
     control = (
       <Toggle
         pressed={action.checked}
-        onPressedChange={() => action.onClick?.()}
+        onPressedChange={run}
         disabled={action.disabled}
         className={className}
       >
@@ -85,7 +88,7 @@ export function ToolbarButton({ action }: { action: ToolbarAction }) {
       <Button
         variant="primary"
         size="md"
-        onClick={action.onClick}
+        onClick={run}
         disabled={action.disabled}
         focusableWhenDisabled
       >
