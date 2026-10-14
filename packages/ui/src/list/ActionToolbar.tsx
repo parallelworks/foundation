@@ -1,11 +1,12 @@
 import { Menu } from '@base-ui/react/menu'
 import { Toggle } from '@base-ui/react/toggle'
 import { createContext, Fragment, useContext, useLayoutEffect, useRef, useState } from 'react'
+import { AppLink } from '../components/AppLink'
 import { Button } from '../components/Button'
 import { buttonClasses } from '../components/buttonClasses'
 import { MenuPopup } from '../components/Menu'
 import { MenuEntries, useRunAction, warnIfInert } from '../components/MenuEntries'
-import { useLink, useStrings } from '../components/Provider'
+import { useStrings } from '../components/Provider'
 import { Tooltip } from '../components/Tooltip'
 import { cx } from '../cx'
 import { MoreIcon } from '../icons'
@@ -19,6 +20,9 @@ const OverflowMenuContext = createContext(false)
 export type ToolbarAction = RowAction & {
   /** A hint on the enabled button. */
   tooltip?: string | undefined
+  /** The one action the view leads to, filled in the accent. Give it to one
+   *  action at most: the rest are outlined, so it stands out. */
+  primary?: boolean | undefined
   hidden?: boolean
 }
 
@@ -41,16 +45,14 @@ function ToolbarItemView({ item }: { item: ToolbarItem }) {
 /** A toolbar action as a button: a link with `href`, a toggle with `checked`. */
 export function ToolbarButton({ action }: { action: ToolbarAction }) {
   const inOverflowMenu = useContext(OverflowMenuContext)
-  const Link = useLink()
   const runAction = useRunAction()
   if (inOverflowMenu) {
     return <MenuEntries entries={[action]} />
   }
-  // A toggle that's off reads outlined; every other action is filled.
-  const className = buttonClasses({
-    variant: action.checked === false ? 'outline' : 'primary',
-    size: 'md',
-  })
+  // Outlined unless it's the view's one primary action, so the toolbar has a
+  // hierarchy; a toggle shows its state by `aria-pressed` instead of a fill.
+  const variant = action.primary && action.checked === undefined ? 'primary' : 'outline'
+  const className = buttonClasses({ variant, size: 'sm' })
   const content = (
     <>
       {action.icon}
@@ -60,11 +62,17 @@ export function ToolbarButton({ action }: { action: ToolbarAction }) {
   warnIfInert(action, 'ActionToolbar')
   const run = () => runAction(action)
   let control: React.ReactElement
-  if (action.href && !action.disabled) {
+  if (action.href) {
     control = (
-      <Link href={action.href} className={className}>
+      <AppLink
+        href={action.href}
+        reloadDocument={action.reloadDocument}
+        target={action.target}
+        disabled={action.disabled}
+        className={className}
+      >
         {content}
-      </Link>
+      </AppLink>
     )
   } else if (action.checked !== undefined) {
     control = (
@@ -81,8 +89,8 @@ export function ToolbarButton({ action }: { action: ToolbarAction }) {
     // Focusable while disabled, so keyboard users can reach the reason.
     control = (
       <Button
-        variant="primary"
-        size="md"
+        variant={variant}
+        size="sm"
         onClick={run}
         disabled={action.disabled}
         focusableWhenDisabled
@@ -105,7 +113,7 @@ function OverflowMenu({ items }: { items: ToolbarItem[] }) {
       <Tooltip content={t.moreActions}>
         <Menu.Trigger
           aria-label={t.moreActions}
-          className={buttonClasses({ variant: 'outline', size: 'md', iconOnly: true })}
+          className={buttonClasses({ variant: 'outline', size: 'sm', iconOnly: true })}
           data-testid="action-toolbar-menu-button"
         >
           <MoreIcon />
@@ -128,8 +136,8 @@ function OverflowMenu({ items }: { items: ToolbarItem[] }) {
   )
 }
 
-// Width reserved for the `…` overflow button (a 32px square) plus its leading gap.
-const MENU_BUTTON_WIDTH = 40
+// Width reserved for the `…` overflow button (a 28px square) plus its leading gap.
+const MENU_BUTTON_WIDTH = 32
 // gap-1 between toolbar chips.
 const ITEM_GAP = 4
 
