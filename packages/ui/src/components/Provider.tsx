@@ -62,6 +62,8 @@ export interface UIStrings {
     copyThing: (label: string) => string
     copiedThing: (label: string) => string
     copyThingFailed: (label: string) => string
+    /** Read out where a value is missing, which shows as a dash. */
+    noValue: string
     /** A name field's rule: the characters a key or identifier allows. */
     invalidName: string
     invalidNumber: string
@@ -88,6 +90,8 @@ export interface UIStrings {
     clearSearch: string
     filterPlaceholder: string
     breadcrumb: string
+    /** Names the menu of the breadcrumbs a narrow trail folds away. */
+    showFullPath: string
     yes: string
     no: string
     /** Read after a link that opens a new tab. */
@@ -624,12 +628,15 @@ export interface UIData {
 }
 
 import type { FieldComponent } from '../form/fieldRegistry'
-import type { PageHeaderCrumb } from './PageHeader'
+import type { Breadcrumb } from './pageHeaderStore'
 
-/** Renders internal navigation; hosts bind their router's Link. Accessibility
- * and tooltip data attributes pass through so header links keep their labels. */
-/** An internal navigation link. It passes every other prop, ref included, to
- *  its anchor, so menus and tooltips can attach to it. */
+/** An internal navigation link, which hosts bind to their router's Link. Its
+ *  `href` is a full in-app URL that may carry a search and a hash, such as
+ *  `/runs/42?tab=logs#step-3`, and the host routes all of it client-side on a
+ *  plain click, leaving modified and middle clicks to the browser. It passes
+ *  every other prop, ref included, to its anchor, so menus and tooltips can
+ *  attach to it. Components render it through `AppLink`, which sanitizes the
+ *  href and keeps full page loads and other origins off the router. */
 export type UILinkComponent = React.ComponentType<
   React.ComponentPropsWithRef<'a'> & { href: string }
 >
@@ -686,7 +693,7 @@ export interface UISlots {
     groups?: unknown
   }) => ReactNode
   /** Pin affordance rendered after the page header's crumb trail; absent hides it. */
-  breadcrumbPin?: (args: { crumbs: readonly PageHeaderCrumb[] }) => ReactNode
+  breadcrumbPin?: (args: { crumbs: readonly Breadcrumb[] }) => ReactNode
   /** Control rendered at the start of the page header row, before the crumb
    * trail — the host's app-nav toggle. Absent hides it. */
   navToggle?: () => ReactNode
@@ -759,6 +766,7 @@ const DEFAULTS: UIProviderValue = {
       copyThing: (label) => `Copy ${label}`,
       copiedThing: (label) => `Copied ${label}`,
       copyThingFailed: (label) => `Couldn't copy ${label}`,
+      noValue: 'None',
       invalidName: 'Use letters, numbers, dashes, and underscores.',
       invalidNumber: 'Use a number.',
       copy: 'Copy',
@@ -783,6 +791,7 @@ const DEFAULTS: UIProviderValue = {
       clearSearch: 'Clear search',
       filterPlaceholder: 'Filter…',
       breadcrumb: 'Breadcrumb',
+      showFullPath: 'Show full path',
       yes: 'Yes',
       no: 'No',
       opensInNewTab: '(opens in a new tab)',

@@ -1,5 +1,11 @@
 export { ActionMenu } from './components/ActionMenu'
 export {
+  AppLink,
+  type AppLinkProps,
+  isPlainClick,
+  type LinkTarget,
+} from './components/AppLink'
+export {
   Avatar,
   type AvatarProps,
   type AvatarSize,
@@ -16,15 +22,6 @@ export type {
   AccessValue,
   ImpliedPermissions,
 } from './components/access/accessValue'
-export {
-  BreadcrumbProvider,
-  type IBreadcrumbItem,
-  useBreadcrumb,
-  useClearBreadcrumbs,
-  useHideBreadcrumbs,
-  useSetBreadcrumbs,
-  useSetDefaultBreadcrumbs,
-} from './components/Breadcrumbs'
 export { Button, type ButtonProps, MethodButton } from './components/Button'
 export {
   type ButtonSize,
@@ -58,7 +55,14 @@ export {
   CreateModalSwitch,
 } from './components/CreateModal'
 export { DatePicker, type DatePickerProps } from './components/DatePicker'
-export { DescriptionListItem, default as DescriptionList } from './components/DescriptionList'
+export {
+  DescriptionListGroup,
+  DescriptionListItem,
+  type DescriptionListItemProps,
+  type DescriptionListProps,
+  type DescriptionListVariant,
+  default as DescriptionList,
+} from './components/DescriptionList'
 export { Disclosure, DisclosurePanel, type DisclosureProps } from './components/Disclosure'
 export { Drawer, type DrawerProps } from './components/Drawer'
 export { EmptyState, type EmptyStateProps } from './components/EmptyState'
@@ -124,16 +128,20 @@ export { NumberInput, type NumberInputProps } from './components/NumberInput'
 export { OneTimeCodeInput, type OneTimeCodeInputProps } from './components/OneTimeCodeInput'
 export { Overview } from './components/Overview'
 export {
-  BreadcrumbsActionButton,
-  BreadcrumbsRightAction,
-  BreadcrumbsTitleAction,
-  HeaderActionMenu,
-  HeaderAddButton,
-  HeaderEditButton,
+  type Breadcrumb,
   PageHeader,
-  type PageHeaderBreadcrumb,
-  type PageHeaderCrumb,
+  PageHeaderBar,
+  type PageHeaderBarProps,
+  type PageHeaderProps,
+  PageHeaderProvider,
 } from './components/PageHeader'
+export {
+  PageHeaderAction,
+  type PageHeaderActionProps,
+  PageHeaderAddButton,
+  type PageHeaderAddButtonProps,
+  PageHeaderMenu,
+} from './components/PageHeaderAction'
 export { PAGE_SIZES, Pagination, type PaginationProps } from './components/Pagination'
 export {
   Popover,

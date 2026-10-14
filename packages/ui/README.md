@@ -27,14 +27,16 @@ Each need has one component. Reach for it before styling markup by hand.
 | Need | Use |
 | --- | --- |
 | An action | `Button`; `IconButton` for an icon alone, named by its tooltip |
-| A link or another component's trigger that looks like a button | `buttonClasses()` |
+| Navigation, in any form | the component's `href` (see [Links](#links)); `AppLink` for a link of your own |
+| Another component's trigger that looks like a button | `buttonClasses()` |
 | A link out of the app | `ExternalLink` |
 | Work under way | `Loader`; `Skeleton` in a `LoadingRegion` for the shape of content still loading |
 | Nothing to show yet, or nothing matches | `EmptyState` |
 | A text field | `Input`, `Textarea`, or a control framed by `Field`, whose `actions` hold buttons that act on it |
 | A number, a date, a color | `NumberInput`, `DatePicker`, `ColorInput` |
 | A one-time code, such as a sign-in check | `OneTimeCodeInput` |
-| A labeled value nobody edits, among fields | `FieldValue` in a `Field`; `DescriptionList` for a set of them alone |
+| A labeled value nobody edits, among fields | `FieldValue` in a `Field` |
+| A record's details, such as in a drawer or a card: names and values on their own | `DescriptionList` of `DescriptionListItem`s; `copy` on an ID, `mono` on a path, `variant="card"` to frame them; titled lists in a `DescriptionListGroup` to share one label column |
 | An error beside a control outside a `Field` | `ErrorText` |
 | A dense field in a toolbar or a table cell | any field control with `size="sm"`; a width in `className` wins, and `cx` merges classes the same way |
 | On or off | `Switch`; `Checkbox` in a list of things to tick, several of which may be on |
@@ -44,6 +46,8 @@ Each need has one component. Reach for it before styling markup by hand.
 | A value from a list | `Select`, or `Combobox` when the list needs filtering |
 | Free text with suggestions, or tags | `Autocomplete`; `Combobox` with `multiple creatable` |
 | A range | `Slider` |
+| A page's breadcrumbs, title and commands | `PageHeader`, shown by the shell's `PageHeaderBar` (see [Page header](#page-header)) |
+| An action in the page header | `PageHeaderAction`; `PageHeaderAddButton` for "+ Add" or "+ Create"; `PageHeaderMenu` for the "…" menu |
 | A titled part of a page or form | `Section` |
 | More detail under a line | `Disclosure` |
 | Views of one thing | `Tabs` |
@@ -101,6 +105,95 @@ Some pairs look alike and are split on purpose:
   A `Combobox` filters as you type, for a list long enough to search, and is the
   one that takes several values, new ones, or free text (`Autocomplete`).
 
+## Page header
+
+A page declares its header in one place, and the shell shows it:
+
+```tsx
+// The shell, once: the provider above the bar and the routes.
+<PageHeaderProvider>
+  <Sidebar />
+  <div className="flex min-w-0 flex-1 flex-col">
+    <PageHeaderBar compact={fullBleed} persistent={isMobile} />
+    <main><Outlet /></main>
+  </div>
+</PageHeaderProvider>
+
+// A page.
+<PageHeader
+  breadcrumbs={[{ label: 'Clusters', href: '/clusters' }, { label: cluster?.name ?? '' }]}
+  titleActions={
+    <>
+      <PageHeaderAction icon={EditIcon} iconOnly label="Rename" onClick={rename} />
+      <PageHeaderMenu items={menu} />
+    </>
+  }
+  actions={
+    <PageHeaderAction icon={SaveIcon} label="Save" onClick={save} disabled={!dirty} disabledReason="No changes" />
+  }
+/>
+```
+
+- **`breadcrumbs`** is the whole trail, ending with the page itself, which the
+  bar makes the page's one `h1` (`aria-current="page"`). Don't render another
+  `h1`. An empty label, such as a name still loading, shows a placeholder. The
+  trail is a list in a `nav` landmark named by the strings' `breadcrumb`. A
+  trail too wide for its bar folds its ancestors into a "…" menu of links
+  (named by `showFullPath`), keeping the parent when it fits beside the page's
+  name; the name truncates last, with the full name on hover.
+- **`titleActions`** sit beside the title, for actions on the page's subject.
+  **`actions`** sit at the end of the bar, for the page's commands: a detail
+  page's Start, Stop or Terminal go here, not in a row of buttons below it.
+  `ActionToolbar` (from `./list`) is for the controls of a panel on the page,
+  such as a log's follow and refresh: its buttons are outlined, and `primary`
+  fills the one, if any, the panel leads to.
+  **`toolbar`** is a row under the bar, such as tabs or a time range.
+- **`hidden`** takes the bar away while the page is mounted, for a page that
+  fills the window.
+
+The actions render in the page's React tree, so they keep its context and
+state, and show in the bar through portals; they come before the page's content
+in focus order. Any component may render a `PageHeader`, such as a form adding
+its Save button: the bar shows the actions of all of them, outermost first,
+and the trail of the last one rendered that has one. A layout renders its own
+before its `Outlet`, so a page under it that names a trail replaces the
+layout's, and a page that doesn't keeps it. Changing pages swaps the header
+before paint, and a page's actions go when it unmounts.
+
+`PageHeaderBar` renders nothing while the page declares nothing, unless it is
+`persistent`, as on a narrow screen where it holds the `navToggle` slot. The
+`breadcrumbPin` slot renders after the trail. Without a `PageHeaderProvider`, a
+`PageHeader` renders its bar in place, for a page with no shell.
+
+The header's actions share one control: a link (`href`, with `external` for a
+new tab), a button (`onClick`, with `pressed` for a toggle) or a menu (`menu`).
+`destructive` takes the error color. A `disabled` one stays focusable and says
+its `disabledReason` in its tooltip and name.
+
+## Menu and row actions
+
+A `MenuAction`, and the `RowAction` and `ToolbarAction` built on it, does
+exactly one thing: runs `onClick`, navigates to `href`, or copies `copy`. An
+action with none of them, or with two, doesn't compile, so a row that silently
+does nothing when chosen can't ship. `checked` makes an `onClick` row an on/off
+choice, and `reloadDocument` belongs to an `href`. A disabled action keeps its
+behavior. In development, a menu row, pinned row button or toolbar button warns
+in the console when it gets an action with no behavior anyway, from JavaScript
+or a cast.
+
+Moving to it:
+
+- Rename a handler kept under another name, such as `onSelect`, to `onClick`.
+  An action built apart from its array, typed loosely or by another interface,
+  slipped past the old type; it now fails where it joins the array.
+- Leave out an action that can't run, rather than passing
+  `onClick: cond ? run : undefined` or `href: url ?? undefined`:
+  `...(cond ? [{ key, label, onClick: run }] : [])`.
+- Drop `onClick` from a `copy` or `href` action, and `checked` from an `href`
+  or `copy` one. To copy and also do something, call `useCopy` in an `onClick`.
+- Write `RowAction` and `ToolbarAction` as types, not interfaces to extend:
+  `type MyAction = RowAction & { … }`.
+
 ## Themes
 
 Every color a component may use is one of the closed set of `--theme-*` CSS
@@ -150,14 +243,29 @@ until it reaches its target against every surface it sits on.
 | Pair | WCAG at 0 / 30 / 100 | APCA Lc |
 | --- | --- | --- |
 | Body text | 4.5 / 7 / 12 | 75 / 90 / 105 |
-| Secondary text, links, status, syntax and terminal colors | 4.5 / 4.5 / 7 | 60 / 70 / 85 |
+| Secondary text, links, status text, syntax and terminal colors | 4.5 / 4.5 / 7 | 60 / 70 / 85 |
 | Placeholders | 3 / 3 / 4.5 | 45 / 50 / 65 |
-| Focus ring | 3 / 3 / 4.5 | |
+| Focus ring, status icons, dots, borders and bars | 3 / 3 / 4.5 | |
 | Control borders | 1.6 / 2.2 / 3 | |
-| Text on the accent | 4.5 | |
+| Text on the accent, white text on a solid status fill | 4.5 | |
 
 Status colors (success, error, warning, info, favorite) and terminal colors keep
-fixed hues, so red means the same thing in every theme. Syntax colors turn away
+fixed hues, so red means the same thing in every theme.
+
+Each status comes in four tokens, so a red icon stays bright while red words stay
+readable:
+
+| Token | For | Solved to |
+| --- | --- | --- |
+| `--theme-error` | Icons, dots, borders, rings, bars: anything but words | 3:1 on every surface and on the muted tint (WCAG 1.4.11) |
+| `--theme-error-text` | Words in the status: error messages, a destructive menu item or text button, a badge's label | Secondary text's targets, on the surfaces and on the muted tint |
+| `--theme-error-solid` | A fill under a white label, such as a destructive button | White on it at 4.5:1 |
+| `--theme-error-muted` | A tinted background, such as a callout or badge | The vivid shade at 10% (15% in dark mode) |
+
+The same four exist for `success`, `warning`, `info` and `favorite`. Words never
+take the bare token: `--theme-error` meets only the 3:1 that graphics need. An
+icon beside an error message may keep the message's text shade through
+`currentColor`. Syntax colors turn away
 from the accent's hue when they come within 30° of it, so a keyword never looks
 like a link.
 
@@ -259,6 +367,11 @@ one is meant to differ.
 | `--theme-bg` | `--theme-sidebar-bg` |
 | `theme-element` (utility) | `theme-accent` |
 
+`--theme-<status>` (`success`, `error`, `warning`, `info`, `favorite`) was once
+solved as text. It is now the vivid graphic shade, so words that read it move to
+`--theme-<status>-text`, and a fill under a white label to
+`--theme-<status>-solid`.
+
 ## Buttons and spinners
 
 Every pressable thing has one look, from `buttonClasses({ variant, size, iconOnly })`:
@@ -272,12 +385,41 @@ Every pressable thing has one look, from `buttonClasses({ variant, size, iconOnl
 
 Sizes are `xs`, `sm` and `md`. `Button` and `IconButton` apply it. An
 `IconButton` is named by its tooltip, and takes `pressed` for a toggle and
-`dot` for an indicator. Pass `buttonClasses()` to a host link or to another
-component's trigger rather than styling a button by hand. A pressed toggle
+`dot` for an indicator. Either takes `href` to be a link in the same look. Pass
+`buttonClasses()` to another component's trigger rather than styling a button
+by hand. A pressed toggle
 (`aria-pressed`) and an open popup's trigger read as selected.
 
 `Loader` is the one spinner. Inside a button, or beside text that already
 says what is happening, use `<Loader inline decorative />`.
+
+## Links
+
+Navigation is a link, never a button whose `onClick` navigates: a link opens
+in a new tab with a middle or modified click, can be copied, shows its URL on
+hover, and reads as a link. Every component that can navigate takes `href`,
+with `reloadDocument` for a path the host's router doesn't serve and `target`
+where it opens elsewhere, and renders it through `AppLink`:
+
+| Surface | Navigates with |
+| --- | --- |
+| `Button`, `IconButton`, `Card` | `href` |
+| Menu rows, `RowAction`s (a list row's menu and pinned buttons), `ToolbarAction`s | `href` on the action, with `target: '_blank'` for a new tab |
+| `PageHeaderAction`, `PageHeaderAddButton`, `PageHeader` breadcrumbs | `href`; `external` opens a new tab |
+| `Tabs` that are pages, `Pagination` | `href` on the item, `pageHref` |
+| A list row | `ListRow` `href` with a `NameCell` of the same `href`: the name's link covers the row |
+| A toast's action | `action: { label, href }` |
+| `SidebarRailItem` | `href`; `onSelect` then runs only on a plain click |
+| `EmptyState`, `SettingsCard` actions | a `Button` with `href` |
+
+`AppLink` routes in-app URLs through the provider's `link` slot, so a host
+binds its router's `Link` there once. That link receives the whole URL, search
+and hash included, and routes it client-side on a plain click, leaving
+modified and middle clicks to the browser. `AppLink` passes every href through
+`safeUrl`, gives a `reloadDocument` or another origin a plain anchor, and
+renders a disabled link with no href and `aria-disabled`, still focusable for
+its tooltip. Work a link's `onClick` does beside navigating, such as closing a
+drawer, belongs to a plain click only: check `isPlainClick(event)`.
 
 ## Toasts
 
@@ -439,29 +581,38 @@ Without them, those views still edit, but check nothing against the schema.
 `@parallelworks/ui/ai` is a chat interface (thread, composer, streaming,
 sidebar, model selector, attachments, sharing, branching) decoupled from any
 backend through a `ChatAdapter`. State lives in `ChatProvider` and is read
-with `useChat`:
+with `useChat`; the reply being streamed is read with `useChatStream`, apart
+from the rest, so only what draws the reply re-renders for each token:
 
 ```tsx
-import { ChatProvider, ChatLayout, ChatThread } from '@parallelworks/ui/ai'
+import { ChatEmptyState, ChatLayout, ChatProvider, ChatThread } from '@parallelworks/ui/ai'
 import { createMockChatAdapter } from '@parallelworks/ui/ai/mock'
 
-export function Chat() {
+export function Chat({ conversationId }: { conversationId: string | null }) {
   return (
     <ChatProvider
       adapter={createMockChatAdapter()}
       currentUser={{ id: 'u1', username: 'you', name: 'You' }}
-      navigation={{ toConversation: id => {}, toNewChat: () => {}, toAttachments: () => {} }}
+      navigation={{ toConversation: id => {}, toNewChat: () => {} }}
+      activeConversationId={conversationId}
     >
       <ChatLayout>
-        <ChatThread />
+        {conversationId ? <ChatThread conversationId={conversationId} /> : <ChatEmptyState />}
       </ChatLayout>
     </ChatProvider>
   )
 }
 ```
 
+The chat's links (each conversation, a new chat, attachments, and the
+`extraLinks` pages) render through the config's `LinkComponent`, which gets a
+`ChatLinkTarget`; without one they go to `/chat/:id`, `/chat` and
+`/chat/attachments` through `UIProvider`'s link slot. Navigation in the chat is
+these links, so `navigation` handles only the moves that aren't clicks, such as
+keyboard shortcuts.
+
 `ChatLayout sidebarMode="auto"` shows the conversation list as a drawer over
-the thread when the chat is narrower than `drawerBelowPx` (768 by default),
+the thread when the chat is narrower than `drawerBelowPx` (`DRAWER_BELOW_PX`, 896, by default),
 measured on the chat's own box; `"drawer"` always does, and `"inline"` (the
 default) never does. The reader's toggle drives the list unless the host
 passes `sidebar` (`'expanded' | 'collapsed' | 'hidden'`) and `drawerOpen` to
