@@ -238,6 +238,47 @@ describe('PageHeader in a shell', () => {
   })
 })
 
+describe('a trail too wide for its bar', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('folds all but the parent into a menu of links', () => {
+    // jsdom lays nothing out: make the trail's natural width exceed the row.
+    vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(1000)
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(300)
+    render(
+      <Shell>
+        <PageHeader
+          breadcrumbs={[
+            { label: 'Organizations', href: '/org' },
+            { label: 'Research', href: '/org/research' },
+            { label: 'Cloud accounts', href: '/org/research/cloud' },
+            { label: 'production' },
+          ]}
+        />
+      </Shell>,
+    )
+    const nav = screen.getByRole('navigation', { name: 'Breadcrumb' })
+    expect(within(nav).queryByRole('link', { name: 'Organizations' })).toBeNull()
+    expect(within(nav).getByRole('link', { name: 'Cloud accounts' })).toBeInTheDocument()
+    fireEvent.click(within(nav).getByRole('button', { name: 'Show full path' }))
+    expect(screen.getByRole('menuitem', { name: 'Research' }).closest('a')).toHaveAttribute(
+      'href',
+      '/org/research',
+    )
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('production')
+  })
+
+  it('shows every crumb while it fits', () => {
+    render(
+      <Shell>
+        <PageHeader breadcrumbs={trail} />
+      </Shell>,
+    )
+    expect(screen.queryByRole('button', { name: 'Show full path' })).toBeNull()
+    expect(screen.getByRole('link', { name: 'Storage' })).toBeInTheDocument()
+  })
+})
+
 describe('PageHeader without a provider', () => {
   it('renders its own bar in place', () => {
     render(<PageHeader breadcrumbs={trail} actions={<button type="button">Save</button>} />)
@@ -316,7 +357,7 @@ describe('PageHeaderAction', () => {
     expect(onClick).not.toHaveBeenCalled()
   })
 
-  it('turns a disabled link into an inert button', () => {
+  it('keeps a disabled link a link that goes nowhere', () => {
     render(
       <PageHeaderAction
         icon={Icon}
@@ -326,11 +367,9 @@ describe('PageHeaderAction', () => {
         disabledReason="Read only"
       />,
     )
-    expect(screen.queryByRole('link')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Edit. Read only' })).toHaveAttribute(
-      'aria-disabled',
-      'true',
-    )
+    const link = screen.getByRole('link', { name: 'Edit. Read only' })
+    expect(link).toHaveAttribute('aria-disabled', 'true')
+    expect(link).not.toHaveAttribute('href')
   })
 
   it('reports a toggle’s state', () => {
