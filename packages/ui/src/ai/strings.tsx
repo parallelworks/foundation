@@ -107,6 +107,8 @@ export interface ChatStrings {
   }
   thread: {
     viewOnly: string
+    /** Names the thread, a live log of the conversation, for assistive technology. */
+    label: string
   }
   sidebar: {
     groupToday: string
@@ -145,6 +147,16 @@ export interface ChatStrings {
   attachmentManager: {
     title: string
     empty: string
+    /** Names an image attachment that has no file name. */
+    unnamedImage: string
+    /** Names a file attachment that has no file name. */
+    unnamedFile: string
+    /** Opens an attachment's preview, given its name. */
+    open: (name: string) => string
+    /** Names an attachment's download link, given its name. */
+    download: (name: string) => string
+    /** Names an attachment's delete button, given its name. */
+    remove: (name: string) => string
   }
   branch: {
     previous: string
@@ -209,6 +221,16 @@ export interface ChatStrings {
     planPending: string
     approvalPending: string
     approvalOptions: string
+    /** Names a question the agent waits on that has no heading of its own. */
+    approvalLabel: string
+    /** Names the field for the reason a request is denied. */
+    feedbackLabel: string
+    /** Names the field for an answer of the reader's own. */
+    ownAnswerLabel: string
+    /** Read out in place of a task's checkbox glyph. */
+    todoPending: string
+    todoInProgress: string
+    todoCompleted: string
   }
   /** One-line summaries of an agent's finished tool calls. */
   tools: ToolStrings
@@ -316,6 +338,7 @@ export const defaultChatStrings: ChatStrings = {
   },
   thread: {
     viewOnly: 'You have view only access',
+    label: 'Conversation',
   },
   sidebar: {
     groupToday: 'Today',
@@ -353,6 +376,11 @@ export const defaultChatStrings: ChatStrings = {
   attachmentManager: {
     title: 'Attachments',
     empty: 'No attachments yet',
+    unnamedImage: 'Image attachment',
+    unnamedFile: 'File',
+    open: (name) => `Open ${name}`,
+    download: (name) => `Download ${name}`,
+    remove: (name) => `Delete ${name}`,
   },
   branch: {
     previous: 'Previous branch',
@@ -418,6 +446,12 @@ export const defaultChatStrings: ChatStrings = {
     planPending: 'Plan awaiting approval in the terminal',
     approvalPending: 'Waiting for an answer in the terminal',
     approvalOptions: 'Offered choices',
+    approvalLabel: 'Waiting for your answer',
+    feedbackLabel: 'Feedback for the agent',
+    ownAnswerLabel: 'Your answer',
+    todoPending: 'To do',
+    todoInProgress: 'In progress',
+    todoCompleted: 'Done',
   },
   tools: defaultToolStrings,
 }

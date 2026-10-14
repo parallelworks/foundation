@@ -328,5 +328,6 @@ export interface ShareGroup {
 
 export type ChatLinkTarget =
   | { kind: 'conversation'; id: string }
+  | { kind: 'newChat' }
   | { kind: 'attachments' }
   | { kind: 'external'; href: string }

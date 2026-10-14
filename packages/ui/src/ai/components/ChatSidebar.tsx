@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type MouseEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import type { OpenMenu } from '../../components/ContextMenu'
 import { EmptyState } from '../../components/EmptyState'
 import type { MenuEntry } from '../../components/MenuEntries'
@@ -12,6 +12,7 @@ import { FOCUS_SIDEBAR_SEARCH_EVENT } from '../core/events'
 import type { ConversationSummary } from '../types'
 import { ConversationSidebar } from '../ui/ConversationSidebar'
 import { SidebarRow, SidebarRowTitle } from '../ui/sidebar'
+import { isPlainClick } from '../utils'
 import { ManageProvidersLink } from './ComposerChrome'
 import { groupConversationsByDate, useConversationActions } from './conversationActions'
 
@@ -135,10 +136,14 @@ export default function ChatSidebar({
     [filteredConversations, tSidebar],
   )
 
-  const handleNewChat = () => {
+  // The link navigates; a plain click also drops the open conversation at
+  // once, so its stream never shows on the new chat while the route changes.
+  // A click that opens a new tab leaves this one as it is.
+  const handleNewChat = (e: MouseEvent) => {
     closeDrawer()
-    clearCurrentConversation()
-    navigation.toNewChat()
+    if (isPlainClick(e)) {
+      clearCurrentConversation()
+    }
   }
 
   const list = (
@@ -188,8 +193,8 @@ export default function ChatSidebar({
             {actions && (
               <>
                 <div className="flex flex-col gap-0.5 px-2 pt-2 pb-1">
-                  <button
-                    type="button"
+                  <LinkComponent
+                    target={{ kind: 'newChat' }}
                     onClick={handleNewChat}
                     className="flex items-center h-9 px-2 gap-3 rounded-lg font-medium transition-colors hover:chat-tint"
                     title={tSidebar.newChat}
@@ -203,7 +208,7 @@ export default function ChatSidebar({
                     >
                       {tSidebar.newChat}
                     </span>
-                  </button>
+                  </LinkComponent>
 
                   {attachmentsAvailable && (
                     <LinkComponent

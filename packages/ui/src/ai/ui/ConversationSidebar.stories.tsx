@@ -107,6 +107,7 @@ function TaskSidebar({
               key={t.id}
               label={t.title}
               selected={t.id === openId}
+              href={`#${t.id}`}
               onSelect={() => setOpenId(t.id)}
             >
               <StatusDot variant={VARIANT[t.state]} />

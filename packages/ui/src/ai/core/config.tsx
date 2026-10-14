@@ -38,6 +38,8 @@ function hrefFor(target: ChatLinkTarget): string {
   switch (target.kind) {
     case 'conversation':
       return `/chat/${target.id}`
+    case 'newChat':
+      return '/chat'
     case 'attachments':
       return '/chat/attachments'
     case 'external':

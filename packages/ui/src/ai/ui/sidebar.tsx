@@ -5,6 +5,7 @@ import { fieldBox } from '../../components/fieldBox'
 import { focusOnMount } from '../../components/focus'
 import { IconButton } from '../../components/IconButton'
 import type { MenuEntry } from '../../components/MenuEntries'
+import { useLink } from '../../components/Provider'
 import { Tooltip } from '../../components/Tooltip'
 import { cx } from '../../cx'
 import { SidebarIcon } from '../../icons'
@@ -156,38 +157,51 @@ export function SidebarRow({
 }
 
 /** One entry in the collapsed rail: a square the size of the toggle, with the
- *  same highlight as a row, holding whatever stands in for the item. */
+ *  same highlight as a row, holding whatever stands in for the item. With
+ *  `href` it is a link through the provider's link slot, so it can open in a
+ *  new tab like the row it stands for. */
 export function SidebarRailItem({
   selected,
   label,
+  href,
   onSelect,
   testId,
   children,
 }: {
   selected: boolean
-  /** Names the icon-only button, and shows beside it on hover. */
+  /** Names the icon-only control, and shows beside it on hover. */
   label: string
-  onSelect: () => void
+  /** Where the item lives; the rail item is then a link to it. */
+  href?: string | undefined
+  /** Called on a click, after a link's own navigation when there is an `href`. */
+  onSelect?: (() => void) | undefined
   testId?: string
   children: ReactNode
 }) {
+  const Link = useLink()
+  const props = {
+    'data-testid': testId,
+    'aria-label': label,
+    'aria-current': selected ? ('page' as const) : undefined,
+    onClick: onSelect,
+    className: cx(
+      'flex h-7 w-7 items-center justify-center rounded-md transition-colors',
+      HIGHLIGHT_HOVER,
+      selected && HIGHLIGHT_SELECTED,
+    ),
+  }
   return (
     <li>
       <Tooltip content={label} side="right">
-        <button
-          type="button"
-          data-testid={testId}
-          aria-label={label}
-          aria-current={selected ? 'page' : undefined}
-          onClick={onSelect}
-          className={cx(
-            'flex h-7 w-7 items-center justify-center rounded-md transition-colors',
-            HIGHLIGHT_HOVER,
-            selected && HIGHLIGHT_SELECTED,
-          )}
-        >
-          {children}
-        </button>
+        {href !== undefined ? (
+          <Link href={href} {...props}>
+            {children}
+          </Link>
+        ) : (
+          <button type="button" {...props}>
+            {children}
+          </button>
+        )}
       </Tooltip>
     </li>
   )
