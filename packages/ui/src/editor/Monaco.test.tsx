@@ -15,7 +15,7 @@ const fake = vi.hoisted(() => {
   return { models, created }
 })
 
-vi.mock('monaco-editor', () => {
+vi.mock('monaco-editor/editor/editor.api', () => {
   const makeModel = (value: string, language: string, uri: string) => {
     const state = {
       uri,
@@ -48,6 +48,7 @@ vi.mock('monaco-editor', () => {
   return {
     Uri: { parse: (path: string) => path },
     editor: {
+      ShowLightbulbIconMode: { Off: 'off', OnCode: 'onCode', On: 'on' },
       defineTheme: vi.fn(),
       setTheme: vi.fn(),
       getModel: () => null,
@@ -58,6 +59,9 @@ vi.mock('monaco-editor', () => {
       createModel: makeModel,
       create: (_element: HTMLElement, options: { model: ReturnType<typeof makeModel> }) => {
         const node = document.createElement('div')
+        node.append(
+          Object.assign(document.createElement('div'), { className: 'native-edit-context' }),
+        )
         const editor = {
           getDomNode: () => node,
           updateOptions: vi.fn(),
@@ -73,12 +77,13 @@ vi.mock('monaco-editor', () => {
     },
   }
 })
+vi.mock('./monacoFeatures', () => ({}))
 vi.mock('./workers', () => ({ setupMonacoWorkers: () => {} }))
 vi.mock('./yamlLanguage', () => ({ ensureYamlLanguage: () => {} }))
 vi.mock('./reveal', () => ({ registerRevealer: () => () => {} }))
 vi.mock('../components/useCssIsDark', () => ({ useCssIsDark: () => false }))
 
-const monaco = await import('monaco-editor')
+const monaco = await import('monaco-editor/editor/editor.api')
 
 afterEach(() => {
   cleanup()
@@ -115,6 +120,54 @@ test('readOnly from the host still locks an editor that is not disabled', () => 
   expect(last().editor['updateOptions']).toHaveBeenLastCalledWith(
     expect.objectContaining({ readOnly: true }),
   )
+})
+
+test('a read-only editor reads as one and offers nothing to edit, until it turns editable', () => {
+  const { container, rerender } = render(<MonacoEditor readOnly value="a" />)
+  const input = () =>
+    (last().editor['getDomNode'] as () => HTMLElement)().querySelector('.native-edit-context')
+  expect(last().options).toMatchObject({
+    readOnly: true,
+    domReadOnly: true,
+    renderLineHighlight: 'none',
+    hideCursorInOverviewRuler: true,
+    scrollBeyondLastLine: false,
+    lightbulb: { enabled: 'off' },
+    scrollbar: { alwaysConsumeMouseWheel: false },
+  })
+  expect(input()?.getAttribute('aria-readonly')).toBe('true')
+  expect(container.firstElementChild).toHaveProperty('dataset.readOnly', '')
+
+  rerender(<MonacoEditor readOnly={false} value="a" />)
+  expect(last().editor['updateOptions']).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      readOnly: false,
+      domReadOnly: false,
+      renderLineHighlight: 'line',
+      scrollBeyondLastLine: true,
+      lightbulb: { enabled: 'onCode' },
+      scrollbar: { alwaysConsumeMouseWheel: true },
+    }),
+  )
+  expect(input()?.getAttribute('aria-readonly')).toBe('false')
+  expect(container.firstElementChild).not.toHaveProperty('dataset.readOnly')
+})
+
+test('a read-only editor takes the host options over its own', () => {
+  render(
+    <MonacoEditor
+      readOnly
+      value="a"
+      renderLineHighlight="line"
+      scrollBeyondLastLine
+      scrollbar={{ alwaysConsumeMouseWheel: true }}
+    />,
+  )
+  expect(last().options).toMatchObject({
+    renderLineHighlight: 'line',
+    scrollBeyondLastLine: true,
+    scrollbar: { alwaysConsumeMouseWheel: true },
+  })
 })
 
 test('a disabled editor greys out on its own, leaving the page-wide theme alone', () => {
