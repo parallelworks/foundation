@@ -68,6 +68,7 @@ const SUITES = {
   sections,
   descriptionList,
   loading,
+  markdown,
   combobox,
   controls,
   copy,
@@ -94,7 +95,6 @@ const SUITES = {
   runViews,
   stepSummary,
   fileExplorer,
-  markdown,
   themeEditor,
   themeGenerator,
 } as const

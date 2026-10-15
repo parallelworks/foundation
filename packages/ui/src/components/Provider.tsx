@@ -274,6 +274,8 @@ export interface UIStrings {
       select: (name: string) => string
       viewDetails: string
       openFolder: string
+      /** A path's page in the app, as in "Copy link". */
+      link: string
       detailsTab: string
       previewTab: string
       preview: string
@@ -988,6 +990,7 @@ const DEFAULTS: UIProviderValue = {
         select: (name: string) => `Select ${name}`,
         viewDetails: 'View details',
         openFolder: 'Open folder',
+        link: 'link',
         detailsTab: 'Details',
         previewTab: 'Preview',
         preview: 'Preview',

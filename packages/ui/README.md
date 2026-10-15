@@ -434,6 +434,7 @@ where it opens elsewhere, and renders it through `AppLink`:
 | A list row | `ListRow` `href` with a `NameCell` of the same `href`: the name's link covers the row |
 | A toast's action | `action: { label, href }` |
 | `SidebarRailItem` | `href`; `onSelect` then runs only on a plain click |
+| `FileExplorer` rows, tree, trail and "Open folder" | `pathHref(path)`; `onPathChange` is then optional, and the explorer's own moves go to `navigation.goTo` |
 | `EmptyState`, `SettingsCard` actions | a `Button` with `href` |
 
 `AppLink` routes in-app URLs through the provider's `link` slot, so a host
@@ -535,6 +536,9 @@ meaning across the apps.
   record. `RemoveUserIcon` takes someone out of a group or project, while
   `DisableUserIcon` turns off their account. `ChangesRequestedIcon` asks for
   changes to something sent, while `FlaggedIcon` marks an item for attention.
+  `ProjectIcon` is a project, while `FolderIcon` is a folder of files.
+  `LibraryIcon` is a collection of write-ups to browse, while `NotebookIcon`
+  is one notebook.
   `PendingIcon` is a requirement not met yet and `NotRunningIcon` a run not
   started; they share the empty circle, so keep them out of the same list.
 - **Adding an icon:** pick the [Lucide glyph](https://lucide.dev/icons) and add
@@ -670,6 +674,12 @@ animations) and streamdown's classes next to the theme contract:
 ```
 
 The prebuilt `@parallelworks/ui/styles.css` already includes both.
+
+Math needs nothing from the host: `Markdown` imports KaTeX's stylesheet
+itself, from the `katex` package, so the host's bundler loads it and its fonts
+with the markdown renderer's lazy chunk. The bundler must accept CSS imported
+from JavaScript, as the editor's Monaco also requires. Inline math takes `$$`
+within a sentence; a single `$` stays text, so prices are never read as math.
 
 ## Form state
 
