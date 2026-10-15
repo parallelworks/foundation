@@ -35,6 +35,7 @@ export function useGrantView({
   onGrant,
   onCancel,
   focusLater,
+  boundary,
   t,
 }: {
   model: AccessModel
@@ -54,6 +55,8 @@ export function useGrantView({
   onCancel: () => void
   /** Sends focus somewhere once the change it goes with has rendered. */
   focusLater: (find: () => HTMLElement | null | undefined) => void
+  /** The drawer's body, above its footer, which the open group list fills. */
+  boundary: Element | null
   t: AccessStrings
 }): { body: ReactNode; footer: ReactNode } {
   const uid = useId()
@@ -148,6 +151,7 @@ export function useGrantView({
           recentGroupIds={recentGroupIds}
           cache={cache}
           seen={seen}
+          boundary={boundary}
           t={t}
         />
       </div>

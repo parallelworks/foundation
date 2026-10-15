@@ -105,6 +105,9 @@ export type ComboboxProps<Value = string> = FieldProps &
     onQueryChange?: ((query: string) => void) | undefined
     /** The host's search is under way. */
     loading?: boolean | undefined
+    /** The area the open list stays inside, such as a drawer's body above its footer; by
+     *  default, the viewport. With `details`, the list grows to fill it. */
+    collisionBoundary?: Element | null | undefined
   }
 
 export interface AutocompleteProps extends FieldProps {
@@ -235,6 +238,7 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
     onItemHighlighted,
     onQueryChange,
     loading = false,
+    collisionBoundary,
   } = props
   const entries = useEntries(items)
   const filter = useEntryFilter()
@@ -366,6 +370,7 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
         }
         loading={loading ? t.searching : undefined}
         details={details?.(highlighted?.created ? undefined : highlighted?.value)}
+        collisionBoundary={collisionBoundary}
         renderItem={itemRow}
       />
     </>
@@ -430,6 +435,7 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
         query={inputValue ?? ''}
         loading={loading ? t.searching : undefined}
         details={details?.(highlighted?.created ? undefined : highlighted?.value)}
+        collisionBoundary={collisionBoundary}
         renderItem={itemRow}
       />
     </>
@@ -640,6 +646,7 @@ function ListPopup<Value>({
   className = 'w-(--anchor-width) max-w-(--available-width)',
   loading,
   details,
+  collisionBoundary,
   renderItem,
 }: {
   listRef: RefObject<VirtualListHandle | null>
@@ -655,6 +662,7 @@ function ListPopup<Value>({
   loading?: string | undefined
   /** The pane beside the list, for the highlighted item. */
   details?: ReactNode
+  collisionBoundary?: Element | null | undefined
   renderItem: (entry: Entry<Value>, row: RowProps) => ReactElement
 }) {
   const withDetails = details !== undefined
@@ -675,7 +683,7 @@ function ListPopup<Value>({
           {empty}
         </BaseCombobox.Empty>
       )}
-      <BaseCombobox.List>
+      <BaseCombobox.List className={cx(withDetails && 'min-h-0 flex-1')}>
         <VirtualList<Value>
           ref={listRef}
           statusGroups={statusGroups}
@@ -688,26 +696,36 @@ function ListPopup<Value>({
   )
   return (
     <BaseCombobox.Portal>
-      <BaseCombobox.Positioner align="start" sideOffset={4} className={positionerClassName}>
+      <BaseCombobox.Positioner
+        align="start"
+        sideOffset={4}
+        className={positionerClassName}
+        {...(collisionBoundary && { collisionBoundary })}
+      >
         <BaseCombobox.Popup
           className={cx(
             'overflow-hidden',
             // The popup is the container its narrow layout answers to, wherever the field sits.
-            withDetails && '@container/picker',
+            // With a pane beside the list it takes the room there is, so the pane rarely
+            // scrolls and many rows show, but not past a height that would be all list.
+            withDetails && '@container/picker flex h-[min(40rem,var(--available-height))] flex-col',
             className,
             panelClassName,
           )}
         >
           {header}
           {withDetails ? (
-            <div className="flex min-h-[min(16rem,var(--available-height))]">
-              <div className="min-w-0 flex-1">{list}</div>
+            <div className="flex min-h-0 flex-1">
+              <div className="flex min-w-0 flex-1 flex-col">{list}</div>
               <div
                 aria-hidden="true"
                 data-testid="combobox-details"
-                className="hidden max-h-[min(24rem,var(--available-height))] w-1/2 shrink-0 overflow-y-auto border-l border-(--theme-border) bg-(--theme-panel-bg) @min-[30rem]/picker:block"
+                className="hidden w-1/2 shrink-0 overflow-y-auto overscroll-contain border-l border-(--theme-border) bg-(--theme-panel-bg) @min-[30rem]/picker:block"
               >
                 {details}
+                {/* Fades what runs on below the edge, so a cut line reads as more to scroll to;
+                    the padding above it lets the last line clear it at the end. */}
+                <div className="pointer-events-none sticky bottom-0 -mt-6 h-6 bg-linear-to-t from-(--theme-panel-bg) to-transparent" />
               </div>
             </div>
           ) : (
@@ -816,9 +834,7 @@ function VirtualList<Value>({
       ref={scrollerRef}
       className={cx(
         'overflow-auto overscroll-contain',
-        tall
-          ? 'max-h-[min(24rem,var(--available-height))]'
-          : 'max-h-[min(15rem,var(--available-height))]',
+        tall ? 'max-h-full' : 'max-h-[min(15rem,var(--available-height))]',
       )}
       style={{ height: total }}
     >

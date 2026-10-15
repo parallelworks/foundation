@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Button } from '../components/Button'
 import { Callout } from '../components/Callout'
 import { Drawer } from '../components/Drawer'
@@ -131,7 +131,13 @@ export function AccessDrawer({
   const [failure, setFailure] = useState<Failure>()
   const cache = useRef<DetailsCache>(new Map()).current
   const seen = useRef(new Map<string, AccessGroup>()).current
-  const body = useRef<HTMLDivElement>(null)
+  const body = useRef<HTMLDivElement | null>(null)
+  // Also as state, so the group list can be bounded by it once it is there.
+  const [bodyElement, setBodyElement] = useState<HTMLDivElement | null>(null)
+  const bodyRef = useCallback((element: HTMLDivElement | null) => {
+    body.current = element
+    setBodyElement(element)
+  }, [])
   const focusLater = useFocusAfterRender()
   // The latest handler, for an Undo pressed after the drawer has moved on or closed.
   const change = useRef(onChange)
@@ -277,6 +283,7 @@ export function AccessDrawer({
     onGrant: grant,
     onCancel: toList,
     focusLater,
+    boundary: bodyElement,
     t,
   })
 
@@ -457,7 +464,7 @@ export function AccessDrawer({
         }
       }}
     >
-      <div ref={body} className="flex min-h-0 flex-1 flex-col">
+      <div ref={bodyRef} className="flex min-h-0 flex-1 flex-col">
         {granting ? grantView.body : list}
       </div>
     </Drawer>

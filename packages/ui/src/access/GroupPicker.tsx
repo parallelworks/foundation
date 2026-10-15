@@ -63,6 +63,8 @@ interface GroupPickerProps {
   seen: Map<string, AccessGroup>
   id: string
   describedBy: string
+  /** The drawer's body, above its footer, which the open list fills. */
+  boundary: Element | null
   t: AccessStrings
 }
 
@@ -82,6 +84,7 @@ export function GroupPicker({
   seen,
   id,
   describedBy,
+  boundary,
   t,
 }: GroupPickerProps) {
   const [highlighted, setHighlighted] = useState<string | undefined>(undefined)
@@ -175,6 +178,7 @@ export function GroupPicker({
         onQueryChange={searchGroups ? search.setQuery : undefined}
         loading={search.loading}
         onItemHighlighted={setHighlighted}
+        collisionBoundary={boundary}
         details={(groupId) => (
           <GroupDetailsPane
             group={groupId === undefined ? undefined : seen.get(groupId)}
