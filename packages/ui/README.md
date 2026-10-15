@@ -11,7 +11,7 @@ so an application ships only what it imports:
 | `./list` | list pages, tables, row menus and list controls |
 | `./form` | `DynamicForm` and its field registry |
 | `./graph` | job dependency graph and tree view, and the visual workflow editor: the graph, the run form as an inputs editor, and their dialogs |
-| `./editor` | Monaco editor (`monaco-editor` is an optional peer); YAML validation, completion and hover run in a bundled worker |
+| `./editor` | Monaco editor (`monaco-editor` is an optional peer), loaded on first mount with the languages it needs; YAML validation, completion and hover run in a bundled worker |
 | `./logviewer` | log viewer with ANSI color and search |
 | `./file-explorer` | object storage explorer over a host-supplied provider |
 | `./ai`, `./ai/openai`, `./ai/mock` | chat interface and adapters |
@@ -434,6 +434,7 @@ where it opens elsewhere, and renders it through `AppLink`:
 | A list row | `ListRow` `href` with a `NameCell` of the same `href`: the name's link covers the row |
 | A toast's action | `action: { label, href }` |
 | `SidebarRailItem` | `href`; `onSelect` then runs only on a plain click |
+| `FileExplorer` rows, tree, trail and "Open folder" | `pathHref(path)`; `onPathChange` is then optional, and the explorer's own moves go to `navigation.goTo` |
 | `EmptyState`, `SettingsCard` actions | a `Button` with `href` |
 
 `AppLink` routes in-app URLs through the provider's `link` slot, so a host
@@ -611,6 +612,32 @@ Text that comes back unchanged leaves the cursor alone, and a reset from outside
 and scroll where they were. Each editor has a model of its own unless it is given a `path`, and it
 is named `UIStrings.common.codeEditor` unless given an `ariaLabel`.
 
+Monaco comes from the host's own `monaco-editor` through its bundler, never from a CDN, and loads
+when the first editor mounts, so it stays out of the host's first bundle. Its workers are files in
+the package that the host's bundler copies, started with `new Worker(url)`: a CSP needs
+`worker-src 'self'` and no `blob:`. The YAML language server starts with the first YAML model.
+
+The editor colors every language Monaco has, Bash among them (as shell), and fetches each
+language's coloring only when an editor shows it. It validates and formats JSON. The TypeScript,
+CSS and HTML language services are left out, as each runs in a worker of megabytes; their text is
+still colored. `addEditorLanguages` adds a language service and its workers, by the label Monaco
+asks for, or a language of the host's own. It loads with the next editor to mount; call it once
+at startup. With Vite:
+
+```ts
+import { addEditorLanguages } from '@parallelworks/ui/editor'
+
+const tsWorker = () =>
+  new Worker(new URL('monaco-editor/language/typescript/ts.worker.js', import.meta.url), {
+    type: 'module',
+  })
+// The TypeScript service checks JavaScript too, and asks for a worker under each label.
+addEditorLanguages({
+  load: () => import('monaco-editor/languages/features/typescript/register'),
+  workers: { typescript: tsWorker, javascript: tsWorker },
+})
+```
+
 `readOnly` makes it a view of code to read, such as a file's contents: the text stays selectable,
 copyable and reachable by keyboard and is announced read-only, while the cursor, current line and
 quick fixes are hidden, the view ends at the last line, and the wheel scrolls the page once the text
@@ -679,6 +706,12 @@ animations) and streamdown's classes next to the theme contract:
 ```
 
 The prebuilt `@parallelworks/ui/styles.css` already includes both.
+
+Math needs nothing from the host: `Markdown` imports KaTeX's stylesheet
+itself, from the `katex` package, so the host's bundler loads it and its fonts
+with the markdown renderer's lazy chunk. The bundler must accept CSS imported
+from JavaScript, as the editor's Monaco also requires. Inline math takes `$$`
+within a sentence; a single `$` stays text, so prices are never read as math.
 
 ## Form state
 

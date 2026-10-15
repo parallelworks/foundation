@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useState } from 'react'
 import { Editor } from './Editor'
+import { addEditorLanguages } from './languages'
 import { configureEditorYaml } from './yaml'
 
 const meta: Meta<typeof Editor> = {
@@ -14,6 +15,8 @@ const meta: Meta<typeof Editor> = {
           'is a devDependency of this package; consumers must install the ' +
           'optional peer to use `@parallelworks/ui/editor`. YAML models get ' +
           'validation, completion, hover and formatting from a bundled worker. ' +
+          'The editor colors every language Monaco has; `addEditorLanguages` adds a ' +
+          'language service and its workers, such as TypeScript. ' +
           '`readOnly` shows code to read: selectable, copyable and focusable, with no cursor.',
       },
     },
@@ -90,6 +93,55 @@ export const Disabled: StoryObj<typeof Editor> = {
       <Editor language="yaml" value={YAML_VALUE} height={200} width={640} />
     </div>
   ),
+}
+
+/** Bash, which workflow fields suggest, colors as shell does. */
+export const Bash: StoryObj<typeof Editor> = {
+  args: {
+    language: 'bash',
+    value: 'for file in *.log; do\n  gzip "$file"\ndone\n',
+    height: 120,
+    width: 640,
+  },
+}
+
+/** Go, which the editor colors with no setup: every Monaco language is, each fetched once shown. */
+export const Go: StoryObj<typeof Editor> = {
+  args: {
+    language: 'go',
+    value: 'package main\n\nimport "fmt"\n\nfunc main() {\n\tfmt.Println("hello")\n}\n',
+    height: 160,
+    width: 640,
+  },
+}
+
+let typeScriptAdded = false
+const tsWorker = () =>
+  new Worker(new URL('monaco-editor/language/typescript/ts.worker.js', import.meta.url), {
+    type: 'module',
+  })
+
+/** TypeScript's language service, which the host adds with `addEditorLanguages` and its worker:
+ * the text is colored without it, and with it the editor finds the type error. */
+export const AddedLanguageService: StoryObj<typeof Editor> = {
+  args: {
+    language: 'typescript',
+    path: 'file:///greet.ts',
+    value: "function greet(name: string): string {\n  return 'Hello, ' + name\n}\n\ngreet(42)\n",
+    height: 160,
+    width: 640,
+  },
+  loaders: [
+    () => {
+      if (!typeScriptAdded) {
+        typeScriptAdded = true
+        addEditorLanguages({
+          load: () => import('monaco-editor/languages/features/typescript/register'),
+          workers: { typescript: tsWorker, javascript: tsWorker },
+        })
+      }
+    },
+  ],
 }
 
 /** The host hands back the text on every change, as a form does: the cursor stays where it is. */

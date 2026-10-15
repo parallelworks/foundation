@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { useState } from 'react'
-import { userEvent, within } from 'storybook/test'
+import { useEffect, useState } from 'react'
+import { expect, userEvent, within } from 'storybook/test'
+import { type UILinkComponent, UIProvider } from '../components/Provider'
 import FileExplorer from './FileExplorer'
 import { FileExplorerProvider } from './FileExplorerContext'
 import { CorsPropagatingPreview, NoDataAvailablePreview } from './helpers'
@@ -26,6 +27,36 @@ export default meta
 const OBJECTS: Record<string, string> = {
   'README.md': '# Demo storage\n\nThis tree lives in memory.\n',
   'data/input.csv': 'id,value\n1,alpha\n2,beta\n',
+  'scripts/train.go': [
+    'package main',
+    '',
+    'import (',
+    '\t"fmt"',
+    '\t"os"',
+    ')',
+    '',
+    '// Trains for the epochs given, 12 by default.',
+    'func main() {',
+    '\tepochs := 12',
+    '\tif len(os.Args) > 1 {',
+    '\t\tfmt.Sscan(os.Args[1], &epochs)',
+    '\t}',
+    '\tfor epoch := 1; epoch <= epochs; epoch++ {',
+    '\t\tfmt.Printf("epoch %d/%d ... done\\n", epoch, epochs)',
+    '\t}',
+    '}',
+    '',
+  ].join('\n'),
+  'scripts/report.sql': [
+    '-- The best loss of each run, lowest first.',
+    'SELECT run_id, MIN(loss) AS best_loss, COUNT(*) AS epochs',
+    'FROM metrics',
+    "WHERE created_at > NOW() - INTERVAL '7 days'",
+    'GROUP BY run_id',
+    'ORDER BY best_loss ASC',
+    'LIMIT 10;',
+    '',
+  ].join('\n'),
   'results/run-001/metrics.json': '{ "loss": 0.021, "epochs": 12 }\n',
   'results/run-001/stdout.log': 'epoch 1/12 ... done\nepoch 12/12 ... done\n',
   'results/run-002/metrics.json': '{ "loss": 0.018, "epochs": 14 }\n',
@@ -198,6 +229,87 @@ export const Default: StoryObj = {
   render: () => <ExplorerDemo />,
 }
 
+// The path lives in the frame's hash, so a link opened in a new tab, or the
+// browser's back and forward, lands on the same folder.
+const HASH_PREFIX = '#/'
+const pathFromHash = () =>
+  window.location.hash.startsWith(HASH_PREFIX)
+    ? decodeURI(window.location.hash.slice(HASH_PREFIX.length))
+    : ''
+const hashHref = (path: string) => `${HASH_PREFIX}${encodeURI(path)}`
+
+// A plain anchor, unlike the workshop's link, which keeps every click from
+// navigating: here a hash change is the route, and a modified click opens a tab.
+const HashLink: UILinkComponent = (props) => <a {...props} />
+const hashSlots = { link: HashLink }
+const hashNavigation = {
+  goTo: (to: string) => {
+    window.location.hash = to
+  },
+}
+
+function LinkedExplorerDemo({ links, initialPath }: { links: boolean; initialPath: string }) {
+  const [path, setPath] = useState(() => pathFromHash() || initialPath)
+  useEffect(() => {
+    const onHashChange = () => setPath(pathFromHash())
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
+  return (
+    <UIProvider slots={hashSlots} navigation={hashNavigation}>
+      <div style={{ height: 560 }}>
+        <FileExplorerProvider>
+          {links ? (
+            <FileExplorer
+              storages={STORAGES}
+              getProviderAndClient={async () => ({
+                provider: mockProvider,
+                client: createMockClient(),
+              })}
+              selectedPath={path}
+              pathHref={hashHref}
+            />
+          ) : (
+            <FileExplorer
+              storages={STORAGES}
+              getProviderAndClient={async () => ({
+                provider: mockProvider,
+                client: createMockClient(),
+              })}
+              selectedPath={path}
+              onPathChange={setPath}
+            />
+          )}
+        </FileExplorerProvider>
+      </div>
+    </UIProvider>
+  )
+}
+
+/** With `pathHref`, rows, tree rows, the trail and each row menu's Open folder
+ *  are links: hover one for its URL, open it in a new tab, or go back. */
+export const Links: StoryObj<{ links: boolean }> = {
+  args: { links: true },
+  argTypes: {
+    links: {
+      name: 'pathHref',
+      description: 'Pass `pathHref`, so every path is a link; off, rows open on a click',
+      control: 'boolean',
+    },
+  },
+  render: ({ links }) => (
+    <LinkedExplorerDemo links={links} initialPath="storybook/demo-bucket/results" />
+  ),
+  play: async ({ canvasElement, args }) => {
+    if (!args.links) {
+      return
+    }
+    const canvas = within(canvasElement)
+    const row = await canvas.findByRole('link', { name: 'run-001' }, { timeout: 10000 })
+    await expect(row).toHaveAttribute('href', '#/storybook/demo-bucket/results/run-001/')
+  },
+}
+
 export const NarrowPane: StoryObj = {
   render: () => (
     <ExplorerDemo width={960} initialPath="storybook/demo-bucket/results/run-002/checkpoints" />
@@ -307,6 +419,19 @@ export const CorsPropagating: StoryObj = {
 /** A file's details, with Details and Preview tabs. */
 export const FileDetails: StoryObj = {
   render: () => <ExplorerDemo initialPath="storybook/demo-bucket/results/run-001/metrics.json" />,
+}
+
+/** A source file in the Preview tab, read-only and colored for its language, whatever it is. */
+export const CodeFilePreview: StoryObj<{ file: string }> = {
+  args: { file: 'go' },
+  argTypes: {
+    file: {
+      control: 'select',
+      options: ['go', 'sql', 'markdown'],
+      mapping: { go: 'scripts/train.go', sql: 'scripts/report.sql', markdown: 'README.md' },
+    },
+  },
+  render: ({ file }) => <ExplorerDemo key={file} initialPath={`storybook/demo-bucket/${file}`} />,
 }
 
 /** Checked rows take the theme's selection tint. */
