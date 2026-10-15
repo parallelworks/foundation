@@ -611,6 +611,12 @@ Text that comes back unchanged leaves the cursor alone, and a reset from outside
 and scroll where they were. Each editor has a model of its own unless it is given a `path`, and it
 is named `UIStrings.common.codeEditor` unless given an `ariaLabel`.
 
+`readOnly` makes it a view of code to read, such as a file's contents: the text stays selectable,
+copyable and reachable by keyboard and is announced read-only, while the cursor, current line and
+quick fixes are hidden, the view ends at the last line, and the wheel scrolls the page once the text
+has scrolled to its end. Any of these can be set otherwise with Monaco's own options. `disabled`
+greys the text out as well, as a disabled field does.
+
 ## AI chat
 
 `@parallelworks/ui/ai` is a chat interface (thread, composer, streaming,

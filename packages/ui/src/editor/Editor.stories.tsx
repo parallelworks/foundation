@@ -13,9 +13,14 @@ const meta: Meta<typeof Editor> = {
           'Monaco loads lazily on mount. It renders here because monaco-editor ' +
           'is a devDependency of this package; consumers must install the ' +
           'optional peer to use `@parallelworks/ui/editor`. YAML models get ' +
-          'validation, completion, hover and formatting from a bundled worker.',
+          'validation, completion, hover and formatting from a bundled worker. ' +
+          '`readOnly` shows code to read: selectable, copyable and focusable, with no cursor.',
       },
     },
+  },
+  argTypes: {
+    readOnly: { control: 'boolean' },
+    disabled: { control: 'boolean' },
   },
 }
 export default meta
@@ -31,6 +36,8 @@ const YAML_VALUE = [
   '',
 ].join('\n')
 
+/** Text to read: it selects and copies, and takes focus from the keyboard, but shows no cursor or
+ * current line, and ends at its last line. */
 export const YamlReadOnly: StoryObj<typeof Editor> = {
   args: {
     language: 'yaml',
@@ -48,6 +55,27 @@ export const YamlEditable: StoryObj<typeof Editor> = {
     readOnly: false,
     height: 320,
     width: 640,
+  },
+}
+
+const SCRIPT = Array.from(
+  { length: 60 },
+  (_, i) => `echo "step ${i + 1}" && ./run.sh --stage ${i + 1} --retries 3`,
+).join('\n')
+
+/** A file to read, as the file explorer previews one: a longer file scrolls inside the view, then
+ * the page scrolls on past it. */
+export const ReadOnlyFile: StoryObj<typeof Editor> = {
+  args: {
+    readOnly: true,
+    language: 'shell',
+    value: SCRIPT,
+    ariaLabel: 'run-all.sh',
+    height: 320,
+    width: 640,
+    fontSize: 12,
+    minimap: { enabled: false },
+    overviewRulerLanes: 0,
   },
 }
 
