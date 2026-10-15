@@ -154,6 +154,8 @@ interface FrameArgs {
   error: string
   description: string
   help: string
+  /** Shows a hint beside the label, here the field's key. */
+  hint: boolean
 }
 
 /** One frame names, describes and flags any control: the label, its hint, a description and an error. */
@@ -166,17 +168,18 @@ export const Frame: StoryObj<FrameArgs> = {
     error: '',
     description: 'Letters, numbers and dashes.',
     help: '',
+    hint: true,
   },
   argTypes: {
     layout: { control: 'inline-radio', options: ['stacked', 'inline'] },
     size: { control: 'inline-radio', options: ['sm', 'md'] },
   },
   // The controls sit straight in their Fields, which name, describe and mark them.
-  render: ({ layout, size, required, disabled, error, description, help }) => (
+  render: ({ layout, size, required, disabled, error, description, help, hint }) => (
     <div className="flex max-w-lg flex-col gap-4">
       <Field
         label="Cluster"
-        hint={<code className="text-xs theme-muted-text">cluster</code>}
+        hint={hint && <code className="text-xs theme-muted-text">cluster</code>}
         help={help || undefined}
         description={description || undefined}
         error={error || undefined}
@@ -317,6 +320,8 @@ export const FrameWithHelp: StoryObj<FrameArgs> = {
     ...Frame.args,
     description: '',
     help: 'The name other people see.\nIt cannot change later.',
+    // Only the help beside the label, so nothing else there draws the eye from it.
+    hint: false,
   } as FrameArgs,
   decorators: [roomAbove],
   play: async ({ canvasElement }) => {
@@ -348,6 +353,7 @@ export const FrameWithHelpLink: StoryObj<FrameArgs> = {
     ...Frame.args,
     layout: 'inline',
     help: 'Names the cluster in [the dashboard](https://example.com).\nIt cannot change later.',
+    hint: false,
   } as FrameArgs,
   decorators: [roomAbove],
   play: async ({ canvasElement }) => {
