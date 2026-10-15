@@ -21,7 +21,7 @@ export function Checkbox({ className, ...props }: CheckboxProps) {
         'flex size-4 shrink-0 items-center justify-center rounded border border-(--theme-border-strong) bg-(--theme-input-bg) text-(--theme-accent-text) cursor-pointer transition-colors motion-reduce:transition-none',
         focusOutline,
         // Ticked, it fills with the accent as picked, and its edge takes the focus color, the
-        // accent solved to 3:1, so a box still shows under an accent too pale for the page.
+        // accent solved to at least 3:1, so a box still shows under an accent too pale for the page.
         'data-checked:border-(--theme-focus) data-checked:bg-(--theme-accent)',
         'data-indeterminate:border-(--theme-focus) data-indeterminate:bg-(--theme-accent)',
         'aria-invalid:border-(--theme-error)',

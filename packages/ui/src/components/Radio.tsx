@@ -17,7 +17,7 @@ export function Radio<Value>({ className, ...props }: RadioProps<Value>) {
       className={cx(
         'flex size-4 shrink-0 items-center justify-center rounded-full border border-(--theme-border-strong) bg-(--theme-input-bg) cursor-pointer transition-colors motion-reduce:transition-none',
         focusOutline,
-        // As a checkbox: the accent fills it, and the accent solved to 3:1 draws its edge.
+        // As a checkbox: the accent fills it, and the focus color draws its edge.
         'data-checked:border-(--theme-focus) data-checked:bg-(--theme-accent)',
         'aria-invalid:border-(--theme-error)',
         'data-disabled:cursor-not-allowed data-disabled:opacity-50',

@@ -331,6 +331,19 @@ describe('generateTheme', () => {
     }
   })
 
+  it('solves an accent too pale for the page darker than the off track', () => {
+    for (const { base, accent, contrast } of GRID) {
+      const v = deriveTheme({ interface: { base, accent, contrast } })
+      const onPage = (token: ThemeToken) => contrastRatio(v[token], v['--theme-app-bg'])
+      if (v['--theme-focus'] === v['--theme-accent']) {
+        continue
+      }
+      expect(onPage('--theme-focus'), `${base} ${accent} at ${contrast}`).toBeGreaterThan(
+        onPage('--theme-border-strong') * 1.2,
+      )
+    }
+  })
+
   it('lifts panels above dark backgrounds and keeps them light on light ones', () => {
     const dark = deriveTheme({ interface: { base: '#0d1117', accent: '#2f81f7' } })
     const darkL = (token: ThemeToken) => oklch(dark[token]).l

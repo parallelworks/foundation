@@ -280,9 +280,10 @@ dividers and table lines, which stay quiet. `--theme-border-strong` is a
 control's edge: the box of an input, select or checkbox, the ring of a radio,
 and the off track of a switch or slider. It is often all that shows where the
 control is, so it is solved to WCAG 1.4.11's 3:1 on the page, the panels and the
-input fill. A checked control's edge, and a slider's filled part, take
-`--theme-focus`, the accent solved to the same 3:1, so they show even under an
-accent too pale for the page. A host that sets `--theme-border-strong` itself
+input fill. A checked control's edge, an on switch's track and a slider's
+filled part take `--theme-focus`: the accent as picked when it reaches 3:1, and
+otherwise the accent solved to secondary text's contrast, so on always reads
+heavier than the off track. A host that sets `--theme-border-strong` itself
 sets it to a color that keeps 3:1 against its surfaces.
 
 Status colors (success, error, warning, info, favorite) and terminal colors keep

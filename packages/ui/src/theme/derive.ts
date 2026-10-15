@@ -356,11 +356,16 @@ function build(
     ['--theme-app-bg', '--theme-panel-bg', '--theme-muted-panel-bg', '--theme-hover'],
     t.secondary,
   )
+  // The accent as a graphic: a focus ring, a checked control's edge, an on switch's track, a
+  // slider's fill. An accent that already shows is kept as picked. One too pale for the page is
+  // solved past secondary text's contrast rather than to the bare 3:1, so an on switch or a
+  // filled slider reads as heavier than the off track, which sits at 3:1.
+  const focusOn: ThemeToken[] = ['--theme-app-bg', '--theme-panel-bg', '--theme-input-bg']
   const focus = solved(
     '--theme-focus',
     accent,
-    ['--theme-app-bg', '--theme-panel-bg', '--theme-input-bg'],
-    t.graphic,
+    focusOn,
+    meets(toHex(accent), focusOn.map(hexOf), t.graphic) ? t.graphic : { wcag: t.secondary.wcag },
   )
   set('--theme-focus-ring', focus, dark ? 0.35 : 0.25)
   // A control's edge: the box of an input or a checkbox, the off track of a switch or a slider.

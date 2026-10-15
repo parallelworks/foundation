@@ -41,7 +41,8 @@ export function Slider({
     >
       <BaseSlider.Control className="flex w-full touch-none select-none items-center py-2 data-disabled:cursor-not-allowed data-disabled:opacity-50">
         {/* The track shows the range the value sits in, so it takes the control edge; the
-            filled part and the thumb's ring take the accent solved to 3:1. */}
+            filled part and the thumb's ring take the focus color, which is darker than the track
+            under an accent too pale for the page. */}
         <BaseSlider.Track className="h-1 w-full rounded-full bg-(--theme-border-strong)">
           <BaseSlider.Indicator className="rounded-full bg-(--theme-focus)" />
           <BaseSlider.Thumb

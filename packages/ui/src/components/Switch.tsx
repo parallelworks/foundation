@@ -34,10 +34,11 @@ export function Switch({ size = 'md', className, onLabel, offLabel, ...props }: 
       {...props}
       className={cx(
         // The off track takes the control edge, which holds 3:1 against the page and keeps the
-        // white thumb showing on it. On, the accent fills the track, edged in the accent solved
-        // to 3:1, which only shows under an accent too pale for the page.
+        // white thumb showing on it. On, the track fills with the focus color: the accent as
+        // picked, or, for an accent too pale for the page, one solved darker than the off track,
+        // so on always reads as the heavier state.
         'peer inline-flex shrink-0 items-center rounded-full p-0.5 bg-(--theme-border-strong) transition-colors duration-200 cursor-pointer motion-reduce:transition-none',
-        'data-checked:bg-(--theme-accent) data-checked:inset-ring data-checked:inset-ring-(--theme-focus)',
+        'data-checked:bg-(--theme-focus)',
         focusOutline,
         'aria-invalid:ring-2 aria-invalid:ring-(--theme-error)',
         'data-disabled:cursor-not-allowed data-disabled:opacity-50',
