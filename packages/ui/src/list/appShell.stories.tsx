@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import type { ReactNode } from 'react'
 import { useCallback, useMemo, useState } from 'react'
-import { expect, screen, userEvent, within } from 'storybook/test'
+import { expect, screen, userEvent, waitFor, within } from 'storybook/test'
 import { useContextMenu } from '../components/ContextMenu'
 import { keyedByContent } from '../components/keys'
 import type { MenuEntry } from '../components/MenuEntries'
@@ -15,6 +15,8 @@ import { type UILinkComponent, UIProvider, useNavigation } from '../components/P
 import { StatusBadge } from '../components/StatusBadge'
 import { Table } from '../components/Table'
 import {
+  ChevronDoubleDownIcon,
+  ClockIcon,
   ClusterIcon,
   EditIcon,
   PowerIcon,
@@ -26,7 +28,15 @@ import {
 } from '../icons'
 import { ActionToolbar, type ToolbarItem } from './ActionToolbar'
 import { ListColumns, ListPage, ListRow, useListNavigate } from './ListPage'
-import { ListError, ListSkeleton, listTableProps, NameCell } from './ListTable'
+import {
+  GroupRow,
+  ListError,
+  ListSelectAllHeader,
+  ListSkeleton,
+  listTableProps,
+  NameCell,
+  RowSelectCheckbox,
+} from './ListTable'
 import { ListDisplayMenu, ListFilterMenu } from './ListViewControls'
 import { ListCount, ListSearchControl, useListSearch } from './listSearch'
 import { useListView } from './listView'
@@ -167,38 +177,71 @@ interface ShellArgs {
   narrow?: boolean
   /** Only clusters that need a look show a status, so some rows' Status cells are empty. */
   sparseStatus?: boolean
+  /** Rows carry a checkbox, and two start selected. */
+  selectable?: boolean
+  /** The column-header row shows until the user turns it off in Display options. */
+  columnHeaders?: boolean
+  /** Rows start grouped by status, under a row per group. */
+  grouped?: boolean
 }
 
-function ClustersPage({ state, rowCount, sparseStatus }: ShellArgs) {
+function ClustersPage({
+  state,
+  rowCount,
+  sparseStatus,
+  selectable,
+  columnHeaders = true,
+  grouped = false,
+}: ShellArgs) {
   const copySubmenu = useCopySubmenu()
   const goTo = useListNavigate()
   const { openMenu, contextMenu } = useContextMenu()
   const search = useListSearch()
   const [favorites, setFavorites] = useState<Record<string, boolean>>({})
+  const [checked, setChecked] = useState<ReadonlySet<string>>(
+    () => new Set(selectable ? ['row-1', 'row-2'] : []),
+  )
+  const toggleChecked = (id: string) =>
+    setChecked((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(id)) {
+        next.add(id)
+      }
+      return next
+    })
 
   const all = useMemo(() => (state === 'empty' ? [] : makeRows(rowCount)), [state, rowCount])
 
   const view = useListView<ShellRow>({
-    storageKey: 'workshop-app-shell-clusters',
+    // A key per starting display, so changing those controls starts the view
+    // over rather than keeping what an earlier story left in storage.
+    storageKey: `workshop-app-shell-clusters${columnHeaders ? '' : ':no-headers'}${grouped ? ':grouped' : ''}`,
+    // Each column sorts by the order of the same name; Nodes sorts only from
+    // Display options, as it has no column.
     columns: [
-      { key: 'name', label: 'Name', alwaysVisible: true },
-      { key: 'location', label: 'Location', priority: 'medium' },
+      { key: 'name', label: 'Name', alwaysVisible: true, orderBy: 'name' },
+      { key: 'location', label: 'Location', priority: 'medium', orderBy: 'location' },
       // No priority: on a phone it moves under the name rather than dropping.
-      { key: 'status', label: 'Status' },
-      { key: 'owner', label: 'Owner', priority: 'low' },
+      { key: 'status', label: 'Status', orderBy: 'status' },
+      { key: 'owner', label: 'Owner', priority: 'low', orderBy: 'owner' },
     ],
     orderBys: [
+      { value: 'name', label: 'Name', compare: (a, b) => a.name.localeCompare(b.name) },
       {
-        value: 'name',
-        label: 'Name',
-        compare: (a, b) => a.name.localeCompare(b.name),
+        value: 'location',
+        label: 'Location',
+        compare: (a, b) => a.location.localeCompare(b.location),
       },
-      {
-        value: 'nodes',
-        label: 'Nodes',
-        compare: (a, b) => a.nodes - b.nodes,
-      },
+      { value: 'status', label: 'Status', compare: (a, b) => a.status.localeCompare(b.status) },
+      { value: 'owner', label: 'Owner', compare: (a, b) => a.owner.localeCompare(b.owner) },
+      { value: 'nodes', label: 'Nodes', compare: (a, b) => a.nodes - b.nodes },
     ],
+    groupBys: [
+      { value: 'none', label: 'None' },
+      { value: 'status', label: 'Status' },
+    ],
+    defaultGroupBy: grouped ? 'status' : 'none',
+    defaultShowColumnHeaders: columnHeaders,
     facets: [
       {
         key: 'status',
@@ -229,6 +272,12 @@ function ClustersPage({ state, rowCount, sparseStatus }: ShellArgs) {
       : all
     return view.applyOrder(view.applyFilters(matched))
   }, [all, query, view])
+
+  // Ticks every row shown, or clears them once all are ticked.
+  const toggleAll = () =>
+    setChecked((prev) =>
+      rows.every((row) => prev.has(row.id)) ? new Set() : new Set(rows.map((row) => row.id)),
+    )
 
   const menuItems = (row: ShellRow): MenuEntry[] => [
     {
@@ -267,6 +316,55 @@ function ClustersPage({ state, rowCount, sparseStatus }: ShellArgs) {
         ]
       : []
 
+  const renderRow = (row: ShellRow) => (
+    <ListRow
+      key={row.id}
+      selected={checked.has(row.id)}
+      selectionActive={checked.size > 0}
+      onRowSelect={() => toggleChecked(row.id)}
+      leading={
+        selectable && (
+          <Table.Item className="w-10 py-2.5">
+            <RowSelectCheckbox
+              checked={checked.has(row.id)}
+              label={`Select ${row.name}`}
+              onToggle={() => toggleChecked(row.id)}
+            />
+          </Table.Item>
+        )
+      }
+      href={`/clusters/${row.name}`}
+      items={menuItems(row)}
+      goTo={goTo}
+      openMenu={openMenu}
+      pinnedActions={pinnedActions(row)}
+    >
+      <NameCell
+        icon={<ClusterIcon className="h-5 w-5 shrink-0 text-(--theme-muted-text-color)" />}
+        name={row.name}
+        subtitle={`${row.nodes} nodes`}
+        href={`/clusters/${row.name}`}
+      />
+      {view.isVisible('location') && (
+        <Table.Item className="py-2.5 text-[13px] text-(--theme-muted-text-color)">
+          {row.location}
+        </Table.Item>
+      )}
+      {view.isVisible('status') && (
+        <Table.Item className="py-2.5">
+          {(!sparseStatus || row.status !== 'stopped') && (
+            <StatusBadge variant={STATUS_VARIANT[row.status]}>{row.status}</StatusBadge>
+          )}
+        </Table.Item>
+      )}
+      {view.isVisible('owner') && (
+        <Table.Item className="py-2.5 text-[13px] text-(--theme-muted-text-color)">
+          {row.owner}
+        </Table.Item>
+      )}
+    </ListRow>
+  )
+
   return (
     <>
       <PageHeader
@@ -285,14 +383,16 @@ function ClustersPage({ state, rowCount, sparseStatus }: ShellArgs) {
         view={view}
         toolbar={
           <div className="flex items-center justify-between gap-3 py-1.5">
-            <ListCount
-              total={all.length}
-              matches={rows.length}
-              filterActive={query.length > 0 || view.activeFilterCount > 0}
-              noun="cluster"
-              nounPlural="clusters"
-            />
-            <div className="flex items-center gap-2">
+            {state === 'ready' && (
+              <ListCount
+                total={all.length}
+                matches={rows.length}
+                filterActive={query.length > 0 || view.activeFilterCount > 0}
+                noun="cluster"
+                nounPlural="clusters"
+              />
+            )}
+            <div className="ml-auto flex items-center gap-2">
               <ListSearchControl search={search} placeholder="Search clusters" />
               <ListFilterMenu view={view} />
               <ListDisplayMenu view={view} />
@@ -313,43 +413,34 @@ function ClustersPage({ state, rowCount, sparseStatus }: ShellArgs) {
           </div>
         ) : (
           <Table {...listTableProps}>
+            {selectable && (
+              <ListSelectAllHeader
+                selected={rows.filter((row) => checked.has(row.id)).length}
+                total={rows.length}
+                onToggle={toggleAll}
+              />
+            )}
             <ListColumns view={view} />
-            {rows.map((row) => (
-              <ListRow
-                key={row.id}
-                href={`/clusters/${row.name}`}
-                items={menuItems(row)}
-                goTo={goTo}
-                openMenu={openMenu}
-                pinnedActions={pinnedActions(row)}
-              >
-                <NameCell
-                  icon={
-                    <ClusterIcon className="h-5 w-5 shrink-0 text-(--theme-muted-text-color)" />
-                  }
-                  name={row.name}
-                  subtitle={`${row.nodes} nodes`}
-                  href={`/clusters/${row.name}`}
-                />
-                {view.isVisible('location') && (
-                  <Table.Item className="py-2.5 text-[13px] text-(--theme-muted-text-color)">
-                    {row.location}
-                  </Table.Item>
-                )}
-                {view.isVisible('status') && (
-                  <Table.Item className="py-2.5">
-                    {(!sparseStatus || row.status !== 'stopped') && (
-                      <StatusBadge variant={STATUS_VARIANT[row.status]}>{row.status}</StatusBadge>
-                    )}
-                  </Table.Item>
-                )}
-                {view.isVisible('owner') && (
-                  <Table.Item className="py-2.5 text-[13px] text-(--theme-muted-text-color)">
-                    {row.owner}
-                  </Table.Item>
-                )}
-              </ListRow>
-            ))}
+            {view.groupBy === 'status'
+              ? STATUSES.flatMap((status) => {
+                  const group = rows.filter((row) => row.status === status)
+                  return group.length === 0
+                    ? []
+                    : [
+                        <GroupRow
+                          key={status}
+                          label={status}
+                          count={group.length}
+                          colSpan={
+                            (selectable ? 1 : 0) +
+                            view.visibleColumns.length +
+                            (view.showActions ? 1 : 0)
+                          }
+                        />,
+                        ...group.map(renderRow),
+                      ]
+                })
+              : rows.map(renderRow)}
           </Table>
         )}
         {contextMenu}
@@ -360,15 +451,18 @@ function ClustersPage({ state, rowCount, sparseStatus }: ShellArgs) {
 
 const meta: Meta<ShellArgs> = {
   title: 'UI/App Shell',
-  args: { state: 'ready', rowCount: 8 },
+  args: { state: 'ready', rowCount: 8, columnHeaders: true, grouped: false },
   argTypes: {
     state: {
       control: 'inline-radio',
       options: ['ready', 'loading', 'empty', 'error'],
     },
-    rowCount: { control: { type: 'range', min: 1, max: 40, step: 1 } },
+    rowCount: { control: { type: 'range', min: 1, max: 60, step: 1 } },
     narrow: { control: 'boolean' },
     sparseStatus: { control: 'boolean' },
+    selectable: { control: 'boolean' },
+    columnHeaders: { control: 'boolean' },
+    grouped: { control: 'boolean' },
   },
   render: (args) => (
     <MockHost>
@@ -392,11 +486,28 @@ type Story = StoryObj<ShellArgs>
 
 export const ListPageShell: Story = {}
 
+/** A long list scrolls under its header row, which stays put below the page
+ *  header and the toolbar. Each column's header sorts by it, and Display
+ *  options' Ordering shows the same order; the default order sorts by no
+ *  column, so no header shows a direction until one is clicked. */
+export const ScrollingSortableHeaders: Story = { args: { rowCount: 40 } }
+
+/** Group rows and the selection column scroll under the stuck header too. */
+export const ScrollingGroupedAndSelected: Story = {
+  args: { rowCount: 40, grouped: true, selectable: true },
+}
+
+/** Display options can hide the header row; the columns keep their widths. */
+export const ColumnHeadersOff: Story = { args: { columnHeaders: false } }
+
 export const Loading: Story = { args: { state: 'loading' } }
 
 export const Empty: Story = { args: { state: 'empty' } }
 
 export const LoadFailed: Story = { args: { state: 'error' } }
+
+/** Checked rows take the accent's tint; while any is checked, a row click toggles it. */
+export const SelectedRows: Story = { args: { selectable: true } }
 
 /** At phone width the Status column gives way and each status sits under its row's name. */
 export const NarrowStacksStatus: Story = { args: { narrow: true } }
@@ -421,11 +532,17 @@ const LOG_GROUPS: ToolbarItem[][] = [
     {
       key: 'auto-refresh',
       label: 'Auto refresh',
-      icon: <RefreshIcon />,
+      icon: <ClockIcon />,
       onClick: () => {},
       checked: true,
     },
-    { key: 'follow', label: 'Follow', icon: <TerminalIcon />, onClick: () => {}, checked: false },
+    {
+      key: 'follow',
+      label: 'Follow',
+      icon: <ChevronDoubleDownIcon />,
+      onClick: () => {},
+      checked: false,
+    },
   ],
 ]
 
@@ -488,7 +605,7 @@ export const DetailPageShell: StoryObj = {
               />
               <section className="space-y-2 p-4">
                 <h2 className="m-0 text-sm font-medium text-(--theme-app)">Logs</h2>
-                <ActionToolbar groups={LOG_GROUPS} right={LOG_RIGHT} />
+                <ActionToolbar label="Log controls" groups={LOG_GROUPS} right={LOG_RIGHT} />
                 <pre className="m-0 rounded-md border border-(--theme-border) p-3 text-xs text-(--theme-muted-text-color)">
                   {'node-0  ready\nnode-1  ready\nscheduler  accepting jobs'}
                 </pre>
@@ -509,5 +626,127 @@ export const DetailPageShell: StoryObj = {
       stop.compareDocumentPosition(autoRefresh) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
     await expect(autoRefresh).toHaveAttribute('aria-pressed', 'true')
+  },
+}
+
+// A panel's full set of controls: a primary, plain actions, toggles, and a
+// destructive one held back with its reason.
+const PANEL_GROUPS: ToolbarItem[][] = [
+  [
+    { key: 'run', label: 'Run', icon: <PowerIcon />, onClick: () => {}, primary: true },
+    { key: 'stop', label: 'Stop', icon: <StopIcon />, onClick: () => {} },
+  ],
+  [
+    { key: 'snapshot', label: 'Snapshot', icon: <SnapshotIcon />, onClick: () => {} },
+    {
+      key: 'terminal',
+      label: 'Terminal',
+      icon: <TerminalIcon />,
+      href: '/clusters/gpu-trainer-01/terminal',
+    },
+  ],
+  LOG_GROUPS[0] ?? [],
+]
+
+const PANEL_RIGHT: ToolbarItem[] = [
+  { key: 'refresh', label: 'Refresh', icon: <RefreshIcon />, onClick: () => {} },
+  {
+    key: 'delete',
+    label: 'Delete',
+    icon: <TrashIcon />,
+    onClick: () => {},
+    destructive: true,
+    disabled: true,
+    disabledReason: 'Stop the cluster before deleting it',
+  },
+]
+
+function PanelToolbar({ width }: { width: number }) {
+  return (
+    <MockHost>
+      {() => (
+        // Inline: the package's stylesheet doesn't scan stories.
+        <div className="p-4" style={{ maxWidth: width + 32 }}>
+          <ActionToolbar label="Cluster controls" groups={PANEL_GROUPS} right={PANEL_RIGHT} />
+        </div>
+      )}
+    </MockHost>
+  )
+}
+
+/** `ActionToolbar` on its own. One primary action is filled and the rest are
+ *  outlined; a pressed toggle reads in the link color, and a destructive action
+ *  in the error color. It is one tab stop: the arrow keys move between its
+ *  items, the disabled Delete included, whose reason is part of its name. Drag
+ *  the width to see it fold. */
+export const Toolbar: StoryObj<{ width: number }> = {
+  args: { width: 1000 },
+  argTypes: {
+    width: {
+      control: { type: 'range', min: 240, max: 1100, step: 10 },
+      description: "The toolbar's width, in pixels.",
+    },
+  },
+  render: ({ width }) => <PanelToolbar width={width} />,
+  play: async ({ canvasElement }) => {
+    const toolbar = within(canvasElement).getByRole('toolbar', { name: 'Cluster controls' })
+    const run = within(toolbar).getByRole('button', { name: 'Run' })
+    const stop = within(toolbar).getByRole('button', { name: 'Stop' })
+    // One tab stop: the items after the first wait for the arrow keys.
+    await expect(stop).toHaveAttribute('tabindex', '-1')
+    run.focus()
+    await userEvent.keyboard('{ArrowRight}')
+    await expect(stop).toHaveFocus()
+    await expect(
+      within(toolbar).getByRole('button', {
+        name: /^Delete\W+Stop the cluster before deleting it$/,
+      }),
+    ).toHaveAttribute('aria-disabled', 'true')
+    await expect(within(toolbar).queryByRole('button', { name: 'More actions' })).toBeNull()
+  },
+}
+
+/** Short of room for every label, labels fold to their icons one at a time
+ *  from the end, the right-hand ones first, until the row fits, so it keeps
+ *  every label it has room for. A folded button keeps its label as its name and
+ *  shows it in a tooltip. */
+export const ToolbarFolded: StoryObj<{ width: number }> = {
+  ...Toolbar,
+  args: { width: 640 },
+  play: async ({ canvasElement }) => {
+    const toolbar = within(canvasElement).getByRole('toolbar', { name: 'Cluster controls' })
+    await expect(toolbar.scrollWidth).toBeLessThanOrEqual(toolbar.clientWidth)
+    await expect(within(toolbar).queryByRole('button', { name: 'More actions' })).toBeNull()
+    const label = (name: string) =>
+      within(toolbar).getByRole('button', { name }).querySelector('.sr-only')
+    // The right-hand actions folded, read but not seen; the first groups keep theirs.
+    await waitFor(() => expect(label('Refresh')).toHaveTextContent('Refresh'), { timeout: 5000 })
+    await expect(label('Snapshot')).toBeNull()
+  },
+}
+
+/** Narrower still, it stays one row: actions move into the `…` menu from the
+ *  end, the right-hand ones first and the primary Run never. The menu keeps a
+ *  toggle a checkbox, a link a link, and Delete in the error color with its
+ *  reason, and the arrow keys reach its button as one of the toolbar's items. */
+export const ToolbarNarrow: StoryObj<{ width: number }> = {
+  ...Toolbar,
+  args: { width: 320 },
+  play: async ({ canvasElement }) => {
+    const toolbar = within(canvasElement).getByRole('toolbar', { name: 'Cluster controls' })
+    await expect(toolbar.scrollWidth).toBeLessThanOrEqual(toolbar.clientWidth)
+    const more = within(toolbar).getByRole('button', { name: 'More actions' })
+    within(toolbar).getByRole('button', { name: 'Run' }).focus()
+    // The arrow keys loop, so the `…` button is one step back from the first item.
+    await userEvent.keyboard('{ArrowLeft}')
+    await expect(more).toHaveFocus()
+    await userEvent.keyboard('{Enter}')
+    const menu = await within(document.body).findByRole('menu')
+    await expect(
+      within(menu).getByRole('menuitem', {
+        name: /^Delete\W+Stop the cluster before deleting it$/,
+      }),
+    ).toHaveAttribute('aria-disabled', 'true')
+    await userEvent.keyboard('{Escape}')
   },
 }

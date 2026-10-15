@@ -1,5 +1,7 @@
-import type { ReactNode } from 'react'
+import { createContext, type ReactNode, useContext } from 'react'
 import { cx } from '../cx'
+
+const HeadingLevel = createContext<3 | 4>(3)
 
 export interface SettingsCardProps {
   /** Names the card above it. Leave it out on a page's first card, where the
@@ -10,6 +12,8 @@ export interface SettingsCardProps {
    *  header's far edge, such as Save. */
   action?: ReactNode
   actionAlign?: 'beside' | 'end' | undefined
+  /** The title's level in the page's outline; its SettingsHeadings sit one below. */
+  headingLevel?: 2 | 3 | undefined
   /** Lets content such as an inline menu reach past the card's rounded edge. */
   overflowVisible?: boolean | undefined
   /** False leaves the content unframed, for content that frames its own parts,
@@ -30,49 +34,59 @@ export function SettingsCard({
   description,
   action,
   actionAlign = 'beside',
+  headingLevel = 2,
   overflowVisible = false,
   framed = true,
   sticky = false,
   className,
   children,
 }: SettingsCardProps) {
+  const Heading = `h${headingLevel}` as const
   return (
-    <section className={cx('mt-10 first:mt-0', className)}>
-      {(title || action) && (
-        <div className="mb-3 px-0.5">
-          <div
-            className={cx('flex items-center gap-1.5', actionAlign === 'end' && 'justify-between')}
-          >
-            {title && (
-              <h2 className="text-[15px] leading-none font-semibold theme-text">{title}</h2>
+    <HeadingLevel value={(headingLevel + 1) as 3 | 4}>
+      <section className={cx('mt-10 first:mt-0', className)}>
+        {(title || action) && (
+          <div className="mb-3 px-0.5">
+            <div
+              className={cx(
+                'flex items-center gap-1.5',
+                actionAlign === 'end' && 'justify-between',
+              )}
+            >
+              {title && (
+                <Heading className="text-[15px] leading-none font-semibold theme-text">
+                  {title}
+                </Heading>
+              )}
+              {action}
+            </div>
+            {description && (
+              <p className="mt-1.5 text-xs leading-snug theme-muted-text">{description}</p>
             )}
-            {action}
           </div>
-          {description && (
-            <p className="mt-1.5 text-xs leading-snug theme-muted-text">{description}</p>
-          )}
-        </div>
-      )}
-      <div
-        className={cx(
-          framed && 'panel divide-y divide-(--theme-border)',
-          framed && (overflowVisible ? 'overflow-visible' : 'overflow-hidden'),
-          // Held to its own height, so a grid row stretched by a neighbor leaves it room to stick.
-          sticky && 'sticky top-4 self-start',
         )}
-      >
-        {children}
-      </div>
-    </section>
+        <div
+          className={cx(
+            framed && 'panel divide-y divide-(--theme-border)',
+            framed && (overflowVisible ? 'overflow-visible' : 'overflow-hidden'),
+            // Held to its own height, so a grid row stretched by a neighbor leaves it room to stick.
+            sticky && 'sticky top-4 self-start',
+          )}
+        >
+          {children}
+        </div>
+      </section>
+    </HeadingLevel>
   )
 }
 
-/** A heading between groups of rows inside a SettingsCard. */
+/** A heading between groups of rows inside a SettingsCard, a level below the card's title. */
 export function SettingsHeading({ children }: { children: ReactNode }) {
+  const Heading = `h${useContext(HeadingLevel)}` as const
   return (
-    <h3 className="px-5 py-3 text-sm font-semibold tracking-wider uppercase theme-muted-panel theme-muted-text">
+    <Heading className="px-5 py-3 text-sm font-semibold tracking-wider uppercase theme-muted-panel theme-muted-text">
       {children}
-    </h3>
+    </Heading>
   )
 }
 

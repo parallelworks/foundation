@@ -1,8 +1,10 @@
-import { memo, useEffect, useMemo, useState } from 'react'
+import { memo, type ReactNode, useEffect, useId, useMemo, useState } from 'react'
 import { Disclosure } from '../../../components/Disclosure'
 import { fieldBox } from '../../../components/fieldBox'
+import { focusOnMount } from '../../../components/focus'
 import { Loader } from '../../../components/Loader'
 import { useStrings } from '../../../components/Provider'
+import { toneSurface } from '../../../components/tone'
 import { cx } from '../../../cx'
 import { formatDuration } from '../../../format'
 import { CheckIcon } from '../../../icons'
@@ -84,7 +86,7 @@ function LineSpans({
       out.push(
         <span
           key={key++}
-          className={emphasized ? 'bg-green-500/30 rounded-[2px]' : undefined}
+          className={emphasized ? 'bg-(--theme-success)/30 rounded-[2px]' : undefined}
           style={t.color ? { color: t.color } : undefined}
         >
           {t.content.slice(start, end)}
@@ -127,8 +129,8 @@ function DiffRows({ rows, lang }: { rows: DiffRow[]; lang: string | null }) {
           key={i}
           className={cx(
             'flex whitespace-pre',
-            row.kind === 'add' && 'bg-green-500/15',
-            row.kind === 'del' && 'bg-red-500/15',
+            row.kind === 'add' && 'bg-(--theme-success)/15',
+            row.kind === 'del' && 'bg-(--theme-error)/15',
             row.kind === 'gap' && 'theme-muted-text',
           )}
         >
@@ -216,7 +218,7 @@ function ResultBody({ part }: { part: ToolCallPart }) {
           onClick={() => setShowAll(true)}
           className="text-xs text-(--theme-link) hover:underline"
         >
-          {t.moreLines.replace('{count}', String(hidden))}
+          {t.moreLines(hidden)}
         </button>
       )}
       {showAll && lines.length > COLLAPSED_RESULT_LINES && (
@@ -232,14 +234,40 @@ function ResultBody({ part }: { part: ToolCallPart }) {
   )
 }
 
+/** A status mark, which color alone tells apart, with its status in words for
+ *  a screen reader. */
+function StatusMark({ status, children }: { status: string; children: ReactNode }) {
+  return (
+    <>
+      <span aria-hidden="true" className="contents">
+        {children}
+      </span>
+      <span className="sr-only">{status}</span>
+    </>
+  )
+}
+
 function ToolStatusDot({ part }: { part: ToolCallPart }) {
+  const t = useChatConfig().strings.agentTranscript
   if (part.status === 'running') {
-    return <Loader inline decorative size={14} color="var(--theme-muted-text-color)" />
+    return (
+      <StatusMark status={t.running}>
+        <Loader inline decorative size={14} color="var(--theme-muted-text-color)" />
+      </StatusMark>
+    )
   }
   if (part.status === 'error') {
-    return <span className="text-red-500 leading-none">●</span>
+    return (
+      <StatusMark status={t.failed}>
+        <span className="leading-none text-(--theme-error)">●</span>
+      </StatusMark>
+    )
   }
-  return <span className="text-green-600 leading-none">●</span>
+  return (
+    <StatusMark status={t.done}>
+      <span className="leading-none text-(--theme-success)">●</span>
+    </StatusMark>
+  )
 }
 
 /** A part's toggle row: its status mark and name, across the transcript's width. */
@@ -328,21 +356,27 @@ function SubagentCard({ part }: { part: SubagentPart }) {
         summaryClassName={rowSummaryClasses}
         summary={
           <>
-            {part.status === 'running' ? (
-              <span className="mt-[3px]">
-                <Loader inline decorative size={14} color="var(--theme-muted-text-color)" />
-              </span>
-            ) : (
-              <span
-                className={cx(
-                  'leading-none',
-                  part.status === 'failed' ? 'text-(--theme-error)' : 'text-(--theme-success)',
-                )}
-                style={color && part.status !== 'failed' ? { color } : undefined}
-              >
-                ●
-              </span>
-            )}
+            <StatusMark
+              status={
+                part.status === 'running' ? t.running : part.status === 'failed' ? t.failed : t.done
+              }
+            >
+              {part.status === 'running' ? (
+                <span className="mt-[3px]">
+                  <Loader inline decorative size={14} color="var(--theme-muted-text-color)" />
+                </span>
+              ) : (
+                <span
+                  className={cx(
+                    'leading-none',
+                    part.status === 'failed' ? 'text-(--theme-error)' : 'text-(--theme-success)',
+                  )}
+                  style={color && part.status !== 'failed' ? { color } : undefined}
+                >
+                  ●
+                </span>
+              )}
+            </StatusMark>
             <span className="font-mono text-[13px] leading-5 min-w-0 truncate">
               <span className="font-semibold">{label}</span>
               {part.description && <span className="theme-muted-text">({part.description})</span>}
@@ -432,7 +466,7 @@ function ConfirmApproval({
           <button
             type="button"
             onClick={() => answer({ kind: 'confirm', allowed: false })}
-            className="px-3 py-1 text-xs font-medium rounded-full border theme-border hover:theme-hover text-red-600"
+            className="px-3 py-1 text-xs font-medium rounded-full border theme-border hover:theme-hover text-(--theme-error-text)"
           >
             {denyLabel}
           </button>
@@ -445,28 +479,31 @@ function ConfirmApproval({
           </button>
         </div>
       ) : (
-        <div className="flex gap-2">
+        <form
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (feedback.trim()) {
+              answer({ kind: 'confirm', allowed: false, denyMessage: feedback.trim() })
+            }
+          }}
+        >
           <input
+            ref={focusOnMount}
             value={feedback}
             onChange={(e) => setFeedback(e.target.value)}
+            aria-label={t.feedbackLabel}
             placeholder={t.feedbackPlaceholder}
             className={cx(fieldBox({ size: 'sm' }), 'flex-1')}
           />
           <button
-            type="button"
+            type="submit"
             disabled={!feedback.trim()}
-            onClick={() =>
-              answer({
-                kind: 'confirm',
-                allowed: false,
-                denyMessage: feedback.trim(),
-              })
-            }
             className="px-3 py-1 text-xs font-medium rounded-full bg-(--theme-accent) text-(--theme-accent-text) disabled:opacity-50"
           >
             {common.send}
           </button>
-        </div>
+        </form>
       )}
     </>
   )
@@ -523,21 +560,31 @@ function AskApproval({
           </button>
         </div>
       ) : (
-        <div className="flex gap-2">
+        <form
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (own.trim()) {
+              answer(own.trim())
+            }
+          }}
+        >
           <input
+            ref={focusOnMount}
             value={own}
             onChange={(e) => setOwn(e.target.value)}
+            aria-label={t.ownAnswerLabel}
+            placeholder={t.ownAnswerLabel}
             className={cx(fieldBox({ size: 'sm' }), 'flex-1')}
           />
           <button
-            type="button"
+            type="submit"
             disabled={!own.trim()}
-            onClick={() => answer(own.trim())}
             className="px-3 py-1 text-xs font-medium rounded-full bg-(--theme-accent) text-(--theme-accent-text) disabled:opacity-50"
           >
             {common.send}
           </button>
-        </div>
+        </form>
       )}
     </>
   )
@@ -552,6 +599,8 @@ export function ApprovalBlock({
 }) {
   const { strings } = useChatConfig()
   const t = strings.agentTranscript
+  const headingId = useId()
+  const heading = part.header ?? part.toolName
   if (part.resolved) {
     return (
       <div
@@ -570,12 +619,18 @@ export function ApprovalBlock({
     )
   }
   return (
-    <div
-      className="my-1.5 rounded-lg border border-(--theme-accent) p-3 space-y-2"
+    // A question the turn waits on: one named group, so a screen reader hears
+    // what is being asked before the answers.
+    <fieldset
+      aria-labelledby={heading ? headingId : undefined}
+      aria-label={heading ? undefined : t.approvalLabel}
+      className="my-1.5 min-w-0 rounded-lg border border-(--theme-accent) p-3 space-y-2"
       data-testid="approval-part"
     >
-      {(part.header || part.toolName) && (
-        <div className="text-xs font-semibold">{part.header ?? part.toolName}</div>
+      {heading && (
+        <div id={headingId} className="text-xs font-semibold">
+          {heading}
+        </div>
       )}
       {part.approvalKind === 'confirm' ? (
         <ConfirmApproval part={part} onAnswer={onApprovalAnswer} />
@@ -584,7 +639,7 @@ export function ApprovalBlock({
       ) : (
         <AskApproval part={part} onAnswer={onApprovalAnswer} />
       )}
-    </div>
+    </fieldset>
   )
 }
 
@@ -620,8 +675,15 @@ function TodoSnapshotBlock({ part }: { part: TodoSnapshotPart }) {
               todo.status === 'in_progress' && 'font-semibold',
             )}
           >
-            <span className="select-none font-mono">
+            <span aria-hidden="true" className="select-none font-mono">
               {todo.status === 'completed' ? '✔' : todo.status === 'in_progress' ? '■' : '□'}
+            </span>
+            <span className="sr-only">
+              {todo.status === 'completed'
+                ? t.todoCompleted
+                : todo.status === 'in_progress'
+                  ? t.todoInProgress
+                  : t.todoPending}
             </span>
             <span>
               {todo.status === 'in_progress' && todo.activeForm ? todo.activeForm : todo.content}
@@ -660,8 +722,8 @@ function NoticeBlock({ part }: { part: NoticePart }) {
   return (
     <div
       className={cx(
-        'my-1 text-xs rounded-md px-2.5 py-1.5',
-        part.kind === 'error' ? 'bg-red-500/10 text-red-700' : 'bg-yellow-500/10 text-yellow-700',
+        'my-1 text-xs rounded-md border px-2.5 py-1.5',
+        toneSurface[part.kind === 'error' ? 'error' : 'warning'],
       )}
       data-testid={`${part.kind}-part`}
     >

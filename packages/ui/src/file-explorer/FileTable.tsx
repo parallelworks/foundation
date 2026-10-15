@@ -2,6 +2,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { OpenMenu } from '../components/ContextMenu'
 import type { MenuEntry } from '../components/MenuEntries'
+import { useStrings } from '../components/Provider'
 import { Table } from '../components/Table'
 import { cx } from '../cx'
 import { listTableFixedProps } from '../list/index'
@@ -22,6 +23,8 @@ interface FileTableProps {
   onOpen: (node: TreeNode) => void
   onToggleCheck: (node: TreeNode, checked: boolean) => void
   onPreview: (node: TreeNode) => void
+  /** The URL of a path; set, each row is a link to its node. */
+  pathHref?: ((path: string) => string) | undefined
   /** Set when the folder has pages left to fetch. */
   loadMore?: LoadMoreState | undefined
 }
@@ -40,6 +43,7 @@ export function FileTable({
   onOpen,
   onToggleCheck,
   onPreview,
+  pathHref,
   loadMore,
 }: FileTableProps) {
   // Callback ref into state so the virtualizer re-reads once the element exists.
@@ -51,6 +55,7 @@ export function FileTable({
   // Rows start below the <thead>, not at scrollTop 0.
   const [theadHeight, setTheadHeight] = useState(0)
   const rowIdPrefix = useId()
+  const t = useStrings().fileExplorer
 
   useLayoutEffect(() => {
     const thead = scrollEl?.querySelector('thead')
@@ -245,7 +250,7 @@ export function FileTable({
         wrapperClassName="overflow-x-auto"
         tableProps={{
           role: 'grid',
-          'aria-label': 'Files',
+          'aria-label': t.chrome.files,
           'aria-rowcount': loadMore ? -1 : nodes.length + 1,
           'aria-multiselectable': true,
           tabIndex: 0,
@@ -274,6 +279,7 @@ export function FileTable({
           onOpen={handleOpen}
           onToggleCheck={onToggleCheck}
           onPreview={onPreview}
+          pathHref={pathHref}
         />
       </Table>
     </div>

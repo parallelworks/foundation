@@ -11,7 +11,6 @@ export {
   type ListPageProps,
   ListRow,
   ListRowActionsProvider,
-  type ListSection,
   useListNavigate,
 } from './ListPage'
 export {
@@ -19,6 +18,7 @@ export {
   GroupRow,
   ListActionsHeader,
   ListError,
+  ListSelectAllHeader,
   ListSkeleton,
   listTableFixedProps,
   listTableProps,

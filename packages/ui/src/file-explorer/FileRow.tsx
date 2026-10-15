@@ -1,5 +1,6 @@
 import { DateTime } from 'luxon'
 import type { ReactNode } from 'react'
+import { AppLink, isPlainClick } from '../components/AppLink'
 import type { OpenMenu } from '../components/ContextMenu'
 import type { MenuEntry } from '../components/MenuEntries'
 import { useStrings } from '../components/Provider'
@@ -10,6 +11,7 @@ import { cx } from '../cx'
 import { formatBytes } from '../format'
 import { PreviewIcon } from '../icons'
 import { MoreButton, RowSelectCheckbox, rowContextMenuProps, useRowMenuActive } from '../list/index'
+import { STRETCHED_LINK, STRETCHED_LINK_ROW } from '../list/ListTable'
 import type { TreeNode } from './lib/types'
 
 // Measured row pitch, hairline included. `height` on a `<tr>` is only a minimum,
@@ -32,6 +34,30 @@ function isInteractiveTarget(e: React.MouseEvent) {
   return !!(e.target as HTMLElement).closest('a,button,input,label')
 }
 
+/** Opens the row on a click its controls don't take. Beside a link, which
+ *  covers the row, that is only a click on a gap the link leaves, and a
+ *  modified one there asks for a new tab, which only the link can give. */
+function rowClickHandler(onOpen: () => void, href: string | undefined) {
+  return (e: React.MouseEvent) => {
+    if (isInteractiveTarget(e) || (href && !isPlainClick(e))) {
+      return
+    }
+    onOpen()
+  }
+}
+
+/** A row's name: with an href, the link that covers the row, so the whole row
+ *  opens in a new tab, shows its URL and reads as a link. */
+function RowName({ name, href }: { name: string; href: string | undefined }) {
+  return href ? (
+    <AppLink href={href} data-row-link className={STRETCHED_LINK}>
+      {name}
+    </AppLink>
+  ) : (
+    name
+  )
+}
+
 interface FileRowProps {
   node: TreeNode
   icon: ReactNode
@@ -41,6 +67,8 @@ interface FileRowProps {
   rowIndex: number
   /** The keyboard cursor row. Focus stays on the container, so nothing else marks it. */
   active: boolean
+  /** Makes the row a link to the node. */
+  href?: string | undefined
   checked: boolean
   canPreview: boolean
   getItems: () => MenuEntry[]
@@ -53,6 +81,7 @@ interface FileRowProps {
 export function UserRow({
   node,
   icon,
+  href,
   storageCount,
   getItems,
   openMenu,
@@ -60,6 +89,8 @@ export function UserRow({
 }: {
   node: TreeNode
   icon: ReactNode
+  /** Makes the row a link to the user. */
+  href?: string | undefined
   storageCount: number
   getItems: () => MenuEntry[]
   openMenu: OpenMenu
@@ -67,16 +98,14 @@ export function UserRow({
 }) {
   const t = useStrings().fileExplorer
   const { active: menuActive, openMenu: openRowMenu } = useRowMenuActive(openMenu)
-  const handleRowClick = (e: React.MouseEvent) => {
-    if (isInteractiveTarget(e)) {
-      return
-    }
-    onOpen(node)
-  }
   return (
     <tr
-      className={cx('group cursor-pointer', menuActive ? 'theme-hover' : 'hover:theme-hover')}
-      onClick={handleRowClick}
+      className={cx(
+        'group cursor-pointer',
+        menuActive ? 'theme-hover' : 'hover:theme-hover',
+        href && STRETCHED_LINK_ROW,
+      )}
+      onClick={rowClickHandler(() => onOpen(node), href)}
       {...rowContextMenuProps(openRowMenu, getItems)}
     >
       <Table.Item className="py-2.5">
@@ -85,7 +114,7 @@ export function UserRow({
             {icon}
           </span>
           <span className="truncate text-[13px] font-medium text-(--theme-app)">
-            {node.displayName || node.name}
+            <RowName name={node.displayName || node.name} href={href} />
           </span>
         </div>
       </Table.Item>
@@ -110,6 +139,7 @@ export function FileRow({
   rowId,
   rowIndex,
   active,
+  href,
   checked,
   canPreview,
   getItems,
@@ -124,13 +154,6 @@ export function FileRow({
   const modifiedDt = node.modified ? DateTime.fromISO(node.modified) : null
   const typeLabel = node.root ? (node.storageType ?? node.type) : node.type
 
-  const handleRowClick = (e: React.MouseEvent) => {
-    if (isInteractiveTarget(e)) {
-      return
-    }
-    onOpen(node)
-  }
-
   return (
     <tr
       id={rowId}
@@ -140,15 +163,20 @@ export function FileRow({
       aria-selected={checked}
       className={cx(
         'group',
-        checked ? 'bg-blue-500/5' : menuActive ? 'theme-hover' : 'hover:theme-hover',
+        checked
+          ? 'bg-(--theme-accent-subtle)/60'
+          : menuActive
+            ? 'theme-hover'
+            : 'hover:theme-hover',
         // Only while the grid has keyboard focus: clicking a row sets the cursor
         // so a following arrow key continues from there, but a mouse click should
         // not draw a focus ring. :focus-visible is the browser's own distinction.
         active &&
           'group-focus-visible/grid:ring-1 group-focus-visible/grid:ring-inset group-focus-visible/grid:ring-(--theme-link)',
         'cursor-pointer',
+        href && STRETCHED_LINK_ROW,
       )}
-      onClick={handleRowClick}
+      onClick={rowClickHandler(() => onOpen(node), href)}
       style={{ height: fileRowHeight(node) }}
       {...rowContextMenuProps(openRowMenu, getItems)}
     >
@@ -162,7 +190,7 @@ export function FileRow({
           <span className="flex h-5 w-5 shrink-0 items-center justify-center *:m-0">{icon}</span>
           <div className="min-w-0">
             <div className="truncate text-[13px] font-medium leading-tight text-(--theme-app)">
-              {node.displayName || node.name}
+              <RowName name={node.displayName || node.name} href={href} />
             </div>
             {isTwoLineRow(node) && (
               <div className="truncate text-xs leading-tight text-(--theme-muted-text-color)">

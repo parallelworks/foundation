@@ -1,16 +1,34 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, use } from 'react'
 import { Loader } from '../components/Loader'
-import type { IEditorProps } from './Monaco'
+import { editorLanguagesLoading } from './languages'
+import type { EditorProps } from './Monaco'
 
-const MonacoEditor = lazy(() => import('./Monaco'))
+const loadMonaco = () => import('./Monaco')
+const MonacoEditor = lazy(loadMonaco)
 
-/*
-The point of this wrapper is so you don't have to remember to import MonacoEditor using dynamic
-*/
-export default function Editor(props: IEditorProps) {
+function LoadedEditor(props: EditorProps) {
+  const languages = editorLanguagesLoading()
+  if (languages) {
+    // Fetched alongside the host's languages rather than after them.
+    void loadMonaco()
+    use(languages)
+  }
+  return <MonacoEditor {...props} />
+}
+
+/** A Monaco code editor, loaded on first render so Monaco stays out of the host's first bundle. */
+export function Editor(props: EditorProps) {
+  const { width = '100%', height = '100%' } = props
   return (
-    <Suspense fallback={<Loader />}>
-      <MonacoEditor {...props} />
+    // The fallback takes the editor's size, so nothing moves when Monaco arrives.
+    <Suspense
+      fallback={
+        <div style={{ width, height }} className="flex items-center justify-center">
+          <Loader />
+        </div>
+      }
+    >
+      <LoadedEditor {...props} />
     </Suspense>
   )
 }

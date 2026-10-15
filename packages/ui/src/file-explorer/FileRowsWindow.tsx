@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import type { OpenMenu } from '../components/ContextMenu'
 import type { MenuEntry } from '../components/MenuEntries'
+import { isDev } from '../dev'
 import { FileIcon, FolderIcon } from '../icons'
 import { canPreview } from './FilePreview/previewType'
 import { FileRow, isTwoLineRow, ROW_HEIGHT_SHORT, ROW_HEIGHT_TALL } from './FileRow'
@@ -47,6 +48,7 @@ interface FileRowsWindowProps {
   onOpen: (node: TreeNode) => void
   onToggleCheck: (node: TreeNode, checked: boolean) => void
   onPreview: (node: TreeNode) => void
+  pathHref?: ((path: string) => string) | undefined
 }
 
 /** Must stay a single child of `<Table>`: Table re-keys children by traversal
@@ -66,6 +68,7 @@ export function FileRowsWindow({
   onOpen,
   onToggleCheck,
   onPreview,
+  pathHref,
 }: FileRowsWindowProps) {
   useNestedScrollerWarning(scrollEl, nodes.length)
   useRowPitchAudit(scrollEl, nodes, items)
@@ -105,6 +108,7 @@ export function FileRowsWindow({
             // 1-based, and the header row is 1, so data rows start at 2.
             rowIndex={item.index + 2}
             active={item.index === activeIndex}
+            href={pathHref?.(node.path)}
             node={node}
             icon={icon}
             checked={checkedItems.has(node.path)}
@@ -139,7 +143,7 @@ function Spacer({ height }: { height: number }) {
  *  scrollTop 0 forever, rendering only the first window. */
 function useNestedScrollerWarning(scrollEl: HTMLElement | null, count: number) {
   useEffect(() => {
-    if (!import.meta.env.DEV || !scrollEl || count <= 100) {
+    if (!isDev() || !scrollEl || count <= 100) {
       return
     }
     if (scrollEl.scrollHeight <= scrollEl.clientHeight) {
@@ -174,7 +178,7 @@ function useRowPitchAudit(
   items: readonly { index: number }[],
 ) {
   useEffect(() => {
-    if (!import.meta.env.DEV || !scrollEl || items.length < 3) {
+    if (!isDev() || !scrollEl || items.length < 3) {
       return
     }
     const rows = [...scrollEl.querySelectorAll('tbody tr')]

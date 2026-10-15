@@ -11,14 +11,34 @@ so an application ships only what it imports:
 | `./list` | list pages, tables, row menus and list controls |
 | `./form` | `DynamicForm` and its field registry |
 | `./graph` | job dependency graph and tree view, and the visual workflow editor: the graph, the run form as an inputs editor, and their dialogs |
-| `./editor` | Monaco editor (`monaco-editor` is an optional peer); YAML validation, completion and hover run in a bundled worker |
+| `./editor` | Monaco editor (`monaco-editor` is an optional peer), loaded on first mount with the languages it needs; YAML validation, completion and hover run in a bundled worker |
 | `./logviewer` | log viewer with ANSI color and search |
 | `./file-explorer` | object storage explorer over a host-supplied provider |
 | `./ai`, `./ai/openai`, `./ai/mock` | chat interface and adapters |
 | `./theme.css`, `./base.css`, `./fonts.css`, `./styles.css`, `./logviewer.css`, `./ai.css` | stylesheets |
 
 Hosts bind strings, navigation, data hooks and the workflow engine through
-`UIProvider`, which also shows the package's toasts.
+`UIProvider`, which also shows the package's toasts:
+
+```tsx
+<UIProvider
+  strings={{ common: { save: 'Speichern' }, fileExplorer: { preview: { open: 'Öffnen' } } }}
+  navigation={{ goTo: navigate }}
+  data={{ useRunFile, usePersistedState }}
+  slots={{ link: RouterLink }}
+  engine={() => import('./engine').then((m) => m.engine)}
+>
+  {app}
+</UIProvider>
+```
+
+Every string has an English default, and `strings` overrides any of them at
+any depth. Each concern has its own context, compared by value, so a host may
+pass object literals: a render that passes equal ones re-renders nothing, and
+new `data` re-renders only what reads data. `navigation` is read when the
+package navigates and never re-renders anything. Define slot components and
+string functions outside a component: one made each render is a new value, and
+a new slot component remounts what it renders.
 
 ## Which component?
 
@@ -36,7 +56,7 @@ Each need has one component. Reach for it before styling markup by hand.
 | A number, a date, a color | `NumberInput`, `DatePicker`, `ColorInput` |
 | A one-time code, such as a sign-in check | `OneTimeCodeInput` |
 | A labeled value nobody edits, among fields | `FieldValue` in a `Field` |
-| A record's details, such as in a drawer or a card: names and values on their own | `DescriptionList` of `DescriptionListItem`s; `copy` on an ID, `mono` on a path, `variant="card"` to frame them |
+| A record's details, such as in a drawer or a card: names and values on their own | `DescriptionList` of `DescriptionListItem`s; `copy` on an ID, `mono` on a path, `variant="card"` to frame them; titled lists in a `DescriptionListGroup` to share one label column |
 | An error beside a control outside a `Field` | `ErrorText` |
 | A dense field in a toolbar or a table cell | any field control with `size="sm"`; a width in `className` wins, and `cx` merges classes the same way |
 | On or off | `Switch`; `Checkbox` in a list of things to tick, several of which may be on |
@@ -55,8 +75,9 @@ Each need has one component. Reach for it before styling markup by hand.
 | A panel of controls anchored to a trigger | `Popover` |
 | A hint for a control | `Tooltip`; `InfoTip` for help everyone must reach |
 | A preview of what a link leads to | `HoverCard` |
-| A task that blocks the page | `Modal`; `ConfirmModal` to confirm one action |
+| A task that blocks the page | `Modal`, laid out with `title`, `description` and `footer` as a `Drawer` is; `ConfirmModal` to confirm one action; `CreateModal` to name and create one thing |
 | A panel beside the page | `Drawer` |
+| A message set into the page: guidance, a warning, an error | `Callout`; `variant="bar"` across a surface under its header |
 | A passing notice, or the progress of work in the background | `toast` |
 | How full something is, how far a task has come | `Meter`, `ProgressBar` |
 | Pages of a long list | `Pagination` |
@@ -64,9 +85,12 @@ Each need has one component. Reach for it before styling markup by hand.
 | A person | `Avatar` |
 | A status in words | `StatusBadge`, or `StatusDot` beside text that says it |
 | A run's, job's or step's status beside its name | `RunStatusIcon`; `StatusBadge` with `runStatusTone` to say it in words |
-| A copy action | `useCopy`, or `CopyToClipboard` for its button |
+| A copy action | `CopyButton`; `CopyCodeBlock` for a command or snippet; `useCopy` for a menu row or a control of your own |
 | A live relative time or duration | `RelativeTime`, `Elapsed` |
 | Rendered Markdown | `Markdown` |
+| Code or YAML to read or edit | `Editor` from `./editor`; `EditorField` as a form field, `FormCodePanel` for a form's values as JSON |
+| A run's jobs, steps, logs and annotations | `DependencyGraph` from `./graph`, as a graph or a list |
+| A workflow's jobs drawn from its YAML, or edited by hand | `DependencyGraphPreview` from `./graph`, editable with an `editor`; `InputsFormEditor` for its run form |
 | A value that survives a reload | `usePersistedState` |
 | Choosing the app's colors | `ThemeEditor`, applied with `useApplyTheme` |
 
@@ -410,6 +434,7 @@ where it opens elsewhere, and renders it through `AppLink`:
 | A list row | `ListRow` `href` with a `NameCell` of the same `href`: the name's link covers the row |
 | A toast's action | `action: { label, href }` |
 | `SidebarRailItem` | `href`; `onSelect` then runs only on a plain click |
+| `FileExplorer` rows, tree, trail and "Open folder" | `pathHref(path)`; `onPathChange` is then optional, and the explorer's own moves go to `navigation.goTo` |
 | `EmptyState`, `SettingsCard` actions | a `Button` with `href` |
 
 `AppLink` routes in-app URLs through the provider's `link` slot, so a host
@@ -455,6 +480,7 @@ root:
 | ------------------- | ----------------------------------------------------------------------- |
 | `--app-inset-top`   | The height of a fixed top bar. Drawers and toasts start below it.       |
 | `--app-inset-start` | The width of a fixed sidebar on the start side. Toasts center over the page beside it, and a drawer at its widest leaves that strip, and never less than 2.5rem. Update it when the sidebar collapses. |
+| `--table-header-top` | How far below the top of its scrolling box a table's sticky header row stops (`Table stickyHeader`, which list tables use). Set it on the scrolling box, or an ancestor, when something else sticks at that box's top, such as a page header in a page that scrolls as a whole. Inside `ListPage` the rows scroll in their own box below the header and toolbar, so it stays 0. |
 
 ```ts
 document.documentElement.style.setProperty('--app-inset-top', '56px')
@@ -510,6 +536,9 @@ meaning across the apps.
   record. `RemoveUserIcon` takes someone out of a group or project, while
   `DisableUserIcon` turns off their account. `ChangesRequestedIcon` asks for
   changes to something sent, while `FlaggedIcon` marks an item for attention.
+  `ProjectIcon` is a project, while `FolderIcon` is a folder of files.
+  `LibraryIcon` is a collection of write-ups to browse, while `NotebookIcon`
+  is one notebook.
   `PendingIcon` is a requirement not met yet and `NotRunningIcon` a run not
   started; they share the empty circle, so keep them out of the same list.
 - **Adding an icon:** pick the [Lucide glyph](https://lucide.dev/icons) and add
@@ -574,7 +603,46 @@ configureEditorYaml([
 ])
 ```
 
-Without them, those views still edit, but check nothing against the schema.
+Without them, those views still edit, but check nothing against the schema. Registering a schema
+under a `uri` already registered replaces it, and `configureEditorYaml` returns a function that
+removes what it added.
+
+`Editor` is controlled like an input: pass `value` and `onChange`, and hand back the text it sent.
+Text that comes back unchanged leaves the cursor alone, and a reset from outside keeps the cursor
+and scroll where they were. Each editor has a model of its own unless it is given a `path`, and it
+is named `UIStrings.common.codeEditor` unless given an `ariaLabel`.
+
+Monaco comes from the host's own `monaco-editor` through its bundler, never from a CDN, and loads
+when the first editor mounts, so it stays out of the host's first bundle. Its workers are files in
+the package that the host's bundler copies, started with `new Worker(url)`: a CSP needs
+`worker-src 'self'` and no `blob:`. The YAML language server starts with the first YAML model.
+
+The editor colors every language Monaco has, Bash among them (as shell), and fetches each
+language's coloring only when an editor shows it. It validates and formats JSON. The TypeScript,
+CSS and HTML language services are left out, as each runs in a worker of megabytes; their text is
+still colored. `addEditorLanguages` adds a language service and its workers, by the label Monaco
+asks for, or a language of the host's own. It loads with the next editor to mount; call it once
+at startup. With Vite:
+
+```ts
+import { addEditorLanguages } from '@parallelworks/ui/editor'
+
+const tsWorker = () =>
+  new Worker(new URL('monaco-editor/language/typescript/ts.worker.js', import.meta.url), {
+    type: 'module',
+  })
+// The TypeScript service checks JavaScript too, and asks for a worker under each label.
+addEditorLanguages({
+  load: () => import('monaco-editor/languages/features/typescript/register'),
+  workers: { typescript: tsWorker, javascript: tsWorker },
+})
+```
+
+`readOnly` makes it a view of code to read, such as a file's contents: the text stays selectable,
+copyable and reachable by keyboard and is announced read-only, while the cursor, current line and
+quick fixes are hidden, the view ends at the last line, and the wheel scrolls the page once the text
+has scrolled to its end. Any of these can be set otherwise with Monaco's own options. `disabled`
+greys the text out as well, as a disabled field does.
 
 ## AI chat
 
@@ -638,6 +706,12 @@ animations) and streamdown's classes next to the theme contract:
 ```
 
 The prebuilt `@parallelworks/ui/styles.css` already includes both.
+
+Math needs nothing from the host: `Markdown` imports KaTeX's stylesheet
+itself, from the `katex` package, so the host's bundler loads it and its fonts
+with the markdown renderer's lazy chunk. The bundler must accept CSS imported
+from JavaScript, as the editor's Monaco also requires. Inline math takes `$$`
+within a sentence; a single `$` stays text, so prices are never read as math.
 
 ## Form state
 

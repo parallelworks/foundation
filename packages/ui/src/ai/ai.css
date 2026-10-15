@@ -71,13 +71,15 @@
   color: inherit;
 }
 
-/* KaTeX overrides */
-.katex-display {
+/* KaTeX overrides. Its own sheet loads with the markdown renderer, after
+ * this one, so these need the extra class to win. A wide display formula
+ * scrolls instead of widening the answer. */
+.markdown .katex-display {
   margin: 1em 0;
   overflow-x: auto;
   overflow-y: hidden;
 }
-.katex {
+.markdown .katex {
   font-size: 1.1em;
 }
 
@@ -336,6 +338,18 @@
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+
+/* The shimmer sweeps forever, so under reduced motion it holds still: the
+ * text drawn plainly in the accent, the color the sweep passes through. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-shimmer {
+    animation: none;
+  }
+  .text-shimmer {
+    background-image: none;
+    color: var(--theme-accent, #06354f);
+  }
 }
 
 /* Entrance animation for chat messages (CSS replacement for a JS motion lib).

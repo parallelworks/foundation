@@ -229,13 +229,13 @@ describe('ChatMessageList working indicator', () => {
 
     const { queryByText } = renderTurn()
 
-    expect(queryByText('Thinking...')).toBeInTheDocument()
+    expect(queryByText('Thinking…')).toBeInTheDocument()
   })
 
   it('is visible before any tool call', () => {
     const { queryByText } = renderTurn()
 
-    expect(queryByText('Thinking...')).toBeInTheDocument()
+    expect(queryByText('Thinking…')).toBeInTheDocument()
   })
 
   it('goes away while an approval is waiting on the user', () => {
@@ -249,7 +249,7 @@ describe('ChatMessageList working indicator', () => {
 
     const { queryByText } = renderTurn()
 
-    expect(queryByText('Thinking...')).not.toBeInTheDocument()
+    expect(queryByText('Thinking…')).not.toBeInTheDocument()
   })
 
   it('comes back once the approval is answered', () => {
@@ -264,7 +264,7 @@ describe('ChatMessageList working indicator', () => {
 
     const { queryByText } = renderTurn()
 
-    expect(queryByText('Thinking...')).toBeInTheDocument()
+    expect(queryByText('Thinking…')).toBeInTheDocument()
   })
 
   it('goes away once the answer starts streaming', () => {
@@ -274,7 +274,7 @@ describe('ChatMessageList working indicator', () => {
       createMockMessage({ id: 'stream', role: 'assistant', content: 'hi' }),
     )
 
-    expect(queryByText('Thinking...')).not.toBeInTheDocument()
+    expect(queryByText('Thinking…')).not.toBeInTheDocument()
   })
 })
 
@@ -317,6 +317,25 @@ describe('ChatMessageList queued messages', () => {
       'Queued · sends when this reply finishes',
       'Queued · sends when this reply finishes',
     ])
+  })
+})
+
+describe('ChatMessageList as a log', () => {
+  it('is a labeled live log, busy while a reply streams', () => {
+    const { getByRole, rerender } = render(
+      <ChatMessageList messages={[createMockMessage({ id: 'm1' })]} allMessages={[]} />,
+    )
+    const log = getByRole('log', { name: 'Conversation' })
+    expect(log).toHaveAttribute('aria-busy', 'true')
+    rerender(
+      <ChatMessageList
+        messages={[createMockMessage({ id: 'm1' })]}
+        allMessages={[]}
+        isStreaming={false}
+        label="Agent session"
+      />,
+    )
+    expect(getByRole('log', { name: 'Agent session' })).not.toHaveAttribute('aria-busy')
   })
 })
 

@@ -11,21 +11,32 @@ import { ErrorIcon } from '../icons'
 const NAME_TEXT = 'font-medium text-[13px] leading-tight text-(--theme-app) truncate'
 const SUBTITLE_TEXT = 'text-xs leading-tight text-(--theme-muted-text-color) truncate'
 
-/** table-auto + horizontal scroll; the name column has a min-width floor so it can't be crushed. */
+/** Marks a header cell of a list whose column headers are off; see `listTableProps`. */
+export const HEADERS_OFF = 'list-headers-off'
+
+/** table-auto; the name column has a min-width floor so it can't be crushed.
+ *  The header row sticks as the rows scroll, so the list's scrolling box
+ *  (`ListPage`'s body) scrolls it sideways too. */
 export const listTableProps = {
   borderless: true,
+  stickyHeader: true,
   panel: false,
   rounded: false,
-  theadClassName: 'text-(--theme-muted-text-color)',
+  // Opaque, as the rows scroll under it. Collapsed while `ListColumns` says
+  // the view's headers are off: the row still sizes the columns.
+  theadClassName:
+    'bg-(--theme-app-bg) text-(--theme-muted-text-color) has-[.list-headers-off]:collapse',
   tbodyClassName: 'divide-y border-b border-(--theme-border) divide-(--theme-border)',
   className:
     'table-auto w-full [&_td:first-child]:pl-4 [&_th:first-child]:pl-4 [&_td:last-child]:pr-4 [&_th:last-child]:pr-4',
 } as const
 
 /** Widths come only from the header row, so a windowed body cannot shift the
- *  columns as different content scrolls into view. */
+ *  columns as different content scrolls into view. The windowed table scrolls
+ *  in its own box, so its header doesn't stick. */
 export const listTableFixedProps = {
   ...listTableProps,
+  stickyHeader: false,
   className: listTableProps.className.replace('table-auto', 'table-fixed'),
 } as const
 
@@ -36,9 +47,15 @@ export const StretchRowLinkContext = createContext(false)
 // The link's box covers the row (the `ListRow`'s `<tr>` is its containing
 // block), so the whole row is the link: it opens in a new tab, shows its URL
 // and reads as a link, where a row click handler could do none of these. Its
-// focus ring follows, drawn around the row.
-const STRETCHED_LINK =
+// focus ring follows, drawn around the row. Mark the link `data-row-link`.
+export const STRETCHED_LINK =
   "after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-(--theme-link)"
+
+/** The row a `STRETCHED_LINK` covers: its box, with the row's other controls
+ *  raised above the link so they keep their own clicks. A checkbox is a
+ *  `role="checkbox"` span, not an input, so the role names it. */
+export const STRETCHED_LINK_ROW =
+  'relative [&_:is(a,button,input,label,[role=checkbox]):not([data-row-link])]:relative [&_:is(a,button,input,label,[role=checkbox]):not([data-row-link])]:z-[1]'
 
 export function NameCell({
   icon,
@@ -121,17 +138,24 @@ export function GroupRow({
   )
 }
 
-export function ListError({ error, noun = 'data' }: { error: unknown; noun?: string }) {
+export function ListError({
+  error,
+  noun,
+}: {
+  error: unknown
+  /** What failed to load, as the heading names it: "Couldn't load clusters". */
+  noun?: string | undefined
+}) {
   const { list: t } = useStrings()
   const message =
     error && typeof error === 'object' && 'message' in error
       ? String((error as { message?: unknown }).message)
       : undefined
   return (
-    <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
-      <ErrorIcon className="h-10 w-10 text-red-400 opacity-80" />
+    <div role="alert" className="flex flex-col items-center justify-center gap-3 py-20 text-center">
+      <ErrorIcon aria-hidden="true" className="h-10 w-10 text-(--theme-error)" />
       <div className="space-y-1">
-        <p className="text-sm font-medium text-(--theme-app)">{t.couldNotLoad(noun)}</p>
+        <p className="text-sm font-medium text-(--theme-app)">{t.couldNotLoad(noun ?? t.data)}</p>
         {message && <p className="max-w-md text-xs text-(--theme-muted-text-color)">{message}</p>}
       </div>
     </div>
@@ -198,6 +222,36 @@ export function RowSelectCheckbox({
   )
 }
 
+/** The selection column's header: a checkbox that ticks every row, mixed while
+ *  only some are. `onToggle` selects them all, or clears them once all are. */
+export function ListSelectAllHeader({
+  selected,
+  total,
+  onToggle,
+}: {
+  /** How many rows are selected. */
+  selected: number
+  /** How many rows there are to select. */
+  total: number
+  onToggle: () => void
+}) {
+  const t = useStrings().list
+  const all = total > 0 && selected >= total
+  return (
+    <Table.Header caps={false} className="w-10">
+      <Checkbox
+        aria-label={t.selectAll}
+        checked={all}
+        indeterminate={selected > 0 && !all}
+        disabled={total === 0}
+        onCheckedChange={() => onToggle()}
+      />
+    </Table.Header>
+  )
+}
+// Hoisted into <thead> (see Table getHeaders).
+ListSelectAllHeader.isTableHeader = true
+
 /** Sizes to fit pinned buttons + ⋯; below ~44rem only ⋯ remains. Pass a view's
  * chrome (structurally: showActions + actionsWidth) or actionCount. */
 export function ListActionsHeader({
@@ -220,7 +274,8 @@ export function ListActionsHeader({
       caps={false}
       style={{ width, minWidth: width }}
       className={cx(
-        'relative py-2 text-right @max-[43rem]:w-[52px]! @max-[43rem]:min-w-[52px]!',
+        // Below 44rem, where ListRow folds pinned buttons into ⋯, only ⋯ needs room.
+        'relative py-2 text-right @max-[44rem]:w-[52px]! @max-[44rem]:min-w-[52px]!',
         className,
       )}
     >

@@ -10,22 +10,18 @@ import {
   warnIfInert,
 } from '../components/MenuEntries'
 import { useNavigation } from '../components/Provider'
-import { Table } from '../components/Table'
+import { type SortDirection, Table } from '../components/Table'
 import { Tooltip } from '../components/Tooltip'
 import { cx } from '../cx'
-import { ListActionsHeader, NAME_MIN_WIDTH_PX, StretchRowLinkContext } from './ListTable'
+import {
+  HEADERS_OFF,
+  ListActionsHeader,
+  NAME_MIN_WIDTH_PX,
+  STRETCHED_LINK_ROW,
+  StretchRowLinkContext,
+} from './ListTable'
 import type { ListView, ListViewChrome } from './listView'
 import { MoreButton, type RowAction, rowContextMenuProps, useRowMenuActive } from './rowMenu'
-
-/** Whether the shell adds pt-4 padding that the edge-to-edge list must cancel with a negative margin. */
-const SECTION_SHELL_PADDED = {
-  main: false,
-  kubernetes: false,
-  admin: true,
-  org: true,
-} as const
-
-export type ListSection = keyof typeof SECTION_SHELL_PADDED
 
 /** Defaults mean rows outside a ListView fully show actions (no view = show everything). */
 const RowActionsContext = createContext<{
@@ -59,9 +55,10 @@ export function ListRowActionsProvider({
 }
 
 export interface ListPageProps {
-  section?: ListSection
-  /** Force edge-to-edge negative margin for a main-shell page nested under a padded route layout. */
-  shellPadded?: boolean
+  /** Reaches past the host's content padding (`p-4`) to the container's
+   *  edges, for a host whose page container is padded. A list runs edge to
+   *  edge so its rows' hover and dividers span the page. */
+  bleed?: boolean | undefined
   /** The list's search, filters and view controls, above the rows. The page's
    *  trail and actions go in its `PageHeader`. */
   toolbar?: ReactNode
@@ -71,19 +68,9 @@ export interface ListPageProps {
 }
 
 /** A list filling the page: its toolbar stays put while only the rows scroll. */
-export function ListPage({
-  section = 'main',
-  shellPadded,
-  toolbar,
-  view,
-  children,
-}: ListPageProps) {
-  const cancelShellPadding = shellPadded ?? SECTION_SHELL_PADDED[section]
+export function ListPage({ bleed = false, toolbar, view, children }: ListPageProps) {
   return (
-    // FIXME(edge-to-edge): the negative margin cancels a padded route shell's
-    // content padding (`pt-4 px-4`); drop it once list routes own a
-    // zero-padding container at the layout level.
-    <div className={cx('flex h-full min-h-0 flex-col', cancelShellPadding && '-m-4')}>
+    <div className={cx('flex h-full min-h-0 flex-col', bleed && '-m-4')}>
       {toolbar && <div className="shrink-0 px-4">{toolbar}</div>}
       {/* The list body is the @container priority columns measure to auto-hide. */}
       <div className="relative @container min-h-0 flex-1 overflow-auto">
@@ -212,11 +199,14 @@ export function ListRow({
     <tr
       className={cx(
         'group',
-        selected ? 'bg-blue-500/5' : menuActive ? 'theme-hover' : 'hover:theme-hover',
+        selected
+          ? 'bg-(--theme-accent-subtle)/60'
+          : menuActive
+            ? 'theme-hover'
+            : 'hover:theme-hover',
         (href || onActivate || selectionActive) && 'cursor-pointer',
         // The row is its stretched link's box; other controls rise above the link.
-        stretch &&
-          'relative [&_:is(a,button,input,label):not([data-row-link])]:relative [&_:is(a,button,input,label):not([data-row-link])]:z-[1]',
+        stretch && STRETCHED_LINK_ROW,
         className,
       )}
       onClick={handleRowClick}
@@ -300,24 +290,47 @@ function PinnedActionButton({ action, visible }: { action: RowAction; visible: b
   )
 }
 
-/** Name column min-width is by role, not position, so a leading checkbox doesn't shift it. */
+function columnSort<T>(view: ListView<T>, orderBy: string): SortDirection {
+  if (view.orderBy !== orderBy) {
+    return 'none'
+  }
+  return view.orderDir === 'asc' ? 'ascending' : 'descending'
+}
+
+/** Name column min-width is by role, not position, so a leading checkbox
+ *  doesn't shift it. A column with an `orderBy` the view offers sorts by it.
+ *  While the view's column headers are off, the header row collapses: its
+ *  cells still size the columns, but nobody sees or hears them, as with any
+ *  other display option that is off. */
 export function ListColumns<T>({ view }: { view: ListView<T> }) {
   return (
     <>
-      {view.visibleColumns.map((col, i) => (
-        <Table.Header
-          key={col.key}
-          caps={false}
-          className={cx(col.headerClassName, view.columnClasses[i])}
-          style={col.alwaysVisible ? { minWidth: NAME_MIN_WIDTH_PX } : undefined}
-        >
-          {col.label}
-        </Table.Header>
-      ))}
+      {view.visibleColumns.map((col, i) => {
+        // A column naming an order the view doesn't offer stays a plain title.
+        const orderBy = view.orderBys.some((o) => o.value === col.orderBy) ? col.orderBy : undefined
+        return (
+          <Table.Header
+            key={col.key}
+            caps={false}
+            className={cx(
+              col.headerClassName,
+              view.columnClasses[i],
+              // listTableProps collapses the header row when it holds this marker.
+              !view.showColumnHeaders && HEADERS_OFF,
+            )}
+            style={col.alwaysVisible ? { minWidth: NAME_MIN_WIDTH_PX } : undefined}
+            sort={orderBy === undefined ? undefined : columnSort(view, orderBy)}
+            onSort={orderBy === undefined ? undefined : () => view.sortBy(orderBy)}
+          >
+            {col.label}
+          </Table.Header>
+        )
+      })}
       <ListActionsHeader view={view} />
     </>
   )
 }
+
 // Hoisted into <thead> (see Table getHeaders).
 ListColumns.isTableHeader = true
 

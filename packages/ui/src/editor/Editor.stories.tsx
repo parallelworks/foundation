@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import Editor from './Editor'
+import { useState } from 'react'
+import { Editor } from './Editor'
+import { addEditorLanguages } from './languages'
 import { configureEditorYaml } from './yaml'
 
 const meta: Meta<typeof Editor> = {
@@ -12,9 +14,16 @@ const meta: Meta<typeof Editor> = {
           'Monaco loads lazily on mount. It renders here because monaco-editor ' +
           'is a devDependency of this package; consumers must install the ' +
           'optional peer to use `@parallelworks/ui/editor`. YAML models get ' +
-          'validation, completion, hover and formatting from a bundled worker.',
+          'validation, completion, hover and formatting from a bundled worker. ' +
+          'The editor colors every language Monaco has; `addEditorLanguages` adds a ' +
+          'language service and its workers, such as TypeScript. ' +
+          '`readOnly` shows code to read: selectable, copyable and focusable, with no cursor.',
       },
     },
+  },
+  argTypes: {
+    readOnly: { control: 'boolean' },
+    disabled: { control: 'boolean' },
   },
 }
 export default meta
@@ -30,6 +39,8 @@ const YAML_VALUE = [
   '',
 ].join('\n')
 
+/** Text to read: it selects and copies, and takes focus from the keyboard, but shows no cursor or
+ * current line, and ends at its last line. */
 export const YamlReadOnly: StoryObj<typeof Editor> = {
   args: {
     language: 'yaml',
@@ -47,6 +58,103 @@ export const YamlEditable: StoryObj<typeof Editor> = {
     readOnly: false,
     height: 320,
     width: 640,
+  },
+}
+
+const SCRIPT = Array.from(
+  { length: 60 },
+  (_, i) => `echo "step ${i + 1}" && ./run.sh --stage ${i + 1} --retries 3`,
+).join('\n')
+
+/** A file to read, as the file explorer previews one: a longer file scrolls inside the view, then
+ * the page scrolls on past it. */
+export const ReadOnlyFile: StoryObj<typeof Editor> = {
+  args: {
+    readOnly: true,
+    language: 'shell',
+    value: SCRIPT,
+    ariaLabel: 'run-all.sh',
+    height: 320,
+    width: 640,
+    fontSize: 12,
+    minimap: { enabled: false },
+    overviewRulerLanes: 0,
+  },
+}
+
+/** Greyed out and read-only, as a disabled field is. The editor beside it keeps its colors:
+ * Monaco's theme is page-wide, so a disabled editor greys out on its own. */
+export const Disabled: StoryObj<typeof Editor> = {
+  args: { language: 'yaml', value: YAML_VALUE, disabled: true, height: 200, width: 640 },
+  argTypes: { disabled: { control: 'boolean' } },
+  render: (args) => (
+    <div className="flex flex-col gap-4">
+      <Editor {...args} />
+      <Editor language="yaml" value={YAML_VALUE} height={200} width={640} />
+    </div>
+  ),
+}
+
+/** Bash, which workflow fields suggest, colors as shell does. */
+export const Bash: StoryObj<typeof Editor> = {
+  args: {
+    language: 'bash',
+    value: 'for file in *.log; do\n  gzip "$file"\ndone\n',
+    height: 120,
+    width: 640,
+  },
+}
+
+/** Go, which the editor colors with no setup: every Monaco language is, each fetched once shown. */
+export const Go: StoryObj<typeof Editor> = {
+  args: {
+    language: 'go',
+    value: 'package main\n\nimport "fmt"\n\nfunc main() {\n\tfmt.Println("hello")\n}\n',
+    height: 160,
+    width: 640,
+  },
+}
+
+let typeScriptAdded = false
+const tsWorker = () =>
+  new Worker(new URL('monaco-editor/language/typescript/ts.worker.js', import.meta.url), {
+    type: 'module',
+  })
+
+/** TypeScript's language service, which the host adds with `addEditorLanguages` and its worker:
+ * the text is colored without it, and with it the editor finds the type error. */
+export const AddedLanguageService: StoryObj<typeof Editor> = {
+  args: {
+    language: 'typescript',
+    path: 'file:///greet.ts',
+    value: "function greet(name: string): string {\n  return 'Hello, ' + name\n}\n\ngreet(42)\n",
+    height: 160,
+    width: 640,
+  },
+  loaders: [
+    () => {
+      if (!typeScriptAdded) {
+        typeScriptAdded = true
+        addEditorLanguages({
+          load: () => import('monaco-editor/languages/features/typescript/register'),
+          workers: { typescript: tsWorker, javascript: tsWorker },
+        })
+      }
+    },
+  ],
+}
+
+/** The host hands back the text on every change, as a form does: the cursor stays where it is. */
+export const Controlled: StoryObj<typeof Editor> = {
+  args: { language: 'shell', height: 200, width: 640, ariaLabel: 'Script' },
+  render: function Render(args) {
+    const [value, setValue] = useState('echo "hello"\n')
+    return (
+      <div className="flex flex-col gap-2">
+        <Editor {...args} value={value} onChange={setValue} />
+        <pre className="text-xs text-(--theme-muted-text-color)">{value}</pre>
+      </div>
+    )
   },
 }
 
