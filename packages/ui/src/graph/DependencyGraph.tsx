@@ -402,6 +402,8 @@ function jobHandlers({
   const isStepsOpen = (j: string) => stepsOpen.has(pathPrefix + j)
   const subworkflowKey = (j: string, s: number) => `${pathPrefix}${j}:${s}`
   const openLog = (j: string, s: number) => setSublogOpen(engine.stepLogPath(pathPrefix, j, s))
+  const openSummary = (j: string, s: number) =>
+    setSublogOpen(fileBeside(engine.stepLogPath(pathPrefix, j, s), 'summary.md'))
   return {
     isStepsOpen,
     onJobClick: (j) => {
@@ -428,6 +430,7 @@ function jobHandlers({
       }
     },
     onStepLogClick: openLog,
+    onStepSummaryClick: openSummary,
     onSubworkflowIcon: (j, s) => openInNewGraph(pathPrefix, j, s),
     renderSubworkflow: (j, s) => {
       const subJobs = jobs[j]?.steps?.[s]?.subworkflow?.jobs
@@ -1183,7 +1186,7 @@ export default function DependencyGraph({
   onCloseLog?: (() => void) | undefined
   /** Pins the job list this many pixels below the top of the page's scroll area, under the host's own pinned bars. */
   sidebarStickyTop?: number | undefined
-  /** Shown under the annotations, above the graph. */
+  /** Shown under the graph, beside the job list. */
   children?: ReactNode
 }) {
   const engine = useWorkflowEngine()
@@ -2072,7 +2075,6 @@ export default function DependencyGraph({
           </div>
         )}
         {!preview && <AnnotationBanner executedJobs={jobs} />}
-        {children}
         {viewMode === 'tree' && !preview ? (
           <div className="panel w-full border">
             <TreeView
@@ -2193,6 +2195,7 @@ export default function DependencyGraph({
             {editorOverlays}
           </div>
         )}
+        {children}
       </div>
       <Modal
         open={sublogOpen !== ''}

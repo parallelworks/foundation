@@ -69,8 +69,8 @@ export const StepWithSummary: StoryObj<typeof DependencyGraph> = {
   args: { run: RUN, openStep: { job: 'test', step: 0 } },
 }
 
-// A host's own content, such as its list of step summaries, sits under the annotations and above the graph.
-export const ContentAboveGraph: StoryObj<typeof DependencyGraph> = {
+// A host's own content, such as its list of step summaries, sits under the graph.
+export const ContentBelowGraph: StoryObj<typeof DependencyGraph> = {
   args: {
     run: RUN,
     children: <div className="panel border rounded-lg px-4 py-2.5 text-sm">Step summaries</div>,

@@ -710,29 +710,40 @@ describe('DependencyGraph step summary', () => {
     rect.mockRestore()
   })
 
-  it('marks the steps that wrote a summary in the job list', () => {
+  it('opens a step on its summary from its summary mark in the job list', async () => {
     render(
-      <UIProvider>
+      <UIProvider
+        data={{
+          useRunFile: (_slug, path) => ({
+            data: path?.endsWith('/summary.md') ? '## Tests\n' : 'step log',
+            isLoading: false,
+            error: undefined,
+          }),
+        }}
+      >
         <DependencyGraph run={summaryRun} />
       </UIProvider>,
     )
     fireEvent.click(screen.getAllByText('Report')[0]!)
     // The sidebar and the graph list the job's steps alike.
-    const marked = screen.getAllByRole('img', { name: 'Has a summary' })
-    expect(marked.map((icon) => icon.closest('button')?.textContent)).toEqual(['test', 'test'])
+    const marks = screen.getAllByRole('button', { name: 'Step summary' })
+    expect(marks.map((mark) => mark.parentElement?.textContent)).toEqual(['test', 'test'])
+    fireEvent.click(marks[0]!)
+    expect(await screen.findByRole('heading', { name: 'Tests' })).toBeInTheDocument()
+    expect(tab('Summary')).toHaveAttribute('aria-selected', 'true')
   })
 
-  it('shows what the host puts above the graph', () => {
+  it('shows what the host puts below the graph', () => {
     const { container } = render(
       <UIProvider>
         <DependencyGraph run={summaryRun}>
-          <p>Above the graph</p>
+          <p>Below the graph</p>
         </DependencyGraph>
       </UIProvider>,
     )
     const panel = container.querySelector('.panel.overflow-hidden')
-    expect(panel?.compareDocumentPosition(screen.getByText('Above the graph')) ?? 0).toBe(
-      Node.DOCUMENT_POSITION_PRECEDING,
+    expect(panel?.compareDocumentPosition(screen.getByText('Below the graph')) ?? 0).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
     )
   })
 
