@@ -7,15 +7,20 @@ export function StepSummary({ runSlug, path }: { runSlug: string; path: string }
   const { dag } = useStrings()
   const { data, isLoading, error } = useRunFile(runSlug, path)
   return (
-    <div className="panel border rounded min-h-0 flex-1 overflow-y-auto p-4">
+    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-8 sm:py-7">
       {isLoading && data === undefined ? (
-        <Loader label={dag.loadingSummary} size={24} />
+        <div className="flex h-full items-center justify-center">
+          <Loader label={dag.loadingSummary} size={70} />
+        </div>
       ) : error || data === undefined ? (
         <p className="text-xs theme-muted-text">{dag.summaryLoadFailed}</p>
       ) : (
-        <Markdown httpsImagesOnly compact>
-          {data}
-        </Markdown>
+        // A summary is prose and tables; past a reading measure its lines get hard to follow.
+        <div className="max-w-[72ch]">
+          <Markdown httpsImagesOnly compact>
+            {data}
+          </Markdown>
+        </div>
       )}
     </div>
   )

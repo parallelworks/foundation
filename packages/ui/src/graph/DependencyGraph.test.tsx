@@ -67,23 +67,7 @@ vi.mock('react-zoom-pan-pinch', async () => {
 // Heavy leaf that only appears inside the log modal; render the log it was
 // handed so the modal's message states are assertable.
 vi.mock('../logviewer', () => ({
-  LogViewer: ({
-    log,
-    additionalBottomLeftBarComponents,
-    additionalBottomRightBarComponents,
-  }: {
-    log: string
-    additionalBottomLeftBarComponents?: React.ReactNode
-    additionalBottomRightBarComponents?: React.ReactNode
-  }) => (
-    <>
-      <pre data-testid="log">{log}</pre>
-      <div data-testid="log-footer">
-        {additionalBottomLeftBarComponents}
-        {additionalBottomRightBarComponents}
-      </div>
-    </>
-  ),
+  LogViewer: ({ log }: { log: string }) => <pre data-testid="log">{log}</pre>,
 }))
 vi.mock('./AnnotationBanner', () => ({ AnnotationBanner: () => null }))
 
@@ -816,17 +800,15 @@ describe('DependencyGraph general log', () => {
     expect(screen.getByTestId('log')).toHaveTextContent('No log found')
   })
 
-  const footerButtons = () =>
-    [...screen.getByTestId('log-footer').querySelectorAll('button')].map(
-      (b) => b.getAttribute('aria-label') ?? b.textContent?.trim(),
-    )
+  const pagerButtons = () =>
+    ['Previous step', 'Next step'].filter((name) => screen.queryByRole('button', { name }))
 
   // The run's logs.out belongs to no job or step, so paging off it read step_ off
   // undefined and threw inside the click handler.
   it('offers no step paging on the run own general log', () => {
     renderGraph(run)
     fireEvent.click(screen.getByRole('button', { name: 'General log' }))
-    expect(footerButtons()).toEqual([])
+    expect(pagerButtons()).toEqual([])
   })
 
   // A subworkflow's general log IS its parent step's log file, so paging and the
@@ -836,11 +818,26 @@ describe('DependencyGraph general log', () => {
     fireEvent.click(screen.getAllByText('Build')[0]!)
     fireEvent.click(screen.getAllByRole('button', { name: 'Open in new graph' })[0]!)
     fireEvent.click(screen.getByRole('button', { name: 'General log' }))
-    expect(footerButtons()).toEqual(['Previous step', 'Next step'])
+    expect(pagerButtons()).toEqual(['Previous step', 'Next step'])
     expect(screen.getByRole('tab', { name: 'Script' })).toBeInTheDocument()
     // And paging still resolves to a real step rather than throwing.
     fireEvent.click(screen.getByRole('button', { name: 'Next step' }))
-    expect(footerButtons()).toEqual(['Previous step', 'Next step'])
+    expect(pagerButtons()).toEqual(['Previous step', 'Next step'])
+  })
+
+  // The tabs move between themselves on the arrows, so paging there too would
+  // swap the step out from under the person choosing a tab.
+  it('pages on the arrows only when focus is not on the tabs', () => {
+    renderGraph(run)
+    fireEvent.click(screen.getAllByText('Build')[0]!)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Open in new graph' })[0]!)
+    fireEvent.click(screen.getByRole('button', { name: 'General log' }))
+    const title = () => screen.getByRole('heading', { level: 2 }).textContent
+    const before = title()
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Script' }), { key: 'ArrowRight' })
+    expect(title()).toBe(before)
+    fireEvent.keyDown(document.body, { key: 'ArrowRight' })
+    expect(title()).not.toBe(before)
   })
 })
 

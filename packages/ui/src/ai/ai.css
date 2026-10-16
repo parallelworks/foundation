@@ -202,6 +202,21 @@
   font-size: 0.875rem;
   line-height: 1.25rem;
 }
+/* A summary's tables are mostly a few short columns of counts: they hug their
+ * content so each number sits by its label, and a phone fits them unscrolled. */
+.markdown-compact table[data-streamdown="table"] {
+  width: auto;
+  min-width: min(100%, 20rem);
+}
+.markdown-compact [data-streamdown="table"] :is(th, td) {
+  min-width: 0;
+  padding-inline-end: 2rem;
+  font-variant-numeric: tabular-nums;
+}
+.markdown-compact [data-streamdown="table"] th {
+  font-weight: 500;
+  color: var(--theme-muted-text-color);
+}
 .markdown-compact :not(pre) > code {
   font-size: 0.8125rem;
 }

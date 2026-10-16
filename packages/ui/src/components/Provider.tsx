@@ -231,6 +231,7 @@ export interface UIStrings {
     logLoadFailed: string
     loadingSummary: string
     hasSummary: string
+    stepOf: (position: number, count: number) => string
     summaryLoadFailed: string
     summaryTab: string
     logsTab: string
@@ -946,6 +947,7 @@ const DEFAULTS: UIProviderValue = {
       logLoadFailed: 'Log could not be loaded',
       loadingSummary: 'Loading summary',
       hasSummary: 'Has a summary',
+      stepOf: (position, count) => `Step ${position} of ${count}`,
       summaryLoadFailed: 'Summary could not be loaded',
       summaryTab: 'Summary',
       logsTab: 'Logs',

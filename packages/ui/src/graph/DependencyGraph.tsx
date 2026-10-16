@@ -39,6 +39,7 @@ import {
   ArrowRightIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  CloseIcon,
   FileTextIcon,
   ZoomInIcon,
   ZoomOutIcon,
@@ -1291,6 +1292,7 @@ export default function DependencyGraph({
   }, [preview, fixedHeight])
 
   const { common, dag: dagStrings } = useStrings()
+  const stepHeaderRef = useRef<HTMLDivElement>(null)
   const slots = useSlots()
   const [executedJobsPath, setExecutedJobsPath] = useState<(string | number)[][]>([[]])
   const [executedJobsPathIdx, setExecutedJobsPathIdx] = useState<number>(0)
@@ -1790,6 +1792,21 @@ export default function DependencyGraph({
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
+      // Arrows already mean something in the tabs, a field, or a menu; paging
+      // there would move the step out from under the person.
+      const target = e.target instanceof Element ? e.target : null
+      if (
+        e.defaultPrevented ||
+        e.altKey ||
+        e.ctrlKey ||
+        e.metaKey ||
+        e.shiftKey ||
+        target?.closest(
+          'input, textarea, select, [contenteditable=""], [contenteditable="true"], [role="tablist"], [role="listbox"], [role="menu"], [role="slider"], [role="radiogroup"]',
+        )
+      ) {
+        return
+      }
       if (e.key === 'ArrowRight') {
         nextStep(false)
       } else if (e.key === 'ArrowLeft') {
@@ -1855,76 +1872,99 @@ export default function DependencyGraph({
 
   const startDt = run.createdAt ? DateTime.fromISO(run.createdAt) : shownAt
 
-  const additionalBottomLeftBarComponents = sublogIsStep ? (
-    <>
+  // Where the open step falls among every step at this level, counted the way the pager walks them.
+  const jobNames = Object.keys(jobs)
+  const stepCount = jobNames.reduce((n, name) => n + (jobs[name]?.steps.length ?? 0), 0)
+  const stepPosition =
+    jobNames
+      .slice(0, Math.max(0, jobNames.indexOf(sublogJob)))
+      .reduce((n, name) => n + (jobs[name]?.steps.length ?? 0), 0) +
+    Number(sublogStep ?? 0) +
+    1
+  // The pager sits in the header beside the step it pages from, so the dialog needs no footer.
+  const stepPager = sublogIsStep ? (
+    <div className="flex shrink-0 items-center">
       <IconButton
-        variant="outline"
         icon={<ArrowLeftIcon />}
         label={dagStrings.previousStep}
         onClick={() => nextStep(true)}
       />
       <IconButton
-        variant="outline"
         icon={<ArrowRightIcon />}
         label={dagStrings.nextStep}
         onClick={() => nextStep(false)}
       />
-    </>
-  ) : undefined
-
-  const additionalBottomRightBarComponents =
-    sublogIsStep && sublogIsSubworkflow ? (
-      <Button
-        variant="secondary"
-        size="sm"
-        onClick={() => {
-          openInNewGraph(pathAppend, sublogJob, parseInt(sublogStep ?? '', 10))
-          setSublogOpen('')
-        }}
-      >
-        {dagStrings.openSubworkflow}
-      </Button>
-    ) : undefined
-
-  const stepBar = (
-    <div className="flex theme-panel select-none items-center gap-x-2 p-2">
-      <div className="flex gap-x-2 w-full">{additionalBottomLeftBarComponents}</div>
-      {additionalBottomRightBarComponents}
     </div>
-  )
+  ) : undefined
+  const stepCounter =
+    sublogIsStep && sublogJobs === jobs ? dagStrings.stepOf(stepPosition, stepCount) : undefined
   const stepTabLabels: Record<StepTab, string> = {
     summary: dagStrings.summaryTab,
     logs: dagStrings.logsTab,
     script: dagStrings.scriptTab,
   }
+  const closeLog = () => {
+    setSublogOpen('')
+    onCloseLog?.()
+  }
+  // A phone keeps the pager, name and close on one row and gives the tabs the full width under it.
+  const narrowDialog = windowSize.w < 640
   const stepHeader = sublogIsStep ? (
-    <div className="flex h-9 shrink-0 items-center justify-between gap-x-3">
-      <h2 className="min-w-0 truncate font-semibold" title={stepTitle}>
-        {stepTitle}
-      </h2>
+    <div
+      ref={stepHeaderRef}
+      className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2 border-b border-(--theme-border) px-2 py-2 sm:flex sm:gap-x-3"
+    >
+      {stepPager}
+      <div className="flex min-w-0 items-baseline gap-x-2.5 sm:flex-1">
+        <h2 className="min-w-0 truncate font-semibold" title={stepTitle}>
+          {stepTitle}
+        </h2>
+        {stepCounter && (
+          <span className="hidden shrink-0 text-xs tabular-nums theme-muted-text sm:inline">
+            {stepCounter}
+          </span>
+        )}
+      </div>
+      {sublogIsSubworkflow && (
+        <Button
+          className={narrowDialog ? 'col-span-3 row-start-2 justify-self-start' : undefined}
+          variant="secondary"
+          size="sm"
+          onClick={() => {
+            openInNewGraph(pathAppend, sublogJob, parseInt(sublogStep ?? '', 10))
+            setSublogOpen('')
+          }}
+        >
+          {dagStrings.openSubworkflow}
+        </Button>
+      )}
       {stepTabs.length > 0 && (
         <Tabs
+          className={narrowDialog ? 'col-span-3 row-start-2 [&>[role=tablist]]:flex-1' : undefined}
           label={stepTitle}
           variant="segmented"
+          fill={narrowDialog}
           items={stepTabs.map((tab) => ({ value: tab, label: stepTabLabels[tab] }))}
           value={sublogTab}
           onValueChange={(tab) => setSublogOpen(sublogDir + stepTabFiles[tab])}
         />
       )}
+      <IconButton
+        className="col-start-3 row-start-1"
+        icon={<CloseIcon />}
+        label={common.close}
+        onClick={closeLog}
+      />
     </div>
   ) : undefined
   const sublogLoading = sublogsLoading && (!sublogs || !runNumber)
   const sublogLoader = <Loader label={dagStrings.loadingLogs} size={70} />
-  // The header and its gap (h-9 + gap-y-3) come off the body, so the dialog keeps its size.
-  const stepBodyHeight = windowSize.h / 1.2 - (sublogIsStep ? 48 : 0)
   const stepLogViewer = (
     <LogViewer
       log={currentSublog.slice(-100000)}
-      height={stepBodyHeight}
-      width={windowSize.w / 1.2}
+      height={sublogIsStep ? '100%' : windowSize.h / 1.2}
+      width={sublogIsStep ? '100%' : windowSize.w / 1.2}
       hideExpand={true}
-      additionalBottomLeftBarComponents={additionalBottomLeftBarComponents}
-      additionalBottomRightBarComponents={additionalBottomRightBarComponents}
       enableWorkflowCommands
     />
   )
@@ -2156,62 +2196,65 @@ export default function DependencyGraph({
       </div>
       <Modal
         open={sublogOpen !== ''}
-        onClose={() => {
-          setSublogOpen('')
-          onCloseLog?.()
-        }}
+        onClose={closeLog}
         aria-label={stepTitle || sublogFile}
+        // Opening a step lands on its current tab, not the first button in the header.
+        initialFocus={() =>
+          stepHeaderRef.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]') ??
+          true
+        }
         align="center"
-        className="max-h-full overflow-y-auto p-4 sm:p-6"
+        // A step's dialog is one surface: its header, then its tab's content to the edges.
+        className={
+          sublogIsStep
+            ? 'max-h-full overflow-hidden bg-(--theme-panel-bg) p-0'
+            : 'max-h-full overflow-y-auto p-4 sm:p-6'
+        }
       >
-        <div className="flex w-full">
-          {sublogLoading && (preview || !sublogIsStep) ? (
-            sublogLoader
-          ) : preview ? (
-            <div className="flex flex-col gap-y-3">
-              {stepHeader}
-              {slots.yamlViewer?.({
-                value: currentSublog,
-                height: window.innerHeight / 1.4,
-                width: window.innerWidth / 1.4,
-                contentKey: `editor_${sublogOpen}`,
-              }) ?? (
-                <pre
-                  className="h-full overflow-auto text-xs p-4"
-                  style={{
-                    height: window.innerHeight / 1.4,
-                    width: window.innerWidth / 1.4,
-                  }}
-                >
-                  {currentSublog}
-                </pre>
-              )}
-              {stepBar}
-            </div>
-          ) : sublogIsStep ? (
-            <div className="flex flex-col gap-y-3" style={{ width: windowSize.w / 1.2 }}>
-              {stepHeader}
-              {sublogTab === 'summary' ? (
-                <div className="flex flex-col gap-y-2" style={{ height: stepBodyHeight }}>
-                  <StepSummary runSlug={runSlug} path={`${sublogDir}summary.md`} />
-                  {stepBar}
-                </div>
-              ) : sublogLoading ? (
-                // The header stays while a tab's file loads, so the tabs never vanish under the pointer.
-                <div
-                  className="flex items-center justify-center"
-                  style={{ height: stepBodyHeight }}
-                >
-                  {sublogLoader}
-                </div>
+        {sublogIsStep ? (
+          <div
+            className="flex flex-col"
+            style={
+              preview
+                ? { width: window.innerWidth / 1.4 }
+                : { width: windowSize.w / 1.2, height: windowSize.h / 1.2 }
+            }
+          >
+            {stepHeader}
+            {preview ? (
+              sublogLoading ? (
+                <div className="flex justify-center py-16">{sublogLoader}</div>
               ) : (
-                stepLogViewer
-              )}
-            </div>
-          ) : (
-            stepLogViewer
-          )}
-        </div>
+                (slots.yamlViewer?.({
+                  value: currentSublog,
+                  height: window.innerHeight / 1.4,
+                  width: window.innerWidth / 1.4,
+                  contentKey: `editor_${sublogOpen}`,
+                }) ?? (
+                  <pre
+                    className="overflow-auto p-4 text-xs"
+                    style={{ height: window.innerHeight / 1.4 }}
+                  >
+                    {currentSublog}
+                  </pre>
+                ))
+              )
+            ) : (
+              <div className="flex min-h-0 flex-1 flex-col">
+                {sublogTab === 'summary' ? (
+                  <StepSummary runSlug={runSlug} path={`${sublogDir}summary.md`} />
+                ) : sublogLoading ? (
+                  // The header stays while a tab's file loads, so the tabs never vanish under the pointer.
+                  <div className="flex flex-1 items-center justify-center">{sublogLoader}</div>
+                ) : (
+                  stepLogViewer
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex w-full">{sublogLoading ? sublogLoader : stepLogViewer}</div>
+        )}
       </Modal>
     </div>
   )
