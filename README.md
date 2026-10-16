@@ -11,7 +11,7 @@ packages that several applications use the same way.
 | [`problem/problemrules`](problem/problemrules) (Go) | go-ruleguard rules that keep internal errors out of responses |
 | [`server`](server) (Go) | A service's HTTP handler and server: health probes, security headers, CSRF protection, logging, panic recovery, graceful shutdown |
 | [`pgdb`](pgdb) (Go) | An application's own PostgreSQL schema: a pool scoped to it, hopper's job tables and goose migrations in it, and a fresh schema per test |
-| [`rbac`](rbac) (Go) | Role-based access control on PostgreSQL: roles granted to users, groups or everyone on a resource, a container or the tenant; checks, list filters, and changes that can't escalate |
+| [`rbac`](rbac) (Go) | Role-based access control on PostgreSQL: roles granted to users, service accounts, groups, a tenant's members or the public on a resource, a container or the tenant; checks, list filters, and changes that can't escalate |
 | [`dev`](dev) (Go, own module) | `go tool dev`: an app's development setup in one terminal, with Postgres and S3 without Docker and a hot-reloading server, and the base of an app's own development command |
 | [`spa`](spa) (Go) | Serves a Vite app from the Go server: the embedded build in production, the Vite dev server in development |
 | [`@parallelworks/problem`](packages/problem) (npm) | `ApiError`, `useErrorMessage()`, the shared codes' messages in five languages, and a Biome lint rule |
@@ -320,22 +320,25 @@ renders its own shell.
 ## Access control
 
 `rbac` is Core RBAC with scoped role assignments, on PostgreSQL. A role is a
-set of `type:verb` permissions; a grant gives one role to a user, a group or
-everyone in a tenant, on a resource, a container above resources (any depth,
-any names) or the tenant, and applies to everything under it. The application
-keeps users, groups, resources and their hierarchy and passes them in; the
-package keeps only the grants, so nothing it holds goes stale when someone
-leaves a group or a resource moves.
+set of `type:verb` permissions; a grant gives one role to a principal (a user,
+another kind of identity the application declares, such as a service account,
+a group, every member of the tenant, or the public) on a resource, a container
+above resources (any depth, any names) or the tenant, and applies to
+everything under it. The application keeps identities, groups, resources and
+their hierarchy and passes them in; the package keeps only the grants, so
+nothing it holds goes stale when someone leaves a group or a resource moves.
 
 ```go
 authz, err := rbac.New(pool, rbac.Config{
 	Catalog:           roles, // []rbac.RoleDefinition, built into the application
 	ContainerTypes:    []string{"org", "workspace"},
+	PrincipalKinds:    []rbac.PrincipalKind{"service_account"},
 	ValidatePrincipal: members.InTenant, // required
 	OnChange:          audit.Record,     // runs in the change's transaction
 })
 
-subject := rbac.Subject{Tenant: tenant, User: userID, Groups: groupIDs}
+user := rbac.Principal{Kind: rbac.User, ID: userID}
+subject := rbac.Subject{Tenant: tenant, Principal: user, Groups: groupIDs}
 cluster := rbac.Resource{Tenant: tenant, Type: "cluster", ID: id, Owner: owner,
 	Ancestors: []rbac.Scope{{Type: "workspace", ID: ws}, {Type: "org", ID: org}}}
 if err := authz.Authorize(ctx, subject, "cluster:login", cluster); err != nil {
@@ -347,20 +350,26 @@ if err := authz.Authorize(ctx, subject, "cluster:login", cluster); err != nil {
   column with a GIN index, and `Filter` returns a condition for the
   application's own query, read in the same statement as the rows.
   `Reachable` returns the same as scopes, for resources kept in another
-  store.
-- **Owners:** a resource's owner holds every permission a role gives on its
-  type, and may change its grants. A container's owner may not, since a
-  grant there reaches what they don't own: give whoever creates a container
-  a role on it with `Import`, in the same transaction through `WithTx`.
-  Every ancestor must be of a declared container type.
+  store. Both search one tenant.
+- **Owners:** a resource's owner, a user, holds every permission a role
+  gives on its type, and may change its grants. A container's owner may not,
+  since a grant there reaches what they don't own: give whoever creates a
+  container a role on it with `Import`, in the same transaction through
+  `WithTx`. Every ancestor must be of a declared container type.
 - **Changes:** `Apply` changes one scope's grants in one transaction, one
   change to a scope at a time. The actor needs `<type>:grant` there and must
   hold every permission a role gives, for every type the grant reaches, to
   grant it, and a grant expires no later than the actor's own access does;
   revoking the actor's access leaves the grants they made. `Import` loads
   grants for migrations.
-- **Everyone:** a grant to everyone never gives a `<type>:grant`
-  permission, so changing access always takes a named user or group.
+- **Public access:** the zero `Subject` is anonymous and holds only what is
+  granted to the public (`rbac.Principal{Kind: rbac.Public}`), as does a
+  member of another tenant. Only a role marked `Public` can be granted to the
+  public, and `ValidatePrincipal` is asked about it, so an application can
+  refuse public access in a tenant; `DeletePrincipal` ends what was granted.
+- **Broad grants:** a grant to the tenant's members (`rbac.TenantMembers`) or
+  the public never gives a `<type>:grant` permission, so changing access
+  always takes a named identity or group.
 - **Why:** `Explain` names the grants that allow, or what denied;
   `Permissions` lists what a subject may do; `Holders` lists who may.
 - **Tables:** `rbac.Migrate` creates them, prefixed `rbac_`, with their own
