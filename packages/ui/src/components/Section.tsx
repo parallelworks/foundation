@@ -48,7 +48,7 @@ const headerClasses: Record<SectionVariant, string> = {
 const cardBodyClassName = 'px-3 pb-3'
 
 const titleClasses: Record<SectionVariant, string> = {
-  plain: 'text-lg font-semibold',
+  plain: 'text-base font-semibold',
   card: 'text-sm font-bold',
 }
 

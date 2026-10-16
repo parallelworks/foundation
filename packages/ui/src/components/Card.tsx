@@ -44,7 +44,7 @@ export function Card({
     render: render ?? <div />,
     props: {
       className: cx(
-        'block w-full rounded-2xl border border-(--theme-border) bg-(--theme-panel-bg) backdrop-blur-xl',
+        'block w-full rounded-xl border border-(--theme-border) bg-(--theme-panel-bg) backdrop-blur-xl',
         elevated ? 'shadow-(--theme-shadow-xl)' : 'shadow-(--theme-shadow)',
         sizeClasses[size],
         render &&
