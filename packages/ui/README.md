@@ -41,6 +41,12 @@ package navigates and never re-renders anything. Define slot components and
 string functions outside a component: one made each render is a new value, and
 a new slot component remounts what it renders.
 
+Under `UIProvider` the components render no inline `<style>`, so they run
+under a Content Security Policy whose `style-src` is `'self'` alone; the one
+rule a select or scroll area would inject ships in `theme.css`. A host that
+renders on the server passes its policy's `nonce`, which the few components
+that emit a script to place themselves before hydration put on it.
+
 ## Which component?
 
 Each need has one component. Reach for it before styling markup by hand.
