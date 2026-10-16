@@ -365,8 +365,9 @@ if err := authz.Authorize(ctx, subject, "cluster:login", cluster); err != nil {
 - **Public access:** the zero `Subject` is anonymous and holds only what is
   granted to the public (`rbac.Principal{Kind: rbac.Public}`), as does a
   member of another tenant. Only a role marked `Public` can be granted to the
-  public, and `ValidatePrincipal` is asked about it, so an application can
-  refuse public access in a tenant; `DeletePrincipal` ends what was granted.
+  public, and a grant to the public gives nothing once its role no longer is.
+  `ValidatePrincipal` is asked about the public, so an application can refuse
+  public access in a tenant; `DeletePrincipal` ends what was granted.
 - **Broad grants:** a grant to the tenant's members (`rbac.TenantMembers`) or
   the public never gives a `<type>:grant` permission, so changing access
   always takes a named identity or group.
