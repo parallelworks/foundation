@@ -360,12 +360,12 @@ if err := authz.Authorize(ctx, subject, "cluster:login", cluster); err != nil {
   without holding them; through any other, it may grant a role whose every
   permission it holds, for every type the grant reaches, and revoke any. A
   role's power to change grants counts as part of what it gives: granting one
-  with `GrantableRoles` takes the power to grant each listed role, and one
-  without takes the unlimited power on its type. `Grantable` lists the roles
-  a subject may grant, for an access screen. A grant outlives the actor's own
-  access, so a time-limited power to change grants can make lasting ones: put
-  expiries on roles that can't change grants. `Import` loads grants for
-  migrations.
+  with `GrantableRoles` takes the power to grant each listed role its holders
+  could, and one without takes the unlimited power on its type. `Grantable`
+  lists the roles a subject may grant, for an access screen. A grant outlives
+  the actor's own access, so a time-limited power to change grants can make
+  lasting ones: put expiries on roles that can't change grants. `Import` loads
+  grants for migrations.
 - **Identities:** an identity's or group's id names it in every tenant, so a
   tenant can grant a role to one from another where `ValidatePrincipal`
   allows it; `Subject.Tenants` decides only which tenants' members it is.
