@@ -353,8 +353,19 @@ leaves unset follows the `color-scheme` it sets:
 ```css
 /* In a Tailwind v4 build: */
 @import '@parallelworks/ui/theme.css';
-@source '../node_modules/@parallelworks/ui/src/**/*.{ts,tsx}';
+@source '../node_modules/@parallelworks/ui/dist/components';
+@source '../node_modules/@parallelworks/ui/dist/list';
 ```
+
+The package publishes only `dist`, built one JavaScript module per source
+module under the same folders as its subpaths (`dist/components`, `dist/list`,
+`dist/form`, `dist/ai` and so on), so `@source` points at those modules. List
+the folders of the subpaths the host imports: each one adds the utilities of
+every component in it. Scanning all of `dist` works too, but also reads the
+editor's bundled workers in `dist/assets`. A host that wants only a few
+components can name their modules one by one, such as
+`dist/components/Avatar.js`, as long as it also names the modules they style
+through, such as `dist/components/floating.js` for a popup's panel.
 
 Consumers without a Tailwind build can import the compiled standalone
 stylesheet instead:
