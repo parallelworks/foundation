@@ -338,8 +338,8 @@ authz, err := rbac.New(pool, rbac.Config{
 })
 
 user := rbac.Principal{Kind: rbac.User, ID: userID}
-subject := rbac.Subject{Tenant: tenant, Principal: user, Groups: groupIDs}
-cluster := rbac.Resource{Tenant: tenant, Type: "cluster", ID: id, Owner: owner,
+subject := rbac.Subject{Principal: user, Groups: groupIDs, Tenants: []string{tenant}}
+cluster := rbac.Resource{Tenant: tenant, Type: "cluster", ID: id,
 	Ancestors: []rbac.Scope{{Type: "workspace", ID: ws}, {Type: "org", ID: org}}}
 if err := authz.Authorize(ctx, subject, "cluster:login", cluster); err != nil {
 	return err // matches rbac.ErrDenied; any error means no
@@ -351,23 +351,27 @@ if err := authz.Authorize(ctx, subject, "cluster:login", cluster); err != nil {
   application's own query, read in the same statement as the rows.
   `Reachable` returns the same as scopes, for resources kept in another
   store. Both search one tenant.
-- **Owners:** a resource's owner, a user, holds every permission a role
-  gives on its type, and may change its grants. A container's owner may not,
-  since a grant there reaches what they don't own: give whoever creates a
+- **Creators:** nothing is owned. Give whoever creates a resource or a
   container a role on it with `Import`, in the same transaction through
   `WithTx`. Every ancestor must be of a declared container type.
 - **Changes:** `Apply` changes one scope's grants in one transaction, one
-  change to a scope at a time. The actor needs `<type>:grant` there and must
-  hold every permission a role gives, for every type the grant reaches, to
-  grant it, and a grant expires no later than the actor's own access does;
-  revoking the actor's access leaves the grants they made. `Import` loads
-  grants for migrations.
+  change to a scope at a time. The actor needs `<type>:grant` there. Through
+  a role with `GrantableRoles` it may grant and revoke only those roles,
+  without holding them; through any other, it may grant a role whose every
+  permission it holds, for every type the grant reaches, and revoke any.
+  `Grantable` lists the roles a subject may grant, for an access screen. A
+  grant outlives the actor's own access. `Import` loads grants for
+  migrations.
+- **Identities:** an identity's or group's id names it in every tenant, so a
+  tenant can grant a role to one from another where `ValidatePrincipal`
+  allows it; `Subject.Tenants` decides only which tenants' members it is.
+  `DeletePrincipalEverywhere` removes a deleted identity's grants.
 - **Public access:** the zero `Subject` is anonymous and holds only what is
-  granted to the public (`rbac.Principal{Kind: rbac.Public}`), as does a
-  member of another tenant. Only a role marked `Public` can be granted to the
-  public, and a grant to the public gives nothing once its role no longer is.
-  `ValidatePrincipal` is asked about the public, so an application can refuse
-  public access in a tenant; `DeletePrincipal` ends what was granted.
+  granted to the public (`rbac.Principal{Kind: rbac.Public}`). Only a role
+  marked `Public` can be granted to the public, and a grant to the public
+  gives nothing once its role no longer is. `ValidatePrincipal` is asked
+  about the public, so an application can refuse public access in a tenant;
+  `DeletePrincipal` ends what was granted.
 - **Broad grants:** a grant to the tenant's members (`rbac.TenantMembers`) or
   the public never gives a `<type>:grant` permission, so changing access
   always takes a named identity or group.
