@@ -41,6 +41,7 @@ import * as icons from './icons.stories'
 import * as appShell from './list/appShell.stories'
 import * as list from './list/ListTable.stories'
 import * as listControls from './list/listControls.stories'
+import * as stickyHeaders from './list/stickyHeaders.stories'
 import * as userHoverCard from './list/UserHoverCard.stories'
 import * as logviewer from './logviewer/LogViewer.stories'
 import * as themeGenerator from './theme/theme.stories'
@@ -82,6 +83,7 @@ const SUITES = {
   logviewer,
   list,
   listControls,
+  stickyHeaders,
   appShell,
   userHoverCard,
   form,
