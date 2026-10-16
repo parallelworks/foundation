@@ -49,7 +49,7 @@ const cardBodyClassName = 'px-3 pb-3'
 
 const titleClasses: Record<SectionVariant, string> = {
   plain: 'text-base font-semibold',
-  card: 'text-sm font-bold',
+  card: 'text-base font-semibold',
 }
 
 // A folded card's title recedes, so the open ones stand out in a long page. A

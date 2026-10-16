@@ -46,7 +46,7 @@ export function SettingsCard({
               )}
             >
               {title && (
-                <Heading className="text-[15px] leading-none font-semibold theme-text">
+                <Heading className="text-base leading-none font-semibold theme-text">
                   {title}
                 </Heading>
               )}
