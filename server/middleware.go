@@ -88,7 +88,7 @@ func logRequests(next http.Handler, logger *slog.Logger) http.Handler {
 		if r.URL.Path == "/healthz" || r.URL.Path == "/readyz" {
 			return
 		}
-		logger.LogAttrs(r.Context(), slog.LevelInfo, "http request",
+		logger.LogAttrs(r.Context(), requestLevel(rec.status), "http request",
 			slog.String("method", r.Method),
 			slog.String("path", r.URL.Path),
 			slog.Int("status", rec.status),
@@ -97,6 +97,18 @@ func logRequests(next http.Handler, logger *slog.Logger) http.Handler {
 			slog.String("remote_addr", r.RemoteAddr),
 		)
 	})
+}
+
+// requestLevel keeps a request that worked out of the default log, which
+// polling clients would otherwise fill, and still shows every one that failed.
+func requestLevel(status int) slog.Level {
+	switch {
+	case status >= 500:
+		return slog.LevelError
+	case status >= 400:
+		return slog.LevelInfo
+	}
+	return slog.LevelDebug
 }
 
 func recoverPanics(next http.Handler, logger *slog.Logger, apiPrefix string) http.Handler {
