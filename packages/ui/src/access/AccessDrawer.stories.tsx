@@ -229,7 +229,7 @@ export const ByRole: Story = {
   play: async () => {
     await expand(/^Admin/)
     await expand(/^Login/)
-    await expect(await screen.findByText(/Sudo covers this too/)).toBeInTheDocument()
+    await expect(await screen.findByText(/Included in Sudo/)).toBeInTheDocument()
   },
 }
 
@@ -240,7 +240,7 @@ export const ByPrincipal: Story = {
   render,
   play: async () => {
     await expand(/^bio-admins/)
-    const redundant = await screen.findByText('Redundant: Sudo already covers this.')
+    const redundant = await screen.findByText('Redundant, included in Sudo')
     await waitFor(() => expect(redundant).toBeVisible())
   },
 }
@@ -268,7 +268,7 @@ export const Picker: Story = {
     await pickRoles('Sudo')
     await userEvent.click(principalsField())
     await highlight('data-eng')
-    await expect(await screen.findByText(/Login becomes redundant/)).toBeInTheDocument()
+    await expect(await screen.findByText(/Login will be redundant/)).toBeInTheDocument()
   },
 }
 
@@ -281,7 +281,7 @@ export const PickerEveryone: Story = {
     await pickRoles('Sudo')
     await userEvent.click(principalsField())
     await highlight('Everyone', 'ArrowUp')
-    await expect(await screen.findByText(/You’ll be asked to confirm/)).toBeInTheDocument()
+    await expect(await screen.findByText(/Requires confirmation/)).toBeInTheDocument()
   },
 }
 
@@ -322,7 +322,7 @@ export const Inherited: Story = {
   render,
   play: async () => {
     await expand(/^Organization admin/)
-    const note = await screen.findByText(/Through the organization. Change it there./)
+    const note = await screen.findByText(/Inherited from the organization/)
     await waitFor(() => expect(note).toBeVisible())
   },
 }
@@ -337,7 +337,7 @@ export const GrantToPerson: Story = {
     await pickRoles('Login')
     await userEvent.click(principalsField())
     await highlight('Ana Ruiz')
-    await expect(await screen.findByText('In groups with access here')).toBeInTheDocument()
+    await expect(await screen.findByText('Groups with access')).toBeInTheDocument()
   },
 }
 
@@ -350,7 +350,7 @@ export const RemoveFromPerson: Story = {
     await userEvent.click(
       await screen.findByRole('button', { name: 'Remove Tom Becker from Sudo' }),
     )
-    const kept = await screen.findByText(/They keep Login through research-team/)
+    const kept = await screen.findByText(/Still has Login via research-team/)
     await waitFor(() => expect(kept).toBeVisible())
   },
 }
@@ -367,7 +367,7 @@ export const NothingToGrant: Story = {
       'aria-disabled',
       'true',
     )
-    await expect(screen.getByText(/so there’s nothing to grant/)).toBeVisible()
+    await expect(screen.getByText('contractors already has Login')).toBeVisible()
   },
 }
 

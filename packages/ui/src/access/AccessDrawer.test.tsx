@@ -194,9 +194,7 @@ async function choose(field: HTMLElement, label: string) {
 describe('AccessDrawer', () => {
   it('counts who has access under the title, the owner and roles from above included', () => {
     render(<Host />)
-    expect(
-      screen.getByText(`${RESOURCE} · Everyone, 3 people, and 7 groups have access`),
-    ).toBeInTheDocument()
+    expect(screen.getByText(`${RESOURCE} · Everyone, 3 people, 7 groups`)).toBeInTheDocument()
   })
 
   it('clears the filter on Escape before it closes the drawer', async () => {
@@ -272,9 +270,7 @@ describe('AccessDrawer', () => {
     const grant = screen.getByRole('button', { name: 'Grant Login' })
     // Focusable, so its reason is read with it, and still not pressable.
     expect(grant).toHaveAttribute('aria-disabled', 'true')
-    expect(grant).toHaveAccessibleDescription(
-      'contractors already has Login, so there’s nothing to grant.',
-    )
+    expect(grant).toHaveAccessibleDescription('contractors already has Login')
   })
 
   it('shows the owner, who can’t be removed and has nothing left to be granted', async () => {
@@ -286,14 +282,14 @@ describe('AccessDrawer', () => {
     await choose(principals, 'Maya Lopez')
     await choose(screen.getByRole('combobox', { name: 'Roles' }), 'Login')
     expect(screen.getByRole('button', { name: 'Grant Login' })).toHaveAccessibleDescription(
-      'Maya Lopez already has Login, so there’s nothing to grant.',
+      'Maya Lopez already has Login',
     )
   })
 
   it('shows a role granted above the resource, locked, and doesn’t offer to grant it', async () => {
     render(<Host />)
     fireEvent.click(screen.getByRole('button', { name: /^Organization admin/ }))
-    expect(screen.getByText(/Through the organization. Change it there./)).toBeInTheDocument()
+    expect(screen.getByText(/Inherited from the organization/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Remove org-admins/ })).toBeNull()
     await openGrant()
     keyDown(screen.getByRole('combobox', { name: 'Roles' }), 'ArrowDown')
@@ -356,7 +352,7 @@ describe('AccessDrawer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Remove analytics-admins from Admin' }))
     const ask = screen.getByRole('group', { name: 'Remove analytics-admins from Admin?' })
     expect(within(ask).getByText('Run commands as root')).toBeInTheDocument()
-    expect(within(ask).getByText(/They keep View, which everyone has/)).toBeInTheDocument()
+    expect(within(ask).getByText(/Still has View via Everyone/)).toBeInTheDocument()
     fireEvent.click(within(ask).getByRole('button', { name: 'Remove Admin' }))
     await waitFor(() =>
       expect(onChange).toHaveBeenCalledWith({
@@ -371,9 +367,9 @@ describe('AccessDrawer', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Tom Becker/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Remove Tom Becker from Sudo' }))
     const ask = screen.getByRole('group', { name: 'Remove Tom Becker from Sudo?' })
-    expect(within(ask).getByText('They will no longer be able to:')).toBeInTheDocument()
+    expect(within(ask).getByText('Permissions lost')).toBeInTheDocument()
     expect(within(ask).getByText('Run commands as root')).toBeInTheDocument()
-    expect(within(ask).getByText(/They keep Login through research-team/)).toBeInTheDocument()
+    expect(within(ask).getByText(/Still has Login via research-team/)).toBeInTheDocument()
   })
 
   it('says a failed save changed nothing, keeps the row, and retries', async () => {
@@ -396,9 +392,7 @@ describe('AccessDrawer', () => {
 
   it('shows who has access without a way to change it when read-only', () => {
     render(<Host readOnly readOnlyReason="Only people with the Admin role can change it." />)
-    expect(
-      screen.getByText(/You can see who has access. Only people with the Admin role/),
-    ).toBeInTheDocument()
+    expect(screen.getByText(/View only. Only people with the Admin role/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /^Admin/ }))
     expect(screen.queryByRole('button', { name: /^Remove / })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Grant access' })).toBeNull()
