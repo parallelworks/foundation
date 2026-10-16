@@ -402,6 +402,105 @@ export const BooleansStacked: StoryObj<typeof DynamicForm> = {
   args: { ...Booleans.args, labelPosition: 'top' },
 }
 
+const SWITCH_RUN_FIELDS = {
+  notify: {
+    type: 'boolean',
+    label: 'Email me when the run finishes',
+    default: true,
+    tooltip: 'Sent to the address on your profile.',
+  },
+  scratch: {
+    type: 'boolean',
+    label: 'Keep scratch files',
+    default: false,
+    description: 'Kept files count toward the project quota.',
+  },
+  gpus: {
+    type: 'boolean',
+    label: 'Use GPUs',
+    default: true,
+    disabled: true,
+    disabled_message: 'This queue has no GPUs.',
+    description: 'Set by the queue.',
+  },
+  advanced: {
+    type: 'group',
+    label: 'Advanced',
+    items: {
+      verbose: { type: 'boolean', label: 'Verbose logging', default: false },
+      retries: { type: 'number', label: 'Retries', default: 2, min: 0, max: 5 },
+    },
+  },
+}
+
+/** Where a field's row starts and where what it shows ends. A row starts at the line a text
+ *  field's label would sit on, which a switch's first line centers on; it ends at the last of its
+ *  control, its label's line and its description, not at padding under them. */
+function rowExtent(canvasElement: HTMLElement, name: string) {
+  const canvas = within(canvasElement)
+  const control = canvas.queryByRole('switch', { name }) ?? canvas.getByRole('textbox', { name })
+  const labelledBy = control.getAttribute('aria-labelledby')
+  const label = labelledBy
+    ? document.getElementById(labelledBy)
+    : (control as HTMLInputElement).labels?.[0]
+  if (!label) {
+    throw new Error(`${name} has no label`)
+  }
+  let row = label.parentElement
+  while (row && !row.contains(control)) {
+    row = row.parentElement
+  }
+  const description = document.getElementById(control.id.replace(/control$/, 'description'))
+  // A text field's box is its input's parent; a switch is its own.
+  const box = control.getAttribute('role') === 'switch' ? control : control.parentElement
+  const shown = [box, label.parentElement, description]
+  return {
+    top: row?.getBoundingClientRect().top ?? 0,
+    bottom: Math.max(...shown.map((element) => element?.getBoundingClientRect().bottom ?? 0)),
+  }
+}
+
+/** Asserts that every row of the run leaves the same room before the next one, whether or not
+ *  it has a description, and the same before the section's heading. */
+async function expectEvenRows(canvasElement: HTMLElement) {
+  const canvas = within(canvasElement)
+  await canvas.findByRole('switch', { name: 'Verbose logging' }, { timeout: 5000 })
+  const row = (name: string) => rowExtent(canvasElement, name)
+  // The heading's rule ends its header; the section's own spacing follows it.
+  const heading = canvas.getByRole('heading', { name: 'Advanced' })
+  const header = (heading.closest('div[class*="border-b"]') ?? heading).getBoundingClientRect()
+  const runs = [
+    [row('Email me when the run finishes'), row('Keep scratch files'), row('Use GPUs'), header],
+    [row('Verbose logging'), row('Retries')],
+  ]
+  const gaps = runs.flatMap((run) =>
+    run.slice(1).map((next, index) => next.top - (run[index]?.bottom ?? next.top)),
+  )
+  const [first = 0] = gaps
+  for (const gap of gaps) {
+    await expect(Math.abs(gap - first)).toBeLessThanOrEqual(1)
+  }
+}
+
+/** A run of switches: one with help, one with a description, a disabled one with a description,
+ *  then a section with a switch and a number. Every row leaves the same room before the next, a
+ *  description adds only its own lines, and each switch's first line centers on the line a text
+ *  field's label would sit on. */
+export const SwitchRun: StoryObj<typeof DynamicForm> = {
+  args: {
+    formJSONs: SWITCH_RUN_FIELDS,
+    initialValues: { notify: true, scratch: false, gpus: true, verbose: false, retries: 2 },
+    skipValueParse: true,
+  },
+  play: async ({ canvasElement }) => expectEvenRows(canvasElement),
+}
+
+/** The same run with the labels over the fields. */
+export const SwitchRunStacked: StoryObj<typeof DynamicForm> = {
+  args: { ...SwitchRun.args, labelPosition: 'top' },
+  play: async ({ canvasElement }) => expectEvenRows(canvasElement),
+}
+
 const WORKER_OPTIONS = {
   nodes: { type: 'number', label: 'Nodes', default: 2, width: '50%' },
   queue: {

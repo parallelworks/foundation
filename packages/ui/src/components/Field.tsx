@@ -118,21 +118,21 @@ export interface FieldProps {
   children: ReactNode | ((control: FieldControlProps) => ReactNode)
 }
 
-// A compact control reads first, so its label steps back to a caption. `inlineLine` pads a
-// control-first field's first line into the middle of an inline row: half of what the row's
-// height leaves over a line of the label's text.
+// A compact control reads first, so its label steps back to a caption. `inlineLine` lowers a
+// control-first field's first line, a switch's height, onto the middle of an inline row: half of
+// what the row's height leaves over it. Only above, so the row ends where its last line does.
 const labelSizes = {
   sm: {
     text: 'text-xs text-(--theme-muted-text-color)',
     inlineHeight: 'min-h-7',
     stackGap: 'gap-1',
-    inlineLine: 'py-1.5',
+    inlineLine: 'pt-1',
   },
   md: {
     text: 'text-sm text-(--theme-app)',
     inlineHeight: 'min-h-9',
     stackGap: 'gap-1.5',
-    inlineLine: 'py-2',
+    inlineLine: 'pt-1.5',
   },
 } satisfies Record<FieldBoxSize, Record<string, string>>
 const labelClassName = 'flex items-center gap-1 font-medium'
@@ -282,7 +282,12 @@ export function Field({
       {description && (
         <BaseField.Description
           id={descriptionId}
-          className="text-xs leading-relaxed text-(--theme-muted-text-color)"
+          className={cx(
+            'text-xs text-(--theme-muted-text-color)',
+            // Under a control-first label it is the label's second line, as close as the label's
+            // own lines, so the row ends where its text does rather than a half-line under it.
+            controlFirst && !group ? 'leading-4' : 'leading-relaxed',
+          )}
         >
           {description}
         </BaseField.Description>
@@ -337,18 +342,20 @@ export function Field({
           ref={help ? setControlBox : undefined}
           className={cx(
             'flex w-fit max-w-full min-w-0 items-start gap-2',
-            // A switch stands taller than the label's line; the padding gives it that room, so
-            // a stack of them doesn't touch.
-            lined ? labelSize.inlineLine : 'py-0.5',
+            lined && labelSize.inlineLine,
             inRow && 'row-start-2',
           )}
         >
-          {/* As tall as the label's first line, which the control centers on however the
-              label wraps. */}
-          <div className={cx('flex h-lh shrink-0 items-center', labelSize.text)} {...helpFocus}>
+          {/* A switch's height, 2px over and under the label's first line, which the control
+              centers on however the label wraps. The field's box then holds the whole switch
+              without padding of its own, which would also sit under a description. */}
+          <div
+            className={cx('box-content flex h-lh shrink-0 items-center py-0.5', labelSize.text)}
+            {...helpFocus}
+          >
             {controlInContext}
           </div>
-          <div className="flex min-w-0 flex-col gap-1">
+          <div className="flex min-w-0 flex-col pt-0.5">
             {/* Text flow rather than a flex row, so the ? follows the label's last word as it
                 wraps. */}
             <div className={cx('font-medium', labelSize.text, disabled && 'opacity-60')}>
