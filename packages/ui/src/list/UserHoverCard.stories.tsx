@@ -37,6 +37,12 @@ export const Avatars: StoryObj = {
         <Avatar name="Alan" status="busy" />
         <Avatar name="Katherine Johnson" status="away" />
       </div>
+      {/* Initials are whole characters, so a name that starts with an emoji or a flag keeps it. */}
+      <div className="flex items-center gap-3">
+        <Avatar name="🦊 Fox" />
+        <Avatar name="Ada 🇬🇧" />
+        <Avatar name="👩‍💻 dev" size="xs" />
+      </div>
     </div>
   ),
 }
