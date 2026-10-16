@@ -11,6 +11,7 @@ packages that several applications use the same way.
 | [`problem/problemrules`](problem/problemrules) (Go) | go-ruleguard rules that keep internal errors out of responses |
 | [`server`](server) (Go) | A service's HTTP handler and server: health probes, security headers, CSRF protection, logging, panic recovery, graceful shutdown |
 | [`pgdb`](pgdb) (Go) | An application's own PostgreSQL schema: a pool scoped to it, hopper's job tables and goose migrations in it, and a fresh schema per test |
+| [`rbac`](rbac) (Go) | Role-based access control on PostgreSQL: roles granted to users, groups or everyone on a resource, a container or the tenant; checks, list filters, and changes that can't escalate |
 | [`dev`](dev) (Go, own module) | `go tool dev`: an app's development setup in one terminal, with Postgres and S3 without Docker and a hot-reloading server, and the base of an app's own development command |
 | [`spa`](spa) (Go) | Serves a Vite app from the Go server: the embedded build in production, the Vite dev server in development |
 | [`@parallelworks/problem`](packages/problem) (npm) | `ApiError`, `useErrorMessage()`, the shared codes' messages in five languages, and a Biome lint rule |
@@ -315,6 +316,52 @@ const locale = detectLocale(locales, {
 `server.Options.Locales` does the same for an app served by `server.New`.
 `Locales.Negotiate(r)` and `spa.NegotiateLocale` are there for a server that
 renders its own shell.
+
+## Access control
+
+`rbac` is Core RBAC with scoped role assignments, on PostgreSQL. A role is a
+set of `type:verb` permissions; a grant gives one role to a user, a group or
+everyone in a tenant, on a resource, a container above resources (any depth,
+any names) or the tenant, and applies to everything under it. The application
+keeps users, groups, resources and their hierarchy and passes them in; the
+package keeps only the grants, so nothing it holds goes stale when someone
+leaves a group or a resource moves.
+
+```go
+authz, err := rbac.New(pool, rbac.Config{
+	Catalog:           roles, // []rbac.RoleDefinition, built into the application
+	ContainerTypes:    []string{"org", "workspace"},
+	ValidatePrincipal: members.InTenant, // required
+	OnChange:          audit.Record,     // runs in the change's transaction
+})
+
+subject := rbac.Subject{Tenant: org, User: userID, Groups: groupIDs}
+cluster := rbac.Resource{Tenant: org, Type: "cluster", ID: id, Owner: owner,
+	Ancestors: []rbac.Scope{{Type: "workspace", ID: ws}}}
+if err := authz.Authorize(ctx, subject, "cluster:login", cluster); err != nil {
+	return err // matches rbac.ErrDenied; any error means no
+}
+```
+
+- **Lists:** store each resource's `Resource.Path()` in a `text[]` column
+  with a GIN index, and `Filter` returns a condition for the application's
+  own query, read in the same statement as the rows. `Reachable` returns the
+  same as scopes, for resources kept in another store.
+- **Changes:** `Apply` changes one scope's grants in one transaction. The
+  actor needs `<type>:grant` there and must hold every permission a role
+  gives to grant it, and a grant can't outlive the actor's own access.
+  `WithTx` runs it in the application's transaction; `Import` loads grants
+  for migrations.
+- **Why:** `Explain` names the grants that allow, or what denied;
+  `Permissions` lists what a subject may do; `Holders` lists who may.
+- **Tables:** `rbac.Migrate` creates them, prefixed `rbac_`, with their own
+  goose version table. It never runs by itself.
+
+There is no cache: a check is one index-only query. Read a resource's path
+and a subject's groups no earlier than the content they protect, and from the
+primary, so a revocation is never missed. Groups taken from a token stay valid
+until it expires. `DeleteExpired` clears expired grants, which already give
+nothing.
 
 ## Development
 
