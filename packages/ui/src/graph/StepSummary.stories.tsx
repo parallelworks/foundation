@@ -1,10 +1,7 @@
 import { createWorkflowEngine } from '@parallelworks/workflow-parser'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, screen, userEvent, within } from 'storybook/test'
-import Markdown from '../components/Markdown'
 import { type RunFileResult, UIProvider } from '../components/Provider'
-import { RunStatusIcon } from '../components/RunStatusIcon'
-import { SummaryIcon } from '../icons'
 import DependencyGraph from './DependencyGraph'
 
 const engine = createWorkflowEngine()
@@ -73,37 +70,150 @@ export const StepWithSummary: StoryObj<typeof DependencyGraph> = {
   args: { run: RUN, openStep: { job: 'test', step: 0 } },
 }
 
-// What a host such as ACTIVATE's run page puts under the graph: the run's step summaries, open.
-function HostStepSummaries() {
-  return (
-    <section aria-label="Step summaries" className="panel rounded-lg border">
-      <h2 className="flex items-center gap-3 border-b px-4 py-2.5 text-sm font-medium">
-        Step summaries
-        <span className="inline-flex items-center gap-1 rounded-full bg-(--theme-muted-panel-bg) px-2 py-0.5 text-xs theme-muted-text">
-          <SummaryIcon aria-hidden className="h-3 w-3" />1
-        </span>
-      </h2>
-      <div className="flex flex-col gap-2 px-4 py-3 text-sm sm:pl-10">
-        <h3 className="flex items-center gap-2 font-medium">
-          <RunStatusIcon status="completed" />
-          Test <span className="font-normal theme-muted-text">1 summary</span>
-        </h3>
-        <div className="flex flex-col gap-2 pl-6">
-          <div className="flex items-center gap-2 font-medium">
-            <RunStatusIcon status="completed" />
-            Run tests
-          </div>
-          <Markdown httpsImagesOnly compact>
-            {SUMMARY}
-          </Markdown>
-        </div>
-      </div>
-    </section>
-  )
+const TESTS_312 = [
+  '## Tests',
+  '',
+  '| Suite | Passed | Failed |',
+  '| --- | --- | --- |',
+  '| unit | 120 | 3 |',
+  '| integration | 41 | 0 |',
+  '',
+  '<details><summary>3 failures</summary>',
+  '',
+  '```text',
+  'test_residual_converges: residual 3.2e-4 > 1e-6',
+  'test_cfl_stable[dt=0.02]: CFL 1.31 > 1.0',
+  'test_restart_roundtrip: checkpoint step 400 != 401',
+  '```',
+  '',
+  '</details>',
+].join('\n')
+
+const BUILD = [
+  '## Build',
+  '',
+  '| Artifact | Size | Target |',
+  '| --- | --- | --- |',
+  '| `solver` | 18.2 MB | linux-amd64 |',
+  '| `solver-mpi` | 21.7 MB | linux-amd64 |',
+].join('\n')
+
+// Long enough to pass the card's cap, so it opens on Show more.
+const MESH = [
+  '## Mesh refinement',
+  '',
+  'Converged after 12 passes at a 0.4 mm minimum edge length.',
+  '',
+  '| Pass | Cells | Max residual | Wall time |',
+  '| --- | --- | --- | --- |',
+  ...Array.from({ length: 12 }, (_, i) => {
+    const pass = i + 1
+    return `| ${pass} | ${Math.round(182_400 * 1.6 ** i).toLocaleString('en-US')} | ${(4.1e-2 / 4.6 ** i).toExponential(1)} | ${3 * pass}m ${(7 * pass) % 60}s |`
+  }),
+].join('\n')
+
+const TESTS_311 = [
+  '## Tests',
+  '',
+  '| Suite | Passed | Failed |',
+  '| --- | --- | --- |',
+  '| unit | 123 | 0 |',
+  '| integration | 41 | 0 |',
+].join('\n')
+
+const RUN_FILES: Record<string, string> = {
+  'logs/build/step_1/summary.md': BUILD,
+  'logs/build/step_1/logs.out': 'make -j16 solver solver-mpi',
+  'logs/test-0/step_0/summary.md': TESTS_312,
+  'logs/test-0/step_0/logs.out': 'collected 164 items\n161 passed, 3 failed in 52.0s',
+  'logs/test-1/step_0/summary.md': TESTS_311,
+  'logs/test-1/step_0/logs.out': 'collected 123 items\n123 passed in 48.7s',
+  'subworkflows/sweep/step_0/logs/mesh_refine/step_1/summary.md': MESH,
+  'subworkflows/sweep/step_0/logs/mesh_refine/step_1/logs.out':
+    'pass 12: residual 8.1e-7, converged',
 }
 
-export const ContentBelowGraph: StoryObj<typeof DependencyGraph> = {
-  args: { run: RUN, children: <HostStepSummaries /> },
+const matrix = (index: number) => ({
+  originaljob: 'test',
+  index,
+  totalingroup: 2,
+  groupjobs: ['test-0', 'test-1'],
+  values: { python: ['3.12', '3.11'][index] },
+  failfast: false,
+  maxparallel: 2,
+})
+
+// A run whose summaries come from a plain job, a matrix with a failed member, and a step inside a subworkflow.
+const SWEEP_RUN = {
+  ...RUN,
+  status: 'failed',
+  executedJobs: {
+    build: {
+      status: 'completed',
+      completedAt: '2026-10-16T17:02:00Z',
+      steps: [
+        { name: 'Check out', status: 'completed' },
+        { name: 'Compile solver', status: 'completed', summary: { bytes: BUILD.length } },
+      ],
+    },
+    'test-0': {
+      status: 'failed',
+      needs: ['build'],
+      completedAt: '2026-10-16T17:04:00Z',
+      _matrix: matrix(0),
+      steps: [{ name: 'Run tests', status: 'failed', summary: { bytes: TESTS_312.length } }],
+    },
+    'test-1': {
+      status: 'completed',
+      needs: ['build'],
+      completedAt: '2026-10-16T17:05:00Z',
+      _matrix: matrix(1),
+      steps: [{ name: 'Run tests', status: 'completed', summary: { bytes: TESTS_311.length } }],
+    },
+    sweep: {
+      status: 'completed',
+      needs: ['build'],
+      completedAt: '2026-10-16T17:40:00Z',
+      steps: [
+        {
+          name: 'Refine mesh',
+          status: 'completed',
+          subworkflow: {
+            jobs: {
+              mesh_refine: {
+                status: 'completed',
+                steps: [
+                  { name: 'Prepare', status: 'completed' },
+                  { name: 'Converge', status: 'completed', summary: { bytes: MESH.length } },
+                ],
+              },
+            },
+          },
+        },
+      ],
+    },
+  },
+}
+
+// Each step that wrote a summary gets a card under the graph, in the order its job completed.
+export const StepSummariesUnderGraph: StoryObj<typeof DependencyGraph> = {
+  args: { run: SWEEP_RUN },
+  decorators: [
+    (Story) => (
+      <UIProvider
+        engine={engine}
+        data={{
+          useRunFile: (_slug, path) => ({
+            data: path ? RUN_FILES[path] : undefined,
+            isLoading: false,
+            error: undefined,
+          }),
+        }}
+      >
+        <Story />
+      </UIProvider>
+    ),
+  ],
 }
 
 // The summary mark beside a step in the job list opens that step on its summary.
@@ -114,7 +224,8 @@ export const SummaryMarkOpensSummary: StoryObj<typeof DependencyGraph> = {
     // The job list beside the graph and the graph's own node both name the job.
     await userEvent.click(canvas.getAllByText('Test')[0] as HTMLElement)
     await userEvent.click(canvas.getAllByRole('button', { name: 'Step summary' })[0] as HTMLElement)
-    await expect(await screen.findByRole('heading', { name: 'Tests' })).toBeVisible()
+    const dialog = await screen.findByRole('dialog')
+    await expect(within(dialog).getByRole('heading', { name: 'Tests' })).toBeVisible()
     await expect(screen.getByRole('tab', { name: 'Summary' })).toHaveAttribute(
       'aria-selected',
       'true',

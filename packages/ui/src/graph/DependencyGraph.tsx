@@ -71,6 +71,7 @@ import { type JobHandlers, Joblist } from './JobSummary'
 import { Lineage, LineageContext } from './lineage'
 import { MatrixGroupNode, MatrixGroupSummaryItem } from './MatrixGroup'
 import { Reveal } from './Reveal'
+import { StepSummaries } from './StepSummaries'
 import { StepSummary } from './StepSummary'
 import { Store, useStore } from './store'
 import TreeView from './TreeView'
@@ -1166,7 +1167,6 @@ export default function DependencyGraph({
   openStep,
   onCloseLog,
   sidebarStickyTop,
-  children,
 }: {
   run: GraphRun
   preview?: boolean
@@ -1186,8 +1186,6 @@ export default function DependencyGraph({
   onCloseLog?: (() => void) | undefined
   /** Pins the job list this many pixels below the top of the page's scroll area, under the host's own pinned bars. */
   sidebarStickyTop?: number | undefined
-  /** Shown under the graph, beside the job list. */
-  children?: ReactNode
 }) {
   const engine = useWorkflowEngine()
   // Animation timing constant (seconds) — controls line draw, dot transitions, and stagger delay
@@ -2195,7 +2193,15 @@ export default function DependencyGraph({
             {editorOverlays}
           </div>
         )}
-        {children}
+        {!preview && (
+          <StepSummaries
+            runSlug={runSlug}
+            jobs={rootJobs}
+            onOpenLog={({ prefix, job, index }) =>
+              setSublogOpen(engine.stepLogPath(prefix, job, index))
+            }
+          />
+        )}
       </div>
       <Modal
         open={sublogOpen !== ''}
