@@ -1,7 +1,10 @@
 import { createWorkflowEngine } from '@parallelworks/workflow-parser'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, screen, userEvent, within } from 'storybook/test'
+import Markdown from '../components/Markdown'
 import { type RunFileResult, UIProvider } from '../components/Provider'
+import { RunStatusIcon } from '../components/RunStatusIcon'
+import { SummaryIcon } from '../icons'
 import DependencyGraph from './DependencyGraph'
 
 const engine = createWorkflowEngine()
@@ -70,12 +73,37 @@ export const StepWithSummary: StoryObj<typeof DependencyGraph> = {
   args: { run: RUN, openStep: { job: 'test', step: 0 } },
 }
 
-// A host's own content, such as its list of step summaries, sits under the graph.
+// What a host such as ACTIVATE's run page puts under the graph: the run's step summaries, open.
+function HostStepSummaries() {
+  return (
+    <section aria-label="Step summaries" className="panel rounded-lg border">
+      <h2 className="flex items-center gap-3 border-b px-4 py-2.5 text-sm font-medium">
+        Step summaries
+        <span className="inline-flex items-center gap-1 rounded-full bg-(--theme-muted-panel-bg) px-2 py-0.5 text-xs theme-muted-text">
+          <SummaryIcon aria-hidden className="h-3 w-3" />1
+        </span>
+      </h2>
+      <div className="flex flex-col gap-2 px-4 py-3 text-sm sm:pl-10">
+        <h3 className="flex items-center gap-2 font-medium">
+          <RunStatusIcon status="completed" />
+          Test <span className="font-normal theme-muted-text">1 summary</span>
+        </h3>
+        <div className="flex flex-col gap-2 pl-6">
+          <div className="flex items-center gap-2 font-medium">
+            <RunStatusIcon status="completed" />
+            Run tests
+          </div>
+          <Markdown httpsImagesOnly compact>
+            {SUMMARY}
+          </Markdown>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 export const ContentBelowGraph: StoryObj<typeof DependencyGraph> = {
-  args: {
-    run: RUN,
-    children: <div className="panel border rounded-lg px-4 py-2.5 text-sm">Step summaries</div>,
-  },
+  args: { run: RUN, children: <HostStepSummaries /> },
 }
 
 // The summary mark beside a step in the job list opens that step on its summary.
