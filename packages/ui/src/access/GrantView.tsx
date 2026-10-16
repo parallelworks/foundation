@@ -105,8 +105,8 @@ export function useGrantView({
     return {
       value: role.id,
       label: role.name,
-      description: [role.description, ...hints].filter(Boolean).join(' '),
-      badge: role.highImpact ? <StatusBadge variant="warning">{t.highImpact}</StatusBadge> : null,
+      description: [role.description, hints.join(' · ')].filter(Boolean).join(' '),
+      badge: role.privileged ? <StatusBadge>{t.privileged}</StatusBadge> : null,
     }
   })
 
@@ -208,7 +208,7 @@ export function useGrantView({
           {t.common.cancel}
         </Button>
         <Button
-          variant={roles.some((role) => role.highImpact) ? 'danger' : 'primary'}
+          variant={roles.some((role) => role.privileged) ? 'danger' : 'primary'}
           loading={saving}
           onClick={grant}
         >

@@ -36,7 +36,7 @@ export const ACCESS_STRINGS = {
   byPrincipal: 'By person or group',
   filter: 'Filter by role, person or group',
   grantAccess: 'Grant access',
-  highImpact: 'High impact',
+  privileged: 'Privileged',
   loading: 'Loading access',
   /** Who holds a role: "1 person, 2 groups". */
   holders: (people: number, groups: number) => units.format(who(people, groups)),

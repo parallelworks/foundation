@@ -447,7 +447,7 @@ function OnResource({
             </StatusBadge>
           )}
           {held.map((role) => (
-            <StatusBadge key={role.id} size="md" variant={role.highImpact ? 'warning' : 'default'}>
+            <StatusBadge key={role.id} size="md">
               {role.name}
             </StatusBadge>
           ))}

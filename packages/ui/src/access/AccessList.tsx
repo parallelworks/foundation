@@ -63,10 +63,6 @@ const aboutOf = (principal: AccessPrincipal, t: AccessStrings) =>
 /** Where a role someone has elsewhere comes from, as "through" reads it. */
 const sourceOf = (holding: Holding) => holding.through?.name ?? holding.from ?? ''
 
-export function HighImpact({ t }: { t: AccessStrings }) {
-  return <StatusBadge variant="warning">{t.highImpact}</StatusBadge>
-}
-
 /** Stands where a remove button would, on a row that can't be removed here. */
 function Locked() {
   return (
@@ -428,17 +424,7 @@ export function ByRole({
         onOpenChange={(open) => onExpandedChange(roleId, open)}
         disabled={all.size === 0}
         notice={failure}
-        title={
-          <>
-            {role.name}
-            {role.highImpact && (
-              <>
-                {' '}
-                <HighImpact t={t} />
-              </>
-            )}
-          </>
-        }
+        title={role.name}
         description={role.description}
         aside={
           <>
@@ -567,7 +553,7 @@ export function ByPrincipal({
           </StatusBadge>
         )}
         {badges.map((role) => (
-          <StatusBadge key={role.id} size="md" variant={role.highImpact ? 'warning' : 'default'}>
+          <StatusBadge key={role.id} size="md">
             {role.name}
           </StatusBadge>
         ))}
@@ -635,12 +621,7 @@ export function ByPrincipal({
             {inherited.map(({ role, from }) => (
               <Row
                 key={role.id}
-                title={
-                  <>
-                    <span className="font-medium">{role.name}</span>
-                    {role.highImpact && <HighImpact t={t} />}
-                  </>
-                }
+                title={<span className="font-medium">{role.name}</span>}
                 meta={t.inheritedFrom(from)}
                 action={<Locked />}
               />
@@ -716,12 +697,7 @@ function RoleRow({
       : role.description
   return (
     <Row
-      title={
-        <>
-          <span className="font-medium">{role.name}</span>
-          {role.highImpact && <HighImpact t={t} />}
-        </>
-      }
+      title={<span className="font-medium">{role.name}</span>}
       meta={meta}
       action={
         !actions.readOnly && (

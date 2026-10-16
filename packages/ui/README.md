@@ -533,8 +533,9 @@ import { AccessDrawer, type AccessChange } from '@parallelworks/ui/access'
   where it comes from, its first members and when it last changed. It is asked
   once per group while the drawer is mounted, and aborted when the highlight
   moves on. A person's pane comes from the principal itself.
-- `highImpact` roles carry a tag, and granting anything to everyone says how
-  many people it reaches and asks to confirm.
+- `privileged` roles are labeled in the role picker. Granting anything to
+  everyone says how many people it reaches and asks to confirm, with a
+  destructive button when a privileged role is among them.
 - A development build warns about duplicate ids, and grants, inherited grants
   or an owner that name unknown roles or principals.
 

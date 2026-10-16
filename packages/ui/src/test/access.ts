@@ -32,14 +32,14 @@ export const ROLES: AccessRole[] = [
       'cluster:login',
       'cluster:view',
     ],
-    highImpact: true,
+    privileged: true,
   },
   {
     id: 'sudo',
     name: 'Sudo',
     description: 'Run commands as root on cluster nodes.',
     permissions: ['cluster:root', 'cluster:login', 'cluster:view'],
-    highImpact: true,
+    privileged: true,
   },
   {
     id: 'power',
@@ -70,7 +70,7 @@ export const ROLES: AccessRole[] = [
       'cluster:login',
       'cluster:view',
     ],
-    highImpact: true,
+    privileged: true,
     grantable: false,
   },
 ]

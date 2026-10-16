@@ -10,9 +10,9 @@ export interface AccessRole {
   /** The permissions it gives. Two roles that share some are allowed, and only redundant: the
    *  drawer works out the overlap from these and says so as a hint. */
   permissions: readonly string[]
-  /** Marks a role that reaches far, such as root on every node. It carries a tag, and granting
-   *  it to everyone says so before asking to confirm. */
-  highImpact?: boolean | undefined
+  /** Marks a role with administrative or root-level control. The role picker labels it, and
+   *  granting it to everyone confirms with a destructive button. */
+  privileged?: boolean | undefined
   /** False for a role held here only through somewhere else, such as an organization's
    *  administrator role: it shows where someone holds it, and isn't offered to grant. */
   grantable?: boolean | undefined

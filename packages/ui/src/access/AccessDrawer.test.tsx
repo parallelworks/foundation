@@ -300,6 +300,15 @@ describe('AccessDrawer', () => {
     expect(offered.some((name) => name?.startsWith('Organization admin'))).toBe(false)
   })
 
+  it('labels privileged roles in the role picker, and nowhere in the list', async () => {
+    render(<Host />)
+    expect(screen.queryByText('Privileged')).toBeNull()
+    await openGrant()
+    keyDown(screen.getByRole('combobox', { name: 'Roles' }), 'ArrowDown')
+    expect(await screen.findByRole('option', { name: /^Sudo/ })).toHaveTextContent('Privileged')
+    expect(screen.getByRole('option', { name: /^Login/ })).not.toHaveTextContent('Privileged')
+  })
+
   it('asks before granting to everyone, saying how many people it reaches', async () => {
     const onChange = vi.fn(async () => {})
     render(<Host onChange={onChange} />)
