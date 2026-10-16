@@ -358,9 +358,13 @@ if err := authz.Authorize(ctx, subject, "cluster:login", cluster); err != nil {
   change to a scope at a time. The actor needs `<type>:grant` there. Through
   a role with `GrantableRoles` it may grant and revoke only those roles,
   without holding them; through any other, it may grant a role whose every
-  permission it holds, for every type the grant reaches, and revoke any.
-  `Grantable` lists the roles a subject may grant, for an access screen. A
-  grant outlives the actor's own access. `Import` loads grants for
+  permission it holds, for every type the grant reaches, and revoke any. A
+  role's power to change grants counts as part of what it gives: granting one
+  with `GrantableRoles` takes the power to grant each listed role, and one
+  without takes the unlimited power on its type. `Grantable` lists the roles
+  a subject may grant, for an access screen. A grant outlives the actor's own
+  access, so a time-limited power to change grants can make lasting ones: put
+  expiries on roles that can't change grants. `Import` loads grants for
   migrations.
 - **Identities:** an identity's or group's id names it in every tenant, so a
   tenant can grant a role to one from another where `ValidatePrincipal`
