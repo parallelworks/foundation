@@ -377,6 +377,19 @@ if err := authz.Authorize(ctx, subject, "cluster:login", cluster); err != nil {
   tenant has up to 300, each listing up to 64 grantable roles, and they follow
   the catalog: one gives only what the catalog still has, and is privileged
   when it gives or hands out what privileged roles do.
+- **Conditions:** a grant can carry a CEL expression over the subject's, the
+  resource's and the request's attributes (`Subject.Attributes`,
+  `Resource.Attributes`, `rbac.WithRequest`), the time and the action, such as
+  only dev resources or only with a second factor. It gives its role only
+  where the expression holds; one that fails is false. A check reads
+  conditions only when no unconditional grant allows. Searches count
+  unconditional grants, and `Reach.Conditional` names the scopes conditional
+  ones reach, to check one by one. To hand a permission or the power to change
+  grants on, the actor holds it unconditionally or under the same condition,
+  and a conditional power to change grants holds only when its condition does:
+  a role a conditional grant lists is granted only under its condition. A
+  pattern a condition matches is a string literal of bounded size, and a
+  condition's title and description are at most 128 and 2048 bytes.
 - **Identities:** an identity's or group's id names it in every tenant, so a
   tenant can grant a role to one from another where `ValidatePrincipal`
   allows it; `Subject.Tenants` decides only which tenants' members it is.
@@ -395,10 +408,11 @@ if err := authz.Authorize(ctx, subject, "cluster:login", cluster); err != nil {
 - **Tables:** `rbac.Migrate` creates them, prefixed `rbac_`, with their own
   goose version table. It never runs by itself.
 
-There is no cache: a check is one index-only query, and a second when a grant
-it reads names a custom role. Read a resource's path and a subject's groups no
-earlier than the content they protect, and from the primary, so a revocation
-is never missed. Groups taken from a token stay valid until it expires.
+No decision is cached, only compiled conditions: a check is one index-only
+query, and another when a grant it reads names a custom role or needs its
+condition read. Read a resource's path and attributes and a subject's groups no
+earlier than the content they protect, and from the primary, so a revocation is
+never missed. Groups taken from a token stay valid until it expires.
 `DeleteExpired` clears expired grants, which already give nothing.
 
 ## Development
