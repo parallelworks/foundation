@@ -149,7 +149,6 @@ export function useGrantView({
           value={principalIds}
           onValueChange={(next) => onSelectionChange({ principalIds: next, roleIds })}
           granting={roles}
-          resourceName={resourceName}
           describeGroup={describeGroup}
           searchPrincipals={searchPrincipals}
           groupCount={groupCount}

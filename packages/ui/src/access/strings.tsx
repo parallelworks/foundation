@@ -216,7 +216,8 @@ export const ACCESS_STRINGS = {
   memberNames: (names: readonly string[], more: number) =>
     more > 0 ? and([...names, `${more.toLocaleString()} more`]) : and(names),
   moreMembers: (n: number) => `+${n.toLocaleString()}`,
-  onResource: (resource: string) => `Roles on ${resource}`,
+  /** Heads the roles the highlighted one holds on this resource. */
+  currentRoles: 'Current roles',
   noRolesHere: 'No roles',
   /** When a role being granted gives everything one already held does. */
   becomesRedundant: (granting: readonly string[], held: readonly string[]) =>

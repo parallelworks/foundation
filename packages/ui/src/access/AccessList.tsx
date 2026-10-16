@@ -111,7 +111,7 @@ function Section({
       <Collapsible.Trigger
         id={id}
         className={cx(
-          'group/section flex w-full items-center gap-3 px-4 py-2.5 text-left outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-(--theme-focus)',
+          'group/section flex w-full items-center gap-3 px-4 py-2.5 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-(--theme-focus)',
           disabled ? 'cursor-default' : 'cursor-pointer hover:bg-(--theme-hover)',
         )}
       >
@@ -125,10 +125,10 @@ function Section({
         {lead}
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-            <span className="text-sm font-medium wrap-break-word">{title}</span>
+            <span className="text-sm font-medium wrap-anywhere">{title}</span>
           </span>
           {description && (
-            <span className="hidden text-xs text-(--theme-muted-text-color) @min-[30rem]/access:block">
+            <span className="hidden text-xs wrap-anywhere text-(--theme-muted-text-color) @min-[30rem]/access:block">
               {description}
             </span>
           )}
@@ -170,8 +170,12 @@ function Row({
     <div className="flex items-center gap-3 py-1.5 ps-11 pe-4 @min-[30rem]/access:ps-11">
       {lead}
       <div className={cx('min-w-0 flex-1', muted && 'text-(--theme-muted-text-color)')}>
-        <div className="flex min-w-0 flex-wrap items-center gap-x-2 text-sm">{title}</div>
-        {meta && <div className="text-xs text-(--theme-muted-text-color)">{meta}</div>}
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 text-sm wrap-anywhere">
+          {title}
+        </div>
+        {meta && (
+          <div className="text-xs wrap-anywhere text-(--theme-muted-text-color)">{meta}</div>
+        )}
       </div>
       {action}
     </div>

@@ -50,7 +50,7 @@ export function PrincipalTile({
         aria-hidden="true"
         className={cx(
           'flex shrink-0 items-center justify-center',
-          compact ? 'size-7' : 'size-8',
+          compact ? 'size-6' : 'size-8',
           className,
         )}
       >
@@ -65,7 +65,8 @@ export function PrincipalTile({
       aria-hidden="true"
       className={cx(
         'flex size-8 shrink-0 items-center justify-center rounded-md [&_svg]:size-4',
-        compact && 'size-7',
+        // The same box as a person's face beside it, so a square and a circle read as one size.
+        compact && 'size-6 [&_svg]:size-3.5',
         everyone
           ? 'bg-(--theme-info-muted) text-(--theme-info-text)'
           : 'bg-(--theme-muted-panel-bg) text-(--theme-muted-text-color)',
@@ -83,7 +84,6 @@ interface PrincipalPickerProps {
   onValueChange: (ids: string[]) => void
   /** The roles being granted, which the details weigh against what the highlighted holds. */
   granting: readonly AccessRole[]
-  resourceName: string
   describeGroup?: DescribeGroup | undefined
   searchPrincipals?: SearchPrincipals | undefined
   groupCount?: number | undefined
@@ -106,7 +106,6 @@ export function PrincipalPicker({
   value,
   onValueChange,
   granting,
-  resourceName,
   describeGroup,
   searchPrincipals,
   groupCount,
@@ -244,20 +243,13 @@ export function PrincipalPicker({
         details={(principalId) => {
           const principal = principalId === undefined ? undefined : seen.get(principalId)
           return principal?.kind === 'user' ? (
-            <PersonDetailsPane
-              person={principal}
-              model={model}
-              granting={granting}
-              resourceName={resourceName}
-              t={t}
-            />
+            <PersonDetailsPane person={principal} model={model} granting={granting} t={t} />
           ) : (
             <GroupDetailsPane
               group={principal}
               state={details}
               model={model}
               granting={granting}
-              resourceName={resourceName}
               t={t}
             />
           )
@@ -422,13 +414,11 @@ function OnResource({
   principalId,
   model,
   granting,
-  resourceName,
   t,
 }: {
   principalId: string
   model: AccessModel
   granting: readonly AccessRole[]
-  resourceName: string
   t: AccessStrings
 }) {
   const held = model.held.get(principalId) ?? []
@@ -438,7 +428,7 @@ function OnResource({
   const redundant = held.filter((role) => fresh.some((by) => covers(by, role)))
   return (
     <div>
-      <PaneHeading>{t.onResource(resourceName)}</PaneHeading>
+      <PaneHeading>{t.currentRoles}</PaneHeading>
       {owner || held.length > 0 ? (
         <div className="flex flex-wrap gap-1">
           {owner && (
@@ -481,13 +471,11 @@ function PersonDetailsPane({
   person,
   model,
   granting,
-  resourceName,
   t,
 }: {
   person: AccessPrincipal
   model: AccessModel
   granting: readonly AccessRole[]
-  resourceName: string
   t: AccessStrings
 }) {
   const groups = (person.groupIds ?? [])
@@ -518,13 +506,7 @@ function PersonDetailsPane({
           </div>
         </div>
       )}
-      <OnResource
-        principalId={person.id}
-        model={model}
-        granting={granting}
-        resourceName={resourceName}
-        t={t}
-      />
+      <OnResource principalId={person.id} model={model} granting={granting} t={t} />
     </div>
   )
 }
@@ -534,14 +516,12 @@ function GroupDetailsPane({
   state,
   model,
   granting,
-  resourceName,
   t,
 }: {
   group: AccessPrincipal | undefined
   state: DetailsState
   model: AccessModel
   granting: readonly AccessRole[]
-  resourceName: string
   t: AccessStrings
 }) {
   if (!group) {
@@ -620,13 +600,7 @@ function GroupDetailsPane({
           )}
         </Callout>
       )}
-      <OnResource
-        principalId={group.id}
-        model={model}
-        granting={granting}
-        resourceName={resourceName}
-        t={t}
-      />
+      <OnResource principalId={group.id} model={model} granting={granting} t={t} />
       {details?.updatedAt !== undefined && details.updatedAt !== null && (
         <Updated value={details.updatedAt} t={t} />
       )}
