@@ -390,6 +390,15 @@ if err := authz.Authorize(ctx, subject, "cluster:login", cluster); err != nil {
   a role a conditional grant lists is granted only under its condition. A
   pattern a condition matches is a string literal of bounded size, and a
   condition's title and description are at most 128 and 2048 bytes.
+- **Deny policies:** `SetDeny` puts a deny on a scope: under it, it removes
+  permissions (`type:verb`, or `type:*` for a type's every one) from the
+  principals it names, those it exempts aside, whatever their grants give. A
+  conditional one denies where its condition holds or can't be evaluated.
+  Setting one needs `rbac.DenyPermission(type)` there. A check reads denies
+  with grants in one statement, and a denied permission isn't held to hand
+  on. `Filter` leaves out what a deny covers, `Reachable` names it in
+  `Except`, conditional ones in `Conditional`, and `Holders` leaves out those
+  a deny names.
 - **Identities:** an identity's or group's id names it in every tenant, so a
   tenant can grant a role to one from another where `ValidatePrincipal`
   allows it; `Subject.Tenants` decides only which tenants' members it is.
