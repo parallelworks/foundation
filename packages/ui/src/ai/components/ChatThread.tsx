@@ -6,10 +6,11 @@ import type { AttachmentMeta } from '../types'
 import BlockedGroupBanner from './BlockedGroupBanner'
 import ChatInput, { type ChatInputHandle } from './ChatInput'
 import ChatMessageList from './ChatMessageList'
-import { ComposerControls, ComposerUsage, ConnectToolsLink } from './ComposerChrome'
+import { ComposerControls, ComposerUsage } from './ComposerChrome'
 import DragOverlay from './DragOverlay'
 import ProviderIssueBanner from './ProviderIssueBanner'
 import { ShareButton } from './ShareDialog'
+import ToolsPicker from './ToolsPicker'
 
 interface EditingState {
   messageId: string
@@ -163,7 +164,7 @@ export default function ChatThread({ conversationId }: { conversationId: string 
           onSend={handleSendMessage}
           disabled
           conversationId={conversationId}
-          settingsLeft={<ConnectToolsLink />}
+          settingsLeft={<ToolsPicker />}
           settingsRight={
             <>
               <ComposerUsage>{slots.composerUsage}</ComposerUsage>
@@ -218,7 +219,7 @@ export default function ChatThread({ conversationId }: { conversationId: string 
                   {currentConversation?.isOwner !== false && (
                     <ShareButton conversationId={conversationId} />
                   )}
-                  <ConnectToolsLink />
+                  <ToolsPicker />
                 </>
               }
               settingsRight={

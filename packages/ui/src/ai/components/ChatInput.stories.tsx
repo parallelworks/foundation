@@ -11,6 +11,7 @@ import {
   makeComposerPastes,
   makePasteText,
   makeStaticAdapter,
+  makeTools,
   pasteIntoComposer,
   StoryChat,
 } from '../stories/harness'
@@ -18,7 +19,8 @@ import type { MessagePaste } from '../types'
 import { NoticeCard } from '../ui/Notice'
 import PermissionPicker from './agent/PermissionPicker'
 import ChatInput from './ChatInput'
-import { ComposerControls, ComposerUsage, ConnectToolsLink } from './ComposerChrome'
+import { ComposerControls, ComposerUsage } from './ComposerChrome'
+import ToolsPicker from './ToolsPicker'
 
 const meta: Meta = {
   title: 'Chat/Composer',
@@ -78,7 +80,7 @@ export const Toolbar: StoryObj<{ attachOpen: boolean }> = {
             <ChatInput
               onSend={send}
               conversationId="conv-toolbar"
-              settingsLeft={<ConnectToolsLink />}
+              settingsLeft={<ToolsPicker />}
               settingsRight={<ComposerControls />}
             />
           </div>
@@ -224,6 +226,49 @@ export const SharedProviders: StoryObj<{
     // The models load after mount; the trigger stays disabled until they do.
     const trigger = await within(canvasElement).findByRole('combobox', { name: 'Model' })
     await waitFor(() => expect(trigger).toBeEnabled())
+    await userEvent.click(trigger)
+  },
+}
+
+// The host's own tools under the composer, each turned on or off for the
+// requests that follow; the link to connect more sits at the foot of the
+// menu. A host that lists no tools shows the link alone. The play opens it.
+export const ToolsMenu: StoryObj<{
+  pickerOpen: boolean
+  listsTools: boolean
+  connectTools: boolean
+}> = {
+  args: { pickerOpen: true, listsTools: true, connectTools: true },
+  argTypes: {
+    listsTools: { control: 'boolean', description: 'The adapter lists tools of its own' },
+    connectTools: { control: 'boolean', description: 'Host sets extraLinks.connectTools' },
+  },
+  render: (args) => {
+    const Composer = () => {
+      const adapter = useMemo(
+        () => makeStaticAdapter(args.listsTools ? { tools: makeTools() } : {}),
+        [],
+      )
+      const config = useMemo(
+        () => (args.connectTools ? { extraLinks: { connectTools: '#connect-tools' } } : {}),
+        [],
+      )
+      return (
+        <StoryChat adapter={adapter} config={config}>
+          <div>
+            <ChatInput onSend={send} conversationId="conv-tools" settingsLeft={<ToolsPicker />} />
+          </div>
+        </StoryChat>
+      )
+    }
+    return <Composer key={`${args.listsTools}${args.connectTools}`} />
+  },
+  play: async ({ canvasElement, args }) => {
+    if (!args.pickerOpen || !args.listsTools) {
+      return
+    }
+    // The tools load after mount; the chip replaces the link once they do.
+    const trigger = await within(canvasElement).findByRole('button', { name: /^Tools/ })
     await userEvent.click(trigger)
   },
 }

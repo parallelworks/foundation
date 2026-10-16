@@ -4,7 +4,7 @@
 // here and a story that calls it. See ../../.storybook/CONTRIBUTING.md.
 import type { ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
-import type { ChatAdapter, StreamHandlers } from '../adapter/types'
+import type { ChatAdapter, ChatToolOption, StreamHandlers } from '../adapter/types'
 import type { ComposerPastes, PasteUploadResult } from '../components/usePasteCards'
 import { ChatProvider, type ChatProviderProps } from '../core/ChatProvider'
 import type { ChatLinkProps, ChatUIConfig } from '../core/config'
@@ -262,6 +262,8 @@ export function makeStaticAdapter(options?: {
   unreachableSessions?: { name: string; owner: string }[]
   /** Offered for an organization model ("org:" providers). */
   allocations?: Allocation[]
+  /** The host's own tools, for the composer's tools menu. */
+  tools?: ChatToolOption[]
 }): ChatAdapter {
   const conversations = options?.conversations ?? [makeConversation()]
   const summaries =
@@ -435,6 +437,10 @@ export function makeStaticAdapter(options?: {
   if (allocations) {
     adapter.allocations = { list: async () => allocations }
   }
+  const tools = options?.tools
+  if (tools) {
+    adapter.tools = { list: async () => tools }
+  }
   return adapter
 }
 
@@ -458,6 +464,19 @@ function attachmentUrl(id: string): string {
     pictureUrls.set(id, url)
   }
   return url
+}
+
+/** Tools a host's backend runs itself, as the composer's tools menu lists them. */
+export function makeTools(): ChatToolOption[] {
+  return [
+    {
+      id: 'list_clusters',
+      label: 'List clusters',
+      description: 'Names your clusters and their state',
+    },
+    { id: 'list_storage', label: 'List storage', description: 'Names your buckets and disks' },
+    { id: 'read_docs', label: 'Read the docs' },
+  ]
 }
 
 /** Files as a store lists them: two pictures, a document and a log; ids that

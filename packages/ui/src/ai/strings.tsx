@@ -51,6 +51,12 @@ export interface ChatStrings {
     /** Sending before a model is chosen. */
     selectFirst: string
   }
+  toolsPicker: {
+    /** Names the picker and heads its panel. */
+    title: string
+    /** On the chip: how many of the host's tools are on. */
+    count: (enabled: number, total: number) => string
+  }
   allocationPicker: {
     choose: string
     placeholder: string
@@ -338,6 +344,10 @@ export const defaultChatStrings: ChatStrings = {
     notResponding: 'Not responding',
     manageProvider: 'Manage provider',
     selectFirst: 'Select a model first',
+  },
+  toolsPicker: {
+    title: 'Tools',
+    count: (enabled, total) => `Tools ${enabled.toLocaleString()}/${total.toLocaleString()}`,
   },
   allocationPicker: {
     choose: 'Allocation',

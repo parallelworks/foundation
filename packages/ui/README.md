@@ -845,6 +845,16 @@ optional capability groups (`providers`, `attachments`, `sharing`,
 `ChatAdapterError` with a user-facing `message`. Model entries and wire
 messages keep OpenAI-compatible snake_case field names.
 
+An adapter with `tools` lists the tools its backend runs itself while it
+answers, each a `ChatToolOption` (`id`, and a `label` and optional
+`description` in the reader's language). The composer then offers a tools menu
+where the reader turns each on or off; every tool starts on, and the choice is
+remembered per user in the browser. Each request carries the enabled ids as
+`StreamRequest.tools` once the list has loaded, possibly empty, and the
+OpenAI-compatible transport sends them as the `X-Platform-Tools` header
+(`TOOLS_HEADER`), comma-separated and empty when every tool is off. A request
+without a tool choice sends no header.
+
 Tailwind v4 consumers add the chat rules (markdown rendering, streaming
 animations) and streamdown's classes next to the theme contract:
 

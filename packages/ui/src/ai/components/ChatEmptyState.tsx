@@ -12,9 +12,10 @@ import type { AttachmentMeta } from '../types'
 import BlockedGroupBanner from './BlockedGroupBanner'
 import ChatInput, { type ChatInputHandle } from './ChatInput'
 import ChatStage from './ChatStage'
-import { ComposerControls, ConnectToolsLink } from './ComposerChrome'
+import { ComposerControls } from './ComposerChrome'
 import DragOverlay from './DragOverlay'
 import ProviderIssueBanner from './ProviderIssueBanner'
+import ToolsPicker from './ToolsPicker'
 
 function pickRandom<T>(arr: T[], count: number): T[] {
   const shuffled = [...arr].sort(() => Math.random() - 0.5)
@@ -180,7 +181,7 @@ export default function ChatEmptyState({
                     ? tInput.placeholderNoProviders
                     : tInput.placeholder
               }
-              settingsLeft={<ConnectToolsLink />}
+              settingsLeft={<ToolsPicker />}
               settingsRight={
                 <>
                   {slots.composerUsage}
