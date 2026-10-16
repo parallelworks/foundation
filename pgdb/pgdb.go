@@ -75,10 +75,7 @@ type Migrations struct {
 // Migrate creates the pool's schema, installs or upgrades hopper's tables in
 // it and applies the application's migrations. It is safe to call from
 // several replicas at once.
-//
-// The lock is held on a dedicated connection outside the pool, so replicas
-// waiting on it never starve the migration itself of pool connections.
-func Migrate(ctx context.Context, pool *pgxpool.Pool, m Migrations) (err error) {
+func Migrate(ctx context.Context, pool *pgxpool.Pool, m Migrations) error {
 	schema := Schema(pool)
 	if !ValidSchema(schema) {
 		return fmt.Errorf("pgdb: pool has no schema from Open (search_path %q)", schema)
@@ -87,13 +84,50 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, m Migrations) (err error) 
 	if logger == nil {
 		logger = slog.Default()
 	}
-	key := m.LockKey
-	if key == 0 {
-		h := fnv.New64a()
-		_, _ = h.Write([]byte("pgdb/" + schema))
-		key = int64(h.Sum64()) //nolint:gosec // any 64 bits will do as a lock key
-	}
+	return withLock(ctx, pool, lockKey(schema, m.LockKey), func(conn *pgx.Conn) error {
+		if _, err := conn.Exec(ctx, "CREATE SCHEMA IF NOT EXISTS "+pgx.Identifier{schema}.Sanitize()); err != nil {
+			return fmt.Errorf("pgdb: create schema %s: %w", schema, err)
+		}
+		if _, err := hoppermigrate.Up(ctx, HopperDriver(pool), &hoppermigrate.Options{Logger: logger}); err != nil {
+			return fmt.Errorf("pgdb: migrate hopper: %w", err)
+		}
+		return migrateGoose(ctx, pool, m.FS, "", logger)
+	})
+}
 
+// MigrateFS applies the goose migrations in fsys to the pool's schema, recorded
+// in versionTable rather than the application's, under the lock Migrate holds.
+// A package uses it to keep its own tables, with versions of their own, beside
+// an application's. The schema must exist; Migrate creates it.
+func MigrateFS(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS, versionTable string, logger *slog.Logger) error {
+	schema := Schema(pool)
+	if !ValidSchema(schema) {
+		return fmt.Errorf("pgdb: pool has no schema from Open (search_path %q)", schema)
+	}
+	if !ValidSchema(versionTable) {
+		return fmt.Errorf("pgdb: version table %q is not a valid name", versionTable)
+	}
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return withLock(ctx, pool, lockKey(schema, 0), func(*pgx.Conn) error {
+		return migrateGoose(ctx, pool, fsys, versionTable, logger)
+	})
+}
+
+func lockKey(schema string, key int64) int64 {
+	if key != 0 {
+		return key
+	}
+	h := fnv.New64a()
+	_, _ = h.Write([]byte("pgdb/" + schema))
+	return int64(h.Sum64()) //nolint:gosec // any 64 bits will do as a lock key
+}
+
+// withLock runs fn holding the migration lock. The lock is held on a dedicated
+// connection outside the pool, so replicas waiting on it never starve the
+// migration itself of pool connections.
+func withLock(ctx context.Context, pool *pgxpool.Pool, key int64, fn func(*pgx.Conn) error) (err error) {
 	conn, err := pgx.ConnectConfig(ctx, pool.Config().ConnConfig.Copy())
 	if err != nil {
 		return fmt.Errorf("pgdb: connect for migration lock: %w", err)
@@ -110,23 +144,22 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, m Migrations) (err error) 
 			err = errors.Join(err, fmt.Errorf("pgdb: release migration lock: %w", uerr))
 		}
 	}()
-
-	if _, err := conn.Exec(ctx, "CREATE SCHEMA IF NOT EXISTS "+pgx.Identifier{schema}.Sanitize()); err != nil {
-		return fmt.Errorf("pgdb: create schema %s: %w", schema, err)
-	}
-	if _, err := hoppermigrate.Up(ctx, HopperDriver(pool), &hoppermigrate.Options{Logger: logger}); err != nil {
-		return fmt.Errorf("pgdb: migrate hopper: %w", err)
-	}
-	return migrateApp(ctx, pool, m.FS, logger)
+	return fn(conn)
 }
 
-func migrateApp(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS, logger *slog.Logger) error {
+// migrateGoose applies fsys's migrations, recorded in versionTable, or goose's
+// own table when it is empty.
+func migrateGoose(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS, versionTable string, logger *slog.Logger) error {
 	if fsys == nil {
 		return nil
 	}
 	db := stdlib.OpenDBFromPool(pool)
 	defer db.Close()
-	provider, err := goose.NewProvider(goose.DialectPostgres, db, fsys)
+	opts := []goose.ProviderOption{}
+	if versionTable != "" {
+		opts = append(opts, goose.WithTableName(versionTable), goose.WithDisableGlobalRegistry(true))
+	}
+	provider, err := goose.NewProvider(goose.DialectPostgres, db, fsys, opts...)
 	if err != nil {
 		return fmt.Errorf("pgdb: goose: %w", err)
 	}
