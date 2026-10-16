@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"testing"
+	"testing/fstest"
 
 	"github.com/parallelworks/hopper/hoppermigrate"
 	"golang.org/x/sync/errgroup"
@@ -86,5 +87,23 @@ func TestSchemaIsDroppedAfterTheTest(t *testing.T) {
 	if err := pool.QueryRow(context.WithoutCancel(t.Context()),
 		"SELECT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = $1)", schema).Scan(&exists); err != nil || exists {
 		t.Errorf("schema %s left behind (%v)", schema, err)
+	}
+}
+
+// Under another lock key, Migrate and MigrateFS run at once, and both create the schema.
+func TestMigrateFSAndMigrateCreateTheSchemaAtOnce(t *testing.T) {
+	other := fstest.MapFS{"00001_gadgets.sql": {Data: []byte("-- +goose Up\nCREATE TABLE gadgets (id int);\n")}}
+	for range 20 {
+		pool := pgdbtest.Open(t, urlEnv, "")
+		m := migrations()
+		m.LockKey = 42
+		var g errgroup.Group
+		g.Go(func() error { return pgdb.Migrate(t.Context(), pool, m) })
+		g.Go(func() error {
+			return pgdb.MigrateFS(t.Context(), pool, other, "other_goose_db_version", slog.New(slog.DiscardHandler))
+		})
+		if err := g.Wait(); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

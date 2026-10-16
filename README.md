@@ -335,9 +335,9 @@ authz, err := rbac.New(pool, rbac.Config{
 	OnChange:          audit.Record,     // runs in the change's transaction
 })
 
-subject := rbac.Subject{Tenant: org, User: userID, Groups: groupIDs}
-cluster := rbac.Resource{Tenant: org, Type: "cluster", ID: id, Owner: owner,
-	Ancestors: []rbac.Scope{{Type: "workspace", ID: ws}}}
+subject := rbac.Subject{Tenant: tenant, User: userID, Groups: groupIDs}
+cluster := rbac.Resource{Tenant: tenant, Type: "cluster", ID: id, Owner: owner,
+	Ancestors: []rbac.Scope{{Type: "workspace", ID: ws}, {Type: "org", ID: org}}}
 if err := authz.Authorize(ctx, subject, "cluster:login", cluster); err != nil {
 	return err // matches rbac.ErrDenied; any error means no
 }

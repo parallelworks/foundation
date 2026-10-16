@@ -14,6 +14,7 @@ import (
 	"regexp"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/parallelworks/hopper/driver/hopperpgx"
@@ -113,8 +114,15 @@ func MigrateFS(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS, versionTable
 	})
 }
 
+// createSchema creates the schema if it doesn't exist. IF NOT EXISTS still fails when another
+// connection creates it at the same moment, as one under a different lock key can, so a
+// schema that now exists is success.
 func createSchema(ctx context.Context, conn *pgx.Conn, schema string) error {
-	if _, err := conn.Exec(ctx, "CREATE SCHEMA IF NOT EXISTS "+pgx.Identifier{schema}.Sanitize()); err != nil {
+	_, err := conn.Exec(ctx, "CREATE SCHEMA IF NOT EXISTS "+pgx.Identifier{schema}.Sanitize())
+	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && (pgErr.Code == "23505" || pgErr.Code == "42P06") {
+		return nil
+	}
+	if err != nil {
 		return fmt.Errorf("pgdb: create schema %s: %w", schema, err)
 	}
 	return nil
