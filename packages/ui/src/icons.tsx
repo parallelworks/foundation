@@ -19,6 +19,7 @@ import {
   Bell,
   BellOff,
   BellRing,
+  BookOpenText,
   BookUser,
   Bot,
   Boxes,
@@ -318,6 +319,7 @@ export const ArrowDownIcon = /* @__PURE__ */ icon(ArrowDown)
 export const ArrowLeftIcon = /* @__PURE__ */ icon(ArrowLeft)
 export const ArrowRightIcon = /* @__PURE__ */ icon(ArrowRight)
 export const ArrowUpIcon = /* @__PURE__ */ icon(ArrowUp)
+export const ArticleIcon = /* @__PURE__ */ icon(BookOpenText)
 export const AttachmentIcon = /* @__PURE__ */ icon(Paperclip)
 export const AuthenticationIcon = /* @__PURE__ */ icon(Fingerprint)
 export const BillingIcon = /* @__PURE__ */ icon(CreditCard)
