@@ -350,12 +350,13 @@ if err := authz.Authorize(ctx, subject, "cluster:login", cluster); err != nil {
 - **Owners:** a resource's owner holds every permission a role gives on its
   type, and may change its grants. A container's owner may not, since a
   grant there reaches what they don't own: give whoever creates a container
-  a role on it, in the same transaction, with `WithTx`. Every ancestor must
-  be of a declared container type.
+  a role on it with `Import`, in the same transaction through `WithTx`.
+  Every ancestor must be of a declared container type.
 - **Changes:** `Apply` changes one scope's grants in one transaction, one
   change to a scope at a time. The actor needs `<type>:grant` there and must
   hold every permission a role gives, for every type the grant reaches, to
-  grant it, and a grant can't outlive the actor's own access. `Import` loads
+  grant it, and a grant expires no later than the actor's own access does;
+  revoking the actor's access leaves the grants they made. `Import` loads
   grants for migrations.
 - **Why:** `Explain` names the grants that allow, or what denied;
   `Permissions` lists what a subject may do; `Holders` lists who may.
