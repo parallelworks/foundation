@@ -366,6 +366,17 @@ if err := authz.Authorize(ctx, subject, "cluster:login", cluster); err != nil {
   the actor's own access, so a time-limited power to change grants can make
   lasting ones: put expiries on roles that can't change grants. `Import` loads
   grants for migrations.
+- **Custom roles:** a tenant defines its own with `DefineRole`, ids starting
+  `custom.`, from the permissions and types the built-in roles use; a public
+  one only from what a role that isn't privileged gives on each of its types.
+  Defining one needs `rbac.DefineRoles` on the tenant and everything the role
+  gives across it, as the actor's roles give now; replacing one changes what
+  its grants give, and replacing one another custom role lists needs the
+  power to grant it where that role does. `DeleteRole` removes one with its
+  grants. `RolesIn` lists the built-in and custom roles a scope type takes. A
+  tenant has up to 300, each listing up to 64 grantable roles, and they follow
+  the catalog: one gives only what the catalog still has, and is privileged
+  when it gives or hands out what privileged roles do.
 - **Identities:** an identity's or group's id names it in every tenant, so a
   tenant can grant a role to one from another where `ValidatePrincipal`
   allows it; `Subject.Tenants` decides only which tenants' members it is.
@@ -377,18 +388,18 @@ if err := authz.Authorize(ctx, subject, "cluster:login", cluster); err != nil {
   about the public, so an application can refuse public access in a tenant;
   `DeletePrincipal` ends what was granted.
 - **Broad grants:** a grant to the tenant's members (`rbac.TenantMembers`) or
-  the public never gives a `<type>:grant` permission, so changing access
-  always takes a named identity or group.
+  the public never gives a `<type>:grant` permission or `rbac.DefineRoles`,
+  so changing access always takes a named identity or group.
 - **Why:** `Explain` names the grants that allow, or what denied;
   `Permissions` lists what a subject may do; `Holders` lists who may.
 - **Tables:** `rbac.Migrate` creates them, prefixed `rbac_`, with their own
   goose version table. It never runs by itself.
 
-There is no cache: a check is one index-only query. Read a resource's path
-and a subject's groups no earlier than the content they protect, and from the
-primary, so a revocation is never missed. Groups taken from a token stay valid
-until it expires. `DeleteExpired` clears expired grants, which already give
-nothing.
+There is no cache: a check is one index-only query, and a second when a grant
+it reads names a custom role. Read a resource's path and a subject's groups no
+earlier than the content they protect, and from the primary, so a revocation
+is never missed. Groups taken from a token stay valid until it expires.
+`DeleteExpired` clears expired grants, which already give nothing.
 
 ## Development
 
