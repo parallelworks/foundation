@@ -347,13 +347,16 @@ if err := authz.Authorize(ctx, subject, "cluster:login", cluster); err != nil {
   with a GIN index, and `Filter` returns a condition for the application's
   own query, read in the same statement as the rows. `Reachable` returns the
   same as scopes, for resources kept in another store.
-- **Changes:** `Apply` changes one scope's grants in one transaction. The
-  actor needs `<type>:grant` there and must hold every permission a role
-  gives to grant it, and a grant can't outlive the actor's own access. A
-  resource's owner may change its grants, but a container's owner may not,
-  since a grant there reaches what they don't own: give whoever creates a
-  container a role on it, in the same transaction, with `WithTx`. `Import`
-  loads grants for migrations.
+- **Owners:** a resource's owner holds every permission a role gives on its
+  type, and may change its grants. A container's owner may not, since a
+  grant there reaches what they don't own: give whoever creates a container
+  a role on it, in the same transaction, with `WithTx`. Every ancestor must
+  be of a declared container type.
+- **Changes:** `Apply` changes one scope's grants in one transaction, one
+  change to a scope at a time. The actor needs `<type>:grant` there and must
+  hold every permission a role gives, for every type the grant reaches, to
+  grant it, and a grant can't outlive the actor's own access. `Import` loads
+  grants for migrations.
 - **Why:** `Explain` names the grants that allow, or what denied;
   `Permissions` lists what a subject may do; `Holders` lists who may.
 - **Tables:** `rbac.Migrate` creates them, prefixed `rbac_`, with their own

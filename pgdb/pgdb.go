@@ -76,13 +76,9 @@ type Migrations struct {
 // it and applies the application's migrations. It is safe to call from
 // several replicas at once.
 func Migrate(ctx context.Context, pool *pgxpool.Pool, m Migrations) error {
-	schema := Schema(pool)
-	if !ValidSchema(schema) {
-		return fmt.Errorf("pgdb: pool has no schema from Open (search_path %q)", schema)
-	}
-	logger := m.Logger
-	if logger == nil {
-		logger = slog.Default()
+	schema, logger, err := schemaAndLogger(pool, m.Logger)
+	if err != nil {
+		return err
 	}
 	return withLock(ctx, pool, lockKey(schema, m.LockKey), func(conn *pgx.Conn) error {
 		if _, err := conn.Exec(ctx, "CREATE SCHEMA IF NOT EXISTS "+pgx.Identifier{schema}.Sanitize()); err != nil {
@@ -96,23 +92,33 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, m Migrations) error {
 }
 
 // MigrateFS applies the goose migrations in fsys to the pool's schema, recorded
-// in versionTable rather than the application's, under the lock Migrate holds.
-// A package uses it to keep its own tables, with versions of their own, beside
-// an application's. The schema must exist; Migrate creates it.
+// in versionTable rather than the application's, under the lock Migrate holds
+// when Migrations.LockKey is zero; with another key the two don't exclude each
+// other. A package uses it to keep its own tables, with versions of their own,
+// beside an application's. The schema must exist; Migrate creates it.
 func MigrateFS(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS, versionTable string, logger *slog.Logger) error {
-	schema := Schema(pool)
-	if !ValidSchema(schema) {
-		return fmt.Errorf("pgdb: pool has no schema from Open (search_path %q)", schema)
+	schema, logger, err := schemaAndLogger(pool, logger)
+	if err != nil {
+		return err
 	}
 	if !ValidSchema(versionTable) {
 		return fmt.Errorf("pgdb: version table %q is not a valid name", versionTable)
 	}
-	if logger == nil {
-		logger = slog.Default()
-	}
 	return withLock(ctx, pool, lockKey(schema, 0), func(*pgx.Conn) error {
 		return migrateGoose(ctx, pool, fsys, versionTable, logger)
 	})
+}
+
+// schemaAndLogger returns a pool's schema, and logger or else the default one.
+func schemaAndLogger(pool *pgxpool.Pool, logger *slog.Logger) (string, *slog.Logger, error) {
+	schema := Schema(pool)
+	if !ValidSchema(schema) {
+		return "", nil, fmt.Errorf("pgdb: pool has no schema from Open (search_path %q)", schema)
+	}
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return schema, logger, nil
 }
 
 func lockKey(schema string, key int64) int64 {
