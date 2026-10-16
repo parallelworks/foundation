@@ -1,12 +1,14 @@
-import cx from 'classnames'
-import { useId, useRef, useState } from 'react'
-import { useNotify, useStrings, useWorkflowEngine } from '../components/Provider'
-import SwitchToggleSmall from '../components/SwitchToggleSmall'
+import { useRef, useState } from 'react'
+import { useStrings, useWorkflowEngine } from '../components/Provider'
+import { Switch } from '../components/Switch'
+import { Tooltip } from '../components/Tooltip'
+import { useCopy } from '../components/useCopy'
+import { cx } from '../cx'
 import type { WorkflowEngine } from '../engine'
 import { flattenGroups, impureSetValueFromPath } from '../form/lib'
 import { CheckIcon, CopyIcon, EyeIcon, EyeOffIcon } from '../icons'
-import Editor from './Editor'
-import type { ISchemaError } from './Monaco'
+import { Editor } from './Editor'
+import type { ValidationMarker } from './Monaco'
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null
@@ -111,29 +113,32 @@ const populateFiltered = (filteredFields: FilteredField[], data: Record<string, 
   return data
 }
 
-function FormCodePanel({
+export interface FormCodePanelProps {
+  /** The form's input definitions, which say which values are sensitive or hidden. */
+  formJSON: Record<string, unknown>
+  /** The form's values, shown as JSON. */
+  data: Record<string, unknown>
+  /** Called with the values each time the JSON parses as an object. */
+  mutate: (values: Record<string, unknown>) => void
+  height?: string
+  disabled?: boolean
+}
+
+/** A form's values as editable JSON, with sensitive and hidden fields left out unless asked for. */
+export function FormCodePanel({
   formJSON,
   data,
   mutate,
   height = '600px',
   disabled = false,
-}: {
-  formJSON: Record<string, unknown>
-  data: Record<string, unknown>
-  mutate: (values: Record<string, unknown>) => void
-  height?: string
-  disabled?: boolean
-}) {
+}: FormCodePanelProps) {
   const engine = useWorkflowEngine()
-  const notify = useNotify()
   const { common: t } = useStrings()
-  const uid = useId()
   const [jsonHasErrors, setJsonHasErrors] = useState(false)
   const [showHidden, setShowHidden] = useState(false)
-  const [copied, setCopied] = useState(false)
-  const copyResetRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const { copy, copied } = useCopy()
 
-  const isValidJson = (errors: ISchemaError[]) => {
+  const isValidJson = (errors: ValidationMarker[]) => {
     setJsonHasErrors(errors.length > 0)
   }
   const formJSONFlat = flattenGroups(formJSON)
@@ -151,44 +156,32 @@ function FormCodePanel({
   filteredFieldsRef.current = filteredFields
 
   const json = JSON.stringify(displayObj, null, 2)
+  // The text last typed and the values it parsed to. While the values come back unchanged, the
+  // editor keeps that text, laid out as the person typed it, rather than the form's own layout.
+  const typedRef = useRef<{ text: string; json: string } | null>(null)
+  const shown = typedRef.current?.json === json ? typedRef.current.text : json
 
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(json)
-      setCopied(true)
-      clearTimeout(copyResetRef.current)
-      copyResetRef.current = setTimeout(() => setCopied(false), 2000)
-    } catch {
-      notify.error(t.copyFailed)
-    }
-  }
+  const handleCopy = () => void copy(json, { quiet: true })
 
   return (
     <div style={{ height }} className="flex w-full flex-col gap-2">
       <div
         className={cx(
           'flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border',
-          jsonHasErrors ? 'border-red-500' : 'border-(--theme-border)',
+          jsonHasErrors ? 'border-(--theme-error)' : 'border-(--theme-border)',
         )}
       >
-        <div className="bg-(--theme-muted-panel-bg) text-(--theme-muted-panel-color) flex shrink-0 items-center gap-3 border-b border-(--theme-border) px-3 py-2">
+        <div className="bg-(--theme-muted-panel-bg) text-(--theme-muted-text-color) flex shrink-0 items-center gap-3 border-b border-(--theme-border) px-3 py-2">
           {hasHiddenFields && (
-            <label
-              htmlFor={`${uid}-show-hidden`}
-              title={t.showHiddenFieldsHint}
-              className="flex cursor-pointer select-none items-center gap-2 text-sm text-(--theme-app)"
-            >
-              <SwitchToggleSmall
-                id={`${uid}-show-hidden`}
-                value={showHidden}
-                aria-label={t.showHiddenFields}
-                onClick={() => setShowHidden((prev) => !prev)}
-              />
-              <span className="flex items-center gap-1.5">
-                {showHidden ? <EyeIcon /> : <EyeOffIcon />}
-                {t.showHiddenFields}
-              </span>
-            </label>
+            <Tooltip content={t.showHiddenFieldsHint}>
+              <label className="flex cursor-pointer select-none items-center gap-2 text-sm text-(--theme-app)">
+                <Switch size="sm" checked={showHidden} onCheckedChange={setShowHidden} />
+                <span className="flex items-center gap-1.5">
+                  {showHidden ? <EyeIcon /> : <EyeOffIcon />}
+                  {t.showHiddenFields}
+                </span>
+              </label>
+            </Tooltip>
           )}
           <button
             type="button"
@@ -197,7 +190,7 @@ function FormCodePanel({
             className="ml-auto flex shrink-0 items-center gap-1.5 rounded-md border border-(--theme-border) px-2.5 py-1.5 text-sm text-(--theme-app) transition-colors duration-150 hover:bg-(--theme-hover) focus:outline-none focus-visible:ring-2 focus-visible:ring-(--theme-link)"
           >
             {copied ? (
-              <CheckIcon className="text-green-500" />
+              <CheckIcon className="text-(--theme-success)" />
             ) : (
               <CopyIcon className="text-(--theme-muted-text-color)" />
             )}
@@ -207,7 +200,7 @@ function FormCodePanel({
         <div className="min-h-0 flex-1">
           <Editor
             height="100%"
-            value={json}
+            value={shown}
             onValidate={isValidJson}
             className="!rounded-none !border-0"
             minimap={{ enabled: false }}
@@ -229,9 +222,10 @@ function FormCodePanel({
                 if (!isObject(parsed)) {
                   return
                 }
+                typedRef.current = { text: e, json: JSON.stringify(parsed, null, 2) }
                 const objToSave = showHiddenRef.current
                   ? parsed
-                  : populateFiltered(filteredFieldsRef.current, parsed)
+                  : populateFiltered(filteredFieldsRef.current, structuredClone(parsed))
                 mutate(objToSave)
               } catch {
                 // Half-typed JSON; the editor's markers already flag it.
@@ -242,9 +236,9 @@ function FormCodePanel({
           />
         </div>
       </div>
-      {jsonHasErrors && <p className="shrink-0 text-sm text-red-500">{t.jsonHasErrors}</p>}
+      {jsonHasErrors && (
+        <p className="shrink-0 text-sm text-(--theme-error-text)">{t.jsonHasErrors}</p>
+      )}
     </div>
   )
 }
-
-export default FormCodePanel

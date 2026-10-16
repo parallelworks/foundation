@@ -1,5 +1,12 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useMemo } from 'react'
+import { expect, userEvent, waitFor, within } from 'storybook/test'
+import { StatusBadge } from '../../components/StatusBadge'
+import {
+  DEFAULT_PERMISSION_MODE,
+  NAMED_PERMISSION_MODES,
+  type NamedPermissionMode,
+} from '../agent/permissions'
 import {
   makeComposerPastes,
   makePasteText,
@@ -8,8 +15,10 @@ import {
   StoryChat,
 } from '../stories/harness'
 import type { MessagePaste } from '../types'
+import { NoticeCard } from '../ui/Notice'
+import PermissionPicker from './agent/PermissionPicker'
 import ChatInput from './ChatInput'
-import { ComposerControls, ConnectToolsLink } from './ComposerChrome'
+import { ComposerControls, ComposerUsage, ConnectToolsLink } from './ComposerChrome'
 
 const meta: Meta = {
   title: 'Chat/Composer',
@@ -83,6 +92,172 @@ export const Toolbar: StoryObj<{ attachOpen: boolean }> = {
       canvasElement.querySelector<HTMLButtonElement>('button[aria-expanded]')?.click()
     }
   },
+}
+
+// An agent's composer: a notice above, where the turn runs as chips, what the
+// agent is doing just above the box, the agent's own setting under it, and a
+// hint. The model stays in the box as it does in a chat.
+export const AgentComposer: StoryObj<{
+  notice: boolean
+  hint: string
+  mode: NamedPermissionMode
+  ceiling: NamedPermissionMode
+  listsModes: boolean
+}> = {
+  args: {
+    notice: true,
+    hint: 'Enter sends, Shift+Enter adds a line',
+    mode: DEFAULT_PERMISSION_MODE,
+    ceiling: 'auto',
+    listsModes: true,
+  },
+  argTypes: {
+    mode: { control: 'select', options: NAMED_PERMISSION_MODES },
+    ceiling: {
+      control: 'select',
+      options: NAMED_PERMISSION_MODES,
+      description: "The machine's remoteMaxPermissionMode; the menu stops at it",
+    },
+    listsModes: {
+      control: 'boolean',
+      description: 'The machine lists the modes it accepts; off is one that predates auto',
+    },
+  },
+  render: (args) => (
+    <StoryChat>
+      <div>
+        <ChatInput
+          onSend={send}
+          attachments={false}
+          requireModel={false}
+          conversationId="agent-1"
+          notices={
+            args.notice && <NoticeCard tone="warning">This folder is not trusted yet.</NoticeCard>
+          }
+          activity={<span className="text-xs theme-muted-text">Reading files…</span>}
+          context={
+            <>
+              <StatusBadge size="md" dot variant="success">
+                build-01
+              </StatusBadge>
+              <StatusBadge size="md" className="font-mono">
+                ~/src/app
+              </StatusBadge>
+            </>
+          }
+          settingsLeft={
+            <PermissionPicker
+              mode={args.mode}
+              ceiling={args.ceiling}
+              accepted={args.listsModes ? NAMED_PERMISSION_MODES : undefined}
+              onPick={() => {}}
+            />
+          }
+          hint={args.hint || undefined}
+        />
+      </div>
+    </StoryChat>
+  ),
+}
+
+// Alice's own provider and one Bob shared with her carry the same name; the
+// picker names Bob as the owner of his. The organization's provider has no
+// owner to name, and picking its model shows the allocation it bills. An
+// adapter that lists models only gets the same labels from each model's
+// owner. Sessions that did not answer head the list with their status. The
+// play opens the picker.
+export const SharedProviders: StoryObj<{
+  pickerOpen: boolean
+  listProviders: boolean
+  unreachable: boolean
+}> = {
+  args: { pickerOpen: true, listProviders: true, unreachable: true },
+  argTypes: {
+    listProviders: {
+      control: 'boolean',
+      description: 'Adapter lists providers; off reads owners from the models',
+    },
+    unreachable: { control: 'boolean', description: 'Two sessions are not responding' },
+  },
+  render: (args) => {
+    const Composer = () => {
+      const adapter = useMemo(
+        () =>
+          makeStaticAdapter({
+            providers: [
+              { id: 'p-1', name: 'gateway', user: 'alice', cspKind: 'openai', status: 'active' },
+              { id: 'p-2', name: 'gateway', user: 'bob', cspKind: 'openai', status: 'active' },
+              { id: 'p-3', name: 'shared-pool', user: 'org', cspKind: 'other', status: 'active' },
+            ],
+            listProviders: args.listProviders,
+            unreachableSessions: args.unreachable
+              ? [
+                  { name: 'gpu-box', owner: 'alice' },
+                  { name: 'build-01', owner: 'alice' },
+                ]
+              : [],
+            allocations: [
+              { name: 'research', total: 500, used: 123.4 },
+              { name: 'teaching', total: 100 },
+            ],
+          }),
+        [],
+      )
+      return (
+        <StoryChat adapter={adapter}>
+          <div>
+            <ChatInput
+              onSend={send}
+              conversationId="conv-shared-providers"
+              settingsRight={<ComposerControls targetSession="alice:gpu-box" />}
+            />
+          </div>
+        </StoryChat>
+      )
+    }
+    return <Composer key={`${args.listProviders}${args.unreachable}`} />
+  },
+  play: async ({ canvasElement, args }) => {
+    if (!args.pickerOpen) {
+      return
+    }
+    // The models load after mount; the trigger stays disabled until they do.
+    const trigger = await within(canvasElement).findByRole('combobox', { name: 'Model' })
+    await waitFor(() => expect(trigger).toBeEnabled())
+    await userEvent.click(trigger)
+  },
+}
+
+// A phone-width composer with a host's usage meter: the meter gives way, the
+// model name truncates, and send stays inside the box.
+export const NarrowToolbar: StoryObj<{ width: number; usage: boolean }> = {
+  args: { width: 360, usage: true },
+  argTypes: {
+    width: { control: { type: 'range', min: 280, max: 900, step: 10 } },
+    usage: { control: 'boolean', description: 'Host supplies a usage meter' },
+  },
+  render: (args) => (
+    <StoryChat adapter={makeStaticAdapter({ attachments: true })}>
+      <div style={{ width: args.width, margin: '0 auto' }}>
+        <ChatInput
+          onSend={send}
+          conversationId="conv-narrow"
+          settingsRight={
+            <>
+              {args.usage && (
+                <ComposerUsage>
+                  <span style={{ whiteSpace: 'nowrap', fontSize: 10 }}>
+                    1-day limit 34.2% used · 30-day limit 36.8% used
+                  </span>
+                </ComposerUsage>
+              )}
+              <ComposerControls />
+            </>
+          }
+        />
+      </div>
+    </StoryChat>
+  ),
 }
 
 // Text over inlineMaxBytes becomes a card. The play pastes three logs: the

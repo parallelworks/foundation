@@ -1,7 +1,8 @@
 import { useEffect } from 'react'
-import { useSlots, useStrings } from '../components/Provider'
+import type { OpenMenu } from '../components/ContextMenu'
+import type { MenuEntry } from '../components/MenuEntries'
+import { isDev } from '../dev'
 import { FileIcon, FolderIcon } from '../icons'
-import type { OpenMenu, RowMenuItem } from '../list/index'
 import { canPreview } from './FilePreview/previewType'
 import { FileRow, isTwoLineRow, ROW_HEIGHT_SHORT, ROW_HEIGHT_TALL } from './FileRow'
 import { getNodeIcon } from './helpers'
@@ -42,11 +43,12 @@ interface FileRowsWindowProps {
   rowIdPrefix: string
   scrollEl: HTMLElement | null
   loadMore?: LoadMoreState | undefined
-  getItems: (node: TreeNode) => RowMenuItem[]
+  getItems: (node: TreeNode) => MenuEntry[]
   openMenu: OpenMenu
   onOpen: (node: TreeNode) => void
   onToggleCheck: (node: TreeNode, checked: boolean) => void
   onPreview: (node: TreeNode) => void
+  pathHref?: ((path: string) => string) | undefined
 }
 
 /** Must stay a single child of `<Table>`: Table re-keys children by traversal
@@ -66,9 +68,8 @@ export function FileRowsWindow({
   onOpen,
   onToggleCheck,
   onPreview,
+  pathHref,
 }: FileRowsWindowProps) {
-  const { storageIconUrl } = useSlots()
-  const storageIconAlt = useStrings().fileExplorer.chrome.storageIconAlt
   useNestedScrollerWarning(scrollEl, nodes.length)
   useRowPitchAudit(scrollEl, nodes, items)
 
@@ -94,7 +95,7 @@ export function FileRowsWindow({
           ) : null
         }
         const icon =
-          getNodeIcon(node, storageIconUrl, storageIconAlt) ??
+          getNodeIcon(node) ??
           (node.type === 'directory' ? (
             <FolderIcon className="h-4 w-4 text-sky-500/80" />
           ) : (
@@ -107,6 +108,7 @@ export function FileRowsWindow({
             // 1-based, and the header row is 1, so data rows start at 2.
             rowIndex={item.index + 2}
             active={item.index === activeIndex}
+            href={pathHref?.(node.path)}
             node={node}
             icon={icon}
             checked={checkedItems.has(node.path)}
@@ -141,7 +143,7 @@ function Spacer({ height }: { height: number }) {
  *  scrollTop 0 forever, rendering only the first window. */
 function useNestedScrollerWarning(scrollEl: HTMLElement | null, count: number) {
   useEffect(() => {
-    if (!import.meta.env.DEV || !scrollEl || count <= 100) {
+    if (!isDev() || !scrollEl || count <= 100) {
       return
     }
     if (scrollEl.scrollHeight <= scrollEl.clientHeight) {
@@ -176,7 +178,7 @@ function useRowPitchAudit(
   items: readonly { index: number }[],
 ) {
   useEffect(() => {
-    if (!import.meta.env.DEV || !scrollEl || items.length < 3) {
+    if (!isDev() || !scrollEl || items.length < 3) {
       return
     }
     const rows = [...scrollEl.querySelectorAll('tbody tr')]

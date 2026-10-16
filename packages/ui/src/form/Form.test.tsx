@@ -1,8 +1,14 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { Form, Formik } from 'formik'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
+import {
+  FormProvider,
+  type UseFormReturn,
+  useForm,
+  useFormContext,
+  useWatch,
+} from 'react-hook-form'
 
 // Polyfill structuredClone for Jest environment
 if (typeof structuredClone === 'undefined') {
@@ -22,9 +28,6 @@ vi.mock('hooks', () => ({
 
 vi.mock('@parallelworks/ui', async () => ({
   ...(await vi.importActual<typeof import('@parallelworks/ui')>('@parallelworks/ui')),
-  UncontrolledCollapsiblePanel: ({ children }: { children: ReactNode }) => children,
-  SectionHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  CustomListbox: () => null,
   Loader: () => <div data-testid="loader">Loading...</div>,
   Table: Object.assign(({ children }: { children?: ReactNode }) => <table>{children}</table>, {
     Item: ({ children }: { children?: ReactNode }) => <td>{children}</td>,
@@ -34,44 +37,34 @@ vi.mock('@parallelworks/ui', async () => ({
   TooltipInfo: () => null,
 }))
 
-vi.mock('@parallelworks/ui/icons', () => ({
-  AngleRightIcon: () => null,
-  SuccessCheckmark: () => null,
-  TrashIcon: () => null,
-}))
-
-vi.mock('react-tooltip', () => ({
-  Tooltip: () => null,
-}))
-
 vi.mock('./infraFieldRegistry', () => ({ INFRA_FIELD_COMPONENTS: {} }))
 
-vi.mock('./fieldRegistry', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./fieldRegistry')>()),
-  Registry: ({
-    field,
-    label,
-  }: {
-    field: { name: string; type: string; optional?: unknown }
-    label: string
-  }) => (
-    // data-optional surfaces the resolved flag; FieldWrapper renders the required
-    // asterisk from it, but the real field components are mocked out here.
-    <div data-testid={`field-${field.name}`} data-optional={String(field.optional)}>
-      <label htmlFor={field.name}>{label}</label>
-      <input id={field.name} name={field.name} type="text" />
-    </div>
-  ),
-}))
-
-// Mock ResizeObserver
-global.ResizeObserver = vi.fn().mockImplementation(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-}))
+vi.mock('./fieldRegistry', async (importOriginal) => {
+  const original = await importOriginal<typeof import('./fieldRegistry')>()
+  return {
+    ...original,
+    Registry: (props: Parameters<typeof original.Registry>[0]) => {
+      const { field, label, labelPosition } = props
+      // A group that keeps its own values renders for real, so the fields inside it can be found.
+      if (field.type === 'object') return <original.Registry {...props} />
+      return (
+        // data-optional surfaces the resolved flag; FieldWrapper renders the required
+        // asterisk from it, but the real field components are mocked out here.
+        <div
+          data-testid={`field-${field.name}`}
+          data-optional={String(field.optional)}
+          data-label-position={labelPosition}
+        >
+          <label htmlFor={field.name}>{label}</label>
+          <input id={field.name} name={field.name} type="text" />
+        </div>
+      )
+    },
+  }
+})
 
 import { testEngine } from '../test/engine'
+import { renderDynamicForm } from '../test/form'
 
 // Now import the component under test
 import {
@@ -84,6 +77,52 @@ import {
   listLengthsSignature,
   resolveMetaOverrides,
 } from './Form'
+
+/** A form holding `values` for what renders inside it; each render of its values lands in `seen`. */
+function InForm({
+  values,
+  seen = [],
+  children,
+}: {
+  values: Record<string, unknown>
+  seen?: Record<string, unknown>[]
+  children?: ReactNode
+}) {
+  const form = useForm({ defaultValues: values })
+  return (
+    <FormProvider {...form}>
+      <Seen into={seen} />
+      {children}
+    </FormProvider>
+  )
+}
+
+function Seen({ into }: { into: Record<string, unknown>[] }) {
+  into.push(structuredClone(useWatch()))
+  return null
+}
+
+/** Sets a value in the form around it, as a field does. */
+function SetButton({
+  testId,
+  name,
+  value,
+}: {
+  testId: string
+  name: string
+  value: (values: Record<string, unknown>) => unknown
+}) {
+  const { setValue, getValues } = useFormContext()
+  return (
+    <button type="button" data-testid={testId} onClick={() => setValue(name, value(getValues()))} />
+  )
+}
+
+/** The wizard's list of every page, opened. */
+async function openSteps() {
+  fireEvent.click(screen.getByRole('button', { name: 'All steps' }))
+  return within(await screen.findByRole('dialog', { name: 'Steps' }))
+}
 
 describe('DynamicForm workflowForm prop', () => {
   const createSchema = (fieldOverrides = {}) => ({
@@ -103,16 +142,13 @@ describe('DynamicForm workflowForm prop', () => {
 
   describe('when workflowForm is false (default)', () => {
     it('should delete field value when field is hidden and ignored', async () => {
-      const capturedValues: Record<string, unknown>[] = []
-
-      render(
+      const { form } = renderDynamicForm(
         <DynamicForm
           formJSONs={createSchema()}
           initialValues={{
             visibleField: 'visible',
             hiddenIgnoredField: 'should-be-deleted',
           }}
-          setValues={(values) => capturedValues.push({ ...values })}
           workflowForm={false}
         />,
       )
@@ -121,12 +157,11 @@ describe('DynamicForm workflowForm prop', () => {
         expect(screen.getByTestId('field-visibleField')).toBeInTheDocument()
       })
 
-      const lastValues = capturedValues[capturedValues.length - 1]!
+      const lastValues = form.getValues()
       expect(lastValues).not.toHaveProperty('hiddenIgnoredField')
     })
 
     it('should preserve field value when field is hidden but NOT ignored', async () => {
-      const capturedValues: Record<string, unknown>[] = []
       const schemaWithHiddenOnly = {
         visibleField: {
           type: 'string',
@@ -140,14 +175,13 @@ describe('DynamicForm workflowForm prop', () => {
         },
       }
 
-      render(
+      const { form } = renderDynamicForm(
         <DynamicForm
           formJSONs={schemaWithHiddenOnly}
           initialValues={{
             visibleField: 'visible',
             hiddenOnlyField: 'should-be-preserved',
           }}
-          setValues={(values) => capturedValues.push({ ...values })}
           workflowForm={false}
         />,
       )
@@ -156,23 +190,20 @@ describe('DynamicForm workflowForm prop', () => {
         expect(screen.getByTestId('field-visibleField')).toBeInTheDocument()
       })
 
-      const lastValues = capturedValues[capturedValues.length - 1]!
+      const lastValues = form.getValues()
       expect(lastValues).toHaveProperty('hiddenOnlyField', 'should-be-preserved')
     })
   })
 
   describe('when workflowForm is true', () => {
     it('should preserve field value when field is hidden and ignored', async () => {
-      const capturedValues: Record<string, unknown>[] = []
-
-      render(
+      const { form } = renderDynamicForm(
         <DynamicForm
           formJSONs={createSchema()}
           initialValues={{
             visibleField: 'visible',
             hiddenIgnoredField: 'should-be-preserved',
           }}
-          setValues={(values) => capturedValues.push({ ...values })}
           workflowForm={true}
         />,
       )
@@ -181,21 +212,18 @@ describe('DynamicForm workflowForm prop', () => {
         expect(screen.getByTestId('field-visibleField')).toBeInTheDocument()
       })
 
-      const lastValues = capturedValues[capturedValues.length - 1]!
+      const lastValues = form.getValues()
       expect(lastValues).toHaveProperty('hiddenIgnoredField', 'should-be-preserved')
     })
 
     it('should preserve default value when field is hidden and ignored', async () => {
-      const capturedValues: Record<string, unknown>[] = []
-
-      render(
+      const { form } = renderDynamicForm(
         <DynamicForm
           formJSONs={createSchema()}
           initialValues={{
             visibleField: 'visible',
             hiddenIgnoredField: 'default-value',
           }}
-          setValues={(values) => capturedValues.push({ ...values })}
           workflowForm={true}
         />,
       )
@@ -204,51 +232,671 @@ describe('DynamicForm workflowForm prop', () => {
         expect(screen.getByTestId('field-visibleField')).toBeInTheDocument()
       })
 
-      const lastValues = capturedValues[capturedValues.length - 1]!
+      const lastValues = form.getValues()
       expect(lastValues).toHaveProperty('hiddenIgnoredField', 'default-value')
     })
   })
 })
 
-describe('FieldsFromOptions workflowForm prop', () => {
-  const mockSetFormDirty = vi.fn()
+describe('input widths', () => {
+  const cellOf = (name: string) => screen.getByTestId(`field-${name}`).closest('[data-input-cell]')
+  const labelOf = (name: string) =>
+    screen.getByTestId(`field-${name}`).getAttribute('data-label-position')
 
+  it('stacks a form without widths as it always has', async () => {
+    const { container } = render(
+      <DynamicForm
+        initialValues={{}}
+        formJSONs={{ a: { type: 'string' }, b: { type: 'string', width: '50px' } }}
+      />,
+    )
+    await screen.findByTestId('field-a')
+    expect(container.querySelector('[data-input-cell]')).toBeNull()
+  })
+
+  it('gives each input a cell as wide as its width, full width without one, and only pixels in a narrow list', async () => {
+    render(
+      <DynamicForm
+        initialValues={{}}
+        formJSONs={{
+          half: { type: 'string', width: '50%' },
+          fixed: { type: 'string', width: 320 },
+          whole: { type: 'string' },
+        }}
+      />,
+    )
+    await screen.findByTestId('field-half')
+    expect(cellOf('half')).toHaveStyle({ '--input-width': '50%', '--input-narrow': '100%' })
+    expect(cellOf('fixed')).toHaveStyle({ '--input-width': '320px', '--input-narrow': '320px' })
+    expect(cellOf('whole')).toHaveStyle({ '--input-width': '100%', '--input-narrow': '100%' })
+  })
+
+  it('puts an input marked anchor-below in the column of the shown one before it, at its own width', async () => {
+    render(
+      <DynamicForm
+        initialValues={{}}
+        formJSONs={{
+          a: { type: 'string', width: '50%' },
+          b: { type: 'string', width: '50%' },
+          h: { type: 'string', hidden: true },
+          c: { type: 'string', 'anchor-below': true, width: '25%' },
+          d: { type: 'string', 'anchor-below': true },
+        }}
+      />,
+    )
+    await screen.findByTestId('field-c')
+    expect(cellOf('c')).toBe(cellOf('b'))
+    expect(cellOf('d')).toBe(cellOf('b'))
+    expect(cellOf('a')).not.toBe(cellOf('b'))
+    expect(cellOf('b')).toHaveStyle({ '--input-width': '50%' })
+    expect(screen.getByTestId('field-c').closest('[data-input-member]')).toHaveStyle({
+      '--input-width': 'calc(25cqw - 1rem)',
+      '--input-narrow': '100%',
+    })
+    expect(screen.getByTestId('field-d').closest('[data-input-member]')).toBeNull()
+    expect(labelOf('c')).toBe('top')
+  })
+
+  it('gives the first input of a list a column of its own even when marked anchor-below', async () => {
+    render(
+      <DynamicForm
+        initialValues={{}}
+        formJSONs={{
+          a: { type: 'string', 'anchor-below': true, width: '50%' },
+          b: { type: 'string', width: '50%' },
+        }}
+      />,
+    )
+    await screen.findByTestId('field-a')
+    expect(cellOf('a')).not.toBe(cellOf('b'))
+    expect(cellOf('a')).toHaveStyle({ '--input-width': '50%' })
+  })
+
+  it('puts the label of an input sharing its row on top when the workflow chose no position', async () => {
+    render(
+      <DynamicForm
+        initialValues={{}}
+        formJSONs={{
+          half: { type: 'string', width: '50%' },
+          full: { type: 'string', width: '100%' },
+          whole: { type: 'string' },
+        }}
+      />,
+    )
+    await screen.findByTestId('field-half')
+    expect(labelOf('half')).toBe('top')
+    expect(labelOf('full')).toBe('left')
+    expect(labelOf('whole')).toBe('left')
+  })
+
+  it('follows the label position the workflow chose, in its groups too', async () => {
+    render(
+      <DynamicForm
+        initialValues={{}}
+        formJSONs={{
+          $meta: { labelPosition: 'left' },
+          half: { type: 'string', width: '50%' },
+          settings: {
+            type: 'group',
+            label: 'Settings',
+            options: { inner: { type: 'string', width: '50%' } },
+          },
+          chosen: {
+            type: 'group',
+            label: 'Chosen',
+            options: {
+              $meta: { labelPosition: 'top' },
+              own: { type: 'string' },
+            },
+          },
+        }}
+      />,
+    )
+    await screen.findByTestId('field-half')
+    expect(labelOf('half')).toBe('left')
+    expect(labelOf('inner')).toBe('left')
+    expect(labelOf('own')).toBe('top')
+  })
+})
+
+describe('a wizard inside a group', () => {
+  it('pages its fields inside the form, with no submit of its own', async () => {
+    render(
+      <DynamicForm
+        initialValues={{}}
+        formJSONs={{
+          before: { type: 'string' },
+          steps: {
+            type: 'group',
+            label: 'Steps',
+            options: {
+              $meta: { wizard: { mode: 'wizard' } },
+              one: { type: 'step', title: 'One', options: { a: { type: 'string' } } },
+              two: { type: 'step', title: 'Two', options: { b: { type: 'string' } } },
+            },
+          },
+        }}
+      />,
+    )
+    await screen.findByTestId('field-a')
+    expect(screen.getByTestId('field-before')).toBeInTheDocument()
+    expect(screen.queryByTestId('field-b')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    await screen.findByTestId('field-b')
+    expect(screen.queryByTestId('field-a')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Previous' })).toBeEnabled()
+    expect(screen.getAllByRole('button').some((b) => b.textContent === 'Execute')).toBe(false)
+  })
+
+  it('keeps its values under a group that keeps its own, a repeated page’s copies included', async () => {
+    const seen = vi.fn()
+    render(
+      <DynamicForm
+        initialValues={{}}
+        onValuesChange={seen}
+        formJSONs={{
+          // A group that isn't flattened converts to an object, so its fields' values sit under its name.
+          setup: {
+            type: 'object',
+            label: 'Setup',
+            options: {
+              $meta: { wizard: { mode: 'wizard' } },
+              hosts: {
+                type: 'step',
+                title: 'Host',
+                multi: true,
+                options: { cpus: { type: 'number', default: 2 } },
+              },
+              name: { type: 'step', title: 'Name', options: { label: { type: 'string' } } },
+            },
+          },
+        }}
+      />,
+    )
+    fireEvent.click(await screen.findByRole('button', { name: '+ Add Host' }))
+    await screen.findByTestId('field-setup.hosts.0.cpus')
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith(
+        expect.objectContaining({ setup: expect.objectContaining({ hosts: [{ cpus: 2 }] }) }),
+      ),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    await screen.findByTestId('field-setup.label')
+  })
+})
+
+describe('a repeated wizard page', () => {
+  it('starts with no copy, adds the first from its empty page, and removes back to none', async () => {
+    const seen = vi.fn()
+    render(
+      <DynamicForm
+        initialValues={{}}
+        onValuesChange={seen}
+        formJSONs={{
+          $meta: { wizard: { mode: 'wizard' } },
+          hosts: {
+            type: 'step',
+            title: 'Host',
+            multi: true,
+            options: { cpus: { type: 'number', default: 2 } },
+          },
+          done: { type: 'step', title: 'Done', options: { note: { type: 'string' } } },
+        }}
+      />,
+    )
+    await screen.findByRole('heading', { name: 'Host' })
+    expect(screen.queryByRole('button', { name: 'Remove Host' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Host' }))
+    await screen.findByRole('heading', { name: 'Host 1' })
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith(expect.objectContaining({ hosts: [{ cpus: 2 }] })),
+    )
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Host' }))
+    await screen.findByRole('heading', { name: 'Host 2' })
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith(
+        expect.objectContaining({ hosts: [{ cpus: 2 }, { cpus: 2 }] }),
+      ),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Host' }))
+    await screen.findByRole('heading', { name: 'Host 1' })
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Host' }))
+    await screen.findByRole('heading', { name: 'Host' })
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith(expect.objectContaining({ hosts: [] })),
+    )
+  })
+})
+
+describe('a repeated wizard page’s copies', () => {
+  afterEach(() => {
+    vi.mocked(testEngine.evaluate).mockImplementation(
+      (({ obj }: { obj: unknown }) => obj) as unknown as typeof testEngine.evaluate,
+    )
+    vi.mocked(testEngine.inputDependencies).mockImplementation(() => ({
+      inputDeps: new Set<string>(),
+      hasExpressions: false,
+    }))
+  })
+
+  it('reads a copy’s title again when an input it reads changes, and not for another input', async () => {
+    const title = '${{ inputs.clusters[index].name }}'
+    vi.mocked(testEngine.inputDependencies).mockImplementation((obj?: unknown) => ({
+      inputDeps: new Set<string>(obj === title ? ['clusters'] : []),
+      hasExpressions: obj === title,
+    }))
+    vi.mocked(testEngine.evaluate).mockImplementation((({
+      inputs,
+      obj,
+      index,
+    }: {
+      inputs: { clusters?: { name: string }[] }
+      obj: { text?: unknown }
+      index?: number
+    }) =>
+      obj?.text === title
+        ? { text: `Cluster ${inputs.clusters?.[index ?? 0]?.name}` }
+        : obj) as unknown as typeof testEngine.evaluate)
+    const titleReads = () =>
+      vi
+        .mocked(testEngine.evaluate)
+        .mock.calls.filter(([options]) => (options.obj as { text?: unknown })?.text === title)
+        .length
+    const seen = vi.fn()
+    const { form } = renderDynamicForm(
+      <DynamicForm
+        initialValues={{ clusters: [{ name: 'a' }, { name: 'b' }], other: '' }}
+        onValuesChange={seen}
+        formJSONs={{
+          $meta: { wizard: { mode: 'wizard' } },
+          hosts: {
+            type: 'step',
+            title,
+            multi: true,
+            min: 2,
+            max: 2,
+            options: { cpus: { type: 'number' } },
+          },
+        }}
+      />,
+    )
+    await screen.findByRole('heading', { name: 'Cluster a' })
+    const before = titleReads()
+    act(() => {
+      form.setValue('other', 'typed')
+    })
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith(expect.objectContaining({ other: 'typed' })),
+    )
+    expect(titleReads()).toBe(before)
+    act(() => {
+      form.setValue('clusters', [{ name: 'c' }, { name: 'b' }])
+    })
+    await screen.findByRole('heading', { name: 'Cluster c' })
+  })
+
+  it('takes each copy’s title by reading [index] and its description from a list, fixed when min is max', async () => {
+    const clusters = ['a', 'b', 'c']
+    vi.mocked(testEngine.evaluate).mockImplementation((({
+      obj,
+      index,
+    }: {
+      obj: { text?: unknown }
+      index?: number
+    }) =>
+      typeof obj?.text === 'string' && obj.text.includes('[index]')
+        ? { text: `Cluster ${clusters[index ?? 0]}` }
+        : obj) as unknown as typeof testEngine.evaluate)
+    render(
+      <DynamicForm
+        initialValues={{}}
+        formJSONs={{
+          $meta: { wizard: { mode: 'wizard' } },
+          hosts: {
+            type: 'step',
+            title: '${{ inputs.clusters.[index].name }}',
+            description: ['first', 'second', 'third'],
+            multi: true,
+            min: 3,
+            max: 3,
+            options: { cpus: { type: 'number' } },
+          },
+        }}
+      />,
+    )
+    await screen.findByRole('heading', { name: 'Cluster a' })
+    const steps = await openSteps()
+    expect(steps.getByText('Cluster c')).toBeInTheDocument()
+    expect(steps.getByText('first')).toBeInTheDocument()
+    expect(steps.getByText('third')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Add/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Remove/ })).toBeNull()
+  })
+
+  it('starts at its min, removes no copy at it, and adds none past its max', async () => {
+    render(
+      <DynamicForm
+        initialValues={{}}
+        formJSONs={{
+          $meta: { wizard: { mode: 'wizard', navigation: { allowJump: true } } },
+          hosts: {
+            type: 'step',
+            title: 'Host',
+            multi: true,
+            min: 2,
+            max: 3,
+            options: { cpus: { type: 'number' } },
+          },
+        }}
+      />,
+    )
+    await screen.findByRole('heading', { name: 'Host 1' })
+    expect((await openSteps()).getByText('Host 2')).toBeInTheDocument()
+    fireEvent.keyDown(screen.getByRole('dialog', { name: 'Steps' }), { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Steps' })).toBeNull())
+    expect(screen.queryByRole('button', { name: 'Remove Host' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.click(await screen.findByRole('button', { name: '+ Add Host' }))
+    await screen.findByRole('heading', { name: 'Host 3' })
+    expect(screen.queryByRole('button', { name: '+ Add Host' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Remove Host' })).toBeInTheDocument()
+  })
+})
+
+describe('a repeated wizard page’s buttons', () => {
+  it('name the copy they remove or add when each copy has its own title', async () => {
+    render(
+      <DynamicForm
+        initialValues={{ workers: [{}, {}] }}
+        formJSONs={{
+          $meta: { wizard: { mode: 'wizard', navigation: { allowJump: true } } },
+          workers: {
+            type: 'step',
+            title: ['GPU workers', 'CPU workers'],
+            multi: true,
+            max: 3,
+            options: { nodes: { type: 'number' } },
+          },
+        }}
+      />,
+    )
+    await screen.findByRole('heading', { name: 'GPU workers' })
+    expect(screen.getByRole('button', { name: 'Remove GPU workers' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    await screen.findByRole('heading', { name: 'CPU workers' })
+    expect(screen.getByRole('button', { name: 'Remove CPU workers' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '+ Add GPU workers 3' })).toBeInTheDocument()
+  })
+})
+
+describe('a repeated wizard page’s bounds', () => {
+  it('leaves out a page whose max allows no copy, as when the input its bounds read is empty', async () => {
+    render(
+      <DynamicForm
+        initialValues={{}}
+        formJSONs={{
+          $meta: { wizard: { mode: 'wizard' } },
+          settings: {
+            type: 'step',
+            title: 'Settings',
+            multi: true,
+            min: 0,
+            max: 0,
+            options: { version: { type: 'string' } },
+          },
+          done: { type: 'step', title: 'Done', options: { note: { type: 'string' } } },
+        }}
+      />,
+    )
+    await screen.findByRole('heading', { name: 'Done' })
+    expect(screen.queryByText('Settings')).toBeNull()
+  })
+
+  it('drops the copies past its max, as when the input its bounds read gets smaller', async () => {
+    const seen = vi.fn()
+    render(
+      <DynamicForm
+        initialValues={{ hosts: [{ cpus: 1 }, { cpus: 2 }, { cpus: 3 }] }}
+        onValuesChange={seen}
+        formJSONs={{
+          $meta: { wizard: { mode: 'wizard', navigation: { allowJump: true } } },
+          hosts: {
+            type: 'step',
+            title: 'Host',
+            multi: true,
+            max: 2,
+            options: { cpus: { type: 'number' } },
+          },
+        }}
+      />,
+    )
+    await screen.findByRole('heading', { name: 'Host 1' })
+    const steps = await openSteps()
+    expect(steps.getByText('Host 2')).toBeInTheDocument()
+    expect(steps.queryByText('Host 3')).toBeNull()
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith(
+        expect.objectContaining({ hosts: [{ cpus: 1 }, { cpus: 2 }] }),
+      ),
+    )
+  })
+})
+
+describe('a repeated wizard page’s copies as its bounds change', () => {
+  const hosts = (bound: number) => ({
+    $meta: { wizard: { mode: 'wizard', navigation: { allowJump: true } } },
+    hosts: {
+      type: 'step',
+      title: 'Host',
+      multi: true,
+      min: bound,
+      max: bound,
+      options: { cpus: { type: 'number' } },
+    },
+  })
+
+  it('brings back what a copy held when a lower max set it aside and the bounds allow it again', async () => {
+    const seen = vi.fn()
+    const initialValues = { hosts: [{ cpus: 1 }, { cpus: 2 }, { cpus: 3 }] }
+    const { rerender } = render(
+      <DynamicForm initialValues={initialValues} onValuesChange={seen} formJSONs={hosts(3)} />,
+    )
+    await screen.findByRole('heading', { name: 'Host 1' })
+    rerender(
+      <DynamicForm initialValues={initialValues} onValuesChange={seen} formJSONs={hosts(2)} />,
+    )
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith(
+        expect.objectContaining({ hosts: [{ cpus: 1 }, { cpus: 2 }] }),
+      ),
+    )
+    rerender(
+      <DynamicForm initialValues={initialValues} onValuesChange={seen} formJSONs={hosts(3)} />,
+    )
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith(
+        expect.objectContaining({ hosts: [{ cpus: 1 }, { cpus: 2 }, { cpus: 3 }] }),
+      ),
+    )
+  })
+
+  const upTo = (max: number) => ({
+    $meta: { wizard: { mode: 'wizard', navigation: { allowJump: true } } },
+    hosts: {
+      type: 'step',
+      title: 'Host',
+      multi: true,
+      max,
+      options: { cpus: { type: 'number', default: 2 } },
+    },
+  })
+
+  it('brings back every copy a lower max set aside, one for each Add', async () => {
+    const seen = vi.fn()
+    const initialValues = { hosts: [{ cpus: 1 }, { cpus: 2 }, { cpus: 3 }, { cpus: 4 }] }
+    const form = (max: number) => (
+      <DynamicForm initialValues={initialValues} onValuesChange={seen} formJSONs={upTo(max)} />
+    )
+    const { rerender } = render(form(4))
+    await screen.findByRole('heading', { name: 'Host 1' })
+    rerender(form(2))
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith({ hosts: [{ cpus: 1 }, { cpus: 2 }] }),
+    )
+    rerender(form(4))
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.click(await screen.findByRole('button', { name: '+ Add Host' }))
+    await screen.findByRole('heading', { name: 'Host 3' })
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Host' }))
+    await waitFor(() => expect(seen).toHaveBeenLastCalledWith(initialValues))
+  })
+
+  it('brings back every copy a lower bound set aside as the bound rises a step at a time', async () => {
+    const seen = vi.fn()
+    const initialValues = { hosts: [{ cpus: 1 }, { cpus: 2 }, { cpus: 3 }, { cpus: 4 }] }
+    const form = (bound: number) => (
+      <DynamicForm initialValues={initialValues} onValuesChange={seen} formJSONs={hosts(bound)} />
+    )
+    const { rerender } = render(form(4))
+    await screen.findByRole('heading', { name: 'Host 1' })
+    for (const bound of [2, 3, 4]) {
+      rerender(form(bound))
+      await waitFor(() =>
+        expect(seen).toHaveBeenLastCalledWith({ hosts: initialValues.hosts.slice(0, bound) }),
+      )
+    }
+  })
+
+  it('drops what a lower max set aside once saved inputs replace the values', async () => {
+    const seen = vi.fn()
+    const initialValues = { hosts: [{ cpus: 1 }, { cpus: 2 }, { cpus: 3 }] }
+    const wizard = (max: number) => (
+      <DynamicForm initialValues={initialValues} onValuesChange={seen} formJSONs={upTo(max)} />
+    )
+    const { form, rerender } = renderDynamicForm(wizard(3))
+    await screen.findByRole('heading', { name: 'Host 1' })
+    rerender(wizard(2))
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith({ hosts: [{ cpus: 1 }, { cpus: 2 }] }),
+    )
+    act(() => {
+      form.reset({ hosts: [{ cpus: 7 }, { cpus: 8 }] })
+    })
+    rerender(wizard(3))
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.click(await screen.findByRole('button', { name: '+ Add Host' }))
+    await waitFor(() =>
+      expect(seen).toHaveBeenLastCalledWith({ hosts: [{ cpus: 7 }, { cpus: 8 }, { cpus: 2 }] }),
+    )
+  })
+
+  it('keeps the person’s place when the step shown goes whole', async () => {
+    const form = (max: number) => (
+      <DynamicForm
+        initialValues={{ hosts: [{ cpus: 1 }, { cpus: 2 }] }}
+        formJSONs={{
+          $meta: { wizard: { mode: 'wizard', navigation: { allowJump: true } } },
+          start: { type: 'step', title: 'Start', options: { name: { type: 'string' } } },
+          hosts: {
+            type: 'step',
+            title: 'Host',
+            multi: true,
+            max,
+            options: { cpus: { type: 'number' } },
+          },
+          mid: { type: 'step', title: 'Mid', options: { size: { type: 'string' } } },
+          done: { type: 'step', title: 'Done', options: { note: { type: 'string' } } },
+        }}
+      />
+    )
+    const { rerender } = render(form(2))
+    await screen.findByRole('heading', { name: 'Start' })
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
+    await screen.findByRole('heading', { name: 'Host 2' })
+    rerender(form(0))
+    // The page after the step's, not the one now where Host 2 was.
+    await screen.findByRole('heading', { name: 'Mid' })
+  })
+
+  it('goes on to the next step’s first copy when one change takes the step shown and gives the next copies', async () => {
+    const wizard = (max: number) => (
+      <DynamicForm
+        initialValues={{ hosts: [{ cpus: 1 }, { cpus: 2 }] }}
+        formJSONs={{
+          $meta: { wizard: { mode: 'wizard', navigation: { allowJump: true } } },
+          start: { type: 'step', title: 'Start', options: { name: { type: 'string' } } },
+          hosts: {
+            type: 'step',
+            title: 'Host',
+            multi: true,
+            max,
+            options: { cpus: { type: 'number' } },
+          },
+          sites: {
+            type: 'step',
+            title: 'Site',
+            multi: true,
+            options: { zone: { type: 'string' } },
+          },
+          done: { type: 'step', title: 'Done', options: { note: { type: 'string' } } },
+        }}
+      />
+    )
+    const { form, rerender } = renderDynamicForm(wizard(2))
+    await screen.findByRole('heading', { name: 'Start' })
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
+    await screen.findByRole('heading', { name: 'Host 2' })
+    act(() => {
+      rerender(wizard(0))
+      form.reset({ hosts: [], sites: [{ zone: 'a' }] })
+    })
+    await screen.findByRole('heading', { name: 'Site 1' })
+  })
+
+  it('shows the nearest page left when the one shown goes, as when saved inputs replace the copies', async () => {
+    const { form } = renderDynamicForm(
+      <DynamicForm
+        initialValues={{}}
+        formJSONs={{
+          $meta: { wizard: { mode: 'wizard' } },
+          hosts: {
+            type: 'step',
+            title: 'Host',
+            multi: true,
+            options: { cpus: { type: 'number' } },
+          },
+          done: { type: 'step', title: 'Done', options: { note: { type: 'string' } } },
+        }}
+      />,
+    )
+    await screen.findByRole('heading', { name: 'Host' })
+    act(() => {
+      form.reset({ hosts: [{ cpus: 4 }, { cpus: 8 }] })
+    })
+    await screen.findByRole('heading', { name: 'Host 1' })
+  })
+})
+
+describe('DynamicForm workflowForm prop, field by field', () => {
   const renderFieldsFromOptions = (
     options: Record<string, unknown>,
     initialValues: Record<string, unknown>,
     workflowForm = false,
   ) => {
-    const capturedValues = { current: initialValues }
-
-    const TestWrapper = () => {
-      return (
-        <Formik initialValues={initialValues} onSubmit={vi.fn()}>
-          {({ values, setFieldValue, setFieldTouched }) => {
-            capturedValues.current = values
-            return (
-              <Form>
-                <FieldsFromOptions
-                  options={options}
-                  values={values}
-                  setFormDirty={mockSetFormDirty}
-                  setFieldValue={setFieldValue}
-                  setFieldTouched={setFieldTouched}
-                  workflowForm={workflowForm}
-                />
-              </Form>
-            )
-          }}
-        </Formik>
-      )
+    const { form, ...result } = renderDynamicForm(
+      <DynamicForm formJSONs={options} initialValues={initialValues} workflowForm={workflowForm} />,
+    )
+    return {
+      ...result,
+      capturedValues: {
+        get current() {
+          return form.getValues()
+        },
+      },
     }
-
-    const result = render(<TestWrapper />)
-    return { ...result, capturedValues }
   }
-
-  beforeEach(() => {
-    mockSetFormDirty.mockClear()
-  })
 
   describe('hidden + ignored field behavior', () => {
     const schema = {
@@ -543,8 +1191,8 @@ describe('collectFieldsWithDefaults', () => {
     // disks lives at the root under a flatten group; reading it as controller.disks yielded undefined,
     // which is not an array, so the whole row template was skipped.
     expect(collectFieldsWithDefaults(options, { disks: [{}, {}] })).toEqual([
-      { name: 'disks[0].sizeGb', defaultValue: 50 },
-      { name: 'disks[1].sizeGb', defaultValue: 50 },
+      { name: 'disks.0.sizeGb', defaultValue: 50 },
+      { name: 'disks.1.sizeGb', defaultValue: 50 },
     ])
   })
 
@@ -841,7 +1489,7 @@ describe('collectFieldsWithDefaults', () => {
     // One list item exists
     const values = { myList: [{ list_hidden_field: 'old-value' }] }
     expect(collectFieldsWithDefaults(options, values)).toEqual([
-      { name: 'myList[0].list_hidden_field', defaultValue: 'list-default' },
+      { name: 'myList.0.list_hidden_field', defaultValue: 'list-default' },
     ])
   })
 
@@ -865,8 +1513,8 @@ describe('collectFieldsWithDefaults', () => {
       myList: [{ is_disabled: true }, { is_disabled: true }],
     }
     expect(collectFieldsWithDefaults(options, values)).toEqual([
-      { name: 'myList[0].is_disabled', defaultValue: false },
-      { name: 'myList[1].is_disabled', defaultValue: false },
+      { name: 'myList.0.is_disabled', defaultValue: false },
+      { name: 'myList.1.is_disabled', defaultValue: false },
     ])
   })
 
@@ -897,7 +1545,7 @@ describe('collectFieldsWithDefaults', () => {
       },
     }
     expect(collectFieldsWithDefaults(options, values)).toEqual([
-      { name: 'slurm.multi[0].is_disabled', defaultValue: false },
+      { name: 'slurm.multi.0.is_disabled', defaultValue: false },
     ])
   })
 })
@@ -924,21 +1572,12 @@ describe('DynamicDefaultsSync', () => {
   ) => {
     const capturedValues: Record<string, unknown>[] = []
 
-    const TestComponent = ({ opts }: { opts: Record<string, unknown> }) => {
-      return (
-        <Formik initialValues={initialValues} onSubmit={vi.fn()}>
-          {({ values }) => {
-            capturedValues.push(structuredClone(values))
-            return (
-              <Form>
-                <DynamicDefaultsSync options={opts} />
-                <input data-testid="mounted-indicator" />
-              </Form>
-            )
-          }}
-        </Formik>
-      )
-    }
+    const TestComponent = ({ opts }: { opts: Record<string, unknown> }) => (
+      <InForm values={initialValues} seen={capturedValues}>
+        <DynamicDefaultsSync options={opts} />
+        <input data-testid="mounted-indicator" />
+      </InForm>
+    )
 
     const result = render(<TestComponent opts={optionsA} />)
     result.rerender(<TestComponent opts={optionsB} />)
@@ -952,17 +1591,10 @@ describe('DynamicDefaultsSync', () => {
     const capturedValues: Record<string, unknown>[] = []
 
     const result = render(
-      <Formik initialValues={initialValues} onSubmit={vi.fn()}>
-        {({ values }) => {
-          capturedValues.push(structuredClone(values))
-          return (
-            <Form>
-              <DynamicDefaultsSync options={options} />
-              <input data-testid="mounted-indicator" />
-            </Form>
-          )
-        }}
-      </Formik>,
+      <InForm values={initialValues} seen={capturedValues}>
+        <DynamicDefaultsSync options={options} />
+        <input data-testid="mounted-indicator" />
+      </InForm>,
     )
     return { ...result, capturedValues }
   }
@@ -1043,27 +1675,14 @@ describe('DynamicDefaultsSync', () => {
 
     const renderWithRaise = (opts: Record<string, unknown>) => {
       const capturedValues: Record<string, unknown>[] = []
+      const initialValues = {
+        partitions: [{ provisioningMode: 'flex', maxNodes: '1', useNodeGroup: false }],
+      }
       const TestComponent = ({ o }: { o: Record<string, unknown> }) => (
-        <Formik
-          initialValues={{
-            partitions: [{ provisioningMode: 'flex', maxNodes: '1', useNodeGroup: false }],
-          }}
-          onSubmit={vi.fn()}
-        >
-          {({ values, setFieldValue }) => {
-            capturedValues.push(structuredClone(values))
-            return (
-              <Form>
-                <DynamicDefaultsSync options={o} />
-                <button
-                  type="button"
-                  data-testid="raise-max-nodes"
-                  onClick={() => setFieldValue('partitions[0].maxNodes', '2')}
-                />
-              </Form>
-            )
-          }}
-        </Formik>
+        <InForm values={initialValues} seen={capturedValues}>
+          <DynamicDefaultsSync options={o} />
+          <SetButton testId="raise-max-nodes" name="partitions.0.maxNodes" value={() => '2'} />
+        </InForm>
       )
       const view = render(<TestComponent o={opts} />)
       return { view, capturedValues, TestComponent }
@@ -1181,32 +1800,16 @@ describe('DynamicDefaultsSync', () => {
       },
     })
     const capturedValues: Record<string, unknown>[] = []
+    const initialValues = { partitions: [{ flavor: 'x' }, { flavor: 'custom' }] }
     const TestComponent = ({ o }: { o: Record<string, unknown> }) => (
-      <Formik
-        initialValues={{
-          partitions: [{ flavor: 'x' }, { flavor: 'custom' }],
-        }}
-        onSubmit={vi.fn()}
-      >
-        {({ values, setFieldValue }) => {
-          capturedValues.push(structuredClone(values))
-          return (
-            <Form>
-              <DynamicDefaultsSync options={o} />
-              <button
-                type="button"
-                data-testid="delete-first-row"
-                onClick={() =>
-                  setFieldValue(
-                    'partitions',
-                    (values as { partitions: unknown[] }).partitions.slice(1),
-                  )
-                }
-              />
-            </Form>
-          )
-        }}
-      </Formik>
+      <InForm values={initialValues} seen={capturedValues}>
+        <DynamicDefaultsSync options={o} />
+        <SetButton
+          testId="delete-first-row"
+          name="partitions"
+          value={(values) => (values['partitions'] as unknown[]).slice(1)}
+        />
+      </InForm>
     )
 
     const view = render(<TestComponent o={mkOptions('x')} />)
@@ -1529,8 +2132,6 @@ describe('DynamicForm default-tracking (integration)', () => {
   }
 
   it('syncs nested-group hidden field when its resolved default changes', async () => {
-    const capturedValues: Record<string, unknown>[] = []
-
     const baseSchema = {
       scheduler: {
         type: 'boolean',
@@ -1569,29 +2170,16 @@ describe('DynamicForm default-tracking (integration)', () => {
       slurm: { is_disabled: true },
     }
 
-    const setValues = (values: Record<string, unknown>) =>
-      capturedValues.push(structuredClone(values))
-
-    const { rerender } = render(
-      <DynamicForm
-        formJSONs={baseSchema}
-        initialValues={initialValues}
-        setValues={setValues}
-        {...sharedProps}
-      />,
+    const { form, rerender } = renderDynamicForm(
+      <DynamicForm formJSONs={baseSchema} initialValues={initialValues} {...sharedProps} />,
     )
 
     rerender(
-      <DynamicForm
-        formJSONs={updatedSchema}
-        initialValues={initialValues}
-        setValues={setValues}
-        {...sharedProps}
-      />,
+      <DynamicForm formJSONs={updatedSchema} initialValues={initialValues} {...sharedProps} />,
     )
 
     await waitFor(() => {
-      const lastValues = capturedValues[capturedValues.length - 1] as {
+      const lastValues = form.getValues() as {
         slurm: { is_disabled: boolean }
       }
       expect(lastValues?.slurm?.is_disabled).toBe(false)
@@ -1599,8 +2187,6 @@ describe('DynamicForm default-tracking (integration)', () => {
   })
 
   it('preserves a saved value that diverged from the resolved default at first-seen', async () => {
-    const capturedValues: Record<string, unknown>[] = []
-
     const schema = {
       scheduler: {
         type: 'boolean',
@@ -1620,24 +2206,19 @@ describe('DynamicForm default-tracking (integration)', () => {
       },
     }
 
-    render(
+    const { form } = renderDynamicForm(
       <DynamicForm
         formJSONs={schema}
         initialValues={{
           scheduler: true,
           slurm: { is_disabled: true },
         }}
-        setValues={(values) => capturedValues.push(structuredClone(values))}
         workflowForm={true}
       />,
     )
 
-    await waitFor(() => {
-      expect(capturedValues.length).toBeGreaterThan(0)
-    })
-
     await new Promise((resolve) => setTimeout(resolve, 50))
-    const lastValues = capturedValues[capturedValues.length - 1] as {
+    const lastValues = form.getValues() as {
       slurm: { is_disabled: boolean }
     }
     expect(lastValues.slurm.is_disabled).toBe(true)
@@ -1646,7 +2227,6 @@ describe('DynamicForm default-tracking (integration)', () => {
   it('preserves a curated saved value across a default change', async () => {
     // Phase 1: saved=false, default=true → diverges → synth touched.
     // Phase 2: default flips to false. synth still active → preserve saved (false).
-    const capturedValues: Record<string, unknown>[] = []
 
     const baseSchema = {
       scheduler: {
@@ -1686,33 +2266,17 @@ describe('DynamicForm default-tracking (integration)', () => {
       slurm: { is_disabled: false },
     }
 
-    const setValues = (values: Record<string, unknown>) =>
-      capturedValues.push(structuredClone(values))
-
-    const { rerender } = render(
-      <DynamicForm
-        formJSONs={baseSchema}
-        initialValues={initialValues}
-        setValues={setValues}
-        workflowForm={true}
-      />,
+    const { form, rerender } = renderDynamicForm(
+      <DynamicForm formJSONs={baseSchema} initialValues={initialValues} workflowForm={true} />,
     )
 
     rerender(
-      <DynamicForm
-        formJSONs={updatedSchema}
-        initialValues={initialValues}
-        setValues={setValues}
-        workflowForm={true}
-      />,
+      <DynamicForm formJSONs={updatedSchema} initialValues={initialValues} workflowForm={true} />,
     )
 
-    await waitFor(() => {
-      expect(capturedValues.length).toBeGreaterThan(0)
-    })
     await new Promise((resolve) => setTimeout(resolve, 50))
 
-    const lastValues = capturedValues[capturedValues.length - 1] as {
+    const lastValues = form.getValues() as {
       slurm: { is_disabled: boolean }
     }
     expect(lastValues?.slurm?.is_disabled).toBe(false)
@@ -1720,20 +2284,11 @@ describe('DynamicForm default-tracking (integration)', () => {
 })
 
 describe('DynamicDefaultsSync preserves list item touched state', () => {
-  // Regression: appending an item to a list must not cause
-  // DynamicDefaultsSync to reset sibling items' user-set values. The list
-  // handleChange used to call setFieldTouched(listName, true), which Formik
-  // implements via setIn — that wipes the nested touched tree for every item
-  // in the list. Once touched was wiped, DynamicDefaultsSync saw each list
-  // item field as untouched and reverted any value differing from its
-  // default. The fix removes the parent-list setFieldTouched call; this test
-  // locks in the preserved-touched-state contract.
+  // Regression: appending an item to a list must not cause DynamicDefaultsSync to reset sibling items'
+  // user-set values. Writing the list must leave each item's touched state alone, or the sync sees the
+  // item untouched and reverts a value differing from its default.
   it('should NOT reset a list item boolean when a new item is appended', async () => {
     const capturedValues: Record<string, unknown>[] = []
-    let formikHelpers: {
-      setFieldValue: (name: string, value: unknown) => void
-    } | null = null
-
     const options = {
       workers: {
         type: 'list',
@@ -1747,38 +2302,26 @@ describe('DynamicDefaultsSync preserves list item touched state', () => {
         },
       },
     }
-
-    const initialValues = {
-      workers: [{ scheduler: false }],
+    let form: UseFormReturn | undefined
+    function Grab() {
+      form = useFormContext()
+      return null
     }
-
-    // initialTouched simulates the user having toggled workers[0].scheduler
-    const initialTouched = {
-      workers: [{ scheduler: true }],
-    }
-
     const TestComponent = ({ opts }: { opts: Record<string, unknown> }) => (
-      <Formik initialValues={initialValues} initialTouched={initialTouched} onSubmit={vi.fn()}>
-        {({ values, setFieldValue }) => {
-          capturedValues.push(structuredClone(values))
-          formikHelpers = { setFieldValue }
-          return (
-            <Form>
-              <DynamicDefaultsSync options={opts} />
-            </Form>
-          )
-        }}
-      </Formik>
+      <InForm values={{ workers: [{ scheduler: true }] }} seen={capturedValues}>
+        <Grab />
+        <DynamicDefaultsSync options={opts} />
+      </InForm>
     )
 
     // Phase 1: mount with empty options so the sync ref initializes to []
     const { rerender } = render(<TestComponent opts={{}} />)
+    // The user switches the first worker off.
+    act(() => form?.setValue('workers.0.scheduler', false, { shouldTouch: true }))
     // Phase 2: mount with real options — triggers the sync ref diff
     rerender(<TestComponent opts={options} />)
-
-    // Simulate appending a new worker — the fixed handleChange only calls
-    // setFieldValue on the list path (no setFieldTouched).
-    formikHelpers!.setFieldValue('workers', [{ scheduler: false }, { scheduler: true }])
+    // Appending a new worker writes the list path only.
+    act(() => form?.setValue('workers', [{ scheduler: false }, { scheduler: true }]))
 
     await waitFor(() => {
       const last = capturedValues[capturedValues.length - 1] as {
@@ -1787,48 +2330,13 @@ describe('DynamicDefaultsSync preserves list item touched state', () => {
       expect(last.workers).toHaveLength(2)
     })
 
-    // The touched state for workers[0].scheduler must survive the append,
+    // The touched state for workers.0.scheduler must survive the append,
     // so DynamicDefaultsSync skips it and the user's false stays false.
     const last = capturedValues[capturedValues.length - 1] as {
       workers: Array<{ scheduler: boolean }>
     }
     expect(last.workers[0]!.scheduler).toBe(false)
     expect(last.workers[1]!.scheduler).toBe(true)
-  })
-
-  // Pins the Formik behavior that motivated removing setFieldTouched from
-  // the list handleChange: calling setFieldTouched on the list path wipes
-  // the nested touched tree for every item. If Formik ever changes this
-  // semantic, this test will alert us and we may be able to reintroduce
-  // the parent-list touched call.
-  it('setFieldTouched on a list path wipes nested item touched state (Formik behavior)', async () => {
-    let formikHelpers: {
-      setFieldTouched: (name: string, touched: boolean) => void
-      getFieldMeta: (name: string) => { touched: unknown }
-    } | null = null
-
-    const TestComponent = () => (
-      <Formik
-        initialValues={{ workers: [{ scheduler: false }] }}
-        initialTouched={{ workers: [{ scheduler: true }] }}
-        onSubmit={vi.fn()}
-      >
-        {({ setFieldTouched, getFieldMeta }) => {
-          formikHelpers = { setFieldTouched, getFieldMeta }
-          return <Form />
-        }}
-      </Formik>
-    )
-
-    render(<TestComponent />)
-
-    expect(formikHelpers!.getFieldMeta('workers[0].scheduler').touched).toBe(true)
-
-    formikHelpers!.setFieldTouched('workers', true)
-
-    await waitFor(() => {
-      expect(formikHelpers!.getFieldMeta('workers[0].scheduler').touched).toBeFalsy()
-    })
   })
 })
 
@@ -1866,40 +2374,24 @@ describe('resetOnChange', () => {
       region: { type: 'string', label: 'Region' },
       zone: { type: 'string', label: 'Zone', resetOnChange: 'region' },
     }
-    const latest: { values: Record<string, unknown> } = { values: {} }
+    const seen: Record<string, unknown>[] = []
+    const latest = () => seen.at(-1) ?? {}
 
     render(
-      <Formik initialValues={{ region: 'north', zone: 'north-1' }} onSubmit={vi.fn()}>
-        {({ values, setFieldValue, setFieldTouched }) => {
-          latest.values = values
-          return (
-            <Form>
-              <FieldsFromOptions
-                options={options}
-                values={values}
-                setFormDirty={vi.fn()}
-                setFieldValue={setFieldValue}
-                setFieldTouched={setFieldTouched}
-              />
-              <button
-                type="button"
-                data-testid="change-region"
-                onClick={() => setFieldValue('region', 'south')}
-              />
-            </Form>
-          )
-        }}
-      </Formik>,
+      <InForm values={{ region: 'north', zone: 'north-1' }} seen={seen}>
+        <FieldsFromOptions options={options} />
+        <SetButton testId="change-region" name="region" value={() => 'south'} />
+      </InForm>,
     )
 
-    expect(latest.values).toHaveProperty('zone', 'north-1')
+    expect(latest()).toHaveProperty('zone', 'north-1')
 
     fireEvent.click(screen.getByTestId('change-region'))
 
     await waitFor(() => {
-      expect(latest.values).toHaveProperty('region', 'south')
+      expect(latest()).toHaveProperty('region', 'south')
     })
-    expect(latest.values).not.toHaveProperty('zone')
+    expect(latest()['zone']).toBeUndefined()
   })
 })
 
@@ -1955,7 +2447,7 @@ describe('unresolved expression in a schema flag', () => {
           },
         }}
         initialValues={{}}
-        setValues={() => {}}
+        onValuesChange={() => {}}
       />,
     )
 
@@ -1967,9 +2459,7 @@ describe('unresolved expression in a schema flag', () => {
   })
 
   it('keeps a value when its ignore expression cannot be resolved', async () => {
-    const capturedValues: Record<string, unknown>[] = []
-
-    render(
+    const { form } = renderDynamicForm(
       <DynamicForm
         formJSONs={{
           visibleField: { type: 'string', label: 'Visible Field' },
@@ -1984,7 +2474,6 @@ describe('unresolved expression in a schema flag', () => {
           visibleField: 'visible',
           hiddenExpressionIgnore: 'should-be-kept',
         }}
-        setValues={(values) => capturedValues.push({ ...values })}
         workflowForm={false}
       />,
     )
@@ -1993,7 +2482,7 @@ describe('unresolved expression in a schema flag', () => {
       expect(screen.getByTestId('field-visibleField')).toBeInTheDocument()
     })
     // Deleting user data on a flag we could not evaluate is not recoverable.
-    const lastValues = capturedValues[capturedValues.length - 1]!
+    const lastValues = form.getValues()
     expect(lastValues).toHaveProperty('hiddenExpressionIgnore')
   })
 })
@@ -2020,7 +2509,7 @@ describe('remote context', () => {
         formJSONs={formJSONs}
         initialValues={initialValues}
         remoteVars={remoteVars}
-        setValues={() => {}}
+        onValuesChange={() => {}}
         workflowForm
       />,
     )

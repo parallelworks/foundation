@@ -1,17 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useLocalStorage } from 'usehooks-ts'
-import { TOOLTIP_ID } from '../components/Tooltip'
-import { SearchIcon, XIcon } from '../icons'
-import { listControlButtonClasses } from './ListViewControls'
-import { isTextEntryContext } from './textEntry'
+import { buttonClasses } from '../components/buttonClasses'
+import { usePersistedState, useStrings } from '../components/Provider'
+import { isTextEntryContext } from '../components/shortcutKey'
+import { Tooltip } from '../components/Tooltip'
+import { CloseIcon, RemoveIcon, SearchIcon } from '../icons'
 
 const NO_TERMS: string[] = []
+
+// Grouped in the reader's locale: 1,204 or 1.204.
+const COUNT = new Intl.NumberFormat()
 
 /** Pass `enabled: false` to suspend the global ⌘F/`/` hijack (e.g. when search isn't shown and browser Find should stay active). */
 export function useListSearch(enabled = true, storageKey?: string) {
   const [filter, setFilter] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
-  const [storedTerms, setStoredTerms] = useLocalStorage<string[]>(
+  const [storedTerms, setStoredTerms] = usePersistedState<string[]>(
     `${storageKey ?? 'list'}:searchTerms`,
     NO_TERMS,
   )
@@ -29,11 +32,6 @@ export function useListSearch(enabled = true, storageKey?: string) {
       return
     }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && searchOpen) {
-        setSearchOpen(false)
-        setFilter('')
-        return
-      }
       if (isTextEntryContext(e.target)) {
         return
       }
@@ -47,7 +45,7 @@ export function useListSearch(enabled = true, storageKey?: string) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [searchOpen, enabled])
+  }, [enabled])
 
   const openSearch = useCallback(() => setSearchOpen(true), [])
   const closeSearch = useCallback(() => {
@@ -105,12 +103,14 @@ export type ListSearch = ReturnType<typeof useListSearch>
 export function ListSearchControl({
   search,
   placeholder,
-  label = 'Search',
+  label: labelProp,
 }: {
   search: ListSearch
   placeholder: string
   label?: string
 }) {
+  const { common, list } = useStrings()
+  const label = labelProp ?? common.search
   if (search.searchOpen || search.terms.length > 0) {
     return (
       <div className="flex min-h-7 w-72 max-w-[55vw] flex-wrap items-center gap-1.5 rounded-md border border-(--theme-border) bg-(--theme-muted-panel-bg) px-2 py-0.5">
@@ -124,10 +124,10 @@ export function ListSearchControl({
             <button
               type="button"
               onClick={() => search.removeTerm(term)}
-              aria-label={`Remove filter ${term}`}
+              aria-label={list.removeSearchTerm(term)}
               className="shrink-0 rounded p-0.5 text-(--theme-muted-text-color) hover:text-(--theme-app) transition-colors"
             >
-              <XIcon className="w-2.5 h-2.5" />
+              <RemoveIcon className="w-2.5 h-2.5" />
             </button>
           </span>
         ))}
@@ -136,8 +136,14 @@ export function ListSearchControl({
           value={search.filter}
           onChange={(e) => search.setFilter(e.target.value)}
           onFocus={search.openSearch}
+          aria-label={label}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') {
+            // Escape belongs to the field, not the window: a dialog or menu
+            // open over the list closes on its own Escape and keeps the search.
+            if (e.key === 'Escape' && search.searchOpen) {
+              e.preventDefault()
+              search.closeSearch()
+            } else if (e.key === 'Enter') {
               e.preventDefault()
               search.addTerm(search.filter)
             } else if (e.key === 'Backspace' && !search.filter) {
@@ -148,31 +154,30 @@ export function ListSearchControl({
             }
           }}
           placeholder={placeholder}
-          className="min-w-24 flex-1 bg-transparent text-[13px] text-(--theme-app) placeholder:text-(--theme-muted-text-color) focus:outline-none"
+          className="min-w-24 flex-1 bg-transparent text-[13px] text-(--theme-app) placeholder:text-(--theme-placeholder) focus:outline-none"
         />
         <button
           type="button"
           onClick={search.clearSearch}
-          aria-label="Clear search"
+          aria-label={common.clearSearch}
           className="shrink-0 rounded p-0.5 text-(--theme-muted-text-color) hover:text-(--theme-app) transition-colors"
         >
-          <XIcon className="w-3 h-3" />
+          <CloseIcon className="w-3 h-3" />
         </button>
       </div>
     )
   }
   return (
-    <button
-      type="button"
-      onClick={search.openSearch}
-      aria-label={label}
-      data-tooltip-id={TOOLTIP_ID}
-      data-tooltip-content={label}
-      data-tooltip-shortcut="⌘+F"
-      className={listControlButtonClasses}
-    >
-      <SearchIcon className="w-3.5 h-3.5" />
-    </button>
+    <Tooltip content={label} shortcut="/">
+      <button
+        type="button"
+        onClick={search.openSearch}
+        aria-label={label}
+        className={buttonClasses({ variant: 'outline', size: 'sm', iconOnly: true })}
+      >
+        <SearchIcon />
+      </button>
+    </Tooltip>
   )
 }
 
@@ -189,12 +194,14 @@ export function ListCount({
   noun: string
   nounPlural: string
 }) {
+  const { list: t } = useStrings()
   return (
     <div className="flex items-center h-9">
-      <span className="text-[13px] text-(--theme-muted-text-color)">
+      {/* A status, so a screen reader hears the count change as a filter narrows it. */}
+      <span role="status" className="text-[13px] text-(--theme-muted-text-color)">
         {filterActive
-          ? `${matches} of ${total} ${nounPlural}`
-          : `${total} ${total === 1 ? noun : nounPlural}`}
+          ? t.matchCount(COUNT.format(matches), COUNT.format(total), nounPlural)
+          : t.count(COUNT.format(total), total === 1 ? noun : nounPlural)}
       </span>
     </div>
   )

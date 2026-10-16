@@ -1,6 +1,9 @@
-import { Indicator } from '../components/Indicator'
-import { useWorkflowEngine } from '../components/Provider'
+import { memo } from 'react'
+import { useStrings, useWorkflowEngine } from '../components/Provider'
+import { RunStatusIcon } from '../components/RunStatusIcon'
 import type { MatrixGroup, RunStatus } from '../engine'
+import { EditableJobRow } from './editorRows'
+import { GraphNode } from './GraphNode'
 import { type JobHandlers, Joblist } from './JobSummary'
 import { Reveal } from './Reveal'
 import type { WorkflowJob } from './types'
@@ -23,6 +26,7 @@ export function MatrixGroupSummaryItem({
   handlers: JobHandlers
   preview: boolean
 }) {
+  const { dag: t } = useStrings()
   return (
     <div className="py-1.5">
       <button
@@ -31,10 +35,12 @@ export function MatrixGroupSummaryItem({
         onClick={onToggle}
         className="cursor-pointer flex items-center gap-x-1.5 w-full text-left"
       >
-        <Indicator status={status} />
+        <RunStatusIcon status={status} />
         <div className="font-semibold">
-          Matrix: {matrixGroup.originaljob}
-          <span className="font-normal text-sm ml-1">({matrixGroup.members.length} jobs)</span>
+          {t.matrixOf(matrixGroup.originaljob)}
+          <span className="font-normal text-sm ml-1">
+            ({t.jobCount(matrixGroup.members.length)})
+          </span>
         </div>
       </button>
       <Reveal open={isExpanded}>
@@ -47,93 +53,87 @@ export function MatrixGroupSummaryItem({
 }
 
 /** Matrix group node in the DAG visualization. */
-export function MatrixGroupNode({
+export const MatrixGroupNode = memo(function MatrixGroupNode({
   matrixGroup,
   jobNames,
   idPrefix,
   isExpanded,
-  onToggle,
+  toggleMatrix,
   jobs,
-  activeDists,
-  onMouseEnter,
-  onMouseLeave,
-  hoveredRelated,
-  animT,
   zBase,
   handlers,
   preview,
+  editable = false,
+  rowsAbove = 0,
 }: {
   matrixGroup: MatrixGroup
   jobNames: string[]
   idPrefix: string
   isExpanded: boolean
-  onToggle: () => void
+  /** Opens or closes the matrix by its key, its path prefix and job. */
+  toggleMatrix: (key: string) => void
   jobs: Record<string, WorkflowJob>
-  activeDists: Map<string, number> | null
-  onMouseEnter: () => void
-  onMouseLeave: () => void
-  hoveredRelated: Set<string> | null
-  animT: number
   zBase: number
   handlers: JobHandlers
   preview: boolean
+  editable?: boolean
+  /** Empty rows of its column above this node. */
+  rowsAbove?: number
 }) {
+  const { dag: t } = useStrings()
   const matrixName = matrixGroup.originaljob
   const first = jobNames[0] ?? ''
   const matrixMembers = matrixGroup.members
   const { aggStatus, statusLabel } = useWorkflowEngine().matrixStatus(
     matrixMembers.map((m) => jobs[m]?.status),
   )
-
-  return (
-    <div
-      id={`node_${idPrefix}${first}`}
-      role="none"
-      className="relative m-24"
-      style={{
-        zIndex: (activeDists?.has(first) ? 25 : 1) + zBase,
-      }}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-      onFocus={onMouseEnter}
-      onBlur={onMouseLeave}
+  const header = (
+    <button
+      type="button"
+      aria-expanded={isExpanded}
+      className="cursor-pointer w-full text-left"
+      onClick={() => toggleMatrix(idPrefix + matrixName)}
     >
-      <div className="absolute inset-0 rounded-2xl bg-(--theme-panel-bg)" />
-      <div
-        className="relative border-solid shadow py-4 px-8 rounded-xl border-4 whitespace-nowrap bg-(--theme-panel-bg) text-2xl"
-        style={{
-          opacity: hoveredRelated && !hoveredRelated.has(first) ? 0.5 : 1,
-          transition: `opacity ${animT}s`,
-        }}
-      >
-        <button
-          type="button"
-          aria-expanded={isExpanded}
-          className="cursor-pointer w-full text-left"
-          onClick={onToggle}
-        >
-          <div className="font-semibold text-md p-0.5">
-            Matrix: {matrixName.length > 20 ? `${matrixName.slice(0, 20)}...` : matrixName}
-          </div>
-          {!isExpanded && (
-            <div className="mt-1 border-t border-(--theme-border) pt-1 flex items-center gap-x-1">
-              <Indicator status={aggStatus} />
-              <span>{statusLabel}</span>
-            </div>
-          )}
-        </button>
-        <Reveal open={isExpanded} growWidth={true}>
-          <div className="mt-1 border-t border-(--theme-border) pt-1">
-            <Joblist
-              jobs={jobs}
-              jobNames={matrixMembers}
-              {...handlers}
-              growWidth={true}
-              preview={preview}
-            />
-          </div>
-        </Reveal>
+      <div className="font-semibold p-0.5">
+        {matrixName.length > 20 ? (
+          <>
+            {/* Shortened to keep the node narrow; read aloud in full. */}
+            <span aria-hidden>{t.matrixOf(`${matrixName.slice(0, 20)}…`)}</span>
+            <span className="sr-only">{t.matrixOf(matrixName)}</span>
+          </>
+        ) : (
+          t.matrixOf(matrixName)
+        )}
       </div>
-    </div>
+      {!isExpanded && (
+        <div className="mt-1 border-t border-(--theme-border) pt-1 flex items-center gap-x-1">
+          {!preview && <RunStatusIcon status={aggStatus} />}
+          <span>{preview ? t.jobCount(matrixMembers.length) : statusLabel}</span>
+        </div>
+      )}
+    </button>
   )
-}
+  return (
+    <GraphNode id={`node_${idPrefix}${first}`} job={first} rowsAbove={rowsAbove} zBase={zBase}>
+      {editable ? (
+        <EditableJobRow job={matrixName} label={t.matrixOf(matrixName)} badge={false}>
+          {header}
+        </EditableJobRow>
+      ) : (
+        header
+      )}
+      <Reveal open={isExpanded} growWidth={true}>
+        <div className="mt-1 border-t border-(--theme-border) pt-1">
+          <Joblist
+            jobs={jobs}
+            jobNames={matrixMembers}
+            {...handlers}
+            growWidth={true}
+            preview={preview}
+            editableSteps={editable}
+          />
+        </div>
+      </Reveal>
+    </GraphNode>
+  )
+})

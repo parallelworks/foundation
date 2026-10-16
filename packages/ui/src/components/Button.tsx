@@ -1,90 +1,76 @@
-import cx from 'classnames'
+import { Button as BaseButton } from '@base-ui/react/button'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
-import { forwardRef } from 'react'
-import { AngleRightIcon, LoaderIcon } from '../icons'
-import { useLink } from './Provider'
+import { cx } from '../cx'
+import { ChevronRightIcon } from '../icons'
+import { AppLink, type AppLinkProps, type LinkTarget } from './AppLink'
+import { type ButtonStyle, buttonClasses } from './buttonClasses'
+import { Loader } from './Loader'
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'outline' | 'ghost'
-  size?: 'default' | 'sm' | 'lg'
-  loading?: boolean
+interface ButtonOwnProps extends ButtonStyle {
+  className?: string | undefined
+  /** Before the label. */
   icon?: ReactNode
-  iconPosition?: 'left' | 'right'
-  fullWidth?: boolean
+  /** Busy with what it started: a spinner takes the icon's place, and it can't
+   *  be pressed again until done. */
+  loading?: boolean | undefined
 }
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+/** A button, or with `href` a link that looks like one: navigation stays a
+ *  link, so it opens in a new tab and shows its URL like any other. */
+export type ButtonProps = ButtonOwnProps &
   (
-    {
-      children,
-      variant = 'primary',
-      size = 'default',
-      loading,
-      icon,
-      iconPosition = 'right',
-      fullWidth = true,
-      className = '',
-      disabled,
-      ...props
-    },
-    ref,
-  ) => {
-    const baseClasses =
-      'inline-flex items-center justify-center gap-2 font-semibold rounded-lg transition-all duration-200 cursor-pointer border-none mt-2 disabled:opacity-50 disabled:cursor-not-allowed'
+    | (Omit<BaseButton.Props, 'className'> & { href?: undefined })
+    | (Omit<AppLinkProps, 'className'> & LinkTarget & { href: string })
+  )
 
-    const variantClasses = {
-      primary:
-        'bg-gradient-to-br from-[var(--gradient-start,var(--theme-element))] to-[var(--gradient-mid,var(--theme-link))] text-white shadow-[0_4px_14px_0_rgba(59,130,246,0.3)] hover:enabled:-translate-y-0.5 hover:enabled:shadow-[0_6px_20px_0_rgba(59,130,246,0.4)] active:enabled:translate-y-0',
-      secondary:
-        'bg-[var(--theme-muted-panel-bg)] text-[var(--theme-app)] border border-[var(--theme-border)] hover:enabled:bg-[var(--theme-border)]',
-      outline:
-        'bg-transparent text-[var(--theme-app)] border border-[var(--theme-border)] hover:enabled:bg-[var(--theme-muted-panel-bg)] hover:enabled:border-[var(--theme-muted-text-color)]',
-      ghost:
-        'bg-transparent text-[var(--theme-muted-text-color)] hover:enabled:text-[var(--theme-app)] hover:enabled:bg-[var(--theme-muted-panel-bg)]',
-    }
-
-    const sizeClasses = {
-      sm: 'py-2 px-4 text-[0.8125rem]',
-      default: 'py-3 px-5 text-sm',
-      lg: 'py-4 px-6 text-base',
-    }
-
-    const widthClass = fullWidth ? 'w-full' : 'w-auto'
-
+/** A button in the package's one look (see `buttonClasses`).
+ *  `focusableWhenDisabled` keeps a disabled button's tooltip reachable; a
+ *  disabled link stays focusable on its own. */
+export function Button({
+  variant,
+  size = 'md',
+  iconOnly,
+  icon,
+  loading = false,
+  className,
+  children,
+  ...props
+}: ButtonProps) {
+  const classes = cx(buttonClasses({ variant, size, iconOnly }), className)
+  const content = (
+    <>
+      {loading ? <Loader inline decorative size="1em" /> : icon}
+      {children}
+    </>
+  )
+  if (props.href !== undefined) {
     return (
-      <button
-        ref={ref}
-        type="button"
-        disabled={disabled || loading}
-        className={cx(
-          baseClasses,
-          variantClasses[variant],
-          sizeClasses[size],
-          widthClass,
-          className,
-        )}
+      <AppLink
         {...props}
+        disabled={props.disabled || loading}
+        aria-busy={loading || undefined}
+        className={classes}
       >
-        {loading ? (
-          <>
-            <LoaderIcon className="size-[18px]" />
-            {children}
-          </>
-        ) : (
-          <>
-            {icon && iconPosition === 'left' && <span className="flex items-center">{icon}</span>}
-            {children}
-            {icon && iconPosition === 'right' && <span className="flex items-center">{icon}</span>}
-          </>
-        )}
-      </button>
+        {content}
+      </AppLink>
     )
-  },
-)
+  }
+  return (
+    <BaseButton
+      // A button that turns busy under the pointer or keyboard keeps focus, which a
+      // plain disabled button would drop to the page.
+      focusableWhenDisabled={loading || undefined}
+      {...props}
+      disabled={props.disabled || loading}
+      aria-busy={loading || undefined}
+      className={classes}
+    >
+      {content}
+    </BaseButton>
+  )
+}
 
-Button.displayName = 'Button'
-
-interface MethodButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+interface MethodButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
   icon?: ReactNode
   label: string
   description?: string
@@ -92,68 +78,70 @@ interface MethodButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   loading?: boolean
 }
 
+const methodClasses =
+  'group flex w-full cursor-pointer items-center rounded-xl border border-(--theme-border) bg-(--theme-muted-panel-bg) p-4 text-[0.9375rem] font-medium text-(--theme-app) no-underline transition-[background-color,border-color,translate] duration-200 hover:not-disabled:not-aria-disabled:border-(--theme-muted-text-color) hover:not-disabled:not-aria-disabled:bg-(--theme-border) hover:not-disabled:not-aria-disabled:-translate-y-0.5 active:translate-y-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--theme-link) disabled:cursor-not-allowed disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 motion-reduce:transition-none motion-reduce:hover:translate-y-0'
+
+/** One way to go on, such as a sign-in method: a large row with an icon, a
+ *  label and a line under it. A list of them is spaced by its container. */
 export function MethodButton({
   icon,
   label,
   description,
   href,
-  loading,
-  disabled,
-  className = '',
+  loading = false,
+  disabled = false,
+  className,
   ...props
 }: MethodButtonProps) {
-  const Link = useLink()
-  const baseClasses =
-    'flex items-center w-full p-4 bg-[var(--theme-muted-panel-bg)] border border-[var(--theme-border)] rounded-xl text-[var(--theme-app)] text-[0.9375rem] font-medium cursor-pointer transition-all duration-200 no-underline mb-3 last:mb-0 hover:bg-[var(--theme-border)] hover:border-[var(--theme-muted-text-color)] hover:-translate-y-0.5 active:translate-y-0'
-
-  const disabledClasses =
-    'disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-[var(--ds-muted)] disabled:hover:border-[var(--ds-border)] disabled:hover:translate-y-0'
-
   const content = (
     <>
       {icon && (
-        <span className="size-10 rounded-lg bg-gradient-to-br from-[var(--gradient-start,var(--theme-element))] to-[var(--gradient-mid,var(--theme-link))] flex items-center justify-center shrink-0 mr-4 [&_svg]:size-5 [&_svg]:text-white">
+        // Text on the accent takes the accent's text color, which the theme keeps
+        // readable on it in light and dark.
+        <span className="mr-4 flex size-10 shrink-0 items-center justify-center rounded-lg bg-linear-to-br from-(--gradient-start,var(--theme-accent)) to-(--gradient-mid,var(--theme-link)) [&_svg]:size-5 [&_svg]:text-(--theme-accent-text)">
           {icon}
         </span>
       )}
       <span className="flex-1 text-left">
-        <span className="block font-semibold text-[var(--theme-app)]">{label}</span>
+        <span className="block font-semibold">{label}</span>
         {description && (
-          <span className="block text-[0.8125rem] text-[var(--theme-muted-text-color)] font-normal mt-0.5">
+          <span className="mt-0.5 block text-[0.8125rem] font-normal text-(--theme-muted-text-color)">
             {description}
           </span>
         )}
       </span>
       {loading ? (
-        <LoaderIcon className="size-5 text-[var(--theme-muted-text-color)] shrink-0 ml-2" />
+        <span className="ml-2 shrink-0 text-(--theme-muted-text-color)">
+          <Loader inline decorative size={20} color="currentColor" />
+        </span>
       ) : (
-        <AngleRightIcon className="size-5 text-[var(--theme-muted-text-color)] shrink-0 ml-2 transition-all duration-200 group-hover:translate-x-[3px] group-hover:text-[var(--theme-app)]" />
+        <ChevronRightIcon className="ml-2 size-5 shrink-0 text-(--theme-muted-text-color) transition-[translate,color] duration-200 group-hover:translate-x-[3px] group-hover:text-(--theme-app) motion-reduce:transition-none motion-reduce:group-hover:translate-x-0 rtl:-scale-x-100" />
       )}
     </>
   )
 
   if (href) {
-    // Use a plain anchor for API/external URLs that aren't client-side routes
-    if (href.startsWith('/api/') || href.startsWith('http')) {
-      return (
-        <a href={href} className={cx('group', baseClasses, className)}>
-          {content}
-        </a>
-      )
-    }
+    // API paths are files the router doesn't serve, so they load the page.
     return (
-      <Link to={href} className={cx('group', baseClasses, className)}>
+      <AppLink
+        href={href}
+        reloadDocument={href.startsWith('/api/')}
+        disabled={disabled || loading}
+        aria-busy={loading || undefined}
+        className={cx(methodClasses, className)}
+      >
         {content}
-      </Link>
+      </AppLink>
     )
   }
 
   return (
     <button
       type="button"
-      className={cx('group', baseClasses, disabledClasses, className)}
-      disabled={disabled || loading}
       {...props}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
+      className={cx(methodClasses, className)}
     >
       {content}
     </button>

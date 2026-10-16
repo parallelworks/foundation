@@ -1,58 +1,111 @@
-/* The unified theme contract: `theme-*` utilities backed by a closed set of
- * `--theme-*` CSS variables (see src/theme/index.ts for the full token list —
- * every token is derivable from an {accent, background, contrast} seed per
- * surface via deriveTheme()). Hosts override the variables at runtime (e.g.
- * an org theme); the :root block only supplies defaults for standalone use.
+/* The theme contract: `theme-*` utilities over the `--theme-*` tokens, which
+ * src/theme generates from a scheme of three choices (base, accent, contrast).
+ * Hosts set the tokens at runtime with applyTheme; the defaults below are the
+ * default theme's light and dark schemes, for standalone use and for any token
+ * a host leaves unset, with display-p3 values for wide-gamut screens. Each pairs
+ * its modes with light-dark(), so it follows the CSS color-scheme a host sets.
  *
- * Sidebar tokens (--theme-bg, --theme-sidebar-*) are part of the contract but
- * intentionally have no :root defaults: hosts supply per-site fallbacks at the
- * use sites, and a global default here would override them. */
+ * Sidebar tokens (--theme-sidebar-*) are part of the contract but have no
+ * defaults here: hosts supply per-site fallbacks at the use sites, and a global
+ * default would override them. */
 
+/* generated:start (src/theme/derive.test.ts checks this; UPDATE_THEME_CSS=1 rewrites it) */
 :root {
-  --theme-app-bg: #ffffff;
-  --theme-app: #000000;
-  --theme-panel-bg: #ffffff;
-  --theme-panel: #000000;
-  --theme-muted-panel-bg: #f8f9fa;
-  --theme-muted-panel-color: #5f6b76;
-  --theme-muted-text-color: #5f6b76;
-  --theme-border: #d1d5db;
-  --theme-element: #06354f;
-  --theme-element-text: #ffffff;
-  --theme-element-hover: #053047;
-  --theme-hover: #f3f4f6;
-  --theme-hover-text: #000000;
-  --theme-link: #2f6fa8;
-  --theme-input-bg: #f9fafb;
-  --theme-input: #3b82f6;
-  --theme-input-disabled-bg: #f3f4f6;
-  --theme-input-disabled-text: #9ca3af;
-  --theme-card-bg: #ffffff;
-  --theme-card-border: rgba(0, 0, 0, 0.04);
-  --theme-card-hover: #fafafa;
-  --theme-accent: #06354f;
-  --theme-accent-text: #ffffff;
-  --theme-focus-ring: rgba(37, 99, 235, 0.2);
-  --theme-hover-overlay: rgba(0, 0, 0, 0.02);
-  --theme-success: #16a34a;
-  --theme-success-muted: rgba(22, 163, 74, 0.1);
-  --theme-error: #dc2626;
-  --theme-error-muted: rgba(220, 38, 38, 0.1);
-  --theme-warning: #d97706;
-  --theme-warning-muted: rgba(217, 119, 6, 0.1);
-  --theme-info: #2563eb;
-  --theme-info-muted: rgba(37, 99, 235, 0.1);
-  --theme-favorite: #e11d48;
-  --theme-favorite-muted: rgba(225, 29, 72, 0.1);
-  --theme-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --theme-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-  --theme-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
-  --theme-auth-shadow: 0 25px 80px -20px rgba(0, 0, 0, 0.2), 0 10px 30px -10px rgba(0, 0, 0, 0.1);
+  --theme-app-bg: light-dark(#f3f4f6, #111418);
+  --theme-panel-bg: light-dark(#fcfeff, #151c25);
+  --theme-panel-hover: light-dark(#f2f5f9, #1e262e);
+  --theme-muted-panel-bg: light-dark(#e7eaee, #1c242c);
+  --theme-hover: light-dark(#e3e5e9, #323a43);
+  --theme-input-bg: light-dark(#fafcfe, #182028);
+  --theme-input-disabled-bg: light-dark(#ebeef1, #131a22);
+  --theme-app: light-dark(#0a101b, #e9f1fa);
+  --theme-muted-text-color: light-dark(#4e5664, #c8d1d9);
+  --theme-placeholder: light-dark(#7e8796, #9da5ad);
+  --theme-link: light-dark(#06354f, #9dd7ff);
+  --theme-border: light-dark(#cacdd0, #30363d);
+  --theme-border-strong: light-dark(#848689, #676e76);
+  --theme-accent: light-dark(#06354f, #5b9ccf);
+  --theme-accent-text: light-dark(#ffffff, #000000);
+  --theme-accent-hover: light-dark(#002841, #6aace0);
+  --theme-accent-subtle: light-dark(#d3ebfc, #0f2638);
+  --theme-focus: light-dark(#06354f, #5b9ccf);
+  --theme-focus-ring: light-dark(rgba(6, 53, 79, 0.25), rgba(91, 156, 207, 0.35));
+  --theme-success: light-dark(#00973d, #00bf54);
+  --theme-success-text: light-dark(#006226, #6be88c);
+  --theme-success-solid: #00873c;
+  --theme-success-muted: light-dark(rgba(0, 151, 61, 0.1), rgba(0, 191, 84, 0.15));
+  --theme-error: light-dark(#ea4841, #ff6056);
+  --theme-error-text: light-dark(#a11a1b, #ffc1b8);
+  --theme-error-solid: #db3934;
+  --theme-error-muted: light-dark(rgba(234, 72, 65, 0.1), rgba(255, 96, 86, 0.15));
+  --theme-warning: light-dark(#bd7100, #dd8900);
+  --theme-warning-text: light-dark(#7b4a00, #ffc672);
+  --theme-warning-solid: #a76900;
+  --theme-warning-muted: light-dark(rgba(189, 113, 0, 0.1), rgba(221, 137, 0, 0.15));
+  --theme-info: light-dark(#0681f8, #499fff);
+  --theme-info-text: light-dark(#0050af, #abd4ff);
+  --theme-info-solid: light-dark(#0073e8, #0073e9);
+  --theme-info-muted: light-dark(rgba(6, 129, 248, 0.1), rgba(73, 159, 255, 0.15));
+  --theme-favorite: light-dark(#e7457a, #fe5c8e);
+  --theme-favorite-text: light-dark(#9e174b, #ffbecd);
+  --theme-favorite-solid: #d7366e;
+  --theme-favorite-muted: light-dark(rgba(231, 69, 122, 0.1), rgba(254, 92, 142, 0.15));
+  --theme-shadow-sm: 0 1px 2px light-dark(rgba(0, 0, 0, 0.07), rgba(0, 0, 0, 0.35));
+  --theme-shadow:
+    0 4px 6px -1px light-dark(rgba(0, 0, 0, 0.07), rgba(0, 0, 0, 0.35)),
+    0 2px 4px -2px light-dark(rgba(0, 0, 0, 0.07), rgba(0, 0, 0, 0.35));
+  --theme-shadow-lg:
+    0 10px 15px -3px light-dark(rgba(0, 0, 0, 0.07), rgba(0, 0, 0, 0.35)),
+    0 4px 6px -4px light-dark(rgba(0, 0, 0, 0.07), rgba(0, 0, 0, 0.35));
+  --theme-shadow-xl:
+    0 25px 80px -20px light-dark(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.6)),
+    0 10px 30px -10px light-dark(rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.4));
+  --theme-code-bg: light-dark(#e7eaee, #1c242c);
+  --theme-code-text: light-dark(#1c2330, #e1e9f2);
+  --theme-code-comment: light-dark(#555d6c, #c0c8d1);
+  --theme-code-keyword: light-dark(#36617d, #8cceff);
+  --theme-code-string: light-dark(#196a24, #8bd98d);
+  --theme-code-number: light-dark(#944500, #ffb882);
+  --theme-code-function: light-dark(#6c4b9e, #d3bcff);
+  --theme-code-type: light-dark(#006565, #31dbdb);
+  --theme-code-property: light-dark(#5a51a5, #31dbdb);
+  --theme-ansi-black: light-dark(#1c2330, #c0c8d1);
+  --theme-ansi-red: light-dark(#a3322d, #ffb5ab);
+  --theme-ansi-green: light-dark(#006a12, #7fdb83);
+  --theme-ansi-yellow: light-dark(#755800, #edc23e);
+  --theme-ansi-blue: light-dark(#0b5aae, #9ecbff);
+  --theme-ansi-magenta: light-dark(#8d3a88, #ffaafe);
+  --theme-ansi-cyan: light-dark(#00666c, #00dbe5);
+  --theme-ansi-white: light-dark(#555d6c, #e1e9f2);
 }
 
-@utility theme-element {
-  background-color: var(--theme-element, #06354f);
-  color: var(--theme-element-text, #ffffff);
+@media (color-gamut: p3) {
+  :root {
+    --theme-success: light-dark(color(display-p3 0.1559 0.5942 0.2459), #00bf54);
+    --theme-success-solid: color(display-p3 0.0738 0.5422 0.1959);
+    --theme-success-muted: light-dark(
+      color(display-p3 0.1559 0.5942 0.2459 / 0.1),
+      rgba(0, 191, 84, 0.15)
+    );
+    --theme-warning: light-dark(#bd7100, color(display-p3 0.8343 0.5429 0));
+    --theme-warning-solid: light-dark(
+      color(display-p3 0.6474 0.4089 0),
+      color(display-p3 0.6478 0.4092 0)
+    );
+    --theme-warning-muted: light-dark(
+      rgba(189, 113, 0, 0.1),
+      color(display-p3 0.8343 0.5429 0 / 0.15)
+    );
+    --theme-code-number: light-dark(#944500, color(display-p3 1 0.7209 0.5024));
+    --theme-ansi-red: light-dark(#a3322d, color(display-p3 1 0.7032 0.6565));
+    --theme-ansi-cyan: light-dark(color(display-p3 0 0.4024 0.4329), #00dbe5);
+  }
+}
+/* generated:end */
+
+@utility theme-accent {
+  background-color: var(--theme-accent, #06354f);
+  color: var(--theme-accent-text, #ffffff);
 }
 
 @utility theme-app {
@@ -62,12 +115,17 @@
 
 @utility theme-panel {
   background-color: var(--theme-panel-bg, #fff);
-  color: var(--theme-panel, #000);
+  color: var(--theme-app, #000);
+}
+
+/* The bordered panel graphs and settings cards sit in; graph circles hide connectors with its color. */
+@utility panel {
+  @apply border-solid rounded-2xl border border-(--theme-border) theme-panel;
 }
 
 @utility theme-muted-panel {
   background-color: var(--theme-muted-panel-bg, #f8f9fa);
-  color: var(--theme-muted-panel-color, #5f6b76);
+  color: var(--theme-muted-text-color, #5f6b76);
 }
 
 @utility theme-muted-text {
@@ -84,7 +142,7 @@
     background-color 0.15s ease-in-out,
     color 0.15s ease-in-out;
   background-color: var(--theme-hover, #f3f4f6);
-  color: var(--theme-hover-text, #000000);
+  color: var(--theme-app, #000000);
 }
 
 /* Utility for theme-aware borders */
@@ -93,27 +151,7 @@
 }
 
 .theme-hover-text {
-  color: var(--theme-hover-text);
-}
-
-/* Utility for theme-aware input styling */
-.theme-input {
-  background-color: var(--theme-input-bg, #f9fafb);
-  border-color: var(--theme-border, #d1d5db);
-  color: var(--theme-app, #374151);
-}
-
-.theme-input:focus {
-  border-color: var(--theme-element, #3b82f6);
-  outline: none;
-  box-shadow: 0 0 0 1px var(--theme-element, #3b82f6);
-}
-
-.theme-input:disabled,
-.theme-input.disabled {
-  cursor: not-allowed;
-  background-color: var(--theme-input-disabled-bg, #f3f4f6);
-  color: var(--theme-input-disabled-text, #9ca3af);
+  color: var(--theme-app);
 }
 
 .tooltip {
@@ -151,7 +189,7 @@
 }
 
 .theme-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: var(--theme-element, #3b82f6);
+  background: var(--theme-accent, #3b82f6);
 }
 
 .theme-scrollbar::-webkit-scrollbar-corner {
@@ -180,41 +218,11 @@
 }
 
 .theme-scrollbar-small::-webkit-scrollbar-thumb:hover {
-  background: var(--theme-element, #3b82f6);
+  background: var(--theme-accent, #3b82f6);
 }
 
 .theme-scrollbar-small::-webkit-scrollbar-corner {
   background: var(--theme-panel-bg, #ffffff);
-}
-
-/* Button utilities matching the host app's .btn family, so packaged surfaces
- * (workflow views, storage explorer) style identically for standalone
- * consumers. A host that defines its own .btn family keeps its definitions. */
-@utility btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  align-self: center;
-  cursor: pointer;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  white-space: nowrap;
-  vertical-align: middle;
-  transition: all 0.15s ease-in-out;
-}
-@utility btn-info {
-  background-color: var(--theme-element, #06354f);
-  color: var(--theme-element-text, #ffffff);
-}
-@utility btn-neutral {
-  background-color: var(--theme-input-bg, #ffffff);
-  border: 1px solid var(--theme-border, #d1d5db);
-}
-@utility btn-destructive {
-  background-color: #ef4444;
-  color: #ffffff;
 }
 
 @keyframes logo-loader-ripple {

@@ -1,17 +1,21 @@
 import { useEffect } from 'react'
 import useSWR from 'swr'
+import { Select } from '../../components/Select'
+import { ChevronDownIcon } from '../../icons'
 import { useChat } from '../core/ChatProvider'
-import Dropdown from '../ui/Dropdown'
+import { useChatConfig } from '../core/config'
+import { chipClassName } from '../ui/chip'
 import { isOrgModel } from '../utils'
 
-export default function AllocationSelector({
-  variant = 'default',
-}: {
-  /** 'bare' drops the border, for a toolbar that reads as text. */
-  variant?: 'default' | 'bare'
-} = {}) {
-  const bare = variant === 'bare'
+// Allocations are billed in US dollars; the amount reads in the reader's locale.
+const dollars = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' })
+const money = (amount: number) => dollars.format(amount)
+
+/** Which allocation an organization model bills, with its spend so far. Shows
+ *  only for an organization model, and picks the first allocation for it. */
+export default function AllocationSelector() {
   const { adapter, selectedProvider, selectedAllocation, setSelectedAllocation } = useChat()
+  const t = useChatConfig().strings.allocationPicker
 
   const isOrgProvider = isOrgModel(selectedProvider)
   const allocationsAdapter = adapter.allocations
@@ -22,49 +26,39 @@ export default function AllocationSelector({
     () => allocationsAdapter?.list(),
   )
 
-  // Auto-select first allocation if none selected
+  const first = allocations?.[0]
   useEffect(() => {
-    const first = allocations?.[0]
-    if (isOrgProvider && first && !selectedAllocation) {
+    if (!isOrgProvider) {
+      if (selectedAllocation) {
+        setSelectedAllocation(null)
+      }
+    } else if (first && !selectedAllocation) {
       setSelectedAllocation(first.name)
     }
-  }, [isOrgProvider, allocations, selectedAllocation, setSelectedAllocation])
-
-  // Clear allocation when switching away from org provider
-  useEffect(() => {
-    if (!isOrgProvider && selectedAllocation) {
-      setSelectedAllocation(null)
-    }
-  }, [isOrgProvider, selectedAllocation, setSelectedAllocation])
+  }, [isOrgProvider, first, selectedAllocation, setSelectedAllocation])
 
   if (!isOrgProvider || !allocations?.length) {
     return null
   }
 
-  const options = allocations.map((alloc) => ({
-    label: alloc.name,
-    value: alloc.name,
-  }))
-
   const selected = allocations.find((a) => a.name === selectedAllocation)
-
   return (
-    <div className="flex items-center gap-2">
-      <Dropdown
-        options={options}
-        value={selectedAllocation ?? ''}
-        onChange={(v) => setSelectedAllocation(v || null)}
-        variant={variant}
-        textBoxClassName={
-          bare
-            ? 'rounded-full h-8 px-2.5 text-[13px] hover:chat-tint'
-            : 'h-8 rounded-lg border theme-border text-xs px-2'
+    <div className="flex min-w-0 items-center gap-2">
+      <Select
+        aria-label={t.choose}
+        items={allocations.map((a) => ({ value: a.name, label: a.name }))}
+        value={selectedAllocation}
+        onValueChange={setSelectedAllocation}
+        trigger={
+          <button type="button" className={chipClassName}>
+            <span className="truncate">{selected?.name ?? t.placeholder}</span>
+            <ChevronDownIcon className="h-3 w-3 shrink-0" aria-hidden="true" />
+          </button>
         }
-        placeholder="Select allocation"
       />
       {selected && (
         <span className="text-xs tabular-nums theme-muted-text whitespace-nowrap">
-          ${(selected.used ?? 0).toFixed(2)} / ${selected.total.toFixed(2)}
+          {t.usage(money(selected.used ?? 0), money(selected.total))}
         </span>
       )}
     </div>

@@ -3,16 +3,8 @@ import '@testing-library/jest-dom/vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { forwardRef, useImperativeHandle } from 'react'
 import ChatInput from './ChatInput'
+import { DRAFT_TTL_MS, sweepDrafts } from './chatDraft'
 import type { PasteUploadResult } from './usePasteCards'
-
-vi.mock('../../icons', () => ({
-  ArrowUpIcon: () => <span />,
-  PlusOutlineIcon: () => <span />,
-  FileIcon: () => <span />,
-  RunningIcon: () => <span />,
-  StopSolidIcon: () => <span />,
-  XIcon: () => <span />,
-}))
 
 const addFilesMock = vi.fn()
 vi.mock('./AttachmentUpload', () => ({
@@ -21,6 +13,11 @@ vi.mock('./AttachmentUpload', () => ({
     useImperativeHandle(ref, () => ({ addFiles: addFilesMock }))
     return <div data-testid="attachment-upload" />
   }),
+}))
+
+vi.mock('./ComposerChrome', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./ComposerChrome')>()),
+  ComposerControls: () => null,
 }))
 
 vi.mock('./DragOverlay', () => ({
@@ -49,6 +46,10 @@ Object.defineProperty(window, 'localStorage', {
     setItem: (k: string, v: string) => storage.set(k, String(v)),
     removeItem: (k: string) => storage.delete(k),
     clear: () => storage.clear(),
+    key: (i: number) => [...storage.keys()][i] ?? null,
+    get length() {
+      return storage.size
+    },
   },
 })
 
@@ -67,7 +68,7 @@ describe('ChatInput drafts', () => {
   it('persists the draft per conversation and restores it', () => {
     const { unmount } = render(<ChatInput onSend={vi.fn()} conversationId="c1" />)
     fireEvent.change(textarea(), { target: { value: 'half-typed thought' } })
-    expect(storage.get('aiChatDraft:c1')).toBe('half-typed thought')
+    expect(JSON.parse(storage.get('aiChatDraft:c1') ?? '').text).toBe('half-typed thought')
     unmount()
 
     render(<ChatInput onSend={vi.fn()} conversationId="c1" />)
@@ -91,6 +92,38 @@ describe('ChatInput drafts', () => {
     expect(onSend).toHaveBeenCalledWith('ship it', undefined, undefined)
     expect(storage.has('aiChatDraft:c1')).toBe(false)
     expect(textarea().value).toBe('')
+  })
+
+  it('ignores a draft older than its lifetime', () => {
+    storage.set(
+      'aiChatDraft:c1',
+      JSON.stringify({ text: 'stale', savedAt: Date.now() - DRAFT_TTL_MS - 1 }),
+    )
+    render(<ChatInput onSend={vi.fn()} conversationId="c1" />)
+    expect(textarea().value).toBe('')
+  })
+
+  it('sweeps expired drafts and dates ones stored without an age', () => {
+    const now = Date.now()
+    storage.set(
+      'aiChatDraft:old',
+      JSON.stringify({ text: 'stale', savedAt: now - DRAFT_TTL_MS - 1 }),
+    )
+    storage.set('aiChatDraft:fresh', JSON.stringify({ text: 'fresh', savedAt: now - 1000 }))
+    storage.set('aiChatDraft:legacy', 'bare text')
+    storage.set('otherKey', 'untouched')
+
+    sweepDrafts(now)
+    expect(storage.has('aiChatDraft:old')).toBe(false)
+    expect(JSON.parse(storage.get('aiChatDraft:fresh') ?? '').text).toBe('fresh')
+    expect(JSON.parse(storage.get('aiChatDraft:legacy') ?? '')).toEqual({
+      text: 'bare text',
+      savedAt: now,
+    })
+    expect(storage.get('otherKey')).toBe('untouched')
+
+    sweepDrafts(now + DRAFT_TTL_MS + 1)
+    expect(storage.has('aiChatDraft:legacy')).toBe(false)
   })
 
   it('does not persist oversized drafts', () => {
@@ -196,6 +229,9 @@ describe('ChatInput slash commands', () => {
     fireEvent.change(textarea(), { target: { value: '/st' } })
     fireEvent.keyDown(textarea(), { key: 'ArrowDown' })
     expect(options()[1]).toHaveAttribute('aria-selected', 'true')
+    // Focus stays in the textarea, which names the active option and its list.
+    expect(textarea()).toHaveAttribute('aria-activedescendant', options()[1]?.id)
+    expect(textarea()).toHaveAttribute('aria-controls', screen.getByRole('listbox').id)
     fireEvent.keyDown(textarea(), { key: 'Enter' })
     expect(onSend).not.toHaveBeenCalled()
     expect(textarea().value).toBe('/stats ')
@@ -364,5 +400,40 @@ describe('ChatInput large pastes', () => {
     rerender(<ChatInput onSend={vi.fn()} pastes={{ inlineMaxBytes: 1000, upload }} />)
     expect(await screen.findByText('paste-3.txt')).toBeInTheDocument()
     expect(upload).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('ChatInput height', () => {
+  it('fits its text again when its width changes', () => {
+    let notify: (() => void) | undefined
+    const original = globalThis.ResizeObserver
+    globalThis.ResizeObserver = class {
+      constructor(cb: () => void) {
+        notify = cb
+      }
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+    } as unknown as typeof ResizeObserver
+    try {
+      render(<ChatInput onSend={vi.fn()} />)
+      const box = textarea()
+      let width = 120
+      let scrollHeight = 180
+      Object.defineProperty(box, 'clientWidth', { configurable: true, get: () => width })
+      Object.defineProperty(box, 'scrollHeight', { configurable: true, get: () => scrollHeight })
+      // The first measurement happened at jsdom's zero width; a wider box
+      // wraps less, so it is measured again.
+      width = 600
+      scrollHeight = 26
+      act(() => notify?.())
+      expect(box.style.height).toBe('26px')
+      // A change of height alone, such as its own resize, measures nothing.
+      scrollHeight = 999
+      act(() => notify?.())
+      expect(box.style.height).toBe('26px')
+    } finally {
+      globalThis.ResizeObserver = original
+    }
   })
 })

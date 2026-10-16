@@ -2,10 +2,13 @@ import { createMemoryConversationStore } from '../memoryStore'
 import type { ChatAdapter, StreamResult } from '../types'
 
 const CANNED_REPLIES = [
-  "Here's a canned reply from the mock adapter. It streams word by word so the typewriter animation, cancel behavior, and background streams all exercise the same code paths as a real backend.\n\n- No network requests are made\n- Conversations persist in localStorage\n- Try cancelling mid-stream: the partial reply is kept",
+  "Here's a canned reply from the mock adapter. It streams word by word so the typewriter animation, cancel behavior, and background streams all exercise the same code paths as a real backend.\n\n- No network requests are made\n- Conversations persist in localStorage\n- Try canceling mid-stream: the partial reply is kept",
   "Everything you see is generated locally. The mock adapter implements the same `ChatAdapter` interface as the OpenAI-compatible adapter and any backend's own, so the UI can't tell the difference.\n\n```ts\nconst adapter = createMockChatAdapter()\n```\n\nMarkdown, `inline code`, and code blocks render through the same pipeline.",
   'Branching works too: edit one of your earlier messages or hit regenerate on a reply, then use the arrows to flip between branches.',
 ]
+
+const TOOL_REPLY =
+  'Two clusters are running: **gpu-a** with 4 nodes, and **cpu-batch**, idle and scaled to zero.'
 
 const THINKING_PREAMBLE =
   'Thinking about the question, weighing a few canned options, and picking the next reply in the rotation...'
@@ -56,6 +59,14 @@ export function createMockChatAdapter(options?: { storageKey?: string }): ChatAd
               provider: 'Mock Provider',
               tool_calling_mode: 'none' as const,
             },
+            {
+              id: 'mock:local/canned-tools',
+              object: 'model',
+              created: 0,
+              owned_by: 'mock',
+              provider: 'Mock Provider',
+              tool_calling_mode: 'native' as const,
+            },
           ],
           unreachableSessions: [],
           providerIssues: [],
@@ -77,8 +88,24 @@ export function createMockChatAdapter(options?: { storageKey?: string }): ChatAd
           }
         }
 
-        const reply = CANNED_REPLIES[replyIndex % CANNED_REPLIES.length] ?? ''
-        replyIndex++
+        const usesTools = req.model.includes('tools')
+        if (usesTools) {
+          const id = `call-${crypto.randomUUID()}`
+          handlers.onPart?.({ type: 'tool_start', id, name: 'list_clusters', args: '{}' })
+          await sleep(900, signal)
+          handlers.onPart?.({
+            type: 'tool_end',
+            id,
+            result: JSON.stringify([
+              { name: 'gpu-a', status: 'on', nodes: 4 },
+              { name: 'cpu-batch', status: 'on', nodes: 0 },
+            ]),
+          })
+        }
+
+        const reply = usesTools
+          ? TOOL_REPLY
+          : (CANNED_REPLIES[replyIndex++ % CANNED_REPLIES.length] ?? '')
 
         await sleep(250, signal)
         let content = ''

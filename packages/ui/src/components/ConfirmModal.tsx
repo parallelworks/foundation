@@ -1,10 +1,37 @@
-import cx from 'classnames'
 import type { ReactNode } from 'react'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { BareModal, modalPanelClasses } from './BareModal'
-import { dangerButtonClasses, ghostButtonClasses, primaryButtonClasses } from './ghostButton'
+import { useRef, useState } from 'react'
+import { Button } from './Button'
+import { Modal } from './Modal'
 import { useStrings } from './Provider'
 
+export interface ConfirmModalProps {
+  open: boolean
+  onClose: () => void
+  /** The question, which names the dialog: "Delete cluster?" */
+  title: string
+  /** What follows from confirming, which describes the dialog. */
+  description?: ReactNode
+  /** More to read or to choose before confirming, such as a field. */
+  children?: ReactNode
+  /** The verb that confirms, such as "Delete"; never "OK". */
+  confirmLabel: string
+  /** An async handler keeps both buttons disabled until it settles. One that
+   *  rejects leaves the dialog open and rethrows, so report the error in the
+   *  handler, such as with a toast. */
+  // biome-ignore lint/suspicious/noConfusingVoidType: accepts sync and async handlers
+  onConfirm: () => void | Promise<unknown>
+  confirmDisabled?: boolean | undefined
+  /** An action that can't be undone: the confirm button reads as dangerous, and
+   *  the dialog is an alertdialog that waits for an answer. */
+  destructive?: boolean | undefined
+  align?: 'top' | 'center' | undefined
+  cancelLabel?: string | undefined
+  /** When false, the dialog stays open after a successful confirm. */
+  closeOnConfirm?: boolean | undefined
+}
+
+/** Asks before an action: its title the question, its description what follows,
+ *  and Cancel beside a confirm button named for the action. */
 export function ConfirmModal({
   open,
   onClose,
@@ -18,94 +45,57 @@ export function ConfirmModal({
   align = 'top',
   cancelLabel,
   closeOnConfirm = true,
-}: {
-  open: boolean
-  onClose: () => void
-  title: string
-  description?: ReactNode
-  children?: ReactNode
-  confirmLabel: string
-  /** An async handler keeps both buttons disabled until it settles. */
-  // biome-ignore lint/suspicious/noConfusingVoidType: accepts sync and async handlers
-  onConfirm: () => void | Promise<unknown>
-  confirmDisabled?: boolean
-  destructive?: boolean
-  align?: 'top' | 'center'
-  cancelLabel?: string
-  /** When false, the dialog stays open after a successful confirm. */
-  closeOnConfirm?: boolean
-}) {
-  const strings = useStrings()
+}: ConfirmModalProps) {
+  const { common } = useStrings()
   const [pending, setPending] = useState(false)
-  const firedRef = useRef(false)
+  // A second press before the first settles, or a double click, confirms once.
+  const running = useRef(false)
 
-  useEffect(() => {
-    if (open) {
-      firedRef.current = false
-    }
-  }, [open])
-
-  const onCloseRef = useRef(onClose)
-  onCloseRef.current = onClose
-  const runConfirm = useCallback(async () => {
-    if (firedRef.current) {
+  const runConfirm = async () => {
+    if (running.current) {
       return
     }
-    firedRef.current = true
+    running.current = true
     setPending(true)
     try {
       await onConfirm()
       if (closeOnConfirm) {
-        onCloseRef.current()
-      } else {
-        firedRef.current = false
+        onClose()
       }
-    } catch (error) {
-      firedRef.current = false
-      throw error
     } finally {
+      running.current = false
       setPending(false)
     }
-  }, [onConfirm, closeOnConfirm])
+  }
 
   return (
-    <BareModal
+    <Modal
+      alert={destructive}
       open={open}
       onClose={onClose}
-      ariaLabel={title}
       align={align}
-      preventClose={pending}
-      className={cx(modalPanelClasses, 'w-[480px] max-w-full')}
+      dismissible={!pending}
+      size="md"
+      title={title}
+      description={description}
+      footer={
+        <>
+          <Button variant="ghost" size="sm" onClick={onClose} disabled={pending}>
+            {cancelLabel ?? common.cancel}
+          </Button>
+          <Button
+            variant={destructive ? 'danger' : 'primary'}
+            size="sm"
+            onClick={runConfirm}
+            disabled={confirmDisabled}
+            loading={pending}
+          >
+            {confirmLabel}
+          </Button>
+        </>
+      }
     >
-      <div className="px-5 pt-5">
-        <h2 className="text-lg font-semibold text-(--theme-app)">{title}</h2>
-        {description !== null && description !== undefined && (
-          <p className="mt-1.5 text-sm text-(--theme-muted-text-color)">{description}</p>
-        )}
-        {children !== null && children !== undefined && <div className="mt-4">{children}</div>}
-      </div>
-      <div className="mt-5 flex items-center justify-end gap-2 border-t border-(--theme-border) px-5 py-3">
-        <button
-          type="button"
-          onClick={onClose}
-          disabled={pending}
-          className={cx(ghostButtonClasses, pending && 'cursor-wait')}
-        >
-          {cancelLabel ?? strings.modal.cancel}
-        </button>
-        <button
-          type="button"
-          onClick={runConfirm}
-          disabled={confirmDisabled || pending}
-          className={cx(
-            destructive ? dangerButtonClasses : primaryButtonClasses,
-            'disabled:cursor-not-allowed disabled:opacity-50',
-            pending && 'cursor-wait',
-          )}
-        >
-          {confirmLabel}
-        </button>
-      </div>
-    </BareModal>
+      {children}
+    </Modal>
   )
 }

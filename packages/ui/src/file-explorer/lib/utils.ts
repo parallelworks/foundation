@@ -1,18 +1,6 @@
 import type { IFileExplorerClient } from './fileExplorer'
 import type { TreeMap, TreeNode, TStorage, TStorageObject, UploadNode } from './types'
 
-export function formatFileSize(bytes: number): string {
-  if (bytes === 0) {
-    return '0 B'
-  }
-
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-
-  return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`
-}
-
 export function getFileExtension(filename: string): string | null {
   const match = filename.match(/\.([a-zA-Z0-9]+)$/)
   return match?.[1]?.toLowerCase() ?? null
@@ -431,6 +419,12 @@ export async function collectObjectKeysToDelete(
   return Array.from(keys)
 }
 
+/** True when a drag carries files or folders, not a link or text, such as a
+ *  row's own link dragged across the explorer. */
+export function carriesFiles(dataTransfer: DataTransfer): boolean {
+  return Array.from(dataTransfer.types).includes('Files')
+}
+
 export function getUriScheme(uri: string): string {
   return uri.match(/^([a-z0-9+.-]+):\/\//i)?.[1] ?? ''
 }
@@ -523,25 +517,4 @@ export function getUploadSessionETA(
     lastProgressBytes,
     shouldUpdateETA: false,
   }
-}
-
-export function formatETA(seconds: number): string {
-  if (seconds <= 0) {
-    return 'Almost done'
-  }
-  if (seconds < 5) {
-    return 'Few seconds'
-  }
-  if (seconds < 60) {
-    return `~ ${seconds}s`
-  }
-  if (seconds < 3600) {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return secs > 0 ? `~ ${mins}m ${secs}s` : `~ ${mins}m`
-  }
-
-  const hours = Math.floor(seconds / 3600)
-  const mins = Math.ceil((seconds % 3600) / 60)
-  return `~ ${hours}h ${mins}m`
 }

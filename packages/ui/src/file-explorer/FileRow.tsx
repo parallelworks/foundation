@@ -1,19 +1,18 @@
-import cx from 'classnames'
 import { DateTime } from 'luxon'
 import type { ReactNode } from 'react'
+import { AppLink, isPlainClick } from '../components/AppLink'
+import type { OpenMenu } from '../components/ContextMenu'
+import type { MenuEntry } from '../components/MenuEntries'
 import { useStrings } from '../components/Provider'
+import { RelativeTime } from '../components/relativeTime'
 import { Table } from '../components/Table'
-import { TOOLTIP_ID } from '../components/Tooltip'
-import { EyeIcon } from '../icons'
-import {
-  MoreButton,
-  type OpenMenu,
-  type RowMenuItem,
-  RowSelectCheckbox,
-  useRowMenuActive,
-} from '../list/index'
+import { Tooltip } from '../components/Tooltip'
+import { cx } from '../cx'
+import { formatBytes } from '../format'
+import { PreviewIcon } from '../icons'
+import { MoreButton, RowSelectCheckbox, rowContextMenuProps, useRowMenuActive } from '../list/index'
+import { STRETCHED_LINK, STRETCHED_LINK_ROW } from '../list/ListTable'
 import type { TreeNode } from './lib/types'
-import { formatFileSize } from './lib/utils'
 
 // Measured row pitch, hairline included. `height` on a `<tr>` is only a minimum,
 // so a value under the natural height is silently ignored and the virtualizer's
@@ -35,19 +34,28 @@ function isInteractiveTarget(e: React.MouseEvent) {
   return !!(e.target as HTMLElement).closest('a,button,input,label')
 }
 
-// Build the row menu only when it is opened, not on every render — a large
-// directory would otherwise rebuild hundreds of menu structures per re-render.
-function lazyContextMenuProps(openMenu: OpenMenu, getItems: () => RowMenuItem[]) {
-  return {
-    onContextMenu: (e: React.MouseEvent) => {
-      const items = getItems()
-      e.preventDefault()
-      if (items.length > 0) {
-        e.stopPropagation()
-      }
-      openMenu(e.clientX, e.clientY, items)
-    },
+/** Opens the row on a click its controls don't take. Beside a link, which
+ *  covers the row, that is only a click on a gap the link leaves, and a
+ *  modified one there asks for a new tab, which only the link can give. */
+function rowClickHandler(onOpen: () => void, href: string | undefined) {
+  return (e: React.MouseEvent) => {
+    if (isInteractiveTarget(e) || (href && !isPlainClick(e))) {
+      return
+    }
+    onOpen()
   }
+}
+
+/** A row's name: with an href, the link that covers the row, so the whole row
+ *  opens in a new tab, shows its URL and reads as a link. */
+function RowName({ name, href }: { name: string; href: string | undefined }) {
+  return href ? (
+    <AppLink href={href} data-row-link className={STRETCHED_LINK}>
+      {name}
+    </AppLink>
+  ) : (
+    name
+  )
 }
 
 interface FileRowProps {
@@ -59,9 +67,11 @@ interface FileRowProps {
   rowIndex: number
   /** The keyboard cursor row. Focus stays on the container, so nothing else marks it. */
   active: boolean
+  /** Makes the row a link to the node. */
+  href?: string | undefined
   checked: boolean
   canPreview: boolean
-  getItems: () => RowMenuItem[]
+  getItems: () => MenuEntry[]
   openMenu: OpenMenu
   onOpen: (node: TreeNode) => void
   onToggleCheck: (node: TreeNode, checked: boolean) => void
@@ -71,6 +81,7 @@ interface FileRowProps {
 export function UserRow({
   node,
   icon,
+  href,
   storageCount,
   getItems,
   openMenu,
@@ -78,24 +89,24 @@ export function UserRow({
 }: {
   node: TreeNode
   icon: ReactNode
+  /** Makes the row a link to the user. */
+  href?: string | undefined
   storageCount: number
-  getItems: () => RowMenuItem[]
+  getItems: () => MenuEntry[]
   openMenu: OpenMenu
   onOpen: (node: TreeNode) => void
 }) {
   const t = useStrings().fileExplorer
   const { active: menuActive, openMenu: openRowMenu } = useRowMenuActive(openMenu)
-  const handleRowClick = (e: React.MouseEvent) => {
-    if (isInteractiveTarget(e)) {
-      return
-    }
-    onOpen(node)
-  }
   return (
     <tr
-      className={cx('group cursor-pointer', menuActive ? 'theme-hover' : 'hover:theme-hover')}
-      onClick={handleRowClick}
-      {...lazyContextMenuProps(openRowMenu, getItems)}
+      className={cx(
+        'group cursor-pointer',
+        menuActive ? 'theme-hover' : 'hover:theme-hover',
+        href && STRETCHED_LINK_ROW,
+      )}
+      onClick={rowClickHandler(() => onOpen(node), href)}
+      {...rowContextMenuProps(openRowMenu, getItems)}
     >
       <Table.Item className="py-2.5">
         <div className="flex min-w-0 items-center gap-3">
@@ -103,7 +114,7 @@ export function UserRow({
             {icon}
           </span>
           <span className="truncate text-[13px] font-medium text-(--theme-app)">
-            {node.displayName || node.name}
+            <RowName name={node.displayName || node.name} href={href} />
           </span>
         </div>
       </Table.Item>
@@ -115,7 +126,7 @@ export function UserRow({
       </Table.Item>
       <Table.Item className="relative py-2.5">
         <div className="absolute inset-y-0 right-0 flex items-center pr-4">
-          <MoreButton active={menuActive} onOpen={(x, y) => openRowMenu(x, y, getItems())} />
+          <MoreButton open={menuActive} onOpen={(button) => openRowMenu(button, getItems())} />
         </div>
       </Table.Item>
     </tr>
@@ -128,6 +139,7 @@ export function FileRow({
   rowId,
   rowIndex,
   active,
+  href,
   checked,
   canPreview,
   getItems,
@@ -142,13 +154,6 @@ export function FileRow({
   const modifiedDt = node.modified ? DateTime.fromISO(node.modified) : null
   const typeLabel = node.root ? (node.storageType ?? node.type) : node.type
 
-  const handleRowClick = (e: React.MouseEvent) => {
-    if (isInteractiveTarget(e)) {
-      return
-    }
-    onOpen(node)
-  }
-
   return (
     <tr
       id={rowId}
@@ -158,17 +163,22 @@ export function FileRow({
       aria-selected={checked}
       className={cx(
         'group',
-        checked ? 'bg-blue-500/5' : menuActive ? 'theme-hover' : 'hover:theme-hover',
+        checked
+          ? 'bg-(--theme-accent-subtle)/60'
+          : menuActive
+            ? 'theme-hover'
+            : 'hover:theme-hover',
         // Only while the grid has keyboard focus: clicking a row sets the cursor
         // so a following arrow key continues from there, but a mouse click should
         // not draw a focus ring. :focus-visible is the browser's own distinction.
         active &&
           'group-focus-visible/grid:ring-1 group-focus-visible/grid:ring-inset group-focus-visible/grid:ring-(--theme-link)',
         'cursor-pointer',
+        href && STRETCHED_LINK_ROW,
       )}
-      onClick={handleRowClick}
+      onClick={rowClickHandler(() => onOpen(node), href)}
       style={{ height: fileRowHeight(node) }}
-      {...lazyContextMenuProps(openRowMenu, getItems)}
+      {...rowContextMenuProps(openRowMenu, getItems)}
     >
       <Table.Item className="py-2.5">
         <div className="flex min-w-0 items-center gap-2.5">
@@ -180,7 +190,7 @@ export function FileRow({
           <span className="flex h-5 w-5 shrink-0 items-center justify-center *:m-0">{icon}</span>
           <div className="min-w-0">
             <div className="truncate text-[13px] font-medium leading-tight text-(--theme-app)">
-              {node.displayName || node.name}
+              <RowName name={node.displayName || node.name} href={href} />
             </div>
             {isTwoLineRow(node) && (
               <div className="truncate text-xs leading-tight text-(--theme-muted-text-color)">
@@ -191,44 +201,37 @@ export function FileRow({
         </div>
       </Table.Item>
       <Table.Item className="truncate py-2.5 text-sm tabular-nums text-(--theme-muted-text-color)">
-        {typeof node.size === 'number' ? formatFileSize(node.size) : '—'}
+        {typeof node.size === 'number' ? formatBytes(node.size) : '—'}
       </Table.Item>
       <Table.Item className="truncate py-2.5 text-xs uppercase tracking-wider text-(--theme-muted-text-color)">
         {typeLabel}
       </Table.Item>
       <Table.Item className="truncate py-2.5 text-sm text-(--theme-muted-text-color)">
-        <span
-          data-tooltip-id={TOOLTIP_ID}
-          data-tooltip-content={node.modified ?? ''}
-          data-tooltip-place="top"
-        >
-          {!isDir && modifiedDt?.isValid ? modifiedDt.toRelative() : '—'}
-        </span>
+        {!isDir && modifiedDt?.isValid ? <RelativeTime value={modifiedDt} /> : '—'}
       </Table.Item>
       <Table.Item className="relative py-2.5">
         <div className="absolute inset-y-0 right-0 flex items-center gap-0.5 pr-4">
           {!isDir && canPreview && (
-            <button
-              type="button"
-              aria-label={t.preview.preview}
-              data-tooltip-id={TOOLTIP_ID}
-              data-tooltip-content={t.preview.preview}
-              data-tooltip-place="bottom"
-              onClick={(e) => {
-                e.stopPropagation()
-                onPreview(node)
-              }}
-              className={cx(
-                'rounded p-1 text-(--theme-muted-text-color) transition-colors hover:bg-(--theme-muted-panel-bg) hover:text-(--theme-app) [&>svg]:h-4 [&>svg]:w-4',
-                menuActive
-                  ? 'opacity-100'
-                  : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
-              )}
-            >
-              <EyeIcon />
-            </button>
+            <Tooltip content={t.preview.preview} side="bottom">
+              <button
+                type="button"
+                aria-label={t.preview.preview}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onPreview(node)
+                }}
+                className={cx(
+                  'rounded p-1 text-(--theme-muted-text-color) transition-colors hover:bg-(--theme-muted-panel-bg) hover:text-(--theme-app) [&>svg]:h-4 [&>svg]:w-4',
+                  menuActive
+                    ? 'opacity-100'
+                    : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
+                )}
+              >
+                <PreviewIcon />
+              </button>
+            </Tooltip>
           )}
-          <MoreButton active={menuActive} onOpen={(x, y) => openRowMenu(x, y, getItems())} />
+          <MoreButton open={menuActive} onOpen={(button) => openRowMenu(button, getItems())} />
         </div>
       </Table.Item>
     </tr>

@@ -3,10 +3,11 @@ import { render } from '@testing-library/react'
 import { act } from 'react'
 import type { ChatAdapter, StreamResult } from '../adapter/types'
 import ChatMessageList from '../components/ChatMessageList'
-import type { ChatModel, ChatNavigation, ChatNotify, Conversation } from '../types'
-import { ChatProvider, useChat } from './ChatProvider'
+import type { ChatModel, ChatNavigation, Conversation } from '../types'
+import { ChatProvider, useChat, useChatStream } from './ChatProvider'
 
-const SELECTED_MODEL_KEY = 'aiChatSelectedModel'
+const SELECTED_MODEL_KEY = 'aiChat.model'
+const MODEL_B = JSON.stringify('org:acme/model-b')
 
 const storage = new Map<string, string>()
 Object.defineProperty(window, 'localStorage', {
@@ -96,28 +97,17 @@ const navigation: ChatNavigation = {
   toNewChat: vi.fn(),
 }
 
-const notify: ChatNotify = {
-  success: vi.fn(),
-  error: vi.fn(),
-  info: vi.fn(),
-}
-
-let chat: ReturnType<typeof useChat>
+let chat: ReturnType<typeof useChat> & ReturnType<typeof useChatStream>
 
 function Probe() {
-  chat = useChat()
+  chat = { ...useChat(), ...useChatStream() }
   return null
 }
 
 async function renderProvider(adapter: ChatAdapter) {
   await act(async () => {
     render(
-      <ChatProvider
-        adapter={adapter}
-        currentUser={currentUser}
-        navigation={navigation}
-        notify={notify}
-      >
+      <ChatProvider adapter={adapter} currentUser={currentUser} navigation={navigation}>
         <Probe />
       </ChatProvider>,
     )
@@ -363,7 +353,7 @@ describe('composer queue', () => {
     expect(drained.map((m) => m.content)).toEqual(['first', 'third'])
   })
 
-  it('cancelling a stream keeps the queue and the next send carries it', async () => {
+  it('canceling a stream keeps the queue and the next send carries it', async () => {
     const { adapter, stream } = makeStreamingAdapter()
     await startFirstTurn(adapter)
 
@@ -428,12 +418,7 @@ describe('queued message rendering', () => {
       },
     ]
     const { getByText, getByLabelText } = render(
-      <ChatProvider
-        adapter={adapter}
-        currentUser={currentUser}
-        navigation={navigation}
-        notify={notify}
-      >
+      <ChatProvider adapter={adapter} currentUser={currentUser} navigation={navigation}>
         <ChatMessageList
           messages={[]}
           allMessages={[]}
@@ -538,6 +523,38 @@ describe('streamed parts', () => {
     expect(assistant?.reasoningDuration).toBe(3_000)
   })
 
+  it('replays the tool calls of a turn and results to the model on the next send', async () => {
+    const streamCompletion = vi.fn<ChatAdapter['streamCompletion']>(async (req, handlers) => {
+      if (req.messages.length > 1) {
+        return emptyStreamResult()
+      }
+      handlers.onPart?.({ type: 'tool_start', id: 't1', name: 'list_clusters', args: '{}' })
+      handlers.onPart?.({ type: 'tool_end', id: 't1', result: '["gpu-a"]' })
+      return { ...emptyStreamResult(), content: 'You have gpu-a.' }
+    })
+    await renderProvider(makeAdapter({ streamCompletion }))
+    await act(async () => {
+      await chat.sendMessage('what is running')
+    })
+    await act(async () => {
+      await chat.sendMessage('thanks')
+    })
+
+    expect(streamCompletion.mock.calls[1]![0].messages).toEqual([
+      { role: 'user', content: 'what is running' },
+      {
+        role: 'assistant',
+        content: null,
+        tool_calls: [
+          { id: 't1', type: 'function', function: { name: 'list_clusters', arguments: '{}' } },
+        ],
+      },
+      { role: 'tool', tool_call_id: 't1', content: '["gpu-a"]' },
+      { role: 'assistant', content: 'You have gpu-a.' },
+      { role: 'user', content: 'thanks' },
+    ])
+  })
+
   it('closes out a tool call the stream never resolved', async () => {
     const adapter = makeAdapter({
       streamCompletion: vi.fn(async (_req, handlers) => {
@@ -578,7 +595,7 @@ describe('model selection', () => {
   }
 
   it('prefers the last used model over the first one offered', async () => {
-    storage.set(SELECTED_MODEL_KEY, 'org:acme/model-b')
+    storage.set(SELECTED_MODEL_KEY, MODEL_B)
 
     await renderProvider(makeAdapter())
 
@@ -591,16 +608,16 @@ describe('model selection', () => {
     act(() => {
       chat.setSelectedProvider('org:acme/model-b')
     })
-    expect(storage.get(SELECTED_MODEL_KEY)).toBe('org:acme/model-b')
+    expect(storage.get(SELECTED_MODEL_KEY)).toBe(MODEL_B)
 
     act(() => {
       chat.setSelectedProvider(GONE)
     })
-    expect(storage.get(SELECTED_MODEL_KEY)).toBe('org:acme/model-b')
+    expect(storage.get(SELECTED_MODEL_KEY)).toBe(MODEL_B)
   })
 
   it('falls back to the last used model when a conversation names a model that is gone', async () => {
-    storage.set(SELECTED_MODEL_KEY, 'org:acme/model-b')
+    storage.set(SELECTED_MODEL_KEY, MODEL_B)
     const adapter = makeAdapter()
     vi.mocked(adapter.conversations.get).mockResolvedValue(conversationUsing(GONE))
 

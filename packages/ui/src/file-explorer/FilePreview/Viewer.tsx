@@ -1,13 +1,15 @@
-import cx from 'classnames'
-import { lazy, Suspense, useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import { Button } from '../../components/Button'
 import { positionKeys, withPositionKeys } from '../../components/keys'
-import Loader from '../../components/Loader'
+import { Loader } from '../../components/Loader'
 import Markdown from '../../components/Markdown'
 import { useStrings } from '../../components/Provider'
-import { DownloadFileIcon, FileIcon, LockIcon, MusicIcon, ZipIcon } from '../../icons'
+import { cx } from '../../cx'
+import { Editor } from '../../editor/Editor'
+import { formatBytes } from '../../format'
+import { DownloadIcon, FileIcon, LockIcon, MusicIcon, ZipIcon } from '../../icons'
 import { type CorsAwareRefresh, CorsIssuePreview } from '../helpers'
 import type { TreeNode, TStorage } from '../lib/types'
-import { formatFileSize } from '../lib/utils'
 import { joinSource, type NotebookOutput, parseDelimited, parseNotebook, stripAnsi } from './parse'
 import {
   getFileExtension,
@@ -19,11 +21,8 @@ import { countLines } from './readCappedBytes'
 import { useObjectBlobUrl } from './useObjectBlobUrl'
 import { useObjectText } from './useObjectText'
 
-// Monaco is heavy; load it only when a code file is actually previewed.
-const CodePreviewEditor = lazy(() => import('./CodePreviewEditor'))
-
 // Streamdown's table/mermaid fullscreen overlays portal to <body> at z-50, which
-// renders behind the preview modal (z-9995). Disable them for previews.
+// renders behind the preview modal (--layer-modal). Disable them for previews.
 const PREVIEW_MARKDOWN_CONTROLS = {
   table: { fullscreen: false },
   mermaid: { fullscreen: false },
@@ -110,7 +109,7 @@ export function FilePreviewViewer({
   if (urlLoading || !url) {
     return (
       <div className="flex h-full w-full items-center justify-center">
-        <Loader size={40} text={t.preview.loading} />
+        <Loader size={40} label={t.preview.loading} />
       </div>
     )
   }
@@ -252,14 +251,14 @@ function AudioView({
   return (
     <div className="flex h-full w-full items-center justify-center p-6">
       <div className="flex w-full max-w-xl flex-col items-center gap-6">
-        <div className="flex h-28 w-28 items-center justify-center rounded-2xl bg-linear-to-br from-(--theme-element) to-(--theme-link) shadow-lg">
+        <div className="flex h-28 w-28 items-center justify-center rounded-2xl bg-linear-to-br from-(--theme-accent) to-(--theme-link) shadow-lg">
           <MusicIcon className="h-12 w-12 text-white" />
         </div>
         <div className="text-center">
           <div className="break-all font-medium">{node.name}</div>
           <div className="mt-0.5 text-xs theme-muted-text">
             {node.contentType}
-            {typeof node.size === 'number' && ` · ${formatFileSize(node.size)}`}
+            {typeof node.size === 'number' && ` · ${formatBytes(node.size)}`}
           </div>
         </div>
         {/** biome-ignore lint/a11y/useMediaCaption: user content has no caption track */}
@@ -359,7 +358,7 @@ function CodeView({ node, url, onDownload, storage, onCorsRetry }: FetchViewProp
               type="button"
               className={cx(
                 'cursor-pointer px-2 py-0.5',
-                tail ? 'theme-muted-text theme-hover' : 'theme-element',
+                tail ? 'theme-muted-text theme-hover' : 'theme-accent',
               )}
               onClick={() => setTail(false)}
             >
@@ -369,7 +368,7 @@ function CodeView({ node, url, onDownload, storage, onCorsRetry }: FetchViewProp
               type="button"
               className={cx(
                 'cursor-pointer px-2 py-0.5',
-                tail ? 'theme-element' : 'theme-muted-text theme-hover',
+                tail ? 'theme-accent' : 'theme-muted-text theme-hover',
               )}
               onClick={() => setTail(true)}
             >
@@ -398,9 +397,18 @@ function CodeView({ node, url, onDownload, storage, onCorsRetry }: FetchViewProp
               <Markdown controls={PREVIEW_MARKDOWN_CONTROLS}>{text ?? ''}</Markdown>
             </div>
           ) : (
-            <Suspense fallback={<PreviewLoading />}>
-              <CodePreviewEditor value={text ?? ''} language={language} />
-            </Suspense>
+            // Editor loads Monaco on first render, so it stays out of the explorer's bundle.
+            <Editor
+              readOnly
+              value={text ?? ''}
+              language={language}
+              ariaLabel={node.name}
+              className="!rounded-none !border-0"
+              fontSize={12}
+              minimap={{ enabled: false }}
+              overviewRulerLanes={0}
+              wordWrap="off"
+            />
           )}
         </PreviewFetchState>
       </div>
@@ -593,7 +601,7 @@ function NotebookOutputView({ output }: { output: NotebookOutput }) {
 
   if (output.output_type === 'error') {
     return (
-      <pre className="mt-2 overflow-auto rounded-lg bg-red-500/15 px-3 py-2 font-mono text-[11px] text-red-500">
+      <pre className="mt-2 overflow-auto rounded-lg bg-(--theme-error-muted) px-3 py-2 font-mono text-[11px] text-(--theme-error-text)">
         {stripAnsi((output.traceback ?? []).join('\n'))}
       </pre>
     )
@@ -682,10 +690,9 @@ function NotPreviewable({
           <div className="mt-1 text-sm theme-muted-text">{message}</div>
         </div>
         {onDownload && (
-          <button type="button" className="btn btn-info cursor-pointer" onClick={onDownload}>
-            <DownloadFileIcon className="mr-2 h-4 w-4" />
+          <Button variant="primary" icon={<DownloadIcon />} onClick={onDownload}>
             {t.preview.downloadInstead}
-          </button>
+          </Button>
         )}
       </div>
     </div>
@@ -705,14 +712,13 @@ function TooLargeInline({
       <div className="flex max-w-md flex-col items-center gap-3 text-center">
         <div className="text-sm theme-muted-text">
           {typeof size === 'number'
-            ? t.preview.tooLargeSize(formatFileSize(size))
+            ? t.preview.tooLargeSize(formatBytes(size))
             : t.preview.tooLarge}
         </div>
         {onDownload && (
-          <button type="button" className="btn btn-info cursor-pointer" onClick={onDownload}>
-            <DownloadFileIcon className="mr-2 h-4 w-4" />
+          <Button variant="primary" icon={<DownloadIcon />} onClick={onDownload}>
             {t.preview.downloadInstead}
-          </button>
+          </Button>
         )}
       </div>
     </div>
@@ -732,10 +738,9 @@ function InlineError({
       <div className="flex max-w-md flex-col items-center gap-3 text-center">
         <div className="text-sm theme-muted-text">{message}</div>
         {onDownload && (
-          <button type="button" className="btn btn-neutral cursor-pointer" onClick={onDownload}>
-            <DownloadFileIcon className="mr-2 h-4 w-4" />
+          <Button variant="secondary" icon={<DownloadIcon />} onClick={onDownload}>
             {t.preview.downloadInstead}
-          </button>
+          </Button>
         )}
       </div>
     </div>

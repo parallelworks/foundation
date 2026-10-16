@@ -1,8 +1,10 @@
-import { memo } from 'react'
-import { FieldWrapper } from '../FieldWrapper'
-import { FormikCustomInput } from '../SpecialTypes'
+import { useMemo } from 'react'
+import { Field } from '../../components/Field'
+import { Input } from '../../components/Input'
+import { fieldFrame } from '../fieldFrame'
 import type { FieldComponentProps } from '../types/fieldComponentTypes'
 import type { BaseField } from '../types/fieldTypes'
+import { useFieldValue } from '../useFieldValue'
 import { getPlaceholder } from '../utils/getPlaceholder'
 
 export interface IStringField extends BaseField {
@@ -16,59 +18,60 @@ export interface IStringField extends BaseField {
   max?: number
   step?: number
   sanitize?: string // regex pattern for sanitization
-  prefillDefault?: boolean // if true, prefill the default value
+  prefillDefault?: boolean // if true, the form starts with the default as the value
 }
 
-export default memo(function StringField(props: FieldComponentProps<IStringField, string>) {
-  const {
-    field,
-    label,
-    labelPosition,
-    missing,
-    disabled,
-    onChange,
-    tooltipComponent,
-    spaceCompact,
-    currentValue,
-  } = props
+export default function StringField(props: FieldComponentProps<IStringField>) {
+  const { field, disabled, onChange } = props
   // The form names every field before it renders one.
-  const fieldName = field.name ?? ''
+  const [value, change] = useFieldValue<string | undefined>(field.name ?? '')
+  const password = field.type === 'password'
+  const fallback = field.default ?? ''
 
-  // Form-level DynamicDefaultsSync writes resolved defaults into Formik state.
-  // For non-prefillDefault strings, fall through to FormikCustomInput's defaultValue/placeholder.
-  const value = field.prefillDefault ? currentValue : undefined
+  // Global, so a pasted value loses every disallowed character, not just the
+  // first; typing hid this because each keystroke adds at most one.
+  const disallowed = useMemo(() => {
+    if (field.sanitize === undefined) {
+      return undefined
+    }
+    try {
+      return new RegExp(field.sanitize, 'g')
+    } catch {
+      console.error('Invalid regex for sanitization:', field.sanitize)
+      return undefined
+    }
+  }, [field.sanitize])
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const cased = field.lowercase ? e.target.value.toLowerCase() : e.target.value
+    const text = disallowed ? cased.replace(disallowed, '') : cased
+    // A password left empty keeps the one it has, which shows only as the placeholder's dots.
+    const next = password && text === '' ? fallback : text
+    onChange?.(next)
+    change(next)
+  }
 
   return (
-    <FieldWrapper
-      optional={field.optional}
-      label={label}
-      tooltipComponent={tooltipComponent}
-      description={field.description}
-      labelPosition={labelPosition}
-      spaceCompact={spaceCompact}
-    >
-      <FormikCustomInput
-        invalid={missing}
-        key={field.name}
-        name={fieldName}
-        type={field.type}
-        lowercase={field.lowercase}
-        placeholder={
-          field.type === 'password' && field.placeholder === undefined
-            ? '•'.repeat((field.default ?? '').toString().length > 0 ? 16 : 0)
-            : getPlaceholder(field.placeholder, field.default)
-        }
-        disabled={disabled}
-        step={field.step}
-        min={field.min}
-        max={field.max}
-        minLength={field.minLength}
-        maxLength={field.maxLength}
-        sanitize={field.sanitize}
-        defaultValue={field.default}
-        value={value}
-        {...(onChange && { onChange })}
-      />
-    </FieldWrapper>
+    <Field {...fieldFrame(props)}>
+      {/* Input shows a password's eye button itself. */}
+      {(control) => (
+        <Input
+          {...control}
+          data-1p-ignore
+          name={field.name}
+          value={password && value === fallback ? '' : (value ?? '')}
+          type={password ? 'password' : 'text'}
+          disabled={disabled}
+          placeholder={
+            password && field.placeholder === undefined
+              ? '•'.repeat(fallback.toString().length > 0 ? 16 : 0)
+              : getPlaceholder(field.placeholder, field.default)
+          }
+          minLength={field.minLength}
+          maxLength={field.maxLength}
+          onChange={handleChange}
+        />
+      )}
+    </Field>
   )
-})
+}

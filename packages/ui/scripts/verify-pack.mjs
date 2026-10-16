@@ -13,6 +13,7 @@
 // producing a tarball where every entrypoint fails to resolve.
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -89,7 +90,7 @@ try {
         type: 'module',
         dependencies: {
           '@parallelworks/ui': `file:./${tarball}`,
-          formik: '2.4.9',
+          'react-hook-form': '7.90.0',
           react: '19.2.8',
           'react-dom': '19.2.8',
           // Matches the compiler the repo builds with, so the consumer check
@@ -127,7 +128,12 @@ try {
   if (!css.includes('@layer pw-ui{')) {
     throw new Error('dist/styles.css lost its pw-ui layer wrapper')
   }
-  for (const needle of ['.btn{', '.bg-background', '.divide-border', '--color-background:']) {
+  for (const needle of [
+    '.logo-loader-ring{',
+    '.bg-background',
+    '.divide-border',
+    '--color-background:',
+  ]) {
     if (!css.includes(needle)) {
       throw new Error(`dist/styles.css is missing ${needle}`)
     }
@@ -159,16 +165,45 @@ try {
     }
   }
 
+  console.log("• asserting the math renderer's stylesheet and fonts resolve")
+  // The markdown renderer imports KaTeX's sheet by package name, so a host's
+  // bundler loads it from the installed katex; a sheet or font that fails to
+  // resolve there leaves every formula printed twice.
+  const markdownImpl = path.join(
+    fixture,
+    'node_modules/@parallelworks/ui/dist/components/MarkdownImpl.js',
+  )
+  const cssImports = [
+    ...readFileSync(markdownImpl, 'utf8').matchAll(/^import "([^"]+\.css)";$/gm),
+  ].map(([, spec]) => spec)
+  if (!cssImports.includes('katex/dist/katex.min.css')) {
+    throw new Error('dist/components/MarkdownImpl.js no longer imports the KaTeX stylesheet')
+  }
+  const katexCss = createRequire(markdownImpl).resolve('katex/dist/katex.min.css')
+  const fontUrls = [...readFileSync(katexCss, 'utf8').matchAll(/url\(([^)]+)\)/g)].map(
+    ([, url]) => url,
+  )
+  if (!fontUrls.length) {
+    throw new Error('the KaTeX stylesheet references no fonts')
+  }
+  for (const url of fontUrls) {
+    if (!existsSync(path.join(path.dirname(katexCss), url))) {
+      throw new Error(`the KaTeX stylesheet references missing ${url}`)
+    }
+  }
+
   console.log('• importing every entrypoint under Node ESM')
   writeFileSync(
     path.join(fixture, 'smoke.mjs'),
     [
       "import * as root from '@parallelworks/ui'",
       "import * as icons from '@parallelworks/ui/icons'",
+      "import * as brandIcons from '@parallelworks/ui/brand-icons'",
       "import * as theme from '@parallelworks/ui/theme'",
       "import * as logviewer from '@parallelworks/ui/logviewer'",
       "import * as graph from '@parallelworks/ui/graph'",
       "import * as fileExplorer from '@parallelworks/ui/file-explorer'",
+      "import * as access from '@parallelworks/ui/access'",
       "import * as list from '@parallelworks/ui/list'",
       "import * as editor from '@parallelworks/ui/editor'",
       "import * as form from '@parallelworks/ui/form'",
@@ -181,18 +216,37 @@ try {
       '}',
       "need(root, 'root', 'deriveTheme')",
       "need(root, 'root', 'Table')",
-      "need(root, 'root', 'CompactTable')",
       "need(root, 'root', 'Loader')",
-      "need(root, 'root', 'BareModal')",
+      "need(root, 'root', 'Modal')",
       "need(root, 'root', 'ConfirmModal')",
       "need(root, 'root', 'CreateModal')",
       "need(root, 'root', 'StatusBadge')",
-      "need(root, 'root', 'GlobalTooltip')",
-      "need(root, 'root', 'TOOLTIP_ID')",
+      "need(root, 'root', 'Tooltip')",
+      "need(root, 'root', 'InfoTip')",
+      "need(root, 'root', 'HoverCard')",
+      "need(root, 'root', 'Popover')",
+      "need(root, 'root', 'Drawer')",
+      "need(root, 'root', 'Combobox')",
+      "need(root, 'root', 'buttonClasses')",
+      "need(root, 'root', 'Select')",
+      "need(root, 'root', 'Switch')",
+      "need(root, 'root', 'Section')",
+      "need(root, 'root', 'Tabs')",
+      "need(root, 'root', 'Skeleton')",
+      "need(root, 'root', 'RefreshButton')",
+      "need(root, 'root', 'NumberInput')",
+      "need(root, 'root', 'DatePicker')",
+      "need(root, 'root', 'Meter')",
+      "need(root, 'root', 'ProgressBar')",
+      "need(root, 'root', 'RelativeTime')",
+      "need(root, 'root', 'useClock')",
+      "need(root, 'root', 'ExternalLink')",
+      "need(root, 'root', 'formatBytes')",
+      "need(root, 'root', 'formatDuration')",
       "need(root, 'root', 'Callout')",
       "need(root, 'root', 'EmptyState')",
       "need(root, 'root', 'DescriptionList')",
-      "need(root, 'root', 'Indicator')",
+      "need(root, 'root', 'RunStatusIcon')",
       "need(root, 'root', 'UIProvider')",
       "need(root, 'root', 'useRunFile')",
       "need(logviewer, 'logviewer', 'LogViewer')",
@@ -200,8 +254,10 @@ try {
       "need(fileExplorer, 'fileExplorer', 'FileExplorer')",
       "need(fileExplorer, 'fileExplorer', 'FileExplorerProvider')",
       "need(fileExplorer, 'fileExplorer', 'CorsError')",
+      "need(access, 'access', 'AccessDrawer')",
       "need(graph, 'graph', 'DependencyGraphPreview')",
-      "need(list, 'list', 'useRowMenu')",
+      "need(root, 'root', 'useContextMenu')",
+      "need(list, 'list', 'assembleRowMenu')",
       "need(list, 'list', 'NameCell')",
       "need(list, 'list', 'ListSkeleton')",
       "need(editor, 'editor', 'Editor')",
@@ -224,13 +280,13 @@ try {
       "need(theme, 'theme', 'deriveTheme')",
       "need(theme, 'theme', 'THEME_PRESETS')",
       "need(theme, 'theme', 'applyTheme')",
+      "need(theme, 'theme', 'generateTheme')",
+      "need(theme, 'theme', 'fitSeed')",
+      "need(root, 'root', 'ThemeEditor')",
       "need(icons, 'icons', 'AddIcon')",
-      "need(icons, 'icons', 'LoaderIcon')",
       "need(icons, 'icons', 'SuccessCheckmark')",
-      'const vars = theme.deriveTheme({',
-      "  accent: '#06354f',",
-      "  background: '#ffffff',",
-      '})',
+      "need(brandIcons, 'brand-icons', 'GitHubIcon')",
+      "const vars = theme.deriveTheme({ interface: { base: '#ffffff', accent: '#06354f' } })",
       "if (!vars['--theme-app-bg']) {",
       "  throw new Error('deriveTheme produced no --theme-app-bg')",
       '}',
@@ -243,13 +299,15 @@ try {
   writeFileSync(
     path.join(fixture, 'consumer.ts'),
     [
-      "import { deriveTheme, THEME_PRESETS } from '@parallelworks/ui/theme'",
-      "import type { ThemeVariables, ThemeSeed } from '@parallelworks/ui/theme'",
-      "import { AddIcon, LoaderIcon } from '@parallelworks/ui/icons'",
-      "const seed: ThemeSeed = { accent: '#06354f', background: '#ffffff' }",
-      'export const vars: ThemeVariables = deriveTheme(seed)',
+      "import { deriveTheme, parseTheme, schemeFor, THEME_PRESETS } from '@parallelworks/ui/theme'",
+      "import type { Theme, ThemeVariables } from '@parallelworks/ui/theme'",
+      "import { AddIcon, TrashIcon, type IconType } from '@parallelworks/ui/icons'",
+      "import { GitHubIcon } from '@parallelworks/ui/brand-icons'",
+      "const theme: Theme = { version: 1, light: { interface: { base: '#ffffff', accent: '#06354f' } } }",
+      "export const vars: ThemeVariables = deriveTheme(schemeFor(theme, 'dark'))",
+      'export const parsed = parseTheme(JSON.stringify(theme)).ok',
       'export const presets = THEME_PRESETS.map(p => p.name)',
-      'export const icons = [AddIcon, LoaderIcon]',
+      'export const icons: IconType[] = [AddIcon, TrashIcon, GitHubIcon]',
       "import type { ChatAdapter, ChatMessage, Conversation } from '@parallelworks/ui/ai'",
       "import { createMockChatAdapter } from '@parallelworks/ui/ai/mock'",
       'const adapter: ChatAdapter = createMockChatAdapter()',

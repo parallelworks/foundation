@@ -1,6 +1,10 @@
-import cx from 'classnames'
-import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react'
+import { Fragment, type ReactNode, useEffect, useRef } from 'react'
+import { Drawer } from '../../components/Drawer'
 import { positionKeys } from '../../components/keys'
+import { usePersistedState } from '../../components/Provider'
+import { LoadingRegion, Skeleton } from '../../components/Skeleton'
+import { useSplitter } from '../../components/splitter'
+import { cx } from '../../cx'
 import {
   SIDEBAR_DEFAULT_WIDTH_PX,
   SidebarGroupHeading,
@@ -9,69 +13,26 @@ import {
 } from './sidebar'
 
 export const SIDEBAR_MIN_WIDTH_PX = 200
+
+/** A conversation list's drawer on a layout too narrow to keep it beside the
+ *  content: it covers the chat's own positioned container, not the window, and
+ *  stays mounted so the list keeps its scroll and search between openings. */
+export const sidebarDrawerProps = {
+  contained: true,
+  side: 'left',
+  width: 'min(20rem, 85%)',
+  modal: 'trap-focus',
+  keepMounted: true,
+  closeButton: false,
+  padded: false,
+} as const
+// Every list that takes turns beside the thread shares one width, so moving
+// between them leaves the thread where it was.
+const SHARED_WIDTH_STORAGE_KEY = 'aiChatSidebarWidth'
 export const SIDEBAR_MAX_WIDTH_PX = 480
 
 function clampSidebarWidth(width: number): number {
   return Math.min(SIDEBAR_MAX_WIDTH_PX, Math.max(SIDEBAR_MIN_WIDTH_PX, width))
-}
-
-function readStoredSidebarWidth(storageKey: string): number {
-  try {
-    const stored = Number(window.localStorage.getItem(storageKey))
-    return Number.isFinite(stored) && stored > 0
-      ? clampSidebarWidth(stored)
-      : SIDEBAR_DEFAULT_WIDTH_PX
-  } catch {
-    return SIDEBAR_DEFAULT_WIDTH_PX
-  }
-}
-
-function storeSidebarWidth(storageKey: string, width: number) {
-  try {
-    window.localStorage.setItem(storageKey, String(width))
-  } catch {
-    // Storage unavailable (SSR, disabled storage): width simply doesn't persist.
-  }
-}
-
-/** A sidebar width the reader drags, nudges or resets, kept per list under
- *  its own storage key. */
-export function useResizableSidebarWidth(storageKey: string) {
-  const [width, setWidth] = useState(() => readStoredSidebarWidth(storageKey))
-  const [resizing, setResizing] = useState(false)
-  const widthRef = useRef(width)
-  widthRef.current = width
-
-  const startResize = (e: React.PointerEvent<HTMLElement>) => {
-    e.preventDefault()
-    const startX = e.clientX
-    const startWidth = widthRef.current
-    setResizing(true)
-    const onMove = (ev: PointerEvent) => {
-      setWidth(clampSidebarWidth(startWidth + ev.clientX - startX))
-    }
-    const onUp = () => {
-      window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerup', onUp)
-      setResizing(false)
-      storeSidebarWidth(storageKey, widthRef.current)
-    }
-    window.addEventListener('pointermove', onMove)
-    window.addEventListener('pointerup', onUp)
-  }
-
-  const reset = () => {
-    setWidth(SIDEBAR_DEFAULT_WIDTH_PX)
-    storeSidebarWidth(storageKey, SIDEBAR_DEFAULT_WIDTH_PX)
-  }
-
-  const nudge = (delta: number) => {
-    const next = clampSidebarWidth(widthRef.current + delta)
-    setWidth(next)
-    storeSidebarWidth(storageKey, next)
-  }
-
-  return { width, resizing, startResize, reset, nudge }
 }
 
 export interface ConversationSidebarGroup<T> {
@@ -120,10 +81,12 @@ function useItemCycling<T>(
  *  decides what is listed, how it is grouped and how each row reads. */
 export function ConversationSidebar<T>({
   label,
-  collapsed,
+  collapsed: collapsedProp,
   onToggle,
   toggleLabels,
   resize,
+  fill: fillProp = false,
+  drawer,
   groups,
   getKey,
   renderRow,
@@ -140,8 +103,15 @@ export function ConversationSidebar<T>({
   collapsed: boolean
   onToggle: () => void
   toggleLabels: { open: string; close: string }
-  /** Omit for a fixed width. */
-  resize?: { storageKey: string; label: string; hint: string }
+  /** Omit for a fixed width. A `storageKey` keeps this list's width apart
+   *  from the others'. */
+  resize?: { storageKey?: string; label: string; hint: string }
+  /** Takes the width of its container, as inside a drawer, with no rail and
+   *  no drag handle. */
+  fill?: boolean
+  /** Shows the list in a drawer over the page instead of beside it; it fills
+   *  the drawer. */
+  drawer?: { open: boolean; onClose: () => void; label: string } | undefined
   groups: ConversationSidebarGroup<T>[]
   getKey: (item: T) => string
   /** One `SidebarRow`. */
@@ -162,44 +132,35 @@ export function ConversationSidebar<T>({
   /** Dialogs and menus that belong to the list. */
   children?: ReactNode
 }) {
-  const sized = useResizableSidebarWidth(resize?.storageKey ?? '')
+  const [storedWidth, setStoredWidth] = usePersistedState(
+    resize?.storageKey ?? SHARED_WIDTH_STORAGE_KEY,
+    SIDEBAR_DEFAULT_WIDTH_PX,
+  )
+  const splitter = useSplitter({
+    width: clampSidebarWidth(storedWidth),
+    onWidthChange: setStoredWidth,
+    min: SIDEBAR_MIN_WIDTH_PX,
+    max: SIDEBAR_MAX_WIDTH_PX,
+    side: 'right',
+    defaultWidth: SIDEBAR_DEFAULT_WIDTH_PX,
+    label: resize?.label,
+  })
   useItemCycling(
     groups.flatMap((g) => g.items),
     cycle,
   )
 
-  return (
+  const fill = fillProp || !!drawer
+  const collapsed = collapsedProp && !fill
+  const resizable = resize && !fill
+  const panel = (
     <SidebarPanel
       collapsed={collapsed}
       label={label}
-      {...(resize ? { width: sized.width, resizing: sized.resizing } : {})}
+      {...(resizable ? { width: splitter.width, resizing: splitter.resizing } : {})}
+      {...(fill ? { style: { width: '100%' } } : {})}
     >
-      {resize && !collapsed && (
-        // biome-ignore lint/a11y/useSemanticElements: a window splitter must be focusable and full height; <hr> is reset to height 0 and cannot host the drag surface.
-        <div
-          role="separator"
-          tabIndex={0}
-          aria-orientation="vertical"
-          aria-label={resize.label}
-          aria-valuemin={SIDEBAR_MIN_WIDTH_PX}
-          aria-valuemax={SIDEBAR_MAX_WIDTH_PX}
-          aria-valuenow={sized.width}
-          title={resize.hint}
-          onPointerDown={sized.startResize}
-          onDoubleClick={sized.reset}
-          onKeyDown={(e) => {
-            if (e.key === 'ArrowLeft') {
-              sized.nudge(-16)
-            } else if (e.key === 'ArrowRight') {
-              sized.nudge(16)
-            }
-          }}
-          className={cx(
-            'absolute inset-y-0 right-0 z-10 w-1 cursor-col-resize touch-none',
-            sized.resizing ? 'bg-(--theme-element)' : 'hover:bg-(--theme-border)',
-          )}
-        />
-      )}
+      {resizable && !collapsed && <div {...splitter.separatorProps} title={resize.hint} />}
 
       {top}
 
@@ -215,16 +176,11 @@ export function ConversationSidebar<T>({
           )}
         >
           {loading ? (
-            <div className="space-y-3 px-2 pt-2">
+            <LoadingRegion className="space-y-3 px-2 pt-2">
               {positionKeys(5, 'skeleton').map((key, i) => (
-                <div key={key} className="animate-pulse">
-                  <div
-                    className="h-4 rounded theme-muted-panel"
-                    style={{ width: `${70 - i * 10}%` }}
-                  />
-                </div>
+                <Skeleton key={key} width={`${70 - i * 10}%`} height={16} />
               ))}
-            </div>
+            </LoadingRegion>
           ) : groups.length === 0 ? (
             placeholder
           ) : (
@@ -261,5 +217,17 @@ export function ConversationSidebar<T>({
 
       {children}
     </SidebarPanel>
+  )
+  return drawer ? (
+    <Drawer
+      {...sidebarDrawerProps}
+      open={drawer.open}
+      onClose={drawer.onClose}
+      aria-label={drawer.label}
+    >
+      {panel}
+    </Drawer>
+  ) : (
+    panel
   )
 }

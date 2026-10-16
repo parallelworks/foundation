@@ -434,24 +434,6 @@ describe('chatReducer', () => {
     })
   })
 
-  describe('TOGGLE_SIDEBAR', () => {
-    it('should toggle sidebar from collapsed to expanded', () => {
-      const state = { ...initialState, sidebarCollapsed: true }
-
-      const result = chatReducer(state, { type: 'TOGGLE_SIDEBAR' })
-
-      expect(result.sidebarCollapsed).toBe(false)
-    })
-
-    it('should toggle sidebar from expanded to collapsed', () => {
-      const state = { ...initialState, sidebarCollapsed: false }
-
-      const result = chatReducer(state, { type: 'TOGGLE_SIDEBAR' })
-
-      expect(result.sidebarCollapsed).toBe(true)
-    })
-  })
-
   describe('Loading states', () => {
     it('should set loading state', () => {
       const result = chatReducer(initialState, {

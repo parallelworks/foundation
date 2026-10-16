@@ -53,8 +53,8 @@ export interface StreamHandlers {
   onReasoning?: (reasoning: string) => void
   // Backend-assigned ID for the assistant message being streamed.
   onMessageId?: (messageId: string) => void
-  // Agent-protocol adapters stream transcript parts progressively; the
-  // OpenAI-compatible adapter never emits these.
+  // Transcript parts, streamed progressively: an agent adapter's whole
+  // timeline, or the tool calls an OpenAI-compatible gateway runs itself.
   onPart?: (delta: PartDelta) => void
 }
 
@@ -105,7 +105,7 @@ export interface StreamResult {
 }
 
 // Aborting the signal must leave any partial content persisted server-side;
-// the UI refetches the conversation shortly after cancelling to pick up the
+// the UI refetches the conversation shortly after canceling to pick up the
 // server-assigned message ID.
 export type StreamCompletion = (
   req: StreamRequest,

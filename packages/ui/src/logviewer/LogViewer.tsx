@@ -1,17 +1,28 @@
-import cx from 'classnames'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { DateTime } from 'luxon'
 import {
   Fragment,
   memo,
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from 'react'
-import { useNotify, useOptionalWorkflowEngine, useStrings } from '../components/Provider'
-import { TooltipInfo } from '../components/Tooltip'
+import { Button } from '../components/Button'
+import { buttonClasses } from '../components/buttonClasses'
+import { DatePicker } from '../components/DatePicker'
+import type { FloatingAnchor } from '../components/floating'
+import { IconButton } from '../components/IconButton'
+import { InfoTip } from '../components/InfoTip'
+import { Loader } from '../components/Loader'
+import { Popover } from '../components/Popover'
+import { useOptionalWorkflowEngine, useStrings } from '../components/Provider'
+import { SearchInput } from '../components/SearchInput'
+import { useCopy } from '../components/useCopy'
+import { cx } from '../cx'
 import type { LogCommand, LogSegment, ProcessedLogLine } from '../engine'
 import {
   ArrowDownIcon,
@@ -20,13 +31,16 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   ClockIcon,
+  CloseIcon,
   CopyIcon,
   DownloadIcon,
   ExpandIcon,
   ShrinkIcon,
-  XIcon,
 } from '../icons'
 import { highlightSegments, parseAnsiSegments, plainSegments } from './segments'
+
+// A line's height before it is measured; a wrapped or annotated line is taller.
+const LINE_HEIGHT = 20
 
 function LogSegments({ segments }: { segments: LogSegment[] }) {
   return segments.map((segment, i) =>
@@ -47,6 +61,28 @@ function LogSegments({ segments }: { segments: LogSegment[] }) {
   )
 }
 
+type AnnotationType = 'error' | 'warning' | 'notice'
+
+// The label is words, so it takes the status's text shade; the edge and the
+// tint are graphics, which take its vivid shade.
+const ANNOTATION_TONES: Record<AnnotationType, { label: string; row: string; edge: string }> = {
+  error: {
+    label: 'text-(--theme-error-text)',
+    row: 'bg-(--theme-error-muted)',
+    edge: 'border-l-2 border-l-(color:--theme-error)',
+  },
+  warning: {
+    label: 'text-(--theme-warning-text)',
+    row: 'bg-(--theme-warning-muted)',
+    edge: 'border-l-2 border-l-(color:--theme-warning)',
+  },
+  notice: {
+    label: 'text-(--theme-info-text)',
+    row: 'bg-(--theme-info-muted)',
+    edge: 'border-l-2 border-l-(color:--theme-info)',
+  },
+}
+
 // Memoized log line component for performance
 const LogLine = memo(function LogLine({
   index,
@@ -61,6 +97,7 @@ const LogLine = memo(function LogLine({
   isGroupCollapsed,
   onGroupToggle,
   annotationLabels,
+  selectLineLabel,
 }: {
   index: number
   segments: LogSegment[]
@@ -73,26 +110,21 @@ const LogLine = memo(function LogLine({
   groupDepth?: number
   isGroupCollapsed?: boolean | undefined
   onGroupToggle?: ((lineIndex: number) => void) | undefined
-  annotationLabels: { error: string; warning: string; notice: string }
+  annotationLabels: Record<AnnotationType, string>
+  selectLineLabel: (line: number) => string
 }) {
+  const annotation = command?.type ? ANNOTATION_TONES[command.type as AnnotationType] : undefined
   const displaySegments = useMemo(
     () =>
       highlightSegments(command?.message ? plainSegments(command.message) : segments, searchTerm),
     [segments, searchTerm, command],
   )
 
-  const annotationLabel = useMemo(() => {
-    if (command?.type === 'error') {
-      return <span className="text-red-500 font-semibold mr-1">{annotationLabels.error}</span>
-    }
-    if (command?.type === 'warning') {
-      return <span className="text-yellow-500 font-semibold mr-1">{annotationLabels.warning}</span>
-    }
-    if (command?.type === 'notice') {
-      return <span className="text-blue-500 font-semibold mr-1">{annotationLabels.notice}</span>
-    }
-    return null
-  }, [command?.type, annotationLabels])
+  const annotationLabel = annotation && command && (
+    <span className={cx('mr-1 font-semibold', annotation.label)}>
+      {annotationLabels[command.type as AnnotationType]}
+    </span>
+  )
 
   const groupToggle =
     command?.type === 'group' && onGroupToggle
@@ -105,47 +137,33 @@ const LogLine = memo(function LogLine({
         }
       : null
 
-  const groupToggleProps = groupToggle
-    ? {
-        role: 'button' as const,
-        tabIndex: 0,
-        'aria-expanded': !isGroupCollapsed,
-        onClick: groupToggle,
-        onKeyDown: (e: React.KeyboardEvent) => {
-          if (e.target !== e.currentTarget) {
-            return
-          }
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            groupToggle()
-          }
-        },
-      }
-    : undefined
+  const titleId = useId()
 
+  // The pointer can toggle a group anywhere on its header; the keyboard and
+  // assistive tech use the chevron's button, since the row also holds the line
+  // number's button and one button can't hold another.
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: a pointer shortcut for the chevron's button
+    // biome-ignore lint/a11y/useKeyWithClickEvents: the chevron's button takes the keys
     <div
       data-line-number={index + 1}
-      {...groupToggleProps}
+      onClick={groupToggle ?? undefined}
       className={cx(
         'flex items-start text-sm font-mono group',
         isSelected ? 'bg-(--theme-link)/15' : 'hover:bg-(--theme-hover)',
         'text-(--theme-app)',
-        command?.type === 'error' && 'bg-red-500/10',
-        command?.type === 'warning' && 'bg-yellow-500/10',
-        command?.type === 'notice' && 'bg-blue-500/10',
+        // A selected line shows its selection over its annotation's tint.
+        !isSelected && annotation?.row,
         command?.type === 'debug' && 'opacity-60',
         command?.type === 'group' && 'bg-(--theme-hover) cursor-pointer',
       )}
-      style={{
-        minHeight: `${lineHeight}px`,
-        lineHeight: `${lineHeight}px`,
-        paddingLeft: groupDepth > 0 ? `${groupDepth * 16}px` : undefined,
-      }}
+      style={{ minHeight: `${lineHeight}px`, lineHeight: `${lineHeight}px` }}
     >
       {lineNumbers && (
         <button
           type="button"
+          aria-label={selectLineLabel(index + 1)}
+          aria-pressed={isSelected}
           onClick={(e) => {
             e.stopPropagation()
             onLineClick(index + 1, e)
@@ -163,24 +181,42 @@ const LogLine = memo(function LogLine({
       <pre
         className={cx(
           'grow text-left whitespace-pre m-0 py-0.5 pr-2 flex items-center',
-          lineNumbers && 'pl-2 border-l border-(--theme-border)',
-          command?.type === 'error' && 'border-l-red-500 border-l-2',
-          command?.type === 'warning' && 'border-l-yellow-500 border-l-2',
-          command?.type === 'notice' && 'border-l-blue-500 border-l-2',
+          lineNumbers && 'pl-2 border-l border-l-(color:--theme-border)',
+          annotation?.edge,
           command?.type === 'group' && 'font-bold',
         )}
+        // A group's lines indent their text, never the gutter, so line numbers stay in one column.
+        style={
+          groupDepth > 0
+            ? { paddingInlineStart: `calc(${lineNumbers ? '0.5rem + ' : ''}${groupDepth * 16}px)` }
+            : undefined
+        }
       >
-        {command?.type === 'group' && (
-          <span className="mr-1 shrink-0 inline-flex items-center">
-            {isGroupCollapsed ? (
-              <ChevronRightIcon className="w-3 h-3" />
-            ) : (
+        {command?.type === 'group' &&
+          (onGroupToggle ? (
+            <button
+              type="button"
+              aria-expanded={!isGroupCollapsed}
+              aria-labelledby={titleId}
+              onClick={(e) => {
+                e.stopPropagation()
+                onGroupToggle(index)
+              }}
+              className="mr-1 inline-flex shrink-0 cursor-pointer items-center rounded focus-visible:outline-2 focus-visible:outline-(--theme-focus)"
+            >
+              {isGroupCollapsed ? (
+                <ChevronRightIcon className="w-3 h-3 rtl:rotate-180" />
+              ) : (
+                <ChevronDownIcon className="w-3 h-3" />
+              )}
+            </button>
+          ) : (
+            <span className="mr-1 shrink-0 inline-flex items-center">
               <ChevronDownIcon className="w-3 h-3" />
-            )}
-          </span>
-        )}
+            </span>
+          ))}
         {annotationLabel}
-        <span>
+        <span id={titleId}>
           <LogSegments segments={displaySegments} />
         </span>
       </pre>
@@ -239,10 +275,7 @@ const TopPaginationBanner = memo(function TopPaginationBanner({
   if (loadingTop) {
     return (
       <div className={baseCx}>
-        <span
-          className="w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin"
-          aria-hidden
-        />
+        <Loader inline decorative size={12} color="currentColor" />
         <span>{t.loadingOlderEntries}</span>
       </div>
     )
@@ -266,6 +299,7 @@ export function LogViewer({
   log,
   height = 'unset',
   width,
+  downloadName = 'log.txt',
   roundedBottom = false,
   lineNumbers = true,
   additionalLeftBarComponents = null,
@@ -287,7 +321,9 @@ export function LogViewer({
 }: {
   log: string
   height?: string | number
-  width: string | number
+  width?: string | number | undefined
+  /** The file name Download saves the log under. */
+  downloadName?: string | undefined
   roundedBottom?: boolean
   lineNumbers?: boolean
   additionalLeftBarComponents?: React.ReactNode
@@ -313,8 +349,7 @@ export function LogViewer({
   const engine = useOptionalWorkflowEngine(workflowCommandsRequested)
   // Workflow commands are engine semantics; without one the log renders plain.
   const enableWorkflowCommands = workflowCommandsRequested && engine !== undefined
-  const notify = useNotify()
-  const { common: tCommon, logviewer: t } = useStrings()
+  const { common, logviewer: t } = useStrings()
   const annotationLabels = useMemo(
     () => ({ error: t.error, warning: t.warning, notice: t.notice }),
     [t],
@@ -328,7 +363,6 @@ export function LogViewer({
     followRef.current = value
     _setFollow(value)
   }, [])
-  const [logUrl, setLogUrl] = useState('')
   const [fullParsedLog, setFullParsedLog] = useState<{ index: number; segments: LogSegment[] }[]>(
     [],
   )
@@ -340,7 +374,7 @@ export function LogViewer({
   const [timeRangeFrom, setTimeRangeFrom] = useState(initialTimeRangeFrom)
   const [timeRangeTo, setTimeRangeTo] = useState(initialTimeRangeTo)
   const [timeRangeOpen, setTimeRangeOpen] = useState(false)
-  const timeRangePopoverRef = useRef<HTMLDivElement>(null)
+  const timeRangeId = useId()
   const timeRangeError = validateTimeRange(timeRangeFrom, timeRangeTo)
 
   useEffect(() => {
@@ -349,24 +383,17 @@ export function LogViewer({
   useEffect(() => {
     setTimeRangeTo(initialTimeRangeTo)
   }, [initialTimeRangeTo])
-  const [visibleStart, setVisibleStart] = useState(0)
-  const [visibleEnd, setVisibleEnd] = useState(0)
-
   // Line selection state
   const [selectedLines, setSelectedLines] = useState<Set<number>>(new Set())
   const [lastClickedLine, setLastClickedLine] = useState<number | null>(null)
-  const [copied, setCopied] = useState(false)
+  const { copy, copied } = useCopy()
 
-  // Text highlight copy button state
-  const [highlightCopyPosition, setHighlightCopyPosition] = useState<{
-    x: number
-    y: number
-  } | null>(null)
-  const [highlightedText, setHighlightedText] = useState('')
+  // Text the reader selected, offered for copying where the selection ended.
+  const [selection, setSelection] = useState<{ text: string; at: FloatingAnchor } | null>(null)
 
   const logContainerRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
   const ansiCache = useRef<{ [line: string]: LogSegment[] }>({})
-  const scrollAnimationRef = useRef<number | null>(null)
   const prevLogLengthRef = useRef<number>(0)
   // Set by the native wheel handler when the user scrolls up (deltaY < 0).
   // The scroll handler reads and resets this flag to decide whether to
@@ -377,9 +404,6 @@ export function LogViewer({
   const prevScrollHeightRef = useRef(0)
   const prevPrependedSignalRef = useRef(prependedSignal)
   const pendingPrependRef = useRef(false)
-
-  const LINE_HEIGHT = 20
-  const OVERSCAN = 20 // Extra lines rendered above/below viewport for smooth scrolling
 
   // Handle line click for selection
   const handleLineClick = useCallback(
@@ -415,107 +439,25 @@ export function LogViewer({
   // Copy all logs to clipboard
   const copyAllLogs = useCallback(async () => {
     const text = rawLines.join('\n')
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch (_err) {
-      notify.error('Failed to copy logs to clipboard')
-    }
-  }, [rawLines, notify])
+    await copy(text, { quiet: true })
+  }, [rawLines, copy])
 
-  // Handle text highlight selection on mouse up
+  // Offers the selected text for copying, where the pointer let go.
   const handleTextMouseUp = useCallback((e: React.MouseEvent) => {
-    const selection = window.getSelection()
-    const selectedText = selection?.toString().trim()
-
-    if (selectedText && selectedText.length > 0) {
-      // Position the button near the cursor
-      setHighlightCopyPosition({ x: e.clientX, y: e.clientY })
-      setHighlightedText(selectedText)
-    } else {
-      setHighlightCopyPosition(null)
-      setHighlightedText('')
-    }
+    const text = window.getSelection()?.toString().trim()
+    const { clientX, clientY } = e
+    setSelection(text ? { text, at: { clientX, clientY } } : null)
   }, [])
 
-  // Copy highlighted text to clipboard
-  const copyHighlightedText = useCallback(async () => {
-    if (!highlightedText) {
+  const copySelection = useCallback(async () => {
+    if (!selection) {
       return
     }
-
-    try {
-      await navigator.clipboard.writeText(highlightedText)
-      notify.success('Text copied to clipboard')
-      // Clear the selection and hide the button
+    if (await copy(selection.text)) {
       window.getSelection()?.removeAllRanges()
-      setHighlightCopyPosition(null)
-      setHighlightedText('')
-    } catch (_err) {
-      notify.error('Failed to copy text to clipboard')
+      setSelection(null)
     }
-  }, [highlightedText, notify])
-
-  // Hide highlight copy button when clicking outside or pressing escape
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      // Check if click is on the copy button itself
-      const target = e.target as HTMLElement
-      if (target.closest('[data-highlight-copy-button]')) {
-        return
-      }
-      // Small delay to allow the copy action to complete
-      setTimeout(() => {
-        setHighlightCopyPosition(null)
-        setHighlightedText('')
-      }, 100)
-    }
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setHighlightCopyPosition(null)
-        setHighlightedText('')
-      }
-    }
-
-    if (highlightCopyPosition) {
-      document.addEventListener('mousedown', handleClickOutside)
-      document.addEventListener('keydown', handleKeyDown)
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [highlightCopyPosition])
-
-  useEffect(() => {
-    if (!timeRangeOpen) {
-      return
-    }
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement
-      if (timeRangePopoverRef.current?.contains(target)) {
-        return
-      }
-      if (target.closest('[data-time-range-trigger]')) {
-        return
-      }
-      setTimeRangeOpen(false)
-    }
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setTimeRangeOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    document.addEventListener('keydown', handleKey)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleKey)
-    }
-  }, [timeRangeOpen])
+  }, [selection, copy])
 
   // Copy selected lines to clipboard
   const copySelectedLines = useCallback(async () => {
@@ -526,14 +468,8 @@ export function LogViewer({
     const sortedLines = Array.from(selectedLines).sort((a, b) => a - b)
     const text = sortedLines.map((ln) => rawLines[ln - 1] || '').join('\n')
 
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch (_err) {
-      notify.error('Failed to copy selected logs to clipboard')
-    }
-  }, [selectedLines, rawLines, notify])
+    await copy(text, { quiet: true })
+  }, [selectedLines, rawLines, copy])
 
   const handleGroupToggle = useCallback((lineIndex: number) => {
     setCollapsedGroups((prev) => {
@@ -582,57 +518,31 @@ export function LogViewer({
     return filtered
   }, [fullParsedLog, processedLines, filter, enableWorkflowCommands, showDebug, collapsedGroups])
 
-  // Smooth scroll to bottom using requestAnimationFrame
-  const smoothScrollToBottom = useCallback(() => {
-    if (!logContainerRef.current) {
-      return
+  const virtualizer = useVirtualizer({
+    count: parsedLog.length,
+    getScrollElement: () => logContainerRef.current,
+    estimateSize: () => LINE_HEIGHT,
+    overscan: 20,
+    // The list sits below the load-older banner in the scrolling element.
+    scrollMargin: listRef.current?.offsetTop ?? 0,
+    getItemKey: (i) => parsedLog[i]?.index ?? i,
+    enabled: !inline,
+  })
+  const parsedLogLengthRef = useRef(parsedLog.length)
+  parsedLogLengthRef.current = parsedLog.length
+
+  const scrollToEnd = useCallback(() => {
+    const last = parsedLogLengthRef.current - 1
+    if (last >= 0) {
+      virtualizer.scrollToIndex(last, { align: 'end' })
     }
-
-    // Cancel any pending animation
-    if (scrollAnimationRef.current) {
-      cancelAnimationFrame(scrollAnimationRef.current)
-      scrollAnimationRef.current = null
-    }
-
-    const container = logContainerRef.current
-    const targetScroll = container.scrollHeight - container.clientHeight
-    const currentScroll = container.scrollTop
-    const distance = targetScroll - currentScroll
-
-    // If very close, just snap to bottom
-    if (Math.abs(distance) < 5) {
-      container.scrollTop = targetScroll
-      return
-    }
-
-    // Smooth scroll with easing
-    const startTime = performance.now()
-    const duration = 150 // ms
-
-    const animate = (currentTime: number) => {
-      const elapsed = currentTime - startTime
-      const progress = Math.min(elapsed / duration, 1)
-
-      // Ease out cubic
-      const eased = 1 - (1 - progress) ** 3
-
-      container.scrollTop = currentScroll + distance * eased
-
-      if (progress < 1) {
-        scrollAnimationRef.current = requestAnimationFrame(animate)
-      } else {
-        scrollAnimationRef.current = null
-      }
-    }
-
-    scrollAnimationRef.current = requestAnimationFrame(animate)
-  }, [])
+  }, [virtualizer])
 
   const scrollToTop = () => {
     logContainerRef.current?.scroll({ top: 0, left: 0, behavior: 'smooth' })
   }
 
-  // Detect user-initiated scroll direction and cancel programmatic animation.
+  // Detect user-initiated scroll direction.
   // Registered as native passive listeners so the browser can scroll
   // immediately without waiting — React's onWheel is non-passive and blocks
   // native scrolling during momentum/trackpad input.
@@ -644,24 +554,16 @@ export function LogViewer({
 
     const onWheel = (e: WheelEvent) => {
       // Flag upward scroll so the scroll handler can disable follow mode.
-      // We don't use scrollTop comparison because dynamic content heights
-      // cause scrollTop to fluctuate, creating false "scroll up" signals.
+      // We don't use scrollTop comparison because measured row heights
+      // make scrollTop shift, creating false "scroll up" signals.
       if (e.deltaY < 0) {
         userScrollUpRef.current = true
       }
-      if (scrollAnimationRef.current) {
-        cancelAnimationFrame(scrollAnimationRef.current)
-        scrollAnimationRef.current = null
-      }
     }
 
+    // Touch = user taking control of scrolling
     const onTouchStart = () => {
-      // Touch = user taking control of scrolling
       userScrollUpRef.current = true
-      if (scrollAnimationRef.current) {
-        cancelAnimationFrame(scrollAnimationRef.current)
-        scrollAnimationRef.current = null
-      }
     }
 
     container.addEventListener('wheel', onWheel, { passive: true })
@@ -689,49 +591,16 @@ export function LogViewer({
 
   const handleLogScroll = (event: React.UIEvent<HTMLDivElement>) => {
     const { scrollTop, clientHeight, scrollHeight } = event.currentTarget
-
-    // Skip follow toggle while a programmatic smooth-scroll animation is
-    // running — the wheel handler above cancels the animation when the
-    // user actively scrolls, so this only guards against reacting to our
-    // own animation's scroll events.
-    const isAnimating = scrollAnimationRef.current !== null
-
-    const threshold = 2
-    const atBottom = scrollHeight - clientHeight - scrollTop < threshold
-
-    if (!isAnimating) {
-      if (atBottom && !follow) {
-        updateFollow(true)
-      } else if (userScrollUpRef.current && follow) {
-        // Only disable follow when the user physically scrolled up (wheel
-        // deltaY < 0). We can't rely on scrollTop < oldScroll because
-        // dynamic content heights cause scrollTop to fluctuate, which
-        // creates false "scroll up" signals and makes follow flicker.
-        updateFollow(false)
-      }
-      userScrollUpRef.current = false
+    const atBottom = scrollHeight - clientHeight - scrollTop < 2
+    if (atBottom && !follow) {
+      updateFollow(true)
+    } else if (userScrollUpRef.current && follow) {
+      // Only the reader scrolling up stops following; a scroll of ours to the
+      // end, or rows changing height as they are measured, don't.
+      updateFollow(false)
     }
-
+    userScrollUpRef.current = false
     maybeFireReachTop(scrollTop)
-
-    // When following, don't update the visible range — it stays frozen at
-    // the scroll-position-based values from when follow was enabled.  The
-    // frozen visibleEnd already extends past parsedLog.length (due to
-    // OVERSCAN), so new lines are included automatically.  Changing
-    // visibleStart here would shift paddingTop and cause a visible jump.
-    // The log processing effect extends visibleEnd when new data arrives.
-    if (!followRef.current) {
-      const visibleCount = Math.ceil(clientHeight / LINE_HEIGHT) + OVERSCAN * 2
-      // Clamp startIndex so the rendered range always contains content and
-      // can't overshoot parsedLog.length into an empty slice.
-      const maxStart = Math.max(0, parsedLog.length - visibleCount)
-      const startIndex = Math.min(
-        maxStart,
-        Math.max(0, Math.floor(scrollTop / LINE_HEIGHT) - OVERSCAN),
-      )
-      setVisibleStart(startIndex)
-      setVisibleEnd(startIndex + visibleCount)
-    }
   }
 
   // Process log changes efficiently
@@ -760,92 +629,28 @@ export function LogViewer({
       setProcessedLines(engine.processLogLines(processed, cleanedLines))
     }
 
-    // While following, keep visibleEnd extended to cover all parsed lines so
-    // newly-arrived content is rendered. We extend on every run (not only
-    // when appending) because StrictMode's double-invocation of effects in
-    // dev updates prevLogLengthRef on the first run, making the second run
-    // observe isAppending=false even on initial mount.
-    if (followRef.current && logContainerRef.current) {
-      setVisibleEnd((prev) => Math.max(prev, cleanedLines.length))
-      if (isAppending) {
-        // Double-rAF ensures the DOM has been committed and painted before
-        // we read scrollHeight. On first load the modal/container may not
-        // have its final dimensions in the very first frame.
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            smoothScrollToBottom()
-          })
-        })
-      }
+    if (followRef.current && isAppending) {
+      // After the new rows render.
+      requestAnimationFrame(scrollToEnd)
     }
+  }, [log, scrollToEnd, enableWorkflowCommands, engine])
 
-    const file = new Blob([log], { type: 'text/plaintext' })
-    const url = URL.createObjectURL(file)
-    setLogUrl(url)
-    return () => {
-      URL.revokeObjectURL(url)
-      // Cleanup animation on unmount
-      if (scrollAnimationRef.current) {
-        cancelAnimationFrame(scrollAnimationRef.current)
-      }
-    }
-  }, [log, smoothScrollToBottom, enableWorkflowCommands, engine])
-
-  const parsedLogLengthRef = useRef(parsedLog.length)
-  parsedLogLengthRef.current = parsedLog.length
-
+  // A resize, such as going fullscreen, keeps a followed log at its end.
   useEffect(() => {
-    if (!logContainerRef.current) {
+    const container = logContainerRef.current
+    if (!container || inline) {
       return
     }
-
-    // Only handles actual container resizes (fullscreen toggle, window resize).
-    // Log data changes are handled by the log processing effect above.
     const observer = new ResizeObserver(() => {
-      if (!logContainerRef.current) {
-        return
-      }
-      // ResizeObserver fires synchronously on attach, which can happen before
-      // parsedLogLengthRef has been populated by the log-processing effect on
-      // the initial render. Skip this case so we don't clobber a pending
-      // setVisibleEnd from the log effect with a stale 0.
-      if (parsedLogLengthRef.current === 0) {
-        return
-      }
-      const container = logContainerRef.current
-      const clientHeight = container.clientHeight
-      const visibleCount = Math.ceil(clientHeight / LINE_HEIGHT) + OVERSCAN * 2
-
       if (followRef.current) {
-        // Only decrease visibleStart (render more lines above), never
-        // increase it — increasing would shift paddingTop under the scroll
-        // to the bottom below.
-        const minStart = Math.max(0, parsedLogLengthRef.current - visibleCount)
-        setVisibleStart((prev) => Math.min(prev, minStart))
-        setVisibleEnd(parsedLogLengthRef.current)
-        // Scroll after React commits the state update and the browser
-        // paints, so smoothScrollToBottom reads correct scrollHeight.
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            smoothScrollToBottom()
-          })
-        })
-      } else {
-        const maxStart = Math.max(0, parsedLogLengthRef.current - visibleCount)
-        const startIndex = Math.min(
-          maxStart,
-          Math.max(0, Math.floor(container.scrollTop / LINE_HEIGHT) - OVERSCAN),
-        )
-        setVisibleStart(startIndex)
-        setVisibleEnd(startIndex + visibleCount)
+        scrollToEnd()
       }
     })
-
-    observer.observe(logContainerRef.current)
-
+    observer.observe(container)
     return () => observer.disconnect()
-  }, [smoothScrollToBottom])
+  }, [inline, scrollToEnd])
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: parsedLog.length re-runs it once the older lines have rendered.
   useLayoutEffect(() => {
     if (prependedSignal > prevPrependedSignalRef.current) {
       pendingPrependRef.current = true
@@ -865,17 +670,8 @@ export function LogViewer({
       return
     }
     pendingPrependRef.current = false
+    // Older lines came in above: keep the ones being read where they were.
     container.scrollTop += delta
-    if (!followRef.current) {
-      const visibleCount = Math.ceil(container.clientHeight / LINE_HEIGHT) + OVERSCAN * 2
-      const maxStart = Math.max(0, parsedLog.length - visibleCount)
-      const startIndex = Math.min(
-        maxStart,
-        Math.max(0, Math.floor(container.scrollTop / LINE_HEIGHT) - OVERSCAN),
-      )
-      setVisibleStart(startIndex)
-      setVisibleEnd(startIndex + visibleCount)
-    }
   }, [prependedSignal, parsedLog.length])
 
   useLayoutEffect(() => {
@@ -884,47 +680,62 @@ export function LogViewer({
     }
   })
 
-  const handleFilterChange = (event: React.ChangeEvent<HTMLInputElement>): void => {
-    const newFilter = event.target.value
+  // Built on demand, not on every update: a followed log changes many times a
+  // second, and each blob would copy the whole log.
+  const downloadLog = () => {
+    const url = URL.createObjectURL(new Blob([log], { type: 'text/plain' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = downloadName
+    a.click()
+    // After the click has handed the URL to the download.
+    setTimeout(() => URL.revokeObjectURL(url))
+  }
+
+  // Escape leaves fullscreen, as it does a video's; an open popover inside
+  // claims its own Escape first.
+  useEffect(() => {
+    if (!fullscreen) {
+      return
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !e.defaultPrevented) {
+        setFullscreen(false)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [fullscreen])
+
+  const handleFilterChange = (newFilter: string): void => {
     setFilter(newFilter)
     updateFollow(false)
-    if (logContainerRef.current) {
-      const clientHeight = logContainerRef.current.clientHeight
-      const visibleCount = Math.ceil(clientHeight / LINE_HEIGHT) + OVERSCAN * 2
-      setVisibleStart(0)
-      setVisibleEnd(Math.min(parsedLog.length, visibleCount))
-      scrollToTop()
-    } else {
-      setVisibleStart(0)
-      setVisibleEnd(50)
-    }
+    scrollToTop()
   }
 
   const ExpandButtonIcon = fullscreen ? ShrinkIcon : ExpandIcon
-  const expandButtonText = fullscreen ? 'Collapse' : 'Expand'
+  const expandButtonText = fullscreen ? common.collapse : common.expand
 
-  const paddingTop = visibleStart * LINE_HEIGHT
-  const paddingBottom = Math.max(0, parsedLog.length - visibleEnd) * LINE_HEIGHT
+  const rows = virtualizer.getVirtualItems()
+  // Inline renders every line; otherwise only those in view, measured as they render.
   const visibleLogs = inline
-    ? parsedLog // In inline mode, render all logs
-    : parsedLog.slice(visibleStart, Math.min(parsedLog.length, visibleEnd))
+    ? parsedLog.map((item, index) => ({ item, index }))
+    : rows.flatMap((row) => {
+        const item = parsedLog[row.index]
+        return item ? [{ item, index: row.index }] : []
+      })
+  const offset = (rows[0]?.start ?? 0) - virtualizer.options.scrollMargin
 
   return (
     <div
       data-testid="logviewer-container"
-      className={cx('flex flex-col grow', roundedBottom && 'rounded-lg')}
-      style={
-        !fullscreen
-          ? { height: height, width: width }
-          : {
-              height: 'calc(100% - 50px)',
-              width: '100%',
-              position: 'fixed',
-              left: 0,
-              top: 50, // account for navbar
-              zIndex: 9999,
-            }
-      }
+      className={cx(
+        'flex flex-col grow',
+        roundedBottom && 'rounded-lg',
+        // Over the page, below the host's top bar.
+        fullscreen && 'fixed inset-x-0 bottom-0 top-(--app-inset-top,0px) z-(--layer-overlay)',
+      )}
+      style={fullscreen ? undefined : { height, width }}
     >
       {/* log viewer tool/top bar */}
       <div
@@ -944,179 +755,196 @@ export function LogViewer({
           <div className="flex gap-x-2 w-full">
             {!inline && (
               <>
-                <button
-                  type="button"
-                  className="btn btn-neutral"
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={<ArrowUpIcon />}
                   onClick={() => {
                     scrollToTop()
                     updateFollow(false)
                   }}
                 >
-                  <ArrowUpIcon />
-                  <span>{t.top}</span>
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-neutral"
+                  {t.top}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={<ArrowDownIcon />}
+                  aria-pressed={follow}
                   onClick={() => {
                     if (!follow) {
                       updateFollow(true)
-                      setVisibleEnd((prev) => Math.max(prev, parsedLog.length))
-                      requestAnimationFrame(() => {
-                        smoothScrollToBottom()
-                      })
+                      scrollToEnd()
                     } else {
                       updateFollow(false)
                     }
                   }}
                 >
-                  <ArrowDownIcon />
-                  <span>{!follow ? 'Follow' : 'Following'}</span>
-                </button>
+                  {follow ? t.following : t.follow}
+                </Button>
               </>
             )}
             {/* Copy selected lines button */}
             {selectedLines.size > 0 ? (
-              <div className="relative flex items-center h-full">
-                <button type="button" className="btn btn-neutral" onClick={copySelectedLines}>
-                  {copied ? <CheckIcon className="text-green-500" /> : <CopyIcon />}
-                  <span>{copied ? tCommon.copied : t.copyLines(selectedLines.size)}</span>
-                </button>
-                <button
-                  type="button"
-                  aria-label={t.clearSelection}
-                  className="absolute -top-1.5 -right-1.5 btn-neutral rounded-full p-1 border transition-colors shadow-sm cursor-pointer z-10"
-                  onClick={() => setSelectedLines(new Set())}
-                  title={t.clearSelection}
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={copied ? <CheckIcon className="text-(--theme-success)" /> : <CopyIcon />}
+                  onClick={copySelectedLines}
                 >
-                  <XIcon className="text-[10px]" />
-                </button>
+                  {copied ? common.copied : t.copyLines(selectedLines.size)}
+                </Button>
+                <IconButton
+                  variant="ghost"
+                  size="sm"
+                  label={t.clearSelection}
+                  icon={<CloseIcon />}
+                  onClick={() => setSelectedLines(new Set())}
+                />
               </div>
             ) : (
-              <button type="button" className="btn btn-neutral" onClick={copyAllLogs}>
-                {copied ? <CheckIcon className="text-green-500" /> : <CopyIcon />}
-                <span>{copied ? tCommon.copied : t.copyAll}</span>
-              </button>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={copied ? <CheckIcon className="text-(--theme-success)" /> : <CopyIcon />}
+                onClick={copyAllLogs}
+              >
+                {copied ? common.copied : t.copyAll}
+              </Button>
             )}
             {additionalLeftBarComponents}
             {enableWorkflowCommands && (
-              <button
-                type="button"
-                className={cx('btn btn-neutral', showDebug && 'btn-active')}
+              <Button
+                variant="secondary"
+                size="sm"
+                aria-pressed={showDebug}
                 onClick={() => setShowDebug((prev) => !prev)}
               >
-                <span>{showDebug ? t.hideDebug : t.showDebug}</span>
-              </button>
+                {showDebug ? t.hideDebug : t.showDebug}
+              </Button>
             )}
             {enableTimeRangeFilter && (
-              <div className="relative">
-                <button
-                  type="button"
-                  data-time-range-trigger
-                  className="btn btn-neutral"
-                  onClick={() => setTimeRangeOpen((o) => !o)}
-                >
-                  <ClockIcon />
-                  <span>{t.timeRange}</span>
-                  {(timeRangeFrom !== '' || timeRangeTo !== '') && (
-                    <span
-                      title={t.timeRangeActive}
-                      className="ml-1 px-1.5 py-0.5 text-[10px] rounded-full bg-[var(--theme-element)]/15 text-[var(--theme-element)]"
-                    >
-                      {t.timeRangeOn}
-                    </span>
-                  )}
-                </button>
-                {timeRangeOpen && (
-                  <div
-                    ref={timeRangePopoverRef}
-                    className={cx(
-                      'absolute top-full left-0 mt-1 z-50 w-80 p-3 rounded-lg shadow-lg',
-                      'border border-[var(--theme-border)] bg-[var(--theme-panel-bg)]',
-                      'flex flex-col gap-y-3',
-                    )}
+              <Popover
+                open={timeRangeOpen}
+                onOpenChange={setTimeRangeOpen}
+                align="start"
+                aria-label={t.filterByTimeRange}
+                className="flex w-80 flex-col gap-y-3"
+                trigger={
+                  <button
+                    type="button"
+                    className={buttonClasses({ variant: 'secondary', size: 'sm' })}
                   >
-                    <div className="flex items-center gap-x-1.5">
-                      <span className="text-xs font-semibold text-[var(--theme-app)]">
-                        {t.filterByTimeRange}
-                      </span>
-                      <TooltipInfo text={t.timeRangeHelp} />
-                    </div>
-                    <label className="flex flex-col gap-y-1">
-                      <span className="text-[11px] uppercase tracking-wide text-[var(--theme-muted-text-color)]">
-                        {t.timeRangeFrom}
-                      </span>
-                      <input
-                        type="datetime-local"
-                        value={timeRangeFrom}
-                        onChange={(e) => setTimeRangeFrom(e.target.value)}
-                        className="rounded-md text-sm h-8 px-2 bg-[var(--theme-input-bg)] text-[var(--theme-input)] border border-[var(--theme-border)]"
-                      />
-                    </label>
-                    <label className="flex flex-col gap-y-1">
-                      <span className="text-[11px] uppercase tracking-wide text-[var(--theme-muted-text-color)]">
-                        {t.timeRangeTo}
-                      </span>
-                      <input
-                        type="datetime-local"
-                        value={timeRangeTo}
-                        onChange={(e) => setTimeRangeTo(e.target.value)}
-                        className="rounded-md text-sm h-8 px-2 bg-[var(--theme-input-bg)] text-[var(--theme-input)] border border-[var(--theme-border)]"
-                      />
-                    </label>
-                    {timeRangeError !== '' && (
-                      <span className="text-[11px] text-red-500">{t[timeRangeError]}</span>
-                    )}
-                    <div className="flex gap-x-2">
-                      <button
-                        type="button"
-                        disabled={timeRangeError !== ''}
-                        className="btn btn-primary flex-1 justify-center"
-                        onClick={() => {
-                          onTimeRangeChange?.(timeRangeFrom, timeRangeTo)
-                          setTimeRangeOpen(false)
-                        }}
+                    <ClockIcon />
+                    <span>{t.timeRange}</span>
+                    {(timeRangeFrom !== '' || timeRangeTo !== '') && (
+                      <span
+                        title={t.timeRangeActive}
+                        className="ml-1 px-1.5 py-0.5 text-[10px] rounded-full bg-[var(--theme-accent)]/15 text-[var(--theme-accent)]"
                       >
-                        {t.apply}
-                      </button>
-                      {(timeRangeFrom !== '' || timeRangeTo !== '') && (
-                        <button
-                          type="button"
-                          className="btn btn-neutral flex-1 justify-center"
-                          onClick={() => {
-                            setTimeRangeFrom('')
-                            setTimeRangeTo('')
-                            onTimeRangeChange?.('', '')
-                            setTimeRangeOpen(false)
-                          }}
-                        >
-                          {t.clear}
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                        {t.timeRangeOn}
+                      </span>
+                    )}
+                  </button>
+                }
+              >
+                <div className="flex items-center gap-x-1.5">
+                  <span className="text-xs font-semibold text-[var(--theme-app)]">
+                    {t.filterByTimeRange}
+                  </span>
+                  <InfoTip text={t.timeRangeHelp} />
+                </div>
+                <div className="flex flex-col gap-y-1">
+                  <span
+                    id={`${timeRangeId}-timeRangeFrom`}
+                    className="text-[11px] uppercase tracking-wide text-[var(--theme-muted-text-color)]"
+                  >
+                    {t.timeRangeFrom}
+                  </span>
+                  <DatePicker
+                    withTime
+                    aria-labelledby={`${timeRangeId}-timeRangeFrom`}
+                    value={timeRangeFrom}
+                    onValueChange={setTimeRangeFrom}
+                  />
+                </div>
+                <div className="flex flex-col gap-y-1">
+                  <span
+                    id={`${timeRangeId}-timeRangeTo`}
+                    className="text-[11px] uppercase tracking-wide text-[var(--theme-muted-text-color)]"
+                  >
+                    {t.timeRangeTo}
+                  </span>
+                  <DatePicker
+                    withTime
+                    aria-labelledby={`${timeRangeId}-timeRangeTo`}
+                    value={timeRangeTo}
+                    onValueChange={setTimeRangeTo}
+                  />
+                </div>
+                {timeRangeError !== '' && (
+                  <span role="alert" className="text-[11px] text-(--theme-error-text)">
+                    {t[timeRangeError]}
+                  </span>
                 )}
-              </div>
+                <div className="flex gap-x-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={timeRangeError !== ''}
+                    className="flex-1"
+                    onClick={() => {
+                      onTimeRangeChange?.(timeRangeFrom, timeRangeTo)
+                      setTimeRangeOpen(false)
+                    }}
+                  >
+                    {common.apply}
+                  </Button>
+                  {(timeRangeFrom !== '' || timeRangeTo !== '') && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => {
+                        setTimeRangeFrom('')
+                        setTimeRangeTo('')
+                        onTimeRangeChange?.('', '')
+                        setTimeRangeOpen(false)
+                      }}
+                    >
+                      {common.clear}
+                    </Button>
+                  )}
+                </div>
+              </Popover>
             )}
           </div>
-          <input
-            type="text"
-            className="rounded-md text-sm h-8"
-            placeholder={t.filterLogs}
-            onChange={handleFilterChange}
+          <SearchInput
+            label={t.filterLogs}
+            value={filter}
+            onValueChange={handleFilterChange}
+            className="w-48"
           />
-          <a href={logUrl} className={cx(!logUrl && 'disabled', 'btn btn-neutral')} download>
-            <DownloadIcon />
-            <span>{t.download}</span>
-          </a>
-          <button
-            type="button"
-            className={cx('btn btn-neutral', hideExpand && 'hidden')}
-            onClick={() => setFullscreen((prev) => !prev)}
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<DownloadIcon />}
+            disabled={!log}
+            onClick={downloadLog}
           >
-            <ExpandButtonIcon />
-            <span>{expandButtonText}</span>
-          </button>
+            {common.download}
+          </Button>
+          {!hideExpand && (
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<ExpandButtonIcon />}
+              onClick={() => setFullscreen((prev) => !prev)}
+            >
+              {expandButtonText}
+            </Button>
+          )}
         </div>
         {additionalRightBarComponents}
       </div>
@@ -1151,59 +979,59 @@ export function LogViewer({
             onLoadOlder={onReachTop}
           />
         )}
-        <div className="min-w-max" style={inline ? undefined : { paddingTop, paddingBottom }}>
-          {visibleLogs.map((item) => (
-            <LogLine
-              key={item.index}
-              index={item.index}
-              segments={item.segments}
-              lineNumbers={lineNumbers}
-              isSelected={selectedLines.has(item.index + 1)}
-              lineHeight={LINE_HEIGHT}
-              onLineClick={handleLineClick}
-              searchTerm={filter}
-              command={enableWorkflowCommands ? (item as ProcessedLogLine).command : undefined}
-              groupDepth={enableWorkflowCommands ? (item as ProcessedLogLine).groupDepth : 0}
-              isGroupCollapsed={
-                enableWorkflowCommands && (item as ProcessedLogLine).command?.type === 'group'
-                  ? collapsedGroups.has(item.index)
-                  : undefined
-              }
-              onGroupToggle={enableWorkflowCommands ? handleGroupToggle : undefined}
-              annotationLabels={annotationLabels}
-            />
-          ))}
+        <div
+          ref={listRef}
+          className={cx(!inline && 'relative')}
+          style={inline ? undefined : { height: virtualizer.getTotalSize() }}
+        >
+          {/* One layer of rows as wide as the widest, so every row's band spans it. */}
+          <div
+            className={cx('min-w-max', !inline && 'absolute top-0 left-0 min-w-full')}
+            style={inline ? undefined : { transform: `translateY(${offset}px)` }}
+          >
+            {visibleLogs.map(({ item, index }) => (
+              <div
+                key={item.index}
+                data-index={index}
+                ref={inline ? undefined : virtualizer.measureElement}
+              >
+                <LogLine
+                  index={item.index}
+                  segments={item.segments}
+                  lineNumbers={lineNumbers}
+                  isSelected={selectedLines.has(item.index + 1)}
+                  lineHeight={LINE_HEIGHT}
+                  onLineClick={handleLineClick}
+                  searchTerm={filter}
+                  command={enableWorkflowCommands ? (item as ProcessedLogLine).command : undefined}
+                  groupDepth={enableWorkflowCommands ? (item as ProcessedLogLine).groupDepth : 0}
+                  isGroupCollapsed={
+                    enableWorkflowCommands && (item as ProcessedLogLine).command?.type === 'group'
+                      ? collapsedGroups.has(item.index)
+                      : undefined
+                  }
+                  onGroupToggle={enableWorkflowCommands ? handleGroupToggle : undefined}
+                  annotationLabels={annotationLabels}
+                  selectLineLabel={t.selectLine}
+                />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-      {/* Floating copy button for text highlight */}
-      {highlightCopyPosition && highlightedText && (
-        <button
-          type="button"
-          data-highlight-copy-button
-          className={cx(
-            'fixed z-[10000] flex items-center gap-1 px-2 py-1.5 text-xs font-medium',
-            'rounded-md shadow-lg border cursor-pointer transition-colors duration-150',
-            'bg-(--theme-panel-bg) border-(--theme-border) hover:bg-(--theme-hover) text-(--theme-app)',
-          )}
-          style={{
-            left: highlightCopyPosition.x,
-            top: highlightCopyPosition.y + 8,
-            transform: 'translateX(-50%)',
-          }}
-          onClick={copyHighlightedText}
+      {selection && (
+        <Popover
+          open
+          onOpenChange={(open) => !open && setSelection(null)}
+          at={selection.at}
+          initialFocus="none"
+          aria-label={common.copy}
+          className="p-1"
         >
-          {copied ? (
-            <>
-              <CheckIcon className="text-green-500 w-3.5 h-3.5" />
-              <span>{tCommon.copied}</span>
-            </>
-          ) : (
-            <>
-              <CopyIcon className="w-3.5 h-3.5" />
-              <span>{tCommon.copy}</span>
-            </>
-          )}
-        </button>
+          <Button variant="ghost" size="xs" icon={<CopyIcon />} onClick={copySelection}>
+            {common.copy}
+          </Button>
+        </Popover>
       )}
       {/* log viewer bottom bar (only with custom nodes) */}
       {(additionalBottomLeftBarComponents || additionalBottomRightBarComponents) && (

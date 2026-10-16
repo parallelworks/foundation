@@ -1,6 +1,7 @@
 import { createContext, use, useRef } from 'react'
 import { keyedByContent } from '../components/keys'
-import { useNotify, useStrings } from '../components/Provider'
+import { useStrings } from '../components/Provider'
+import { toast } from '../components/Toast'
 import { mapWithConcurrency } from './lib/batch'
 import type { IFileExplorerClient, IFileExplorerProvider } from './lib/fileExplorer'
 import type { TreeNode, UploadFileProgress, UploadNode, UploadSession } from './lib/types'
@@ -62,7 +63,6 @@ interface IFileExplorerProviderProps {
 }
 
 export function FileExplorerProvider({ children }: IFileExplorerProviderProps) {
-  const notify = useNotify()
   const t = useStrings().fileExplorer
   const uploadSessionMapRef = useRef<Map<string, UploadSession>>(new Map())
   const uploadQueueRef = useRef<string[]>([])
@@ -164,12 +164,12 @@ export function FileExplorerProvider({ children }: IFileExplorerProviderProps) {
 
     uploadSessionMapRef.current.set(sessionId, newSession)
     uploadQueueRef.current.push(sessionId)
-    notify.loading(
+    toast.loading(
       <UploadSessionToast session={newSession} queueLength={uploadQueueRef.current.length} />,
       {
-        toastId: sessionId,
+        id: sessionId,
         icon: false,
-        closeButton: false,
+        dismissible: false,
       },
     )
 
@@ -200,7 +200,7 @@ export function FileExplorerProvider({ children }: IFileExplorerProviderProps) {
       fileProgress.abortController.abort()
 
       updateFileProgressInUploadSession(session, relativePath, {
-        status: 'cancelled',
+        status: 'canceled',
       })
     }
   }
@@ -215,33 +215,29 @@ export function FileExplorerProvider({ children }: IFileExplorerProviderProps) {
           fileProgress.abortController.abort()
           session.progress?.allFiles?.set(relativePath, {
             ...fileProgress,
-            status: 'cancelled',
+            status: 'canceled',
           })
         }
       })
     }
     session.abortController?.abort()
-    session.status = 'cancelled'
+    session.status = 'canceled'
   }
 
   const startUploadSession = async (sessionId: string): Promise<void> => {
     const session = getUploadSessionById(sessionId)
     if (!session) {
-      notify.update(sessionId, {
-        render: t.messages.uploadInitFailed,
-        type: 'error',
-        isLoading: false,
-        closeButton: null,
+      toast.update(sessionId, {
+        message: t.messages.uploadInitFailed,
+        tone: 'error',
       })
       return
     }
 
     if (session.status !== 'queued') {
-      notify.update(sessionId, {
-        render: t.upload.sessionNotQueued(sessionId, session.status),
-        type: 'error',
-        isLoading: false,
-        closeButton: null,
+      toast.update(sessionId, {
+        message: t.upload.sessionNotQueued(sessionId, session.status),
+        tone: 'error',
       })
       return
     }
@@ -259,12 +255,11 @@ export function FileExplorerProvider({ children }: IFileExplorerProviderProps) {
     )
 
     try {
-      notify.update(sessionId, {
-        render: progressToast(),
+      toast.update(sessionId, {
+        message: progressToast(),
         icon: false,
-        isLoading: false,
-        closeButton: false,
-        autoClose: false,
+        dismissible: false,
+        timeout: false,
       })
 
       const results = await mapWithConcurrency(
@@ -276,10 +271,10 @@ export function FileExplorerProvider({ children }: IFileExplorerProviderProps) {
             return
           }
           // Throwing, not returning, is what makes the settled results count the file
-          // as not uploaded; the summary then tells cancelled from failed by
+          // as not uploaded; the summary then tells canceled from failed by
           // the message.
-          if (fileProgress.status === 'cancelled') {
-            throw new Error('Upload cancelled by user')
+          if (fileProgress.status === 'canceled') {
+            throw new Error('Upload canceled by user')
           }
 
           updateFileProgressInUploadSession(session, node.relativePath, {
@@ -306,7 +301,7 @@ export function FileExplorerProvider({ children }: IFileExplorerProviderProps) {
             totalBytes: number
             percentage: number
           }) => {
-            if (session.status === 'cancelled' || !session.progress?.allFiles) {
+            if (session.status === 'canceled' || !session.progress?.allFiles) {
               return
             }
             const currentFileProgress = session.progress.allFiles.get(node.relativePath)
@@ -314,7 +309,7 @@ export function FileExplorerProvider({ children }: IFileExplorerProviderProps) {
             // counted twice.
             if (
               !currentFileProgress ||
-              ['failed', 'cancelled', 'completed'].includes(currentFileProgress.status ?? '')
+              ['failed', 'canceled', 'completed'].includes(currentFileProgress.status ?? '')
             ) {
               return
             }
@@ -348,12 +343,11 @@ export function FileExplorerProvider({ children }: IFileExplorerProviderProps) {
               session.progress.estimatedSecondsLeft = estimatedSecondsLeft
             }
 
-            notify.update(sessionId, {
-              render: progressToast(),
+            toast.update(sessionId, {
+              message: progressToast(),
               icon: false,
-              isLoading: false,
-              closeButton: false,
-              autoClose: false,
+              dismissible: false,
+              timeout: false,
             })
           }
 
@@ -364,16 +358,16 @@ export function FileExplorerProvider({ children }: IFileExplorerProviderProps) {
             })
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error ?? '')
-            const isCancelled =
+            const isCanceled =
               errorMessage.toLowerCase().includes('abort') ||
               errorMessage.toLowerCase().includes('cancel')
 
             updateFileProgressInUploadSession(session, node.relativePath, {
-              status: isCancelled ? 'cancelled' : 'failed',
+              status: isCanceled ? 'canceled' : 'failed',
             })
 
-            notify.update(sessionId, {
-              render: progressToast({
+            toast.update(sessionId, {
+              message: progressToast({
                 ...session,
                 progress: {
                   completedFiles: 0,
@@ -383,9 +377,8 @@ export function FileExplorerProvider({ children }: IFileExplorerProviderProps) {
                 },
               }),
               icon: false,
-              isLoading: false,
-              closeButton: session.status === 'failed' || session.status === 'cancelled',
-              autoClose: false,
+              dismissible: session.status === 'failed' || session.status === 'canceled',
+              timeout: false,
             })
 
             // Re-throw so the file counts as not uploaded in the overall toast
@@ -398,7 +391,7 @@ export function FileExplorerProvider({ children }: IFileExplorerProviderProps) {
       try {
         await session.refreshTargetNode(session.targetNode)
       } catch (err) {
-        notify.error(
+        toast.error(
           t.upload.refreshFailed(
             session.storageName,
             err instanceof Error ? err.message : t.upload.unknownError,
@@ -425,8 +418,8 @@ export function FileExplorerProvider({ children }: IFileExplorerProviderProps) {
 
       const successfulCount = results.length - failedResults.length
       if (actualFailedResults.length > 0) {
-        notify.update(sessionId, {
-          render: (
+        toast.update(sessionId, {
+          message: (
             <div className="text-md">
               <div className="font-medium mb-2">
                 {t.upload.failedSummary(actualFailedResults.length, results.length)}
@@ -446,42 +439,27 @@ export function FileExplorerProvider({ children }: IFileExplorerProviderProps) {
               </div>
             </div>
           ),
-          type: 'error',
-          icon: null,
-          isLoading: false,
-          closeButton: null,
+          tone: 'error',
         })
       } else if (abortedCount > 0 && successfulCount > 0) {
-        notify.update(sessionId, {
-          render: (
+        toast.update(sessionId, {
+          message: (
             <div className="w-full flex flex-col gap-1">
               <div>{t.upload.someUploaded(successfulCount)}</div>
-              <div>{t.upload.someCancelled(abortedCount)}</div>
+              <div>{t.upload.someCanceled(abortedCount)}</div>
             </div>
           ),
-          type: 'success',
-          icon: null,
-          isLoading: false,
-          closeButton: null,
-          autoClose: null,
+          tone: 'success',
         })
       } else if (abortedCount > 0 && successfulCount === 0) {
-        notify.update(sessionId, {
-          render: t.upload.allCancelled(abortedCount),
-          type: 'info',
-          icon: null,
-          isLoading: false,
-          closeButton: null,
-          autoClose: null,
+        toast.update(sessionId, {
+          message: t.upload.allCanceled(abortedCount),
+          tone: 'info',
         })
       } else {
-        notify.update(sessionId, {
-          render: t.upload.allUploaded,
-          type: 'success',
-          icon: null,
-          isLoading: false,
-          closeButton: null,
-          autoClose: null,
+        toast.update(sessionId, {
+          message: t.upload.allUploaded,
+          tone: 'success',
         })
       }
 

@@ -6,17 +6,21 @@ import type { ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import type { ChatAdapter, StreamHandlers } from '../adapter/types'
 import type { ComposerPastes, PasteUploadResult } from '../components/usePasteCards'
-import { ChatProvider } from '../core/ChatProvider'
+import { ChatProvider, type ChatProviderProps } from '../core/ChatProvider'
 import type { ChatLinkProps, ChatUIConfig } from '../core/config'
 import { countLines, utf8Bytes } from '../core/pastes'
 import type {
+  Allocation,
   ApprovalPart,
+  ApprovalSubject,
+  AttachmentRef,
   ChatMessage,
   ChatUser,
   Conversation,
   ConversationSummary,
   MessagePart,
   MessagePaste,
+  ProviderInfo,
   ProviderIssue,
   SubagentPart,
   TodoItem,
@@ -68,7 +72,7 @@ export function makeMessage(overrides: Partial<ChatMessage>): ChatMessage {
 }
 
 const MARKDOWN_TOUR = [
-  'Here is a **markdown tour** covering the common shapes.\n\n```ts\nconst adapter = createMockChatAdapter()\nawait adapter.conversations.list()\n```\n\n| Partition | Nodes | State |\n|---|---|---|\n| compute | 12 | idle |\n| gpu | 4 | busy |\n\nInline math $E = mc^2$ and display math:\n\n$$\\sum_{i=1}^{n} x_i^2$$\n\n- [x] stream the reply\n- [ ] polish the renderer',
+  'Here is a **markdown tour** covering the common shapes.\n\n```ts\nconst adapter = createMockChatAdapter()\nawait adapter.conversations.list()\n```\n\n| Partition | Nodes | State |\n|---|---|---|\n| compute | 12 | idle |\n| gpu | 4 | busy |\n\nInline math $$E = mc^2$$ and display math:\n\n$$\\sum_{i=1}^{n} x_i^2$$\n\n- [x] stream the reply\n- [ ] polish the renderer',
   'Second reply with `inline code`, a [link](https://example.com), and a list:\n\n1. First\n2. Second\n3. Third',
 ]
 
@@ -140,6 +144,32 @@ export function makeConversation(overrides?: {
     isOwner: true,
     createdAt: '2026-08-16T11:00:00Z',
   }
+}
+
+/** A conversation of `turns` questions and answers, for how the thread holds
+ *  up when it is long: every answer carries markdown to render. */
+export function makeLongConversation(turns: number, id = 'conv-1'): Conversation {
+  const messages: ChatMessage[] = []
+  let parentId: string | null = null
+  for (let i = 0; i < turns; i++) {
+    const question: ChatMessage = makeMessage({
+      role: 'user',
+      content: `Question ${i + 1}: ${words(8 + (i % 7))}?`,
+      author: storyUser,
+      conversationId: id,
+      parentId,
+    })
+    const answer: ChatMessage = makeMessage({
+      role: 'assistant',
+      content: MARKDOWN_TOUR[i % MARKDOWN_TOUR.length] ?? '',
+      model: 'mock:local/canned-small',
+      conversationId: id,
+      parentId: question.id,
+    })
+    messages.push(question, answer)
+    parentId = answer.id
+  }
+  return makeConversation({ id, title: 'A long conversation', messages })
 }
 
 export interface StreamingKnobs {
@@ -219,7 +249,19 @@ export function makeStaticAdapter(options?: {
   streaming?: StreamingKnobs
   sharing?: boolean
   providerIssues?: ProviderIssue[]
-  attachments?: boolean
+  /** Each provider lists one model; omit for the single story provider. */
+  providers?: ProviderInfo[]
+  /** False for an adapter that returns models only, so owners come from
+   *  each model's provider_owner. */
+  listProviders?: boolean
+  /** True for an empty attachment store, or the files it holds. */
+  attachments?: boolean | AttachmentRef[]
+  /** The host previews attachments itself rather than downloading them. */
+  previewAttachments?: boolean
+  /** Sessions whose service did not answer, as the picker lists them. */
+  unreachableSessions?: { name: string; owner: string }[]
+  /** Offered for an organization model ("org:" providers). */
+  allocations?: Allocation[]
 }): ChatAdapter {
   const conversations = options?.conversations ?? [makeConversation()]
   const summaries =
@@ -266,19 +308,31 @@ export function makeStaticAdapter(options?: {
     models: {
       async list() {
         return {
-          models: [
-            {
-              id: 'mock:story/streaming',
-              object: 'model' as const,
-              created: 0,
-              owned_by: 'story',
-              provider: 'Story Provider',
-              provider_name: 'story',
-              provider_owner: 'mock',
-              tool_calling_mode: 'none' as const,
-            },
-          ],
-          unreachableSessions: [],
+          models: options?.providers
+            ? options.providers.map((p) => ({
+                id: `${p.user}:${p.name}/${p.name}-large`,
+                object: 'model' as const,
+                created: 0,
+                owned_by: p.user,
+                provider: p.displayName ?? p.name,
+                provider_name: p.name,
+                // Organization providers carry no owner on the model.
+                provider_owner: p.user === 'org' ? '' : p.user,
+                tool_calling_mode: 'none' as const,
+              }))
+            : [
+                {
+                  id: 'mock:story/streaming',
+                  object: 'model' as const,
+                  created: 0,
+                  owned_by: 'story',
+                  provider: 'Story Provider',
+                  provider_name: 'story',
+                  provider_owner: 'mock',
+                  tool_calling_mode: 'none' as const,
+                },
+              ],
+          unreachableSessions: options?.unreachableSessions ?? [],
           providerIssues: options?.providerIssues ?? [],
         }
       },
@@ -355,18 +409,90 @@ export function makeStaticAdapter(options?: {
   }
 
   if (options?.attachments) {
+    const stored = Array.isArray(options.attachments) ? options.attachments : []
     adapter.attachments = {
       async list() {
-        return { attachments: [], total: 0, hasMore: false }
+        return { attachments: stored, total: stored.length, hasMore: false }
       },
       async upload() {
         throw new Error('uploads are not stubbed in the workshop')
       },
       async remove() {},
-      downloadUrl: () => '#',
+      downloadUrl: attachmentUrl,
+      ...(options.previewAttachments ? { onOpen: () => {} } : {}),
     }
   }
+
+  const providers = options?.providers
+  if (providers && options?.listProviders !== false) {
+    adapter.providers = {
+      async list() {
+        return providers
+      },
+    }
+  }
+  const allocations = options?.allocations
+  if (allocations) {
+    adapter.allocations = { list: async () => allocations }
+  }
   return adapter
+}
+
+// ---- Attachments -----------------------------------------------------------
+
+const PICTURE = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200" viewBox="0 0 320 200">
+<rect width="320" height="200" fill="#5b7fa6"/><circle cx="250" cy="55" r="28" fill="#f2d16b"/>
+<path d="M0 200 L110 80 L190 160 L240 110 L320 200 Z" fill="#2f4a68"/></svg>`
+
+const pictureUrls = new Map<string, string>()
+
+/** A workshop download URL: a picture for an image, a page anchor otherwise.
+ *  jsdom has no object URLs, so the smoke test gets the anchor. */
+function attachmentUrl(id: string): string {
+  if (!id.startsWith('img') || typeof URL.createObjectURL !== 'function') {
+    return `#${id}`
+  }
+  let url = pictureUrls.get(id)
+  if (!url) {
+    url = URL.createObjectURL(new Blob([PICTURE], { type: 'image/svg+xml' }))
+    pictureUrls.set(id, url)
+  }
+  return url
+}
+
+/** Files as a store lists them: two pictures, a document and a log; ids that
+ *  start with "img" download as a picture. */
+export function makeAttachments(): AttachmentRef[] {
+  return [
+    {
+      id: 'img-1',
+      filename: 'cluster-dashboard.png',
+      contentType: 'image/png',
+      size: 284_310,
+      uploadedAt: '2026-08-16T10:12:00Z',
+    },
+    {
+      id: 'doc-1',
+      filename: 'quarterly-capacity-report.pdf',
+      contentType: 'application/pdf',
+      size: 1_482_004,
+      uploadedAt: '2026-08-15T16:40:00Z',
+    },
+    {
+      id: 'img-2',
+      filename: '',
+      contentType: 'image/png',
+      size: 98_120,
+      uploadedAt: '2026-08-14T09:05:00Z',
+    },
+    {
+      id: 'log-1',
+      filename: 'build.log',
+      contentType: 'text/plain',
+      size: 12_870,
+      uploadedAt: '2026-08-12T13:30:00Z',
+    },
+  ]
 }
 
 // ---- Agent transcript part factories ---------------------------------------
@@ -460,10 +586,35 @@ export function makeSubagentParts(options?: { count?: number }): SubagentPart[] 
   })
 }
 
+const confirmSamples: Record<ApprovalSubject, Partial<ApprovalPart>> = {
+  command: {
+    toolName: 'Bash',
+    command: 'kubectl delete pod web-frontend-7d9f --grace-period=0',
+    reason: 'Command deletes a running pod',
+  },
+  code: {
+    toolName: 'NotebookRun',
+    subject: 'code',
+    command: "df = pd.read_parquet('runs.parquet')\ndf.groupby('shard').failures.sum()",
+  },
+  path: {
+    toolName: 'ReadFile',
+    subject: 'path',
+    command: 'ReadFile /etc/slurm/slurm.conf',
+    reason: 'file is outside the workspace',
+  },
+  call: {
+    toolName: 'mcp__tickets__create_issue',
+    subject: 'call',
+    command: 'mcp__tickets__create_issue {"title":"Shard 12 flakes on publish"}',
+  },
+}
+
 export function makeApprovalPart(options?: {
   kind?: 'confirm' | 'ask'
   resolved?: boolean
   multiSelect?: boolean
+  subject?: ApprovalSubject
 }): ApprovalPart {
   const kind = options?.kind ?? 'confirm'
   const base: ApprovalPart =
@@ -472,9 +623,7 @@ export function makeApprovalPart(options?: {
           kind: 'approval',
           id: nextId('appr'),
           approvalKind: 'confirm',
-          toolName: 'Bash',
-          command: 'kubectl delete pod web-frontend-7d9f --grace-period=0',
-          reason: 'Command deletes a running pod',
+          ...confirmSamples[options?.subject ?? 'command'],
           agent: 'main',
           mode: 'accept-edits',
         }
@@ -687,6 +836,8 @@ function storyChatLink(onNavigate?: (id: string | null) => void) {
           onClick?.(e)
           if (target.kind === 'conversation') {
             onNavigate?.(target.id)
+          } else if (target.kind === 'newChat') {
+            onNavigate?.(null)
           }
         }}
       >
@@ -701,18 +852,6 @@ const noopNavigation = {
   toNewChat() {},
 }
 
-const consoleNotify = {
-  success(m: string) {
-    console.info('[notify.success]', m)
-  },
-  error(m: string) {
-    console.info('[notify.error]', m)
-  },
-  info(m: string) {
-    console.info('[notify.info]', m)
-  },
-}
-
 // Stories are excluded from the stylesheet's `@source` scan so their classes
 // never ship, which means a utility used only here has no rule. Height comes
 // from an inline style so the story viewport cannot depend on that scan.
@@ -725,12 +864,17 @@ export function StoryChat({
   config,
   conversationId = 'conv-1',
   onNavigate,
+  sidebarControl,
   children,
 }: {
   adapter?: ChatAdapter
   config?: ChatUIConfig
   conversationId?: string | null
   onNavigate?: (id: string | null) => void
+  /** The host owning the sidebar, as ChatProvider takes it. */
+  sidebarControl?:
+    | Pick<ChatProviderProps, 'sidebar' | 'onSidebarChange' | 'drawerOpen' | 'onDrawerOpenChange'>
+    | undefined
   children: ReactNode
 }) {
   const resolved = useMemo(() => adapter ?? makeStaticAdapter(), [adapter])
@@ -753,9 +897,9 @@ export function StoryChat({
       adapter={resolved}
       currentUser={storyUser}
       navigation={navigation}
-      notify={consoleNotify}
       activeConversationId={conversationId}
       config={resolvedConfig}
+      {...sidebarControl}
     >
       {children}
     </ChatProvider>

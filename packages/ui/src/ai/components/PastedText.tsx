@@ -1,12 +1,13 @@
-import cx from 'classnames'
 import { Fragment } from 'react'
-import { FileIcon, RunningIcon, XIcon } from '../../icons'
+import { Loader } from '../../components/Loader'
+import { cx } from '../../cx'
+import { formatBytes } from '../../format'
+import { FileIcon, RemoveIcon } from '../../icons'
 import { useChatConfig } from '../core/config'
 import { fencePaste } from '../core/pasteLanguage'
 import { splitPastes } from '../core/pastes'
 import type { MessagePaste } from '../types'
 import Markdown from '../ui/Markdown'
-import { formatFileSize } from '../utils'
 
 /** A paste sent, or about to be sent, as its saved file. */
 export function PasteFileCard({
@@ -25,14 +26,14 @@ export function PasteFileCard({
   onRemove?: (() => void) | undefined
 }) {
   const t = useChatConfig().strings.paste
-  const detail = error ?? (saving ? t.saving : `${t.lines(lines)} · ${formatFileSize(bytes)}`)
+  const detail = error ?? (saving ? t.saving : `${t.lines(lines)} · ${formatBytes(bytes)}`)
   return (
     <div
       data-testid="paste-file-card"
       className={cx(
         'inline-flex max-w-full items-center gap-2.5 rounded-xl px-3 py-2 align-top whitespace-normal',
         'bg-(--theme-panel-bg)',
-        error ? 'border border-red-500' : 'chat-hairline',
+        error ? 'border border-(--theme-error)' : 'chat-hairline',
       )}
     >
       <FileIcon className="h-5 w-5 flex-shrink-0 theme-muted-text" />
@@ -40,13 +41,16 @@ export function PasteFileCard({
         <div className="truncate text-sm font-medium theme-text">
           {id ? `paste-${id}.txt` : t.title}
         </div>
-        <div className={cx('truncate text-xs', error ? 'text-red-500' : 'theme-muted-text')}>
+        <div
+          className={cx(
+            'truncate text-xs',
+            error ? 'text-(--theme-error-text)' : 'theme-muted-text',
+          )}
+        >
           {detail}
         </div>
       </div>
-      {saving && (
-        <RunningIcon className="h-3.5 w-3.5 flex-shrink-0 animate-spin theme-muted-text" />
-      )}
+      {saving && <Loader inline decorative size={14} color="var(--theme-muted-text-color)" />}
       {onRemove && (
         <button
           type="button"
@@ -55,7 +59,7 @@ export function PasteFileCard({
           title={t.remove}
           className="flex-shrink-0 rounded p-0.5 theme-muted-text hover:theme-text"
         >
-          <XIcon className="h-3.5 w-3.5" />
+          <RemoveIcon className="h-3.5 w-3.5" />
         </button>
       )}
     </div>

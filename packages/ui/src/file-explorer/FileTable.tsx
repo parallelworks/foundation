@@ -1,8 +1,11 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import cx from 'classnames'
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { OpenMenu } from '../components/ContextMenu'
+import type { MenuEntry } from '../components/MenuEntries'
+import { useStrings } from '../components/Provider'
 import { Table } from '../components/Table'
-import { listTableFixedProps, type OpenMenu, type RowMenuItem } from '../list/index'
+import { cx } from '../cx'
+import { listTableFixedProps } from '../list/index'
 import { fileRowHeight, ROW_HEIGHT_SHORT } from './FileRow'
 import { FileRowsWindow, spacerHeights } from './FileRowsWindow'
 import { FileTableHeaders } from './FileTableHeaders'
@@ -15,11 +18,13 @@ interface FileTableProps {
   allSelected: boolean
   someSelected: boolean
   onSelectAll: () => void
-  getItems: (node: TreeNode) => RowMenuItem[]
+  getItems: (node: TreeNode) => MenuEntry[]
   openMenu: OpenMenu
   onOpen: (node: TreeNode) => void
   onToggleCheck: (node: TreeNode, checked: boolean) => void
   onPreview: (node: TreeNode) => void
+  /** The URL of a path; set, each row is a link to its node. */
+  pathHref?: ((path: string) => string) | undefined
   /** Set when the folder has pages left to fetch. */
   loadMore?: LoadMoreState | undefined
 }
@@ -38,6 +43,7 @@ export function FileTable({
   onOpen,
   onToggleCheck,
   onPreview,
+  pathHref,
   loadMore,
 }: FileTableProps) {
   // Callback ref into state so the virtualizer re-reads once the element exists.
@@ -49,6 +55,7 @@ export function FileTable({
   // Rows start below the <thead>, not at scrollTop 0.
   const [theadHeight, setTheadHeight] = useState(0)
   const rowIdPrefix = useId()
+  const t = useStrings().fileExplorer
 
   useLayoutEffect(() => {
     const thead = scrollEl?.querySelector('thead')
@@ -230,7 +237,7 @@ export function FileTable({
     // virtualizer at scrollTop 0 forever.
     <div ref={setScrollEl} className="h-full overflow-auto">
       {/* tabIndex and onKeyDown sit on the <table>, not on the scroll container:
-          aria-activedescendant is only honoured on the element that actually holds
+          aria-activedescendant is only honored on the element that actually holds
           focus, so the grid, the cursor attribute and the focus have to be one
           element or assistive tech never hears the cursor move.
           aria-rowcount pairs with each row's aria-rowindex to report the true
@@ -243,7 +250,7 @@ export function FileTable({
         wrapperClassName="overflow-x-auto"
         tableProps={{
           role: 'grid',
-          'aria-label': 'Files',
+          'aria-label': t.chrome.files,
           'aria-rowcount': loadMore ? -1 : nodes.length + 1,
           'aria-multiselectable': true,
           tabIndex: 0,
@@ -272,6 +279,7 @@ export function FileTable({
           onOpen={handleOpen}
           onToggleCheck={onToggleCheck}
           onPreview={onPreview}
+          pathHref={pathHref}
         />
       </Table>
     </div>

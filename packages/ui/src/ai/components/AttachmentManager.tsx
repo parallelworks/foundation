@@ -1,30 +1,23 @@
-import cx from 'classnames'
-import { DateTime } from 'luxon'
 import { useCallback, useMemo, useState } from 'react'
 import useSWRInfinite from 'swr/infinite'
-import { DownloadFileIcon, FileIcon, TrashIcon } from '../../icons'
+import { EmptyState } from '../../components/EmptyState'
+import { Loader } from '../../components/Loader'
+import { useStrings } from '../../components/Provider'
+import { RelativeTime } from '../../components/relativeTime'
+import { toast } from '../../components/Toast'
+import { Tooltip } from '../../components/Tooltip'
+import { cx } from '../../cx'
+import { formatBytes } from '../../format'
+import { DownloadIcon, FileIcon, TrashIcon } from '../../icons'
 import { safeUrl } from '../../safeUrl'
 import { useChat } from '../core/ChatProvider'
 import { useChatConfig } from '../core/config'
-import { formatFileSize } from '../utils'
 import { ATTACHMENTS_PAGE_SIZE, attachmentsPageKey } from './attachmentKeys'
 
-function triggerDownload(url: string, filename: string) {
-  const href = safeUrl(url)
-  if (!href) {
-    return
-  }
-  const a = document.createElement('a')
-  a.href = href
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-}
-
 export default function AttachmentManager() {
-  const { adapter, notify } = useChat()
+  const { adapter } = useChat()
   const t = useChatConfig().strings.attachmentManager
+  const { common } = useStrings()
   const attachmentsAdapter = adapter.attachments
 
   const [deleting, setDeleting] = useState<string | null>(null)
@@ -66,12 +59,12 @@ export default function AttachmentManager() {
         await attachmentsAdapter.remove(attachmentId)
         await mutate()
       } catch (error) {
-        notify.error(error instanceof Error ? error.message : String(error))
+        toast.error(error instanceof Error ? error.message : String(error))
       } finally {
         setDeleting(null)
       }
     },
-    [attachmentsAdapter, mutate, notify],
+    [attachmentsAdapter, mutate],
   )
 
   if (!attachmentsAdapter) {
@@ -86,30 +79,46 @@ export default function AttachmentManager() {
         {/* Main content area */}
         <div className="flex-1 overflow-y-auto p-8">
           <div className="max-w-4xl mx-auto">
-            <h1 className="text-2xl font-semibold mb-6 text-(--theme-panel)">{t.title}</h1>
+            <h1 className="text-2xl font-semibold mb-6 text-(--theme-app)">{t.title}</h1>
 
             {isLoading && attachments.length === 0 ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-2 border-current border-t-transparent theme-muted-text" />
+              <div className="py-12">
+                <Loader size={32} />
               </div>
             ) : attachments.length === 0 ? (
-              <p className="text-center theme-muted-text py-12 text-sm">{t.empty}</p>
+              <EmptyState variant="bare" title={t.empty} />
             ) : (
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {attachments.map((att) => {
-                    const downloadUrl = attachmentsAdapter.downloadUrl(att.id)
+                    const downloadUrl = safeUrl(attachmentsAdapter.downloadUrl(att.id))
+                    const name = att.filename || t.unnamedFile
                     const isDeleting = deleting === att.id
                     const thumbnail = thumbnails[att.id]
                     const showThumbnail =
                       att.contentType?.startsWith('image/') && thumbnail !== 'broken'
-                    const openProps = attachmentsAdapter.onOpen
-                      ? {
-                          onClick: () => attachmentsAdapter.onOpen?.(att),
-                          role: 'button' as const,
-                          style: { cursor: 'pointer' },
-                        }
-                      : {}
+                    const preview = (
+                      <>
+                        <FileIcon aria-hidden="true" className="w-8 h-8 theme-muted-text" />
+                        {showThumbnail && (
+                          // Kept transparent until it decodes so a slow or missing
+                          // file shows the placeholder, never a broken-image glyph.
+                          <img
+                            src={downloadUrl}
+                            alt=""
+                            className={cx(
+                              'absolute inset-0 w-full h-full object-cover',
+                              thumbnail !== 'loaded' && 'opacity-0',
+                            )}
+                            loading="lazy"
+                            onLoad={() => markThumbnail(att.id, 'loaded')}
+                            onError={() => markThumbnail(att.id, 'broken')}
+                          />
+                        )}
+                      </>
+                    )
+                    const previewClasses =
+                      'relative aspect-square w-full bg-(--theme-muted-panel-bg) flex items-center justify-center'
 
                     return (
                       <div
@@ -119,60 +128,53 @@ export default function AttachmentManager() {
                           isDeleting && 'opacity-50 pointer-events-none',
                         )}
                       >
-                        <div
-                          className="relative aspect-square bg-(--theme-muted-panel-bg) flex items-center justify-center"
-                          {...openProps}
-                        >
-                          <FileIcon className="w-8 h-8 theme-muted-text" />
-                          {showThumbnail && (
-                            // Kept transparent until it decodes so a slow or missing
-                            // file shows the placeholder, never a broken-image glyph.
-                            <img
-                              src={downloadUrl}
-                              alt={att.filename || 'Image'}
-                              className={cx(
-                                'absolute inset-0 w-full h-full object-cover',
-                                thumbnail !== 'loaded' && 'opacity-0',
-                              )}
-                              loading="lazy"
-                              onLoad={() => markThumbnail(att.id, 'loaded')}
-                              onError={() => markThumbnail(att.id, 'broken')}
-                            />
-                          )}
-                        </div>
+                        {attachmentsAdapter.onOpen ? (
+                          <button
+                            type="button"
+                            onClick={() => attachmentsAdapter.onOpen?.(att)}
+                            aria-label={t.open(name)}
+                            className={cx(previewClasses, 'cursor-pointer')}
+                          >
+                            {preview}
+                          </button>
+                        ) : (
+                          <div className={previewClasses}>{preview}</div>
+                        )}
                         <div className="p-3 text-xs bg-(--theme-panel-bg) flex items-center justify-between gap-1">
                           <div className="min-w-0 flex-1">
-                            <p className="truncate font-medium text-(--theme-panel)">
-                              {att.filename || 'File'}
-                            </p>
+                            <p className="truncate font-medium text-(--theme-app)">{name}</p>
                             <p className="truncate theme-muted-text">
-                              {att.size ? formatFileSize(att.size) : ''}
+                              {att.size ? formatBytes(att.size) : ''}
                               {att.uploadedAt && (
                                 <>
                                   {att.size ? ' · ' : ''}
-                                  {DateTime.fromISO(att.uploadedAt).toRelative()}
+                                  <RelativeTime value={att.uploadedAt} />
                                 </>
                               )}
                             </p>
                           </div>
                           <div className="flex items-center gap-0.5 flex-shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => triggerDownload(downloadUrl, att.filename || 'File')}
-                              className="p-1.5 rounded-lg hover:theme-hover theme-muted-text transition-colors"
-                              title={t.download}
-                            >
-                              <DownloadFileIcon className="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDelete(att.id)}
-                              disabled={isDeleting}
-                              className="p-1.5 rounded-lg hover:bg-red-500/15 theme-muted-text hover:text-red-600 transition-colors"
-                              title={t.delete}
-                            >
-                              <TrashIcon className="w-4 h-4" />
-                            </button>
+                            <Tooltip content={common.download}>
+                              <a
+                                href={downloadUrl}
+                                download={att.filename || true}
+                                aria-label={t.download(name)}
+                                className="p-1.5 rounded-lg hover:theme-hover theme-muted-text transition-colors"
+                              >
+                                <DownloadIcon aria-hidden="true" className="w-4 h-4" />
+                              </a>
+                            </Tooltip>
+                            <Tooltip content={common.delete}>
+                              <button
+                                type="button"
+                                onClick={() => handleDelete(att.id)}
+                                disabled={isDeleting}
+                                aria-label={t.remove(name)}
+                                className="p-1.5 rounded-lg hover:bg-(--theme-error-muted) theme-muted-text hover:text-(--theme-error-text) transition-colors"
+                              >
+                                <TrashIcon aria-hidden="true" className="w-4 h-4" />
+                              </button>
+                            </Tooltip>
                           </div>
                         </div>
                       </div>
@@ -188,7 +190,7 @@ export default function AttachmentManager() {
                       disabled={isValidating}
                       className="px-6 py-3 text-sm rounded-lg theme-muted-panel hover:theme-hover transition-colors disabled:opacity-50"
                     >
-                      {isValidating ? t.loading : t.loadMore}
+                      {isValidating ? common.loading : common.loadMore}
                     </button>
                   </div>
                 )}

@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { ConversationSidebar, type ConversationSidebarGroup } from './ConversationSidebar'
+import { SidebarRailItem } from './sidebar'
 
 const storage = new Map<string, string>()
 Object.defineProperty(window, 'localStorage', {
@@ -93,6 +94,25 @@ describe('ConversationSidebar', () => {
     expect(storage.get('itemsWidth')).toBe('316')
   })
 
+  it('opens in a drawer at full width, with no rail or handle, and closes from it', () => {
+    const onClose = vi.fn()
+    render(
+      <Sidebar
+        collapsed
+        rail={<li>dot</li>}
+        resize={{ storageKey: 'itemsWidth', label: 'Resize', hint: 'Drag' }}
+        drawer={{ open: true, onClose, label: 'Items drawer' }}
+      />,
+    )
+    expect(screen.getByRole('dialog', { name: 'Items drawer' })).toBeInTheDocument()
+    expect(screen.getByText('Item a')).toBeInTheDocument()
+    expect(screen.queryByText('dot')).not.toBeInTheDocument()
+    expect(screen.queryByRole('separator')).not.toBeInTheDocument()
+    expect(panel().style.width).toBe('100%')
+    fireEvent.keyDown(screen.getByRole('dialog', { name: 'Items drawer' }), { key: 'Escape' })
+    expect(onClose).toHaveBeenCalled()
+  })
+
   it('cycles through the items in list order and wraps', () => {
     const onSelect = vi.fn()
     const { rerender } = render(<Sidebar cycle={{ current: groups[1]?.items[1], onSelect }} />)
@@ -114,5 +134,26 @@ describe('ConversationSidebar', () => {
     rerender(<Sidebar />)
     keyDown('ArrowDown')
     expect(onSelect).not.toHaveBeenCalled()
+  })
+})
+
+describe('SidebarRailItem', () => {
+  it('is a link to the item when given an href, and a button otherwise', () => {
+    const onSelect = vi.fn()
+    render(
+      <ul>
+        <SidebarRailItem selected label="Deploy" href="/tasks/1" onSelect={onSelect}>
+          D
+        </SidebarRailItem>
+        <SidebarRailItem selected={false} label="Build" onSelect={onSelect}>
+          B
+        </SidebarRailItem>
+      </ul>,
+    )
+    const link = screen.getByRole('link', { name: 'Deploy' })
+    expect(link).toHaveAttribute('href', '/tasks/1')
+    expect(link).toHaveAttribute('aria-current', 'page')
+    fireEvent.click(screen.getByRole('button', { name: 'Build' }))
+    expect(onSelect).toHaveBeenCalledTimes(1)
   })
 })

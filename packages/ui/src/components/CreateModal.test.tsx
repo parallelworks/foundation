@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { CreateModal, CreateModalTextarea } from './CreateModal'
+import { Autocomplete } from './Combobox'
+import { CreateModal } from './CreateModal'
+import { Field } from './Field'
+import { InfoTip } from './InfoTip'
+import { Input, Textarea } from './Input'
 
 function renderModal(onSubmit: (name: string) => Promise<boolean>) {
   return render(
@@ -18,6 +22,71 @@ function renderModal(onSubmit: (name: string) => Promise<boolean>) {
     />,
   )
 }
+
+describe('CreateModal fields', () => {
+  it('names a field with help by its label, not by the help button beside it', () => {
+    render(
+      <CreateModal
+        open
+        onClose={vi.fn()}
+        typeLabel="Workflow"
+        namePlaceholder="Enter a new name"
+        onSubmit={vi.fn()}
+      >
+        <Input label="Region" hint={<InfoTip text="Where the workflow runs." />} />
+        <Field
+          label="Account"
+          hint={<InfoTip text="Who pays for it." />}
+          description="Billed monthly."
+        >
+          {(control) => <Autocomplete {...control} items={['research', 'teaching']} />}
+        </Field>
+      </CreateModal>,
+    )
+    expect(screen.getByRole('textbox', { name: 'Region' })).toBeInTheDocument()
+    const account = screen.getByRole('combobox', { name: 'Account' })
+    expect(account).toHaveAccessibleDescription('Billed monthly.')
+    // Help sits beside each label, a button of its own.
+    expect(screen.getAllByRole('button', { name: 'More information' })).toHaveLength(2)
+  })
+})
+
+describe('CreateModal name', () => {
+  it('says a wrong name is invalid, and why', async () => {
+    render(
+      <CreateModal
+        open
+        onClose={vi.fn()}
+        typeLabel="Widget"
+        namePlaceholder="widget-name"
+        validateName={(name) => (name.includes(' ') ? 'No spaces allowed' : null)}
+        onSubmit={vi.fn()}
+      />,
+    )
+    const name = await screen.findByRole('textbox', { name: 'widget-name' })
+    expect(name).toBeRequired()
+    expect(name).not.toBeInvalid()
+    fireEvent.change(name, { target: { value: 'my widget' } })
+    expect(name).toBeInvalid()
+    expect(name).toHaveAccessibleDescription('No spaces allowed')
+  })
+
+  it('starts each opening with a fresh name', async () => {
+    const props = {
+      onClose: vi.fn(),
+      typeLabel: 'Widget',
+      namePlaceholder: 'widget-name',
+      onSubmit: vi.fn(),
+    }
+    const { rerender } = render(<CreateModal open {...props} />)
+    fireEvent.change(await screen.findByRole('textbox', { name: 'widget-name' }), {
+      target: { value: 'first' },
+    })
+    rerender(<CreateModal open={false} {...props} />)
+    rerender(<CreateModal open {...props} />)
+    expect(await screen.findByRole('textbox', { name: 'widget-name' })).toHaveValue('')
+  })
+})
 
 describe('CreateModal submit state', () => {
   it('recovers the submit button when onSubmit rejects', async () => {
@@ -56,12 +125,7 @@ describe('CreateModal submit state', () => {
 })
 
 describe('CreateModal initial focus', () => {
-  function renderWithTextarea() {
-    const frames: FrameRequestCallback[] = []
-    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
-      frames.push(cb)
-      return frames.length
-    })
+  function renderModal(props: { hideName?: boolean } = {}) {
     render(
       <CreateModal
         open
@@ -72,33 +136,21 @@ describe('CreateModal initial focus', () => {
         submitLabel="Create"
         submittingLabel="Creating"
         onSubmit={vi.fn().mockResolvedValue(true)}
+        {...props}
       >
-        <CreateModalTextarea label="Public key" value="" onChange={vi.fn()} placeholder="" />
+        <Textarea label="Public key" value="" onChange={vi.fn()} placeholder="" />
       </CreateModal>,
     )
-    return () => {
-      for (const frame of frames.splice(0)) {
-        frame(0)
-      }
-    }
   }
 
-  afterEach(() => {
-    vi.restoreAllMocks()
+  it('focuses the name input when it opens', async () => {
+    renderModal()
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Key name' })).toHaveFocus())
   })
 
-  it('focuses the name input once the content has mounted', () => {
-    const runFrames = renderWithTextarea()
-    runFrames()
-    expect(screen.getByRole('textbox', { name: 'Key name' })).toHaveFocus()
-  })
-
-  it('leaves focus on a field the user already moved into', () => {
-    const runFrames = renderWithTextarea()
-    const textarea = screen.getByRole('textbox', { name: 'Public key' })
-    textarea.focus()
-    runFrames()
-    expect(textarea).toHaveFocus()
+  it('starts at its first field when it asks for no name', async () => {
+    renderModal({ hideName: true })
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Public key' })).toHaveFocus())
   })
 })
 
@@ -131,5 +183,16 @@ describe('CreateModal panel mousedown', () => {
   it('keeps the caret in the name field for non-interactive areas', () => {
     renderWithRedirectUri()
     expect(fireEvent.mouseDown(screen.getByTestId('hint'))).toBe(false)
+  })
+})
+
+describe('CreateModal fields with help', () => {
+  it.each([
+    ['an input', Input],
+    ['a textarea', Textarea],
+  ])('name %s by its label, not the help button beside it', (_, Control) => {
+    render(<Control label="Account ID" hint={<InfoTip text="The twelve digit ID" />} />)
+    expect(screen.getByRole('textbox', { name: 'Account ID' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'More information' })).toBeInTheDocument()
   })
 })

@@ -108,6 +108,7 @@ Describe the app in `dev.json` at the repository root:
 | `dev stack` | Run Postgres on `:5432` and S3 on `127.0.0.1:8333` until interrupted. User, password and database are `name` (required with Postgres); tests get `name_test` |
 | `dev wait [service...]` | Block until a stack started elsewhere accepts connections, or until the services named are up; fails as soon as one fails, exits or turns unhealthy |
 | `dev reset` | Delete the stack's data |
+| `dev clean [repository...]` | Remove finished and long-idle worktrees, and trim Go's build cache; `--install` runs it every few hours ([Cleaning up](#cleaning-up)) |
 
 Data and each service's latest log live in `.devstack/` beside `dev.json`, or
 `--dir`. The command finds `dev.json` from the working directory up, which is
@@ -148,11 +149,13 @@ and `{instance}`; values in `env` may also use `${NAME}` (see
 | `restart` | `on-failure` to start it again, with backoff, when it exits with an error |
 | `rebuildOnCheckout` | Rebuild it when the branch changes, for a build stamped with it |
 | `profiles` | Run it only in checkouts using one of these |
+| `once` | It readies something and exits, such as loading a database; services that depend on it wait for it to finish |
 
 ## The interactive view
 
 In a terminal, `dev` takes over the screen with its services, their states
-(building, starting, ready, running, unhealthy, failed, exited, stopped) and
+(building, starting, ready, running, finished, unhealthy, failed, exited,
+stopped) and
 the stack's addresses:
 
 | Key | |
@@ -203,6 +206,10 @@ A service can depend on others: with `"dependsOn": ["db"]` it reads *waiting*
 until `db` is up, and `dev web` starts `db` too. `"restart": "on-failure"`
 starts a service again when it exits with an error, waiting longer each time
 it keeps failing; without it a service that exits is left stopped.
+`"once": true` is for a command that readies something and exits, such as
+one that loads a database or creates a queue: it reads *starting* while it
+runs and *finished* once it exits cleanly, and services that depend on it wait
+until then. With `"restart": "on-failure"` it tries again until it succeeds.
 `"rebuildOnCheckout": true` rebuilds a server when the checkout's branch
 changes, for a build stamped with it; it finds the branch through git, so it
 works in a worktree too.
@@ -233,6 +240,34 @@ work in it the tools, for whichever checkout they run in:
 ```json
 { "mcpServers": { "dev": { "command": "go", "args": ["-C", "tools", "tool", "dev", "mcp"] } } }
 ```
+
+## Cleaning up
+
+A worktree per task, for people and agents alike, fills a disk fast: each
+holds a checkout, its build output and its `.devstack`, and Go's build cache
+grows by the size of every build that differs, which it only trims after
+five days unused. `dev clean` removes what is finished, from anywhere:
+
+```sh
+dev clean -n ~/src/app             # what would go
+dev clean ~/src/app ~/src/lib
+dev clean --install ~/src/app      # every 3h from now on (launchd or a systemd user timer)
+```
+
+A worktree goes when its default branch has its work: merged, rebased,
+cherry-picked, or squash-merged in a pull request that `gh` finds ending at
+the worktree's commit. One untouched for `--stale` (default 3 days) goes too,
+merged or not: its commits stay on its branch, and a detached HEAD gets a
+`dev-clean/<folder>` branch first, so `git worktree add <path> <branch>`
+brings any back. A worktree stays while it has changes or untracked files, is
+locked, was touched within `--idle` (default 6 hours), or runs a dev. Ignored
+files go with a removed worktree, so copy out any build output or stack data
+worth keeping.
+
+Then Go's build cache is trimmed to `--go-cache` (default 60GB), least
+recently used first, keeping anything used in the last hour. Entries are
+content-addressed, so one removed is rebuilt when needed. `--go-cache 0`
+leaves the cache alone, and `--uninstall` stops the schedule.
 
 ## Ports
 

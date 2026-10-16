@@ -1,5 +1,14 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { makeMessage, makePaste, makePasteText, StoryChat, StoryViewport } from '../stories/harness'
+import { useMemo } from 'react'
+import {
+  makeAttachments,
+  makeMessage,
+  makePaste,
+  makePasteText,
+  makeStaticAdapter,
+  StoryChat,
+  StoryViewport,
+} from '../stories/harness'
 import type { ChatMessage } from '../types'
 import ChatMessageList from './ChatMessageList'
 
@@ -109,6 +118,25 @@ export const LongUrls: StoryObj = {
   render: () => <MessageList messages={longUrls} allMessages={longUrls} />,
 }
 
+const LONG_REPLY = Array.from(
+  { length: 12 },
+  (_, i) =>
+    `${i + 1}. **Cause ${i + 1}.** The request names a size or region the account cannot use, so the provider refuses it before a node starts.`,
+).join('\n\n')
+
+const longReplies: ChatMessage[] = [
+  makeMessage({ role: 'user', content: 'Why do clusters fail to start?' }),
+  makeMessage({ role: 'assistant', content: LONG_REPLY }),
+  makeMessage({ role: 'user', content: 'And why do they fail to stop?' }),
+  makeMessage({ role: 'assistant', content: LONG_REPLY }),
+]
+
+// An older long reply folds behind Show more; the latest stays open, so the
+// thread, scrolled to its end, ends on the answer's last line.
+export const LongReplies: StoryObj = {
+  render: () => <MessageList messages={longReplies} allMessages={longReplies} />,
+}
+
 const reasoned: ChatMessage[] = [
   makeMessage({ role: 'user', content: 'Which partition should the sweep run on?' }),
   makeMessage({
@@ -130,5 +158,66 @@ export const ReasoningOpened: StoryObj<{ open: boolean }> = {
     if (args.open) {
       canvasElement.querySelector<HTMLButtonElement>('button[aria-expanded="false"]')?.click()
     }
+  },
+}
+
+const failed: ChatMessage[] = [
+  makeMessage({ role: 'user', content: 'Summarize the last build log.' }),
+  makeMessage({
+    role: 'assistant',
+    content: '',
+    error: 'The provider returned 429 Too Many Requests. Try again in a minute.',
+  }),
+]
+
+// A reply that failed, in the theme's error tone, with retry when the host
+// passes onRetryMessage.
+export const FailedReply: StoryObj<{ retry: boolean }> = {
+  args: { retry: true },
+  render: ({ retry }) => (
+    <MessageList
+      messages={failed}
+      allMessages={failed}
+      {...(retry ? { onRetryMessage: () => {} } : {})}
+    />
+  ),
+}
+
+// Files sent with a message: pictures as thumbnails and the rest as chips, each
+// a link to its download. With `preview` the host takes a plain click and opens
+// the file in its own viewer; a modified click still opens the link.
+export const Attachments: StoryObj<{ preview: boolean }> = {
+  args: { preview: false },
+  argTypes: {
+    preview: { control: 'boolean', description: 'The host previews attachments (onOpen)' },
+  },
+  render: ({ preview }) => {
+    const Story = () => {
+      const adapter = useMemo(
+        () => makeStaticAdapter({ attachments: true, previewAttachments: preview }),
+        [],
+      )
+      const messages = [
+        makeMessage({
+          role: 'user',
+          content: 'Here is the dashboard and the report. What stands out?',
+          attachments: makeAttachments(),
+        }),
+        makeMessage({
+          role: 'assistant',
+          content: 'The gpu partition sat idle for most of the quarter while compute queued.',
+        }),
+      ]
+      return (
+        <StoryChat adapter={adapter}>
+          <StoryViewport>
+            <div className="flex h-full flex-col bg-(--theme-panel-bg)">
+              <ChatMessageList messages={messages} allMessages={messages} />
+            </div>
+          </StoryViewport>
+        </StoryChat>
+      )
+    }
+    return <Story key={String(preview)} />
   },
 }

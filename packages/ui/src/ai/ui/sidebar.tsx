@@ -1,25 +1,25 @@
-import cx from 'classnames'
 import { type CSSProperties, type ReactNode, useState } from 'react'
+import { AppLink, isPlainClick } from '../../components/AppLink'
 import { ConfirmModal } from '../../components/ConfirmModal'
+import type { OpenMenu } from '../../components/ContextMenu'
+import { fieldBox } from '../../components/fieldBox'
 import { focusOnMount } from '../../components/focus'
+import { IconButton } from '../../components/IconButton'
+import type { MenuEntry } from '../../components/MenuEntries'
+import { Tooltip } from '../../components/Tooltip'
+import { cx } from '../../cx'
 import { SidebarIcon } from '../../icons'
-import {
-  MoreButton,
-  type OpenMenu,
-  type RowMenuItem,
-  rowContextMenuProps,
-  useRowMenuActive,
-} from '../../list/index'
+import { MoreButton, rowContextMenuProps, useRowMenuActive } from '../../list/index'
 
 const SIDEBAR_RAIL_WIDTH_PX = 48
 export const SIDEBAR_DEFAULT_WIDTH_PX = 256
 
 // Tints rather than the theme's hover, which is a shade off this surface and
 // would not read as a highlight on it: the accent for the open row, so the
-// conversation on screen is marked in the chat's own colour, and the ink for
+// conversation on screen is marked in the chat's own color, and the ink for
 // a passing pointer.
 const HIGHLIGHT_SELECTED = 'bg-[color-mix(in_oklab,var(--theme-accent)_12%,transparent)]'
-const HIGHLIGHT_HOVER = 'hover:bg-[color-mix(in_oklab,var(--theme-panel)_5%,transparent)]'
+const HIGHLIGHT_HOVER = 'hover:bg-[color-mix(in_oklab,var(--theme-app)_5%,transparent)]'
 
 /** The column a conversation list lives in: it animates between its width
  *  and a rail, unless a drag is setting the width right now. */
@@ -72,19 +72,13 @@ export function SidebarToggle({
 }) {
   const label = collapsed ? openLabel : closeLabel
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      title={label}
-      aria-label={label}
+    <IconButton
+      label={label}
+      icon={<SidebarIcon />}
       aria-expanded={!collapsed}
-      className={cx(
-        'flex h-7 w-7 items-center justify-center rounded-md theme-muted-text transition-colors hover:theme-muted-panel hover:theme-text',
-        className,
-      )}
-    >
-      <SidebarIcon className="h-4 w-4" />
-    </button>
+      onClick={onToggle}
+      className={className}
+    />
   )
 }
 
@@ -103,11 +97,31 @@ export function SidebarGroupHeading({
       data-testid={testId}
       className={cx(
         'mt-5 mb-1 whitespace-nowrap px-2 text-xs font-medium',
-        tone === 'attention' ? 'text-amber-700 dark:text-amber-300' : 'theme-muted-text',
+        tone === 'attention' ? 'text-(--theme-warning-text)' : 'theme-muted-text',
       )}
     >
       {children}
     </h4>
+  )
+}
+
+/** A row's first line, the same in every list: what it is, and when it last
+ *  moved, abbreviated, on the right. */
+export function SidebarRowTitle({
+  children,
+  time,
+}: {
+  children: ReactNode
+  /** When it last changed, short: a compact `RelativeTime`. */
+  time?: ReactNode
+}) {
+  return (
+    <span className="flex min-w-0 flex-1 items-baseline gap-2">
+      <span className="min-w-0 flex-1 truncate text-sm theme-text">{children}</span>
+      {time && (
+        <span className="min-w-8 shrink-0 text-[11px] tabular-nums theme-muted-text">{time}</span>
+      )}
+    </span>
   )
 }
 
@@ -121,7 +135,7 @@ export function SidebarRow({
   children,
 }: {
   selected: boolean
-  menuItems: RowMenuItem[]
+  menuItems: MenuEntry[]
   openMenu: OpenMenu
   className?: string
   children: ReactNode
@@ -137,45 +151,61 @@ export function SidebarRow({
       {...rowContextMenuProps(openRowMenu, menuItems)}
     >
       {children}
-      <MoreButton active={active} onOpen={(x, y) => openRowMenu(x, y, menuItems)} />
+      <MoreButton open={active} onOpen={(button) => openRowMenu(button, menuItems)} />
     </li>
   )
 }
 
 /** One entry in the collapsed rail: a square the size of the toggle, with the
- *  same highlight as a row, holding whatever stands in for the item. */
+ *  same highlight as a row, holding whatever stands in for the item. With
+ *  `href` it is a link to the item, and `onSelect` runs only for a plain click. */
 export function SidebarRailItem({
   selected,
   label,
+  href,
   onSelect,
   testId,
-  tooltipProps,
   children,
 }: {
   selected: boolean
+  /** Names the icon-only button, and shows beside it on hover. */
   label: string
-  onSelect: () => void
+  href?: string | undefined
+  onSelect?: (() => void) | undefined
   testId?: string
-  tooltipProps?: Record<string, string>
   children: ReactNode
 }) {
+  const props = {
+    'data-testid': testId,
+    'aria-label': label,
+    'aria-current': selected ? ('page' as const) : undefined,
+    className: cx(
+      'flex h-7 w-7 items-center justify-center rounded-md transition-colors',
+      HIGHLIGHT_HOVER,
+      selected && HIGHLIGHT_SELECTED,
+    ),
+  }
   return (
     <li>
-      <button
-        type="button"
-        data-testid={testId}
-        aria-label={label}
-        aria-current={selected ? 'page' : undefined}
-        onClick={onSelect}
-        {...tooltipProps}
-        className={cx(
-          'flex h-7 w-7 items-center justify-center rounded-md transition-colors',
-          HIGHLIGHT_HOVER,
-          selected && HIGHLIGHT_SELECTED,
+      <Tooltip content={label} side="right">
+        {href ? (
+          <AppLink
+            href={href}
+            onClick={(e) => {
+              if (isPlainClick(e)) {
+                onSelect?.()
+              }
+            }}
+            {...props}
+          >
+            {children}
+          </AppLink>
+        ) : (
+          <button type="button" onClick={onSelect} {...props}>
+            {children}
+          </button>
         )}
-      >
-        {children}
-      </button>
+      </Tooltip>
     </li>
   )
 }
@@ -225,7 +255,7 @@ export function RenameDialog({
           }}
           placeholder={placeholder}
           ref={focusOnMount}
-          className="w-full rounded-md border theme-border bg-(--theme-input-bg) px-3 py-2 text-sm theme-text placeholder:theme-muted-text focus:border-(--theme-element) focus:outline-none"
+          className={fieldBox()}
         />
       </label>
     </ConfirmModal>

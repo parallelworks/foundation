@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useState, useTransition } from 'react'
+import { Checkbox } from '../../components/Checkbox'
+import { Combobox } from '../../components/Combobox'
 import { ConfirmModal } from '../../components/ConfirmModal'
-import Loader from '../../components/Loader'
+import { Loader } from '../../components/Loader'
+import { useStrings } from '../../components/Provider'
+import { Select } from '../../components/Select'
+import { toast } from '../../components/Toast'
+import { Tooltip } from '../../components/Tooltip'
 import { ShareIcon, TrashIcon } from '../../icons'
 import { useChat } from '../core/ChatProvider'
 import { useChatConfig } from '../core/config'
-import type { ShareGroup, SharePermission } from '../types'
-import Dropdown from '../ui/Dropdown'
+import type { ShareGroup, SharePermission, SharePermissionLevel } from '../types'
 
 type TeamPermission = SharePermission & { team: string }
 
@@ -21,8 +26,9 @@ interface ShareDialogProps {
 
 export default function ShareDialog({ conversationId, isOpen, onClose }: ShareDialogProps) {
   const { strings } = useChatConfig()
+  const { common } = useStrings()
   const t = strings.shareConversation
-  const { adapter, notify } = useChat()
+  const { adapter } = useChat()
   const sharing = adapter.sharing
   const [permissions, setPermissions] = useState<SharePermission[]>([])
   const [teams, setTeams] = useState<ShareGroup[]>([])
@@ -63,14 +69,14 @@ export default function ShareDialog({ conversationId, isOpen, onClose }: ShareDi
         setTeams(await sharing.listGroups())
       } catch (error) {
         console.error('Failed to load sharing data:', error)
-        notify.error(t.loadError)
+        toast.error(t.loadError)
       } finally {
         setLoading(false)
       }
     }
 
     loadData()
-  }, [isOpen, conversationId, sharing, notify, t.loadError])
+  }, [isOpen, conversationId, sharing, t.loadError])
 
   const handleSave = useCallback(() => {
     if (!sharing) {
@@ -128,11 +134,11 @@ export default function ShareDialog({ conversationId, isOpen, onClose }: ShareDi
           }
         }
       } catch (error) {
-        notify.error(error instanceof Error ? error.message : String(error))
+        toast.error(error instanceof Error ? error.message : String(error))
         return
       }
 
-      notify.success(t.saveSuccess)
+      toast.success(t.saveSuccess)
       onClose()
     })
   }, [
@@ -144,7 +150,6 @@ export default function ShareDialog({ conversationId, isOpen, onClose }: ShareDi
     orgCollaborateAccess,
     originalOrgCollaborateAccess,
     onClose,
-    notify,
     t.saveSuccess,
   ])
 
@@ -174,7 +179,7 @@ export default function ShareDialog({ conversationId, isOpen, onClose }: ShareDi
   }, [])
 
   const handleTeamPermissionChange = useCallback(
-    (teamId: string, permission: 'view' | 'collaborate') => {
+    (teamId: string, permission: SharePermissionLevel) => {
       setPermissions((prev) => prev.map((p) => (p.team === teamId ? { ...p, permission } : p)))
     },
     [],
@@ -185,6 +190,10 @@ export default function ShareDialog({ conversationId, isOpen, onClose }: ShareDi
   }
 
   const teamPermissions = permissions.filter(isTeamPermission)
+  const permissionItems = [
+    { label: t.viewOnly, value: 'view' as const },
+    { label: t.canCollaborate, value: 'collaborate' as const },
+  ]
   const availableTeams = teams.filter((team) => !permissions.some((p) => p.team === team.id))
 
   return (
@@ -193,15 +202,15 @@ export default function ShareDialog({ conversationId, isOpen, onClose }: ShareDi
       onClose={onClose}
       align="center"
       title={t.title}
-      confirmLabel={strings.modal.save}
-      cancelLabel={strings.modal.cancel}
+      confirmLabel={common.save}
+      cancelLabel={common.cancel}
       onConfirm={handleSave}
       confirmDisabled={saving}
     >
       <div className="space-y-4">
         {loading ? (
           <div className="py-4">
-            <Loader size={24} text={strings.modal.loading} />
+            <Loader size={24} label={common.loading} />
           </div>
         ) : (
           <>
@@ -210,26 +219,22 @@ export default function ShareDialog({ conversationId, isOpen, onClose }: ShareDi
               <h3 className="font-medium text-sm mb-2">{t.orgAccess}</h3>
               <div className="space-y-2">
                 <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={orgViewAccess}
-                    onChange={(e) => {
-                      setOrgViewAccess(e.target.checked)
-                      if (!e.target.checked) {
+                    onCheckedChange={(on) => {
+                      setOrgViewAccess(on)
+                      if (!on) {
                         setOrgCollaborateAccess(false)
                       }
                     }}
-                    className="rounded"
                   />
                   <span className="text-sm">{t.orgCanView}</span>
                 </label>
                 <label className="flex items-center gap-2 ml-4">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={orgCollaborateAccess}
-                    onChange={(e) => setOrgCollaborateAccess(e.target.checked)}
+                    onCheckedChange={setOrgCollaborateAccess}
                     disabled={!orgViewAccess}
-                    className="rounded"
                   />
                   <span className="text-sm">{t.allowCollaboration}</span>
                 </label>
@@ -250,29 +255,28 @@ export default function ShareDialog({ conversationId, isOpen, onClose }: ShareDi
                     >
                       <span className="text-sm theme-text">{perm.teamName || perm.team}</span>
                       <div className="flex items-center gap-2">
-                        <Dropdown
-                          options={[
-                            { label: t.viewOnly, value: 'view' },
-                            {
-                              label: t.canCollaborate,
-                              value: 'collaborate',
-                            },
-                          ]}
-                          value={perm.permission}
-                          onChange={(val) =>
-                            handleTeamPermissionChange(perm.team, val as 'view' | 'collaborate')
-                          }
-                          wrapperClassName="w-40"
-                          textBoxClassName="text-xs border theme-border rounded px-2 py-1"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveTeam(perm.team)}
-                          className="p-1 rounded hover:bg-red-500/10"
-                          title={t.remove}
-                        >
-                          <TrashIcon className="w-3 h-3 text-red-500" />
-                        </button>
+                        <div className="w-40">
+                          <Select<SharePermissionLevel>
+                            items={permissionItems}
+                            value={perm.permission}
+                            onValueChange={(level) => {
+                              if (level !== null) {
+                                handleTeamPermissionChange(perm.team, level)
+                              }
+                            }}
+                            aria-label={perm.teamName || perm.team}
+                          />
+                        </div>
+                        <Tooltip content={common.remove}>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveTeam(perm.team)}
+                            className="p-1 rounded hover:bg-(--theme-error-muted)"
+                            aria-label={`${common.remove} ${perm.teamName || perm.team}`}
+                          >
+                            <TrashIcon className="w-3 h-3 text-(--theme-error)" />
+                          </button>
+                        </Tooltip>
                       </div>
                     </li>
                   ))}
@@ -283,19 +287,18 @@ export default function ShareDialog({ conversationId, isOpen, onClose }: ShareDi
 
               {/* Add group dropdown */}
               {availableTeams.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <Dropdown
-                    options={availableTeams.map((team) => ({
-                      label: team.name,
-                      value: team.id,
-                    }))}
-                    value=""
-                    onChange={(val) => handleAddTeam(val)}
-                    placeholder={t.addGroups}
-                    wrapperClassName="flex-1"
-                    textBoxClassName="text-sm border theme-border rounded px-2 py-1.5 w-full"
-                  />
-                </div>
+                // Picking a group adds it to the list above, so the field itself stays empty.
+                <Combobox
+                  items={availableTeams.map((team) => ({ label: team.name, value: team.id }))}
+                  value={null}
+                  onValueChange={(teamId) => {
+                    if (teamId !== null) {
+                      handleAddTeam(teamId)
+                    }
+                  }}
+                  placeholder={t.addGroups}
+                  aria-label={t.addGroups}
+                />
               )}
             </div>
 

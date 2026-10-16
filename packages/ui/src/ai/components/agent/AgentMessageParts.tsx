@@ -1,7 +1,13 @@
-import cx from 'classnames'
-import { useEffect, useMemo, useState } from 'react'
-import { useCssIsDark } from '../../../components/useCssIsDark'
-import { CheckIcon, ChevronRightIcon, LoaderIcon } from '../../../icons'
+import { memo, type ReactNode, useEffect, useId, useMemo, useState } from 'react'
+import { Disclosure } from '../../../components/Disclosure'
+import { fieldBox } from '../../../components/fieldBox'
+import { focusOnMount } from '../../../components/focus'
+import { Loader } from '../../../components/Loader'
+import { useStrings } from '../../../components/Provider'
+import { toneSurface } from '../../../components/tone'
+import { cx } from '../../../cx'
+import { formatDuration } from '../../../format'
+import { CheckIcon } from '../../../icons'
 import { LogViewer } from '../../../logviewer/index'
 import {
   computeEditDiff,
@@ -36,7 +42,7 @@ import type {
 } from '../../types'
 import Markdown from '../../ui/Markdown'
 import { chatProseClasses } from '../../ui/prose'
-import { ReasoningBody, ReasoningToggle } from '../Reasoning'
+import { Reasoning, ReasoningBody } from '../Reasoning'
 
 const COLLAPSED_RESULT_LINES = 12
 
@@ -80,7 +86,7 @@ function LineSpans({
       out.push(
         <span
           key={key++}
-          className={emphasized ? 'bg-green-500/30 rounded-[2px]' : undefined}
+          className={emphasized ? 'bg-(--theme-success)/30 rounded-[2px]' : undefined}
           style={t.color ? { color: t.color } : undefined}
         >
           {t.content.slice(start, end)}
@@ -94,7 +100,6 @@ function LineSpans({
 }
 
 function DiffRows({ rows, lang }: { rows: DiffRow[]; lang: string | null }) {
-  const isDark = useCssIsDark()
   const [tokens, setTokens] = useState<DiffToken[][] | null>(null)
   const lineKey = useMemo(
     () => rows.map((r) => (r.kind === 'gap' ? '' : r.text)).join('\n'),
@@ -106,7 +111,7 @@ function DiffRows({ rows, lang }: { rows: DiffRow[]; lang: string | null }) {
       return
     }
     let live = true
-    tokenizeDiffLines(lineKey.split('\n'), lang, isDark).then((t) => {
+    tokenizeDiffLines(lineKey.split('\n'), lang).then((t) => {
       if (live) {
         setTokens(t)
       }
@@ -114,7 +119,7 @@ function DiffRows({ rows, lang }: { rows: DiffRow[]; lang: string | null }) {
     return () => {
       live = false
     }
-  }, [lang, lineKey, isDark])
+  }, [lang, lineKey])
   const numbered = rows.some((r) => r.oldNo !== undefined || r.newNo !== undefined)
   return (
     <div className="overflow-x-auto rounded-md border theme-border font-mono text-xs leading-5">
@@ -124,8 +129,8 @@ function DiffRows({ rows, lang }: { rows: DiffRow[]; lang: string | null }) {
           key={i}
           className={cx(
             'flex whitespace-pre',
-            row.kind === 'add' && 'bg-green-500/15',
-            row.kind === 'del' && 'bg-red-500/15',
+            row.kind === 'add' && 'bg-(--theme-success)/15',
+            row.kind === 'del' && 'bg-(--theme-error)/15',
             row.kind === 'gap' && 'theme-muted-text',
           )}
         >
@@ -161,7 +166,7 @@ function EditDiffBlock({ part }: { part: ToolCallPart }) {
   if (!a) {
     return null
   }
-  const outcome = editSummary(part.name, part.args)
+  const outcome = editSummary(part.name, part.args, strings.tools)
   const model =
     part.name === 'EditFile'
       ? computeEditDiff(a.old_string ?? '', a.new_string ?? '', part.startLine)
@@ -177,6 +182,7 @@ function EditDiffBlock({ part }: { part: ToolCallPart }) {
 
 function ResultBody({ part }: { part: ToolCallPart }) {
   const { strings } = useChatConfig()
+  const { common } = useStrings()
   const t = strings.agentTranscript
   const [showAll, setShowAll] = useState(false)
   const result = part.result ?? ''
@@ -212,7 +218,7 @@ function ResultBody({ part }: { part: ToolCallPart }) {
           onClick={() => setShowAll(true)}
           className="text-xs text-(--theme-link) hover:underline"
         >
-          {t.moreLines.replace('{count}', String(hidden))}
+          {t.moreLines(hidden)}
         </button>
       )}
       {showAll && lines.length > COLLAPSED_RESULT_LINES && (
@@ -221,22 +227,51 @@ function ResultBody({ part }: { part: ToolCallPart }) {
           onClick={() => setShowAll(false)}
           className="text-xs text-(--theme-link) hover:underline"
         >
-          {t.showLess}
+          {common.showLess}
         </button>
       )}
     </div>
   )
 }
 
+/** A status mark, which color alone tells apart, with its status in words for
+ *  a screen reader. */
+function StatusMark({ status, children }: { status: string; children: ReactNode }) {
+  return (
+    <>
+      <span aria-hidden="true" className="contents">
+        {children}
+      </span>
+      <span className="sr-only">{status}</span>
+    </>
+  )
+}
+
 function ToolStatusDot({ part }: { part: ToolCallPart }) {
+  const t = useChatConfig().strings.agentTranscript
   if (part.status === 'running') {
-    return <LoaderIcon className="w-3.5 h-3.5 animate-spin theme-muted-text" />
+    return (
+      <StatusMark status={t.running}>
+        <Loader inline decorative size={14} color="var(--theme-muted-text-color)" />
+      </StatusMark>
+    )
   }
   if (part.status === 'error') {
-    return <span className="text-red-500 leading-none">●</span>
+    return (
+      <StatusMark status={t.failed}>
+        <span className="leading-none text-(--theme-error)">●</span>
+      </StatusMark>
+    )
   }
-  return <span className="text-green-600 leading-none">●</span>
+  return (
+    <StatusMark status={t.done}>
+      <span className="leading-none text-(--theme-success)">●</span>
+    </StatusMark>
+  )
 }
+
+/** A part's toggle row: its status mark and name, across the transcript's width. */
+const rowSummaryClasses = 'min-h-6 w-full'
 
 function ToolCallBlock({ part }: { part: ToolCallPart }) {
   const { strings } = useChatConfig()
@@ -248,45 +283,43 @@ function ToolCallBlock({ part }: { part: ToolCallPart }) {
   const summary =
     part.status === 'running'
       ? t.running
-      : toolSummary(part.name, part.args, part.result ?? '', part.status === 'error', editSummary)
+      : toolSummary(part.name, part.args, part.result ?? '', part.status === 'error', {
+          editSummary,
+          strings: strings.tools,
+        })
   return (
     <div className="py-1.5 text-sm" data-testid="tool-call-part">
-      <button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
-        aria-expanded={expanded}
-        className="flex min-h-6 items-start gap-2 w-full text-left group/tool"
+      <Disclosure
+        open={expanded}
+        onOpenChange={setExpanded}
+        disabled={isDiff}
+        summaryClassName={rowSummaryClasses}
+        summary={
+          <>
+            <ToolStatusDot part={part} />
+            <span className="font-mono text-[13px] leading-5 min-w-0 truncate">
+              <span className="font-semibold">{header.label}</span>
+              {argSummary && <span className="theme-muted-text">({argSummary})</span>}
+            </span>
+          </>
+        }
+        panelClassName="ml-5 mt-1 space-y-1.5"
       >
-        <ToolStatusDot part={part} />
-        <span className="font-mono text-[13px] leading-5 min-w-0 truncate">
-          <span className="font-semibold">{header.label}</span>
-          {argSummary && <span className="theme-muted-text">({argSummary})</span>}
-        </span>
-        <ChevronRightIcon
-          className={cx(
-            'w-3.5 h-3.5 mt-1 shrink-0 theme-muted-text transition-transform',
-            expanded && 'rotate-90',
-          )}
-        />
-      </button>
-      {!isDiff && (
+        {fullToolArgs(header.arg, part.args) && (
+          <pre className="overflow-x-auto rounded-md bg-(--theme-muted-panel-bg) p-2 font-mono text-xs whitespace-pre-wrap">
+            {fullToolArgs(header.arg, part.args)}
+          </pre>
+        )}
+        <ResultBody part={part} />
+      </Disclosure>
+      {!isDiff && !expanded && (
         <div
           className={cx(
             'ml-5 mt-0.5 text-[13px]',
-            part.status === 'error' ? 'text-red-600' : 'theme-muted-text',
+            part.status === 'error' ? 'text-(--theme-error-text)' : 'theme-muted-text',
           )}
         >
-          {expanded ? null : summary}
-        </div>
-      )}
-      {expanded && !isDiff && (
-        <div className="ml-5 mt-1 space-y-1.5">
-          {fullToolArgs(header.arg, part.args) && (
-            <pre className="overflow-x-auto rounded-md bg-(--theme-muted-panel-bg) p-2 font-mono text-xs whitespace-pre-wrap">
-              {fullToolArgs(header.arg, part.args)}
-            </pre>
-          )}
-          <ResultBody part={part} />
+          {summary}
         </div>
       )}
       {isDiff && (
@@ -316,65 +349,70 @@ function SubagentCard({ part }: { part: SubagentPart }) {
       : `${part.status === 'done' ? t.done : t.failed}${part.summary ? ` (${part.summary})` : ''}`
   return (
     <div className="py-1.5 text-sm" data-testid="subagent-part">
-      <button
-        type="button"
-        onClick={() => canExpand && setExpanded((v) => !v)}
-        aria-expanded={expanded}
-        className="flex min-h-6 items-start gap-2 w-full text-left"
+      <Disclosure
+        open={expanded}
+        onOpenChange={setExpanded}
+        disabled={!canExpand}
+        summaryClassName={rowSummaryClasses}
+        summary={
+          <>
+            <StatusMark
+              status={
+                part.status === 'running' ? t.running : part.status === 'failed' ? t.failed : t.done
+              }
+            >
+              {part.status === 'running' ? (
+                <span className="mt-[3px]">
+                  <Loader inline decorative size={14} color="var(--theme-muted-text-color)" />
+                </span>
+              ) : (
+                <span
+                  className={cx(
+                    'leading-none',
+                    part.status === 'failed' ? 'text-(--theme-error)' : 'text-(--theme-success)',
+                  )}
+                  style={color && part.status !== 'failed' ? { color } : undefined}
+                >
+                  ●
+                </span>
+              )}
+            </StatusMark>
+            <span className="font-mono text-[13px] leading-5 min-w-0 truncate">
+              <span className="font-semibold">{label}</span>
+              {part.description && <span className="theme-muted-text">({part.description})</span>}
+            </span>
+          </>
+        }
+        panelClassName={cx(
+          'ml-5 mt-0.5 space-y-1 text-[13px]',
+          part.status === 'failed' ? 'text-(--theme-error-text)' : 'theme-muted-text',
+        )}
       >
-        {part.status === 'running' ? (
-          <LoaderIcon className="w-3.5 h-3.5 mt-[3px] animate-spin theme-muted-text" />
-        ) : (
-          <span
-            className={cx(
-              'leading-none',
-              part.status === 'failed' ? 'text-red-500' : 'text-green-600',
-            )}
-            style={color && part.status !== 'failed' ? { color } : undefined}
-          >
-            ●
-          </span>
+        {actions.length > 0 && (
+          <ul className="space-y-0.5">
+            {actions.map((a, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: feed is append-only
+              <li key={i}>{a}</li>
+            ))}
+            {part.status !== 'running' && <li>{outcome}</li>}
+          </ul>
         )}
-        <span className="font-mono text-[13px] leading-5 min-w-0 truncate">
-          <span className="font-semibold">{label}</span>
-          {part.description && <span className="theme-muted-text">({part.description})</span>}
-        </span>
-        {canExpand && (
-          <ChevronRightIcon
-            className={cx(
-              'w-3.5 h-3.5 mt-1 shrink-0 theme-muted-text transition-transform',
-              expanded && 'rotate-90',
-            )}
-          />
-        )}
-      </button>
-      <div
-        className={cx(
-          'ml-5 mt-0.5 text-[13px]',
-          part.status === 'failed' ? 'text-red-600' : 'theme-muted-text',
-        )}
-      >
-        {expanded ? (
-          <div className="space-y-1">
-            {actions.length > 0 && (
-              <ul className="space-y-0.5">
-                {actions.map((a, i) => (
-                  // biome-ignore lint/suspicious/noArrayIndexKey: feed is append-only
-                  <li key={i}>{a}</li>
-                ))}
-                {part.status !== 'running' && <li>{outcome}</li>}
-              </ul>
-            )}
-            {part.report && (
-              <div className="border-l-2 theme-border pl-3 text-sm theme-muted-text">
-                <Markdown>{part.report}</Markdown>
-              </div>
-            )}
+        {part.report && (
+          <div className="border-l-2 theme-border pl-3 text-sm theme-muted-text">
+            <Markdown>{part.report}</Markdown>
           </div>
-        ) : (
-          outcome
         )}
-      </div>
+      </Disclosure>
+      {!expanded && (
+        <div
+          className={cx(
+            'ml-5 mt-0.5 text-[13px]',
+            part.status === 'failed' ? 'text-(--theme-error-text)' : 'theme-muted-text',
+          )}
+        >
+          {outcome}
+        </div>
+      )}
     </div>
   )
 }
@@ -387,9 +425,16 @@ function ConfirmApproval({
   onAnswer?: PartRendererProps['onApprovalAnswer']
 }) {
   const { strings } = useChatConfig()
+  const { common } = useStrings()
   const t = strings.agentTranscript
   const [feedback, setFeedback] = useState<string | null>(null)
   const answer = (a: Parameters<NonNullable<typeof onAnswer>>[1]) => onAnswer?.(part.id, a)
+  const [allowLabel, denyLabel] = {
+    command: [t.allowOnce, t.deny],
+    code: [t.allowCode, t.denyCode],
+    path: [t.allowPath, t.denyPath],
+    call: [t.allowCall, t.denyCall],
+  }[part.subject ?? 'command']
   return (
     <>
       {part.command && (
@@ -405,9 +450,9 @@ function ConfirmApproval({
           <button
             type="button"
             onClick={() => answer({ kind: 'confirm', allowed: true })}
-            className="px-3 py-1 text-xs font-medium rounded-full bg-(--theme-element) text-(--theme-element-text)"
+            className="px-3 py-1 text-xs font-medium rounded-full bg-(--theme-accent) text-(--theme-accent-text)"
           >
-            {t.allowOnce}
+            {allowLabel}
           </button>
           {part.canAllowDirectory !== false && (
             <button
@@ -421,9 +466,9 @@ function ConfirmApproval({
           <button
             type="button"
             onClick={() => answer({ kind: 'confirm', allowed: false })}
-            className="px-3 py-1 text-xs font-medium rounded-full border theme-border hover:theme-hover text-red-600"
+            className="px-3 py-1 text-xs font-medium rounded-full border theme-border hover:theme-hover text-(--theme-error-text)"
           >
-            {t.deny}
+            {denyLabel}
           </button>
           <button
             type="button"
@@ -434,28 +479,31 @@ function ConfirmApproval({
           </button>
         </div>
       ) : (
-        <div className="flex gap-2">
+        <form
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (feedback.trim()) {
+              answer({ kind: 'confirm', allowed: false, denyMessage: feedback.trim() })
+            }
+          }}
+        >
           <input
+            ref={focusOnMount}
             value={feedback}
             onChange={(e) => setFeedback(e.target.value)}
+            aria-label={t.feedbackLabel}
             placeholder={t.feedbackPlaceholder}
-            className="flex-1 text-xs rounded-md border theme-border bg-(--theme-input-bg) px-2 py-1"
+            className={cx(fieldBox({ size: 'sm' }), 'flex-1')}
           />
           <button
-            type="button"
+            type="submit"
             disabled={!feedback.trim()}
-            onClick={() =>
-              answer({
-                kind: 'confirm',
-                allowed: false,
-                denyMessage: feedback.trim(),
-              })
-            }
-            className="px-3 py-1 text-xs font-medium rounded-full bg-(--theme-element) text-(--theme-element-text) disabled:opacity-50"
+            className="px-3 py-1 text-xs font-medium rounded-full bg-(--theme-accent) text-(--theme-accent-text) disabled:opacity-50"
           >
-            {t.send}
+            {common.send}
           </button>
-        </div>
+        </form>
       )}
     </>
   )
@@ -469,6 +517,7 @@ function AskApproval({
   onAnswer?: PartRendererProps['onApprovalAnswer']
 }) {
   const { strings } = useChatConfig()
+  const { common } = useStrings()
   const t = strings.agentTranscript
   const [own, setOwn] = useState<string | null>(null)
   const answer = (text: string) => onAnswer?.(part.id, { kind: 'ask', text })
@@ -511,21 +560,31 @@ function AskApproval({
           </button>
         </div>
       ) : (
-        <div className="flex gap-2">
+        <form
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (own.trim()) {
+              answer(own.trim())
+            }
+          }}
+        >
           <input
+            ref={focusOnMount}
             value={own}
             onChange={(e) => setOwn(e.target.value)}
-            className="flex-1 text-xs rounded-md border theme-border bg-(--theme-input-bg) px-2 py-1"
+            aria-label={t.ownAnswerLabel}
+            placeholder={t.ownAnswerLabel}
+            className={cx(fieldBox({ size: 'sm' }), 'flex-1')}
           />
           <button
-            type="button"
+            type="submit"
             disabled={!own.trim()}
-            onClick={() => answer(own.trim())}
-            className="px-3 py-1 text-xs font-medium rounded-full bg-(--theme-element) text-(--theme-element-text) disabled:opacity-50"
+            className="px-3 py-1 text-xs font-medium rounded-full bg-(--theme-accent) text-(--theme-accent-text) disabled:opacity-50"
           >
-            {t.send}
+            {common.send}
           </button>
-        </div>
+        </form>
       )}
     </>
   )
@@ -540,6 +599,8 @@ export function ApprovalBlock({
 }) {
   const { strings } = useChatConfig()
   const t = strings.agentTranscript
+  const headingId = useId()
+  const heading = part.header ?? part.toolName
   if (part.resolved) {
     return (
       <div
@@ -558,12 +619,18 @@ export function ApprovalBlock({
     )
   }
   return (
-    <div
-      className="my-1.5 rounded-lg border border-(--theme-element) p-3 space-y-2"
+    // A question the turn waits on: one named group, so a screen reader hears
+    // what is being asked before the answers.
+    <fieldset
+      aria-labelledby={heading ? headingId : undefined}
+      aria-label={heading ? undefined : t.approvalLabel}
+      className="my-1.5 min-w-0 rounded-lg border border-(--theme-accent) p-3 space-y-2"
       data-testid="approval-part"
     >
-      {(part.header || part.toolName) && (
-        <div className="text-xs font-semibold">{part.header ?? part.toolName}</div>
+      {heading && (
+        <div id={headingId} className="text-xs font-semibold">
+          {heading}
+        </div>
       )}
       {part.approvalKind === 'confirm' ? (
         <ConfirmApproval part={part} onAnswer={onApprovalAnswer} />
@@ -572,7 +639,7 @@ export function ApprovalBlock({
       ) : (
         <AskApproval part={part} onAnswer={onApprovalAnswer} />
       )}
-    </div>
+    </fieldset>
   )
 }
 
@@ -584,7 +651,7 @@ function PlanApproval({ part }: { part: ApprovalPart }) {
     <>
       <div className="text-xs theme-muted-text">{t.planPending}</div>
       {part.plan && (
-        <div className="prose prose-sm max-w-none rounded-md bg-(--theme-muted-panel-bg) p-2 text-(--theme-panel)">
+        <div className="prose prose-sm max-w-none rounded-md bg-(--theme-muted-panel-bg) p-2 text-(--theme-app)">
           <Markdown isStreaming={false}>{part.plan}</Markdown>
         </div>
       )}
@@ -608,8 +675,15 @@ function TodoSnapshotBlock({ part }: { part: TodoSnapshotPart }) {
               todo.status === 'in_progress' && 'font-semibold',
             )}
           >
-            <span className="select-none font-mono">
+            <span aria-hidden="true" className="select-none font-mono">
               {todo.status === 'completed' ? '✔' : todo.status === 'in_progress' ? '■' : '□'}
+            </span>
+            <span className="sr-only">
+              {todo.status === 'completed'
+                ? t.todoCompleted
+                : todo.status === 'in_progress'
+                  ? t.todoInProgress
+                  : t.todoPending}
             </span>
             <span>
               {todo.status === 'in_progress' && todo.activeForm ? todo.activeForm : todo.content}
@@ -622,7 +696,6 @@ function TodoSnapshotBlock({ part }: { part: TodoSnapshotPart }) {
 }
 
 function NoticeBlock({ part }: { part: NoticePart }) {
-  const [expanded, setExpanded] = useState(false)
   if (part.kind === 'notice') {
     if (!part.detail) {
       return (
@@ -636,33 +709,21 @@ function NoticeBlock({ part }: { part: NoticePart }) {
     }
     return (
       <div className="my-1.5" data-testid="notice-part">
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          aria-expanded={expanded}
-          className="flex items-start gap-1.5 text-left text-[13px] theme-muted-text hover:theme-text"
+        <Disclosure
+          summary={<span className="min-w-0 flex-1 whitespace-pre-wrap">{part.text}</span>}
+          summaryClassName="w-full text-[13px] theme-muted-text hover:theme-text"
+          panelClassName="ml-4 mt-1 border-l-2 theme-border pl-3 text-sm theme-muted-text"
         >
-          <span className="min-w-0 flex-1 whitespace-pre-wrap">{part.text}</span>
-          <ChevronRightIcon
-            className={cx(
-              'mt-0.5 h-3.5 w-3.5 shrink-0 transition-transform',
-              expanded && 'rotate-90',
-            )}
-          />
-        </button>
-        {expanded && (
-          <div className="ml-4 mt-1 border-l-2 theme-border pl-3 text-sm theme-muted-text">
-            <Markdown>{part.detail}</Markdown>
-          </div>
-        )}
+          <Markdown>{part.detail}</Markdown>
+        </Disclosure>
       </div>
     )
   }
   return (
     <div
       className={cx(
-        'my-1 text-xs rounded-md px-2.5 py-1.5',
-        part.kind === 'error' ? 'bg-red-500/10 text-red-700' : 'bg-yellow-500/10 text-yellow-700',
+        'my-1 text-xs rounded-md border px-2.5 py-1.5',
+        toneSurface[part.kind === 'error' ? 'error' : 'warning'],
       )}
       data-testid={`${part.kind}-part`}
     >
@@ -671,27 +732,22 @@ function NoticeBlock({ part }: { part: NoticePart }) {
   )
 }
 
-function formatThinkingDuration(ms: number): string {
-  const s = Math.round(ms / 1000)
-  if (s < 1) {
-    return '<1s'
-  }
-  if (s < 60) {
-    return `${s}s`
-  }
-  return `${Math.floor(s / 60)}m ${s % 60}s`
-}
-
 /** The TUI's thought, drawn like a chat reply's: while it streams its label
  *  shimmers over the latest lines, then it folds to the label and opens in
  *  place on request. */
-function ReasoningBlock({ part, isStreaming }: { part: ReasoningPart; isStreaming?: boolean }) {
+const ReasoningBlock = memo(function ReasoningBlock({
+  part,
+  isStreaming,
+}: {
+  part: ReasoningPart
+  isStreaming?: boolean
+}) {
   const { strings } = useChatConfig()
   const t = strings.thinking
   const [expanded, setExpanded] = useState(false)
   const label =
     thinkingHeading(part.text) ||
-    (part.durationMs ? t.thoughtFor(formatThinkingDuration(part.durationMs)) : t.label)
+    (part.durationMs ? t.thoughtFor(formatDuration(part.durationMs)) : t.label)
   const hasBody = part.text.trim() !== ''
   const markdown = <Markdown isStreaming={isStreaming ?? false}>{part.text}</Markdown>
   if (isStreaming) {
@@ -720,17 +776,12 @@ function ReasoningBlock({ part, isStreaming }: { part: ReasoningPart; isStreamin
   }
   return (
     <div className="py-1.5" data-testid="reasoning-part">
-      <ReasoningToggle open={expanded} onToggle={() => setExpanded((v) => !v)}>
-        {label}
-      </ReasoningToggle>
-      {expanded && (
-        <ReasoningBody>
-          <div data-testid="reasoning-body">{markdown}</div>
-        </ReasoningBody>
-      )}
+      <Reasoning label={label} open={expanded} onOpenChange={setExpanded}>
+        <div data-testid="reasoning-body">{markdown}</div>
+      </Reasoning>
     </div>
   )
-}
+})
 
 function TextBlock({ part, isStreaming }: { part: TextPart; isStreaming?: boolean }) {
   return (
@@ -746,18 +797,38 @@ function PartDispatch(props: PartRendererProps) {
   if (Override) {
     return <Override {...props} />
   }
-  const { part } = props
+  return (
+    <BuiltinPart
+      part={props.part}
+      isStreaming={props.isStreaming ?? false}
+      onApprovalAnswer={props.onApprovalAnswer}
+    />
+  )
+}
+
+/** The package's own drawing of a part. Memoized on the part itself, which
+ *  keeps its identity until a delta changes it, so a streamed token re-renders
+ *  only the part it lands in, not every finished call and answer before it. */
+const BuiltinPart = memo(function BuiltinPart({
+  part,
+  isStreaming,
+  onApprovalAnswer,
+}: {
+  part: MessagePart
+  isStreaming: boolean
+  onApprovalAnswer: PartRendererProps['onApprovalAnswer']
+}) {
   switch (part.kind) {
     case 'text':
-      return <TextBlock part={part} isStreaming={props.isStreaming ?? false} />
+      return <TextBlock part={part} isStreaming={isStreaming} />
     case 'reasoning':
-      return <ReasoningBlock part={part} isStreaming={props.isStreaming ?? false} />
+      return <ReasoningBlock part={part} isStreaming={isStreaming} />
     case 'tool_call':
       return <ToolCallBlock part={part} />
     case 'subagent':
       return <SubagentCard part={part} />
     case 'approval':
-      return <ApprovalBlock part={part} onApprovalAnswer={props.onApprovalAnswer} />
+      return <ApprovalBlock part={part} onApprovalAnswer={onApprovalAnswer} />
     case 'notice':
     case 'warning':
     case 'error':
@@ -767,13 +838,13 @@ function PartDispatch(props: PartRendererProps) {
     default:
       return null
   }
-}
+})
 
 type RunMember = { part: ToolCallPart | ReasoningPart; index: number }
 
 type RenderItem =
   | { kind: 'single'; part: MessagePart; index: number }
-  // Adjacent thoughts drawn as one line, labelled by the first.
+  // Adjacent thoughts drawn as one line, labeled by the first.
   | { kind: 'reasoning'; parts: ReasoningPart[]; index: number }
   | { kind: 'rollup'; members: RunMember[] }
 
@@ -784,6 +855,10 @@ function isReasoning(m: RunMember): m is { part: ReasoningPart; index: number } 
 /** Two thoughts with nothing visible between them read as one, not as a
  *  stack of identical lines. */
 function mergeReasoning(parts: ReasoningPart[]): ReasoningPart {
+  // A lone thought keeps its identity, so its memoized block holds.
+  if (parts.length === 1 && parts[0]) {
+    return parts[0]
+  }
   const durationMs = parts.reduce((sum, p) => sum + (p.durationMs ?? 0), 0)
   return {
     kind: 'reasoning',
@@ -860,40 +935,33 @@ function RollupGroup({
   members: RunMember[]
   message: PartRendererProps['message']
 }) {
-  const [expanded, setExpanded] = useState(false)
+  const { strings } = useChatConfig()
   const sentence = rollupSentence(
     members.flatMap((m) => (m.part.kind === 'tool_call' ? [m.part.name] : [])),
+    strings.tools,
   )
   return (
     <div className="py-1.5 text-sm" data-testid="tool-rollup">
-      <button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
-        aria-expanded={expanded}
-        className="flex min-h-6 items-center gap-2 w-full text-left"
-      >
-        <span className="text-green-600 leading-none" aria-hidden="true">
-          ●
-        </span>
-        <span className="font-mono text-[13px] theme-muted-text min-w-0 truncate">{sentence}</span>
-        <ChevronRightIcon
-          className={cx(
-            'w-3.5 h-3.5 shrink-0 theme-muted-text transition-transform',
-            expanded && 'rotate-90',
-          )}
-        />
-      </button>
-      {/* Members stay mounted so their own expand state survives refolding. */}
-      <div
-        className={cx(
-          'ml-1.5 mt-0.5 rounded-md',
-          expanded ? 'bg-(--theme-muted-panel-bg)/40 px-2' : 'hidden',
-        )}
+      <Disclosure
+        // Members stay mounted so their own expand state survives refolding.
+        keepMounted
+        summaryClassName={rowSummaryClasses}
+        summary={
+          <>
+            <span className="text-(--theme-success) leading-none" aria-hidden="true">
+              ●
+            </span>
+            <span className="font-mono text-[13px] theme-muted-text min-w-0 truncate">
+              {sentence}
+            </span>
+          </>
+        }
+        panelClassName="ml-1.5 mt-0.5 rounded-md bg-(--theme-muted-panel-bg)/40 px-2"
       >
         {members.map((m) => (
           <PartDispatch key={m.index} part={m.part} message={message} />
         ))}
-      </div>
+      </Disclosure>
     </div>
   )
 }

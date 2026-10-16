@@ -1,38 +1,41 @@
-import cx from 'classnames'
-import { type JSX, useEffect, useState, useTransition } from 'react'
-import Skeleton from 'react-loading-skeleton'
-import { useLocalStorage } from 'usehooks-ts'
-import Callout from '../components/Callout'
-import { positionKeys } from '../components/keys'
+import { type JSX, useState, useTransition } from 'react'
+import { Button } from '../components/Button'
+import { Callout } from '../components/Callout'
+import { ProgressBar } from '../components/Meter'
 import {
   type UIData,
-  type UINotify,
   type UIStrings,
-  useNotify,
+  usePersistedState,
   useProvisionCorsRules,
+  useSlots,
   useStrings,
 } from '../components/Provider'
+import { useElapsed } from '../components/relativeTime'
+import { Skeleton } from '../components/Skeleton'
+import { toast } from '../components/Toast'
+import { cx } from '../cx'
+import { formatBytes } from '../format'
 import {
-  AlertIcon,
   CustomizeIcon,
   DiskIcon,
-  DocumentIcon,
   FileIcon,
   FileTextIcon,
   FolderIcon,
   ImageIcon,
   PdfIcon,
   RefreshIcon,
+  RetryIcon,
   ShareIcon,
   SpreadsheetIcon,
   UserIcon,
   VideoIcon,
+  WarningIcon,
   ZipIcon,
 } from '../icons'
 import { ListSkeleton } from '../list/index'
 import { CorsError } from './lib/errors'
 import type { TreeNode, TStorage, UploadNode } from './lib/types'
-import { formatFileSize, getFileExtension } from './lib/utils'
+import { carriesFiles, getFileExtension } from './lib/utils'
 
 const SIDEBAR_WIDTH_STORAGE_KEY = 'fileExplorerSidebarWidth'
 const SIDEBAR_WIDTH_DEFAULT = 300
@@ -56,7 +59,7 @@ const contentTypeIconMap = [
   },
   {
     pattern: /(document|word)/,
-    icon: <DocumentIcon className="h-4 w-4 text-blue-400" />,
+    icon: <FileTextIcon className="h-4 w-4 text-blue-400" />,
   },
   {
     pattern: /(javascript|json|css|html)/,
@@ -85,7 +88,7 @@ const extensionIconMap = [
   },
   {
     pattern: /^(docx?|odt)$/i,
-    icon: <DocumentIcon className="h-4 w-4 text-blue-400" />,
+    icon: <FileTextIcon className="h-4 w-4 text-blue-400" />,
   },
   {
     pattern: /^(js|ts|json|css|html|md|txt)$/i,
@@ -97,13 +100,32 @@ const extensionIconMap = [
   },
 ]
 
-type StorageIconUrlResolver = (args: { type: string }) => string | undefined
+// A storage's own image, or the host's for its type, falling back to the host's if its own fails.
+function StorageImage({ node }: { node: TreeNode }) {
+  const { storageIconUrl } = useSlots()
+  const alt = useStrings().fileExplorer.chrome.storageIconAlt
+  const fallbackSrc = node.storageNodeIcon
+    ? storageIconUrl?.({ type: node.storageNodeIcon })
+    : undefined
+  const src = node.storageImageUrl || fallbackSrc
+  if (!src) {
+    return <DiskIcon className="h-4 w-4 mr-2" />
+  }
+  return (
+    <img
+      className="h-4 w-4 mr-2"
+      src={src}
+      alt={alt}
+      onError={(e) => {
+        if (fallbackSrc) {
+          e.currentTarget.src = fallbackSrc
+        }
+      }}
+    />
+  )
+}
 
-function getNodeIcon(
-  node: TreeNode,
-  storageIconUrl?: StorageIconUrlResolver,
-  storageIconAlt = 'Storage icon',
-): JSX.Element | null {
+function getNodeIcon(node: TreeNode): JSX.Element | null {
   const isUserNode = !node.storageId
   const isStorageNode = node.root
   if (isUserNode) {
@@ -115,24 +137,7 @@ function getNodeIcon(
   }
 
   if (isStorageNode && node.storageNodeIcon) {
-    const storageNodeIcon = node.storageNodeIcon
-    const fallbackSrc = storageIconUrl?.({ type: storageNodeIcon })
-    const iconSrc = node.storageImageUrl || fallbackSrc
-    if (!iconSrc) {
-      return <DiskIcon className="h-4 w-4 mr-2" />
-    }
-    return (
-      <img
-        className="h-4 w-4 mr-2"
-        src={iconSrc}
-        alt={storageIconAlt}
-        onError={(e) => {
-          if (fallbackSrc) {
-            e.currentTarget.src = fallbackSrc
-          }
-        }}
-      />
-    )
+    return <StorageImage node={node} />
   }
 
   // Skip directories as the icon is handled conditionally in the tree
@@ -200,9 +205,7 @@ function renderUploadNodes(uploadNodes: UploadNode[]) {
           <span className="inline-block w-3" />
           {fileName}
           {node.file && (
-            <span className="ml-2 text-xs theme-muted-text">
-              ({formatFileSize(node.file.size)})
-            </span>
+            <span className="ml-2 text-xs theme-muted-text">({formatBytes(node.file.size)})</span>
           )}
         </div>
       </div>
@@ -214,8 +217,6 @@ function NoFileSelectedPreview() {
   const t = useStrings().fileExplorer
   return (
     <div className="flex-1 flex items-center justify-center p-8">
-      {/* A centring flex column, not `text-center`: `.btn` is display:flex, so it
-          would stretch to the container instead of sitting centred. */}
       <div className="flex flex-col items-center max-w-sm text-center">
         <div className="inline-flex items-center justify-center w-14 h-14 rounded-full theme-muted-panel mb-4">
           <DiskIcon className="h-6 w-6 theme-muted-text" />
@@ -230,6 +231,7 @@ function NoFileSelectedPreview() {
 /** Shown instead of a skeleton that has nothing left to wait for. */
 function NotFoundPreview({ path, onRetry }: { path: string; onRetry: () => void }) {
   const t = useStrings().fileExplorer.notFound
+  const { common } = useStrings()
   const name = path.replace(/\/$/, '').split('/').pop() || path
   return (
     <div className="flex-1 flex items-center justify-center p-8">
@@ -239,10 +241,9 @@ function NotFoundPreview({ path, onRetry }: { path: string; onRetry: () => void 
         </div>
         <h2 className="text-base font-semibold mb-1">{t.title(name)}</h2>
         <p className="text-sm theme-muted-text mb-4">{t.description}</p>
-        <button type="button" className="btn btn-info gap-2" onClick={onRetry}>
-          <RefreshIcon className="h-4 w-4" />
-          {t.retry}
-        </button>
+        <Button variant="primary" icon={<RetryIcon />} onClick={onRetry}>
+          {common.retry}
+        </Button>
       </div>
     </div>
   )
@@ -262,7 +263,7 @@ function CorsIssuePreview({
 }) {
   const t = useStrings().fileExplorer.cors
   const messages = useStrings().fileExplorer.messages
-  const notify = useNotify()
+  const { common } = useStrings()
   const provisionCorsRules = useProvisionCorsRules()
   const [isPending, startTransition] = useTransition()
   const handleAddCorsRules = () => {
@@ -272,7 +273,6 @@ function CorsIssuePreview({
     startTransition(async () => {
       await addCorsRules({
         provision: provisionCorsRules,
-        notify,
         strings: messages,
         csp: selectedStorage?.csp,
         type: selectedStorage?.type,
@@ -289,30 +289,23 @@ function CorsIssuePreview({
 
   return (
     <div className="flex flex-col items-center justify-center max-w-lg mx-auto">
-      <Callout className="text-left" type="info">
-        <h4 className="font-semibold mb-2">{t.explanation.title}</h4>
+      <Callout className="my-4 text-left" tone="info" title={t.explanation.title}>
         <p className="mb-2">{t.explanation.description}</p>
         <p>{t.explanation.action}</p>
-        <p className="mt-2 text-sm italic">{t.explanation.note}</p>
+        <p className="mt-2 italic">{t.explanation.note}</p>
       </Callout>
       <div className="flex gap-3 justify-center">
-        <button
-          type="button"
-          className="btn btn-info cursor-pointer flex items-center"
+        <Button
+          variant="primary"
+          icon={<RefreshIcon />}
           onClick={onRefresh ? () => onRefresh() : undefined}
         >
-          <RefreshIcon className="h-4 w-4 mr-2" />
-          {t.actions.retry}
-        </button>
+          {common.retry}
+        </Button>
         {provisionCorsRules && (
-          <button
-            type="button"
-            className="btn btn-info cursor-pointer flex items-center"
-            onClick={handleAddCorsRules}
-          >
-            <CustomizeIcon className="h-4 w-4 mr-2" />
-            <span>{t.actions.addRules}</span>
-          </button>
+          <Button variant="primary" icon={<CustomizeIcon />} onClick={handleAddCorsRules}>
+            {t.actions.addRules}
+          </Button>
         )}
       </div>
     </div>
@@ -326,15 +319,8 @@ const CORS_PROPAGATION_BUDGET_MS = 60_000
 
 function CorsPropagatingPreview() {
   const t = useStrings().fileExplorer.cors.propagating
-  const [elapsedMs, setElapsedMs] = useState(0)
-
-  useEffect(() => {
-    const start = Date.now()
-    const id = setInterval(() => {
-      setElapsedMs(Date.now() - start)
-    }, 500)
-    return () => clearInterval(id)
-  }, [])
+  const [start] = useState(Date.now)
+  const elapsedMs = useElapsed(start) ?? 0
 
   const totalSeconds = Math.floor(elapsedMs / 1000)
   const mm = String(Math.floor(totalSeconds / 60)).padStart(2, '0')
@@ -345,23 +331,25 @@ function CorsPropagatingPreview() {
     <div
       role="status"
       aria-live="polite"
-      className="flex flex-col items-center justify-center max-w-md mx-auto px-6 py-8 animate-[fadeInUp_400ms_ease-out]"
+      className="flex flex-col items-center justify-center max-w-md mx-auto px-6 py-8 motion-safe:animate-[fadeInUp_400ms_ease-out]"
     >
-      <div className="relative w-28 h-28 mb-6 flex items-center justify-center">
+      {/* The rings are decoration: with reduced motion they hold still, and
+          the stages and the progress bar below still say how far along it is. */}
+      <div aria-hidden="true" className="relative w-28 h-28 mb-6 flex items-center justify-center">
         <span
-          className="absolute inline-flex h-full w-full rounded-full bg-blue-400/30 animate-ping"
+          className="absolute inline-flex h-full w-full rounded-full bg-(--theme-info)/30 motion-safe:animate-ping"
           style={{ animationDuration: '2.4s' }}
         />
         <span
-          className="absolute inline-flex h-2/3 w-2/3 rounded-full bg-blue-500/40 animate-ping"
+          className="absolute inline-flex h-2/3 w-2/3 rounded-full bg-(--theme-info)/40 motion-safe:animate-ping"
           style={{ animationDuration: '2.4s', animationDelay: '0.6s' }}
         />
         <span
-          className="absolute inline-flex h-1/3 w-1/3 rounded-full bg-blue-500/60 animate-ping"
+          className="absolute inline-flex h-1/3 w-1/3 rounded-full bg-(--theme-info)/60 motion-safe:animate-ping"
           style={{ animationDuration: '2.4s', animationDelay: '1.2s' }}
         />
-        <span className="relative inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-500 shadow-[0_0_24px_rgba(59,130,246,0.55)]">
-          <span className="absolute inline-flex h-2 w-2 rounded-full bg-white animate-pulse" />
+        <span className="relative inline-flex items-center justify-center w-8 h-8 rounded-full bg-(--theme-info) shadow-[0_0_24px_color-mix(in_oklab,var(--theme-info)_55%,transparent)]">
+          <span className="absolute inline-flex h-2 w-2 rounded-full bg-(--theme-panel-bg) motion-safe:animate-pulse" />
         </span>
       </div>
 
@@ -376,14 +364,12 @@ function CorsPropagatingPreview() {
         <PropagationStage status="pending" label={t.stages.verified} />
       </ol>
 
-      <div className="w-full max-w-xs mb-3">
-        <div className="h-1 rounded-full theme-muted-panel overflow-hidden">
-          <div
-            className="h-full bg-blue-500 transition-[width] duration-500 ease-linear"
-            style={{ width: `${progressPct}%` }}
-          />
-        </div>
-      </div>
+      <ProgressBar
+        value={progressPct}
+        size="sm"
+        aria-label={t.stages.propagating}
+        className="w-full max-w-xs mb-3"
+      />
 
       <div className="flex items-center gap-2 theme-muted-text text-xs font-mono tabular-nums">
         <span>
@@ -410,8 +396,9 @@ function PropagationStage({
       <span
         className={cx(
           'relative flex items-center justify-center w-6 h-6 rounded-full border transition-colors',
-          status === 'done' && 'bg-green-500 border-green-500 text-white',
-          status === 'active' && 'border-blue-500',
+          status === 'done' &&
+            'bg-(--theme-success-solid) border-(--theme-success-solid) text-white',
+          status === 'active' && 'border-(--theme-info)',
           status === 'pending' && 'theme-border',
         )}
       >
@@ -431,8 +418,8 @@ function PropagationStage({
         )}
         {status === 'active' && (
           <>
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400/60" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-500" />
+            <span className="absolute inline-flex h-full w-full motion-safe:animate-ping rounded-full bg-(--theme-info)/60" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-(--theme-info)" />
           </>
         )}
         {status === 'pending' && (
@@ -457,7 +444,7 @@ function PropagationConnector({ active }: { active: boolean }) {
       aria-hidden="true"
       className={cx(
         'h-px w-8 -mt-5 transition-colors',
-        active ? 'bg-blue-500' : 'theme-border border-t',
+        active ? 'bg-(--theme-info)' : 'theme-border border-t',
       )}
     />
   )
@@ -479,6 +466,7 @@ function NoDataAvailablePreview({
   canWrite?: boolean
 }) {
   const t = useStrings().fileExplorer
+  const { common } = useStrings()
   if (error instanceof CorsError) {
     return (
       <div className={cx('flex-1 flex items-center justify-center w-full text-center', className)}>
@@ -501,19 +489,18 @@ function NoDataAvailablePreview({
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center max-w-md p-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-amber-500/10 mb-4">
-            <AlertIcon className="h-6 w-6 text-amber-500" />
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-(--theme-warning-muted) mb-4">
+            <WarningIcon aria-hidden="true" className="h-6 w-6 text-(--theme-warning)" />
           </div>
           <h2 className="text-base font-semibold mb-1">{t.empty.connectionIssue}</h2>
           <p className="text-sm theme-muted-text mb-4">{connectionIssueMessage}</p>
-          <button
-            type="button"
-            className="btn btn-info cursor-pointer flex items-center gap-2"
+          <Button
+            variant="primary"
+            icon={<RefreshIcon />}
             onClick={onRefresh ? () => onRefresh() : undefined}
           >
-            <RefreshIcon className="h-4 w-4" />
-            {t.empty.tryAgain}
-          </button>
+            {common.retry}
+          </Button>
         </div>
       )}
     </div>
@@ -521,7 +508,7 @@ function NoDataAvailablePreview({
 }
 
 function SkeletonPreview() {
-  const [sidebarWidth] = useLocalStorage(SIDEBAR_WIDTH_STORAGE_KEY, SIDEBAR_WIDTH_DEFAULT)
+  const [sidebarWidth] = usePersistedState(SIDEBAR_WIDTH_STORAGE_KEY, SIDEBAR_WIDTH_DEFAULT)
   // Mirror the real explorer chrome so nothing shifts when it swaps in.
   return (
     <div className="w-full h-full flex">
@@ -535,9 +522,7 @@ function SkeletonPreview() {
             </div>
           </div>
           <div className="overflow-auto flex-1 px-2 py-2 space-y-1.5">
-            {positionKeys(6, 'skeleton').map((key) => (
-              <Skeleton key={key} height={14} />
-            ))}
+            <Skeleton count={6} height={14} />
           </div>
         </div>
       </div>
@@ -569,7 +554,7 @@ function DragDropZone({ onDropFiles, children, className = '' }: IDragDropZonePr
       )}
       onDragOver={(e) => {
         e.preventDefault()
-        if (onDropFiles) {
+        if (onDropFiles && carriesFiles(e.dataTransfer)) {
           setIsDragging(true)
         }
       }}
@@ -577,7 +562,7 @@ function DragDropZone({ onDropFiles, children, className = '' }: IDragDropZonePr
       onDrop={(e) => {
         e.preventDefault()
         setIsDragging(false)
-        if (!onDropFiles) {
+        if (!onDropFiles || !carriesFiles(e.dataTransfer)) {
           return
         }
         onDropFiles(e.dataTransfer.items.length ? e.dataTransfer.items : e.dataTransfer.files)
@@ -598,26 +583,25 @@ function ShareFileButton({ node, onShare }: IShareFileButtonProps) {
   const [isPending, startTransition] = useTransition()
 
   return (
-    <button
-      type="button"
+    <Button
+      variant="primary"
+      size="sm"
       aria-label={t.preview.shareFile}
-      className="btn btn-info cursor-pointer flex items-center justify-between"
+      icon={<ShareIcon />}
       onClick={() => {
         startTransition(async () => {
           await onShare(node)
         })
       }}
-      disabled={isPending}
+      loading={isPending}
     >
-      <ShareIcon className="h-4 w-4" />
       <span className="hidden md:inline">{t.empty.shareThisFile}</span>
-    </button>
+    </Button>
   )
 }
 
 async function addCorsRules({
   provision,
-  notify,
   strings,
   csp,
   type,
@@ -626,7 +610,6 @@ async function addCorsRules({
   onRefresh,
 }: {
   provision: NonNullable<UIData['provisionCorsRules']>
-  notify: UINotify
   strings: UIStrings['fileExplorer']['messages']
   csp: string | undefined
   type?: string | undefined
@@ -635,17 +618,17 @@ async function addCorsRules({
   onRefresh?: CorsAwareRefresh | undefined
 }) {
   if (!storageName || !username || !csp) {
-    notify.error(strings.corsNoStorage)
+    toast.error(strings.corsNoStorage)
     return
   }
 
   const res = await provision({ csp, type, username, storageName })
   if (res.error) {
-    notify.error(res.error)
+    toast.error(res.error)
     return
   }
   if (!onRefresh) {
-    notify.success(strings.corsAdded)
+    toast.success(strings.corsAdded)
     return
   }
   // Azure can take tens of seconds to propagate new CORS rules. Probe
@@ -662,16 +645,17 @@ async function addCorsRules({
     const result = await onRefresh({ silent: true })
     if (!result?.corsError) {
       await onRefresh()
-      notify.success(strings.corsAdded)
+      toast.success(strings.corsAdded)
       return
     }
     await new Promise((resolve) => setTimeout(resolve, pollIntervalMs))
   }
-  notify.warning(strings.corsPropagating)
+  toast.warning(strings.corsPropagating)
 }
 
 export {
   CorsIssuePreview,
+  CorsPropagatingPreview,
   DragDropZone,
   getNodeIcon,
   NoDataAvailablePreview,

@@ -1,17 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { mockListLayout } from '../test/layout'
 import { LogViewer } from './index'
 
 vi.mock('../components/Provider', async (importOriginal) =>
   (await import('../test/engine')).mockEngineHooks(importOriginal),
 )
 beforeAll(() => {
-  globalThis.ResizeObserver = class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-  }
   URL.createObjectURL = vi.fn(() => 'blob:log')
   URL.revokeObjectURL = vi.fn()
   Element.prototype.scroll = vi.fn()
@@ -173,12 +169,141 @@ describe('LogViewer search highlighting', () => {
     expect(container.querySelector('mark.search-highlight')?.textContent).toBe('[ERROR]')
   })
 
-  it('keeps ANSI colouring while highlighting a match', () => {
+  it('keeps ANSI coloring while highlighting a match', () => {
     const { container } = renderLog('\u001b[31mred error\u001b[0m')
 
     filterFor('error')
 
     expect(container.querySelector('.ansi-red-fg')).not.toBeNull()
     expect(container.querySelector('mark.search-highlight')?.textContent).toBe('error')
+  })
+})
+
+describe('LogViewer time range', () => {
+  it('keeps its panel open while a day is picked, and applies the range', async () => {
+    const onTimeRangeChange = vi.fn()
+    render(
+      <LogViewer
+        log="line"
+        width="100%"
+        inline
+        enableTimeRangeFilter
+        initialTimeRangeFrom="2026-03-14T09:00"
+        onTimeRangeChange={onTimeRangeChange}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Time range/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'From' }))
+    const day = new Intl.DateTimeFormat(undefined, { dateStyle: 'full' }).format(
+      new Date(2026, 2, 15),
+    )
+    // A real press, which an outside-press check would see first.
+    const dayButton = within(await screen.findByRole('grid')).getByRole('button', { name: day })
+    fireEvent.pointerDown(dayButton)
+    fireEvent.mouseDown(dayButton)
+    fireEvent.click(dayButton)
+    // The calendar closes; the range panel it sat over stays.
+    await waitFor(() => expect(screen.queryByRole('grid')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+    expect(onTimeRangeChange).toHaveBeenCalledWith('2026-03-15T09:00', '')
+  })
+})
+
+describe('LogViewer windowing', () => {
+  it('renders only the lines near the view of a long log', () => {
+    const restore = mockListLayout(400)
+    const log = Array.from({ length: 5000 }, (_, i) => `line ${i + 1}`).join('\n')
+    const { container } = render(<LogViewer log={log} width="100%" height={400} />)
+    const rendered = container.querySelectorAll('[data-line-number]').length
+    expect(rendered).toBeGreaterThan(0)
+    expect(rendered).toBeLessThan(100)
+    restore()
+  })
+})
+
+describe('LogViewer selection copy', () => {
+  it('offers to copy selected text where the selection ended, and copies it', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    const getSelection = vi.spyOn(window, 'getSelection').mockReturnValue({
+      toString: () => ' picked text ',
+      removeAllRanges: vi.fn(),
+      isCollapsed: false,
+    } as unknown as Selection)
+    renderLog('first line\nsecond line')
+    fireEvent.mouseUp(screen.getByTestId('logviewer'), { clientX: 40, clientY: 30 })
+    fireEvent.click(await screen.findByRole('button', { name: 'Copy' }))
+    expect(writeText).toHaveBeenCalledWith('picked text')
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Copy' })).toBeNull())
+    getSelection.mockRestore()
+  })
+
+  it('closes the offer on Escape', async () => {
+    const getSelection = vi.spyOn(window, 'getSelection').mockReturnValue({
+      toString: () => 'picked',
+      removeAllRanges: vi.fn(),
+      isCollapsed: false,
+    } as unknown as Selection)
+    renderLog('first line')
+    fireEvent.mouseUp(screen.getByTestId('logviewer'), { clientX: 40, clientY: 30 })
+    await screen.findByRole('button', { name: 'Copy' })
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Copy' })).toBeNull())
+    getSelection.mockRestore()
+  })
+})
+
+describe('LogViewer controls', () => {
+  it('names each line number and says whether its line is selected', () => {
+    renderLog('one\ntwo')
+    const line = screen.getByRole('button', { name: 'Select line 2' })
+    expect(line).toHaveAttribute('aria-pressed', 'false')
+
+    fireEvent.click(line)
+
+    expect(line).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it("toggles a group from its chevron's button, which says whether it is open", () => {
+    const { container } = renderLog(GROUP_LOG, true)
+    const toggle = screen.getByRole('button', { name: 'Install dependencies' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+
+    fireEvent.click(toggle)
+
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(container.textContent).not.toContain('pnpm install --frozen-lockfile')
+  })
+
+  it('indents a grouped line past the gutter, so line numbers stay in one column', () => {
+    const { container } = renderLog(GROUP_LOG, true)
+    const row = container.querySelector('[data-line-number="2"]') as HTMLElement
+
+    expect(row.style.paddingLeft).toBe('')
+    expect(row.querySelector('pre')?.getAttribute('style')).toContain('16px')
+  })
+
+  it('builds the download only when asked', () => {
+    vi.mocked(URL.createObjectURL).mockClear()
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    const { rerender } = renderLog('one')
+    rerender(<LogViewer log={'one\ntwo'} width="100%" inline />)
+    expect(URL.createObjectURL).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }))
+
+    expect(URL.createObjectURL).toHaveBeenCalledTimes(1)
+    expect(click).toHaveBeenCalledTimes(1)
+    click.mockRestore()
+  })
+
+  it('leaves fullscreen on Escape', () => {
+    render(<LogViewer log="one" width="100%" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Expand' }))
+    expect(screen.getByRole('button', { name: 'Collapse' })).toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+
+    expect(screen.getByRole('button', { name: 'Expand' })).toBeInTheDocument()
   })
 })

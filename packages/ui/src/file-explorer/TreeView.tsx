@@ -1,15 +1,26 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import cx from 'classnames'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Skeleton from 'react-loading-skeleton'
+import { AppLink, isPlainClick } from '../components/AppLink'
 import { positionKeys } from '../components/keys'
 import { useStrings } from '../components/Provider'
-import { AngleRightIcon, FolderIcon, FolderOpenIcon } from '../icons'
+import { Skeleton } from '../components/Skeleton'
+import { cx } from '../cx'
+import { isDev } from '../dev'
+import { ChevronRightIcon, FolderIcon, FolderOpenIcon } from '../icons'
 import { canPreview } from './FilePreview/previewType'
 import { getNodeIcon } from './helpers'
 import type { TreeNode } from './lib/types'
-import { getParentPath } from './lib/utils'
-import { findRowIndex, flattenTreeRows, nextFileLimit, stepRow, type TreeRow } from './treeRows'
+import { carriesFiles, getParentPath } from './lib/utils'
+import {
+  edgeRow,
+  findRowIndex,
+  firstChildRow,
+  flattenTreeRows,
+  nextFileLimit,
+  parentRow,
+  stepRow,
+  type TreeRow,
+} from './treeRows'
 
 /** 9px margin + 12px padding, per level. */
 const INDENT_PER_LEVEL = 21
@@ -37,6 +48,10 @@ interface TreeViewProps {
   onDropToFolder: (folderPath: string, files: FileList | DataTransferItemList) => void
   onContextMenu: (e: React.MouseEvent, node: TreeNode) => void
   onPreviewFile: (node: TreeNode) => void
+  /** The URL of a path; set, each row is a link to its path. */
+  pathHref?: ((path: string) => string) | undefined
+  /** A plain click on a row's link, which moves to its path on its own. */
+  onFollowLink?: ((node: TreeNode) => void) | undefined
   /** Directories with pages left to fetch, and how to fetch them. */
   paging?:
     | {
@@ -61,9 +76,12 @@ export function TreeView({
   onDropToFolder,
   onContextMenu,
   onPreviewFile,
+  pathHref,
+  onFollowLink,
   paging,
 }: TreeViewProps) {
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null)
+  const treeLabel = useStrings().fileExplorer.chrome.folders
   // Purely how much of an already-loaded folder to show, so it lives here rather
   // than beside the listing state.
   const [fileLimits, setFileLimits] = useState<ReadonlyMap<string, number>>(() => new Map())
@@ -139,7 +157,7 @@ export function TreeView({
   })
 
   const move = useCallback(
-    (from: TreeNode, direction: 1 | -1) => {
+    (from: TreeNode, pick: (index: number) => TreeRow | undefined) => {
       // The cursor can name a row that is gone — Collapse All, a refresh, or the
       // '' multi-storage root — so fall back to the row that got the keypress.
       const cursorIndex = findRowIndex(rows, cursorRef.current ?? '')
@@ -147,7 +165,7 @@ export function TreeView({
       if (index === -1) {
         return
       }
-      const target = stepRow(rows, index, direction)
+      const target = pick(index)
       if (!target) {
         return
       }
@@ -190,15 +208,24 @@ export function TreeView({
         onPreviewFile(node)
         return
       }
-      if (e.key === 'ArrowDown') {
+      // The tree view pattern's keys: Up and Down step, Right enters an open
+      // folder, Left goes to the parent, Home and End jump to the ends. Rows
+      // toggle open and closed in dispatchRowKey before anything lands here.
+      const pick: Partial<Record<string, (index: number) => TreeRow | undefined>> = {
+        ArrowDown: (i) => stepRow(rows, i, 1),
+        ArrowUp: (i) => stepRow(rows, i, -1),
+        ArrowRight: (i) => firstChildRow(rows, i),
+        ArrowLeft: (i) => parentRow(rows, i),
+        Home: () => edgeRow(rows, 'first'),
+        End: () => edgeRow(rows, 'last'),
+      }
+      const target = pick[e.key]
+      if (target) {
         e.preventDefault()
-        move(node, 1)
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault()
-        move(node, -1)
+        move(node, target)
       }
     },
-    [move, onPreviewFile],
+    [move, onPreviewFile, rows],
   )
 
   const items = virtualizer.getVirtualItems()
@@ -226,6 +253,8 @@ export function TreeView({
           <TreeRowItem
             row={row}
             isSelected={row.node.path === selectedPath}
+            href={pathHref?.(row.node.path)}
+            onFollowLink={onFollowLink}
             onToggleExpand={onToggleExpand}
             onSelect={onSelect}
             onDropToFolder={onDropToFolder}
@@ -265,6 +294,7 @@ export function TreeView({
       ref={setScrollEl}
       className="overflow-auto flex-1 px-2 py-2"
       role="tree"
+      aria-label={treeLabel}
       // Nothing else in the sidebar cancels dragover, so a file dropped on the
       // padding falls through to the browser, which navigates and unloads the app.
       onDragOver={(e) => e.preventDefault()}
@@ -320,7 +350,7 @@ function RowIcons({
   )
   return (
     <>
-      <AngleRightIcon
+      <ChevronRightIcon
         className={cx(
           'h-3.5 w-3.5 shrink-0 theme-muted-text transition-transform duration-150',
           isExpanded && 'rotate-90',
@@ -352,13 +382,14 @@ function TreeMoreRow({
   onReveal: () => void
 }) {
   const t = useStrings().fileExplorer
+  const { common } = useStrings()
 
   const label = () => {
     if (failed) {
-      return t.retry
+      return common.retry
     }
     if (hiddenFiles === 0) {
-      return t.loadMore
+      return common.loadMore
     }
     return partial ? t.treeMoreCountPartial(hiddenFiles) : t.treeMoreCount(hiddenFiles)
   }
@@ -375,7 +406,10 @@ function TreeMoreRow({
         ) : (
           <button
             type="button"
-            className={cx('cursor-pointer underline', failed ? 'text-red-500' : 'theme-link')}
+            className={cx(
+              'cursor-pointer underline',
+              failed ? 'text-(--theme-error-text)' : 'theme-link',
+            )}
             onClick={onReveal}
           >
             {label()}
@@ -386,9 +420,8 @@ function TreeMoreRow({
   )
 }
 
-/** Sized by the slot, not by its contents: react-loading-skeleton wraps each bar
- *  in an inline span, so a bar occupies a line box taller than its `height` and
- *  the overflow would sit on top of the absolutely positioned row below. */
+/** Sized by the slot, not by its contents, so the bars never spill onto the
+ *  absolutely positioned row below. */
 function TreeSkeletonRow({ depth }: { depth: number }) {
   return (
     <div className="relative h-full overflow-hidden">
@@ -397,9 +430,7 @@ function TreeSkeletonRow({ depth }: { depth: number }) {
         className="flex h-full flex-col justify-center gap-1.5 py-1 pr-2"
         style={{ paddingLeft: depth * INDENT_PER_LEVEL + ROW_PAD_FILE }}
       >
-        {[0, 1, 2].map((i) => (
-          <Skeleton key={i} height={12} containerClassName="block leading-none" />
-        ))}
+        <Skeleton count={3} height={12} className="shrink-0" />
       </div>
     </div>
   )
@@ -423,7 +454,7 @@ function useSpringLoadedDrop({
   onDropToFolder: (folderPath: string, files: FileList | DataTransferItemList) => void
 }) {
   const hoverCount = useRef(0)
-  const timer = useRef<NodeJS.Timeout | null>(null)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [dragActive, setDragActive] = useState(false)
 
   const clear = () => {
@@ -451,6 +482,9 @@ function useSpringLoadedDrop({
     dragHandlers: {
       onDragEnter: (e: React.DragEvent) => {
         e.preventDefault()
+        if (!carriesFiles(e.dataTransfer)) {
+          return
+        }
         // Don't bubble to ancestor folders, or they stay flagged as drop targets.
         e.stopPropagation()
         hoverCount.current += 1
@@ -465,6 +499,9 @@ function useSpringLoadedDrop({
       onDragOver: (e: React.DragEvent) => e.preventDefault(),
       onDragLeave: (e: React.DragEvent) => {
         e.preventDefault()
+        if (!carriesFiles(e.dataTransfer)) {
+          return
+        }
         e.stopPropagation()
         hoverCount.current -= 1
         if (hoverCount.current > 0) {
@@ -474,8 +511,11 @@ function useSpringLoadedDrop({
         clear()
       },
       onDrop: (e: React.DragEvent) => {
-        e.stopPropagation()
         e.preventDefault()
+        if (!carriesFiles(e.dataTransfer)) {
+          return
+        }
+        e.stopPropagation()
         hoverCount.current = 0
         setDragActive(false)
         clear()
@@ -488,15 +528,16 @@ function useSpringLoadedDrop({
   }
 }
 
-/** Keys a row handles itself; the arrows that move between rows delegate upward,
- *  where the flat array is. The set is deliberately narrow:
- *  no Home/End, no typeahead, and ArrowLeft/Right only toggle a directory. */
+/** Keys a row handles itself: Enter, Space, and Right or Left on a folder that
+ *  can open or close. The keys that move between rows delegate upward, where
+ *  the flat array is. There is no typeahead. */
 function dispatchRowKey(
   e: React.KeyboardEvent,
   {
     node,
     isDirectory,
     isExpanded,
+    isLink,
     onSelect,
     onToggleExpand,
     onDelegate,
@@ -504,19 +545,24 @@ function dispatchRowKey(
     node: TreeNode
     isDirectory: boolean
     isExpanded: boolean
+    isLink: boolean
     onSelect: (e: React.KeyboardEvent) => void
     onToggleExpand: (path: string) => void
     onDelegate: (e: React.KeyboardEvent, node: TreeNode) => void
   },
 ) {
   if (e.key === 'Enter') {
+    // A link's own Enter, with a modifier, opens it in a new tab or window.
+    if (isLink && (e.metaKey || e.ctrlKey || e.shiftKey)) {
+      return
+    }
     e.preventDefault()
     onSelect(e)
     return
   }
   if (e.key === ' ') {
     e.preventDefault()
-    // A previewable file delegates Space upward for Quick Look; everything else
+    // A previewable file delegates Space upward to open its preview; everything else
     // falls back to select/toggle.
     if (!isDirectory && canPreview(node)) {
       onDelegate(e, node)
@@ -539,6 +585,9 @@ function dispatchRowKey(
 interface TreeRowItemProps {
   row: TreeRow
   isSelected: boolean
+  /** Makes the row a link to its path. */
+  href?: string | undefined
+  onFollowLink?: ((node: TreeNode) => void) | undefined
   onToggleExpand: (path: string) => void
   onSelect: (path: string, node: TreeNode) => void
   onDropToFolder: (folderPath: string, files: FileList | DataTransferItemList) => void
@@ -549,6 +598,8 @@ interface TreeRowItemProps {
 const TreeRowItem = memo(function TreeRowItem({
   row,
   isSelected,
+  href,
+  onFollowLink,
   onToggleExpand,
   onSelect,
   onDropToFolder,
@@ -578,11 +629,24 @@ const TreeRowItem = memo(function TreeRowItem({
     }
   }
 
+  // The link moves to the path itself, so a click only opens or closes the
+  // folder, and one opening a new tab leaves this tree as it is.
+  const handleLinkClick = (e: React.MouseEvent) => {
+    if (!isPlainClick(e)) {
+      return
+    }
+    onFollowLink?.(node)
+    if (isDirectory) {
+      onToggleExpand(node.path)
+    }
+  }
+
   const handleKeyDown = (e: React.KeyboardEvent) =>
     dispatchRowKey(e, {
       node,
       isDirectory,
       isExpanded,
+      isLink: !!href,
       onSelect: handleSelect,
       onToggleExpand,
       onDelegate: onKeyDown,
@@ -591,6 +655,33 @@ const TreeRowItem = memo(function TreeRowItem({
   const customIcon = getNodeIcon(node)
   // A storage root shows its display name; a user node's display name is its name.
   const label = isDirectory && node.storageId && node.displayName ? node.displayName : node.name
+  // Roving: only the selected row is in the tab order, and arrows move from it.
+  const tabIndex = isSelected ? 0 : -1
+  const itemProps = {
+    className: cx(
+      'group relative flex items-center gap-1.5 pr-2 py-1 rounded-md cursor-pointer',
+      'transition-colors duration-150',
+      'focus:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-(--theme-link)',
+      isSelected
+        ? 'bg-(--theme-accent)/15 font-medium'
+        : dragActive
+          ? 'theme-hover'
+          : 'hover:theme-hover',
+    ),
+    style: indentStyle(depth, isDirectory),
+    onContextMenu: (e: React.MouseEvent) => onContextMenu(e, node),
+    'aria-level': depth + 1,
+    'aria-posinset': row.posInSet,
+    'aria-setsize': row.setSize,
+    'aria-selected': isSelected,
+    ...(isDirectory && { 'aria-expanded': isExpanded }),
+    children: (
+      <>
+        <RowIcons isDirectory={isDirectory} isExpanded={isExpanded} customIcon={customIcon} />
+        <span className="text-sm truncate">{label}</span>
+      </>
+    ),
+  }
 
   return (
     <div
@@ -601,32 +692,26 @@ const TreeRowItem = memo(function TreeRowItem({
       {...dragHandlers}
     >
       <IndentGuides depth={depth} />
-      <div
-        className={cx(
-          'group relative flex items-center gap-1.5 pr-2 py-1 rounded-md cursor-pointer',
-          'transition-colors duration-150',
-          'focus:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-(--theme-link)',
-          isSelected
-            ? 'bg-(--theme-element)/15 font-medium'
-            : dragActive
-              ? 'theme-hover'
-              : 'hover:theme-hover',
-        )}
-        style={indentStyle(depth, isDirectory)}
-        onClick={handleSelect}
-        onKeyDown={handleKeyDown}
-        onContextMenu={(e) => onContextMenu(e, node)}
-        role="treeitem"
-        aria-level={depth + 1}
-        aria-posinset={row.posInSet}
-        aria-setsize={row.setSize}
-        aria-selected={isSelected}
-        {...(isDirectory && { 'aria-expanded': isExpanded })}
-        tabIndex={isSelected ? 0 : -1}
-      >
-        <RowIcons isDirectory={isDirectory} isExpanded={isExpanded} customIcon={customIcon} />
-        <span className="text-sm truncate">{label}</span>
-      </div>
+      {href ? (
+        // The tree view pattern's navigation tree: each treeitem is the link
+        // itself, so a row is one focusable element that also opens in a new tab.
+        <AppLink
+          {...itemProps}
+          role="treeitem"
+          tabIndex={tabIndex}
+          href={href}
+          onClick={handleLinkClick}
+          onKeyDown={handleKeyDown}
+        />
+      ) : (
+        <div
+          {...itemProps}
+          role="treeitem"
+          tabIndex={tabIndex}
+          onClick={handleSelect}
+          onKeyDown={handleKeyDown}
+        />
+      )}
     </div>
   )
 })
@@ -639,7 +724,7 @@ function useTreePitchAudit(
   items: readonly { index: number }[],
 ) {
   useEffect(() => {
-    if (!import.meta.env.DEV || !scrollEl || items.length < 2) {
+    if (!isDev() || !scrollEl || items.length < 2) {
       return
     }
     for (const item of items) {

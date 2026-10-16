@@ -1,63 +1,28 @@
-import cx from 'classnames'
 import {
   type ClipboardEvent,
-  forwardRef,
   type KeyboardEvent,
   type ReactNode,
+  type Ref,
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useRef,
   useState,
 } from 'react'
-import { ArrowUpIcon, PlusOutlineIcon, StopSolidIcon } from '../../icons'
+import { cx } from '../../cx'
+import { AddIcon, ArrowUpIcon, StopIcon } from '../../icons'
 import { useChat } from '../core/ChatProvider'
 import { useChatConfig } from '../core/config'
 import useDragDrop from '../core/useDragDrop'
 import type { AttachmentMeta, MessagePaste } from '../types'
 import AttachmentUpload, { type Attachment, type AttachmentUploadHandle } from './AttachmentUpload'
-import { ComposerContext, ComposerSettings } from './ComposerChrome'
+import { ComposerContext, ComposerControls, ComposerSettings } from './ComposerChrome'
+import { clearDraft, readDraft, storeDraft, sweepDrafts } from './chatDraft'
 import DragOverlay from './DragOverlay'
 import { PasteFileCard } from './PastedText'
 import { SlashMenu, type SlashMenuConfig, useSlashMenu } from './SlashMenu'
 import { type ComposerPastes, usePasteCards } from './usePasteCards'
-
-const DRAFT_STORAGE_PREFIX = 'aiChatDraft:'
-// Beyond this a draft is likely pasted bulk content; persisting it risks
-// blowing the storage quota shared with the rest of the app.
-const DRAFT_MAX_LENGTH = 10_000
-
-function draftKey(conversationId?: string): string {
-  return `${DRAFT_STORAGE_PREFIX}${conversationId ?? 'new'}`
-}
-
-function readDraft(conversationId?: string): string {
-  try {
-    return window.localStorage.getItem(draftKey(conversationId)) ?? ''
-  } catch {
-    return ''
-  }
-}
-
-function storeDraft(conversationId: string | undefined, text: string) {
-  try {
-    if (!text || text.length > DRAFT_MAX_LENGTH) {
-      window.localStorage.removeItem(draftKey(conversationId))
-    } else {
-      window.localStorage.setItem(draftKey(conversationId), text)
-    }
-  } catch {
-    // Storage unavailable (SSR, disabled storage): drafts simply don't persist.
-  }
-}
-
-function clearDraft(conversationId?: string) {
-  try {
-    window.localStorage.removeItem(draftKey(conversationId))
-  } catch {
-    // Storage unavailable: nothing to clear.
-  }
-}
 
 interface ChatInputProps {
   onSend: (
@@ -70,9 +35,6 @@ interface ChatInputProps {
   placeholder?: string | undefined
   conversationId?: string
   onEditLastMessage?: () => void
-  /** Only the box: no page padding, width cap, or settings row, for a host
-   *  that lays out its own controls around it. */
-  flush?: boolean
   /** Send with nothing typed, for a surface where the text is optional. */
   allowEmpty?: boolean
   /** Attach, paste, and drop files. Off for a target that takes text only. */
@@ -85,14 +47,26 @@ interface ChatInputProps {
   sendTestId?: string
   /** Offers the host's slash commands as the input starts with /. */
   slash?: SlashMenuConfig | undefined
+  /** Cards above everything else, such as a warning about this turn. */
+  notices?: ReactNode
+  /** Sits where a terminal's spinner line would, just above the box. */
+  activity?: ReactNode
   /** Pills naming where the turn runs, rendered above the input. */
   context?: ReactNode
+  /** Keeps the row of pills above the box even with none, so the box sits
+   *  where it does on a surface that has them. */
+  reserveContext?: boolean
+  /** Under the box, on the left. */
   settingsLeft?: ReactNode
+  /** In the box beside send. Defaults to the model and allocation pickers. */
   settingsRight?: ReactNode
+  /** One centered line under everything. */
+  hint?: string | undefined
   /** A turn the chat provider does not run, such as an agent session's: it
    *  drives the Stop button in place of the provider's stream and queue. */
   turn?: { running: boolean; onStop: () => void; stopping?: boolean }
   pastes?: ComposerPastes | undefined
+  ref?: Ref<ChatInputHandle> | undefined
 }
 
 export interface ChatInputHandle {
@@ -116,10 +90,10 @@ function sendability({
   disabled: boolean
   modelReady: boolean
   pendingCount: number
-}): { canSend: boolean; emphasised: boolean } {
+}): { canSend: boolean; emphasized: boolean } {
   const canSend =
     (hasText || canFlushQueue || allowEmpty) && !disabled && modelReady && pendingCount === 0
-  return { canSend, emphasised: canSend && (hasText || !allowEmpty) }
+  return { canSend, emphasized: canSend && (hasText || !allowEmpty) }
 }
 
 function keyAction(
@@ -161,9 +135,7 @@ function AttachButton({
       aria-label={label}
       title={label}
     >
-      <PlusOutlineIcon
-        className={cx('h-5 w-5 transition-transform duration-200', open && 'rotate-45')}
-      />
+      <AddIcon className={cx('h-5 w-5 transition-transform duration-200', open && 'rotate-45')} />
     </button>
   )
 }
@@ -171,13 +143,13 @@ function AttachButton({
 function SendButton({
   onClick,
   enabled,
-  emphasised,
+  emphasized,
   label,
   testId,
 }: {
   onClick: () => void
   enabled: boolean
-  emphasised: boolean
+  emphasized: boolean
   label: string
   testId: string | undefined
 }) {
@@ -189,7 +161,7 @@ function SendButton({
       data-testid={testId}
       className={cx(
         'flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition-[background-color,color,transform] duration-150 active:scale-95',
-        emphasised ? 'theme-element hover:opacity-90' : 'chat-send-idle',
+        emphasized ? 'theme-accent hover:opacity-90' : 'chat-send-idle',
         !enabled && 'cursor-not-allowed active:scale-100',
       )}
       aria-label={label}
@@ -216,30 +188,44 @@ function streamControls(chat: ReturnType<typeof useChat>, turn: ChatInputProps['
   }
 }
 
-const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput(
-  {
-    onSend,
-    disabled = false,
-    placeholder,
-    conversationId,
-    onEditLastMessage,
-    flush = false,
-    allowEmpty = false,
-    attachments: attachmentsWanted = true,
-    requireModel = true,
-    inputLabel,
-    sendLabel,
-    sendTestId,
-    slash,
-    context,
-    settingsLeft,
-    settingsRight,
-    turn,
-    pastes,
-  },
+function fitToContent(el: HTMLTextAreaElement) {
+  el.style.height = 'auto'
+  el.style.height = `${el.scrollHeight}px`
+}
+
+let draftsSwept = false
+
+export default function ChatInput({
+  onSend,
+  disabled = false,
+  placeholder,
+  conversationId,
+  onEditLastMessage,
+  allowEmpty = false,
+  attachments: attachmentsWanted = true,
+  requireModel = true,
+  inputLabel,
+  sendLabel,
+  sendTestId,
+  slash,
+  notices,
+  activity,
+  context,
+  reserveContext = false,
+  settingsLeft,
+  settingsRight = <ComposerControls />,
+  hint,
+  turn,
+  pastes,
   ref,
-) {
+}: ChatInputProps) {
   const [input, setInput] = useState(() => readDraft(conversationId))
+  useEffect(() => {
+    if (!draftsSwept) {
+      draftsSwept = true
+      sweepDrafts()
+    }
+  }, [])
   const {
     cards,
     handleTextPaste,
@@ -278,14 +264,32 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput
     [],
   )
 
-  // Auto-resize textarea based on content
+  // The box grows with its text. Measured before paint so a new line never
+  // flashes a scrollbar.
   // biome-ignore lint/correctness/useExhaustiveDependencies: input is needed to trigger resize
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`
+      fitToContent(textareaRef.current)
     }
   }, [input])
+  // A change of width rewraps the text, so the height is measured again: a box
+  // first laid out narrow, or in a column that then widens, would otherwise
+  // keep the height of lines it no longer has.
+  useLayoutEffect(() => {
+    const el = textareaRef.current
+    if (!el || typeof ResizeObserver === 'undefined') {
+      return
+    }
+    let width = el.clientWidth
+    const observer = new ResizeObserver(() => {
+      if (el.clientWidth !== width) {
+        width = el.clientWidth
+        fitToContent(el)
+      }
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
 
   // Restore the draft when switching conversations; the initial mount is
   // covered by the useState initializer.
@@ -305,9 +309,9 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput
 
   const uploadedCount = attachments.filter((a) => a.uploaded).length
   const pendingCount = attachments.length - uploadedCount
-  // A queue held across a cancelled or failed turn can be sent on its own.
+  // A queue held across a canceled or failed turn can be sent on its own.
   const canFlushQueue = !isStreaming && queuedCount > 0 && !disabled
-  const { canSend, emphasised } = sendability({
+  const { canSend, emphasized } = sendability({
     hasText: input.trim().length > 0 || cards.length > 0,
     canFlushQueue,
     allowEmpty,
@@ -395,24 +399,24 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput
     onFilesDropped: handleFilesDropped,
   })
 
-  const toolbar = attachmentsAvailable || (!flush && !!settingsRight)
+  const toolbar = attachmentsAvailable || !!settingsRight
   const action =
     isStreaming && !input.trim() ? (
       <button
         type="button"
         onClick={stopStreaming}
         disabled={turn?.stopping}
-        className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-(--theme-panel) text-(--theme-panel-bg) transition-opacity hover:opacity-85 disabled:opacity-50"
+        className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-(--theme-app) text-(--theme-panel-bg) transition-opacity hover:opacity-85 disabled:opacity-50"
         aria-label={t.stopGenerating}
         title={t.stopGenerating}
       >
-        <StopSolidIcon className="h-3 w-3" />
+        <StopIcon className="h-3 w-3" />
       </button>
     ) : (
       <SendButton
         onClick={handleSubmit}
         enabled={canSend}
-        emphasised={emphasised}
+        emphasized={emphasized}
         label={sendLabel ?? t.sendMessage}
         testId={sendTestId}
       />
@@ -420,126 +424,131 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput
 
   return (
     <div
-      className={cx(
-        'relative',
-        !flush && 'chat-composer-dock px-4 pb-5 pt-2 bg-(--theme-panel-bg)',
-      )}
+      className="chat-composer-dock relative bg-(--theme-panel-bg) px-4 pt-2 pb-5"
       {...(attachmentsAvailable ? dragHandlers : {})}
     >
-      {/* Drag overlay */}
       {isDragging && <DragOverlay className="rounded-2xl" />}
-      <div className={cx(!flush && 'w-full max-w-[50rem] mx-auto px-4')}>
-        {context && <ComposerContext>{context}</ComposerContext>}
+      <div className="mx-auto w-full max-w-[var(--chat-column,50rem)] space-y-2 px-4">
+        {notices}
+        <div>
+          {activity && <div className="mb-2">{activity}</div>}
+          {(context || reserveContext) && <ComposerContext>{context}</ComposerContext>}
 
-        {cards.length > 0 && (
-          <div className="mb-2 flex flex-wrap gap-2" data-testid="composer-pastes">
-            {cards.map((card) => (
-              <PasteFileCard
-                key={card.key}
-                id={card.paste?.id}
-                lines={card.lines}
-                bytes={card.bytes}
-                saving={!card.paste && !card.error}
-                error={card.error}
-                onRemove={() => removeCard(card.key)}
+          {cards.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-2" data-testid="composer-pastes">
+              {cards.map((card) => (
+                <PasteFileCard
+                  key={card.key}
+                  id={card.paste?.id}
+                  lines={card.lines}
+                  bytes={card.bytes}
+                  saving={!card.paste && !card.error}
+                  error={card.error}
+                  onRemove={() => removeCard(card.key)}
+                />
+              ))}
+            </div>
+          )}
+
+          <div className="relative">
+            {slash && slashMenu.open && (
+              <SlashMenu
+                label={slash.label}
+                listId={slashMenu.listId}
+                matches={slashMenu.matches}
+                active={slashMenu.active}
+                onChoose={(name) => {
+                  slashMenu.choose(name)
+                  textareaRef.current?.focus()
+                }}
               />
-            ))}
-          </div>
-        )}
+            )}
+            {/* One box holds the text and everything that acts on it: what is
+              attached above, the attach and send controls in a toolbar
+              under the text, and the model on that toolbar's right, so the
+              eye never leaves the box to see where it goes. */}
+            <div className="chat-composer @container flex flex-col rounded-[1.25rem] bg-(--theme-panel-bg)">
+              {showAttachments && attachmentsAvailable && (
+                <div className="px-3 pt-3">
+                  <AttachmentUpload
+                    ref={attachmentUploadRef}
+                    conversationId={conversationId}
+                    attachments={attachments}
+                    onAttachmentsChange={setAttachments}
+                    maxFiles={10}
+                  />
+                </div>
+              )}
 
-        <div className="relative">
-          {slash && slashMenu.open && (
-            <SlashMenu
-              label={slash.label}
-              matches={slashMenu.matches}
-              active={slashMenu.active}
-              onChoose={(name) => {
-                slashMenu.choose(name)
-                textareaRef.current?.focus()
-              }}
+              {/* With nothing to put beside it, send sits at the end of the
+                text's own row rather than alone on an empty toolbar. */}
+              <div className={cx(!toolbar && 'flex items-end gap-2 pr-2 pb-2')}>
+                <div className="max-h-[200px] min-w-0 flex-1 overflow-y-auto">
+                  <textarea
+                    ref={textareaRef}
+                    value={input}
+                    onChange={(e) => setInputAndPersist(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    onPaste={handlePaste}
+                    {...slashMenu.inputProps}
+                    placeholder={effectivePlaceholder}
+                    aria-label={inputLabel ?? effectivePlaceholder}
+                    disabled={disabled}
+                    rows={1}
+                    className={cx(
+                      'theme-text block w-full resize-none overflow-hidden',
+                      'bg-transparent border-0 px-4',
+                      toolbar ? 'pt-3.5 pb-1' : 'pt-3 pb-1',
+                      'placeholder:text-(--theme-placeholder)',
+                      'focus:outline-none focus:ring-0',
+                      'disabled:opacity-50 disabled:cursor-not-allowed',
+                      'text-[1rem] leading-relaxed',
+                    )}
+                  />
+                </div>
+                {!toolbar && action}
+              </div>
+
+              {toolbar && (
+                <div className="flex items-center gap-1 px-2 pb-2">
+                  {attachmentsAvailable && (
+                    <AttachButton
+                      open={showAttachments}
+                      disabled={disabled}
+                      label={t.attachFiles}
+                      onClick={() => setShowAttachments(!showAttachments)}
+                    />
+                  )}
+                  {/* Send stays in the box however wide the host's controls
+                    are; they give up their room first. */}
+                  <div className="ml-auto flex min-w-0 items-center gap-1">
+                    <div className="flex min-w-0 items-center justify-end gap-1">
+                      {settingsRight}
+                    </div>
+                    <div className="shrink-0">{action}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {(settingsLeft || uploadedCount > 0) && (
+            <ComposerSettings
+              left={
+                <>
+                  {settingsLeft}
+                  {uploadedCount > 0 && (
+                    <span className="text-[11px] theme-muted-text">
+                      {t.filesAttached(uploadedCount)}
+                    </span>
+                  )}
+                </>
+              }
             />
           )}
-          {/* One box holds the text and everything that acts on it: what is
-              attached above, the attach and send controls in a toolbar
-              under the text, and (outside flush) the model on that toolbar's
-              right, so the eye never leaves the box to see where it goes. */}
-          <div className="chat-composer flex flex-col rounded-[1.25rem] bg-(--theme-panel-bg)">
-            {showAttachments && attachmentsAvailable && (
-              <div className="px-3 pt-3">
-                <AttachmentUpload
-                  ref={attachmentUploadRef}
-                  conversationId={conversationId}
-                  attachments={attachments}
-                  onAttachmentsChange={setAttachments}
-                  maxFiles={10}
-                />
-              </div>
-            )}
-
-            {/* With nothing to put beside it, send sits at the end of the
-                text's own row rather than alone on an empty toolbar. */}
-            <div className={cx(!toolbar && 'flex items-end gap-2 pr-2 pb-2')}>
-              <div className="max-h-[200px] min-w-0 flex-1 overflow-y-auto">
-                <textarea
-                  ref={textareaRef}
-                  value={input}
-                  onChange={(e) => setInputAndPersist(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  onPaste={handlePaste}
-                  placeholder={effectivePlaceholder}
-                  aria-label={inputLabel ?? effectivePlaceholder}
-                  disabled={disabled}
-                  rows={1}
-                  className={cx(
-                    'theme-text block w-full resize-none overflow-hidden',
-                    'bg-transparent border-0 px-4',
-                    toolbar ? 'pt-3.5 pb-1' : 'pt-3 pb-1',
-                    'placeholder:theme-muted-text',
-                    'focus:outline-none focus:ring-0',
-                    'disabled:opacity-50 disabled:cursor-not-allowed',
-                    'text-[1rem] leading-relaxed',
-                  )}
-                />
-              </div>
-              {!toolbar && action}
-            </div>
-
-            {toolbar && (
-              <div className="flex items-center gap-1 px-2 pb-2">
-                {attachmentsAvailable && (
-                  <AttachButton
-                    open={showAttachments}
-                    disabled={disabled}
-                    label={t.attachFiles}
-                    onClick={() => setShowAttachments(!showAttachments)}
-                  />
-                )}
-                <div className="ml-auto flex min-w-0 items-center gap-1">
-                  {!flush && settingsRight}
-                  {action}
-                </div>
-              </div>
-            )}
-          </div>
+          {hint && <p className="mt-1 text-center text-[11px] theme-muted-text">{hint}</p>}
         </div>
-
-        {!flush && (settingsLeft || uploadedCount > 0) && (
-          <ComposerSettings
-            left={
-              <>
-                {settingsLeft}
-                {uploadedCount > 0 && (
-                  <span className="text-[11px] theme-muted-text">
-                    {t.filesAttached(uploadedCount)}
-                  </span>
-                )}
-              </>
-            }
-          />
-        )}
       </div>
     </div>
   )
-})
-
-export default ChatInput
+}

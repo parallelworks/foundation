@@ -1,54 +1,67 @@
-import cx from 'classnames'
 import { useState } from 'react'
+import { Button } from '../components/Button'
+import { Callout } from '../components/Callout'
+import { IconButton } from '../components/IconButton'
+import { type BarTone, ProgressBar } from '../components/Meter'
 import { type UIStrings, useStrings } from '../components/Provider'
+import { toneIcon } from '../components/tone'
+import { cx } from '../cx'
+import { formatBytes, formatTimeLeft } from '../format'
 import {
-  AlertIcon,
-  AngleDownIcon,
-  AngleUpIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
   CloseIcon,
-  CloudUploadIcon,
   ExpandVerticalIcon,
   MinimizeIcon,
   SuccessIcon,
+  UploadIcon,
+  WarningIcon,
 } from '../icons'
 import type { UploadFileProgress, UploadSession } from './lib/types'
-import { formatETA, formatFileSize } from './lib/utils'
 
 type UploadStrings = UIStrings['fileExplorer']['upload']
 
+// The badge is a graphic, so the icon takes the status's vivid shade over its tint.
 function getSessionStatusInfo(session: UploadSession, queueLength: number, strings: UploadStrings) {
   switch (session.status) {
     case 'queued':
       return {
-        icon: <CloudUploadIcon className="w-5 h-5 text-blue-600" />,
+        icon: <UploadIcon className={cx('w-5 h-5', toneIcon.info)} />,
         title: strings.inQueue(session.queueIndex + 1, queueLength),
         shortTitle: strings.queuedShort(session.queueIndex + 1, queueLength),
-        bgColor: 'bg-blue-100',
+        bgColor: 'bg-(--theme-info-muted)',
       }
     case 'uploading':
       return {
-        icon: <CloudUploadIcon className="w-5 h-5 text-blue-600" />,
+        icon: <UploadIcon className={cx('w-5 h-5', toneIcon.info)} />,
         title: strings.uploading,
         shortTitle: strings.uploading,
-        bgColor: 'bg-blue-100',
+        bgColor: 'bg-(--theme-info-muted)',
       }
     case 'completed':
       return {
-        icon: <SuccessIcon className="w-5 h-5 text-green-600" />,
+        icon: <SuccessIcon className={cx('w-5 h-5', toneIcon.success)} />,
         title: strings.completeTitle,
-        shortTitle: strings.completeShort,
-        bgColor: 'bg-green-100',
+        shortTitle: strings.completed,
+        bgColor: 'bg-(--theme-success-muted)',
       }
     case 'failed':
       return {
-        icon: <AlertIcon className="w-5 h-5 text-red-600" />,
+        icon: <WarningIcon className={cx('w-5 h-5', toneIcon.error)} />,
         title: strings.failedTitle,
-        shortTitle: strings.failedShort,
-        bgColor: 'bg-red-100',
+        shortTitle: strings.failed,
+        bgColor: 'bg-(--theme-error-muted)',
+      }
+    case 'canceled':
+      return {
+        icon: <CloseIcon className="w-5 h-5 theme-muted-text" />,
+        title: strings.canceled,
+        shortTitle: strings.canceled,
+        bgColor: 'bg-(--theme-muted-panel-bg)',
       }
     default:
       return {
-        icon: <CloudUploadIcon className="w-5 h-5 theme-muted-text" />,
+        icon: <UploadIcon className="w-5 h-5 theme-muted-text" />,
         title: strings.unknownTitle,
         shortTitle: strings.unknownShort,
         bgColor: 'bg-(--theme-muted-panel-bg)',
@@ -56,22 +69,22 @@ function getSessionStatusInfo(session: UploadSession, queueLength: number, strin
   }
 }
 
-function barColor({
+function barTone({
   isCompleted,
-  isCancelled,
+  isCanceled,
   isFailed,
 }: {
   isCompleted: boolean
-  isCancelled: boolean
+  isCanceled: boolean
   isFailed: boolean
-}): string {
+}): BarTone {
   if (isCompleted) {
-    return 'bg-green-600'
+    return 'success'
   }
-  if (isCancelled) {
-    return 'bg-(--theme-muted-text-color)'
+  if (isCanceled) {
+    return 'muted'
   }
-  return isFailed ? 'bg-red-600' : 'theme-element'
+  return isFailed ? 'error' : 'accent'
 }
 
 interface FileProgressBarProps {
@@ -81,8 +94,8 @@ interface FileProgressBarProps {
 }
 
 function FileProgressBar({ fileProgress, fileName, onCancelFile }: FileProgressBarProps) {
-  const strings = useStrings().fileExplorer.upload
-  const [isHovered, setIsHovered] = useState(false)
+  const { common, fileExplorer } = useStrings()
+  const strings = fileExplorer.upload
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
 
   const percentage = fileProgress.percentage || 0
@@ -90,126 +103,74 @@ function FileProgressBar({ fileProgress, fileName, onCancelFile }: FileProgressB
   const totalBytes = fileProgress.fileSizeBytes || fileProgress.totalBytes || 0
 
   const isCompleted = percentage === 100 || fileProgress.status === 'completed'
-  const isCancelled = fileProgress.status === 'cancelled'
+  const isCanceled = fileProgress.status === 'canceled'
   const isFailed = fileProgress.status === 'failed'
-  const isSettled = isCompleted || isCancelled || isFailed
-  // `uploading` still counts once the bar reads 100%, so the percentage stays up
-  // beside the completed label until the status catches up.
-  const isUploading = fileProgress.status === 'uploading' || !isSettled
+  const isSettled = isCompleted || isCanceled || isFailed
   const canCancel = !!fileProgress.abortController && !isSettled
 
-  const handleCancelClick = (e: React.MouseEvent) => {
+  const stop = (e: React.MouseEvent, then: () => void) => {
     e.stopPropagation()
-    setShowCancelConfirm(true)
-  }
-
-  const handleConfirmCancel = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    onCancelFile?.()
-    setShowCancelConfirm(false)
-  }
-
-  const handleKeepUploading = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    setShowCancelConfirm(false)
+    then()
   }
 
   return (
-    <div className="space-y-1">
-      {/* File Name and Percentage Row */}
-      <div className="flex items-center justify-between text-xs">
-        <div className="text-xs theme-muted-text text-wrap max-w-[75%]">{fileName}</div>
-        <div className="text-xs theme-muted-text text-right self-end">
-          {isCancelled && strings.cancelled}
-          {isCompleted && strings.completed}
-          {isFailed && strings.failed}
-          {isUploading && `${percentage.toFixed(2)}%`}
-        </div>
-      </div>
+    <div className="flex items-end gap-1">
+      <ProgressBar
+        className="flex-1"
+        value={percentage}
+        tone={barTone({ isCompleted, isCanceled, isFailed })}
+        label={fileName}
+        status={
+          isCanceled
+            ? strings.canceled
+            : isCompleted
+              ? strings.completed
+              : isFailed
+                ? strings.failed
+                : undefined
+        }
+        detail={
+          !isSettled && totalBytes > 0
+            ? `${formatBytes(loadedBytes)} / ${formatBytes(totalBytes)}`
+            : undefined
+        }
+      />
 
-      <div className="flex items-center gap-1">
-        {/* Progress Bar */}
-        <div
-          role="none"
-          className="relative flex-1"
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
-        >
-          <div
-            className={cx(
-              'w-full bg-(--theme-border) rounded-full overflow-hidden transition-all duration-300 ease-in-out flex items-center',
-              isHovered && !isCompleted ? 'h-6' : 'h-2',
-            )}
+      {!showCancelConfirm && canCancel && (
+        <IconButton
+          size="xs"
+          label={strings.cancelFile(fileName)}
+          icon={<CloseIcon />}
+          onClick={(e) => stop(e, () => setShowCancelConfirm(true))}
+        />
+      )}
+
+      {showCancelConfirm && canCancel && (
+        <div className="flex items-center gap-1">
+          <span className="text-xs theme-muted-text whitespace-nowrap">
+            {strings.confirmCancelFile}
+          </span>
+          <Button
+            variant="secondary"
+            size="xs"
+            onClick={(e) => stop(e, () => setShowCancelConfirm(false))}
           >
-            {/* Progress Bar Fill */}
-            <div
-              className={cx(
-                'h-full transition-all duration-300 relative flex items-center justify-center',
-                barColor({ isCompleted, isCancelled, isFailed }),
-                isHovered && 'opacity-80',
-              )}
-              style={{ width: `${percentage}%` }}
-            />
-
-            {isHovered && !isCompleted && totalBytes > 0 && (
-              <>
-                <div
-                  className="absolute inset-0 flex items-center justify-center text-xs whitespace-nowrap p-0.5 z-10"
-                  style={{
-                    WebkitClipPath: `inset(0 ${100 - percentage}% 0 0)`, // clip left part
-                    color: 'white',
-                  }}
-                >
-                  {formatFileSize(loadedBytes)} / {formatFileSize(totalBytes)}
-                </div>
-
-                <div
-                  className="absolute inset-0 flex items-center justify-center text-xs whitespace-nowrap p-0.5 z-10"
-                  style={{
-                    WebkitClipPath: `inset(0 0 0 ${percentage}%)`, // clip right part
-                    color: 'black',
-                  }}
-                >
-                  {formatFileSize(loadedBytes)} / {formatFileSize(totalBytes)}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Cancel Button */}
-        {!showCancelConfirm && canCancel && (
-          <button
-            type="button"
-            aria-label={`Cancel ${fileName}`}
-            className="p-1 rounded-full hover:bg-red-100 relative cursor-pointer"
-            onClick={handleCancelClick}
-            title={`Cancel ${fileName}`}
+            {common.no}
+          </Button>
+          <Button
+            variant="danger"
+            size="xs"
+            onClick={(e) =>
+              stop(e, () => {
+                onCancelFile?.()
+                setShowCancelConfirm(false)
+              })
+            }
           >
-            <CloseIcon className="w-4 h-4 text-red-500 hover:text-red-700" />
-          </button>
-        )}
-
-        {showCancelConfirm && canCancel && (
-          <div className="flex items-center gap-1">
-            <span className="text-xs theme-muted-text whitespace-nowrap">Cancel?</span>
-            <button
-              type="button"
-              className="px-1.5 py-0.5 text-xs bg-(--theme-border) theme-muted-text rounded hover:theme-hover"
-              onClick={handleKeepUploading}
-            >
-              No
-            </button>
-            <button
-              type="button"
-              className="!px-1.5 !py-0.5 text-xs btn btn-destructive cursor-pointer"
-              onClick={handleConfirmCancel}
-            >
-              Yes
-            </button>
-          </div>
-        )}
-      </div>
+            {common.yes}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
@@ -227,7 +188,8 @@ export function UploadSessionToast({
   onCancel,
   onCancelFile,
 }: UploadSessionToastProps) {
-  const strings = useStrings().fileExplorer.upload
+  const { common, fileExplorer } = useStrings()
+  const strings = fileExplorer.upload
   const [isToastExpanded, setIsToastExpanded] = useState(false)
   const [isFileListExpanded, setIsExpanded] = useState(session.uploadNodes.length <= 3)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
@@ -239,15 +201,15 @@ export function UploadSessionToast({
   const targetPath = `${session.targetPath}/`
 
   const isCompleted = session.status === 'completed'
-  const isCancelled = session.status === 'cancelled'
+  const isCanceled = session.status === 'canceled'
   const isFailed = session.status === 'failed'
   // Includes `queued`: a queued session shows the same progress and cancel controls.
-  const isUploading = !isCompleted && !isCancelled && !isFailed
+  const isUploading = !isCompleted && !isCanceled && !isFailed
 
   const totalProgress = session.progress?.overallProgress || 0
   const totalSize = session.progress?.totalSizeBytes || 0
 
-  const sessionBarColor = barColor({ isCompleted, isCancelled, isFailed })
+  const sessionTone = barTone({ isCompleted, isCanceled, isFailed })
 
   const allFiles = session.progress?.allFiles ? Array.from(session.progress.allFiles.values()) : []
   const singleFile = allFiles[0]
@@ -304,6 +266,7 @@ export function UploadSessionToast({
                   <button
                     type="button"
                     aria-label={strings.expandDetails}
+                    aria-expanded={false}
                     className="flex items-center justify-between text-xs theme-muted-text hover:theme-text cursor-pointer"
                     onClick={handleExpandClick}
                     title={strings.expandDetails}
@@ -314,23 +277,23 @@ export function UploadSessionToast({
               </div>
               <div className="flex items-center justify-between">
                 <div className="text-xs theme-muted-text mt-0.5">
-                  {session.progress?.completedFiles || 0} / {session.progress?.totalFiles || 0}{' '}
-                  files done
+                  {strings.filesDone(
+                    session.progress?.completedFiles || 0,
+                    session.progress?.totalFiles || 0,
+                  )}
                 </div>
                 <div className="text-xs theme-muted-text mt-0.5">
-                  {showETA && formatETA(estimatedSecondsLeft)}
+                  {showETA && (formatTimeLeft(estimatedSecondsLeft) ?? strings.almostDone)}
                 </div>
               </div>
 
               {/* Progress Bar */}
-              <div className="mt-1 flex items-center gap-2">
-                <div className="flex-1 h-1.5 bg-(--theme-border) rounded-full overflow-hidden">
-                  <div
-                    className={cx('h-full transition-all duration-300', sessionBarColor)}
-                    style={{ width: `${totalProgress}%` }}
-                  />
-                </div>
-              </div>
+              <ProgressBar
+                className="mt-1"
+                value={totalProgress}
+                tone={sessionTone}
+                aria-label={strings.overallProgress}
+              />
             </div>
           </div>
         )}
@@ -352,9 +315,11 @@ export function UploadSessionToast({
                 <div>
                   <h3 className="text-sm font-semibold theme-text">{statusInfo.title}</h3>
                   <p className="text-xs theme-muted-text">
-                    {uploadingFiles.length > 0 && `${uploadingFiles.length} uploading `}(
-                    {session.progress?.completedFiles || 0} / {session.progress?.totalFiles || 0}{' '}
-                    done)
+                    {strings.progress(
+                      uploadingFiles.length,
+                      session.progress?.completedFiles || 0,
+                      session.progress?.totalFiles || 0,
+                    )}
                   </p>
                 </div>
               </div>
@@ -362,6 +327,7 @@ export function UploadSessionToast({
               <button
                 type="button"
                 aria-label={strings.minimizeDetails}
+                aria-expanded
                 className="flex items-center justify-between text-xs theme-muted-text hover:theme-text cursor-pointer mr-2"
                 onClick={handleExpandClick}
                 title={strings.minimizeDetails}
@@ -379,41 +345,32 @@ export function UploadSessionToast({
                 </div>
                 <div className="flex justify-between">
                   <span>{session.uploadNodes.length > 1 ? strings.totalSize : strings.size}</span>
-                  <span>{formatFileSize(totalSize)}</span>
+                  <span>{formatBytes(totalSize)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>{strings.eta}</span>
-                  {showETA ? formatETA(estimatedSecondsLeft) : strings.calculating}
+                  {showETA
+                    ? (formatTimeLeft(estimatedSecondsLeft) ?? strings.almostDone)
+                    : strings.calculating}
                 </div>
               </div>
             </div>
 
             {/* Warning for active uploads */}
             {isUploading && (
-              <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                <div className="flex gap-2">
-                  <AlertIcon className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-amber-800">
-                    Please don&apos;t refresh this page during upload to prevent any data loss.
-                  </p>
-                </div>
-              </div>
+              <Callout tone="warning" size="sm" className="mb-4">
+                {strings.keepPageOpen}
+              </Callout>
             )}
 
-            {/* Overall Progress Bar */}
+            {/* Overall progress bar */}
             {session.uploadNodes.length > 1 && isUploading && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs theme-muted-text">
-                  <span>{strings.overallProgress}</span>
-                  <span>{totalProgress.toFixed(1)}%</span>
-                </div>
-                <div className="h-2 w-full bg-(--theme-border) rounded-full overflow-hidden">
-                  <div
-                    className={cx('h-full transition-all duration-300', sessionBarColor)}
-                    style={{ width: `${totalProgress}%` }}
-                  />
-                </div>
-              </div>
+              <ProgressBar
+                value={totalProgress}
+                tone={sessionTone}
+                size="lg"
+                label={strings.overallProgress}
+              />
             )}
 
             {/* File List Toggle */}
@@ -422,13 +379,14 @@ export function UploadSessionToast({
                 <button
                   type="button"
                   className="flex items-center justify-between text-xs theme-muted-text hover:theme-text cursor-pointer"
+                  aria-expanded={isFileListExpanded}
                   onClick={() => setIsExpanded(!isFileListExpanded)}
                 >
-                  <span>{session.uploadNodes.length} files</span>
+                  <span>{strings.fileCount(session.uploadNodes.length)}</span>
                   {isFileListExpanded ? (
-                    <AngleUpIcon className="w-4 h-4" />
+                    <ChevronUpIcon className="w-4 h-4" />
                   ) : (
-                    <AngleDownIcon className="w-4 h-4" />
+                    <ChevronDownIcon className="w-4 h-4" />
                   )}
                 </button>
 
@@ -468,32 +426,26 @@ export function UploadSessionToast({
             {/* Action Buttons */}
             <div className="flex items-center justify-end">
               {shouldShowSessionCancelButton && (
-                <button
-                  type="button"
-                  className="!px-2 !py-1 text-xs btn btn-destructive cursor-pointer transition-colors"
+                // Quiet until confirmed: the Yes that follows is the solid danger button.
+                <Button
+                  variant="outline"
+                  size="xs"
+                  className="*:text-(--theme-error-text)"
                   onClick={handleCancelClick}
                 >
-                  Cancel
-                </button>
+                  <span>{common.cancel}</span>
+                </Button>
               )}
 
               {showCancelConfirm && (
                 <div className="flex items-center space-x-2">
-                  <span className="text-xs theme-muted-text">Cancel all uploading files?</span>
-                  <button
-                    type="button"
-                    className="!px-2 !py-1 text-xs bg-(--theme-border) theme-muted-text rounded hover:theme-hover"
-                    onClick={handleKeepUploading}
-                  >
-                    No
-                  </button>
-                  <button
-                    type="button"
-                    className="!px-2 !py-1 text-xs btn btn-destructive cursor-pointer"
-                    onClick={handleConfirmCancel}
-                  >
-                    Yes
-                  </button>
+                  <span className="text-xs theme-muted-text">{strings.confirmCancelAll}</span>
+                  <Button variant="secondary" size="xs" onClick={handleKeepUploading}>
+                    {common.no}
+                  </Button>
+                  <Button variant="danger" size="xs" onClick={handleConfirmCancel}>
+                    {common.yes}
+                  </Button>
                 </div>
               )}
             </div>

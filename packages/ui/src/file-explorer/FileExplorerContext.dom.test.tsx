@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { UIProvider } from '../components/Provider'
+import { toast } from '../components/Toast'
 import { FileExplorerProvider, useFileExplorer } from './FileExplorerContext'
 import type { IFileExplorerClient, IFileExplorerProvider } from './lib/fileExplorer'
 import type { TreeNode, UploadNode } from './lib/types'
@@ -14,14 +14,9 @@ const node = (name: string): UploadNode => ({
 })
 
 function setup() {
-  const update = vi.fn()
-  const { result } = renderHook(() => useFileExplorer(), {
-    wrapper: ({ children }) => (
-      <UIProvider notify={{ update, loading: vi.fn(), error: vi.fn() }}>
-        <FileExplorerProvider>{children}</FileExplorerProvider>
-      </UIProvider>
-    ),
-  })
+  const update = vi.spyOn(toast, 'update')
+  update.mockClear()
+  const { result } = renderHook(() => useFileExplorer(), { wrapper: FileExplorerProvider })
   // The summary is the last update a session's toast receives.
   const summaryFor = (sessionId: string) =>
     update.mock.calls.filter(([id]) => id === sessionId).at(-1)?.[1]
@@ -34,7 +29,7 @@ const provider = { uploadFileInput: () => ({}) } as unknown as IFileExplorerProv
 const refresh = async () => {}
 
 describe('upload summary', () => {
-  it('reports a file cancelled before its upload starts as cancelled', async () => {
+  it('reports a file canceled before its upload starts as canceled', async () => {
     const { explorer, summaryFor } = setup()
     let finishFirst = () => {}
     const blocked = new Promise<void>((resolve) => {
@@ -73,13 +68,13 @@ describe('upload summary', () => {
     const progress = queued?.get('/b.txt')
     expect(progress?.status).toBe('pending')
     if (queued && progress) {
-      queued.set('/b.txt', { ...progress, status: 'cancelled' })
+      queued.set('/b.txt', { ...progress, status: 'canceled' })
     }
 
     await act(async () => finishFirst())
-    await waitFor(() => expect(summaryFor(first)?.type).toBe('success'))
-    await waitFor(() => expect(summaryFor(second)?.type).toBe('info'), { timeout: 3000 })
-    expect(summaryFor(second)?.render).toBe('All 1 file(s) were cancelled by user.')
+    await waitFor(() => expect(summaryFor(first)?.tone).toBe('success'))
+    await waitFor(() => expect(summaryFor(second)?.tone).toBe('info'), { timeout: 3000 })
+    expect(summaryFor(second)?.message).toBe('All 1 file(s) were canceled by user.')
     expect(uploadFile).toHaveBeenCalledTimes(1)
   })
 
@@ -100,7 +95,7 @@ describe('upload summary', () => {
       )
     })
 
-    await waitFor(() => expect(summaryFor(id)?.type).toBe('error'))
+    await waitFor(() => expect(summaryFor(id)?.tone).toBe('error'))
   })
 
   it('keeps at most three uploads in flight', async () => {
@@ -129,7 +124,7 @@ describe('upload summary', () => {
       )
     })
 
-    await waitFor(() => expect(summaryFor(id)?.type).toBe('success'), { timeout: 3000 })
+    await waitFor(() => expect(summaryFor(id)?.tone).toBe('success'), { timeout: 3000 })
     expect(uploadFile).toHaveBeenCalledTimes(10)
     expect(peak).toBe(3)
   })

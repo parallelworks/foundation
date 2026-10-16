@@ -1,13 +1,15 @@
-import cx from 'classnames'
-import { memo, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useFormContext } from 'react-hook-form'
+import { Checkbox } from '../../components/Checkbox'
+import { Field, FieldOption } from '../../components/Field'
+import { fieldBox } from '../../components/fieldBox'
 import { useStrings } from '../../components/Provider'
-import { FieldWrapper } from '../FieldWrapper'
+import { fieldFrame } from '../fieldFrame'
 import type { FieldComponentProps } from '../types/fieldComponentTypes'
 import type { BaseField } from '../types/fieldTypes'
-import { formatDuration, parseDuration } from '../utils/duration'
+import { useFieldValue } from '../useFieldValue'
+import { formatDurationText, parseDurationText } from '../utils/duration'
 import { setDurationValidity } from './durationValidity'
-
-const DEBOUNCE_MS = 500
 
 export interface IDurationField extends BaseField {
   type: 'duration'
@@ -24,31 +26,21 @@ const isNumericString = (value: unknown): boolean =>
 
 const toDisplay = (value: unknown): string => {
   if (typeof value === 'number') {
-    return formatDuration(value)
+    return formatDurationText(value)
   }
   if (isNumericString(value)) {
-    return formatDuration(Number(value))
+    return formatDurationText(Number(value))
   }
   return ''
 }
 
-export default memo(function DurationField({
-  field,
-  label,
-  labelPosition,
-  missing,
-  disabled,
-  onChange,
-  tooltipComponent,
-  spaceCompact,
-  setFormDirty,
-  currentValue,
-  setFieldValue,
-  setFieldTouched,
-}: FieldComponentProps<IDurationField, number | string | undefined>) {
+export default function DurationField(props: FieldComponentProps<IDurationField>) {
+  const { field, disabled, onChange } = props
   const { form: t } = useStrings()
   // The form names every field before it renders one.
   const name = field.name ?? ''
+  const [currentValue, change] = useFieldValue<number | string | undefined>(name)
+  const { setValue } = useFormContext()
   const min = field.min !== undefined ? Number(field.min) : Number.NEGATIVE_INFINITY
   const max = field.max !== undefined ? Number(field.max) : Number.POSITIVE_INFINITY
 
@@ -61,7 +53,6 @@ export default memo(function DurationField({
 
   const [text, setText] = useState(() => toDisplay(currentValue))
   const focusedRef = useRef(false)
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
 
   // Legacy configs store numeric strings like "300"; normalize so the saved JSON
   // is a number. Unset fields seed the default, not the min — flexStartWaitTime
@@ -70,15 +61,15 @@ export default memo(function DurationField({
   useEffect(() => {
     if (isSentinel) {
       if (typeof currentValue !== 'number') {
-        setFieldValue?.(name, disableValue)
+        setValue(name, disableValue)
       }
     } else if (isNumericString(currentValue)) {
-      setFieldValue?.(name, Number(currentValue))
+      setValue(name, Number(currentValue))
     } else if (
       (currentValue === undefined || currentValue === null || currentValue === '') &&
       typeof field.default === 'number'
     ) {
-      setFieldValue?.(name, field.default)
+      setValue(name, field.default)
     }
   }, [])
 
@@ -90,15 +81,15 @@ export default memo(function DurationField({
   }, [currentValue])
 
   const trimmed = text.trim()
-  const parsed = trimmed === '' ? null : parseDuration(trimmed)
+  const parsed = trimmed === '' ? null : parseDurationText(trimmed)
   let error: string | null = null
   if (!isSentinel && trimmed !== '') {
     if (parsed === null) {
       error = t.invalidDuration
     } else if (parsed < min || parsed > max) {
       error = Number.isFinite(max)
-        ? t.durationOutOfRange(formatDuration(Math.max(min, 0)), formatDuration(max))
-        : t.durationBelowMin(formatDuration(Math.max(min, 0)))
+        ? t.durationOutOfRange(formatDurationText(Math.max(min, 0)), formatDurationText(max))
+        : t.durationBelowMin(formatDurationText(Math.max(min, 0)))
     }
   }
 
@@ -106,44 +97,33 @@ export default memo(function DurationField({
     setDurationValidity(name, error === null)
   }, [name, error])
 
-  useEffect(
-    () => () => {
-      setDurationValidity(name, true)
-      clearTimeout(debounceRef.current ?? undefined)
-    },
-    [name],
-  )
+  useEffect(() => () => setDurationValidity(name, true), [name])
 
-  const flushToFormik = (val: number | '') => {
-    setFieldValue?.(name, val)
+  const set = (val: number | '') => {
+    change(val)
     onChange?.(val)
-    setFieldTouched?.(name, true)
   }
 
   const handleDisableToggle = (checked: boolean) => {
-    clearTimeout(debounceRef.current ?? undefined)
-    setFormDirty(true)
     if (checked) {
       setText('')
       // The checkbox that calls this only renders when a disable value is set.
       if (disableValue !== undefined) {
-        flushToFormik(disableValue)
+        set(disableValue)
       }
     } else {
-      flushToFormik(typeof field.default === 'number' ? field.default : '')
+      set(typeof field.default === 'number' ? field.default : '')
     }
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value
     setText(raw)
-    setFormDirty(true)
-    clearTimeout(debounceRef.current ?? undefined)
     const rawTrimmed = raw.trim()
-    const value = rawTrimmed === '' ? '' : parseDuration(rawTrimmed)
-    // Invalid or out-of-range input never reaches Formik; the registry blocks save.
+    const value = rawTrimmed === '' ? '' : parseDurationText(rawTrimmed)
+    // Invalid or out-of-range input never reaches the form; the registry blocks save.
     if (value === '' || (typeof value === 'number' && value >= min && value <= max)) {
-      debounceRef.current = setTimeout(() => flushToFormik(value), DEBOUNCE_MS)
+      set(value)
     }
   }
 
@@ -153,43 +133,27 @@ export default memo(function DurationField({
 
   const handleBlur = () => {
     focusedRef.current = false
-    clearTimeout(debounceRef.current ?? undefined)
     if (trimmed === '') {
       setText('')
-      flushToFormik('')
+      set('')
     } else if (parsed !== null && parsed >= min && parsed <= max) {
-      setText(formatDuration(parsed))
-      flushToFormik(parsed)
+      setText(formatDurationText(parsed))
+      set(parsed)
     }
   }
 
   return (
-    <FieldWrapper
-      optional={field.optional ?? false}
-      label={label}
-      tooltipComponent={tooltipComponent}
-      labelPosition={labelPosition}
-      spaceCompact={spaceCompact ?? false}
-      {...(field.description !== undefined && {
-        description: field.description,
-      })}
-    >
-      {({ id, describedBy }) => (
+    <Field {...fieldFrame(props)} error={error ?? props.error}>
+      {(control) => (
         <>
           {!isSentinel && (
             <input
+              {...control}
               data-1p-ignore
-              className={cx(
-                'w-full',
-                disabled && 'disabled',
-                (missing || error !== null) && 'invalid',
-              )}
-              id={id}
-              aria-describedby={describedBy}
+              className={fieldBox()}
               name={name}
               value={text}
               type="text"
-              aria-required={field.optional ? undefined : true}
               disabled={disabled}
               placeholder={field.placeholder ?? 'DD-HH:MM:SS'}
               onChange={handleChange}
@@ -197,29 +161,18 @@ export default memo(function DurationField({
               onBlur={handleBlur}
             />
           )}
-          {error && <div className="text-xs text-red-500 mt-1">{error}</div>}
           {hasDisableCheckbox && (
-            <label
-              className={cx(
-                'flex items-center gap-2 mt-1',
-                disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer',
-              )}
-            >
-              <input
-                type="checkbox"
+            <FieldOption disabled={disabled} className="flex items-center gap-2 text-sm">
+              <Checkbox
                 checked={isSentinel}
                 disabled={disabled}
-                onChange={(e) => handleDisableToggle(e.target.checked)}
-                className={cx(
-                  'h-4 w-4 accent-(--theme-link)',
-                  disabled ? 'cursor-not-allowed' : 'cursor-pointer',
-                )}
+                onCheckedChange={handleDisableToggle}
               />
-              <span className="theme-text">{field.disableLabel}</span>
-            </label>
+              {field.disableLabel}
+            </FieldOption>
           )}
         </>
       )}
-    </FieldWrapper>
+    </Field>
   )
-})
+}

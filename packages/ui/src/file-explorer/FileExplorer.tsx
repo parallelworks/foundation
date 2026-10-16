@@ -1,7 +1,5 @@
-import { Menu, MenuButton, MenuItem, MenuItems, MenuSeparator } from '@headlessui/react'
-import cx from 'classnames'
+import { Menu } from '@base-ui/react/menu'
 import { DateTime } from 'luxon'
-import { Resizable } from 're-resizable'
 import {
   type ReactNode,
   useCallback,
@@ -12,30 +10,43 @@ import {
   useRef,
   useState,
 } from 'react'
-import { useLocalStorage } from 'usehooks-ts'
+import { AppLink } from '../components/AppLink'
+import { Button } from '../components/Button'
+import { buttonClasses } from '../components/buttonClasses'
+import { Callout } from '../components/Callout'
 import { ConfirmModal } from '../components/ConfirmModal'
-import CopyToClipboard, { CopyCodeBlock } from '../components/CopyToClipboard'
+import { useContextMenu } from '../components/ContextMenu'
+import { CopyButton, CopyCodeBlock } from '../components/CopyButton'
 import { CreateModal } from '../components/CreateModal'
+import { InfoTip } from '../components/InfoTip'
 import { keyedByContent } from '../components/keys'
-import Loader from '../components/Loader'
-import { useNotify, useSlots, useStrings } from '../components/Provider'
+import { Loader } from '../components/Loader'
+import { MenuItem, MenuPopup, MenuSeparator } from '../components/Menu'
+import type { MenuEntry } from '../components/MenuEntries'
+import { useNavigation, usePersistedState, useSlots, useStrings } from '../components/Provider'
+import { RefreshButton } from '../components/RefreshButton'
+import { RelativeTime } from '../components/relativeTime'
 import { StatusBadge } from '../components/StatusBadge'
+import { useSplitter } from '../components/splitter'
 import { Table } from '../components/Table'
-import { TOOLTIP_ID, TooltipInfo } from '../components/Tooltip'
+import { Tabs } from '../components/Tabs'
+import { toast } from '../components/Toast'
+import { Tooltip } from '../components/Tooltip'
+import { useCopy } from '../components/useCopy'
+import { cx } from '../cx'
+import { formatBytes, formatDateTime } from '../format'
 import {
   AccessIcon,
-  AlertIcon,
-  AngleDownIcon,
+  ChevronDownIcon,
   ChevronRightIcon,
-  ClipboardIcon,
   CollapseIcon,
-  DownloadFileIcon,
-  EyeIcon,
+  DownloadIcon,
   FileIcon,
   FileTextIcon,
   FolderIcon,
+  FolderTreeIcon,
   LinkIcon,
-  RefreshIcon,
+  PreviewIcon,
   ShareIcon,
   TrashIcon,
   UploadIcon,
@@ -47,9 +58,7 @@ import {
   listTableFixedProps,
   listTableProps,
   type RowAction,
-  type RowMenuItem,
   useCopySubmenu,
-  useRowMenu,
 } from '../list/index'
 import { safeUrl } from '../safeUrl'
 import { useFileExplorer } from './FileExplorerContext'
@@ -87,13 +96,13 @@ import {
   nextHydrationStep,
   recordListingError,
   replaceListing,
+  retainListings,
   type TListings,
 } from './lib/paging'
 import type { ExplorerObject, TreeNode, TStorage, UploadNode } from './lib/types'
 import {
   calculateUploadNodesTotalSize,
   createTreeBuilder,
-  formatFileSize,
   getDirectoryNameError,
   getDirectoryObjectPath,
   getNodeChildren,
@@ -106,34 +115,46 @@ import {
 } from './lib/utils'
 import { TreeView } from './TreeView'
 
+// The URI stays selectable text; its own button copies it whole.
 function UriCard({ value }: { value: string }) {
-  const t = useStrings().fileExplorer
+  const { fileExplorer: t } = useStrings()
   const scheme = getUriScheme(value)
   return (
-    <CopyToClipboard
-      text={value}
-      showIcon={false}
-      className="group flex items-stretch rounded-lg border theme-border bg-(--theme-input-bg) overflow-hidden cursor-copy hover:border-(--theme-link)/50 transition-colors duration-150"
-    >
+    <div className="flex items-stretch overflow-hidden rounded-lg border theme-border bg-(--theme-input-bg)">
       {scheme && (
         <span className="shrink-0 inline-flex items-center px-3 bg-(--theme-muted-panel-bg) border-r theme-border font-mono text-[11px] font-semibold uppercase tracking-widest theme-muted-text">
           {scheme}
         </span>
       )}
-      <span className="flex-1 min-w-0 inline-flex items-center px-3 py-2 font-mono text-[12.5px] leading-snug break-all text-(--theme-input)">
+      <span className="flex-1 min-w-0 inline-flex items-center px-3 py-2 font-mono text-[12.5px] leading-snug break-all text-(--theme-focus)">
         {value}
       </span>
-      <span
-        className="shrink-0 inline-flex items-center justify-center px-3 border-l theme-border theme-muted-text group-hover:text-(--theme-link) group-hover:bg-(--theme-link)/5 transition-colors duration-150"
-        title={t.chrome.copyToClipboard}
-      >
-        <ClipboardIcon className="h-3.5 w-3.5" />
+      <span className="shrink-0 inline-flex items-center border-l theme-border px-1.5">
+        <CopyButton text={value} aria-label={t.preview.copyUri} />
       </span>
-    </CopyToClipboard>
+    </div>
   )
 }
 
-interface IFileExplorerProps {
+/** How the explorer moves between folders and files. */
+type ExplorerNavigation =
+  | {
+      /** The URL of a path, for a host that keeps the path in its URL. Rows, the
+       * tree, the trail and each row menu's "Open folder" are then links through
+       * the host's router (`useLink`), so a path opens in a new tab, shows its
+       * URL and can be copied, and back and forward move between paths. */
+      pathHref: (path: string) => string
+      /** Moves to a path without a link: from the keyboard, a delete, an upload.
+       * Absent, the explorer goes to `pathHref(path)` through the provider's
+       * `navigation.goTo`. */
+      onPathChange?: ((path: string) => void) | undefined
+    }
+  | {
+      pathHref?: undefined
+      onPathChange: (path: string) => void
+    }
+
+type IFileExplorerProps = ExplorerNavigation & {
   storages: TStorage[]
   /** Resolves the storage's injected provider pair; the host owns caching. */
   getProviderAndClient: (storage: TStorage) => Promise<{
@@ -149,7 +170,6 @@ interface IFileExplorerProps {
   groups?: { name: string; id?: string | undefined }[] | undefined
   groupsLoading?: boolean
   selectedPath: string
-  onPathChange: (path: string) => void
   /** Renders only the tree, for a host that embeds it as a navigator and owns
    * the pane beside it (the notebooks page puts its editor there). The host
    * also owns the width, so the tree fills its container instead of carrying
@@ -173,6 +193,18 @@ interface IFileExplorerProps {
   extraRowActions?: ((node: TreeNode, storage: TStorage | undefined) => RowAction[]) | undefined
   /** Host content for the selected folder's header, before its badges. */
   headerAccessory?: ((node: TreeNode, storage: TStorage | undefined) => ReactNode) | undefined
+}
+
+const breadcrumbClass =
+  'max-w-[16rem] cursor-pointer truncate text-(--theme-muted-text-color) transition-colors hover:text-(--theme-app)'
+
+/** `href` resolved against the page, as the browser's "Copy link" gives it. */
+function absoluteUrl(href: string | undefined): string | undefined {
+  const url = safeUrl(href)
+  if (!url || typeof window === 'undefined') {
+    return url
+  }
+  return new URL(url, window.location.href).href
 }
 
 const MAX_UPLOAD_SIZE = 80 * 1024 * 1024 * 1024 // 80 GB
@@ -218,33 +250,25 @@ function TreeFrame({
 }: {
   treeOnly: boolean
   sidebarWidth: number
-  onWidthChange: (next: (prev: number) => number) => void
+  onWidthChange: (width: number) => void
   children: ReactNode
 }) {
+  const splitter = useSplitter({
+    width: sidebarWidth,
+    onWidthChange,
+    min: 200,
+    max: 800,
+    side: 'right',
+    defaultWidth: SIDEBAR_WIDTH_DEFAULT,
+  })
   if (treeOnly) {
     return <div className="h-full w-full min-w-0">{children}</div>
   }
   return (
-    <Resizable
-      size={{ width: sidebarWidth, height: '100%' }}
-      minWidth={200}
-      maxWidth={800}
-      enable={{
-        top: false,
-        right: true,
-        bottom: false,
-        left: false,
-        topRight: false,
-        bottomRight: false,
-        bottomLeft: false,
-        topLeft: false,
-      }}
-      onResizeStop={(_e, _direction, _ref, d) => {
-        onWidthChange((prev) => prev + d.width)
-      }}
-    >
+    <div className="relative h-full shrink-0" style={{ width: splitter.width }}>
       {children}
-    </Resizable>
+      <div {...splitter.separatorProps} />
+    </div>
   )
 }
 
@@ -259,6 +283,7 @@ export default function FileExplorer({
   groupsLoading = false,
   selectedPath,
   onPathChange,
+  pathHref,
   getProviderAndClient,
   treeOnly = false,
   initialExpandedPaths,
@@ -270,8 +295,10 @@ export default function FileExplorer({
 }: IFileExplorerProps) {
   const copySubmenu = useCopySubmenu()
   const t = useStrings().fileExplorer
-  const notify = useNotify()
+  const { common } = useStrings()
+  const { copy } = useCopy()
   const slots = useSlots()
+  const { goTo } = useNavigation()
 
   const fileExplorerContext = useFileExplorer()
 
@@ -322,7 +349,8 @@ export default function FileExplorer({
     }
     return `${selectedPath}/`
   }, [selectedPath, treeMap])
-  const setSelectedPath = onPathChange
+  const setSelectedPath = (path: string) =>
+    onPathChange ? onPathChange(path) : pathHref && goTo(pathHref(path))
 
   // A Set, not an array: membership is tested once per tree row, so an array scan
   // made expansion O(rows x expanded).
@@ -349,13 +377,15 @@ export default function FileExplorer({
     }
   }, [refreshKey, selectedNode])
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set())
-  // The path is a prop the router owns, so back and forward move it with none of
-  // the handlers here running. Compared against the raw prop, not the normalized
-  // one, which also recomputes when the tree fills in.
+  const [detailTab, setDetailTab] = useState<'details' | 'preview'>('details')
+  // The path is a prop the router owns, so back and forward, and a row's link,
+  // move it with none of the handlers here running. Compared against the raw
+  // prop, not the normalized one, which also recomputes when the tree fills in.
   const [checkedItemsPath, setCheckedItemsPath] = useState(selectedPath)
   if (checkedItemsPath !== selectedPath) {
     setCheckedItemsPath(selectedPath)
     setCheckedItems(new Set())
+    setDetailTab('details')
   }
   const selectedNodeChildren = useMemo(
     () => (selectedNode ? getNodeChildren(parentToChildrenMap, selectedNode.path) : []),
@@ -472,12 +502,10 @@ export default function FileExplorer({
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<TreeNode[] | null>(null)
 
-  const [detailTab, setDetailTab] = useState<'details' | 'preview'>('details')
-
   useEffect(() => clearPreviewCache, [])
-  const { openMenu, contextMenu } = useRowMenu()
+  const { openMenu, contextMenu } = useContextMenu()
 
-  const [sidebarWidth, setSidebarWidth] = useLocalStorage(
+  const [sidebarWidth, setSidebarWidth] = usePersistedState(
     SIDEBAR_WIDTH_STORAGE_KEY,
     SIDEBAR_WIDTH_DEFAULT,
   )
@@ -499,7 +527,7 @@ export default function FileExplorer({
   const getStorageProviderAndClient = async (storageId: string | undefined) => {
     const storage = findStorage(storageId)
     if (!storage) {
-      notify.error(t.messages.storageUnavailable)
+      toast.error(t.messages.storageUnavailable)
       return null
     }
     const { provider, client } = await getProviderAndClient(storage).catch(() => ({
@@ -563,7 +591,7 @@ export default function FileExplorer({
         if (!factory) {
           // Thrown, not returned: loadingMore is already set and only the catch below
           // clears it, so returning wedged the folder on a spinning sentinel.
-          throw new Error('Failed to connect to storage provider.')
+          throw new Error(t.messages.connectFailed)
         }
         const { storage, provider, client } = factory
 
@@ -596,11 +624,7 @@ export default function FileExplorer({
         return { corsError: false }
       } catch (error) {
         const isCorsError = error instanceof CorsError
-        const errorMessage = isCorsError
-          ? error.message || 'CORS error'
-          : error instanceof Error
-            ? error.message
-            : 'Unknown error'
+        const errorMessage = (error instanceof Error && error.message) || t.messages.unknownError
         // Every owned failure, not just a page: the storage-level banner only
         // renders on an empty folder, and this is what re-runs the hydration walk.
         // A failed re-list drops the old rows so the banner has that empty folder.
@@ -615,7 +639,7 @@ export default function FileExplorer({
           updateConnectionIssuesMessage((prev) =>
             new Map(prev).set(
               nodeStorageId,
-              `Failed to load contents for ${node.displayName || node.name}: ${errorMessage}`,
+              t.messages.loadFailed(node.displayName || node.name, errorMessage),
             ),
           )
           if (isCorsError) {
@@ -805,11 +829,11 @@ export default function FileExplorer({
   const onDropFiles = async (targetPath: string, files: FileList | DataTransferItemList) => {
     const targetStorageId = treeMap[targetPath]?.storageId
     if (!storageCanWrite(targetStorageId)) {
-      notify.error(t.messages.noWriteAccess)
+      toast.error(t.messages.noWriteAccess)
       return
     }
     if (!storageCanUpload(targetStorageId)) {
-      notify.error(t.messages.uploadsUnsupported)
+      toast.error(t.messages.uploadsUnsupported)
       return
     }
 
@@ -817,7 +841,7 @@ export default function FileExplorer({
     let totalSize = 0
 
     if (waitForUpload) {
-      notify.warning(t.messages.waitForCurrentUpload)
+      toast.warning(t.messages.waitForCurrentUpload)
       return
     }
 
@@ -877,7 +901,7 @@ export default function FileExplorer({
     const filesToDownload = getFilesToDownload()
     const firstFile = filesToDownload[0]
     if (!firstFile) {
-      notify.error(t.messages.noFilesForDownload)
+      toast.error(t.messages.noFilesForDownload)
       return
     }
 
@@ -888,7 +912,7 @@ export default function FileExplorer({
     const { provider, client } = factory
 
     if (!provider.getFileInput) {
-      notify.error(t.messages.downloadUnsupported)
+      toast.error(t.messages.downloadUnsupported)
       return
     }
 
@@ -897,7 +921,7 @@ export default function FileExplorer({
       const [presignedUrl, error] = await client.getFile(input)
 
       if (error || !presignedUrl) {
-        notify.error(error?.message ?? t.messages.downloadLinkFailed)
+        toast.error(error?.message ?? t.messages.downloadLinkFailed)
         continue
       }
 
@@ -918,7 +942,7 @@ export default function FileExplorer({
     const { provider, client } = factory
 
     if (!provider.getFileInput) {
-      notify.error(t.messages.sharingUnsupported)
+      toast.error(t.messages.sharingUnsupported)
       return
     }
 
@@ -926,12 +950,11 @@ export default function FileExplorer({
     const [presignedUrl, error] = await client.getFile(input)
 
     if (error || !presignedUrl) {
-      notify.error(error?.message ?? t.messages.fileLinkFailed)
+      toast.error(error?.message ?? t.messages.fileLinkFailed)
       return
     }
 
-    await navigator.clipboard.writeText(presignedUrl)
-    notify.info(t.messages.fileLinkCopied)
+    await copy(presignedUrl, { label: t.fileLink })
   }
 
   const triggerBrowserDownload = (url: string, filename: string) => {
@@ -955,11 +978,11 @@ export default function FileExplorer({
   ): Promise<[string | null, Error | null]> => {
     const factory = await getStorageProviderAndClient(node.storageId)
     if (!factory) {
-      return [null, new Error('Failed to connect to storage provider.')]
+      return [null, new Error(t.messages.connectFailed)]
     }
     const { provider, client } = factory
     if (!provider.getFileInput) {
-      return [null, new Error('Preview is not supported for this storage.')]
+      return [null, new Error(t.messages.previewUnsupported)]
     }
     const input = provider.getFileInput(
       node.storageName ?? '',
@@ -995,6 +1018,14 @@ export default function FileExplorer({
     setPreviewOpen(false)
   }
 
+  // With no details pane beside it, the tree is the only way to reach a file,
+  // so choosing one there opens it.
+  const openFromTree = (node: TreeNode) => {
+    if (treeOnly && node.type === 'file') {
+      openPreview(node)
+    }
+  }
+
   const openUserNode = (node: TreeNode) => {
     handleSelectTreeItem(node.path, node)
     if (!expandedPaths.has(node.path)) {
@@ -1013,21 +1044,16 @@ export default function FileExplorer({
   const copyNodeUri = async (node: TreeNode) => {
     const uri = getNodeUris(node)[0]
     if (!uri) {
-      notify.error(t.messages.noUri)
+      toast.error(t.messages.noUri)
       return
     }
-    try {
-      await navigator.clipboard.writeText(uri)
-      notify.info(t.messages.uriCopied)
-    } catch {
-      notify.error(t.messages.uriCopyFailed)
-    }
+    await copy(uri, { label: t.uri })
   }
 
   const downloadNode = async (node: TreeNode) => {
     const [presignedUrl, error] = await getPresignedUrl(node, node.name)
     if (error || !presignedUrl) {
-      notify.error(error?.message ?? t.messages.downloadLinkFailed)
+      toast.error(error?.message ?? t.messages.downloadLinkFailed)
       return
     }
     triggerBrowserDownload(presignedUrl, node.name)
@@ -1035,7 +1061,7 @@ export default function FileExplorer({
 
   const deleteNode = (node: TreeNode) => {
     if (!storageCanDelete(findStorage(node.storageId))) {
-      notify.error(t.messages.noWriteAccess)
+      toast.error(t.messages.noWriteAccess)
       return
     }
     setPendingDelete([node])
@@ -1061,13 +1087,13 @@ export default function FileExplorer({
         key: 'create-folder',
         label: t.createFolder.action,
         icon: <FolderIcon />,
-        onSelect: () => openCreateFolder(node),
+        onClick: () => openCreateFolder(node),
       },
     ]
   }
 
   // Order: lead → actions → Copy → delete last.
-  const buildRowMenu = (node: TreeNode): RowMenuItem[] => {
+  const buildRowMenu = (node: TreeNode): MenuEntry[] => {
     const storage = findStorage(node.storageId)
     const nodeCanDelete = storageCanDelete(storage)
     const nodeCanShare = storage?.canShare !== false
@@ -1079,23 +1105,23 @@ export default function FileExplorer({
       actions.push({
         key: 'preview',
         label: t.preview.preview,
-        icon: <EyeIcon />,
-        onSelect: () => openPreview(node),
+        icon: <PreviewIcon />,
+        onClick: () => openPreview(node),
       })
     }
     if (isFile) {
       actions.push({
         key: 'download',
-        label: t.preview.download,
-        icon: <DownloadFileIcon />,
-        onSelect: () => downloadNode(node),
+        label: common.download,
+        icon: <DownloadIcon />,
+        onClick: () => downloadNode(node),
       })
       if (nodeCanShare) {
         actions.push({
           key: 'share',
           label: t.preview.shareFile,
           icon: <ShareIcon />,
-          onSelect: () => onShareFileButtonClick(node),
+          onClick: () => onShareFileButtonClick(node),
         })
       }
     }
@@ -1106,43 +1132,46 @@ export default function FileExplorer({
     if (nodeCanDelete && !node.root) {
       actions.push({
         key: 'delete',
-        label: t.preview.delete,
+        label: common.delete,
         icon: <TrashIcon />,
         destructive: true,
-        onSelect: () => deleteNode(node),
+        onClick: () => deleteNode(node),
       })
     }
 
-    const lead: RowMenuItem[] = [
-      {
-        kind: 'action',
-        label: isFile ? t.preview.viewDetails : t.preview.openFolder,
-        icon: isFile ? <FileTextIcon /> : <FolderIcon />,
-        onSelect: () => handleSelectTreeItem(node.path, node),
-      },
+    const open = {
+      label: isFile ? t.preview.viewDetails : t.preview.openFolder,
+      icon: isFile ? <FileTextIcon /> : <FolderIcon />,
+    }
+    const href = pathHref?.(node.path)
+    const lead: MenuEntry[] = [
+      href ? { ...open, href } : { ...open, onClick: () => handleSelectTreeItem(node.path, node) },
     ]
 
-    // The object's path within its storage; the storage root has none.
-    const path = node.root ? '' : getObjectKeyFromNode(node)
-    const copyExtras = [
-      ...(path ? [{ label: t.preview.path, value: path, icon: <FileTextIcon /> }] : []),
-      ...uris.map((value) => ({
-        label: `${getUriScheme(value).toUpperCase()} URI`,
-        value,
-        icon: <LinkIcon />,
-      })),
-    ]
+    // The menu takes the right-click from the row's link, and with it the
+    // browser's own "Copy link", so it offers that copy itself.
+    const copy = copySubmenu({
+      name: isFile ? node.name : undefined,
+      extra: [
+        {
+          label: t.preview.path,
+          // The root's node path would otherwise yield the storage's name.
+          value: node.root ? undefined : getObjectKeyFromNode(node),
+          icon: <FolderTreeIcon />,
+        },
+        { label: t.preview.link, value: absoluteUrl(href), icon: <LinkIcon /> },
+        ...uris.map((value) => ({
+          label: `${getUriScheme(value).toUpperCase()} URI`,
+          value,
+          icon: <LinkIcon />,
+        })),
+      ],
+    })
 
     return assembleRowMenu({
       lead,
       actions,
-      copy:
-        copyExtras.length > 0
-          ? copySubmenu({
-              name: isFile ? node.name : undefined,
-              extra: copyExtras,
-            })
-          : undefined,
+      copy: copy.items.length > 0 ? copy : undefined,
     })
   }
 
@@ -1153,7 +1182,7 @@ export default function FileExplorer({
     }
     e.preventDefault()
     e.stopPropagation()
-    openMenu(e.clientX, e.clientY, items)
+    openMenu(e, items)
   }
 
   // Folder path from the storage root down to the current node; segments before
@@ -1174,29 +1203,46 @@ export default function FileExplorer({
       return null
     }
     return (
-      <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden text-[13px]">
-        {chain.map((node, i) => {
-          const isLast = i === chain.length - 1
-          const label = node.displayName || node.name
-          return (
-            <span key={node.path} className="flex min-w-0 items-center gap-1">
-              {i > 0 && (
-                <ChevronRightIcon className="h-3 w-3 shrink-0 text-(--theme-muted-text-color)" />
-              )}
-              {isLast ? (
-                <span className="truncate font-semibold text-(--theme-app)">{label}</span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => handleSelectTreeItem(node.path, node)}
-                  className="max-w-[16rem] shrink-0 cursor-pointer truncate text-(--theme-muted-text-color) transition-colors hover:text-(--theme-app)"
-                >
-                  {label}
-                </button>
-              )}
-            </span>
-          )
-        })}
+      <nav
+        aria-label={t.chrome.location}
+        className="flex min-w-0 flex-1 overflow-hidden text-[13px]"
+      >
+        <ol className="flex min-w-0 items-center gap-1">
+          {chain.map((node, i) => {
+            const isLast = i === chain.length - 1
+            const label = node.displayName || node.name
+            return (
+              <li key={node.path} className="flex min-w-0 items-center gap-1">
+                {i > 0 && (
+                  <ChevronRightIcon
+                    aria-hidden="true"
+                    className="h-3 w-3 shrink-0 text-(--theme-muted-text-color) rtl:rotate-180"
+                  />
+                )}
+                {isLast ? (
+                  <span
+                    aria-current="location"
+                    className="truncate font-semibold text-(--theme-app)"
+                  >
+                    {label}
+                  </span>
+                ) : pathHref ? (
+                  <AppLink href={pathHref(node.path)} className={breadcrumbClass}>
+                    {label}
+                  </AppLink>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleSelectTreeItem(node.path, node)}
+                    className={breadcrumbClass}
+                  >
+                    {label}
+                  </button>
+                )}
+              </li>
+            )
+          })}
+        </ol>
       </nav>
     )
   }
@@ -1215,7 +1261,7 @@ export default function FileExplorer({
 
   const onDeleteClick = () => {
     if (!selectedNodeCanDelete) {
-      notify.error(t.messages.noWriteAccess)
+      toast.error(t.messages.noWriteAccess)
       return
     }
     let nodesToDelete: TreeNode[] = []
@@ -1275,7 +1321,7 @@ export default function FileExplorer({
   const handleDelete = async () => {
     const firstPending = pendingDelete?.[0]
     if (!pendingDelete || !firstPending) {
-      notify.error(t.messages.noItemsForDeletion)
+      toast.error(t.messages.noItemsForDeletion)
       return
     }
 
@@ -1289,15 +1335,14 @@ export default function FileExplorer({
     const { storage, provider, client } = factory
 
     if (!provider.deleteFilesInput) {
-      notify.error(t.messages.deleteUnsupported)
+      toast.error(t.messages.deleteUnsupported)
       return
     }
 
+    const deleting = toast.loading(t.messages.deleting)
     try {
-      notify.loading(t.messages.deleting)
       const input = provider.deleteFilesInput(storage.bucketName || storage.name, pendingDelete)
       const response = await client.deleteFiles(input)
-      notify.dismiss()
 
       // A node above the storage root (e.g. the bare user) is not in the
       // tree; skip the child refetch rather than dereference an undefined node.
@@ -1310,7 +1355,7 @@ export default function FileExplorer({
       setDeleteModalOpen(false)
 
       if (response?.Errors?.length) {
-        notify.error(t.messages.deleteSomeFailed)
+        toast.update(deleting, { tone: 'error', message: t.messages.deleteSomeFailed })
         return
       }
 
@@ -1328,10 +1373,12 @@ export default function FileExplorer({
       if (selectedNode && (selectedNode.type === 'directory' || selectedRemoved)) {
         handlePostDelete(selectedNode)
       }
-      notify.success(t.messages.deleteSuccess)
+      toast.update(deleting, { tone: 'success', message: t.messages.deleteSuccess })
     } catch (err) {
-      notify.dismiss()
-      notify.error(t.messages.deleteFailed(err instanceof Error ? err.message : String(err)))
+      toast.update(deleting, {
+        tone: 'error',
+        message: t.messages.deleteFailed(err instanceof Error ? err.message : String(err)),
+      })
     }
   }
 
@@ -1340,15 +1387,15 @@ export default function FileExplorer({
       return
     }
     if (!storageCanWrite(selectedNode.storageId)) {
-      notify.error(t.messages.noWriteAccess)
+      toast.error(t.messages.noWriteAccess)
       return
     }
     if (!storageCanUpload(selectedNode.storageId)) {
-      notify.error(t.messages.uploadsUnsupported)
+      toast.error(t.messages.uploadsUnsupported)
       return
     }
     if (waitForUpload) {
-      notify.warning(t.messages.waitForCurrentUpload)
+      toast.warning(t.messages.waitForCurrentUpload)
       return
     }
 
@@ -1375,23 +1422,23 @@ export default function FileExplorer({
 
   const handleUpload = async () => {
     if (!pendingUpload) {
-      notify.error(t.messages.noFilesToUpload)
+      toast.error(t.messages.noFilesToUpload)
       return
     }
     if (waitForUpload) {
-      notify.info(t.messages.waitForUpload)
+      toast.info(t.messages.waitForUpload)
       return
     }
 
     const targetNode = treeMap[pendingUpload.targetPath]
     if (!targetNode?.storageId) {
-      notify.error(t.messages.invalidUploadTarget)
+      toast.error(t.messages.invalidUploadTarget)
       return
     }
 
     const factory = await getStorageProviderAndClient(targetNode.storageId)
     if (!factory) {
-      notify.error(t.messages.connectFailed)
+      toast.error(t.messages.connectFailed)
       return
     }
     const { storage, provider, client } = factory
@@ -1402,7 +1449,7 @@ export default function FileExplorer({
       : removeLeadingAndTrailingSlashes(targetNode.relativePath || '')
 
     if (!provider.uploadFileInput) {
-      notify.error(t.messages.uploadUnsupported)
+      toast.error(t.messages.uploadUnsupported)
       return
     }
 
@@ -1418,24 +1465,19 @@ export default function FileExplorer({
 
     const sessionQueueIndex = fileExplorerContext.getUploadQueueIndex(sessionId)
     if (sessionQueueIndex === -1) {
-      notify.update(sessionId, {
-        render: t.messages.uploadInitFailed,
-        type: 'error',
-        icon: null,
-        isLoading: false,
-        closeButton: null,
+      toast.update(sessionId, {
+        message: t.messages.uploadInitFailed,
+        tone: 'error',
       })
       return
     } else if (
       sessionQueueIndex > 0 &&
       fileExplorerContext.uploadQueue[sessionQueueIndex - 1] !== sessionId
     ) {
-      notify.update(sessionId, {
-        render: t.messages.uploadQueuedInfo,
-        type: 'info',
-        icon: null,
-        isLoading: false,
-        autoClose: false,
+      toast.update(sessionId, {
+        message: t.messages.uploadQueuedInfo,
+        tone: 'info',
+        timeout: false,
       })
       return
     }
@@ -1457,15 +1499,15 @@ export default function FileExplorer({
 
   const handleCreateFolder = async (name: string): Promise<boolean> => {
     if (!isStorageDirectory(createFolderTarget)) {
-      notify.error(t.createFolder.invalidTarget)
+      toast.error(t.createFolder.invalidTarget)
       return false
     }
     if (!storageCanWrite(createFolderTarget.storageId)) {
-      notify.error(t.createFolder.noWriteAccess)
+      toast.error(t.messages.noWriteAccess)
       return false
     }
     if (!storageCanUpload(createFolderTarget.storageId)) {
-      notify.error(t.createFolder.unsupported)
+      toast.error(t.createFolder.unsupported)
       return false
     }
 
@@ -1476,7 +1518,7 @@ export default function FileExplorer({
       }
       const { storage, provider, client } = factory
       if (!provider.uploadFileInput) {
-        notify.error(t.createFolder.unsupported)
+        toast.error(t.createFolder.unsupported)
         return false
       }
 
@@ -1487,10 +1529,10 @@ export default function FileExplorer({
       )
       await client.uploadFile(input)
       await fetchNodeChildren(createFolderTarget, { replace: true })
-      notify.success(t.createFolder.success(name))
+      toast.success(t.createFolder.success(name))
       return true
     } catch (error) {
-      notify.error(t.createFolder.error(getErrorMessage(error)))
+      toast.error(t.createFolder.error(getErrorMessage(error)))
       return false
     }
   }
@@ -1509,6 +1551,7 @@ export default function FileExplorer({
     ) {
       dirs.push(selectedNode)
     }
+    setListings((prev) => retainListings(prev, new Set(dirs.map((dir) => dir.path))))
     if (dirs.length > 0) {
       const results = await Promise.all(
         dirs.map((dir) => fetchNodeChildren(dir, { replace: true, silent: opts?.silent })),
@@ -1532,29 +1575,18 @@ export default function FileExplorer({
           <div className="h-full flex flex-col border-r theme-border bg-(--theme-panel-bg)/60">
             <div className="flex items-center justify-end h-10 px-3 shrink-0 border-b theme-border">
               <div className="flex gap-x-0.5">
-                <button
-                  type="button"
-                  aria-label={t.chrome.refresh}
-                  data-tooltip-id={TOOLTIP_ID}
-                  data-tooltip-content="Refresh"
-                  data-tooltip-class-name="z-50"
-                  className="inline-flex items-center justify-center h-7 w-7 rounded-md cursor-pointer theme-muted-text hover:theme-text hover:theme-hover transition-colors duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-(--theme-link)"
-                  onClick={() => handleRefresh()}
-                >
-                  <RefreshIcon className="h-3.5 w-3.5" />
-                </button>
+                <RefreshButton iconOnly onRefresh={() => handleRefresh()} />
 
-                <button
-                  type="button"
-                  aria-label={t.chrome.collapse}
-                  data-tooltip-id={TOOLTIP_ID}
-                  data-tooltip-content="Collapse All"
-                  data-tooltip-class-name="z-50"
-                  className="inline-flex items-center justify-center h-7 w-7 rounded-md cursor-pointer theme-muted-text hover:theme-text hover:theme-hover transition-colors duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-(--theme-link)"
-                  onClick={collapseAll}
-                >
-                  <CollapseIcon className="h-3.5 w-3.5" />
-                </button>
+                <Tooltip content={common.collapse}>
+                  <button
+                    type="button"
+                    aria-label={common.collapse}
+                    className="inline-flex items-center justify-center h-7 w-7 rounded-md cursor-pointer theme-muted-text hover:theme-text hover:theme-hover transition-colors duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-(--theme-link)"
+                    onClick={collapseAll}
+                  >
+                    <CollapseIcon className="h-3.5 w-3.5" />
+                  </button>
+                </Tooltip>
               </div>
             </div>
 
@@ -1568,12 +1600,10 @@ export default function FileExplorer({
               onToggleExpand={handleToggleExpand}
               onSelect={(path, node) => {
                 void handleSelectTreeItem(path, node)
-                // With no details pane beside it, the tree is the only way to
-                // reach a file, so selecting one opens it.
-                if (treeOnly && node.type === 'file') {
-                  openPreview(node)
-                }
+                openFromTree(node)
               }}
+              pathHref={pathHref}
+              onFollowLink={openFromTree}
               onDropToFolder={onDropFiles}
               onContextMenu={openNodeContextMenu}
               onPreviewFile={openPreview}
@@ -1610,33 +1640,35 @@ export default function FileExplorer({
               <div className="overflow-auto h-full">
                 <Table {...listTableProps}>
                   <Table.Header caps={false} className="py-2" style={{ minWidth: 200 }}>
-                    Name
+                    {t.chrome.name}
                   </Table.Header>
                   <Table.Header caps={false} className="w-[22%] py-2">
-                    Type
+                    {t.chrome.type}
                   </Table.Header>
                   <Table.Header caps={false} className="w-[22%] py-2">
-                    Storages
+                    {t.chrome.storages}
                   </Table.Header>
                   <ListActionsHeader actionCount={1} />
-                  {rootNodes.map((rootNode) => (
-                    <UserRow
-                      key={rootNode.path}
-                      node={rootNode}
-                      icon={getNodeIcon(rootNode, slots.storageIconUrl, t.chrome.storageIconAlt)}
-                      storageCount={getNodeChildren(parentToChildrenMap, rootNode.path).length}
-                      getItems={() => [
-                        {
-                          kind: 'action',
-                          label: t.preview.open,
-                          icon: <FolderIcon />,
-                          onSelect: () => openUserNode(rootNode),
-                        },
-                      ]}
-                      openMenu={openMenu}
-                      onOpen={openUserNode}
-                    />
-                  ))}
+                  {rootNodes.map((rootNode) => {
+                    const href = pathHref?.(rootNode.path)
+                    const open = { label: t.preview.open, icon: <FolderIcon /> }
+                    return (
+                      <UserRow
+                        key={rootNode.path}
+                        node={rootNode}
+                        icon={getNodeIcon(rootNode)}
+                        href={href}
+                        storageCount={getNodeChildren(parentToChildrenMap, rootNode.path).length}
+                        getItems={() => [
+                          href
+                            ? { ...open, href }
+                            : { ...open, onClick: () => openUserNode(rootNode) },
+                        ]}
+                        openMenu={openMenu}
+                        onOpen={openUserNode}
+                      />
+                    )
+                  })}
                 </Table>
                 {rootNodes.length === 0 && (
                   <NoDataAvailablePreview selectedStorage={null} onRefresh={handleRefresh} />
@@ -1646,7 +1678,7 @@ export default function FileExplorer({
               <NoFileSelectedPreview />
             ) : (
               <>
-                <div className="flex items-center justify-between gap-3 px-4 h-12 shrink-0 border-b theme-border">
+                <div className="@container flex items-center justify-between gap-3 px-4 h-12 shrink-0 border-b theme-border">
                   {renderBreadcrumb()}
                   {/* Action Buttons */}
                   <div className="flex shrink-0 items-center gap-2">
@@ -1691,145 +1723,131 @@ export default function FileExplorer({
                       }}
                     />
 
+                    {/* Outlined, like the rest of a toolbar, but for the one thing the
+                        view is for: Upload into a folder, Download of a file. Labels
+                        fold into tooltips below @4xl. */}
                     {selectedNodeCanWrite && selectedNodeCanUpload && (
-                      <button
-                        type="button"
-                        aria-label={t.createFolder.action}
-                        className="btn btn-info cursor-pointer flex items-center justify-center"
-                        disabled={selectedNode.type === 'file' || !selectedNode.storageId}
-                        onClick={() => setCreateFolderTarget(selectedNode)}
-                      >
-                        <FolderIcon className="h-4 w-4 mr-2" />
-                        <span className="hidden md:inline">{t.createFolder.action}</span>
-                      </button>
-                    )}
-
-                    {selectedNodeCanWrite && selectedNodeCanUpload && (
-                      <Menu>
-                        <MenuButton
-                          aria-label={t.chrome.upload}
-                          className="btn btn-info cursor-pointer flex items-center justify-between pr-0.5!"
+                      <Tooltip content={t.createFolder.action} side="bottom">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          aria-label={t.createFolder.action}
+                          icon={<FolderIcon />}
                           disabled={selectedNode.type === 'file' || !selectedNode.storageId}
+                          onClick={() => setCreateFolderTarget(selectedNode)}
                         >
-                          <div>
-                            <UploadIcon className="h-4 w-4 mr-2" />
-                            <span className="hidden md:inline">{t.chrome.upload}</span>
-                          </div>
-                          <AngleDownIcon className="h-4 w-4 ml-2" />
-                        </MenuButton>
-
-                        <MenuItems
-                          transition
-                          anchor="bottom end"
-                          className="theme-panel w-36 rounded-md border p-1 mt-1 shadow-lg z-50 origin-top-right transition duration-100
-                    ease-out data-closed:scale-95 data-closed:opacity-0 focus:outline-none"
-                        >
-                          <MenuItem>
-                            <button
-                              type="button"
-                              className="text-sm rounded-sm hover:theme-hover cursor-pointer w-full items-center px-2 py-1.5"
-                              onClick={() => fileInputRef.current?.click()}
-                            >
-                              Select Files
-                            </button>
-                          </MenuItem>
-                          <MenuItem>
-                            <button
-                              type="button"
-                              className="text-sm rounded-sm hover:theme-hover cursor-pointer w-full items-center px-2 py-1.5"
-                              onClick={() => folderInputRef.current?.click()}
-                            >
-                              Select Folder
-                            </button>
-                          </MenuItem>
-                        </MenuItems>
-                      </Menu>
+                          <span className="hidden @4xl:inline">{t.createFolder.action}</span>
+                        </Button>
+                      </Tooltip>
                     )}
 
-                    <Menu>
-                      <MenuButton
-                        aria-label={t.chrome.download}
-                        className="btn btn-info cursor-pointer flex items-center justify-between pr-0.5!"
-                        disabled={
-                          (checkedItems.size === 0 && selectedNode.type !== 'file') ||
-                          hasFolderSelected() ||
-                          !selectedNode.storageId
-                        }
-                      >
-                        <div>
-                          <DownloadFileIcon className="h-4 w-4 mr-2" />
-                          <span className="hidden md:inline">{t.chrome.download}</span>
-                        </div>
-                        <AngleDownIcon className="h-4 w-4 ml-2" />
-                      </MenuButton>
-
-                      <MenuItems
-                        transition
-                        anchor="bottom end"
-                        className="theme-panel w-72 rounded-md border p-1 mt-1 shadow-lg z-50 origin-top-right transition duration-100 
-                    ease-out data-closed:scale-95 data-closed:opacity-0 focus:outline-none"
-                      >
-                        <MenuItem>
-                          <button
-                            type="button"
-                            className="text-sm rounded-sm hover:theme-hover cursor-pointer w-full items-center px-2 py-1.5"
-                            onClick={handleDownload}
+                    {selectedNodeCanWrite && selectedNodeCanUpload && (
+                      <Menu.Root>
+                        <Tooltip content={t.chrome.upload} side="bottom">
+                          <Menu.Trigger
+                            aria-label={t.chrome.upload}
+                            className={buttonClasses({
+                              variant: selectedNode.type === 'directory' ? 'primary' : 'outline',
+                              size: 'sm',
+                            })}
+                            disabled={selectedNode.type === 'file' || !selectedNode.storageId}
                           >
-                            {t.chrome.downloadFromBrowser}
-                          </button>
-                        </MenuItem>
+                            <UploadIcon />
+                            <span className="hidden @4xl:inline">{t.chrome.upload}</span>
+                            <ChevronDownIcon />
+                          </Menu.Trigger>
+                        </Tooltip>
+                        <MenuPopup align="end" className="w-36">
+                          <MenuItem onClick={() => fileInputRef.current?.click()}>
+                            {t.chrome.selectFiles}
+                          </MenuItem>
+                          <MenuItem onClick={() => folderInputRef.current?.click()}>
+                            {t.chrome.selectFolder}
+                          </MenuItem>
+                        </MenuPopup>
+                      </Menu.Root>
+                    )}
+
+                    <Menu.Root>
+                      <Tooltip content={common.download} side="bottom">
+                        <Menu.Trigger
+                          aria-label={common.download}
+                          className={buttonClasses({
+                            variant: selectedNode.type === 'file' ? 'primary' : 'outline',
+                            size: 'sm',
+                          })}
+                          disabled={
+                            (checkedItems.size === 0 && selectedNode.type !== 'file') ||
+                            hasFolderSelected() ||
+                            !selectedNode.storageId
+                          }
+                        >
+                          <DownloadIcon />
+                          <span className="hidden @4xl:inline">{common.download}</span>
+                          <ChevronDownIcon />
+                        </Menu.Trigger>
+                      </Tooltip>
+                      <MenuPopup align="end" className="w-72">
+                        <MenuItem onClick={handleDownload}>{t.chrome.downloadFromBrowser}</MenuItem>
                         {downloadCommand && downloadCommandText && (
                           <>
-                            <MenuSeparator className="my-0.5 h-px theme-border" />
-                            <MenuItem>
-                              <div>
-                                <p className="text-sm w-full text-center pointer-events-none px-2 py-1.5">
-                                  {downloadCommand.label}
-                                </p>
-                                <CopyCodeBlock textToCopy={downloadCommandText}>
-                                  <div className="overflow-x-auto text-xs">
-                                    {keyedByContent(downloadCommandText.split('\n'), (l) => l).map(
-                                      ({ key, item: line }) => (
-                                        <div key={key} className="whitespace-nowrap">
-                                          {line}
-                                        </div>
-                                      ),
-                                    )}
-                                  </div>
-                                </CopyCodeBlock>
-                              </div>
-                            </MenuItem>
+                            <MenuSeparator />
+                            {/* Copyable text, not an action, so it sits outside the items. */}
+                            <div className="px-2 py-1.5">
+                              <p className="text-sm text-center pb-1.5">{downloadCommand.label}</p>
+                              <CopyCodeBlock text={downloadCommandText}>
+                                <div className="overflow-x-auto text-xs">
+                                  {keyedByContent(downloadCommandText.split('\n'), (l) => l).map(
+                                    ({ key, item: line }) => (
+                                      <div key={key} className="whitespace-nowrap">
+                                        {line}
+                                      </div>
+                                    ),
+                                  )}
+                                </div>
+                              </CopyCodeBlock>
+                            </div>
                           </>
                         )}
-                      </MenuItems>
-                    </Menu>
+                      </MenuPopup>
+                    </Menu.Root>
 
-                    <button
-                      type="button"
-                      aria-label={t.chrome.access}
-                      className="btn btn-info cursor-pointer flex items-center justify-center"
-                      disabled={!selectedNode.storageId}
-                      onClick={() => setAccessDrawerOpen(true)}
-                      hidden={groups.length === 0 || !selectedNodeCanManageAccess}
-                    >
-                      <AccessIcon className="h-4 w-4 mr-2" />
-                      <span className="hidden md:inline">{t.chrome.manageAccess}</span>
-                    </button>
+                    {groups.length > 0 && selectedNodeCanManageAccess && (
+                      <Tooltip content={t.chrome.manageAccess} side="bottom">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          aria-label={t.chrome.access}
+                          icon={<AccessIcon />}
+                          disabled={!selectedNode.storageId}
+                          onClick={() => setAccessDrawerOpen(true)}
+                        >
+                          <span className="hidden @4xl:inline">{t.chrome.manageAccess}</span>
+                        </Button>
+                      </Tooltip>
+                    )}
 
                     {selectedNodeCanDelete && (
-                      <button
-                        type="button"
-                        aria-label={t.chrome.delete}
-                        className="btn btn-destructive cursor-pointer flex items-center justify-center"
-                        disabled={
-                          (checkedItems.size === 0 && selectedNode.type !== 'file') ||
-                          !selectedNode.storageId
-                        }
-                        onClick={onDeleteClick}
-                      >
-                        <TrashIcon className="h-4 w-4 mr-2" />
-                        <span className="hidden md:inline">{t.chrome.delete}</span>
-                      </button>
+                      <Tooltip content={common.delete} side="bottom">
+                        {/* Destructive by its text, not a red fill: the confirmation
+                            that follows carries the solid danger button. The tone
+                            colors the children so it can't lose to the recipe's
+                            own text color by stylesheet order. */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          aria-label={common.delete}
+                          icon={<TrashIcon />}
+                          className="*:text-(--theme-error-text)"
+                          disabled={
+                            (checkedItems.size === 0 && selectedNode.type !== 'file') ||
+                            !selectedNode.storageId
+                          }
+                          onClick={onDeleteClick}
+                        >
+                          <span className="hidden @4xl:inline">{common.delete}</span>
+                        </Button>
+                      </Tooltip>
                     )}
                   </div>
                 </div>
@@ -1862,6 +1880,7 @@ export default function FileExplorer({
                           onOpen={(n) => handleSelectTreeItem(n.path, n)}
                           onToggleCheck={handleItemCheckbox}
                           onPreview={openPreview}
+                          pathHref={pathHref}
                           loadMore={loadMoreProps}
                         />
                       ) : (
@@ -1899,11 +1918,9 @@ export default function FileExplorer({
                 {selectedNode.type === 'file' &&
                   (() => {
                     const uris = getNodeUris(selectedNode)
-                    const fileIcon = getNodeIcon(
-                      selectedNode,
-                      slots.storageIconUrl,
-                      t.chrome.storageIconAlt,
-                    ) ?? <FileIcon className="h-5 w-5 theme-muted-text" />
+                    const fileIcon = getNodeIcon(selectedNode) ?? (
+                      <FileIcon className="h-5 w-5 theme-muted-text" />
+                    )
                     const modifiedDt = selectedNode.modified
                       ? DateTime.fromISO(selectedNode.modified)
                       : null
@@ -1912,33 +1929,21 @@ export default function FileExplorer({
                       : null
                     const previewable = canPreview(selectedNode)
                     const effectiveTab = previewable ? detailTab : 'details'
-                    const tabClass = (active: boolean) =>
-                      cx(
-                        'mx-2.5 border-b-2 px-1 py-2.5 text-[13px] font-medium cursor-pointer transition-colors',
-                        active
-                          ? 'theme-text border-(--theme-element)'
-                          : 'theme-muted-text border-transparent hover:theme-text',
-                      )
                     return (
                       <div className="flex h-full min-h-0 flex-col">
-                        <div className="flex shrink-0 items-center border-b theme-border px-3">
-                          <button
-                            type="button"
-                            className={tabClass(effectiveTab === 'details')}
-                            onClick={() => setDetailTab('details')}
-                          >
-                            {t.preview.detailsTab}
-                          </button>
-                          {previewable && (
-                            <button
-                              type="button"
-                              className={tabClass(effectiveTab === 'preview')}
-                              onClick={() => setDetailTab('preview')}
-                            >
-                              {t.preview.previewTab}
-                            </button>
-                          )}
-                        </div>
+                        {/* The row hides for a file that has only Details. */}
+                        <Tabs
+                          label={selectedNode.name}
+                          items={[
+                            { value: 'details' as const, label: t.preview.detailsTab },
+                            ...(previewable
+                              ? [{ value: 'preview' as const, label: t.preview.previewTab }]
+                              : []),
+                          ]}
+                          value={effectiveTab}
+                          onValueChange={setDetailTab}
+                          className="shrink-0 px-3"
+                        />
                         {effectiveTab === 'preview' && previewable ? (
                           <FilePreviewInline
                             node={selectedNode}
@@ -1967,13 +1972,15 @@ export default function FileExplorer({
                                   )}
                                   {typeof selectedNode.size === 'number' && (
                                     <span className="tabular-nums">
-                                      {formatFileSize(selectedNode.size)}
+                                      {formatBytes(selectedNode.size)}
                                     </span>
                                   )}
                                   {modifiedDt && (
                                     <>
                                       <span aria-hidden>·</span>
-                                      <span>Modified {modifiedDt.toRelative()}</span>
+                                      <span>
+                                        {t.chrome.modified} <RelativeTime value={modifiedDt} />
+                                      </span>
                                     </>
                                   )}
                                 </div>
@@ -1996,30 +2003,34 @@ export default function FileExplorer({
                                   node={selectedNode}
                                   onShare={onShareFileButtonClick}
                                 />
-                                <TooltipInfo
-                                  text="This will generate a pre-signed URL for this file. Anyone with this link can temporarily access and download the file, even if they don't have an account. The link will automatically expire after 12 hours."
-                                  place="right"
-                                />
+                                <InfoTip text={t.chrome.shareHelp} side="right" />
                               </div>
                             )}
 
                             {/* Details */}
-                            <div className="px-6 py-5 mt-5 border-t theme-border">
+                            {/* Ruled off only from the links above it; the hero already ends in a rule. */}
+                            <div
+                              className={cx(
+                                'px-6 py-5',
+                                (uris.length > 0 || selectedNodeCanShare) &&
+                                  'mt-5 border-t theme-border',
+                              )}
+                            >
                               <h3 className="text-[11px] font-semibold uppercase tracking-widest theme-muted-text mb-3">
-                                Details
+                                {t.chrome.details}
                               </h3>
                               <dl className="grid grid-cols-[minmax(0,140px)_1fr] gap-x-6 gap-y-2 text-sm">
                                 {typeof selectedNode.size === 'number' && (
                                   <>
                                     <dt className="theme-muted-text">{t.chrome.size}</dt>
                                     <dd className="tabular-nums">
-                                      {formatFileSize(selectedNode.size)}
+                                      {formatBytes(selectedNode.size)}
                                     </dd>
                                   </>
                                 )}
                                 {selectedNode.contentType && (
                                   <>
-                                    <dt className="theme-muted-text">Content Type</dt>
+                                    <dt className="theme-muted-text">{t.chrome.contentType}</dt>
                                     <dd className="font-mono text-xs">
                                       {selectedNode.contentType}
                                     </dd>
@@ -2029,20 +2040,20 @@ export default function FileExplorer({
                                   <>
                                     <dt className="theme-muted-text">{t.chrome.created}</dt>
                                     <dd>
-                                      {createdDt.toLocaleString(DateTime.DATETIME_MED)}{' '}
+                                      {formatDateTime(createdDt)}{' '}
                                       <span className="theme-muted-text">
-                                        · {createdDt.toRelative()}
+                                        · <RelativeTime value={createdDt} />
                                       </span>
                                     </dd>
                                   </>
                                 )}
                                 {modifiedDt && (
                                   <>
-                                    <dt className="theme-muted-text">Last Modified</dt>
+                                    <dt className="theme-muted-text">{t.chrome.lastModified}</dt>
                                     <dd>
-                                      {modifiedDt.toLocaleString(DateTime.DATETIME_MED)}{' '}
+                                      {formatDateTime(modifiedDt)}{' '}
                                       <span className="theme-muted-text">
-                                        · {modifiedDt.toRelative()}
+                                        · <RelativeTime value={modifiedDt} />
                                       </span>
                                     </dd>
                                   </>
@@ -2057,7 +2068,7 @@ export default function FileExplorer({
                                 )}
                                 {selectedNode.storageClass && (
                                   <>
-                                    <dt className="theme-muted-text">Storage Class</dt>
+                                    <dt className="theme-muted-text">{t.chrome.storageClass}</dt>
                                     <dd className="font-mono text-xs uppercase tracking-wider">
                                       {selectedNode.storageClass}
                                     </dd>
@@ -2104,7 +2115,7 @@ export default function FileExplorer({
 
       {waitForUpload && (
         <div className="absolute inset-0 bg-(--theme-app-bg)/75 backdrop-blur-[2px] transition-opacity flex items-center justify-center z-50">
-          <Loader full />
+          <Loader />
         </div>
       )}
 
@@ -2122,42 +2133,35 @@ export default function FileExplorer({
         confirmDisabled={pendingUpload ? isUploadSizeExceeded(pendingUpload.totalSize) : false}
       >
         <div className="text-sm flex flex-col gap-2 mt-2 text-left">
-          <ul className="list-disc pl-5 max-h-40 overflow-auto theme-muted-panel py-1">
+          {/* An indented tree of folders and files, not a flat list. */}
+          <div className="max-h-40 overflow-auto theme-muted-panel py-1 pl-3">
             {pendingUpload?.uploadNodes && renderUploadNodes(pendingUpload.uploadNodes)}
-          </ul>
+          </div>
           <div>
             <span className="font-semibold">{t.confirmUpload.target}</span>{' '}
             {pendingUpload?.targetPath || t.confirmUpload.noPath}
           </div>
           <div className="text-xs mt-1">
-            <span className="font-semibold">{t.confirmUpload.totalSize}</span>{' '}
+            <span className="font-semibold">{t.upload.totalSize}</span>{' '}
             <span
               className={cx(
                 isUploadSizeExceeded(pendingUpload?.totalSize ?? 0) &&
-                  'text-amber-800 font-semibold',
+                  'text-(--theme-warning-text) font-semibold',
               )}
             >
-              {formatFileSize(pendingUpload?.totalSize ?? 0)}
+              {formatBytes(pendingUpload?.totalSize ?? 0)}
             </span>
           </div>
           {isUploadSizeExceeded(pendingUpload?.totalSize ?? 0) && (
-            <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-              <div className="flex items-start gap-2">
-                <AlertIcon className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                <div className="text-amber-800">
-                  <div className="font-semibold mb-1">{t.confirmUpload.sizeLimitTitle}</div>
-                  <div className="text-sm">
-                    <p>
-                      {t.confirmUpload.sizeLimitBody(
-                        formatFileSize(pendingUpload?.totalSize ?? 0),
-                        formatFileSize(MAX_UPLOAD_SIZE),
-                      )}
-                    </p>
-                    <p>{t.confirmUpload.sizeLimitHint}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <Callout tone="warning" title={t.confirmUpload.sizeLimitTitle} className="mt-3">
+              <p>
+                {t.confirmUpload.sizeLimitBody(
+                  formatBytes(pendingUpload?.totalSize ?? 0),
+                  formatBytes(MAX_UPLOAD_SIZE),
+                )}
+              </p>
+              <p>{t.confirmUpload.sizeLimitHint}</p>
+            </Callout>
           )}
         </div>
       </ConfirmModal>
@@ -2173,7 +2177,7 @@ export default function FileExplorer({
         destructive
         title={t.confirmDelete.title}
         description={t.confirmDelete.text}
-        confirmLabel={t.confirmDelete.action}
+        confirmLabel={common.delete}
         onConfirm={handleDelete}
       >
         <div className="text-sm flex flex-col gap-2 mt-2 text-left">
