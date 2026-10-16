@@ -100,7 +100,7 @@ export const CustomSidebar: StoryObj = {
 }
 
 /** A white sidebar accent on a colored sidebar: the active item is a shade of the sidebar's own hue. */
-export const GraySidebarAccent: StoryObj = {
+export const WhiteSidebarAccent: StoryObj = {
   render: () => (
     <EditorDemo
       preview

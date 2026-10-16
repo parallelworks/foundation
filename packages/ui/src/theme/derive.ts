@@ -468,7 +468,7 @@ function build(
     ? oklch(scheme.sidebar.base)
     : neutral(dark ? Math.max(0.08, base.l - 0.035 * s) : base.l - 0.035 * s)
   const sidebarAccent = scheme.sidebar?.accent ? oklch(scheme.sidebar.accent) : accent
-  // A gray accent, such as white, has no hue to show: the active item is then a shade of the
+  // A white, black or gray accent has no hue to show: the active item is then a shade of the
   // sidebar itself, at its own chroma, rather than a gray patch on a colored sidebar.
   const activeTint =
     sidebarAccent.c < 0.02 ? sidebarBase : { ...sidebarAccent, c: Math.min(sidebarAccent.c, 0.08) }

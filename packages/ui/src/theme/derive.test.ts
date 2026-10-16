@@ -460,7 +460,7 @@ describe('generateTheme', () => {
     expect(oklch(plain['--theme-sidebar-bg']).l).toBeLessThan(oklch(plain['--theme-app-bg']).l)
   })
 
-  it('shades a mid-tone sidebar’s own hue for the active item when the sidebar accent is gray', () => {
+  it('shades a mid-tone sidebar’s own hue for the active item under a white sidebar accent', () => {
     const sidebar = oklch('#0c75ad')
     const vars = deriveTheme({
       interface: { base: '#ffffff', accent: '#0c75ad' },
