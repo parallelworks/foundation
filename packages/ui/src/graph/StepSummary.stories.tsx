@@ -1,5 +1,6 @@
 import { createWorkflowEngine } from '@parallelworks/workflow-parser'
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import { expect, screen, userEvent, within } from 'storybook/test'
 import { type RunFileResult, UIProvider } from '../components/Provider'
 import DependencyGraph from './DependencyGraph'
 
@@ -74,5 +75,21 @@ export const ContentBelowGraph: StoryObj<typeof DependencyGraph> = {
   args: {
     run: RUN,
     children: <div className="panel border rounded-lg px-4 py-2.5 text-sm">Step summaries</div>,
+  },
+}
+
+// The summary mark beside a step in the job list opens that step on its summary.
+export const SummaryMarkOpensSummary: StoryObj<typeof DependencyGraph> = {
+  args: { run: RUN },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    // The job list beside the graph and the graph's own node both name the job.
+    await userEvent.click(canvas.getAllByText('Test')[0] as HTMLElement)
+    await userEvent.click(canvas.getAllByRole('button', { name: 'Step summary' })[0] as HTMLElement)
+    await expect(await screen.findByRole('heading', { name: 'Tests' })).toBeVisible()
+    await expect(screen.getByRole('tab', { name: 'Summary' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
   },
 }
