@@ -22,6 +22,7 @@ for (const [path, expected] of [
   ['server/server.go', goOnly],
   ['spa/locale_test.go', goOnly],
   ['pgdb/testdata/migrations/00001_widgets.sql', goOnly],
+  ['rbac/migrations/00001_grants.sql', goOnly],
   ['go.mod', goOnly],
   ['go.sum', goOnly],
   ['tools/go.sum', goAndDev],

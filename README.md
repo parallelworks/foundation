@@ -343,10 +343,11 @@ if err := authz.Authorize(ctx, subject, "cluster:login", cluster); err != nil {
 }
 ```
 
-- **Lists:** store each resource's `Resource.Path()` in a `text[]` column
-  with a GIN index, and `Filter` returns a condition for the application's
-  own query, read in the same statement as the rows. `Reachable` returns the
-  same as scopes, for resources kept in another store.
+- **Lists:** store each resource's `authz.Path(resource)` in a `text[]`
+  column with a GIN index, and `Filter` returns a condition for the
+  application's own query, read in the same statement as the rows.
+  `Reachable` returns the same as scopes, for resources kept in another
+  store.
 - **Owners:** a resource's owner holds every permission a role gives on its
   type, and may change its grants. A container's owner may not, since a
   grant there reaches what they don't own: give whoever creates a container
@@ -358,6 +359,8 @@ if err := authz.Authorize(ctx, subject, "cluster:login", cluster); err != nil {
   grant it, and a grant expires no later than the actor's own access does;
   revoking the actor's access leaves the grants they made. `Import` loads
   grants for migrations.
+- **Everyone:** a grant to everyone never gives a `<type>:grant`
+  permission, so changing access always takes a named user or group.
 - **Why:** `Explain` names the grants that allow, or what denied;
   `Permissions` lists what a subject may do; `Holders` lists who may.
 - **Tables:** `rbac.Migrate` creates them, prefixed `rbac_`, with their own

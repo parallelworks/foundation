@@ -81,8 +81,8 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, m Migrations) error {
 		return err
 	}
 	return withLock(ctx, pool, lockKey(schema, m.LockKey), func(conn *pgx.Conn) error {
-		if _, err := conn.Exec(ctx, "CREATE SCHEMA IF NOT EXISTS "+pgx.Identifier{schema}.Sanitize()); err != nil {
-			return fmt.Errorf("pgdb: create schema %s: %w", schema, err)
+		if err := createSchema(ctx, conn, schema); err != nil {
+			return err
 		}
 		if _, err := hoppermigrate.Up(ctx, HopperDriver(pool), &hoppermigrate.Options{Logger: logger}); err != nil {
 			return fmt.Errorf("pgdb: migrate hopper: %w", err)
@@ -95,7 +95,8 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, m Migrations) error {
 // in versionTable rather than the application's, under the lock Migrate holds
 // when Migrations.LockKey is zero; with another key the two don't exclude each
 // other. A package uses it to keep its own tables, with versions of their own,
-// beside an application's. The schema must exist; Migrate creates it.
+// beside an application's, before or after the application's own migrations. It creates the
+// schema if Migrate hasn't.
 func MigrateFS(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS, versionTable string, logger *slog.Logger) error {
 	schema, logger, err := schemaAndLogger(pool, logger)
 	if err != nil {
@@ -104,9 +105,19 @@ func MigrateFS(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS, versionTable
 	if !ValidSchema(versionTable) {
 		return fmt.Errorf("pgdb: version table %q is not a valid name", versionTable)
 	}
-	return withLock(ctx, pool, lockKey(schema, 0), func(*pgx.Conn) error {
+	return withLock(ctx, pool, lockKey(schema, 0), func(conn *pgx.Conn) error {
+		if err := createSchema(ctx, conn, schema); err != nil {
+			return err
+		}
 		return migrateGoose(ctx, pool, fsys, versionTable, logger)
 	})
+}
+
+func createSchema(ctx context.Context, conn *pgx.Conn, schema string) error {
+	if _, err := conn.Exec(ctx, "CREATE SCHEMA IF NOT EXISTS "+pgx.Identifier{schema}.Sanitize()); err != nil {
+		return fmt.Errorf("pgdb: create schema %s: %w", schema, err)
+	}
+	return nil
 }
 
 // schemaAndLogger returns a pool's schema, and logger or else the default one.

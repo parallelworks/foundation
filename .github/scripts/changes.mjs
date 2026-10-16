@@ -20,7 +20,7 @@ export function affectedChecks(paths) {
     } else if (/^(tools\/|\.golangci\.yml$)/.test(path)) {
       // Both Go modules lint with the same tools and rules.
       checks.go = checks.dev = true
-    } else if (/^(pgdb\/|server\/|spa\/|go\.(mod|sum)$)/.test(path)) {
+    } else if (/^(pgdb\/|rbac\/|server\/|spa\/|go\.(mod|sum)$)/.test(path)) {
       checks.go = true
     } else {
       // New directories and build configuration are checked until classified.
