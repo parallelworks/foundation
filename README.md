@@ -396,13 +396,15 @@ if err := authz.Authorize(ctx, subject, "cluster:login", cluster); err != nil {
   conditional one denies where its condition holds or can't be evaluated.
   Setting one needs `rbac.DenyPermission(type)` there, which no deny
   removes, so whoever holds it on a scope above can always lift a deny set
-  below. A check reads denies with grants in one statement. What a deny on a
-  change's path removes from the actor isn't held to hand on, nor, through a
-  container or the tenant, what one whose condition reads the resource may
-  remove; a deny on a scope below the change's isn't read. `Filter` leaves
-  out what a deny covers, `Reachable` names it in `Except`, conditional ones
-  in `ConditionalExcept`, and `Holders` leaves out those a deny names. A deny
-  read back says who created it and who last changed it.
+  below, and whoever holds it on the deny's own scope, those it names
+  included, can lift that deny: to bind one who holds it, set the deny on a
+  scope above. A check reads denies with grants in one statement. What a
+  deny on a change's path removes from the actor isn't held to hand on, nor,
+  through a container or the tenant, what one whose condition reads the
+  resource may remove; a deny on a scope below the change's isn't read.
+  `Filter` leaves out what a deny covers, `Reachable` names it in `Except`,
+  conditional ones in `ConditionalExcept`, and `Holders` leaves out those a
+  deny names. A deny read back says who created it and who last changed it.
 - **Identities:** an identity's or group's id names it in every tenant, so a
   tenant can grant a role to one from another where `ValidatePrincipal`
   allows it; `Subject.Tenants` decides only which tenants' members it is.
