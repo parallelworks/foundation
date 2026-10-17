@@ -416,8 +416,9 @@ if err := authz.Authorize(ctx, subject, "cluster:login", cluster); err != nil {
   about the public, so an application can refuse public access in a tenant;
   `DeletePrincipal` ends what was granted.
 - **Broad grants:** a grant to the tenant's members (`rbac.TenantMembers`) or
-  the public never gives a `<type>:grant` permission or `rbac.DefineRoles`,
-  so changing access always takes a named identity or group.
+  the public never gives a `<type>:grant` or `<type>:deny` permission or
+  `rbac.DefineRoles`, so changing access always takes a named identity or
+  group.
 - **Why:** `Explain` names the grants that allow, or what denied;
   `Permissions` lists what a subject may do; `Holders` lists who may.
 - **Tables:** `rbac.Migrate` creates them, prefixed `rbac_`, with their own
