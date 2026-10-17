@@ -406,12 +406,13 @@ if err := authz.Authorize(ctx, subject, "cluster:login", cluster); err != nil {
   conditional ones in `ConditionalExcept`, and `Holders` leaves out those a
   deny names. A deny read back says who created it and who last changed it.
 - **Eligible grants:** `SetEligible` lets a principal, an identity or a
-  group's members, activate a role on a scope for up to a maximum duration,
-  perhaps only where a condition holds, such as a second factor; setting one
-  takes what granting the role would. `Activate` gives the identity
-  activating the role until then, with its justification as the grant's
-  note, reported in `ChangeEvent.Granted` with `Activated` set. An approval
-  before activating is the host's. Every grant can carry a `Note`.
+  group's members, activate a role on a scope for up to a maximum duration and
+  no later than the eligibility ends, perhaps only where a condition holds,
+  such as a second factor; setting one takes what granting the role would.
+  `Activate` gives the identity activating the role until then, with its
+  justification as the grant's note, reported in `ChangeEvent.Granted` with
+  `Activated` set. An approval before activating is the host's. Every grant
+  can carry a `Note`.
 - **Identities:** an identity's or group's id names it in every tenant, so a
   tenant can grant a role to one from another where `ValidatePrincipal`
   allows it; `Subject.Tenants` decides only which tenants' members it is.
