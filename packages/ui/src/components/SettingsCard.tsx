@@ -16,6 +16,12 @@ export interface SettingsCardProps {
   headingLevel?: 2 | 3 | undefined
   /** Lets content such as an inline menu reach past the card's rounded edge. */
   overflowVisible?: boolean | undefined
+  /** False leaves the content unframed, for content that frames its own parts,
+   *  such as a list of cards. */
+  framed?: boolean | undefined
+  /** Keeps the content in view while the page scrolls past a taller neighbor,
+   *  such as a preview beside the list it previews. */
+  sticky?: boolean | undefined
   className?: string | undefined
   /** SettingRows, and SettingsHeadings between groups of them. */
   children: ReactNode
@@ -30,6 +36,8 @@ export function SettingsCard({
   actionAlign = 'beside',
   headingLevel = 2,
   overflowVisible = false,
+  framed = true,
+  sticky = false,
   className,
   children,
 }: SettingsCardProps) {
@@ -59,8 +67,10 @@ export function SettingsCard({
         )}
         <div
           className={cx(
-            'panel divide-y divide-(--theme-border)',
-            overflowVisible ? 'overflow-visible' : 'overflow-hidden',
+            framed && 'panel divide-y divide-(--theme-border)',
+            framed && (overflowVisible ? 'overflow-visible' : 'overflow-hidden'),
+            // Held to its own height, so a grid row stretched by a neighbor leaves it room to stick.
+            sticky && 'sticky top-4 self-start',
           )}
         >
           {children}
