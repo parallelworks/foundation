@@ -43,7 +43,7 @@ export default function AllocationSelector() {
 
   const selected = allocations.find((a) => a.name === selectedAllocation)
   return (
-    <div className="flex min-w-0 items-center gap-2">
+    <div className="flex min-w-0 shrink-[3] items-center gap-2">
       <Select
         aria-label={t.choose}
         items={allocations.map((a) => ({ value: a.name, label: a.name }))}
