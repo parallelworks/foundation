@@ -410,8 +410,8 @@ if err := authz.Authorize(ctx, subject, "cluster:login", cluster); err != nil {
   perhaps only where a condition holds, such as a second factor; setting one
   takes what granting the role would. `Activate` gives the identity
   activating the role until then, with its justification as the grant's
-  note, reported as `ChangeEvent.Activated`. An approval before activating
-  is the host's. Every grant can carry a `Note`.
+  note, reported in `ChangeEvent.Granted` with `Activated` set. An approval
+  before activating is the host's. Every grant can carry a `Note`.
 - **Identities:** an identity's or group's id names it in every tenant, so a
   tenant can grant a role to one from another where `ValidatePrincipal`
   allows it; `Subject.Tenants` decides only which tenants' members it is.
