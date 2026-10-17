@@ -37,11 +37,11 @@ async function openMenu(name: RegExp) {
   return screen.findByRole('menu')
 }
 
-async function openToolsSubmenu() {
-  const menu = await openMenu(/^Add files and tools$/)
-  fireEvent.click(within(menu).getByRole('menuitem', { name: /^Tools/ }))
-  const menus = await screen.findAllByRole('menu')
-  return menus[menus.length - 1] as HTMLElement
+async function openToolsSubmenu(menu: HTMLElement) {
+  const tools = within(menu).getByRole('menuitem', { name: /^Tools/ })
+  tools.focus()
+  fireEvent.keyDown(tools, { key: 'ArrowRight' })
+  await screen.findAllByRole('menuitemcheckbox')
 }
 
 afterEach(() => {
@@ -66,16 +66,16 @@ describe('the composer + menu', () => {
     const menu = await openMenu(/^Add files and tools$/)
     expect(within(menu).getByRole('menuitem', { name: 'Add files' })).toBeInTheDocument()
 
-    const submenu = await openToolsSubmenu()
-    const toggles = within(submenu).getAllByRole('menuitemcheckbox')
+    await openToolsSubmenu(menu)
+    const toggles = screen.getAllByRole('menuitemcheckbox')
     expect(toggles).toHaveLength(3)
     for (const toggle of toggles) {
       expect(toggle).toHaveAttribute('aria-checked', 'true')
     }
     expect(
-      within(submenu).getByRole('menuitemcheckbox', { name: /List storage/ }),
+      screen.getByRole('menuitemcheckbox', { name: /List storage/ }),
     ).toHaveAccessibleDescription('Names your buckets and disks')
-    expect(within(submenu).getByRole('menuitem', { name: 'Connect tools' })).toHaveAttribute(
+    expect(screen.getByRole('menuitem', { name: 'Connect tools' })).toHaveAttribute(
       'href',
       '#connect-tools',
     )
@@ -93,13 +93,14 @@ describe('the composer + menu', () => {
 
   it('turns a tool off, keeps the menu open, remembers it and marks the +', async () => {
     renderComposer({ attachments: true, tools: makeTools() })
-    const submenu = await openToolsSubmenu()
+    await openToolsSubmenu(await openMenu(/^Add files and tools$/))
 
-    fireEvent.click(within(submenu).getByRole('menuitemcheckbox', { name: /List clusters/ }))
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: /List clusters/ }))
 
-    expect(
-      within(submenu).getByRole('menuitemcheckbox', { name: /List clusters/ }),
-    ).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('menuitemcheckbox', { name: /List clusters/ })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    )
     expect(
       screen.getByRole('button', {
         name: 'Add files and tools · Some tools are off',
