@@ -136,9 +136,9 @@ const labelSizes = {
   },
   md: {
     text: 'text-sm text-(--theme-app)',
-    inlineHeight: 'min-h-9',
+    inlineHeight: 'min-h-8',
     stackGap: 'gap-1.5',
-    inlineLine: 'pt-1.5',
+    inlineLine: 'pt-1',
     controlFirstHeight: 'min-h-6',
     controlFirstStackedHeight: 'min-h-7',
   },
@@ -552,7 +552,7 @@ export function FieldValue({ size = 'md', className, children, ...props }: Field
       {...props}
       className={cx(
         'flex min-w-0 items-center break-words text-(--theme-app)',
-        size === 'sm' ? 'min-h-7 text-xs' : 'min-h-9 text-sm',
+        size === 'sm' ? 'min-h-7 text-xs' : 'min-h-8 text-sm',
         className,
       )}
     >

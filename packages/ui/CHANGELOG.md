@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.64.1](https://github.com/parallelworks/foundation/compare/ui-v0.64.0...ui-v0.64.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **ui:** the job list pins under the page's own bars, and a step's dialog shows its whole summary table ([#360](https://github.com/parallelworks/foundation/issues/360)) ([8486cd8](https://github.com/parallelworks/foundation/commit/8486cd817339da6ed10cafa2fa8249883bfff906))
+
+## [0.64.0](https://github.com/parallelworks/foundation/compare/ui-v0.63.0...ui-v0.64.0) (2026-10-17)
+
+
+### Features
+
+* **ui:** one scale shared with the apps: 32px fields, 48px header, 16px titles, 12px panels, 16px padding ([#343](https://github.com/parallelworks/foundation/issues/343)) ([3cc75a4](https://github.com/parallelworks/foundation/commit/3cc75a4ecbf1941b349478f49602dafdd4d42a97))
+
+## [0.63.0](https://github.com/parallelworks/foundation/compare/ui-v0.62.0...ui-v0.63.0) (2026-10-16)
+
+
+### Features
+
+* **ui:** a run's step summaries show as cards under its graph, which fits its jobs ([#337](https://github.com/parallelworks/foundation/issues/337)) ([6b2c888](https://github.com/parallelworks/foundation/commit/6b2c888d3c0dde867597e7917bef205eb82ad049))
+
 ## [0.62.0](https://github.com/parallelworks/foundation/compare/ui-v0.61.0...ui-v0.62.0) (2026-10-16)
 
 
