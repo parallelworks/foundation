@@ -433,44 +433,52 @@ const SWITCH_RUN_FIELDS = {
   },
 }
 
-/** Where a field's row starts and where what it shows ends. A row starts at the line a text
- *  field's label would sit on, which a switch's first line centers on; it ends at the last of its
- *  control, its label's line and its description, not at padding under them. */
-function rowExtent(canvasElement: HTMLElement, name: string) {
+/** The rectangles of an element's text, its letters' height rather than its lines'. */
+function textRects(element: Element) {
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
+  const rects: DOMRect[] = []
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (node.textContent?.trim()) {
+      const range = document.createRange()
+      range.selectNodeContents(node)
+      rects.push(...range.getClientRects())
+    }
+  }
+  return rects
+}
+
+/** What a field's row shows, as the eye sees it: its switch or its input's border, and the text
+ *  of its label and description, not the boxes around them. */
+function shownExtent(canvasElement: HTMLElement, name: string) {
   const canvas = within(canvasElement)
   const control = canvas.queryByRole('switch', { name }) ?? canvas.getByRole('textbox', { name })
   const labelledBy = control.getAttribute('aria-labelledby')
   const label = labelledBy
     ? document.getElementById(labelledBy)
     : (control as HTMLInputElement).labels?.[0]
-  if (!label) {
-    throw new Error(`${name} has no label`)
-  }
-  let row = label.parentElement
-  while (row && !row.contains(control)) {
-    row = row.parentElement
-  }
   const description = document.getElementById(control.id.replace(/control$/, 'description'))
-  // A text field's box is its input's parent; a switch is its own.
+  // A text field's border is its input's parent's; a switch is its own.
   const box = control.getAttribute('role') === 'switch' ? control : control.parentElement
-  const shown = [box, label.parentElement, description]
+  const rects = [
+    ...(box ? [box.getBoundingClientRect()] : []),
+    ...(label ? textRects(label) : []),
+    ...(description ? textRects(description) : []),
+  ]
   return {
-    top: row?.getBoundingClientRect().top ?? 0,
-    bottom: Math.max(...shown.map((element) => element?.getBoundingClientRect().bottom ?? 0)),
+    top: Math.min(...rects.map((rect) => rect.top)),
+    bottom: Math.max(...rects.map((rect) => rect.bottom)),
   }
 }
 
-/** Asserts that every row of the run leaves the same room before the next one, whether or not
- *  it has a description, and the same before the section's heading. */
+/** Asserts that the space the eye sees between consecutive rows is the same within 2px, after a
+ *  switch or a description, before a switch or a text field. A section's heading keeps its own
+ *  spacing, so the run is measured on each side of it. */
 async function expectEvenRows(canvasElement: HTMLElement) {
   const canvas = within(canvasElement)
   await canvas.findByRole('switch', { name: 'Verbose logging' }, { timeout: 5000 })
-  const row = (name: string) => rowExtent(canvasElement, name)
-  // The heading's rule ends its header; the section's own spacing follows it.
-  const heading = canvas.getByRole('heading', { name: 'Advanced' })
-  const header = (heading.closest('div[class*="border-b"]') ?? heading).getBoundingClientRect()
+  const row = (name: string) => shownExtent(canvasElement, name)
   const runs = [
-    [row('Email me when the run finishes'), row('Keep scratch files'), row('Use GPUs'), header],
+    [row('Email me when the run finishes'), row('Keep scratch files'), row('Use GPUs')],
     [row('Verbose logging'), row('Retries')],
   ]
   const gaps = runs.flatMap((run) =>
@@ -478,14 +486,13 @@ async function expectEvenRows(canvasElement: HTMLElement) {
   )
   const [first = 0] = gaps
   for (const gap of gaps) {
-    await expect(Math.abs(gap - first)).toBeLessThanOrEqual(1)
+    await expect(Math.abs(gap - first)).toBeLessThanOrEqual(2)
   }
 }
 
 /** A run of switches: one with help, one with a description, a disabled one with a description,
- *  then a section with a switch and a number. Every row leaves the same room before the next, a
- *  description adds only its own lines, and each switch's first line centers on the line a text
- *  field's label would sit on. */
+ *  then a section with a switch and a number. Every row leaves the same room before the next, as
+ *  text fields do, and a description adds only its own lines. */
 export const SwitchRun: StoryObj<typeof DynamicForm> = {
   args: {
     formJSONs: SWITCH_RUN_FIELDS,

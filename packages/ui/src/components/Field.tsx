@@ -104,9 +104,9 @@ export interface FieldProps {
   group?: boolean | undefined
   /** Puts a checkbox, a switch or a lone radio before its label, as such a control reads: the
    *  control, then its label and ?, with the description and error under the label. A click on
-   *  the label sets the control. Inline, or in a row of fields, it sits in the control column,
-   *  its first line on the line of the labels beside it. Not for a `group`, whose options are
-   *  each a `FieldOption`. */
+   *  the label sets the control. Inline it sits in the control column, under the controls above
+   *  it; in a row of fields, its first line centers on the controls beside it. Not for a
+   *  `group`, whose options are each a `FieldOption`. */
   controlFirst?: boolean | undefined
   /** The control's id; one is made up when left out. */
   id?: string | undefined
@@ -119,8 +119,9 @@ export interface FieldProps {
 }
 
 // A compact control reads first, so its label steps back to a caption. `inlineLine` lowers a
-// control-first field's first line, a switch's height, onto the middle of an inline row: half of
-// what the row's height leaves over it. Only above, so the row ends where its last line does.
+// control-first field's first line, a switch's height, onto the middle of the controls beside it
+// in a row of fields: half of what their height leaves over it. Only above, so the row ends where
+// its last line does.
 const labelSizes = {
   sm: {
     text: 'text-xs text-(--theme-muted-text-color)',
@@ -328,7 +329,6 @@ export function Field({
   )
 
   if (controlFirst && !group) {
-    const lined = inline || inRow
     return (
       <BaseField.Root
         invalid={isInvalid}
@@ -342,7 +342,11 @@ export function Field({
           ref={help ? setControlBox : undefined}
           className={cx(
             'flex w-fit max-w-full min-w-0 items-start gap-2',
-            lined && labelSize.inlineLine,
+            // Inline, the label column beside it is empty, so nothing shares its first line and
+            // the row starts at the switch, as a text field's row starts at its box. Stacked, a
+            // text field's row starts with its label, whose letters sit about 4px into their
+            // line, so a switch starts that far in too and the gaps between rows look the same.
+            inRow ? labelSize.inlineLine : !inline && 'pt-1',
             inRow && 'row-start-2',
           )}
         >
