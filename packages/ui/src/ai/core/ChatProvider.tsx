@@ -200,6 +200,12 @@ export function useChat() {
   return context
 }
 
+/** True while the adapter lists tools of its own, which the composer's +
+ *  menu offers; false outside a ChatProvider. */
+export function useHasChatTools(): boolean {
+  return (useContext(ChatContext)?.tools.length ?? 0) > 0
+}
+
 /** The reply being streamed. A component that reads it re-renders on every
  *  token, so read it only where the reply is drawn. */
 export function useChatStream(): ChatStream {

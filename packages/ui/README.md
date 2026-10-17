@@ -847,9 +847,12 @@ messages keep OpenAI-compatible snake_case field names.
 
 An adapter with `tools` lists the tools its backend runs itself while it
 answers, each a `ChatToolOption` (`id`, and a `label` and optional
-`description` in the reader's language). The composer then offers a tools menu
-where the reader turns each on or off; every tool starts on, and the choice is
-remembered per user in the browser. Each request carries the enabled ids as
+`description` in the reader's language). The composer's + button then opens a
+menu: add files (when the adapter stores attachments), a switch for each tool,
+and the `extraLinks.connectTools` link, which leaves the row under the
+composer. Every tool starts on, a dot on the + shows that some are off, and the
+choice is remembered per user in the browser. A turn the provider doesn't run,
+such as an agent's, offers no tools. Each request carries the enabled ids as
 `StreamRequest.tools` once the list has loaded, possibly empty, and the
 OpenAI-compatible transport sends them as the `X-Platform-Tools` header
 (`TOOLS_HEADER`), comma-separated and empty when every tool is off. A request

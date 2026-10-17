@@ -62,7 +62,6 @@ export {
   type SlashMenuConfig,
   slashMatches,
 } from './components/SlashMenu'
-export { default as ToolsPicker } from './components/ToolsPicker'
 export type {
   ComposerPastes,
   PasteUploadResult,

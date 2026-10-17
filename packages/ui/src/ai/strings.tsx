@@ -51,11 +51,15 @@ export interface ChatStrings {
     /** Sending before a model is chosen. */
     selectFirst: string
   }
-  toolsPicker: {
-    /** Names the picker and heads its panel. */
-    title: string
-    /** On the chip: how many of the host's tools are on. */
-    count: (enabled: number, total: number) => string
+  composerMenu: {
+    /** Names the composer's + button while it opens a menu of files and tools. */
+    label: string
+    /** Opens the attachments panel from the menu. */
+    addFiles: string
+    /** Heads the host's tools in the menu, and names the + when it holds only tools. */
+    tools: string
+    /** Beside the + while the reader has turned some of the host's tools off. */
+    someToolsOff: string
   }
   allocationPicker: {
     choose: string
@@ -345,9 +349,11 @@ export const defaultChatStrings: ChatStrings = {
     manageProvider: 'Manage provider',
     selectFirst: 'Select a model first',
   },
-  toolsPicker: {
-    title: 'Tools',
-    count: (enabled, total) => `Tools ${enabled.toLocaleString()}/${total.toLocaleString()}`,
+  composerMenu: {
+    label: 'Add files and tools',
+    addFiles: 'Add files',
+    tools: 'Tools',
+    someToolsOff: 'Some tools are off',
   },
   allocationPicker: {
     choose: 'Allocation',
