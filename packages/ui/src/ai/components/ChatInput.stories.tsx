@@ -9,6 +9,7 @@ import {
 } from '../agent/permissions'
 import {
   makeComposerPastes,
+  makeManyTools,
   makePasteText,
   makeStaticAdapter,
   makeTools,
@@ -229,19 +230,28 @@ export const SharedProviders: StoryObj<{
   },
 }
 
-// The composer's + once the adapter lists tools of its own: add files, a
-// switch for each tool, which the requests that follow carry, and the link to
-// connect more at the foot. Without tools the + opens the attachments panel
-// directly and the link sits under the composer. The play opens the menu.
+// The composer's + once the adapter lists tools of its own: Add files, and
+// Tools, whose submenu switches each tool for the requests that follow, with
+// the link to connect more at its foot. Past six tools, Tools opens a modal
+// that searches them. Without tools the + opens the attachments panel directly
+// and the link sits under the composer. The play opens the menu.
 export const ToolsMenu: StoryObj<{
   menuOpen: boolean
   listsTools: boolean
+  manyTools: boolean
   attachments: boolean
   connectTools: boolean
 }> = {
-  args: { menuOpen: true, listsTools: true, attachments: true, connectTools: true },
+  args: {
+    menuOpen: true,
+    listsTools: true,
+    manyTools: false,
+    attachments: true,
+    connectTools: true,
+  },
   argTypes: {
     listsTools: { control: 'boolean', description: 'The adapter lists tools of its own' },
+    manyTools: { control: 'boolean', description: 'More tools than the menu holds' },
     attachments: { control: 'boolean', description: 'The adapter stores attachments' },
     connectTools: { control: 'boolean', description: 'Host sets extraLinks.connectTools' },
   },
@@ -251,7 +261,7 @@ export const ToolsMenu: StoryObj<{
         () =>
           makeStaticAdapter({
             attachments: args.attachments,
-            ...(args.listsTools ? { tools: makeTools() } : {}),
+            ...(args.listsTools ? { tools: args.manyTools ? makeManyTools() : makeTools() } : {}),
           }),
         [],
       )
@@ -271,7 +281,11 @@ export const ToolsMenu: StoryObj<{
         </StoryChat>
       )
     }
-    return <Composer key={`${args.listsTools}${args.attachments}${args.connectTools}`} />
+    return (
+      <Composer
+        key={`${args.listsTools}${args.manyTools}${args.attachments}${args.connectTools}`}
+      />
+    )
   },
   play: async ({ canvasElement, args }) => {
     if (!args.menuOpen || !args.listsTools) {

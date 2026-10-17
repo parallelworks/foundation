@@ -60,6 +60,17 @@ export interface ChatStrings {
     tools: string
     /** Beside the + while the reader has turned some of the host's tools off. */
     someToolsOff: string
+    /** Beside Tools: how many of the host's tools are on. */
+    toolsOn: (enabled: number, total: number) => string
+    /** Under the title of the modal that lists every tool. */
+    toolsDescription: string
+    searchTools: string
+    /** The modal's search matched no tool. */
+    noToolsMatch: string
+    turnAllOn: string
+    turnAllOff: string
+    /** Closes the tools modal; each switch takes effect as it is flipped. */
+    done: string
   }
   allocationPicker: {
     choose: string
@@ -354,6 +365,13 @@ export const defaultChatStrings: ChatStrings = {
     addFiles: 'Add files',
     tools: 'Tools',
     someToolsOff: 'Some tools are off',
+    toolsOn: (enabled, total) => `${enabled.toLocaleString()}/${total.toLocaleString()}`,
+    toolsDescription: 'What the assistant may look up for you.',
+    searchTools: 'Search tools',
+    noToolsMatch: 'No tools match',
+    turnAllOn: 'Turn all on',
+    turnAllOff: 'Turn all off',
+    done: 'Done',
   },
   allocationPicker: {
     choose: 'Allocation',

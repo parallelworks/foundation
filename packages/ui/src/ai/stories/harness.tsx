@@ -965,3 +965,20 @@ export function useStreamedText(
   }, [words, durationMs, run])
   return { text: words.slice(0, shown).join(' '), done: shown >= words.length }
 }
+
+/** More tools than the menu holds, so the composer lists them in a modal. */
+export function makeManyTools(): ChatToolOption[] {
+  return [
+    ...makeTools(),
+    {
+      id: 'list_runs',
+      label: 'List workflow runs',
+      description: 'Your recent runs and their status',
+    },
+    { id: 'list_sessions', label: 'List sessions', description: 'Desktops and apps you have open' },
+    { id: 'list_costs', label: 'Read costs', description: 'Spend by cluster and group' },
+    { id: 'list_workflows', label: 'List workflows', description: 'Workflows you can run' },
+    { id: 'list_buckets', label: 'List buckets', description: 'Buckets you can read' },
+    { id: 'read_logs', label: 'Read run logs', description: 'The output of a workflow run' },
+  ]
+}
