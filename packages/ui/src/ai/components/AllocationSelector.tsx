@@ -57,7 +57,7 @@ export default function AllocationSelector() {
         }
       />
       {selected && (
-        <span className="text-xs tabular-nums theme-muted-text whitespace-nowrap">
+        <span className="hidden text-xs tabular-nums theme-muted-text whitespace-nowrap @md:inline">
           {t.usage(money(selected.used ?? 0), money(selected.total))}
         </span>
       )}
