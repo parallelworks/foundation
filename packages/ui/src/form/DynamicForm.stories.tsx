@@ -471,8 +471,9 @@ function shownExtent(canvasElement: HTMLElement, name: string) {
 }
 
 /** Asserts that the space the eye sees between consecutive rows is the same within 2px, after a
- *  switch or a description, before a switch or a text field. A section's heading keeps its own
- *  spacing, so the run is measured on each side of it. */
+ *  switch or a description, before a switch or a text field, on each side of a section's heading;
+ *  that the rule sits that far over the section's first row; and that the heading sits clearly
+ *  further from the rows above it. */
 async function expectEvenRows(canvasElement: HTMLElement) {
   const canvas = within(canvasElement)
   await canvas.findByRole('switch', { name: 'Verbose logging' }, { timeout: 5000 })
@@ -488,6 +489,14 @@ async function expectEvenRows(canvasElement: HTMLElement) {
   for (const gap of gaps) {
     await expect(Math.abs(gap - first)).toBeLessThanOrEqual(2)
   }
+  // The heading belongs to the rows under it: it sits clearly further from the rows above than
+  // its rule sits from its first row, which is as far as the rows sit apart.
+  const heading = canvas.getByRole('heading', { name: 'Advanced' })
+  const rule = heading.closest('[data-section-header]')?.getBoundingClientRect().bottom ?? 0
+  const above = Math.min(...textRects(heading).map((rect) => rect.top)) - row('Use GPUs').bottom
+  const below = row('Verbose logging').top - rule
+  await expect(above - below).toBeGreaterThanOrEqual(8)
+  await expect(Math.abs(below - first)).toBeLessThanOrEqual(2)
 }
 
 /** A run of switches: one with help, one with a description, a disabled one with a description,
