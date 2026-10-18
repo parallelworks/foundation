@@ -9,7 +9,7 @@ import ChatMessageList from './ChatMessageList'
 import { ComposerControls, ComposerUsage, ConnectToolsLink } from './ComposerChrome'
 import DragOverlay from './DragOverlay'
 import ProviderIssueBanner from './ProviderIssueBanner'
-import { ShareButton } from './ShareDialog'
+import { ShareButton, ToolResultsSharedNote } from './ShareDialog'
 
 interface EditingState {
   messageId: string
@@ -28,6 +28,8 @@ export default function ChatThread({ conversationId }: { conversationId: string 
     loadProviders,
     sendMessage,
     retryMessage,
+    answerToolApproval,
+    tools,
     isLoadingConversation,
     navigateToBranch,
     queuedMessages,
@@ -203,6 +205,9 @@ export default function ChatThread({ conversationId }: { conversationId: string 
           }
           onSaveEdit={handleSaveEdit}
           onCancelEdit={handleCancelEdit}
+          {...(currentConversation?.canCollaborate !== false
+            ? { onApprovalAnswer: answerToolApproval }
+            : {})}
           inputElement={
             <ChatInput
               ref={chatInputRef}
@@ -215,8 +220,10 @@ export default function ChatThread({ conversationId }: { conversationId: string 
               onEditLastMessage={handleEditLastMessage}
               settingsLeft={
                 <>
-                  {currentConversation?.isOwner !== false && (
+                  {currentConversation?.isOwner !== false ? (
                     <ShareButton conversationId={conversationId} />
+                  ) : (
+                    tools.length > 0 && <ToolResultsSharedNote />
                   )}
                   <ConnectToolsLink />
                 </>

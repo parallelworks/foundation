@@ -239,6 +239,29 @@ describe('approval parts', () => {
     expect(screen.getByText('Answered: Allowed')).toBeInTheDocument()
     expect(screen.queryByText('Yes, allow this command')).not.toBeInTheDocument()
   })
+  it('offers no answers once a confirm has expired', () => {
+    renderParts(
+      [
+        {
+          kind: 'approval',
+          id: 'a5',
+          approvalKind: 'confirm',
+          subject: 'call',
+          expiresAt: '2020-01-01T00:00:00Z',
+        },
+      ],
+      { onApprovalAnswer: vi.fn() },
+    )
+    expect(screen.getByText('This request expired. Ask again to run it.')).toBeInTheDocument()
+    expect(screen.queryByText('Yes, allow this call')).not.toBeInTheDocument()
+  })
+
+  it('names who has to answer a confirm the reader cannot', () => {
+    renderParts([
+      { kind: 'approval', id: 'a6', approvalKind: 'confirm', subject: 'call', waitingOn: 'Bob' },
+    ])
+    expect(screen.getByText('Waiting for Bob to answer')).toBeInTheDocument()
+  })
 })
 function tc(id: string, name: string, status: 'ok' | 'running' | 'error' = 'ok'): MessagePart {
   return {
