@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useLayoutEffect, useState } from 'react'
 import { expect, screen, userEvent, waitFor, within } from 'storybook/test'
 import { MoreIcon } from '../icons'
-import { onTop } from '../test/stacking'
+import { onTop, overlaps } from '../test/stacking'
 import { ActionMenu } from './ActionMenu'
 import { Button } from './Button'
 import { ProgressBar } from './Meter'
@@ -26,9 +26,6 @@ const shownToast = async (text: string, timeout = 1000) => {
   await waitFor(() => expect(shown.getAttribute('data-starting-style')).toBeNull())
   return shown
 }
-
-const overlaps = (a: DOMRect, b: DOMRect) =>
-  a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
 
 interface ToastArgs {
   tone: ToastTone
@@ -246,6 +243,7 @@ export const OverAModal: StoryObj = {
 
 // The toasts' width from the small breakpoint up.
 const TOAST_WIDTH = 384
+const STARTED = 'It runs in the background and reports here when it finishes.'
 
 function MenuBesideToasts() {
   const [picked, setPicked] = useState<string>()
@@ -268,9 +266,8 @@ function MenuBesideToasts() {
       <div style={{ marginTop: 96 }}>
         <Button
           onClick={() =>
-            toast.success('It runs in the background and reports here when it finishes.', {
-              title: 'The job started',
-            })
+            // Kept until the play dismisses it, so it can't close before the menu opens over it.
+            toast.success(STARTED, { title: 'The job started', timeout: false })
           }
         >
           Start
@@ -289,7 +286,7 @@ export const UnderAnOpenMenu: StoryObj = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: 'Start' }))
-    const shown = await shownToast('It runs in the background and reports here when it finishes.')
+    const shown = await shownToast(STARTED)
     await userEvent.click(canvas.getByRole('button', { name: 'Page actions' }))
     const item = await screen.findByRole('menuitem', { name: 'Duplicate' })
     // The menu is placed once it has measured its trigger.
