@@ -10,9 +10,16 @@ describe('icons', () => {
     const svg = container.querySelector('svg')
     expect(svg).toHaveAttribute('width', '1em')
     expect(svg).toHaveAttribute('height', '1em')
-    expect(svg).toHaveAttribute('stroke-width', '2')
+    expect(svg).toHaveAttribute('stroke-width', '1.5')
     expect(svg).toHaveAttribute('aria-hidden', 'true')
     expect(svg).toHaveClass('text-red-600')
+  })
+
+  it('take a stroke width in the 24px units of the glyphs not yet redrawn', () => {
+    const { container } = render(<TrashIcon strokeWidth={3} />)
+    const svg = container.querySelector('svg')
+    expect(svg).toHaveAttribute('viewBox', '0 0 16 16')
+    expect(svg).toHaveAttribute('stroke-width', '2')
   })
 
   it('are named by a title', () => {
@@ -35,7 +42,7 @@ describe('icons', () => {
     const svg = container.querySelector('svg')
     expect(svg).toHaveAttribute('viewBox', '0 0 24 24')
     expect(svg).toHaveAttribute('width', '1em')
-    expect(svg).toHaveAttribute('stroke-width', '2')
+    expect(svg).toHaveAttribute('stroke-width', '2.25')
     expect(svg).toHaveAttribute('aria-hidden', 'true')
     expect(svg?.querySelectorAll('path')).toHaveLength(4)
   })
