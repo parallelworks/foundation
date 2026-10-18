@@ -170,14 +170,29 @@ function SummaryBody({ runSlug, path }: { runSlug: string; path: string | null }
   )
 }
 
-// The box a card scrolls in, or null for the window. `hidden` clips without scrolling, and the
-// root element's and the body's overflow scrolls the window.
+// The box a card scrolls in, or null for the window. `hidden` clips without scrolling, a box with
+// room for every card (such as one that scrolls only sideways) clips none, and the root element's
+// and the body's overflow scrolls the window. A root that doesn't contain the card never sees it,
+// so past a fixed box the window is the root, and past an absolute one only a positioned box is.
 function scroller(el: Element): Element | null {
   const { body, documentElement } = el.ownerDocument
+  let position = getComputedStyle(el).position
   for (let node = el.parentElement; node && node !== body; node = node.parentElement) {
-    if (node !== documentElement && /auto|scroll|overlay/.test(getComputedStyle(node).overflowY)) {
+    if (position === 'fixed') {
+      return null
+    }
+    const style = getComputedStyle(node)
+    if (position === 'absolute' && style.position === 'static') {
+      continue
+    }
+    if (
+      node !== documentElement &&
+      /auto|scroll|overlay/.test(style.overflowY) &&
+      node.scrollHeight > node.clientHeight
+    ) {
       return node
     }
+    position = style.position
   }
   return null
 }
