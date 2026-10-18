@@ -243,6 +243,7 @@ export const OverAModal: StoryObj = {
 
 // The toasts' width from the small breakpoint up.
 const TOAST_WIDTH = 384
+
 const STARTED = 'It runs in the background and reports here when it finishes.'
 
 function MenuBesideToasts() {
@@ -278,8 +279,8 @@ function MenuBesideToasts() {
   )
 }
 
-/** A menu opened while a toast shows opens over it, so each item takes its own press
- *  instead of the toast. The toast stays where it was, under the menu. */
+/** A menu opened while a toast shows opens over it, so an item over the toast takes its
+ *  own press instead of the toast. */
 export const UnderAnOpenMenu: StoryObj = {
   name: 'Under an open menu',
   render: () => <MenuBesideToasts />,

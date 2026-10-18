@@ -1,4 +1,4 @@
-/** Whether two boxes share any area; a box with none, as in a test DOM, overlaps nothing. */
+/** Whether two boxes share any area. In a test DOM every box is empty at the origin, so none do. */
 export const overlaps = (a: DOMRect, b: DOMRect) =>
   a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
 
