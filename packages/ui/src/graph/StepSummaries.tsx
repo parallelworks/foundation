@@ -170,7 +170,20 @@ function SummaryBody({ runSlug, path }: { runSlug: string; path: string | null }
   )
 }
 
-// Two screens of margin, so a summary has usually loaded by the time it scrolls in.
+// The box a card scrolls in, or null for the window. `hidden` clips without scrolling, and the
+// root element's and the body's overflow scrolls the window.
+function scroller(el: Element): Element | null {
+  const { body, documentElement } = el.ownerDocument
+  for (let node = el.parentElement; node && node !== body; node = node.parentElement) {
+    if (node !== documentElement && /auto|scroll|overlay/.test(getComputedStyle(node).overflowY)) {
+      return node
+    }
+  }
+  return null
+}
+
+// Two screens of margin, so a summary has usually loaded by the time it scrolls in. The margin
+// grows only the root, so it goes on the box the card scrolls in, which would clip it first.
 function useNearViewport(ref: RefObject<HTMLElement | null>): boolean {
   const [near, setNear] = useState(typeof IntersectionObserver === 'undefined')
   useEffect(() => {
@@ -184,7 +197,7 @@ function useNearViewport(ref: RefObject<HTMLElement | null>): boolean {
           setNear(true)
         }
       },
-      { rootMargin: '200% 0px' },
+      { root: scroller(el), rootMargin: '200% 0px' },
     )
     observer.observe(el)
     return () => observer.disconnect()
