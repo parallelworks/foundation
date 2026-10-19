@@ -32,7 +32,12 @@ export {
 export { default as ChatMessageView } from './components/ChatMessage'
 export { default as ChatMessageList } from './components/ChatMessageList'
 export { default as ChatSidebar } from './components/ChatSidebar'
-export { default as ChatStage } from './components/ChatStage'
+export {
+  default as ChatStage,
+  StageList,
+  StageListRowContent,
+  stageListRowClassName,
+} from './components/ChatStage'
 export { default as ChatThread } from './components/ChatThread'
 export {
   ComposerContext,
