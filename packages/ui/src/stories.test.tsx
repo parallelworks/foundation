@@ -17,6 +17,7 @@ import * as copy from './components/CopyButton.stories'
 import * as controls from './components/controls.stories'
 import * as descriptionList from './components/DescriptionList.stories'
 import * as fields from './components/fields.stories'
+import * as imageUpload from './components/ImageUpload.stories'
 import * as loading from './components/loading.stories'
 import * as markdown from './components/Markdown.stories'
 import * as menus from './components/Menu.stories'
@@ -77,6 +78,7 @@ const SUITES = {
   combobox,
   controls,
   copy,
+  imageUpload,
   fields,
   menus,
   overlays,
