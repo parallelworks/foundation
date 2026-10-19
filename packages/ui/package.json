@@ -1,6 +1,6 @@
 {
   "name": "@parallelworks/ui",
-  "version": "0.60.0",
+  "version": "0.73.0",
   "description": "React UI components: a theme contract, icons, brand logos, primitives, lists, forms, a job graph, a code editor, a log viewer, a file explorer and an AI chat, each on its own subpath",
   "license": "Apache-2.0",
   "repository": {
@@ -142,7 +142,6 @@
     "css-tree": "^3.2.1",
     "dequal": "^2.0.3",
     "katex": "^0.19.0",
-    "lucide-react": "1.52.0",
     "luxon": "^3.7.2",
     "react-zoom-pan-pinch": "^4.2.0",
     "shiki": "^4.5.0",

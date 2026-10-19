@@ -242,6 +242,8 @@ export interface UIStrings {
     stepOf: (position: number, count: number) => string
     summaryLoadFailed: string
     summaryTab: string
+    /** Names the cards under the graph, one for each step that wrote a summary. */
+    stepSummaries: string
     logsTab: string
     scriptTab: string
     openSubworkflow: string
@@ -672,7 +674,7 @@ export interface UIData {
 }
 
 import type { FieldComponent } from '../form/fieldRegistry'
-import type { Breadcrumb } from './pageHeaderStore'
+import type { Breadcrumb } from './Breadcrumbs'
 
 /** An internal navigation link, which hosts bind to their router's Link. Its
  *  `href` is a full in-app URL that may carry a search and a hash, such as
@@ -961,10 +963,11 @@ const DEFAULTS: UIProviderValue = {
       noLogFound: 'No log found',
       logLoadFailed: 'Log could not be loaded',
       loadingSummary: 'Loading summary',
-      hasSummary: 'Has a summary',
+      hasSummary: 'Step summary',
       stepOf: (position, count) => `Step ${position} of ${count}`,
       summaryLoadFailed: 'Summary could not be loaded',
       summaryTab: 'Summary',
+      stepSummaries: 'Step summaries',
       logsTab: 'Logs',
       scriptTab: 'Script',
       openSubworkflow: 'Open Subworkflow',

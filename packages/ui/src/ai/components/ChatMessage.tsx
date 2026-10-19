@@ -11,6 +11,7 @@ import { cx } from '../../cx'
 import { formatDuration } from '../../format'
 import { EditIcon, RetryIcon } from '../../icons'
 import { useChatConfig } from '../core/config'
+import { replyText } from '../core/useKeyboardShortcuts'
 import type { ApprovalAnswerValue, AttachmentRef, ChatMessage as Message } from '../types'
 import Markdown from '../ui/Markdown'
 import { chatProseClasses } from '../ui/prose'
@@ -177,8 +178,38 @@ function ChatMessage({
   // flat-path hiding below never applies to them. A chat message with both
   // parts and content (tool calls made on the way to a normal answer) falls
   // through and renders the parts above its content with the usual chrome.
+  const timestamp = parseTimestamp(message.timestamp)
+  const totalTokens = message.tokensUsed?.total_tokens
+  const meta = (timestamp || (!isUser && (message.model || totalTokens))) && (
+    <span
+      className={cx(
+        'chat-meta flex items-center gap-2 ml-2 text-xs tabular-nums theme-muted-text transition-opacity duration-150 select-none',
+        'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100',
+      )}
+    >
+      <RelativeTime value={timestamp} />
+      {!isUser && message.model && <span>{message.model}</span>}
+      {!isUser && totalTokens ? (
+        <span
+          title={
+            message.tokensUsed?.prompt_tokens !== undefined &&
+            message.tokensUsed?.completion_tokens !== undefined
+              ? t.tokensBreakdown(
+                  message.tokensUsed.prompt_tokens,
+                  message.tokensUsed.completion_tokens,
+                )
+              : undefined
+          }
+        >
+          {t.tokens(totalTokens)}
+        </span>
+      ) : null}
+    </span>
+  )
+
   const hasParts = !!message.parts?.length
   if (hasParts && !message.content) {
+    const said = replyText(message)
     return (
       <div className={cx('group py-3 w-full', !flush && 'px-4')}>
         <AgentMessageParts
@@ -186,6 +217,36 @@ function ChatMessage({
           isStreaming={isStreaming}
           onApprovalAnswer={onApprovalAnswer}
         />
+        {!isUser && !isStreaming && (said || onRegenerate || meta) && (
+          <div className="chat-actions -ml-1.5 mt-2 flex items-center gap-0.5">
+            {said && (
+              <CopyButton
+                text={said}
+                label={t.copyLabel}
+                quiet
+                size="md"
+                className={actionClasses}
+              />
+            )}
+            {onRegenerate && (
+              <IconButton
+                label={t.regenerate}
+                onClick={() => onRegenerate(message.id)}
+                size="md"
+                className={actionClasses}
+                icon={<RetryIcon />}
+              />
+            )}
+            {onNavigateBranch && (
+              <BranchNavigator
+                messages={allMessages}
+                currentMessageId={message.id}
+                onNavigate={onNavigateBranch}
+              />
+            )}
+            {meta}
+          </div>
+        )}
       </div>
     )
   }
@@ -201,8 +262,6 @@ function ChatMessage({
     return null
   }
 
-  const timestamp = parseTimestamp(message.timestamp)
-  const totalTokens = message.tokensUsed?.total_tokens
   const collapsed = !isUser && collapsible && !expanded && !isStreaming && !latest
 
   return (
@@ -439,33 +498,7 @@ function ChatMessage({
                   />
                 )}
 
-                {/* Message metadata, hover-revealed alongside the actions */}
-                {(timestamp || (!isUser && (message.model || totalTokens))) && (
-                  <span
-                    className={cx(
-                      'chat-meta flex items-center gap-2 ml-2 text-xs tabular-nums theme-muted-text transition-opacity duration-150 select-none',
-                      'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100',
-                    )}
-                  >
-                    <RelativeTime value={timestamp} />
-                    {!isUser && message.model && <span>{message.model}</span>}
-                    {!isUser && totalTokens ? (
-                      <span
-                        title={
-                          message.tokensUsed?.prompt_tokens !== undefined &&
-                          message.tokensUsed?.completion_tokens !== undefined
-                            ? t.tokensBreakdown(
-                                message.tokensUsed.prompt_tokens,
-                                message.tokensUsed.completion_tokens,
-                              )
-                            : undefined
-                        }
-                      >
-                        {t.tokens(totalTokens)}
-                      </span>
-                    ) : null}
-                  </span>
-                )}
+                {meta}
               </div>
             )}
           </div>

@@ -1,6 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useLayoutEffect, useState } from 'react'
 import { expect, screen, userEvent, waitFor, within } from 'storybook/test'
+import { MoreIcon } from '../icons'
+import { onTop, overlaps } from '../test/stacking'
+import { ActionMenu } from './ActionMenu'
 import { Button } from './Button'
 import { ProgressBar } from './Meter'
 import { Modal, ModalTitle } from './Modal'
@@ -23,9 +26,6 @@ const shownToast = async (text: string, timeout = 1000) => {
   await waitFor(() => expect(shown.getAttribute('data-starting-style')).toBeNull())
   return shown
 }
-
-const overlaps = (a: DOMRect, b: DOMRect) =>
-  a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
 
 interface ToastArgs {
   tone: ToastTone
@@ -237,6 +237,69 @@ export const OverAModal: StoryObj = {
       expect(within(region()).queryByText('The cluster is offline')).not.toBeInTheDocument(),
     )
     await expect(screen.getByRole('dialog', { name: 'Edit the cluster' })).toBeVisible()
+    toast.dismiss()
+  },
+}
+
+// The toasts' width from the small breakpoint up.
+const TOAST_WIDTH = 384
+
+const STARTED = 'It runs in the background and reports here when it finishes.'
+
+function MenuBesideToasts() {
+  const [picked, setPicked] = useState<string>()
+  const items = ['Duplicate', 'Rename', 'Archive'].map((label) => ({
+    label,
+    onClick: () => setPicked(label),
+  }))
+  return (
+    <div className="flex flex-col items-center gap-4">
+      {/* The trigger sits just past the toasts' right edge, as a header's trailing action
+          does, so the menu it opens drops under them. Stories get no Tailwind classes of
+          their own, so the layout is inline. */}
+      <div className="relative" style={{ width: TOAST_WIDTH, height: 32 }}>
+        <div className="absolute top-0" style={{ left: '100%', marginLeft: 8 }}>
+          <ActionMenu items={items} label="Page actions" align="end">
+            <MoreIcon />
+          </ActionMenu>
+        </div>
+      </div>
+      <div style={{ marginTop: 96 }}>
+        <Button
+          onClick={() =>
+            // Kept until the play dismisses it, so it can't close before the menu opens over it.
+            toast.success(STARTED, { title: 'The job started', timeout: false })
+          }
+        >
+          Start
+        </Button>
+      </div>
+      {picked && <p className="text-sm">Picked {picked}</p>}
+    </div>
+  )
+}
+
+/** A menu opened while a toast shows opens over it, so an item over the toast takes its
+ *  own press instead of the toast. */
+export const UnderAnOpenMenu: StoryObj = {
+  name: 'Under an open menu',
+  render: () => <MenuBesideToasts />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: 'Start' }))
+    const shown = await shownToast(STARTED)
+    await userEvent.click(canvas.getByRole('button', { name: 'Page actions' }))
+    const item = await screen.findByRole('menuitem', { name: 'Duplicate' })
+    // The menu is placed once it has measured its trigger.
+    await waitFor(() =>
+      expect(
+        overlaps(item.getBoundingClientRect(), shown.getBoundingClientRect()),
+        'the menu opens where the toast is',
+      ).toBe(true),
+    )
+    await waitFor(() => expect(onTop(item), 'the toast covers the menu').toBe(true))
+    await userEvent.click(item)
+    await expect(await canvas.findByText('Picked Duplicate')).toBeInTheDocument()
     toast.dismiss()
   },
 }

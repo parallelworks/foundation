@@ -3,7 +3,9 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import { expect, screen, userEvent, waitFor, within } from 'storybook/test'
 import { cx } from '../cx'
 import { ExpressionIcon, UndoIcon } from '../icons'
+import { overlaps } from '../test/stacking'
 import { applyTheme, generateTheme, THEME_TOKENS } from '../theme'
+import { Button } from './Button'
 import { Checkbox, CheckboxGroup } from './Checkbox'
 import { ColorInput } from './ColorInput'
 import { Autocomplete, Combobox } from './Combobox'
@@ -134,7 +136,7 @@ function Boxes({ size, invalid, disabled }: BoxArgs) {
 /** Every box a value is typed or picked in shares one recipe: size, focus ring, invalid and disabled. */
 export const Box: StoryObj<BoxArgs> = {
   args: { size: 'md', invalid: false, disabled: false },
-  argTypes: { size: { control: 'inline-radio', options: ['sm', 'md'] } },
+  argTypes: { size: { control: 'inline-radio', options: ['sm', 'md', 'lg'] } },
   render: (args) => <Boxes {...args} />,
 }
 
@@ -148,9 +150,32 @@ export const BoxDisabled: StoryObj<BoxArgs> = {
   args: { size: 'sm', invalid: false, disabled: true },
 }
 
+export const BoxLarge: StoryObj<BoxArgs> = {
+  ...Box,
+  args: { size: 'lg', invalid: false, disabled: false },
+}
+
+/** A form that stands alone, such as sign-in, takes `lg` fields and a matching `lg` button. */
+export const SignInForm: StoryObj = {
+  render: () => (
+    <form className="flex max-w-sm flex-col gap-4" onSubmit={(event) => event.preventDefault()}>
+      <Input size="lg" label="Username or email" autoComplete="username" />
+      <Input size="lg" label="Password" type="password" autoComplete="current-password" />
+      <Button variant="primary" size="lg" type="submit">
+        Sign in
+      </Button>
+    </form>
+  ),
+  play: async ({ canvasElement }) => {
+    const field = within(canvasElement).getByLabelText('Username or email')
+    await expect(field.getBoundingClientRect().height).toBe(40)
+    await expect(getComputedStyle(field).fontSize).toBe('16px')
+  },
+}
+
 interface FrameArgs {
   layout: FieldLayout
-  size: FieldBoxSize
+  size: 'sm' | 'md'
   required: boolean
   disabled: boolean
   error: string
@@ -230,6 +255,13 @@ export const Frame: StoryObj<FrameArgs> = {
 export const FrameInline: StoryObj<FrameArgs> = {
   ...Frame,
   args: { ...Frame.args, layout: 'inline' } as FrameArgs,
+}
+
+/** On a phone a 208px label column would leave the control a sliver, so an inline field stacks
+ *  its label above the control, as `stacked` does. */
+export const FrameInlineOnPhone: StoryObj<FrameArgs> = {
+  ...FrameInline,
+  globals: { viewport: { value: 'mobile1', isRotated: false } },
 }
 
 /** At `sm` the label is a small, muted caption that keeps to the height of `sm` controls. */
@@ -348,10 +380,6 @@ export const FrameWithHelpOnKeyboardFocus: StoryObj<FrameArgs> = {
   },
 }
 
-// Whether two boxes share any area; a box with none, as in a test DOM, overlaps nothing.
-const overlaps = (a: DOMRect, b: DOMRect) =>
-  a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
-
 function HelpForm() {
   return (
     <div className="flex w-full max-w-md flex-col gap-4">
@@ -448,10 +476,12 @@ export const FrameDisabled: StoryObj<FrameArgs> = {
 
 interface ControlFirstArgs {
   layout: FieldLayout
-  size: FieldBoxSize
+  size: 'sm' | 'md'
   /** Off shows the label-first frame a checkbox had before, label then ? then box. */
   controlFirst: boolean
   help: string
+  /** Text after the switch's label and outside its name, such as the name of its state. */
+  hint: string
   description: string
   error: string
   disabled: boolean
@@ -468,6 +498,7 @@ export const ControlFirst: StoryObj<ControlFirstArgs> = {
     size: 'md',
     controlFirst: true,
     help: 'Finished runs move to the archive after 30 days.',
+    hint: '',
     description: 'Archived runs keep their logs.',
     error: '',
     disabled: false,
@@ -478,7 +509,7 @@ export const ControlFirst: StoryObj<ControlFirstArgs> = {
     size: { control: 'inline-radio', options: ['sm', 'md'] },
   },
   decorators: [roomAbove],
-  render: ({ layout, size, controlFirst, help, description, error, disabled, longLabel }) => (
+  render: ({ layout, size, controlFirst, help, hint, description, error, disabled, longLabel }) => (
     <div className={cx('flex flex-col gap-4', longLabel ? 'max-w-sm' : 'max-w-lg')}>
       <Field label="Cluster" layout={layout} size={size} disabled={disabled}>
         <Input defaultValue="training-a" size={size} disabled={disabled} />
@@ -503,6 +534,11 @@ export const ControlFirst: StoryObj<ControlFirstArgs> = {
         label="Monitoring"
         controlFirst={controlFirst}
         help={help ? 'Collects usage every minute.' : undefined}
+        hint={
+          hint ? (
+            <span className="font-normal text-(--theme-muted-text-color)">{hint}</span>
+          ) : undefined
+        }
         disabled={disabled}
         layout={layout}
         size={size}
@@ -549,6 +585,13 @@ export const ControlFirstInline: StoryObj<ControlFirstArgs> = {
 export const ControlFirstOff: StoryObj<ControlFirstArgs> = {
   ...ControlFirst,
   args: { ...ControlFirst.args, controlFirst: false } as ControlFirstArgs,
+}
+
+/** A hint, here the name of the switch's state, follows the label and its ? on the label's
+ *  baseline, outside the switch's name. */
+export const ControlFirstWithHint: StoryObj<ControlFirstArgs> = {
+  ...ControlFirst,
+  args: { ...ControlFirst.args, hint: 'Every minute' } as ControlFirstArgs,
 }
 
 export const ControlFirstWithoutHelp: StoryObj<ControlFirstArgs> = {
@@ -601,6 +644,136 @@ export const ControlFirstHelpOnKeyboardFocus: StoryObj<ControlFirstArgs> = {
     await expect(canvas.getByRole('checkbox', { name: /Archive finished runs/ })).toHaveFocus()
     await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent(/after 30 days/))
   },
+}
+
+interface SwitchCenteringArgs {
+  layout: FieldLayout
+  size: 'sm' | 'md'
+}
+
+/** The center of a line box, from the first or a later rectangle of an element's text, which is
+ *  as far from the line's top as from its bottom. */
+function lineOf(element: Element, index = 0) {
+  const range = document.createRange()
+  range.selectNodeContents(element)
+  const rect = range.getClientRects()[index]
+  if (!rect) {
+    throw new Error(`no line ${index} in ${element.textContent}`)
+  }
+  const height = Number.parseFloat(getComputedStyle(element).lineHeight)
+  const center = rect.top + rect.height / 2
+  return { top: center - height / 2, bottom: center + height / 2 }
+}
+
+/** Where a control's middle sits, and the middle of the text lines it should center on: the
+ *  label's first line, its first two lines, or the label's line and the description's first. */
+function centers(canvasElement: HTMLElement, role: 'switch' | 'checkbox', name: string | RegExp) {
+  const control = within(canvasElement).getByRole(role, { name })
+  const labelledBy = control.getAttribute('aria-labelledby')
+  const label = labelledBy ? document.getElementById(labelledBy) : null
+  const describedBy = control.getAttribute('aria-describedby')?.split(' ') ?? []
+  const descriptionId = describedBy.find((id) => id.endsWith('description'))
+  const description = descriptionId ? document.getElementById(descriptionId) : null
+  if (!label) {
+    throw new Error(`no label for ${name}`)
+  }
+  const box = control.getBoundingClientRect()
+  const middle = (a: { top: number }, b: { bottom: number }) => (a.top + b.bottom) / 2
+  const first = lineOf(label)
+  return {
+    control: box.top + box.height / 2,
+    firstLine: middle(first, first),
+    twoLabelLines: () => middle(first, lineOf(label, 1)),
+    labelAndDescription: () => {
+      if (!description) {
+        throw new Error(`no description for ${name}`)
+      }
+      return middle(first, lineOf(description))
+    },
+  }
+}
+
+/** A switch centers on its text's first two lines: the label alone, the label and a one-line
+ *  description, a label that wraps, and a description of several lines, where it stays on the
+ *  label and the description's first line. A checkbox keeps to its label's first line. */
+export const ControlFirstSwitchCentering: StoryObj<SwitchCenteringArgs> = {
+  args: { layout: 'stacked', size: 'md' },
+  argTypes: {
+    layout: { control: 'inline-radio', options: ['stacked', 'inline'] },
+    size: { control: 'inline-radio', options: ['sm', 'md'] },
+  },
+  render: ({ layout, size }) => (
+    <div className={cx('flex flex-col gap-4', layout === 'inline' ? 'max-w-2xl' : 'max-w-sm')}>
+      <Field label="Monitoring" controlFirst layout={layout} size={size}>
+        <Switch size={size} defaultChecked />
+      </Field>
+      <Field
+        label="Keep scratch files"
+        description="Kept files count toward the project quota."
+        controlFirst
+        layout={layout}
+        size={size}
+      >
+        <Switch size={size} />
+      </Field>
+      <Field
+        label="Archive finished runs automatically, with their outputs and logs, after a month"
+        controlFirst
+        layout={layout}
+        size={size}
+      >
+        <Switch size={size} defaultChecked />
+      </Field>
+      <Field
+        label="Cache images"
+        description="Nodes keep the images their runs pull, so the next run on the node starts sooner. A cached image counts toward the node's disk, and the oldest ones are removed when it fills."
+        controlFirst
+        layout={layout}
+        size={size}
+      >
+        <Switch size={size} defaultChecked />
+      </Field>
+      <Field
+        label="I agree to the terms of use"
+        description="The terms cover every run in this workspace."
+        controlFirst
+        layout={layout}
+        size={size}
+      >
+        <Checkbox />
+      </Field>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const near = async (actual: number, expected: number) =>
+      expect(Math.abs(actual - expected)).toBeLessThanOrEqual(1)
+    const alone = centers(canvasElement, 'switch', 'Monitoring')
+    await near(alone.control, alone.firstLine)
+    const described = centers(canvasElement, 'switch', 'Keep scratch files')
+    const onTwo = described.labelAndDescription()
+    await near(described.control, onTwo)
+    const wrapped = centers(canvasElement, 'switch', /Archive finished runs/)
+    await near(wrapped.control, wrapped.twoLabelLines())
+    // Under several lines it stays where it is beside a one-line description, measured from the
+    // top of its own row.
+    const long = centers(canvasElement, 'switch', 'Cache images')
+    await near(long.control, long.labelAndDescription())
+    await near(long.control - long.firstLine, described.control - described.firstLine)
+    const checkbox = centers(canvasElement, 'checkbox', 'I agree to the terms of use')
+    await near(checkbox.control, checkbox.firstLine)
+  },
+}
+
+/** The same at the small size, whose label and description lines are both 16px. */
+export const ControlFirstSwitchCenteringSmall: StoryObj<SwitchCenteringArgs> = {
+  ...ControlFirstSwitchCentering,
+  args: { layout: 'stacked', size: 'sm' },
+}
+
+/** Inline, in the control column under an empty label column. */
+export const ControlFirstSwitchCenteringInline: StoryObj<SwitchCenteringArgs> = {
+  ...ControlFirstSwitchCentering,
+  args: { layout: 'inline', size: 'md' },
 }
 
 /** A secret's box shows what was typed only while its eye is pressed. */
@@ -953,7 +1126,7 @@ function DenseDemo({ size }: DenseArgs) {
  *  the kit; a width in `className` wins over the box's own `w-full`. */
 export const Dense: StoryObj<DenseArgs> = {
   args: { size: 'sm' },
-  argTypes: { size: { control: 'inline-radio', options: ['sm', 'md'] } },
+  argTypes: { size: { control: 'inline-radio', options: ['sm', 'md', 'lg'] } },
   render: (args) => <DenseDemo {...args} />,
 }
 
@@ -1028,7 +1201,7 @@ function ReadOnlyDemo({ layout, size }: ReadOnlyArgs) {
 const readOnly: StoryObj<ReadOnlyArgs> = {
   argTypes: {
     layout: { control: 'inline-radio', options: ['stacked', 'inline'] },
-    size: { control: 'inline-radio', options: ['sm', 'md'] },
+    size: { control: 'inline-radio', options: ['sm', 'md', 'lg'] },
   },
   render: (args) => <ReadOnlyDemo {...args} />,
 }
@@ -1089,7 +1262,7 @@ function ColorDemo({ size, disabled, error, actions }: ColorArgs) {
  *  marked, until it parses. */
 export const Color: StoryObj<ColorArgs> = {
   args: { size: 'md', disabled: false, error: '', actions: false },
-  argTypes: { size: { control: 'inline-radio', options: ['sm', 'md'] } },
+  argTypes: { size: { control: 'inline-radio', options: ['sm', 'md', 'lg'] } },
   render: (args) => <ColorDemo {...args} />,
 }
 
@@ -1117,7 +1290,7 @@ const oneTimeCode: StoryObj<CodeArgs> = {
   args: { length: 6, size: 'md', disabled: false, error: '', autoFocus: false },
   argTypes: {
     length: { control: { type: 'number', min: 4, max: 8 } },
-    size: { control: 'inline-radio', options: ['sm', 'md'] },
+    size: { control: 'inline-radio', options: ['sm', 'md', 'lg'] },
   },
   render: ({ length, size, disabled, error, autoFocus }) => (
     <Field

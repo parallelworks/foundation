@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.18.0](https://github.com/parallelworks/foundation/compare/dev/v0.17.1...dev/v0.18.0) (2026-10-19)
+
+
+### Features
+
+* **dev:** dev clean keeps the disk from filling between runs and never trims the Go cache under a running build ([#389](https://github.com/parallelworks/foundation/issues/389)) ([8b39ef8](https://github.com/parallelworks/foundation/commit/8b39ef89a50a7ed60dbde3398c132f64ca7c5542))
+
+## [0.17.1](https://github.com/parallelworks/foundation/compare/dev/v0.17.0...dev/v0.17.1) (2026-10-16)
+
+
+### Bug Fixes
+
+* **dev:** dev clean --install waits for launchd to let go of the old job ([#348](https://github.com/parallelworks/foundation/issues/348)) ([676faee](https://github.com/parallelworks/foundation/commit/676faeeb4361544b3c3a664023633287790931b6))
+
+## [0.17.0](https://github.com/parallelworks/foundation/compare/dev/v0.16.0...dev/v0.17.0) (2026-10-16)
+
+
+### Features
+
+* **dev:** dev clean --install adds to the schedule instead of replacing it ([#346](https://github.com/parallelworks/foundation/issues/346)) ([f1f7714](https://github.com/parallelworks/foundation/commit/f1f7714ce9856c329b914d58d257db36ec63d5a2))
+
 ## [0.16.0](https://github.com/parallelworks/foundation/compare/dev/v0.15.0...dev/v0.16.0) (2026-10-13)
 
 

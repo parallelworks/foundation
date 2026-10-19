@@ -11,12 +11,13 @@ import {
   useState,
 } from 'react'
 import { cx } from '../../cx'
-import { AddIcon, ArrowUpIcon, StopIcon } from '../../icons'
+import { ArrowUpIcon, StopIcon } from '../../icons'
 import { useChat } from '../core/ChatProvider'
 import { useChatConfig } from '../core/config'
 import useDragDrop from '../core/useDragDrop'
 import type { AttachmentMeta, MessagePaste } from '../types'
 import AttachmentUpload, { type Attachment, type AttachmentUploadHandle } from './AttachmentUpload'
+import ComposerAddMenu from './ComposerAddMenu'
 import { ComposerContext, ComposerControls, ComposerSettings } from './ComposerChrome'
 import { clearDraft, readDraft, storeDraft, sweepDrafts } from './chatDraft'
 import DragOverlay from './DragOverlay'
@@ -65,6 +66,9 @@ interface ChatInputProps {
   /** A turn the chat provider does not run, such as an agent session's: it
    *  drives the Stop button in place of the provider's stream and queue. */
   turn?: { running: boolean; onStop: () => void; stopping?: boolean }
+  /** False where the chat's tools do not apply, such as starting an agent
+   *  session, which brings its own. */
+  tools?: boolean
   pastes?: ComposerPastes | undefined
   ref?: Ref<ChatInputHandle> | undefined
 }
@@ -108,36 +112,6 @@ function keyAction(
     return 'editLast'
   }
   return null
-}
-
-function AttachButton({
-  open,
-  disabled,
-  label,
-  onClick,
-}: {
-  open: boolean
-  disabled: boolean
-  label: string
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      aria-expanded={open}
-      className={cx(
-        'flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition-colors',
-        open ? 'theme-text chat-tint-strong' : 'theme-muted-text hover:theme-text hover:chat-tint',
-        'disabled:opacity-50 disabled:cursor-not-allowed',
-      )}
-      aria-label={label}
-      title={label}
-    >
-      <AddIcon className={cx('h-5 w-5 transition-transform duration-200', open && 'rotate-45')} />
-    </button>
-  )
 }
 
 function SendButton({
@@ -216,6 +190,7 @@ export default function ChatInput({
   settingsRight = <ComposerControls />,
   hint,
   turn,
+  tools: toolsAllowed = true,
   pastes,
   ref,
 }: ChatInputProps) {
@@ -241,7 +216,7 @@ export default function ChatInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const attachmentUploadRef = useRef<AttachmentUploadHandle>(null)
   const chat = useChat()
-  const { adapter, flushQueuedMessages, isSelectedModelAvailable } = chat
+  const { adapter, flushQueuedMessages, isSelectedModelAvailable, tools } = chat
   const { isStreaming, stopStreaming, queuedCount } = streamControls(chat, turn)
   const t = useChatConfig().strings.input
   const effectivePlaceholder = placeholder ?? t.placeholder
@@ -399,7 +374,9 @@ export default function ChatInput({
     onFilesDropped: handleFilesDropped,
   })
 
-  const toolbar = attachmentsAvailable || !!settingsRight
+  // A turn the provider doesn't run, such as an agent's, can't use its tools.
+  const toolsAvailable = toolsAllowed && !turn && tools.length > 0
+  const toolbar = attachmentsAvailable || toolsAvailable || !!settingsRight
   const action =
     isStreaming && !input.trim() ? (
       <button
@@ -511,14 +488,14 @@ export default function ChatInput({
 
               {toolbar && (
                 <div className="flex items-center gap-1 px-2 pb-2">
-                  {attachmentsAvailable && (
-                    <AttachButton
-                      open={showAttachments}
-                      disabled={disabled}
-                      label={t.attachFiles}
-                      onClick={() => setShowAttachments(!showAttachments)}
-                    />
-                  )}
+                  <ComposerAddMenu
+                    attachmentsOpen={showAttachments && attachmentsAvailable}
+                    onToggleAttachments={
+                      attachmentsAvailable ? () => setShowAttachments(!showAttachments) : undefined
+                    }
+                    disabled={disabled}
+                    withTools={toolsAllowed && !turn}
+                  />
                   {/* Send stays in the box however wide the host's controls
                     are; they give up their room first. */}
                   <div className="ml-auto flex min-w-0 items-center gap-1">

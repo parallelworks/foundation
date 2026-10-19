@@ -1,5 +1,137 @@
 # Changelog
 
+## [0.73.0](https://github.com/parallelworks/foundation/compare/ui-v0.72.0...ui-v0.73.0) (2026-10-19)
+
+
+### Features
+
+* **ui:** StageList for start pages, and conversation shortcuts any view can bind ([#390](https://github.com/parallelworks/foundation/issues/390)) ([02ec4f7](https://github.com/parallelworks/foundation/commit/02ec4f731e53f716ba11dd6a2a52c2a62c5f8ad1))
+
+
+### Bug Fixes
+
+* **ui:** a form group's description never shows under its title ([#393](https://github.com/parallelworks/foundation/issues/393)) ([8436b42](https://github.com/parallelworks/foundation/commit/8436b42565cdc9b581ad4b0ff19d3ca29b7cada7))
+
+## [0.72.0](https://github.com/parallelworks/foundation/compare/ui-v0.71.0...ui-v0.72.0) (2026-10-19)
+
+
+### Features
+
+* **ui:** a large field and button size, for a form that stands alone such as sign-in ([#385](https://github.com/parallelworks/foundation/issues/385)) ([c1993fe](https://github.com/parallelworks/foundation/commit/c1993fe6f151ba8ddddf0c371897d08fb0f6de44))
+
+## [0.71.0](https://github.com/parallelworks/foundation/compare/ui-v0.70.0...ui-v0.71.0) (2026-10-19)
+
+
+### Features
+
+* **ui:** one row, menu and empty state for lists of conversations and sessions ([#386](https://github.com/parallelworks/foundation/issues/386)) ([5e35899](https://github.com/parallelworks/foundation/commit/5e358997bd8e623637f7dff8d328c53a173fccfb))
+
+## [0.70.0](https://github.com/parallelworks/foundation/compare/ui-v0.69.0...ui-v0.70.0) (2026-10-19)
+
+
+### Features
+
+* **ui:** verified, owner and default icons, so they stop borrowing a success check and a star ([#383](https://github.com/parallelworks/foundation/issues/383)) ([fc14cd1](https://github.com/parallelworks/foundation/commit/fc14cd175a74dd9f795b47c94b28417ef67a4e79))
+
+## [0.69.0](https://github.com/parallelworks/foundation/compare/ui-v0.68.0...ui-v0.69.0) (2026-10-19)
+
+
+### Features
+
+* **ui:** SessionView, one conversation view for the chat and for agent sessions ([#381](https://github.com/parallelworks/foundation/issues/381)) ([a507d89](https://github.com/parallelworks/foundation/commit/a507d8981e948655429ef07cd3c8879be9fd7a94))
+
+## [0.68.0](https://github.com/parallelworks/foundation/compare/ui-v0.67.0...ui-v0.68.0) (2026-10-19)
+
+
+### Features
+
+* **ui:** icons say what they're for, and no two meanings share a drawing ([#379](https://github.com/parallelworks/foundation/issues/379)) ([e6696dc](https://github.com/parallelworks/foundation/commit/e6696dc3ede63d797aa3ee7db44adf44321b1b04))
+
+## [0.67.0](https://github.com/parallelworks/foundation/compare/ui-v0.66.1...ui-v0.67.0) (2026-10-18)
+
+
+### Features
+
+* **ui:** a network share icon, so a shared folder differs from a parallel filesystem ([#376](https://github.com/parallelworks/foundation/issues/376)) ([948f7c3](https://github.com/parallelworks/foundation/commit/948f7c39b0a6eb0978164f0659f5175a54203b15))
+
+## [0.66.1](https://github.com/parallelworks/foundation/compare/ui-v0.66.0...ui-v0.66.1) (2026-10-18)
+
+
+### Bug Fixes
+
+* **ui:** a toast covers an open menu, so its items under the toast can't be clicked ([#372](https://github.com/parallelworks/foundation/issues/372)) ([58a46ee](https://github.com/parallelworks/foundation/commit/58a46eeb2254db6db344d2d783d4621f3631b742))
+* **ui:** an avatar's initials sit above the middle of its circle ([#375](https://github.com/parallelworks/foundation/issues/375)) ([c712fdd](https://github.com/parallelworks/foundation/commit/c712fddce090967928c2b028fb6f8df7d91bb71d))
+* **ui:** step summaries in a scrolling panel start loading only once on screen ([#371](https://github.com/parallelworks/foundation/issues/371)) ([6ea84c7](https://github.com/parallelworks/foundation/commit/6ea84c703ae37cfdc6948b157012b79ac3ade58c))
+* **ui:** the more-actions dots are too faint to see, and the pin and play icons read smaller than their neighbours ([#370](https://github.com/parallelworks/foundation/issues/370)) ([f66107f](https://github.com/parallelworks/foundation/commit/f66107fb24306870ad076d7eba23f4cdbbcd688a))
+
+## [0.66.0](https://github.com/parallelworks/foundation/compare/ui-v0.65.2...ui-v0.66.0) (2026-10-18)
+
+
+### Features
+
+* **ui:** every interface icon is drawn in one hand on a 16px grid ([#368](https://github.com/parallelworks/foundation/issues/368)) ([b312f8a](https://github.com/parallelworks/foundation/commit/b312f8aedbbaf9a0f8e21dcd310d417b136c2c1b))
+
+## [0.65.2](https://github.com/parallelworks/foundation/compare/ui-v0.65.1...ui-v0.65.2) (2026-10-17)
+
+
+### Bug Fixes
+
+* **ui:** on a phone the chat composer's pickers are cut to a letter and its balance covers send, and a tool result runs off the screen ([#366](https://github.com/parallelworks/foundation/issues/366)) ([0cb1920](https://github.com/parallelworks/foundation/commit/0cb19209aa00669e15682f966c2071c8660172b9))
+
+## [0.65.1](https://github.com/parallelworks/foundation/compare/ui-v0.65.0...ui-v0.65.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **ui:** a form on a phone squeezes its fields beside a 208px label, and the sign-in card crowds its title ([#364](https://github.com/parallelworks/foundation/issues/364)) ([9d6ef23](https://github.com/parallelworks/foundation/commit/9d6ef23dd55fa8190b30a01605945b0cdcaf7358))
+
+## [0.65.0](https://github.com/parallelworks/foundation/compare/ui-v0.64.1...ui-v0.65.0) (2026-10-17)
+
+
+### Features
+
+* **ui:** readers choose which of the host's tools the chat assistant may use ([#358](https://github.com/parallelworks/foundation/issues/358)) ([13e42ed](https://github.com/parallelworks/foundation/commit/13e42ede90af87c05ad30858b66b88068ea16f26))
+
+
+### Bug Fixes
+
+* **ui:** control-first rows keep one rhythm, with or without a description ([#357](https://github.com/parallelworks/foundation/issues/357)) ([a9ba74e](https://github.com/parallelworks/foundation/commit/a9ba74e2e09594606e6f097d21fd815948494b7c))
+
+## [0.64.1](https://github.com/parallelworks/foundation/compare/ui-v0.64.0...ui-v0.64.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **ui:** the job list pins under the page's own bars, and a step's dialog shows its whole summary table ([#360](https://github.com/parallelworks/foundation/issues/360)) ([8486cd8](https://github.com/parallelworks/foundation/commit/8486cd817339da6ed10cafa2fa8249883bfff906))
+
+## [0.64.0](https://github.com/parallelworks/foundation/compare/ui-v0.63.0...ui-v0.64.0) (2026-10-17)
+
+
+### Features
+
+* **ui:** one scale shared with the apps: 32px fields, 48px header, 16px titles, 12px panels, 16px padding ([#343](https://github.com/parallelworks/foundation/issues/343)) ([3cc75a4](https://github.com/parallelworks/foundation/commit/3cc75a4ecbf1941b349478f49602dafdd4d42a97))
+
+## [0.63.0](https://github.com/parallelworks/foundation/compare/ui-v0.62.0...ui-v0.63.0) (2026-10-16)
+
+
+### Features
+
+* **ui:** a run's step summaries show as cards under its graph, which fits its jobs ([#337](https://github.com/parallelworks/foundation/issues/337)) ([6b2c888](https://github.com/parallelworks/foundation/commit/6b2c888d3c0dde867597e7917bef205eb82ad049))
+
+## [0.62.0](https://github.com/parallelworks/foundation/compare/ui-v0.61.0...ui-v0.62.0) (2026-10-16)
+
+
+### Features
+
+* **ui:** the form's booleans put the switch before its label ([#352](https://github.com/parallelworks/foundation/issues/352)) ([47c98ab](https://github.com/parallelworks/foundation/commit/47c98ab9825bf5f3ed48a16fc26f20a05489220b))
+
+## [0.61.0](https://github.com/parallelworks/foundation/compare/ui-v0.60.0...ui-v0.61.0) (2026-10-16)
+
+
+### Features
+
+* **ui:** Breadcrumbs renders the page header's trail anywhere, and the file explorer's trail folds ([#344](https://github.com/parallelworks/foundation/issues/344)) ([2da75f7](https://github.com/parallelworks/foundation/commit/2da75f737211cce2d6ad5ea7d6c81a6fa2bf5bcd))
+
 ## [0.60.0](https://github.com/parallelworks/foundation/compare/ui-v0.59.0...ui-v0.60.0) (2026-10-16)
 
 

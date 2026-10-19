@@ -37,6 +37,7 @@ const FORM_JSONS = {
   settings: {
     type: 'group',
     label: 'Cluster settings',
+    description: 'Every node in the cluster starts with these.',
     items: {
       name: {
         type: 'string',
@@ -264,7 +265,7 @@ export const Choices: StoryObj<typeof DynamicForm> = {
 }
 
 /** Options in groups, one setting another field as it's chosen, and a switch whose states have
- *  names of their own. */
+ *  names of their own, shown after its label. */
 export const GroupedChoicesAndNamedStates: StoryObj<typeof DynamicForm> = {
   args: {
     formJSONs: {
@@ -296,6 +297,7 @@ export const GroupedChoicesAndNamedStates: StoryObj<typeof DynamicForm> = {
         options: { onOption: 'PUBLIC', offOption: 'PRIVATE' },
       },
     },
+    initialValues: { visibility: 'PRIVATE' },
     workflowForm: true,
   },
   play: async ({ canvasElement }) => {
@@ -308,7 +310,212 @@ export const GroupedChoicesAndNamedStates: StoryObj<typeof DynamicForm> = {
       expect(canvas.getByRole('textbox', { name: 'Zone' })).toHaveValue('eu-central-1a'),
     )
     await expect(canvas.getByText('Private')).toBeVisible()
+    // The state's name follows the label, outside the switch's name.
+    const visibility = canvas.getByRole('switch', { name: 'Visibility' })
+    await userEvent.click(canvas.getByText('Visibility'))
+    await expect(visibility).toBeChecked()
+    await expect(canvas.getByText('Public')).toBeVisible()
   },
+}
+
+const BOOLEAN_FIELDS = {
+  notify: { type: 'boolean', label: 'Email me when the run ends', default: true },
+  spot: {
+    type: 'boolean',
+    label: 'Use spot instances',
+    default: false,
+    tooltip: 'Spot instances cost less but can be reclaimed at any time.',
+    description: 'A reclaimed node restarts its task from the last checkpoint.',
+  },
+  gpu: {
+    type: 'boolean',
+    label: 'Attach GPUs',
+    default: true,
+    disabled: true,
+    disabled_message: 'This queue has no GPUs.',
+    description: 'Set by the queue.',
+  },
+  visibility: {
+    type: 'boolean',
+    label: 'Visibility',
+    default: 'PRIVATE',
+    options: { onOption: 'PUBLIC', offOption: 'PRIVATE' },
+  },
+  storage: {
+    type: 'object',
+    label: 'Storage',
+    options: {
+      keep: {
+        type: 'boolean',
+        label: 'Keep scratch files after the run',
+        default: false,
+        tooltip: 'Kept files count toward the project quota.',
+      },
+    },
+  },
+  advanced: {
+    type: 'group',
+    label: 'Advanced',
+    items: {
+      verbose: { type: 'boolean', label: 'Verbose logs', default: false },
+    },
+  },
+}
+
+/** Each switch comes before its label, as a switch reads. A click on the label flips it, its help
+ *  and description are read with it, and a disabled one dims its label too. */
+export const Booleans: StoryObj<typeof DynamicForm> = {
+  args: {
+    formJSONs: BOOLEAN_FIELDS,
+    initialValues: {
+      notify: true,
+      spot: false,
+      gpu: true,
+      visibility: 'PRIVATE',
+      storage: { keep: false },
+      verbose: false,
+    },
+    skipValueParse: true,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const spot = await canvas.findByRole(
+      'switch',
+      { name: 'Use spot instances' },
+      { timeout: 5000 },
+    )
+    await expect(spot).toHaveAccessibleDescription(
+      /reclaimed node restarts.*Spot instances cost less/,
+    )
+    await userEvent.click(canvas.getByText('Use spot instances'))
+    await waitFor(() => expect(spot).toBeChecked())
+    await userEvent.click(canvas.getByText('Use spot instances'))
+    await waitFor(() => expect(spot).not.toBeChecked())
+    const gpu = canvas.getByRole('switch', { name: 'Attach GPUs' })
+    await expect(gpu).toBeDisabled()
+    await userEvent.click(canvas.getByText('Attach GPUs'), { pointerEventsCheck: 0 })
+    await expect(gpu).toBeChecked()
+  },
+}
+
+/** The same switches with their labels over the fields around them. */
+export const BooleansStacked: StoryObj<typeof DynamicForm> = {
+  args: { ...Booleans.args, labelPosition: 'top' },
+}
+
+const SWITCH_RUN_FIELDS = {
+  notify: {
+    type: 'boolean',
+    label: 'Email me when the run finishes',
+    default: true,
+    tooltip: 'Sent to the address on your profile.',
+  },
+  scratch: {
+    type: 'boolean',
+    label: 'Keep scratch files',
+    default: false,
+    description: 'Kept files count toward the project quota.',
+  },
+  gpus: {
+    type: 'boolean',
+    label: 'Use GPUs',
+    default: true,
+    disabled: true,
+    disabled_message: 'This queue has no GPUs.',
+    description: 'Set by the queue.',
+  },
+  advanced: {
+    type: 'group',
+    label: 'Advanced',
+    items: {
+      verbose: { type: 'boolean', label: 'Verbose logging', default: false },
+      retries: { type: 'number', label: 'Retries', default: 2, min: 0, max: 5 },
+    },
+  },
+}
+
+/** The rectangles of an element's text, its letters' height rather than its lines'. */
+function textRects(element: Element) {
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
+  const rects: DOMRect[] = []
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (node.textContent?.trim()) {
+      const range = document.createRange()
+      range.selectNodeContents(node)
+      rects.push(...range.getClientRects())
+    }
+  }
+  return rects
+}
+
+/** What a field's row shows, as the eye sees it: its switch or its input's border, and the text
+ *  of its label and description, not the boxes around them. */
+function shownExtent(canvasElement: HTMLElement, name: string) {
+  const canvas = within(canvasElement)
+  const control = canvas.queryByRole('switch', { name }) ?? canvas.getByRole('textbox', { name })
+  const labelledBy = control.getAttribute('aria-labelledby')
+  const label = labelledBy
+    ? document.getElementById(labelledBy)
+    : (control as HTMLInputElement).labels?.[0]
+  const description = document.getElementById(control.id.replace(/control$/, 'description'))
+  // A text field's border is its input's parent's; a switch is its own.
+  const box = control.getAttribute('role') === 'switch' ? control : control.parentElement
+  const rects = [
+    ...(box ? [box.getBoundingClientRect()] : []),
+    ...(label ? textRects(label) : []),
+    ...(description ? textRects(description) : []),
+  ]
+  return {
+    top: Math.min(...rects.map((rect) => rect.top)),
+    bottom: Math.max(...rects.map((rect) => rect.bottom)),
+  }
+}
+
+/** Asserts that the space the eye sees between consecutive rows is the same within 2px, after a
+ *  switch or a description, before a switch or a text field, on each side of a section's heading;
+ *  that the rule sits that far over the section's first row; and that the heading sits clearly
+ *  further from the rows above it. */
+async function expectEvenRows(canvasElement: HTMLElement) {
+  const canvas = within(canvasElement)
+  await canvas.findByRole('switch', { name: 'Verbose logging' }, { timeout: 5000 })
+  const row = (name: string) => shownExtent(canvasElement, name)
+  const runs = [
+    [row('Email me when the run finishes'), row('Keep scratch files'), row('Use GPUs')],
+    [row('Verbose logging'), row('Retries')],
+  ]
+  const gaps = runs.flatMap((run) =>
+    run.slice(1).map((next, index) => next.top - (run[index]?.bottom ?? next.top)),
+  )
+  const [first = 0] = gaps
+  for (const gap of gaps) {
+    await expect(Math.abs(gap - first)).toBeLessThanOrEqual(2)
+  }
+  // The heading belongs to the rows under it: it sits clearly further from the rows above than
+  // its rule sits from its first row, which is as far as the rows sit apart.
+  const heading = canvas.getByRole('heading', { name: 'Advanced' })
+  const rule = heading.closest('[data-section-header]')?.getBoundingClientRect().bottom ?? 0
+  const above = Math.min(...textRects(heading).map((rect) => rect.top)) - row('Use GPUs').bottom
+  const below = row('Verbose logging').top - rule
+  await expect(above - below).toBeGreaterThanOrEqual(8)
+  await expect(Math.abs(below - first)).toBeLessThanOrEqual(2)
+}
+
+/** A run of switches: one with help, one with a description, a disabled one with a description,
+ *  then a section with a switch and a number. Every row leaves the same room before the next, as
+ *  text fields do, and a description adds only its own lines. */
+export const SwitchRun: StoryObj<typeof DynamicForm> = {
+  args: {
+    formJSONs: SWITCH_RUN_FIELDS,
+    initialValues: { notify: true, scratch: false, gpus: true, verbose: false, retries: 2 },
+    skipValueParse: true,
+  },
+  play: async ({ canvasElement }) => expectEvenRows(canvasElement),
+}
+
+/** The same run with the labels over the fields. */
+export const SwitchRunStacked: StoryObj<typeof DynamicForm> = {
+  args: { ...SwitchRun.args, labelPosition: 'top' },
+  play: async ({ canvasElement }) => expectEvenRows(canvasElement),
 }
 
 const WORKER_OPTIONS = {

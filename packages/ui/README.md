@@ -74,6 +74,7 @@ Each need has one component. Reach for it before styling markup by hand.
 | Free text with suggestions, or tags | `Autocomplete`; `Combobox` with `multiple creatable` |
 | A range | `Slider` |
 | A page's breadcrumbs, title and commands | `PageHeader`, shown by the shell's `PageHeaderBar` (see [Page header](#page-header)) |
+| A trail anywhere else, such as a folder's path in a panel | `Breadcrumbs`, which folds as the header's trail does |
 | An action in the page header | `PageHeaderAction`; `PageHeaderAddButton` for "+ Add" or "+ Create"; `PageHeaderMenu` for the "…" menu |
 | A titled part of a page or form | `Section` |
 | More detail under a line | `Disclosure` |
@@ -173,7 +174,12 @@ A page declares its header in one place, and the shell shows it:
   trail is a list in a `nav` landmark named by the strings' `breadcrumb`. A
   trail too wide for its bar folds its ancestors into a "…" menu of links
   (named by `showFullPath`), keeping the parent when it fits beside the page's
-  name; the name truncates last, with the full name on hover.
+  name; the name truncates last, with the full name on hover. The bar draws it
+  with `Breadcrumbs`, which renders the same trail anywhere else: in a flex
+  row it takes the room the row's other items leave it, and elsewhere its
+  container's width. `current="location"` marks a place within the page, such
+  as the open folder, and `heading` makes the last crumb the page's `h1`, as
+  the bar does.
 - **`titleActions`** sit beside the title, for actions on the page's subject.
   **`actions`** sit at the end of the bar, for the page's commands: a detail
   page's Start, Stop or Terminal go here, not in a row of buttons below it.
@@ -479,6 +485,7 @@ where it opens elsewhere, and renders it through `AppLink`:
 | `Button`, `IconButton`, `Card` | `href` |
 | Menu rows, `RowAction`s (a list row's menu and pinned buttons), `ToolbarAction`s | `href` on the action, with `target: '_blank'` for a new tab |
 | `PageHeaderAction`, `PageHeaderAddButton`, `PageHeader` breadcrumbs | `href`; `external` opens a new tab |
+| `Breadcrumbs` | `href` on the crumb; `onSelect` only for a place with no URL, as the explorer's trail without `pathHref` |
 | `Tabs` that are pages, `Pagination` | `href` on the item, `pageHref` |
 | A list row | `ListRow` `href` with a `NameCell` of the same `href`: the name's link covers the row |
 | A toast's action | `action: { label, href }` |
@@ -640,8 +647,8 @@ such as `z-index: 100` for a top bar, rather than a z-index chosen to win:
 | `--layer-overlay` | 1000    | a panel over the page, such as a full-screen log       |
 | `--layer-drawer`  | 1100    | drawers                                                |
 | `--layer-modal`   | 1200    | modals                                                 |
-| `--layer-popover` | 1300    | menus, selects, popovers, hover cards and tooltips, so one opens over the dialog it belongs to |
-| `--layer-toast`   | 1400    | toasts                                                 |
+| `--layer-toast`   | 1300    | toasts, so one stays usable while a modal is open      |
+| `--layer-popover` | 1400    | menus, selects, popovers, hover cards and tooltips, so one opens over the dialog it belongs to and over a toast |
 
 In Tailwind, `z-(--layer-modal)` reads one. Override a value on `:root` to move
 a layer; the defaults sit in a cascade layer, so the host's own rule wins.
@@ -656,10 +663,11 @@ import { AddIcon, TrashIcon } from '@parallelworks/ui/icons'
 ```
 
 `@parallelworks/ui/icons` is the one import point for interface icons. Each
-name is a meaning, such as `RetryIcon` or `WarningIcon`, drawn from
-[Lucide](https://lucide.dev), so every icon shares one 24px grid and one 2px
-stroke. Don't import `lucide-react` directly: a name here keeps one glyph per
-meaning across the apps.
+name is a meaning, such as `RetryIcon` or `WarningIcon`. Every icon is drawn
+for this module by one hand: one path on a 16px grid with a 1.5px stroke, in
+fewer and simpler shapes than a 24px set so it stays crisp at the 16px it's
+mostly shown at. Don't bring in another icon library: a name here keeps one
+glyph per meaning across the apps.
 
 - **Size and color:** an icon is `1em` square in `currentColor`, so it follows
   the text around it. A class such as `size-4` or `h-3 w-3` sets another size,
@@ -679,14 +687,47 @@ meaning across the apps.
   `DisableUserIcon` turns off their account. `ChangesRequestedIcon` asks for
   changes to something sent, while `FlaggedIcon` marks an item for attention.
   `ProjectIcon` is a project, while `FolderIcon` is a folder of files.
+  `FilesystemIcon` is a filesystem many machines mount together, such as a
+  parallel one, while `NetworkShareIcon` is a folder shared over the network.
   `LibraryIcon` is a collection of write-ups to browse, `ArticleIcon` one
   write-up to read, such as a case study, and `NotebookIcon` one notebook.
-  `PendingIcon` is a requirement not met yet and `NotRunningIcon` a run not
-  started; they share the empty circle, so keep them out of the same list.
-- **Adding an icon:** pick the [Lucide glyph](https://lucide.dev/icons) and add
-  `export const NameIcon = /* @__PURE__ */ icon(Glyph)` to `src/icons.tsx`,
-  named for what it means rather than what it shows. Reuse an existing name
-  when the meaning is the same.
+  `PendingIcon` (a dashed circle) is a requirement not met yet and
+  `NotRunningIcon` (an empty circle) a run not started.
+  `ProvisionIcon` brings infrastructure up and `DeprovisionIcon` takes it down
+  but keeps its definition, while `DestroyIcon` breaks it apart for good.
+  `SharedIcon` is infrastructure someone else shared with you.
+  `WorkerIcon` is a machine that takes jobs, `WorkloadIcon` copies of one
+  thing running in a cluster, and `ServiceIcon` a long-running unit others
+  connect to. `WorkflowIcon` is a workflow as a thing, `RunWorkflowIcon`
+  running one and `BuildWorkflowIcon` editing one; `RunsIcon` lists runs and
+  `JobIcon` is one submitted job.
+  `RestartIcon` stops and starts something running, `RetryIcon` tries a failed
+  thing again, `RefreshIcon` reloads data, `ResetIcon` returns settings to
+  their defaults, `RollbackIcon` goes back to an earlier version and
+  `RestoreIcon` brings an archived item back. `LoadingIcon` is the interface
+  busy, while `RunningIcon` is a run in progress.
+  `KeyIcon` is an SSH or API key, `TokenIcon` a short-lived token and
+  `PasswordIcon` a password; `RevokeIcon` withdraws a credential or grant,
+  while `ReleaseIcon` gives back a reserved address or name.
+  `LogsIcon` is a live stream of log lines, `DefinitionIcon` the file that
+  defines a resource, `ConfigIcon` key-value configuration, `VariableIcon` a
+  named value and `ReportIcon` a report to open.
+  `WorkspaceMountIcon` is storage mounted into a workspace and
+  `CloudNetworkIcon` the private network hosts attach to.
+  `VerifiedIcon` marks a verified item, publisher or domain, while
+  `SuccessIcon` is a run that succeeded. `OwnerIcon` is who owns a resource
+  and `DefaultIcon` the one used when nothing else is chosen, while
+  `FeaturedIcon` marks an item picked out to show first.
+  `NamespaceIcon`, `CommandShellIcon` and `QuickActionIcon` were
+  `KubernetesNamespaceIcon`, `PowershellIcon` and `ZapIcon`; the old names
+  still work but are deprecated.
+- **Adding an icon:** draw it as one path on the 16px grid and add
+  `export const NameIcon = /* @__PURE__ */ drawn('M…')` to `src/icons.tsx`,
+  named for what it means rather than what it shows. Reuse the existing parts
+  (the status circle, the person, the file and folder outlines, the
+  bottom-right corner for a plus, minus, check or X) so families match, and
+  check it at 16px beside its neighbours in the `UI/Icons` story. Reuse an
+  existing name when the meaning is the same.
 
 Logos of other companies' products, such as `GitHubIcon` or `UbuntuIcon`, are
 in `@parallelworks/ui/brand-icons`. They take the same props, are filled in the
@@ -821,6 +862,26 @@ The chat's links (each conversation, a new chat, attachments, and the
 these links, so `navigation` handles only the moves that aren't clicks, such as
 keyboard shortcuts.
 
+`ChatThread` is `SessionView` bound to the chat provider. A host with its own
+transcript, such as an agent session fed by an event stream, renders
+`SessionView` with its messages, streaming and queued messages, and callbacks:
+`onSend`, and `turn` (`running`, `onStop`) for a turn the provider doesn't run.
+What it leaves out it doesn't offer: `onEdit`, `onRegenerate`, `onRetry` and
+`onNavigateBranch` turn on editing, regenerating, retrying and branches.
+Escape stops the running turn either way. `queueDelivery` says when a queued
+message reaches the model, per message when it takes a function. `composer`
+passes `ChatInput`'s props; `ComposerControls` takes `model` and `allocation`
+as a `BoundSetting` for a session that owns its own, and `tools={false}` keeps
+the chat's tools out of a composer they don't apply to.
+
+A host's own list of conversations or sessions builds on `ConversationSidebar`
+with the same pieces the chat's list uses: `SidebarRow` with `SidebarRowBody`
+inside its link (an optional `leading` mark such as a status dot, the title
+and time, and an optional `detail` line), `useSessionMenu` for the row menu
+(rename, share, download, then delete apart, each with an optional
+`disabledReason`), `useRowDialogs` for rename and delete, and `SidebarEmpty`
+for an empty list or a failed load.
+
 `ChatLayout sidebarMode="auto"` shows the conversation list as a drawer over
 the thread when the chat is narrower than `drawerBelowPx` (`DRAWER_BELOW_PX`, 896, by default),
 measured on the chat's own box; `"drawer"` always does, and `"inline"` (the
@@ -837,6 +898,20 @@ optional capability groups (`providers`, `attachments`, `sharing`,
 `allocations`) hide their UI when absent. Adapter methods throw
 `ChatAdapterError` with a user-facing `message`. Model entries and wire
 messages keep OpenAI-compatible snake_case field names.
+
+An adapter with `tools` lists the tools its backend runs itself while it
+answers, each a `ChatToolOption` (`id`, and a `label` and optional
+`description` in the reader's language). The composer's + button then opens a
+menu of Add files (when the adapter stores attachments) and Tools, whose
+submenu has a switch for each tool and the `extraLinks.connectTools` link,
+which leaves the row under the composer. Past six tools (`TOOLS_IN_MENU`),
+Tools opens a modal that searches them and turns a match on or off together. Every tool starts on, a dot on the + shows that some are off, and the
+choice is remembered per user in the browser. A turn the provider doesn't run,
+such as an agent's, offers no tools. Each request carries the enabled ids as
+`StreamRequest.tools` once the list has loaded, possibly empty, and the
+OpenAI-compatible transport sends them as the `X-Platform-Tools` header
+(`TOOLS_HEADER`), comma-separated and empty when every tool is off. A request
+without a tool choice sends no header.
 
 Tailwind v4 consumers add the chat rules (markdown rendering, streaming
 animations) and streamdown's classes next to the theme contract:

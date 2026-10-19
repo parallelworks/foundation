@@ -11,8 +11,8 @@ import useDragDrop from '../core/useDragDrop'
 import type { AttachmentMeta } from '../types'
 import BlockedGroupBanner from './BlockedGroupBanner'
 import ChatInput, { type ChatInputHandle } from './ChatInput'
-import ChatStage from './ChatStage'
-import { ComposerControls, ConnectToolsLink } from './ComposerChrome'
+import ChatStage, { StageList, stageListRowClassName } from './ChatStage'
+import { ComposerControls, ComposerUsage, ConnectToolsLink } from './ComposerChrome'
 import DragOverlay from './DragOverlay'
 import ProviderIssueBanner from './ProviderIssueBanner'
 
@@ -183,27 +183,27 @@ export default function ChatEmptyState({
               settingsLeft={<ConnectToolsLink />}
               settingsRight={
                 <>
-                  {slots.composerUsage}
+                  <ComposerUsage>{slots.composerUsage}</ComposerUsage>
                   <ComposerControls targetSession={targetSession} />
                 </>
               }
             />
 
             {prompts.length > 0 && !(hasLoadedModels && models.length === 0) && (
-              <ul className="mx-auto max-w-[var(--chat-column,50rem)] px-8">
+              <StageList>
                 {keyedByContent(prompts, (p) => p).map(({ key, item: prompt }) => (
-                  <li key={key} className="border-b theme-border last:border-b-0">
+                  <li key={key}>
                     <button
                       type="button"
                       onClick={() => handleSuggestedPrompt(prompt)}
                       disabled={isLoading || isLoadingModels || models.length === 0}
-                      className="-mx-3 my-1 block w-[calc(100%+1.5rem)] text-pretty rounded-lg px-3 py-2 text-left text-sm theme-muted-text transition-colors hover:chat-tint hover:theme-text disabled:opacity-50 disabled:cursor-not-allowed"
+                      className={stageListRowClassName}
                     >
                       {prompt}
                     </button>
                   </li>
                 ))}
-              </ul>
+              </StageList>
             )}
           </ChatStage>
         </div>

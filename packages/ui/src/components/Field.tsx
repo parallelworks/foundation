@@ -104,9 +104,11 @@ export interface FieldProps {
   group?: boolean | undefined
   /** Puts a checkbox, a switch or a lone radio before its label, as such a control reads: the
    *  control, then its label and ?, with the description and error under the label. A click on
-   *  the label sets the control. Inline, or in a row of fields, it sits in the control column,
-   *  its first line on the line of the labels beside it. Not for a `group`, whose options are
-   *  each a `FieldOption`. */
+   *  the label sets the control. A checkbox or a radio sits on the label's first line; a switch
+   *  centers on the text's first two lines, such as the label and its description, and stays
+   *  there under longer text. Inline it sits in the control column, under the controls above
+   *  it; in a row of fields, its first line centers on the controls beside it, a switch's too.
+   *  Not for a `group`, whose options are each a `FieldOption`. */
   controlFirst?: boolean | undefined
   /** The control's id; one is made up when left out. */
   id?: string | undefined
@@ -118,25 +120,55 @@ export interface FieldProps {
   children: ReactNode | ((control: FieldControlProps) => ReactNode)
 }
 
-// A compact control reads first, so its label steps back to a caption. `inlineLine` pads a
-// control-first field's first line into the middle of an inline row: half of what the row's
-// height leaves over a line of the label's text.
+// A compact control reads first, so its label steps back to a caption. `inlineLine` lowers a
+// control-first field's first line, a switch's height, onto the middle of the controls beside it
+// in a row of fields: half of what their height leaves over it. Only above, so the row ends where
+// its last line does. `controlFirstHeight` is a switch's height, the label's line and 2px over and
+// under it, and `controlFirstStackedHeight` adds the 4px a stacked one starts in.
 const labelSizes = {
   sm: {
     text: 'text-xs text-(--theme-muted-text-color)',
     inlineHeight: 'min-h-7',
     stackGap: 'gap-1',
-    inlineLine: 'py-1.5',
+    narrowStack: 'max-sm:flex-col max-sm:items-stretch max-sm:gap-1',
+    inlineLine: 'pt-1',
+    controlFirstHeight: 'min-h-5',
+    controlFirstStackedHeight: 'min-h-6',
   },
   md: {
     text: 'text-sm text-(--theme-app)',
-    inlineHeight: 'min-h-9',
+    inlineHeight: 'min-h-8',
     stackGap: 'gap-1.5',
-    inlineLine: 'py-2',
+    narrowStack: 'max-sm:flex-col max-sm:items-stretch max-sm:gap-1.5',
+    inlineLine: 'pt-1',
+    controlFirstHeight: 'min-h-6',
+    controlFirstStackedHeight: 'min-h-7',
+  },
+  lg: {
+    text: 'text-sm text-(--theme-app)',
+    inlineHeight: 'min-h-10',
+    stackGap: 'gap-2',
+    narrowStack: 'max-sm:flex-col max-sm:items-stretch max-sm:gap-2',
+    inlineLine: 'pt-2',
+    controlFirstHeight: 'min-h-6',
+    controlFirstStackedHeight: 'min-h-7',
   },
 } satisfies Record<FieldBoxSize, Record<string, string>>
 const labelClassName = 'flex items-center gap-1 font-medium'
 const actionsClassName = 'ml-auto flex shrink-0 items-center gap-1'
+const controlFirstExtrasClassName = 'ms-1 inline-flex items-center gap-1 align-[-0.125em]'
+// A switch sets what its label and description name together, and on the label's line alone it
+// sits high beside them, so it centers on both, as in a list of settings; under longer text it
+// stays on those two lines rather than drifting to the middle of a paragraph. A checkbox starts
+// a sentence such as "I agree to…", so it stays on the first line. The Field doesn't know its
+// control, so the cell asks whether it holds a switch.
+const switchOnTwoLines = 'has-[[role=switch]]:max-h-[2lh]'
+// A description's line is shorter than a label's, so two lines of label and description are too.
+const switchOnLabelAndDescription = 'has-[[role=switch]]:max-h-[calc(1lh+1rem)]'
+// Centered on two lines, a switch starts under the label's letters, so they are the row's top
+// edge rather than the switch. The row moves up by the 4px they sit into it, to start at them as
+// a row with a lone label starts at its switch, and the space the eye sees between rows stays.
+const switchRowStartsAtText = 'has-[[role=switch]]:-mt-1'
 const errorTextClassName = 'flex items-center gap-1.5 text-xs text-(--theme-error-text)'
 
 /** An error in the look a Field gives its own, for a control outside a Field, or for a part of
@@ -252,7 +284,12 @@ export function Field({
   const labelBox = cx(
     labelClassName,
     labelSize.text,
-    inline && cx(labelSize.inlineHeight, 'shrink-0', compact ? 'mr-2 w-fit' : 'w-52 pr-3'),
+    inline &&
+      cx(
+        labelSize.inlineHeight,
+        'shrink-0',
+        compact ? 'mr-2 w-fit' : 'w-52 pr-3 max-sm:min-h-0 max-sm:w-full max-sm:pr-0',
+      ),
     inRow && 'row-start-1 self-end',
   )
   const nameContent = (
@@ -281,7 +318,12 @@ export function Field({
       {description && (
         <BaseField.Description
           id={descriptionId}
-          className="text-xs leading-relaxed text-(--theme-muted-text-color)"
+          className={cx(
+            'text-xs text-(--theme-muted-text-color)',
+            // Under a control-first label it is the label's second line, as close as the label's
+            // own lines, so the row ends where its text does rather than a half-line under it.
+            controlFirst && !group ? 'leading-4' : 'leading-relaxed',
+          )}
         >
           {description}
         </BaseField.Description>
@@ -322,39 +364,72 @@ export function Field({
   )
 
   if (controlFirst && !group) {
-    const lined = inline || inRow
     return (
       <BaseField.Root
         invalid={isInvalid}
         disabled={disabled}
-        className={inRow ? cx('contents', className) : cx('flex w-full items-start', className)}
+        className={
+          inRow
+            ? cx('contents', className)
+            : cx(
+                'flex w-full items-start',
+                // The cell below stops at the text, which on one line ends 2px over the switch,
+                // so the field holds the switch's bottom itself.
+                inline ? labelSize.controlFirstHeight : labelSize.controlFirstStackedHeight,
+                className,
+              )
+        }
         data-field-row={inRow || undefined}
       >
         {/* The label column stays empty, so the control lines up with the controls under it. */}
-        {inline && !compact && <div aria-hidden="true" className="w-52 shrink-0" />}
+        {inline && !compact && <div aria-hidden="true" className="w-52 shrink-0 max-sm:hidden" />}
         <div
           ref={help ? setControlBox : undefined}
           className={cx(
             'flex w-fit max-w-full min-w-0 items-start gap-2',
-            lined && labelSize.inlineLine,
+            // Inline, the label column beside it is empty, so nothing shares its first line and
+            // the row starts at the switch, as a text field's row starts at its box. Stacked, a
+            // text field's row starts with its label, whose letters sit about 4px into their
+            // line, so a switch starts that far in too and the gaps between rows look the same.
+            inRow ? labelSize.inlineLine : !inline && 'pt-1',
             inRow && 'row-start-2',
+            !inRow && (description || error) && switchRowStartsAtText,
           )}
         >
-          {/* As tall as the label's first line, which the control centers on however the
-              label wraps. */}
-          <div className={cx('flex h-lh shrink-0 items-center', labelSize.text)} {...helpFocus}>
-            {controlInContext}
+          {/* The control centers on the cell, which starts where the text does and spans its
+              lines up to a cap: the first line for a checkbox, the first two for a switch. It
+              never takes padding under it, which would sit under a description and widen the
+              gap to the next row. In a row of fields the first line
+              centers on the controls beside it, and a switch lower than that would leave the
+              row's controls out of line, so there every control keeps to the first line: a
+              switch's height, 2px over and under it. */}
+          <div
+            className={cx(
+              'box-content flex shrink-0 items-center',
+              inRow
+                ? 'h-lh py-0.5'
+                : cx(
+                    'min-h-lh max-h-lh self-stretch pt-0.5',
+                    description ? switchOnLabelAndDescription : switchOnTwoLines,
+                  ),
+              labelSize.text,
+            )}
+            {...helpFocus}
+          >
+            {/* No height of its own, so the switch, taller than the label's line, doesn't
+                stretch the cell, and the cell's center stays the text's. */}
+            <div className="flex h-0 items-center">{controlInContext}</div>
           </div>
-          <div className="flex min-w-0 flex-col gap-1">
+          <div className="flex min-w-0 flex-col pt-0.5">
             {/* Text flow rather than a flex row, so the ? follows the label's last word as it
                 wraps. */}
             <div className={cx('font-medium', labelSize.text, disabled && 'opacity-60')}>
               {fieldLabel(disabled ? 'cursor-not-allowed' : 'cursor-pointer')}
-              {(help || hint || actions) && (
-                <span className="ms-1 inline-flex items-center gap-1 align-[-0.125em]">
-                  {labelExtras}
-                </span>
-              )}
+              {/* The ? and the actions sit on the text's middle; a hint is text, on its
+                  baseline. */}
+              {helpTip && <span className={controlFirstExtrasClassName}>{helpTip}</span>}
+              {hint && <span className="ms-1">{hint}</span>}
+              {actions && <span className={controlFirstExtrasClassName}>{actions}</span>}
             </div>
             {messages}
           </div>
@@ -381,13 +456,23 @@ export function Field({
   )
   const frame = inRow
     ? cx('contents', className)
-    : cx('flex w-full', inline ? 'items-start' : cx('flex-col', labelSize.stackGap), className)
+    : cx(
+        'flex w-full',
+        // Below sm an inline field stacks too: beside a 208px label, a phone leaves the control
+        // a sliver.
+        inline
+          ? cx('items-start', !compact && labelSize.narrowStack)
+          : cx('flex-col', labelSize.stackGap),
+        className,
+      )
 
   if (group) {
     return (
       <BaseField.Root
         invalid={isInvalid}
         disabled={disabled}
+        // A fieldset sizes to its content in a flex row, so it takes the row's width itself.
+        className="w-full min-w-0"
         // The fieldset is the group itself, so a set of checkboxes needs no second one inside.
         render={
           <Fieldset.Root
@@ -493,7 +578,7 @@ export function FieldValue({ size = 'md', className, children, ...props }: Field
       {...props}
       className={cx(
         'flex min-w-0 items-center break-words text-(--theme-app)',
-        size === 'sm' ? 'min-h-7 text-xs' : 'min-h-9 text-sm',
+        { sm: 'min-h-7 text-xs', md: 'min-h-8 text-sm', lg: 'min-h-10 text-base' }[size],
         className,
       )}
     >
