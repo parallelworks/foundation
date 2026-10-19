@@ -1033,6 +1033,16 @@ export function ChatProvider({
         id: approvalId,
         answer: answer.allowed ? t.approvalAllowed : t.approvalDenied,
       })
+      applyToPaused({
+        type: 'tool_decision',
+        id: approvalId,
+        decision: {
+          status: answer.allowed ? 'approved' : 'denied',
+          by: 'user',
+          name: currentUser.name || currentUser.username,
+          at: DateTime.now().toUTC().toISO(),
+        },
+      })
 
       streamingToConversationRef.current = targetConversationId
       startStreaming(targetConversationId)
@@ -1080,6 +1090,7 @@ export function ChatProvider({
       enabledToolIds,
       startStreaming,
       streamReply,
+      currentUser,
     ],
   )
 

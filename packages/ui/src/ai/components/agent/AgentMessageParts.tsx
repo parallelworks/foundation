@@ -1018,7 +1018,14 @@ export function buildRenderItems(parts: MessagePart[]): RenderItem[] {
     emitThoughts(run.slice(end))
     run = []
   }
+  const decided = new Set(
+    parts.flatMap((p) => (p.kind === 'tool_call' && p.decision ? [p.id] : [])),
+  )
   parts.forEach((part, index) => {
+    // An answered approval for a call that records its decision says nothing the call's own line doesn't.
+    if (part.kind === 'approval' && part.resolved && decided.has(part.id)) {
+      return
+    }
     if (
       part.kind === 'reasoning' ||
       (part.kind === 'tool_call' &&

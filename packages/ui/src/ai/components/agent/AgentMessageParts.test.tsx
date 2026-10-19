@@ -239,6 +239,22 @@ describe('approval parts', () => {
     expect(screen.getByText('Answered: Allowed')).toBeInTheDocument()
     expect(screen.queryByText('Yes, allow this command')).not.toBeInTheDocument()
   })
+  it('leaves an answered call to its decision line', () => {
+    renderParts([
+      {
+        kind: 'tool_call',
+        id: 'c1',
+        name: 'stop_cluster',
+        args: '{}',
+        status: 'ok',
+        decision: { status: 'approved', by: 'user', name: 'Bob' },
+      },
+      { kind: 'approval', id: 'c1', approvalKind: 'confirm', resolved: true, answer: 'Allowed' },
+    ])
+    expect(screen.getByTestId('tool-decision')).toHaveTextContent('Allowed by Bob')
+    expect(screen.queryByText('Answered: Allowed')).not.toBeInTheDocument()
+  })
+
   it('offers no answers once a confirm has expired', () => {
     renderParts(
       [

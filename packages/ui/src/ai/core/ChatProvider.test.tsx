@@ -592,6 +592,7 @@ describe('streamed parts', () => {
         args: '{}',
         status: 'ok',
         result: 'stopping',
+        decision: { status: 'approved', by: 'user', name: 'Tester', at: expect.any(String) },
       },
       {
         kind: 'approval',
