@@ -100,7 +100,11 @@ export { pasteInlineMaxBytes } from './core/pastes'
 export { providerIssueFor } from './core/providerIssues'
 export type { SidebarPresentation, SidebarState } from './core/sidebarState'
 export { default as useDragDrop } from './core/useDragDrop'
-export { useKeyboardShortcuts } from './core/useKeyboardShortcuts'
+export {
+  replyText,
+  useConversationShortcuts,
+  useKeyboardShortcuts,
+} from './core/useKeyboardShortcuts'
 export { type ChatStrings, defaultChatStrings } from './strings'
 export * from './types'
 export {
