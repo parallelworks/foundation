@@ -378,10 +378,10 @@ function DecisionLine({ decision }: { decision: ToolDecision }) {
   const { strings } = useChatConfig()
   return (
     <div
-      className="ml-5 mt-0.5 flex min-w-0 items-baseline gap-1.5 text-xs theme-muted-text"
+      className="ml-5 mt-0.5 flex min-w-0 flex-wrap items-baseline gap-x-1 text-xs theme-muted-text"
       data-testid="tool-decision"
     >
-      <span className="truncate">{decisionLabel(decision, strings.agentTranscript)}</span>
+      <span>{decisionLabel(decision, strings.agentTranscript)}</span>
       {decision.at && (
         <>
           <span aria-hidden="true">·</span>
@@ -391,7 +391,7 @@ function DecisionLine({ decision }: { decision: ToolDecision }) {
       {decision.note && (
         <>
           <span aria-hidden="true">·</span>
-          <span className="truncate">{decision.note}</span>
+          <span className="min-w-0 max-w-full truncate">{decision.note}</span>
         </>
       )}
     </div>

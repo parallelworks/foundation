@@ -100,6 +100,7 @@ export const Decisions: StoryObj = {
               resultLines: 2,
               status: decision.status === 'approved' ? 'ok' : 'error',
             }),
+            ...(decision.status === 'approved' ? {} : { result: 'The call did not run.' }),
             decision,
           })),
         })}
