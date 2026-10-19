@@ -30,11 +30,9 @@ describe('ImageUpload', () => {
     expect(screen.queryByRole('button')).toBeNull()
   })
 
-  it('opens the crop dialog only for an image file', () => {
+  it('opens the crop dialog only for an image file', async () => {
     const { container } = render(<ImageUpload name="Platform" onUpload={async () => {}} />)
     const input = container.querySelector('input[type=file]') as HTMLInputElement
-    URL.createObjectURL = vi.fn(() => 'blob:picked')
-    URL.revokeObjectURL = vi.fn()
     fireEvent.change(input, {
       target: { files: [new File(['x'], 'notes.txt', { type: 'text/plain' })] },
     })
@@ -42,6 +40,6 @@ describe('ImageUpload', () => {
     fireEvent.change(input, {
       target: { files: [new File(['x'], 'logo.png', { type: 'image/png' })] },
     })
-    expect(screen.getByRole('dialog', { name: 'Image for Platform' })).toBeInTheDocument()
+    expect(await screen.findByRole('dialog', { name: 'Image for Platform' })).toBeInTheDocument()
   })
 })

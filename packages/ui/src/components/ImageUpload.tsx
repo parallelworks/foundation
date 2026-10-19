@@ -58,11 +58,14 @@ export function ImageUpload({
   const [dragging, setDragging] = useState(false)
   // The image that failed to load, so a new one is tried again.
   const [broken, setBroken] = useState<string>()
-  useEffect(() => () => void (picked && URL.revokeObjectURL(picked)), [picked])
 
+  // A data: URL rather than a blob: one, which a strict Content-Security-Policy's
+  // img-src often leaves out.
   const pick = (file: File | undefined) => {
     if (!file || !accept.split(',').includes(file.type)) return
-    setPicked(URL.createObjectURL(file))
+    const reader = new FileReader()
+    reader.onload = () => typeof reader.result === 'string' && setPicked(reader.result)
+    reader.readAsDataURL(file)
   }
   const onFile = (e: ChangeEvent<HTMLInputElement>) => {
     pick(e.currentTarget.files?.[0])
