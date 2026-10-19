@@ -32,7 +32,12 @@ export {
 export { default as ChatMessageView } from './components/ChatMessage'
 export { default as ChatMessageList } from './components/ChatMessageList'
 export { default as ChatSidebar } from './components/ChatSidebar'
-export { default as ChatStage } from './components/ChatStage'
+export {
+  default as ChatStage,
+  StageList,
+  StageListRowContent,
+  stageListRowClassName,
+} from './components/ChatStage'
 export { default as ChatThread } from './components/ChatThread'
 export {
   ComposerContext,
@@ -53,6 +58,7 @@ export {
   getProviderKeyFromModelId,
 } from './components/ModelSelector'
 export { default as ProviderIssueBanner } from './components/ProviderIssueBanner'
+export { default as SessionView, type SessionViewProps } from './components/SessionView'
 export {
   default as ShareDialog,
   ShareButton,
@@ -94,7 +100,11 @@ export { pasteInlineMaxBytes } from './core/pastes'
 export { providerIssueFor } from './core/providerIssues'
 export type { SidebarPresentation, SidebarState } from './core/sidebarState'
 export { default as useDragDrop } from './core/useDragDrop'
-export { useKeyboardShortcuts } from './core/useKeyboardShortcuts'
+export {
+  replyText,
+  useConversationShortcuts,
+  useKeyboardShortcuts,
+} from './core/useKeyboardShortcuts'
 export { type ChatStrings, defaultChatStrings } from './strings'
 export * from './types'
 export {
@@ -106,12 +116,16 @@ export { NoticeBar, NoticeCard, type NoticeTone, OutputCard } from './ui/Notice'
 export {
   RenameDialog,
   type RowDialogStrings,
+  type SessionMenuAction,
+  SidebarEmpty,
   SidebarGroupHeading,
   SidebarPanel,
   SidebarRailItem,
   SidebarRow,
+  SidebarRowBody,
   SidebarRowTitle,
   SidebarToggle,
   useRowDialogs,
+  useSessionMenu,
 } from './ui/sidebar'
 export { isMac, isOrgModel } from './utils'

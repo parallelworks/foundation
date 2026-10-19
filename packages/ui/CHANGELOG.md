@@ -1,5 +1,74 @@
 # Changelog
 
+## [0.75.1](https://github.com/parallelworks/foundation/compare/ui-v0.75.0...ui-v0.75.1) (2026-10-19)
+
+
+### Bug Fixes
+
+* **ui:** an auto-reviewer that times out or fails reads as a denial, with its reason under the call ([#401](https://github.com/parallelworks/foundation/issues/401)) ([ae0556f](https://github.com/parallelworks/foundation/commit/ae0556f2c064f22ec9105282436ff1539648682e))
+
+## [0.75.0](https://github.com/parallelworks/foundation/compare/ui-v0.74.0...ui-v0.75.0) (2026-10-19)
+
+
+### Features
+
+* **ui:** an answered tool call says who allowed or denied it, and when ([#398](https://github.com/parallelworks/foundation/issues/398)) ([5273d43](https://github.com/parallelworks/foundation/commit/5273d43e8b71e3850473d9abdde58a505a036fb7))
+* **ui:** the run graph lists a run's warnings and flags the jobs and steps they're about ([#395](https://github.com/parallelworks/foundation/issues/395)) ([af9d089](https://github.com/parallelworks/foundation/commit/af9d0893dd0c7eb9c777f4e2f0cd6719517b84dc))
+
+## [0.74.0](https://github.com/parallelworks/foundation/compare/ui-v0.73.0...ui-v0.74.0) (2026-10-19)
+
+
+### Features
+
+* **ui:** branch and repository icons, so code hosting has a full set ([#397](https://github.com/parallelworks/foundation/issues/397)) ([99fd0a7](https://github.com/parallelworks/foundation/commit/99fd0a750a47b8090689a7636ea092520bd92e07))
+
+## [0.73.0](https://github.com/parallelworks/foundation/compare/ui-v0.72.0...ui-v0.73.0) (2026-10-19)
+
+
+### Features
+
+* **ui:** StageList for start pages, and conversation shortcuts any view can bind ([#390](https://github.com/parallelworks/foundation/issues/390)) ([02ec4f7](https://github.com/parallelworks/foundation/commit/02ec4f731e53f716ba11dd6a2a52c2a62c5f8ad1))
+
+
+### Bug Fixes
+
+* **ui:** a form group's description never shows under its title ([#393](https://github.com/parallelworks/foundation/issues/393)) ([8436b42](https://github.com/parallelworks/foundation/commit/8436b42565cdc9b581ad4b0ff19d3ca29b7cada7))
+
+## [0.72.0](https://github.com/parallelworks/foundation/compare/ui-v0.71.0...ui-v0.72.0) (2026-10-19)
+
+
+### Features
+
+* **ui:** a large field and button size, for a form that stands alone such as sign-in ([#385](https://github.com/parallelworks/foundation/issues/385)) ([c1993fe](https://github.com/parallelworks/foundation/commit/c1993fe6f151ba8ddddf0c371897d08fb0f6de44))
+
+## [0.71.0](https://github.com/parallelworks/foundation/compare/ui-v0.70.0...ui-v0.71.0) (2026-10-19)
+
+
+### Features
+
+* **ui:** one row, menu and empty state for lists of conversations and sessions ([#386](https://github.com/parallelworks/foundation/issues/386)) ([5e35899](https://github.com/parallelworks/foundation/commit/5e358997bd8e623637f7dff8d328c53a173fccfb))
+
+## [0.70.0](https://github.com/parallelworks/foundation/compare/ui-v0.69.0...ui-v0.70.0) (2026-10-19)
+
+
+### Features
+
+* **ui:** verified, owner and default icons, so they stop borrowing a success check and a star ([#383](https://github.com/parallelworks/foundation/issues/383)) ([fc14cd1](https://github.com/parallelworks/foundation/commit/fc14cd175a74dd9f795b47c94b28417ef67a4e79))
+
+## [0.69.0](https://github.com/parallelworks/foundation/compare/ui-v0.68.0...ui-v0.69.0) (2026-10-19)
+
+
+### Features
+
+* **ui:** SessionView, one conversation view for the chat and for agent sessions ([#381](https://github.com/parallelworks/foundation/issues/381)) ([a507d89](https://github.com/parallelworks/foundation/commit/a507d8981e948655429ef07cd3c8879be9fd7a94))
+
+## [0.68.0](https://github.com/parallelworks/foundation/compare/ui-v0.67.0...ui-v0.68.0) (2026-10-19)
+
+
+### Features
+
+* **ui:** icons say what they're for, and no two meanings share a drawing ([#379](https://github.com/parallelworks/foundation/issues/379)) ([e6696dc](https://github.com/parallelworks/foundation/commit/e6696dc3ede63d797aa3ee7db44adf44321b1b04))
+
 ## [0.67.0](https://github.com/parallelworks/foundation/compare/ui-v0.66.1...ui-v0.67.0) (2026-10-18)
 
 

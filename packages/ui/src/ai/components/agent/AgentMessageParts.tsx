@@ -5,6 +5,7 @@ import { fieldBox } from '../../../components/fieldBox'
 import { focusOnMount } from '../../../components/focus'
 import { Loader } from '../../../components/Loader'
 import { useStrings } from '../../../components/Provider'
+import { RelativeTime } from '../../../components/relativeTime'
 import { toneSurface } from '../../../components/tone'
 import { cx } from '../../../cx'
 import { formatDuration } from '../../../format'
@@ -31,6 +32,7 @@ import {
 } from '../../agent/toolfmt'
 import { thinkingHeading } from '../../agent/transcript'
 import { type PartRendererProps, useChatConfig } from '../../core/config'
+import type { ChatStrings } from '../../strings'
 import type {
   ApprovalPart,
   MessagePart,
@@ -40,6 +42,7 @@ import type {
   TextPart,
   TodoSnapshotPart,
   ToolCallPart,
+  ToolDecision,
 } from '../../types'
 import Markdown from '../../ui/Markdown'
 import { chatProseClasses } from '../../ui/prose'
@@ -353,6 +356,52 @@ function ToolCallBlock({ part }: { part: ToolCallPart }) {
           <EditDiffBlock part={part} />
         </div>
       )}
+      {part.decision && <DecisionLine decision={part.decision} />}
+    </div>
+  )
+}
+
+function decisionLabel(d: ToolDecision, t: ChatStrings['agentTranscript']): string {
+  switch (d.status) {
+    case 'approved':
+      if (d.by === 'auto-reviewer') {
+        return t.allowedByReviewer
+      }
+      return d.name ? t.allowedBy(d.name) : t.allowed
+    case 'denied':
+      if (d.by === 'auto-reviewer') {
+        return t.deniedByReviewer
+      }
+      return d.name ? t.deniedBy(d.name) : t.denied
+    case 'expired':
+      return t.approvalExpired
+    case 'timed_out':
+      return d.by === 'auto-reviewer' ? t.reviewTimedOut : t.approvalTimedOut
+    case 'failed':
+      return d.by === 'auto-reviewer' ? t.reviewFailed : t.denied
+  }
+}
+
+function DecisionLine({ decision }: { decision: ToolDecision }) {
+  const { strings } = useChatConfig()
+  return (
+    <div className="ml-5 mt-0.5 text-xs theme-muted-text" data-testid="tool-decision">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-1">
+        <span>{decisionLabel(decision, strings.agentTranscript)}</span>
+        {decision.at && (
+          <>
+            <span aria-hidden="true">·</span>
+            <RelativeTime value={decision.at} className="shrink-0" />
+          </>
+        )}
+        {decision.note && (
+          <>
+            <span aria-hidden="true">·</span>
+            <span className="min-w-0 max-w-full truncate">{decision.note}</span>
+          </>
+        )}
+      </div>
+      {decision.reason && <p className="mt-0.5 line-clamp-2">{decision.reason}</p>}
     </div>
   )
 }
@@ -496,7 +545,7 @@ function ConfirmApproval({
       )}
       {part.reason && <div className="text-xs theme-muted-text">{part.reason}</div>}
       {expired ? (
-        <div className="text-xs theme-muted-text">{t.approvalExpired}</div>
+        <div className="text-xs theme-muted-text">{t.approvalRequestExpired}</div>
       ) : !onAnswer ? (
         <div className="text-xs theme-muted-text">
           {part.waitingOn ? t.approvalWaitingOn(part.waitingOn) : t.approvalPending}
@@ -924,7 +973,7 @@ function mergeReasoning(parts: ReasoningPart[]): ReasoningPart {
 }
 
 // Folds runs of two or more consecutive, finished, groupable tool calls into
-// one rollup row; failed or still-running members never fold, and standalone
+// one rollup row; failed, still-running and answered members never fold, and standalone
 // kinds (edits, todos, subagents) break the run. A thought between two calls
 // folds into the run with the work it preceded; the thoughts before and after
 // a run keep their own line — mirrors the TUI.
@@ -972,7 +1021,10 @@ export function buildRenderItems(parts: MessagePart[]): RenderItem[] {
   parts.forEach((part, index) => {
     if (
       part.kind === 'reasoning' ||
-      (part.kind === 'tool_call' && part.status === 'ok' && isGroupableTool(part.name))
+      (part.kind === 'tool_call' &&
+        part.status === 'ok' &&
+        !part.decision &&
+        isGroupableTool(part.name))
     ) {
       run.push({ part, index })
       return

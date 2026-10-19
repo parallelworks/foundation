@@ -1,6 +1,14 @@
 // Package-owned chat domain types. Adapters map backend responses into these
 // shapes; no generated API client types cross the package boundary.
 
+/** A turn setting a session owns, shown in place of the chat's own selection. */
+export interface BoundSetting {
+  value: string | null | undefined
+  onChange: (value: string) => void
+  /** The session cannot take a change right now, such as while it is unreachable. */
+  disabled?: boolean | undefined
+}
+
 export interface ChatUser {
   id: string
   username: string
@@ -73,6 +81,21 @@ export interface ReasoningPart {
   durationMs?: number
 }
 
+export type ToolDecisionStatus = 'approved' | 'denied' | 'expired' | 'timed_out' | 'failed'
+
+/** How a call that needed an answer was settled. */
+export interface ToolDecision {
+  status: ToolDecisionStatus
+  by: 'user' | 'auto-reviewer'
+  /** The person who answered, when `by` is a user. */
+  name?: string
+  /** ISO time of the answer. */
+  at?: string
+  note?: string
+  /** Why it was settled this way, such as the auto-reviewer's rationale. */
+  reason?: string
+}
+
 export interface ToolCallPart {
   kind: 'tool_call'
   id: string
@@ -83,6 +106,7 @@ export interface ToolCallPart {
   result?: string
   // First line of an EditFile diff, when the producer resolved it.
   startLine?: number
+  decision?: ToolDecision
 }
 
 export type SubagentStatus = 'running' | 'done' | 'failed'

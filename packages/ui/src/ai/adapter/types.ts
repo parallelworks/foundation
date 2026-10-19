@@ -12,6 +12,7 @@ import type {
   SharePermissionLevel,
   TodoItem,
   ToolCall,
+  ToolDecision,
   UnreachableSession,
 } from '../types'
 import type { CompletionMessage } from './openai/wire'
@@ -90,6 +91,7 @@ export type PartDelta =
   // The call waits for the user's approval before it runs.
   | { type: 'tool_wait'; id: string }
   | { type: 'tool_end'; id: string; result: string; isError?: boolean }
+  | { type: 'tool_decision'; id: string; decision: ToolDecision }
   | {
       type: 'subagent_start'
       id: string

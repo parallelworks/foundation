@@ -247,6 +247,17 @@ export interface ChatStrings {
     denyWithFeedback: string
     feedbackPlaceholder: string
     answered: string
+    /** Under a call someone answered: who allowed or denied it. */
+    allowedBy: (name: string) => string
+    deniedBy: (name: string) => string
+    allowed: string
+    denied: string
+    allowedByReviewer: string
+    deniedByReviewer: string
+    approvalExpired: string
+    approvalTimedOut: string
+    reviewTimedOut: string
+    reviewFailed: string
     writeOwnAnswer: string
     subagent: string
     tasks: string
@@ -259,7 +270,7 @@ export interface ChatStrings {
     approvalAllowed: string
     approvalDenied: string
     /** A call nobody answered in time. */
-    approvalExpired: string
+    approvalRequestExpired: string
     /** A call only the person who asked for it may answer. */
     approvalWaitingOn: (name: string) => string
     /** Names the field for the reason a request is denied. */
@@ -538,6 +549,16 @@ export const defaultChatStrings: ChatStrings = {
     denyWithFeedback: 'No, and provide feedback to the agent',
     feedbackPlaceholder: 'Tell the agent what to do instead…',
     answered: 'Answered',
+    allowedBy: (name) => `Allowed by ${name}`,
+    deniedBy: (name) => `Denied by ${name}`,
+    allowed: 'Allowed',
+    denied: 'Denied',
+    allowedByReviewer: 'Allowed by the auto-reviewer',
+    deniedByReviewer: 'Denied by the auto-reviewer',
+    approvalExpired: 'Expired without an answer',
+    approvalTimedOut: 'Denied: no answer in time',
+    reviewTimedOut: 'Denied: the auto-reviewer timed out',
+    reviewFailed: 'Denied: the auto-reviewer failed',
     writeOwnAnswer: 'Write my own answer…',
     subagent: 'Task',
     tasks: 'Tasks',
@@ -547,7 +568,7 @@ export const defaultChatStrings: ChatStrings = {
     approvalLabel: 'Waiting for your answer',
     approvalAllowed: 'Allowed',
     approvalDenied: 'Declined',
-    approvalExpired: 'This request expired. Ask again to run it.',
+    approvalRequestExpired: 'This request expired. Ask again to run it.',
     approvalWaitingOn: (name) => `Waiting for ${name} to answer`,
     feedbackLabel: 'Feedback for the agent',
     ownAnswerLabel: 'Your answer',
