@@ -1100,7 +1100,9 @@ function VirtualList<Value>({
   const virtualizer: Virtualizer<HTMLDivElement, Element> = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scroller.current,
-    estimateSize: (i) => (rows[i]?.kind === 'group' ? 28 : 36),
+    // A row is panelItemClassName's py-1.5 around a text-sm line: 32px. An estimate off by even
+    // a few pixels moves the list under the pointer as each row is measured on the way past.
+    estimateSize: (i) => (rows[i]?.kind === 'group' ? 28 : 32),
     overscan: 10,
     paddingStart: 4,
     paddingEnd: 4,
