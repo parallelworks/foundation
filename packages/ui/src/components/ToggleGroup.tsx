@@ -34,13 +34,21 @@ export interface ToggleGroupProps<T extends string> {
   all?: boolean | { count?: number | undefined } | undefined
   /** The All option's words, for one that names what it covers, such as "All types". */
   allLabel?: ReactNode
-  size?: 'sm' | 'md' | undefined
+  /** `flat` sets each option as text that tints when pressed, the light look
+   *  for filters over a table or inside a card. `outline` boxes each option,
+   *  for a filter bar that stands on its own above a page. */
+  variant?: ToggleGroupVariant | undefined
+  /** `xs` (24px) by default for `flat`, `sm` (28px) for `outline`. */
+  size?: ToggleGroupSize | undefined
   disabled?: boolean | undefined
   /** Names an element that says more about the group, such as a live summary
    *  of what the filter lets through. */
   'aria-describedby'?: string | undefined
   testId?: string
 }
+
+export type ToggleGroupVariant = 'flat' | 'outline'
+export type ToggleGroupSize = 'xs' | 'sm' | 'md'
 
 // Stands in for "nothing pressed" so the All option takes part in the group's
 // arrow-key focus; a NUL can't appear in a host's option values.
@@ -64,7 +72,8 @@ export function ToggleGroup<T extends string>({
   multiple = true,
   all = false,
   allLabel,
-  size = 'sm',
+  variant = 'flat',
+  size = variant === 'flat' ? 'xs' : 'sm',
   disabled = false,
   'aria-describedby': describedBy,
   testId,
@@ -95,14 +104,23 @@ export function ToggleGroup<T extends string>({
       }}
     >
       {all && (
-        <Chip value={ALL} label={allLabel ?? strings.common.all} count={allCount} size={size} />
+        <Chip
+          value={ALL}
+          label={allLabel ?? strings.common.all}
+          count={allCount}
+          variant={variant}
+          size={size}
+        />
       )}
       {/* All clears the others rather than joining them, so a rule sets it apart. */}
       {all && options.length > 0 && (
-        <span aria-hidden="true" className="mx-0.5 h-5 w-px shrink-0 bg-(--theme-border)" />
+        <span
+          aria-hidden="true"
+          className={cx('mx-0.5 w-px shrink-0 bg-(--theme-border)', size === 'xs' ? 'h-4' : 'h-5')}
+        />
       )}
       {options.map((option) => (
-        <Chip key={option.value} {...option} size={size} />
+        <Chip key={option.value} {...option} variant={variant} size={size} />
       ))}
     </BaseToggleGroup>
   )
@@ -115,20 +133,29 @@ function Chip({
   count,
   disabled,
   testId,
+  variant,
   size,
-}: Omit<ToggleGroupOption<string>, 'label'> & { label: ReactNode; size: 'sm' | 'md' }) {
+}: Omit<ToggleGroupOption<string>, 'label'> & {
+  label: ReactNode
+  variant: ToggleGroupVariant
+  size: ToggleGroupSize
+}) {
   const locale = useLocale()
   return (
     <Toggle
       value={value}
       disabled={disabled}
       data-testid={testId}
-      // The outline button's pressed border alone reads faintly across a row of
-      // chips; the selection tint says which are on at a glance, and the check
-      // says it without color.
+      // A pressed border or text color alone reads faintly across a row of
+      // options; the selection tint says which are on at a glance, and the
+      // check says it without color. A toggle doesn't rise on hover as a
+      // button does (see buttonClasses). Its focus ring draws inside it, so a
+      // row of options packed into a card's top edge or a wrapping line never
+      // has it cut off or laid over a neighbor.
       className={cx(
-        'group aria-pressed:bg-(--theme-accent-subtle)',
-        buttonClasses({ variant: 'outline', size }),
+        buttonClasses({ variant: variant === 'flat' ? 'ghost' : 'outline', size }),
+        'group focus-visible:-outline-offset-2 aria-pressed:bg-(--theme-accent-subtle)',
+        variant === 'flat' && 'aria-pressed:text-(--theme-link)',
       )}
     >
       {/* An option that's off dims its icon, such as a logo or a status dot, so

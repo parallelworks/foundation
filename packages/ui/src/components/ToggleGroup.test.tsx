@@ -55,6 +55,26 @@ describe('ToggleGroup', () => {
     expect(screen.getByRole('status')).toHaveTextContent(/^$/)
   })
 
+  it('is flat and 24px by default, and boxed at 28px as an outline', () => {
+    const { unmount } = render(<Filter initial={['running']} />)
+    expect(button(/Running/)).toHaveClass('h-6', 'aria-pressed:bg-(--theme-accent-subtle)')
+    expect(button(/Running/)).not.toHaveClass('border')
+    // A toggle keeps still on hover and rings itself inside, so nothing clips it.
+    expect(button(/Running/)).toHaveAttribute('aria-pressed')
+    // Every lift class skips an element with aria-pressed, which each toggle has.
+    const lifts = button(/Running/)
+      .className.split(' ')
+      .filter((c) => c.includes('translate-y-px'))
+    expect(lifts.length).toBeGreaterThan(0)
+    for (const lift of lifts) {
+      expect(lift).toContain('not-[[aria-pressed]]')
+    }
+    expect(button(/Running/)).toHaveClass('focus-visible:-outline-offset-2')
+    unmount()
+    render(<Filter variant="outline" />)
+    expect(button(/Running/)).toHaveClass('h-7', 'border')
+  })
+
   it('names its All option as the host says, such as what it covers', () => {
     render(<Filter all allLabel="All states" initial={[]} />)
     expect(button(/^All states$/)).toHaveAttribute('aria-pressed', 'true')

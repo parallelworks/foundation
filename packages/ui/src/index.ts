@@ -354,6 +354,8 @@ export {
   ToggleGroup,
   type ToggleGroupOption,
   type ToggleGroupProps,
+  type ToggleGroupSize,
+  type ToggleGroupVariant,
 } from './components/ToggleGroup'
 export {
   Tooltip,

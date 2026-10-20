@@ -1668,9 +1668,14 @@ export const TableInDashboardCard: StoryObj<{ height: number }> = {
           <ClusterIcon aria-hidden="true" />
           Workflow runs
         </div>
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="flex shrink-0 items-center gap-1.5 px-3 pb-1">
-            <FilterIcon aria-hidden="true" />
+        {/* The body clips, as a dashboard card's does: the toggles sit at its top
+            edge, so a hover or focus that spilled out of them would be cut. */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          {/* The funnel keeps to the toggles' first line when they wrap. */}
+          <div className="flex shrink-0 items-start gap-1.5 px-3 pb-1">
+            <span className="flex h-6 shrink-0 items-center">
+              <FilterIcon aria-hidden="true" />
+            </span>
             <ToggleGroup
               label="Status"
               options={DASHBOARD_STATUSES.map((value) => ({
