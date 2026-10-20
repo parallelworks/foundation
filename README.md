@@ -175,13 +175,17 @@ import (
 func init() { dsl.ImportRules("", problemrules.Bundle) }
 ```
 
-Test that the web app has a message for every code:
+Test that the web app has a message for every code. The check reads the
+catalog as `useCodeMessage` does (see below): a type's message under its
+registry's name, at `apiErrors.<name>.<code>`, when there is one there, and
+otherwise at `apiErrors.<code>`.
 
 ```go
 func TestEveryCodeHasAMessage(t *testing.T) {
 	problemtest.CheckCatalog(t, "../web/src/i18n/locales/en.json", problems)
 	// or, with apiErrors in its own file, load the map and call
-	// problemtest.CheckMessages(t, messages, problems)
+	// problemtest.CheckMessages(t, messages, problems), with a message
+	// under a registry's name at "<name>.<code>"
 }
 ```
 
@@ -216,7 +220,9 @@ message and params. For a problem whose type names an application, such as
 `/problems/workflow/unknown_input` (relative or absolute), the lookup reads
 `apiErrors.workflow.unknown_input` first, then `apiErrors.unknown_input`, then
 the shared message. `useErrorMessage()` goes by the error's type, and by a
-field's own for the field's message.
+field's own for the field's message. `problemtest.CheckCatalog` understands
+this layout: it checks each registry's codes under its name, or else at the
+top level.
 
 ```json
 {
