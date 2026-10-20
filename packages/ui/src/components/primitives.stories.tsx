@@ -1055,7 +1055,10 @@ export const TableOptions: StoryObj<TableOptionsArgs> = {
   argTypes: {
     density: { control: 'inline-radio', options: ['comfortable', 'compact', 'dense'] },
     caps: { description: 'Sets every header in small capitals.' },
-    flush: { description: 'Drops the outer side padding of the first and last columns.' },
+    flush: {
+      description:
+        'Drops the outer side padding of the first and last columns and the header fill, for a table in a padded card.',
+    },
     columnDividers: { description: 'Rules a line between columns as well as rows.' },
   },
   render: (args) => (
