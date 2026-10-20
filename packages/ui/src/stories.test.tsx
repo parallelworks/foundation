@@ -19,6 +19,7 @@ import * as controls from './components/controls.stories'
 import * as descriptionList from './components/DescriptionList.stories'
 import * as errorPage from './components/ErrorPage.stories'
 import * as fields from './components/fields.stories'
+import * as imageUpload from './components/ImageUpload.stories'
 import * as loading from './components/loading.stories'
 import * as markdown from './components/Markdown.stories'
 import * as menus from './components/Menu.stories'
@@ -88,6 +89,7 @@ const SUITES = {
   pickers,
   controls,
   copy,
+  imageUpload,
   fields,
   menus,
   overlays,
