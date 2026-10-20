@@ -132,7 +132,23 @@ export function SettingRow({
     }
   }, [hasError, htmlFor, errorId])
   const control = (
-    <div className={cx('min-w-0', !fill && 'flex items-center justify-end')}>{children}</div>
+    <div
+      className={cx(
+        'min-w-0',
+        !fill && [
+          'flex items-center justify-end',
+          // Stacked on a phone, a compact row that holds a text field fills the row from its
+          // start, as a full-width row does: the field grows and a button beside it keeps its
+          // size. A small control, such as a switch, stays at the end.
+          'max-md:has-[input:not([type=checkbox],[type=radio],[type=hidden],[type=range]),textarea,[role=combobox]]:justify-start',
+          'max-md:has-[input:not([type=checkbox],[type=radio],[type=hidden],[type=range]),textarea,[role=combobox]]:*:grow',
+          'max-md:[&_:is(input:not([type=checkbox],[type=radio],[type=hidden],[type=range]),textarea,[role=combobox])]:min-w-0',
+          'max-md:[&_:is(input:not([type=checkbox],[type=radio],[type=hidden],[type=range]),textarea,[role=combobox])]:flex-1',
+        ],
+      )}
+    >
+      {children}
+    </div>
   )
   return (
     <div
