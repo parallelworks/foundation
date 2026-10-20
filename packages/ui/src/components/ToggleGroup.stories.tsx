@@ -4,48 +4,25 @@ import { expect, userEvent, within } from 'storybook/test'
 import { CloudIcon, ClusterIcon, DesktopIcon } from '../icons'
 import { Field } from './Field'
 import { StatusDot } from './StatusBadge'
-import {
-  ToggleGroup,
-  type ToggleGroupOption,
-  type ToggleGroupSize,
-  type ToggleGroupVariant,
-} from './ToggleGroup'
+import { ToggleGroup, type ToggleGroupOption } from './ToggleGroup'
 
 interface Args {
   multiple: boolean
   all: boolean
   counts: boolean
-  variant: ToggleGroupVariant
-  size: ToggleGroupSize | undefined
+  size: 'sm' | 'md'
   disabled: boolean
   allLabel: string
 }
 
 const meta: Meta<Args> = {
   title: 'UI/ToggleGroup',
-  args: {
-    multiple: true,
-    all: false,
-    counts: true,
-    variant: 'flat',
-    size: undefined,
-    disabled: false,
-    allLabel: '',
-  },
+  args: { multiple: true, all: false, counts: true, size: 'sm', disabled: false, allLabel: '' },
   argTypes: {
     multiple: { description: 'Several options may be pressed at once; off allows one or none.' },
     all: { description: 'Leads with an All option, pressed while nothing else is.' },
     counts: { description: 'Each option shows how many items it matches.' },
-    variant: {
-      control: 'inline-radio',
-      options: ['flat', 'outline'],
-      description: 'Flat text that tints when pressed, or a boxed option.',
-    },
-    size: {
-      control: 'inline-radio',
-      options: [undefined, 'xs', 'sm', 'md'],
-      description: '24px for flat and 28px for outline unless set.',
-    },
+    size: { control: 'inline-radio', options: ['sm', 'md'] },
     disabled: { description: 'The whole group ignores presses.' },
     allLabel: { control: 'text', description: 'The All option’s words, such as "All runs".' },
   },
@@ -67,7 +44,6 @@ function StatusFilter({
   multiple,
   all,
   counts,
-  variant,
   size,
   disabled,
   allLabel,
@@ -85,7 +61,6 @@ function StatusFilter({
         multiple={multiple}
         all={all && (counts ? { count: TOTAL } : true)}
         allLabel={allLabel || undefined}
-        variant={variant}
         size={size}
         disabled={disabled}
       />
@@ -155,7 +130,7 @@ const PLACES: ToggleGroupOption<string>[] = [
   { value: 'workstation', label: 'Workstation', icon: <DesktopIcon />, disabled: true },
 ]
 
-function PlacesDemo({ variant, size, disabled }: Args) {
+function PlacesDemo({ size, disabled }: Args) {
   const [value, setValue] = useState<string[]>([])
   return (
     <ToggleGroup
@@ -165,7 +140,6 @@ function PlacesDemo({ variant, size, disabled }: Args) {
       onValueChange={setValue}
       all
       multiple={false}
-      variant={variant}
       size={size}
       disabled={disabled}
     />
@@ -174,7 +148,7 @@ function PlacesDemo({ variant, size, disabled }: Args) {
 
 /** A leading icon instead of a dot, and an option that can't be pressed. */
 export const IconsAndDisabled: StoryObj<Args> = {
-  args: { variant: 'outline', size: 'md' },
+  args: { size: 'md' },
   render: (args) => <PlacesDemo {...args} />,
 }
 
@@ -200,7 +174,6 @@ export const InAField: StoryObj<Args> = {
               options={STATUSES.map(({ count: _, ...option }) => option)}
               value={value}
               onValueChange={setValue}
-              variant={args.variant}
               size={args.size}
               disabled={args.disabled}
             />
@@ -222,8 +195,8 @@ type Arch = 'amd64' | 'arm64' | 'gpu'
  *  lets through that the group names as its description. All stands apart
  *  from the options, and a pressed option shows a check as well as its tint. */
 export const WithSummary: StoryObj<Args> = {
-  args: { all: true, variant: 'outline', size: 'md' },
-  render: function Render({ variant, size }) {
+  args: { all: true, size: 'md' },
+  render: function Render({ size }) {
     const [value, setValue] = useState<Arch[]>(['amd64'])
     const options: ToggleGroupOption<Arch>[] = [
       { value: 'amd64', label: 'x86-64', icon: <DesktopIcon /> },
@@ -238,7 +211,6 @@ export const WithSummary: StoryObj<Args> = {
           value={value}
           onValueChange={setValue}
           all
-          variant={variant}
           size={size}
           aria-describedby="types-summary"
         />
@@ -266,13 +238,4 @@ export const AllLabel: StoryObj<Args> = {
       'true',
     )
   },
-}
-
-/** Boxed options at 28px, for a filter bar that stands on its own above a
- *  page, such as a status filter with counts over a board. The flat default
- *  suits filters over a table or inside a card, where every pixel of height
- *  goes to rows. */
-export const Outline: StoryObj<Args> = {
-  args: { all: true, variant: 'outline' },
-  render: (args) => <StatusFilter {...args} initial={['running']} />,
 }
