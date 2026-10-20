@@ -164,4 +164,41 @@ describe('CopyCodeBlock secret', () => {
       'false',
     )
   })
+
+  it('fades the hidden end of a value that runs past the chip, and takes focus to scroll it', () => {
+    clipboard()
+    let scrolled = 0
+    const spies = [
+      vi.spyOn(Element.prototype, 'scrollWidth', 'get').mockReturnValue(400),
+      vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(200),
+      vi.spyOn(Element.prototype, 'scrollLeft', 'get').mockImplementation(() => scrolled),
+    ]
+    try {
+      render(<CopyCodeBlock text="tdm_pat_9c4e1b7a2f6d8e0b3a5c7f9e1d2b4a6c" label="token" inline />)
+      const region = screen.getByRole('region', { name: 'token' })
+      expect(region.tagName).toBe('CODE')
+      expect(region).toHaveAttribute('tabindex', '0')
+      // At the start only the end is hidden.
+      expect(region.style.maskImage).toMatch(
+        /^linear-gradient\(to var\(--fade-end, right\), #000, #000 calc/,
+      )
+      scrolled = 200
+      fireEvent.scroll(region)
+      // At the end only the start is.
+      expect(region.style.maskImage).toMatch(/transparent, #000 1\.25rem, #000\)$/)
+    } finally {
+      for (const spy of spies) {
+        spy.mockRestore()
+      }
+    }
+  })
+
+  it('takes no focus while the value fits', () => {
+    clipboard()
+    render(<CopyCodeBlock text="ws_01HZX4K9" label="workspace ID" inline />)
+    const value = screen.getByText('ws_01HZX4K9')
+    expect(value).not.toHaveAttribute('tabindex')
+    expect(screen.queryByRole('region')).toBeNull()
+    expect(value.style.maskImage).toBe('')
+  })
 })
