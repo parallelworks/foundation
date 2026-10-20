@@ -4,7 +4,13 @@ import { render, screen } from '@testing-library/react'
 import { Table } from '../components/Table'
 import { memoryStorage } from '../test/storage'
 import { ListColumns, ListPage, ListRow, ListRowActionsProvider } from './ListPage'
-import { ListCellText, listTableProps, NameCell } from './ListTable'
+import {
+  actionsColumnWidth,
+  ListActionsHeader,
+  ListCellText,
+  listTableProps,
+  NameCell,
+} from './ListTable'
 import { ListToolbar } from './ListToolbar'
 import { useListSearch } from './listSearch'
 import { useListView } from './listView'
@@ -177,5 +183,53 @@ describe('list columns and cells', () => {
     )
     expect(screen.getByTestId('icon').parentElement).toHaveClass('size-7', 'border')
     expect(screen.getByText('stacked').parentElement).toHaveClass('col-start-2')
+  })
+})
+
+describe('Row actions lane', () => {
+  const header = (alwaysShowActions: boolean, pinned = 0) => {
+    render(
+      <Table>
+        <ListActionsHeader
+          view={{ showActions: true, alwaysShowActions, actionsWidth: actionsColumnWidth(pinned) }}
+        />
+      </Table>,
+    )
+    return screen.getByRole('columnheader')
+  }
+
+  it('claims no width with a mouse when its only action is a menu shown on hover', () => {
+    expect(header(false)).toHaveClass('pointer-fine:w-0!')
+  })
+
+  it('keeps its width when the actions always show', () => {
+    expect(header(true)).not.toHaveClass('pointer-fine:w-0!')
+  })
+
+  it('keeps its width for pinned buttons', () => {
+    expect(header(false, 2)).not.toHaveClass('pointer-fine:w-0!')
+  })
+
+  it('floats the hover menu over the row end, shown while hovered', () => {
+    render(
+      <Table>
+        <tbody>
+          <ListRow
+            href={null}
+            items={[{ label: 'Revoke', onClick: () => {} }]}
+            goTo={() => {}}
+            openMenu={() => {}}
+          >
+            <Table.Item>Name</Table.Item>
+          </ListRow>
+        </tbody>
+      </Table>,
+    )
+    const menu = screen.getByRole('button', { name: 'More actions' })
+    expect(menu.closest('td')).toHaveClass('pointer-fine:w-0!')
+    expect(menu.parentElement).toHaveClass(
+      'pointer-fine:opacity-0',
+      'pointer-fine:group-hover:opacity-100',
+    )
   })
 })

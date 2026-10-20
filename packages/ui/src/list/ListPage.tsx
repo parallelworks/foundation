@@ -16,6 +16,7 @@ import { Tooltip } from '../components/Tooltip'
 import { cx } from '../cx'
 import { ListFilterBar } from './ListFilterBar'
 import {
+  FLOATING_ACTIONS_LANE,
   HEADERS_OFF,
   ListActionsHeader,
   ListError,
@@ -244,7 +245,10 @@ export function ListRow({
               <div
                 // biome-ignore lint/suspicious/noArrayIndexKey: stacked cells keep their column order
                 key={j}
-                className="mt-1 @[36rem]:hidden"
+                // A flex box, so its line is the value's own height, not the cell's
+                // 24px: it follows the subtitle by a 4px step and leaves the row
+                // the same padding below as above.
+                className="mt-1 flex min-w-0 items-center @[36rem]:hidden"
                 data-stacked
               >
                 {content}
@@ -256,6 +260,10 @@ export function ListRow({
     }
     return cloneElement(el, { className: cx(el.props.className, cls) })
   })
+
+  // A row whose only action is a `⋯` shown on hover floats it over its end
+  // instead of keeping a lane for it (see ListActionsHeader).
+  const floating = !alwaysShowActions && !(pinnedActions && pinnedActions.length > 0)
 
   // While selecting, a plain click on the row selects it, so the link stays in its cell.
   const stretch = !!href && !selectionActive
@@ -309,8 +317,19 @@ export function ListRow({
        * menu. Buttons are absolutely positioned so toggling them never changes
        * row height. */}
       {showActions && (
-        <Table.Item className="relative py-2.5">
-          <div className="absolute inset-y-0 right-0 flex items-center gap-0.5 pr-4">
+        <Table.Item className={cx('relative py-2.5', floating && FLOATING_ACTIONS_LANE)}>
+          <div
+            className={cx(
+              'absolute inset-y-0 right-0 flex items-center gap-0.5 pr-4',
+              // Over the last column's end, on the row's hover color, so its value
+              // gives way to the menu only while the row is hovered or focused.
+              floating &&
+                !menuActive &&
+                'pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:focus-within:opacity-100',
+              floating &&
+                'pointer-fine:bg-linear-to-l pointer-fine:from-(--theme-hover) pointer-fine:from-70% pointer-fine:to-transparent pointer-fine:pl-6',
+            )}
+          >
             {/* Below ~44rem pinned buttons collapse into `⋯` (even with "always
              * show"), freeing their lane. */}
             {pinnedActions && pinnedActions.length > 0 && (
@@ -328,7 +347,7 @@ export function ListRow({
              * it at ≥44rem, where the buttons show. */}
             <MoreButton
               open={menuActive}
-              visible={menuActive || alwaysShowActions}
+              visible={menuActive || alwaysShowActions || floating}
               onOpen={(button) => openRowMenu(button, items)}
               className={hasOverflowItems ? undefined : '@[44rem]:hidden'}
             />
