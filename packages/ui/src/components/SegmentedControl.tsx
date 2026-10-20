@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import {
   SegmentContent,
   type SegmentLayout,
+  type SegmentTone,
   segmentClassName,
   segmentGroupClassName,
 } from './segmented'
@@ -15,6 +16,12 @@ export interface SegmentedOption<T extends string> {
   icon?: ReactNode
   /** Beside the label, or in the corner when only the icon shows. */
   badge?: ReactNode
+  /** How many things the choice holds, as a pill after the label. */
+  count?: number | undefined
+  /** Colors the label and the count, for a choice that needs attention. */
+  tone?: SegmentTone | undefined
+  /** Can't be chosen now; it still shows, and the rest still work. */
+  disabled?: boolean | undefined
   testId?: string
 }
 
@@ -31,21 +38,27 @@ export function SegmentedControl<T extends string>({
   onValueChange,
   fill = false,
   iconOnly = false,
+  size = 'md',
+  disabled = false,
   testId,
 }: SegmentLayout & {
   label?: string | undefined
   options: SegmentedOption<T>[]
   value: T
   onValueChange?: (value: T) => void
+  /** None of the choices can be changed now, such as for a reader without
+   *  the right to; the current one still shows. */
+  disabled?: boolean | undefined
   testId?: string
 }) {
-  const layout = { fill, iconOnly }
+  const layout = { fill, iconOnly, size }
   return (
     <ToggleGroup
       aria-label={label}
       data-testid={testId}
       className={segmentGroupClassName(layout)}
       orientation={iconOnly ? 'vertical' : 'horizontal'}
+      disabled={disabled}
       value={[value]}
       // Pressing the current segment again would leave none current; one always is.
       onValueChange={([next]) => {
@@ -59,8 +72,9 @@ export function SegmentedControl<T extends string>({
         <Tooltip key={option.value} content={option.label} side="right" disabled={!iconOnly}>
           <Toggle
             value={option.value}
+            disabled={option.disabled}
             data-testid={option.testId}
-            className={segmentClassName(option.value === value, layout)}
+            className={segmentClassName(option.value === value, layout, option.tone)}
           >
             <SegmentContent {...option} iconOnly={iconOnly} />
           </Toggle>

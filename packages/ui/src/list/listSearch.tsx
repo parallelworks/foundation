@@ -107,7 +107,7 @@ export function ListSearchControl({
 }: {
   search: ListSearch
   placeholder: string
-  label?: string
+  label?: string | undefined
 }) {
   const { common, list } = useStrings()
   const label = labelProp ?? common.search

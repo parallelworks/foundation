@@ -2,6 +2,7 @@ import type { ReactElement, MouseEvent as ReactMouseEvent, ReactNode } from 'rea
 import { Children, cloneElement, createContext, isValidElement, useContext, useMemo } from 'react'
 import { AppLink, isPlainClick } from '../components/AppLink'
 import type { OpenMenu } from '../components/ContextMenu'
+import { EmptyState } from '../components/EmptyState'
 import {
   isMenuDivider,
   isMenuSubmenu,
@@ -17,6 +18,8 @@ import { ListFilterBar } from './ListFilterBar'
 import {
   HEADERS_OFF,
   ListActionsHeader,
+  ListError,
+  ListSkeleton,
   NAME_MIN_WIDTH_PX,
   STRETCHED_LINK_ROW,
   StretchRowLinkContext,
@@ -60,8 +63,9 @@ export interface ListPageProps {
    *  edges, for a host whose page container is padded. A list runs edge to
    *  edge so its rows' hover and dividers span the page. */
   bleed?: boolean | undefined
-  /** The list's search, filters and view controls, above the rows. The page's
-   *  trail and actions go in its `PageHeader`. */
+  /** The list's search, filters and view controls, above the rows, such as a
+   *  `ListToolbar`. The page's trail and actions, "+ Add" among them, go in
+   *  its `PageHeader`. With `total`, it hides while the list is empty. */
   toolbar?: ReactNode
   /** Under the toolbar: the chips of the list's active filters. By default the view's own
    *  `ListFilterBar`, shown while a filter is on; pass one to add a trailing slot, such as Save
@@ -69,11 +73,65 @@ export interface ListPageProps {
   filterBar?: ReactNode
   /** Omit on pages without a list view — rows show all actions by default. */
   view?: ListViewChrome | undefined
+  /** Still loading: a sketch of rows in place of the list. */
+  loading?: boolean | undefined
+  /** Why the list couldn't load. Shown only while there is nothing to show
+   *  from before, so a failed refresh keeps the rows on screen. */
+  error?: unknown
+  /** What failed to load, as the error names it: "Couldn't load clusters". */
+  errorNoun?: string | undefined
+  /** How many rows there are before any search or filter. Given, the page
+   *  picks its body: the rows, `empty` while there are none, and `noMatches`
+   *  while a search or filter leaves none. */
+  total?: number | undefined
+  /** How many rows the search and filters leave; `total` by default. */
+  matches?: number | undefined
+  /** What shows while there is nothing in the list yet. */
+  empty?: ListPageEmpty | undefined
+  /** What shows while a search or filter leaves nothing, such as "No clusters
+   *  match". */
+  noMatches?: ReactNode
+  /** Keeps the toolbar while the list is empty, for one whose controls still
+   *  matter then, such as a filter set by default that hides everything. */
+  toolbarWhenEmpty?: boolean | undefined
   children: ReactNode
 }
 
-/** A list filling the page: its toolbar stays put while only the rows scroll. */
-export function ListPage({ bleed = false, toolbar, filterBar, view, children }: ListPageProps) {
+/** A list's empty state: what is missing, and what to do about it. */
+export interface ListPageEmpty {
+  /** A glyph for what the list holds, drawn faded above the title. */
+  icon?: ReactNode
+  title: ReactNode
+  description?: ReactNode
+  /** Such as a link to the docs; the page's "+ Add" stays in its header. */
+  action?: ReactNode
+}
+
+/** A list filling the page: its toolbar stays put while only the rows scroll.
+ *  Given `total`, it also shows the list's states in one shared look: a
+ *  sketch while loading, the error when loading failed, the empty state with
+ *  the toolbar hidden, the no-matches state, or the rows. */
+export function ListPage({
+  bleed = false,
+  toolbar,
+  filterBar,
+  view,
+  loading = false,
+  error,
+  errorNoun,
+  total,
+  matches,
+  empty,
+  noMatches,
+  toolbarWhenEmpty = false,
+  children,
+}: ListPageProps) {
+  const failed = !loading && error !== undefined && error !== null && !total
+  const known = total !== undefined && !loading && !failed
+  const isEmpty = known && total === 0
+  const noneMatch = known && !isEmpty && (matches ?? total) === 0
+  // Nothing to search or filter until there is something, so the toolbar waits for rows.
+  const controls = total === undefined || toolbarWhenEmpty || (known && total > 0)
   const bar =
     filterBar === undefined ? (
       view?.filterState && view.filterState.fields.length > 0 ? (
@@ -82,13 +140,24 @@ export function ListPage({ bleed = false, toolbar, filterBar, view, children }: 
     ) : (
       filterBar
     )
+  let body: ReactNode = children
+  if (loading) {
+    body = <ListSkeleton />
+  } else if (failed) {
+    body = <ListError error={error} noun={errorNoun} />
+  } else if (isEmpty && empty) {
+    body = <EmptyState variant="plain" {...empty} />
+  } else if (noneMatch && noMatches) {
+    body = <EmptyState variant="plain" title={noMatches} />
+  }
   return (
     <div className={cx('flex h-full min-h-0 flex-col', bleed && '-m-4')}>
-      {toolbar && <div className="shrink-0 px-4">{toolbar}</div>}
-      {bar && <div className="shrink-0 px-4">{bar}</div>}
+      {toolbar && controls && <div className="shrink-0 px-4">{toolbar}</div>}
+      {/* The filters' chips go with the toolbar: an empty list has nothing to filter. */}
+      {bar && controls && <div className="shrink-0 px-4">{bar}</div>}
       {/* The list body is the @container priority columns measure to auto-hide. */}
       <div className="relative @container min-h-0 flex-1 overflow-auto">
-        <ListRowActionsProvider view={view}>{children}</ListRowActionsProvider>
+        <ListRowActionsProvider view={view}>{body}</ListRowActionsProvider>
       </div>
     </div>
   )

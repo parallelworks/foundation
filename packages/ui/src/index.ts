@@ -74,6 +74,7 @@ export {
   DescriptionListItem,
   type DescriptionListItemProps,
   type DescriptionListProps,
+  type DescriptionListSize,
   type DescriptionListVariant,
   default as DescriptionList,
 } from './components/DescriptionList'
@@ -84,10 +85,17 @@ export {
   type DisclosureProps,
 } from './components/Disclosure'
 export { Drawer, type DrawerProps } from './components/Drawer'
-export { EmptyState, type EmptyStateProps } from './components/EmptyState'
+export { EmptyState, type EmptyStateProps, type EmptyStateVariant } from './components/EmptyState'
+export {
+  ErrorPage,
+  type ErrorPageKind,
+  type ErrorPageProps,
+  errorPageKind,
+} from './components/ErrorPage'
 export { ExternalLink, type ExternalLinkProps } from './components/ExternalLink'
 export {
   ErrorText,
+  type ErrorTextProps,
   Field,
   type FieldControlProps,
   type FieldLayout,
@@ -249,6 +257,7 @@ export {
 } from './components/StatusBadge'
 export { StickyBar, type StickyBarProps } from './components/StickyBar'
 export { Switch, type SwitchProps } from './components/Switch'
+export type { SegmentTone } from './components/segmented'
 export { isTextEntryContext, useShortcutKey } from './components/shortcutKey'
 export { type SortDirection, Table, type TableDensity } from './components/Table'
 export { type TabItem, TabPanel, Tabs, type TabsProps } from './components/Tabs'

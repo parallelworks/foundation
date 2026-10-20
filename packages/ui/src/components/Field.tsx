@@ -169,18 +169,54 @@ const switchOnLabelAndDescription = 'has-[[role=switch]]:max-h-[calc(1lh+1rem)]'
 // edge rather than the switch. The row moves up by the 4px they sit into it, to start at them as
 // a row with a lone label starts at its switch, and the space the eye sees between rows stays.
 const switchRowStartsAtText = 'has-[[role=switch]]:-mt-1'
-const errorTextClassName = 'flex items-center gap-1.5 text-xs text-(--theme-error-text)'
+const errorTextClassName = 'items-center gap-1.5 text-xs text-(--theme-error-text)'
+
+export interface ErrorTextProps {
+  id?: string | undefined
+  /** `sm` is a Field's own error, under one control; `md` is for an error
+   *  about a whole form or an action, such as a Save that failed. */
+  size?: 'sm' | 'md' | undefined
+  /** Sits in a line of text or a row of controls instead of a line of its own. */
+  inline?: boolean | undefined
+  /** Places it, such as its margins, or a card footer's rule and padding. */
+  className?: string | undefined
+  /** Nothing renders without it, so an error that may be absent needs no guard. */
+  children: ReactNode
+}
 
 /** An error in the look a Field gives its own, for a control outside a Field, or for a part of
- *  one rather than the whole of it, such as a row of a list editor. Give it an `id` and name it
- *  in the control's `aria-describedby` so the error is read with the control. */
-export function ErrorText({ id, children }: { id?: string | undefined; children: ReactNode }) {
-  return children ? (
-    <div id={id} role="alert" className={errorTextClassName}>
-      <WarningIcon aria-hidden="true" className="size-3.5 shrink-0" />
+ *  one rather than the whole of it, such as a row of a list editor; `size="md"` for an error
+ *  under a whole form or after an action. It is announced as it appears. Give it an `id` and
+ *  name it in the control's `aria-describedby` so the error is read with the control. */
+export function ErrorText({
+  id,
+  size = 'sm',
+  inline = false,
+  className,
+  children,
+}: ErrorTextProps) {
+  if (!children) {
+    return null
+  }
+  const Box = inline ? 'span' : 'div'
+  return (
+    <Box
+      id={id}
+      role="alert"
+      className={cx(
+        size === 'md' ? 'items-start gap-2 text-sm text-(--theme-error-text)' : errorTextClassName,
+        inline ? 'inline-flex' : 'flex',
+        className,
+      )}
+    >
+      {/* At md the message may run to lines of its own, so the icon keeps to the first. */}
+      <WarningIcon
+        aria-hidden="true"
+        className={size === 'md' ? 'mt-0.5 size-4 shrink-0' : 'size-3.5 shrink-0'}
+      />
       {children}
-    </div>
-  ) : null
+    </Box>
+  )
 }
 
 /** A control with its label, help and error, tied to it for assistive technology. One frame
@@ -336,7 +372,7 @@ export function Field({
         </BaseField.Description>
       )}
       {error && (
-        <BaseField.Error id={errorId} match role="alert" className={errorTextClassName}>
+        <BaseField.Error id={errorId} match role="alert" className={cx('flex', errorTextClassName)}>
           <WarningIcon aria-hidden="true" className="size-3.5 shrink-0" />
           {error}
         </BaseField.Error>
