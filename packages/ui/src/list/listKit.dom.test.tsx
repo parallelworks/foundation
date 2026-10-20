@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { render, screen } from '@testing-library/react'
+import { UIProvider } from '../components/Provider'
 import { Table } from '../components/Table'
 import { memoryStorage } from '../test/storage'
 import { ListColumns, ListPage, ListRow, ListRowActionsProvider } from './ListPage'
@@ -231,5 +232,21 @@ describe('Row actions lane', () => {
       'pointer-fine:opacity-0',
       'pointer-fine:group-hover:opacity-100',
     )
+  })
+})
+
+describe('Counts in the host locale', () => {
+  it('groups the toolbar count as the host does', () => {
+    function Bar() {
+      return (
+        <ListToolbar count={{ total: 1204, matches: 1204, noun: 'token', nounPlural: 'tokens' }} />
+      )
+    }
+    render(
+      <UIProvider locale="de-DE">
+        <Bar />
+      </UIProvider>,
+    )
+    expect(screen.getByRole('status')).toHaveTextContent('1.204 tokens')
   })
 })

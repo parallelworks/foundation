@@ -1,14 +1,12 @@
 import type { ReactNode } from 'react'
 import { cx } from '../cx'
+import { formatInteger } from '../format'
 import { ChevronLeftIcon, ChevronRightIcon, MoreIcon } from '../icons'
 import { AppLink } from './AppLink'
 import { buttonClasses } from './buttonClasses'
 import { IconButton } from './IconButton'
-import { useStrings } from './Provider'
+import { useLocale, useStrings } from './Provider'
 import { Select } from './Select'
-
-// A page's number in the reader's locale, in full: page 1,204, never 1.2K.
-const pageNumber = new Intl.NumberFormat()
 
 /** Page sizes a list offers; the first is the default. */
 export const PAGE_SIZES: readonly [number, ...number[]] = [50, 100, 200]
@@ -211,6 +209,8 @@ function PageNumber({
   onPageChange: ((page: number) => void) | undefined
   pageHref: ((page: number) => string) | undefined
 }) {
+  // In the host's locale, in full: page 1,204, never 1.2K.
+  const number = formatInteger(to + 1, useLocale())
   const props = {
     'aria-label': label,
     'aria-current': current ? ('page' as const) : undefined,
@@ -219,13 +219,13 @@ function PageNumber({
   if (pageHref) {
     return (
       <AppLink {...props} href={pageHref(to)}>
-        {pageNumber.format(to + 1)}
+        {number}
       </AppLink>
     )
   }
   return (
     <button type="button" {...props} onClick={() => !current && onPageChange?.(to)}>
-      {pageNumber.format(to + 1)}
+      {number}
     </button>
   )
 }

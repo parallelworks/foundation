@@ -107,3 +107,12 @@ describe('page numbers', () => {
     expect(screen.getByRole('link', { name: 'Page 3' })).toHaveAttribute('href', '?page=3')
   })
 })
+
+it("numbers pages in the host's locale, in full", () => {
+  render(
+    <UIProvider locale="de-DE">
+      <Pagination page={1203} pageSize={10} total={20000} onPageChange={() => {}} pageNumbers />
+    </UIProvider>,
+  )
+  expect(screen.getByRole('button', { name: 'Page 1204' })).toHaveTextContent('1.204')
+})

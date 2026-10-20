@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { cx } from '../cx'
 import { formatCount } from '../format'
+import { useLocale } from './Provider'
 
 /** The parts SegmentedControl and segmented Tabs share, so a picker and a set
  *  of views beside it look the same. */
@@ -87,6 +88,7 @@ export function segmentClassName(
 
 /** How many things a tab or segment holds, as a pill after its label. */
 export function CountPill({ count, tone }: { count: number; tone?: SegmentTone | undefined }) {
+  const locale = useLocale()
   return (
     <span
       className={cx(
@@ -94,7 +96,7 @@ export function CountPill({ count, tone }: { count: number; tone?: SegmentTone |
         tonePill[tone ?? 'none'],
       )}
     >
-      {formatCount(count)}
+      {formatCount(count, locale)}
     </span>
   )
 }
@@ -114,13 +116,14 @@ export function SegmentContent({
   tone?: SegmentTone | undefined
   iconOnly?: boolean | undefined
 }) {
+  const locale = useLocale()
   return (
     <>
       {icon}
       {iconOnly ? (
         // The pill has no room beside an icon alone, so the count joins the name.
         <span className="sr-only">
-          {count === undefined ? label : `${label} ${formatCount(count)}`}
+          {count === undefined ? label : `${label} ${formatCount(count, locale)}`}
         </span>
       ) : (
         <span className="truncate">{label}</span>

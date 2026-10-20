@@ -5,7 +5,7 @@ import { cx } from '../cx'
 import { formatCount } from '../format'
 import { CheckIcon } from '../icons'
 import { buttonClasses } from './buttonClasses'
-import { useStrings } from './Provider'
+import { useLocale, useStrings } from './Provider'
 
 export interface ToggleGroupOption<T extends string> {
   value: T
@@ -112,6 +112,7 @@ function Chip({
   testId,
   size,
 }: ToggleGroupOption<string> & { size: 'sm' | 'md' }) {
+  const locale = useLocale()
   return (
     <Toggle
       value={value}
@@ -135,7 +136,7 @@ function Chip({
       {label}
       {count !== undefined && (
         <span className="tabular-nums text-(--theme-muted-text-color) group-aria-pressed:text-(--theme-app)">
-          {formatCount(count)}
+          {formatCount(count, locale)}
         </span>
       )}
       <CheckIcon aria-hidden="true" className="hidden shrink-0 group-aria-pressed:block" />
