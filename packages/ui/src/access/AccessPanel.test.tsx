@@ -99,6 +99,13 @@ describe('AccessPanel', () => {
     expect(
       await screen.findByText('Couldn’t change to Only people with access'),
     ).toBeInTheDocument()
+    // The switch shows what is in effect, not the choice that failed.
+    expect(
+      within(switcher).getByRole('button', { name: 'Everyone in the workspace' }),
+    ).toHaveAttribute('aria-pressed', 'true')
+    expect(
+      within(switcher).getByRole('button', { name: 'Only people with access' }),
+    ).toHaveAttribute('aria-pressed', 'false')
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
     await waitFor(() => expect(onVisibility).toHaveBeenCalledTimes(2))
     await waitFor(() =>

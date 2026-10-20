@@ -168,7 +168,7 @@ export const Visibility: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const open = canvas.getByRole('button', { name: 'Everyone in the workspace' })
-    await userEvent.click(open)
+    fireEvent.click(open)
     await waitFor(() => expect(open).toHaveAttribute('aria-pressed', 'true'))
   },
 }
@@ -179,7 +179,9 @@ export const VisibilityFailed: Story = {
   render: (args) => <Settings {...args} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: 'Everyone in the workspace' }))
+    // A click as a mouse makes it: a scripted one also focuses the segment as a keyboard
+    // would, and its ring would read as the choice.
+    fireEvent.click(canvas.getByRole('button', { name: 'Everyone in the workspace' }))
     await expect(
       await canvas.findByText('Couldn’t change to Everyone in the workspace'),
     ).toBeVisible()
@@ -260,7 +262,9 @@ export const SaveFailed: Story = {
   render: (args) => <Settings {...args} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: 'Everyone in the workspace' }))
+    // A click as a mouse makes it: a scripted one also focuses the segment as a keyboard
+    // would, and its ring would read as the choice.
+    fireEvent.click(canvas.getByRole('button', { name: 'Everyone in the workspace' }))
     await expect(
       await canvas.findByText(
         'The server didn’t answer in time. Try again in a moment. Nothing changed.',
