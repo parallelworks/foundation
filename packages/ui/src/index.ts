@@ -21,7 +21,14 @@ export {
   buttonClasses,
 } from './components/buttonClasses'
 export { Callout, type CalloutProps, type CalloutTone } from './components/Callout'
-export { Card, CardHeader, type CardHeaderProps, type CardProps } from './components/Card'
+export {
+  Card,
+  CardHeader,
+  type CardHeaderProps,
+  type CardPadding,
+  type CardProps,
+  type CardSize,
+} from './components/Card'
 export { Checkbox, CheckboxGroup, type CheckboxProps } from './components/Checkbox'
 export { ColorInput, type ColorInputProps } from './components/ColorInput'
 export {
@@ -60,7 +67,12 @@ export {
   type DescriptionListVariant,
   default as DescriptionList,
 } from './components/DescriptionList'
-export { Disclosure, DisclosurePanel, type DisclosureProps } from './components/Disclosure'
+export {
+  collapsePanelClassName,
+  Disclosure,
+  DisclosurePanel,
+  type DisclosureProps,
+} from './components/Disclosure'
 export { Drawer, type DrawerProps } from './components/Drawer'
 export { EmptyState, type EmptyStateProps } from './components/EmptyState'
 export { ExternalLink, type ExternalLinkProps } from './components/ExternalLink'
@@ -111,9 +123,11 @@ export {
 export {
   type BarSize,
   type BarTone,
+  type BarValuePlacement,
   levelTone,
   Meter,
   ProgressBar,
+  type ProgressSegment,
 } from './components/Meter'
 export {
   Modal,
@@ -175,7 +189,12 @@ export {
 export { Radio, RadioGroup, type RadioProps } from './components/Radio'
 export { RefreshButton, type RefreshButtonProps } from './components/RefreshButton'
 export { RequiredMark } from './components/RequiredMark'
-export { RunStatusIcon, runStatusTone } from './components/RunStatusIcon'
+export {
+  RunStatusIcon,
+  type RunStatusIconProps,
+  type RunStatusIconStatus,
+  runStatusTone,
+} from './components/RunStatusIcon'
 export {
   Elapsed,
   RelativeTime,
@@ -188,6 +207,7 @@ export { SearchInput, type SearchInputProps } from './components/SearchInput'
 export {
   Section,
   type SectionProps,
+  type SectionTone,
   type SectionVariant,
 } from './components/Section'
 export { SegmentedControl, type SegmentedOption } from './components/SegmentedControl'
@@ -202,8 +222,14 @@ export {
 export { LoadingRegion, Skeleton, type SkeletonProps } from './components/Skeleton'
 export { Slider, type SliderProps } from './components/Slider'
 export {
+  type BadgeEmphasis,
+  type BadgeShape,
+  type BadgeSize,
   type BadgeVariant,
+  CountBadge,
+  type CountBadgeProps,
   StatusBadge,
+  type StatusBadgeProps,
   StatusDot,
   statusTextClass,
 } from './components/StatusBadge'
