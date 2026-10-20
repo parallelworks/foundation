@@ -555,6 +555,8 @@ export interface UIStrings {
     labelId: string
     labelUrl: string
     couldNotLoad: (noun: string) => string
+    /** What `ListError` says under its heading when the host gives no message of its own. */
+    couldNotLoadHint: string
     /** What `ListError` names when the host gives no noun. */
     data: string
     /** A list's size, as `ListCount` shows it; `count` is formatted and `noun` agrees with it. */
@@ -1347,6 +1349,7 @@ const DEFAULTS: UIProviderValue = {
       labelId: 'ID',
       labelUrl: 'URL',
       couldNotLoad: (noun) => `Couldn't load ${noun}`,
+      couldNotLoadHint: 'Something went wrong. Try again in a moment.',
       data: 'data',
       count: (count, noun) => `${count} ${noun}`,
       matchCount: (matches, total, nounPlural) => `${matches} of ${total} ${nounPlural}`,
@@ -1447,9 +1450,16 @@ const NavigationContext = createContext<UINavigation>(DEFAULTS.navigation)
 const DataContext = createContext<UIData>(DEFAULTS.data)
 const SlotsContext = createContext<UISlots>(DEFAULTS.slots)
 const EngineContext = createContext<WorkflowEngineSource | undefined>(undefined)
+const LocaleContext = createContext<string | undefined>(undefined)
 
 export function useStrings(): UIStrings {
   return useContext(StringsContext)
+}
+
+/** The host's locale for dates and times, such as `de-DE`. Undefined without one, which leaves
+ *  each format's own default: the date library's for its times, the browser's for the rest. */
+export function useLocale(): string | undefined {
+  return useContext(LocaleContext)
 }
 
 export function useNavigation(): UINavigation {
@@ -1607,6 +1617,10 @@ export interface UIProviderProps {
    *  that places them before hydration. The components render no inline
    *  `<style>`, so a policy without 'unsafe-inline' styles needs none. */
   nonce?: string | undefined
+  /** The locale dates and times read in, such as `de-DE`, as a BCP 47 tag: relative times,
+   *  exact times and the date picker. Pass the app's language, so they read as its own text
+   *  does. Without one they follow the date library's default locale, or the browser's. */
+  locale?: string | undefined
   children: React.ReactNode
 }
 
@@ -1636,6 +1650,7 @@ export function UIProvider({
   slots,
   engine: engineProp,
   nonce,
+  locale,
   children,
 }: UIProviderProps) {
   // A loader is the first one passed: an inline arrow is a new function each render, and each
@@ -1671,13 +1686,15 @@ export function UIProvider({
         <DataContext value={mergedData}>
           <SlotsContext value={stableSlots}>
             <EngineContext value={engine}>
-              {/* Base UI hides a select's or scroll area's own scrollbar with an
+              <LocaleContext value={locale}>
+                {/* Base UI hides a select's or scroll area's own scrollbar with an
                   inline <style>, which a same-origin style policy blocks and
                   reports. theme.css ships that rule instead. */}
-              <CSPProvider nonce={nonce} disableStyleElements>
-                <TooltipProvider>{children}</TooltipProvider>
-                <Toaster />
-              </CSPProvider>
+                <CSPProvider nonce={nonce} disableStyleElements>
+                  <TooltipProvider>{children}</TooltipProvider>
+                  <Toaster />
+                </CSPProvider>
+              </LocaleContext>
             </EngineContext>
           </SlotsContext>
         </DataContext>
