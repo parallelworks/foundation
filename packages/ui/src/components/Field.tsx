@@ -169,14 +169,18 @@ const switchOnLabelAndDescription = 'has-[[role=switch]]:max-h-[calc(1lh+1rem)]'
 // edge rather than the switch. The row moves up by the 4px they sit into it, to start at them as
 // a row with a lone label starts at its switch, and the space the eye sees between rows stays.
 const switchRowStartsAtText = 'has-[[role=switch]]:-mt-1'
-const errorTextClassName = 'items-center gap-1.5 text-xs text-(--theme-error-text)'
+// The icon keeps to the message's first line, so a message that wraps doesn't pull it
+// down between its lines: a 14px icon on a 16px line, a pixel down.
+const errorTextClassName = 'items-start gap-1.5 text-xs text-(--theme-error-text)'
+const errorIconClassName = 'mt-px size-3.5 shrink-0'
 
 export interface ErrorTextProps {
   id?: string | undefined
   /** `sm` is a Field's own error, under one control; `md` is for an error
    *  about a whole form or an action, such as a Save that failed. */
   size?: 'sm' | 'md' | undefined
-  /** Sits in a line of text or a row of controls instead of a line of its own. */
+  /** Sits in a line of text instead of a line of its own, in that text's size; `size`
+   *  applies only on a line of its own. */
   inline?: boolean | undefined
   /** Places it, such as its margins, or a card footer's rule and padding. */
   className?: string | undefined
@@ -198,24 +202,34 @@ export function ErrorText({
   if (!children) {
     return null
   }
-  const Box = inline ? 'span' : 'div'
+  if (inline) {
+    // Inside a sentence it takes the sentence's size and sits on its baseline: the icon is
+    // an em box nudged down onto the text's middle, as an inline icon reads in prose. A flex
+    // box would set its baseline at the icon's foot and lift the message off the line.
+    return (
+      <span id={id} role="alert" className={cx('text-(--theme-error-text)', className)}>
+        <WarningIcon aria-hidden="true" className="me-[0.3em] inline size-[1em] align-[-0.125em]" />
+        {children}
+      </span>
+    )
+  }
   return (
-    <Box
+    <div
       id={id}
       role="alert"
       className={cx(
+        'flex',
         size === 'md' ? 'items-start gap-2 text-sm text-(--theme-error-text)' : errorTextClassName,
-        inline ? 'inline-flex' : 'flex',
         className,
       )}
     >
       {/* At md the message may run to lines of its own, so the icon keeps to the first. */}
       <WarningIcon
         aria-hidden="true"
-        className={size === 'md' ? 'mt-0.5 size-4 shrink-0' : 'size-3.5 shrink-0'}
+        className={size === 'md' ? 'mt-0.5 size-4 shrink-0' : errorIconClassName}
       />
       {children}
-    </Box>
+    </div>
   )
 }
 
@@ -373,7 +387,7 @@ export function Field({
       )}
       {error && (
         <BaseField.Error id={errorId} match role="alert" className={cx('flex', errorTextClassName)}>
-          <WarningIcon aria-hidden="true" className="size-3.5 shrink-0" />
+          <WarningIcon aria-hidden="true" className={errorIconClassName} />
           {error}
         </BaseField.Error>
       )}
