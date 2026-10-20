@@ -132,4 +132,36 @@ describe('CopyCodeBlock secret', () => {
     expect(eye).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByText('pk_live_51HhZ2vK8x2Q')).toBeInTheDocument()
   })
+
+  it('sits inline with its buttons after the value, and copies with the check and no toast', async () => {
+    const writeText = clipboard()
+    render(<CopyCodeBlock text="pwk_live_8f3b" label="API key" inline secret defaultRevealed />)
+    const value = screen.getByText('pwk_live_8f3b')
+    expect(value.tagName).toBe('CODE')
+    // One line that scrolls inside, so a long token neither widens the page nor breaks.
+    expect(value).toHaveClass('overflow-x-auto', 'whitespace-nowrap')
+    expect(value).not.toHaveClass('break-all')
+    const copy = screen.getByRole('button', { name: 'Copy API key' })
+    const show = screen.getByRole('button', { name: 'Show value' })
+    expect(value.compareDocumentPosition(copy) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(copy.compareDocumentPosition(show) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(copy).not.toHaveClass('opacity-0')
+    fireEvent.click(copy)
+    await screen.findByRole('button', { name: 'Copied API key' })
+    expect(writeText).toHaveBeenCalledWith('pwk_live_8f3b')
+    expect(notifySuccess).not.toHaveBeenCalled()
+  })
+
+  it('shows an inline value in the clear unless it is a secret', () => {
+    clipboard()
+    const { rerender } = render(<CopyCodeBlock text="tok_123" inline />)
+    expect(screen.getByText('tok_123')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Show value' })).toBeNull()
+    rerender(<CopyCodeBlock text="tok_123" inline secret />)
+    expect(screen.queryByText('tok_123')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Show value' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
+  })
 })

@@ -98,8 +98,14 @@ export interface CopyCodeBlockProps {
   revealed?: boolean | undefined
   defaultRevealed?: boolean | undefined
   onRevealedChange?: ((revealed: boolean) => void) | undefined
-  /** Breaks a long value across lines instead of scrolling it, such as a token. */
+  /** Breaks a long value across lines instead of scrolling it, such as a token in a block.
+   *  Default false: an inline token, key or ID stays on one line and scrolls inside. */
   wrap?: boolean | undefined
+  /** A compact value in the line, such as a token shown once in a Callout: as wide as the
+   *  value, up to its container, where a longer one scrolls sideways on its one line. A quiet
+   *  surface reads on a panel and a tinted callout alike, and the buttons stay right after the
+   *  value, always shown. The copy confirms with its check alone, as the change shows there. */
+  inline?: boolean | undefined
   className?: string | undefined
 }
 
@@ -108,8 +114,9 @@ const MASK = '•'.repeat(24)
 
 /** A block of code, such as a command to run, with a button that copies it. The
  *  buttons show while the pointer is over the block or focus is in it, and always
- *  where there is no hover to reveal them. With `secret` it holds a value shown once,
- *  such as a new API key: masked until the eye shows it, and copied either way. */
+ *  where there is no hover to reveal them. With `inline` it is a compact value in the line
+ *  instead, such as a token shown once, its buttons always beside it. With `secret` it
+ *  masks the value until the eye shows it, and copies it either way. */
 export function CopyCodeBlock({
   text,
   label,
@@ -118,6 +125,7 @@ export function CopyCodeBlock({
   revealed: revealedProp,
   defaultRevealed = false,
   onRevealedChange,
+  inline = false,
   wrap = false,
   className,
 }: CopyCodeBlockProps) {
@@ -141,6 +149,44 @@ export function CopyCodeBlock({
       </>
     )
   }
+  const revealButton = secret && (
+    <IconButton
+      // A toggle keeps one name and says its state by aria-pressed.
+      label={t.showValue}
+      icon={revealed ? <EyeIcon /> : <EyeOffIcon />}
+      pressed={revealed}
+      onClick={() => setRevealed(!revealed)}
+      size={inline ? 'xs' : 'sm'}
+      className={inline ? undefined : cx('bg-(--theme-muted-panel-bg)', reveal)}
+    />
+  )
+  if (inline) {
+    return (
+      <span
+        className={cx(
+          // The border takes the text's color, so it is the tone's on a callout and neutral on
+          // a panel; the fill lifts the value off a tint without a slab of its own color.
+          'inline-flex max-w-full items-start gap-1 rounded-md border border-current/15 bg-(--theme-panel-bg)/70 py-px ps-2 pe-px align-middle',
+          className,
+        )}
+      >
+        <code
+          className={cx(
+            'min-w-0 py-[3px] font-mono text-[0.8125rem] leading-[18px] text-(--theme-app)',
+            wrap
+              ? 'break-all whitespace-pre-wrap'
+              : 'overflow-x-auto whitespace-nowrap [scrollbar-width:none]',
+          )}
+        >
+          {shown}
+        </code>
+        <span className="flex shrink-0 items-center">
+          <CopyButton text={text} label={label} size="xs" quiet />
+          {revealButton}
+        </span>
+      </span>
+    )
+  }
   return (
     <div className={cx('group/code relative', className)}>
       <pre
@@ -153,16 +199,7 @@ export function CopyCodeBlock({
         {shown}
       </pre>
       <div className="absolute top-2 right-2 flex items-center gap-1">
-        {secret && (
-          <IconButton
-            // A toggle keeps one name and says its state by aria-pressed.
-            label={t.showValue}
-            icon={revealed ? <EyeIcon /> : <EyeOffIcon />}
-            pressed={revealed}
-            onClick={() => setRevealed(!revealed)}
-            className={cx('bg-(--theme-muted-panel-bg)', reveal)}
-          />
-        )}
+        {revealButton}
         <CopyButton
           text={text}
           label={label}
