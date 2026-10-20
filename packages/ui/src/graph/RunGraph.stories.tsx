@@ -7,6 +7,7 @@ import DependencyGraph, { type ViewMode } from './DependencyGraph'
 import type { RunWarning } from './runWarnings'
 import {
   ALWAYS_WARNING,
+  FAN_JOBS,
   NOT_COMPLETED_WARNING,
   PIPELINE_JOBS,
   RUNNING_WARNED_JOBS,
@@ -229,9 +230,9 @@ export const APipelineAsAList: Story = { args: { ...PIPELINE, viewMode: 'tree' }
 
 const phone = { viewport: { value: 'mobile1', isRotated: false } }
 
-/** On a phone the graph opens at a scale its jobs read at, from its first job, under the view's
- *  buttons, to be panned along by touch, rather than fitting all sixteen too small to read. With
- *  `bleed`, its panel reaches the screen's edges. */
+/** On a phone the graph runs down the screen, its ranks as rows, fit to the width at a scale its
+ *  jobs read at, in a panel most of the screen tall to pan down through. Connectors leave each
+ *  node's bottom for the top of the next. With `bleed`, its panel reaches the screen's edges. */
 export const APipelineOnAPhone: Story = {
   args: { ...PIPELINE, bleed: true },
   globals: phone,
@@ -243,3 +244,16 @@ export const APipelineAsAListOnAPhone: Story = {
   args: { ...PIPELINE, viewMode: 'tree', bleed: true },
   globals: phone,
 }
+
+const FAN: Partial<RunGraphArgs> = {
+  jobs: FAN_JOBS,
+  workflowName: 'variant-calling',
+  completedAt: '2026-01-01T09:16:06.000Z',
+}
+
+/** A run that fans out four lanes wide and back in, each lane its own jobs. */
+export const AWideFan: Story = { args: FAN }
+
+/** The fan on a phone, running down: four lanes are wider than the screen at a size they read at,
+ *  so the row pans sideways, from the middle. */
+export const AWideFanOnAPhone: Story = { args: { ...FAN, bleed: true }, globals: phone }

@@ -58,7 +58,7 @@ import { ConnectorLayers } from './Connectors'
 import { type Box, type DrawnEdge, routeConnectors, sameBoxes } from './connectorGeometry'
 import type { DependencyGraphEditor } from './editorApi'
 import { EdgeEnds, EdgeHitPath, EmptyGraphEditor, GraphEditorCanvas, NodePorts } from './editorRows'
-import { DimRules, JobNode, setDimmed } from './GraphNode'
+import { DimRules, GraphDirectionContext, JobNode, setDimmed } from './GraphNode'
 import {
   EDITOR_HANDLE_CLASS,
   type EdgeSelection,
@@ -553,13 +553,14 @@ const skippedBefore = (slots: number[] | undefined, i: number) =>
   (slots?.[i] ?? i) - (i === 0 ? 0 : (slots?.[i - 1] ?? i - 1) + 1)
 
 // Each node's box within a level's wrapper, keyed by its first job, read from the DOM in one pass.
-function measureBoxes(cols: string[][][], pathPrefix: string, wrapper: HTMLElement) {
+function measureBoxes(cols: string[][][], pathPrefix: string, wrapper: HTMLElement, down: boolean) {
   const boxes = new Map<string, Box>()
   for (const col of cols) {
     for (const [head] of col) {
       const el = head === undefined ? null : document.getElementById(`node_${pathPrefix}${head}`)
       if (head !== undefined && el) {
-        boxes.set(head, { ...offsetWithin(el, wrapper), width: el.offsetWidth })
+        const box = { ...offsetWithin(el, wrapper), width: el.offsetWidth }
+        boxes.set(head, down ? { ...box, height: el.offsetHeight } : box)
       }
     }
   }
@@ -630,6 +631,7 @@ const Subgraph = memo(function Subgraph({
   const editorApi = useGraphEditor()
   const selectedEdges = useSelectedEdges(editable ? editorApi : null)
   const zBase = depth * SUBGRAPH_Z_STEP
+  const down = useContext(GraphDirectionContext) === 'down'
 
   // A subworkflow drawn inside another graph places its jobs by their `position`, as its own graph
   // does.
@@ -796,9 +798,14 @@ const Subgraph = memo(function Subgraph({
   // The nodes move only by CSS as boxes open, so re-measuring connectors reuses them.
   const nodes = useMemo(
     () => (
-      <div className="flex relative">
+      // Running down, each rank is a row, centered, so a chain's connectors run straight.
+      <div className={down ? 'flex flex-col items-center relative' : 'flex relative'}>
         {dependencyCols.map((col, c) => (
-          <div key={col[0]?.[0]} style={emptyColumnsStyle(skippedBefore(colSlots, c))}>
+          <div
+            key={col[0]?.[0]}
+            className={down ? 'flex items-start justify-center' : undefined}
+            style={down ? undefined : emptyColumnsStyle(skippedBefore(colSlots, c))}
+          >
             {col.map((jobNames, i) => {
               const first = jobNames[0]
               if (first === undefined) {
@@ -850,6 +857,7 @@ const Subgraph = memo(function Subgraph({
       toggleMatrix,
       handlers,
       editable,
+      down,
     ],
   )
 
@@ -860,7 +868,7 @@ const Subgraph = memo(function Subgraph({
   // On the first render there's nothing laid out to measure yet; the frame after draws connectors.
   const wrapper = wrapperRef.current
   const measured = wrapper
-    ? measureBoxes(dependencyCols, pathPrefix, wrapper)
+    ? measureBoxes(dependencyCols, pathPrefix, wrapper, down)
     : new Map<string, Box>()
   // Most re-measures, a frame of another level's reveal or an editor's, find nothing moved, and
   // keep the connectors as they were, which their layers then skip rendering.
@@ -877,6 +885,7 @@ const Subgraph = memo(function Subgraph({
             directDeps,
             measured,
             NODE_CONNECTOR_Y,
+            down ? 'down' : 'right',
           ),
         }
   routedRef.current = routed
@@ -1334,6 +1343,9 @@ export default function DependencyGraph({
     [preview],
   )
   const containerHeight = topOffset !== null ? Math.max(windowSize.h - topOffset - 16, 160) : null
+  // On a phone a run's graph runs down the screen, its ranks as rows, so scrolling follows the work
+  // and most pipelines fit the width at a size their jobs read at.
+  const runsDown = !preview && !editor && windowSize.w < NARROW_PANEL_PX
 
   // The panel is only as tall as the graph, up to that cap, so a small graph
   // leaves no empty box above the step summaries under it. The transform
@@ -1663,12 +1675,17 @@ export default function DependencyGraph({
       }
       // A run's graph on a phone fits no farther out than its jobs read, from its start, to be
       // panned along by touch; a fit of all of a long run there would be too small to read.
+      // Running down, it fits its width, and the rest is panned to down the panel.
       const narrow = !preview && !editor && panel.width < NARROW_PANEL_PX
       const view = fitView(
         bounds,
         panel,
-        narrow
-          ? { minScale: READABLE_SCALE, top: viewBarRef.current?.offsetHeight ?? 0 }
+        narrow || runsDown
+          ? {
+              minScale: READABLE_SCALE,
+              top: viewBarRef.current?.offsetHeight ?? 0,
+              width: runsDown,
+            }
           : undefined,
       )
       if (!view) {
@@ -1688,7 +1705,7 @@ export default function DependencyGraph({
       // Tell the library after paint so it doesn't overwrite our direct DOM change
       requestAnimationFrame(() => transform.setTransform(view.x, view.y, view.scale, 0))
     },
-    [nodeOf, editor, runRowOf, preview],
+    [nodeOf, editor, runRowOf, preview, runsDown],
   )
 
   // Boxes open and close over CSS transitions, so a fit before they end measures them mid-way:
@@ -2282,7 +2299,13 @@ export default function DependencyGraph({
               height:
                 fixedHeight ??
                 (fitHeight !== null
-                  ? `${Math.min(fitHeight, containerHeight ?? windowSize.h * 0.62)}px`
+                  ? `${Math.min(
+                      fitHeight,
+                      // Running down, the graph takes most of the screen, to pan down through.
+                      runsDown
+                        ? Math.max(containerHeight ?? 0, windowSize.h * 0.75)
+                        : (containerHeight ?? windowSize.h * 0.62),
+                    )}px`
                   : containerHeight !== null
                     ? `${containerHeight}px`
                     : '62vh'),
@@ -2353,28 +2376,30 @@ export default function DependencyGraph({
                         className="flex relative mr-[8000px]"
                         style={{ minHeight: 4000 }}
                       >
-                        <Subgraph
-                          key={`sg-${executedJobsPathIdx}-${pathAppend}`}
-                          jobs={jobs}
-                          pathPrefix={pathAppend}
-                          depth={0}
-                          preview={preview}
-                          animT={animT}
-                          expandedSubworkflows={expandedSubworkflows}
-                          toggleSubworkflow={toggleSubworkflow}
-                          openInNewGraph={openInNewGraph}
-                          setSublogOpen={setSublogOpen}
-                          invalidateConnectors={invalidateConnectors}
-                          requestFit={fitWhenSettled}
-                          stepsOpen={stepsOpen}
-                          toggleSteps={toggleSteps}
-                          matrixOpen={matrixOpen}
-                          toggleMatrix={toggleMatrix}
-                          onReady={fitGraph}
-                          layout={placed}
-                          graph={rootGraph}
-                          editable={!!editorApi && currentPath.length === 0}
-                        />
+                        <GraphDirectionContext value={runsDown ? 'down' : 'right'}>
+                          <Subgraph
+                            key={`sg-${executedJobsPathIdx}-${pathAppend}`}
+                            jobs={jobs}
+                            pathPrefix={pathAppend}
+                            depth={0}
+                            preview={preview}
+                            animT={animT}
+                            expandedSubworkflows={expandedSubworkflows}
+                            toggleSubworkflow={toggleSubworkflow}
+                            openInNewGraph={openInNewGraph}
+                            setSublogOpen={setSublogOpen}
+                            invalidateConnectors={invalidateConnectors}
+                            requestFit={fitWhenSettled}
+                            stepsOpen={stepsOpen}
+                            toggleSteps={toggleSteps}
+                            matrixOpen={matrixOpen}
+                            toggleMatrix={toggleMatrix}
+                            onReady={fitGraph}
+                            layout={placed}
+                            graph={rootGraph}
+                            editable={!!editorApi && currentPath.length === 0}
+                          />
+                        </GraphDirectionContext>
                       </div>
                     </ConnectorClockContext>
                   </TransformComponent>

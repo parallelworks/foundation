@@ -1517,3 +1517,32 @@ describe('DependencyGraph bleed', () => {
     expect(panelOf(container)).toHaveClass('max-sm:-mx-4', 'max-sm:rounded-none')
   })
 })
+
+describe('DependencyGraph on a phone', () => {
+  const ranksOf = () => document.getElementById('node_build')?.parentElement?.parentElement
+  const at = (width: number) => {
+    const was = window.innerWidth
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
+    onTestFinished(() => {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: was })
+    })
+  }
+
+  it('runs a run’s graph down the screen, its ranks as rows', () => {
+    at(390)
+    render(<DependencyGraph run={run} />)
+    expect(ranksOf()).toHaveClass('flex-col')
+    expect(document.getElementById('node_build')).toHaveClass('my-16')
+  })
+
+  it('keeps a preview, and a wider screen, running across', () => {
+    at(390)
+    const { unmount } = render(<DependencyGraph run={run} preview />)
+    expect(ranksOf()).not.toHaveClass('flex-col')
+    unmount()
+    at(1280)
+    render(<DependencyGraph run={run} />)
+    expect(ranksOf()).not.toHaveClass('flex-col')
+    expect(document.getElementById('node_build')).toHaveClass('m-24')
+  })
+})

@@ -174,14 +174,32 @@ const PIPELINE: [name: string, needs: string[], steps: string[]][] = [
   ['upload-results', ['qc-report'], ['upload']],
 ]
 
+// Four lanes, each aligned and then indexed apart, so each lane's jobs are nodes of their own: a fan
+// four wide, then four in, to one merge.
+const FAN: [name: string, needs: string[], steps: string[]][] = [
+  ['fetch-reference', [], ['download genome']],
+  ['split-reads', ['fetch-reference'], ['split']],
+  ...[1, 2, 3, 4].flatMap((lane): [string, string[], string[]][] => [
+    [`align-lane-${lane}`, ['split-reads'], ['align']],
+    [`index-lane-${lane}`, [`align-lane-${lane}`], ['index']],
+  ]),
+  ['merge-bams', [1, 2, 3, 4].map((lane) => `index-lane-${lane}`), ['merge']],
+  ['call-variants', ['merge-bams'], ['haplotypes']],
+]
+
 const pipelineAt = (seconds: number) => new Date(Date.UTC(2026, 0, 1, 9, 0, seconds)).toISOString()
 
 /** A finished run of a sixteen-job pipeline with long job names: one job waits on four lanes, so its
  *  list of what it depends on is long, and the chain is too long to fit a phone's width readably. */
-export const PIPELINE_JOBS: Record<string, WorkflowJob> = (() => {
+export const PIPELINE_JOBS: Record<string, WorkflowJob> = finished(PIPELINE)
+
+/** A finished run that fans out four lanes wide, each lane its own two jobs, and back in. */
+export const FAN_JOBS: Record<string, WorkflowJob> = finished(FAN)
+
+function finished(pipeline: [name: string, needs: string[], steps: string[]][]) {
   const ends: Record<string, number> = {}
   const jobs: Record<string, WorkflowJob> = {}
-  for (const [name, needs, steps] of PIPELINE) {
+  for (const [name, needs, steps] of pipeline) {
     const start = Math.max(0, ...needs.map((n) => ends[n] ?? 0))
     const end = start + 161
     ends[name] = end
@@ -200,4 +218,4 @@ export const PIPELINE_JOBS: Record<string, WorkflowJob> = (() => {
     }
   }
   return jobs
-})()
+}
