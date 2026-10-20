@@ -1278,6 +1278,27 @@ export const CreateModalHints: StoryObj<{ failing: boolean; size: ModalSize }> =
   },
 }
 
+/** Opening the dialog's own team menu before typing a title leaves the empty title unmarked:
+ *  that is still filling the form in. The title is marked once a create is tried, or when
+ *  focus leaves the dialog with it empty. */
+export const CreateModalTitleUnmarked: StoryObj = {
+  name: 'Create modal, title unmarked while choosing a team',
+  render: () => <NewIssueDemo failing={false} />,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole('button', { name: 'New issue' }))
+    const title = await screen.findByPlaceholderText('Issue title')
+    await waitFor(() => expect(title).toHaveFocus())
+    await userEvent.click(screen.getByRole('button', { name: /^Web/ }))
+    const platform = await screen.findByRole('menuitemcheckbox', { name: 'Platform' })
+    await expect(title).not.toHaveAttribute('aria-invalid', 'true')
+    // A team chosen and the menu closed, the title is still unmarked.
+    await userEvent.click(platform)
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+    await expect(screen.getByRole('button', { name: /^Platform/ })).toBeVisible()
+    await expect(title).not.toHaveAttribute('aria-invalid', 'true')
+  },
+}
+
 /** `xl`, for a long body such as an issue's description in a rich text editor. */
 export const CreateModalWide: StoryObj = {
   name: 'Create modal, wide',

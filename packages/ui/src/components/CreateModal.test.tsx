@@ -71,6 +71,62 @@ describe('CreateModal name', () => {
     expect(name).toHaveAccessibleDescription('No spaces allowed')
   })
 
+  function Blank({ outside = false }: { outside?: boolean }) {
+    return (
+      <>
+        {outside && <button type="button">Outside</button>}
+        <CreateModal
+          open
+          onClose={vi.fn()}
+          typeLabel="Issue"
+          typeMenu={[{ label: 'Bug', onClick: vi.fn() }]}
+          namePlaceholder="Issue title"
+          onSubmit={vi.fn()}
+        >
+          <Input label="Estimate" />
+        </CreateModal>
+      </>
+    )
+  }
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 10))
+
+  it("leaves an empty name unmarked while focus moves to the dialog's own controls", async () => {
+    render(<Blank />)
+    const name = await screen.findByRole('textbox', { name: 'Issue title' })
+    name.focus()
+    // Into the type menu, which opens apart from the dialog's own element.
+    const trigger = screen.getByRole('button', { name: /Issue/ })
+    trigger.focus()
+    fireEvent.click(trigger)
+    const item = await screen.findByRole('menuitem', { name: 'Bug' })
+    fireEvent.focus(item)
+    await settle()
+    expect(name).not.toBeInvalid()
+    // And to a field below.
+    name.focus()
+    screen.getByRole('textbox', { name: 'Estimate' }).focus()
+    await settle()
+    expect(name).not.toBeInvalid()
+  })
+
+  it('marks an empty name once a submit is tried', async () => {
+    render(<Blank />)
+    const name = await screen.findByRole('textbox', { name: 'Issue title' })
+    expect(name).not.toBeInvalid()
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    expect(name).toBeInvalid()
+  })
+
+  it('marks an empty name once focus leaves the dialog', async () => {
+    render(<Blank outside />)
+    const name = await screen.findByRole('textbox', { name: 'Issue title' })
+    name.focus()
+    // Focus that lands on nothing in the dialog, as on the page behind it.
+    name.blur()
+    await settle()
+    expect(name).toBeInvalid()
+  })
+
   it('starts each opening with a fresh name', async () => {
     const props = {
       onClose: vi.fn(),
