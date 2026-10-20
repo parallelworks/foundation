@@ -208,7 +208,7 @@ export function ListboxPanel({
         id={listProps.id}
         role="listbox"
         aria-label={label}
-        className={cx('max-h-80 overflow-y-auto overscroll-contain', panelListClassName)}
+        className={cx('max-h-96 overflow-y-auto overscroll-contain', panelListClassName)}
       >
         {hasOptions ? (
           children

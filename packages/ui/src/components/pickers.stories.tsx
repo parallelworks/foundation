@@ -593,17 +593,17 @@ export const CheckboxReadOnly: StoryObj = {
           ))}
         </tbody>
       </table>
-      <div className="flex items-center gap-4">
-        <label className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <label className="flex items-center gap-2 whitespace-nowrap">
           <Checkbox defaultChecked /> On
         </label>
-        <label className="flex items-center gap-2">
+        <label className="flex items-center gap-2 whitespace-nowrap">
           <Checkbox readOnly checked /> Read-only
         </label>
-        <label className="flex items-center gap-2">
+        <label className="flex items-center gap-2 whitespace-nowrap">
           <Checkbox readOnly indeterminate /> Read-only, some
         </label>
-        <label className="flex items-center gap-2">
+        <label className="flex items-center gap-2 whitespace-nowrap">
           <Checkbox disabled defaultChecked /> Disabled
         </label>
       </div>
@@ -667,7 +667,7 @@ function ListboxDemo() {
           listProps={list.listProps}
           aria-label="Blocks"
           className="absolute top-full left-0 mt-1 w-72"
-          footer="↑↓ to move · Enter or Tab to insert · Esc to close"
+          footer="↑↓ move · Enter or Tab inserts · Esc closes"
         >
           {groups.map((group) => (
             <ListboxGroup key={group} label={group}>

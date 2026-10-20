@@ -527,14 +527,15 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
                     // biome-ignore lint/suspicious/noArrayIndexKey: a value has no key of its own; the label alone may repeat
                     key={`${index}:${entry.label}`}
                     aria-label={entry.label}
-                    className="flex items-center gap-1 rounded bg-(--theme-muted-panel-bg) py-0.5 pr-0.5 pl-1.5 text-xs outline-none data-highlighted:bg-(--theme-hover)"
+                    // The library's tag look, a pill with a hairline edge, so a chosen value reads as the tag it is.
+                    className="inline-flex h-5 max-w-full min-w-0 items-center gap-1 rounded-full border border-(--theme-border) pr-0.5 pl-2 text-[11px] leading-none whitespace-nowrap text-(--theme-app) outline-none data-highlighted:bg-(--theme-hover)"
                   >
                     {entry.label}
                     <BaseCombobox.ChipRemove
                       aria-label={t.removeValue(entry.label)}
-                      className="flex size-4 items-center justify-center rounded hover:bg-(--theme-hover)"
+                      className="flex size-4 cursor-pointer items-center justify-center rounded-full text-(--theme-muted-text-color) hover:bg-(--theme-hover) hover:text-(--theme-app)"
                     >
-                      <RemoveIcon aria-hidden="true" className="size-3" />
+                      <RemoveIcon aria-hidden="true" className="size-2.5" />
                     </BaseCombobox.ChipRemove>
                   </BaseCombobox.Chip>
                 ))
