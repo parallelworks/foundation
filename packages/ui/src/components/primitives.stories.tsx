@@ -1859,6 +1859,43 @@ export const Selects: StoryObj<{ disabled: boolean; invalid: boolean; size: Fiel
   },
 }
 
+function SelectInRowDemo() {
+  const [group, setGroup] = useState<string | null>('allocation')
+  return (
+    // A narrow toolbar whose title takes what room is left: the select keeps its own width.
+    <div
+      className="flex items-center gap-2 rounded-md border theme-border p-2 text-sm"
+      style={{ width: 340 }}
+    >
+      <span className="min-w-0 flex-1 truncate font-medium">
+        Usage for the research allocation this month
+      </span>
+      <Select
+        aria-label="Group by"
+        width="content"
+        size="sm"
+        items={[
+          { value: 'allocation', label: 'By allocation' },
+          { value: 'user', label: 'By user' },
+        ]}
+        value={group}
+        onValueChange={setGroup}
+      />
+    </div>
+  )
+}
+
+/** In a row beside text that truncates, a `content` select keeps its width instead of cutting
+ *  off its own choice. */
+export const SelectInARow: StoryObj = {
+  render: () => <SelectInRowDemo />,
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByRole('combobox', { name: /^Group by/ })).toHaveClass(
+      'shrink-0',
+    )
+  },
+}
+
 const MODES = [
   { value: 'ask', label: 'Ask', description: 'Asks before every change' },
   { value: 'auto', label: 'Auto', description: 'Changes files without asking' },
