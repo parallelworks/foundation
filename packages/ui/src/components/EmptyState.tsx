@@ -54,7 +54,7 @@ export function EmptyState({
         className,
       )}
     >
-      {icon && (
+      {!!icon && (
         // A faded glyph rather than a tile, so the words lead and the icon only hints.
         <div
           aria-hidden="true"
@@ -74,10 +74,10 @@ export function EmptyState({
       >
         {title}
       </Title>
-      {description && (
+      {!!description && (
         <p className="m-0 max-w-sm text-xs text-(--theme-muted-text-color)">{description}</p>
       )}
-      {action && <div className="mt-4">{action}</div>}
+      {!!action && <div className="mt-4">{action}</div>}
     </div>
   )
 }

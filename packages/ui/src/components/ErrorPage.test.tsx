@@ -141,7 +141,10 @@ describe('ErrorText', () => {
     )
     const error = screen.getByRole('alert')
     expect(error.tagName).toBe('SPAN')
-    expect(error).toHaveClass('inline-flex', 'text-sm', 'ml-1')
+    // Text, not a flex box, so it sits on the sentence's baseline in the sentence's size.
+    expect(error).toHaveClass('ml-1')
+    expect(error).not.toHaveClass('inline-flex')
+    expect(error).not.toHaveClass('text-sm')
   })
 
   it('renders nothing without an error', () => {

@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { useState } from 'react'
-import { expect, userEvent, waitFor, within } from 'storybook/test'
+import { useEffect } from 'react'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { useContextMenu } from '../components/ContextMenu'
 import { PageHeader, PageHeaderBar, PageHeaderProvider } from '../components/PageHeader'
 import { PageHeaderAddButton } from '../components/PageHeaderAction'
@@ -62,21 +62,27 @@ function TokensPage({ state, iconTile, toolbarWhenEmpty }: Args) {
   const { openMenu, contextMenu } = useContextMenu()
   const goTo = useListNavigate()
   const rows = state === 'empty' ? [] : TOKENS
-  const query = state === 'noMatches' ? 'zzz' : search.filter.trim()
+  const { setFilter, openSearch } = search
+  // No matches shows a search that finds nothing, typed in the open field.
+  useEffect(() => {
+    if (state === 'noMatches') {
+      setFilter('quota')
+      openSearch()
+    }
+  }, [state, setFilter, openSearch])
+  const query = search.filter.trim()
   const shown = rows.filter((row) => row.name.includes(query))
   return (
     <PageHeaderProvider>
       {/* Sizes are inline: the package's stylesheet doesn't scan stories. */}
-      <div
-        className="flex flex-col overflow-hidden rounded-md border border-(--theme-border) bg-(--theme-app-bg)"
-        style={{ height: '24rem' }}
-      >
+      {/* A card that ends at its last row, as a settings list does. */}
+      <div className="flex flex-col overflow-hidden rounded-md border border-(--theme-border) bg-(--theme-app-bg)">
         <PageHeaderBar />
         <PageHeader
           breadcrumbs={[{ label: 'Settings', href: '/settings' }, { label: 'API tokens' }]}
           actions={<PageHeaderAddButton label="New token" onClick={() => {}} />}
         />
-        <div className="min-h-0 flex-1">
+        <div>
           <ListPage
             view={view}
             loading={state === 'loading'}
@@ -106,7 +112,8 @@ function TokensPage({ state, iconTile, toolbarWhenEmpty }: Args) {
               />
             }
           >
-            <Table {...listTableProps}>
+            {/* In a card, its border ends the rows, so they need no rule of their own after the last. */}
+            <Table {...listTableProps} tbodyClassName="divide-y divide-(--theme-border)">
               <ListColumns view={view} />
               {shown.map((token) => (
                 <ListRow
@@ -174,39 +181,25 @@ export const NoMatches: StoryObj<Args> = {
 
 /** A toolbar action busy with what it started: the spinner takes its icon's
  *  place and it can't be pressed again until done. */
-export const BusyToolbarAction: StoryObj<{ loading: boolean }> = {
-  args: { loading: true },
-  argTypes: { loading: { description: 'ToolbarAction: busy' } },
-  render: function Render({ loading }) {
-    const [count, setCount] = useState(0)
-    return (
-      <div className="flex flex-col gap-2">
-        <ActionToolbar
-          label="Bucket controls"
-          groups={[
-            [
-              {
-                key: 'refresh',
-                label: 'Refresh',
-                icon: <RefreshIcon />,
-                loading,
-                onClick: () => setCount((n) => n + 1),
-              },
-              { key: 'browse', label: 'Browse', icon: <StorageIcon />, href: '/buckets' },
-            ],
-          ]}
-        />
-        <span data-testid="refreshes" className="text-xs theme-muted-text">
-          {count}
-        </span>
-      </div>
-    )
+export const BusyToolbarAction: StoryObj<{ loading: boolean; onRefresh: () => void }> = {
+  args: { loading: true, onRefresh: fn() },
+  argTypes: {
+    loading: { description: 'ToolbarAction: busy' },
+    onRefresh: { table: { disable: true } },
   },
+  render: ({ loading, onRefresh }) => (
+    <ActionToolbar
+      label="Bucket controls"
+      groups={[
+        [
+          { key: 'refresh', label: 'Refresh', icon: <RefreshIcon />, loading, onClick: onRefresh },
+          { key: 'browse', label: 'Browse', icon: <StorageIcon />, href: '/buckets' },
+        ],
+      ]}
+    />
+  ),
   play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: 'Refresh' }))
-    await waitFor(() =>
-      expect(canvas.getByTestId('refreshes')).toHaveTextContent(args.loading ? '0' : '1'),
-    )
+    await userEvent.click(within(canvasElement).getByRole('button', { name: 'Refresh' }))
+    await waitFor(() => expect(args.onRefresh).toHaveBeenCalledTimes(args.loading ? 0 : 1))
   },
 }

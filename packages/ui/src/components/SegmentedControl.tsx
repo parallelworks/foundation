@@ -1,6 +1,6 @@
 import { Toggle } from '@base-ui/react/toggle'
 import { ToggleGroup } from '@base-ui/react/toggle-group'
-import type { ReactNode } from 'react'
+import type { HTMLAttributes, ReactNode } from 'react'
 import {
   SegmentContent,
   type SegmentLayout,
@@ -25,6 +25,14 @@ export interface SegmentedOption<T extends string> {
   testId?: string
 }
 
+/** What else reaches the group's root element, such as `onContextMenu` for a
+ *  menu on the whole control, `id` or `aria-describedby`. Its look and its
+ *  value stay the control's own. */
+export type SegmentedControlRootProps = Omit<
+  HTMLAttributes<HTMLDivElement>,
+  'children' | 'className' | 'style' | 'defaultValue' | 'onChange' | 'dir' | 'aria-label'
+>
+
 /** A few mutually exclusive choices side by side, one always current, such as
  *  a time range or what to group by. To move between views or pages, use
  *  `Tabs` with `variant="segmented"`, which looks the same. To filter a list
@@ -41,19 +49,22 @@ export function SegmentedControl<T extends string>({
   size = 'md',
   disabled = false,
   testId,
-}: SegmentLayout & {
-  label?: string | undefined
-  options: SegmentedOption<T>[]
-  value: T
-  onValueChange?: (value: T) => void
-  /** None of the choices can be changed now, such as for a reader without
-   *  the right to; the current one still shows. */
-  disabled?: boolean | undefined
-  testId?: string
-}) {
+  ...rest
+}: SegmentedControlRootProps &
+  SegmentLayout & {
+    label?: string | undefined
+    options: SegmentedOption<T>[]
+    value: T
+    onValueChange?: (value: T) => void
+    /** None of the choices can be changed now, such as for a reader without
+     *  the right to; the current one still shows. */
+    disabled?: boolean | undefined
+    testId?: string
+  }) {
   const layout = { fill, iconOnly, size }
   return (
     <ToggleGroup
+      {...rest}
       aria-label={label}
       data-testid={testId}
       className={segmentGroupClassName(layout)}

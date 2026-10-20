@@ -48,13 +48,16 @@ export function ListToolbar<T>({
       (view?.activeFilterCount ?? 0) > 0)
   return (
     <div className="flex min-h-10 items-center justify-between gap-3 py-1">
-      <ListCount
-        total={count.total}
-        matches={count.matches}
-        filterActive={filterActive}
-        noun={count.noun}
-        nounPlural={count.nounPlural}
-      />
+      {/* The count keeps its line; an open search gives up width first. */}
+      <div className="shrink-0 whitespace-nowrap">
+        <ListCount
+          total={count.total}
+          matches={count.matches}
+          filterActive={filterActive}
+          noun={count.noun}
+          nounPlural={count.nounPlural}
+        />
+      </div>
       <div className="flex min-w-0 items-center gap-1">
         {children}
         {view && <ListFilterMenu view={view} />}
@@ -66,7 +69,7 @@ export function ListToolbar<T>({
             placeholder={searchPlaceholder ?? searchLabel ?? common.search}
           />
         )}
-        {action && <span className="ml-1 flex">{action}</span>}
+        {!!action && <span className="ml-1 flex">{action}</span>}
       </div>
     </div>
   )

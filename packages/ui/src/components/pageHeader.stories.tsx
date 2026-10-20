@@ -24,7 +24,8 @@ import { useLink } from './Provider'
 import { SegmentedControl } from './SegmentedControl'
 
 /** What a host's shell does: the provider above everything, the bar in its
- *  chrome, and the routes in a scrolling main beside a sidebar. */
+ *  chrome, and the routes in a scrolling main beside a sidebar, which a
+ *  phone screen leaves out. */
 function Shell({
   children,
   compact = false,
@@ -46,7 +47,7 @@ function Shell({
         {!narrow && (
           <nav
             aria-label="Sections"
-            className="flex shrink-0 flex-col gap-2 border-r border-(--theme-border) p-3 text-xs text-(--theme-muted-text-color)"
+            className="flex shrink-0 max-sm:hidden flex-col gap-2 border-r border-(--theme-border) p-3 text-xs text-(--theme-muted-text-color)"
             style={{ width: '11rem' }}
           >
             <p className="m-0 font-medium text-(--theme-app)">Workspace</p>

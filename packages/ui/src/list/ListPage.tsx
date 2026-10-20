@@ -58,6 +58,9 @@ export function ListRowActionsProvider({
   return <RowActionsContext.Provider value={rowActions}>{children}</RowActionsContext.Provider>
 }
 
+// The name cell's own top padding, so the value lines up with the name.
+const STAYS_BESIDE_STACK = '@max-[36rem]:align-top @max-[36rem]:pt-2.5'
+
 export interface ListPageProps {
   /** Reaches past the host's content padding (`p-4`) to the container's
    *  edges, for a host whose page container is padded. A list runs edge to
@@ -152,9 +155,9 @@ export function ListPage({
   }
   return (
     <div className={cx('flex h-full min-h-0 flex-col', bleed && '-m-4')}>
-      {toolbar && controls && <div className="shrink-0 px-4">{toolbar}</div>}
+      {!!toolbar && controls && <div className="shrink-0 px-4">{toolbar}</div>}
       {/* The filters' chips go with the toolbar: an empty list has nothing to filter. */}
-      {bar && controls && <div className="shrink-0 px-4">{bar}</div>}
+      {!!bar && controls && <div className="shrink-0 px-4">{bar}</div>}
       {/* The list body is the @container priority columns measure to auto-hide. */}
       <div className="relative @container min-h-0 flex-1 overflow-auto">
         <ListRowActionsProvider view={view}>{body}</ListRowActionsProvider>
@@ -221,7 +224,12 @@ export function ListRow({
     return Children.toArray(content).length > 0 ? [content] : []
   })
   const styledCells = cells.map((child, i) => {
-    const cls = columnClasses[i]
+    // Where columns stack under the name, a column that stays a column, such as
+    // a total, sits on the name's line rather than floating mid-row.
+    const cls = cx(
+      columnClasses[i],
+      i > 0 && stacked.length > 0 && !columnStacks[i] && STAYS_BESIDE_STACK,
+    )
     if (!isValidElement(child) || (!cls && !(i === 0 && stacked.length > 0))) {
       return child
     }

@@ -232,7 +232,11 @@ export {
   type SectionTone,
   type SectionVariant,
 } from './components/Section'
-export { SegmentedControl, type SegmentedOption } from './components/SegmentedControl'
+export {
+  SegmentedControl,
+  type SegmentedControlRootProps,
+  type SegmentedOption,
+} from './components/SegmentedControl'
 export { Select, type SelectItem, type SelectProps } from './components/Select'
 export { SettingModeOption } from './components/SettingModeOption'
 export {

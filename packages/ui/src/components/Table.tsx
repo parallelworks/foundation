@@ -124,8 +124,10 @@ interface TableProps {
   /** False sets every header in sentence case, as a small table in a card
    *  reads best; a header's own `caps` still wins. */
   caps?: boolean | undefined
-  /** Drops the outer side padding of the first and last columns, for a table
-   *  inside something already padded, such as a card. */
+  /** Drops the outer side padding of the first and last columns and the
+   *  header's fill, for a table inside something already padded, such as a
+   *  card: it reads as part of the card, its titles in line with the card's
+   *  other content and set apart by the rule under them. */
   flush?: boolean | undefined
   /** Rules a line between columns as well as rows, for a grid of figures to
    *  read across and down. */
@@ -186,7 +188,7 @@ export function Table({
   className,
   wrapperClassName = '',
   tbodyClassName = 'divide-y',
-  theadClassName = 'theme-muted-panel',
+  theadClassName,
   children,
   roundedTop = false,
   rounded = false,
@@ -238,7 +240,9 @@ export function Table({
                 {...tableProps}
               >
                 {columns && (
-                  <colgroup>
+                  // The table's row rules are a divide between its children; a
+                  // collapsed column group's own would draw under the last row.
+                  <colgroup className="border-0">
                     {columns.map((width, i) => (
                       // biome-ignore lint/suspicious/noArrayIndexKey: a column is its position
                       <col key={i} style={width ? { width } : undefined} />
@@ -254,7 +258,8 @@ export function Table({
                     // as it renders, below the chrome pinned above it.
                     stickyHeader &&
                       'sticky top-0 z-(--layer-sticky) border-b-0 shadow-[inset_0_-1px_0_var(--theme-border)]',
-                    theadClassName,
+                    theadClassName ??
+                      (flush ? 'text-(--theme-muted-text-color)' : 'theme-muted-panel'),
                   )}
                 >
                   <tr>{childList.filter(isHeaderChild)}</tr>

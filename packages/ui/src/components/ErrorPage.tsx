@@ -91,7 +91,7 @@ export function ErrorPage({
     <div
       data-testid={testId}
       className={cx(
-        'relative flex w-full items-center justify-center px-4 text-center',
+        '@container relative flex w-full items-center justify-center px-4 text-center',
         framed && 'isolate overflow-hidden',
         layout === 'page' && 'min-h-full flex-1 py-16',
         layout === 'card' && 'h-full rounded-[inherit] py-12',
@@ -106,7 +106,8 @@ export function ErrorPage({
             aria-hidden="true"
             className={cx(
               'error-page-code select-none font-black leading-none tracking-tighter opacity-75',
-              layout === 'page' ? 'text-[7rem] sm:text-[10rem]' : 'text-[5rem] sm:text-[7rem]',
+              // Sized by the room it has, not the screen, so it fits a narrow card.
+              layout === 'page' ? 'text-[7rem] @md:text-[10rem]' : 'text-[5rem] @md:text-[7rem]',
             )}
           >
             {status}

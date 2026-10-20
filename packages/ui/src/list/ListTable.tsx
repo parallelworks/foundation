@@ -134,7 +134,9 @@ export function NameCell({
         ) : (
           <div className={cx('min-w-0', columns)}>{inner}</div>
         )}
-        {children && <div className={hasIcon ? 'col-start-2 min-w-0' : 'min-w-0'}>{children}</div>}
+        {!!children && (
+          <div className={hasIcon ? 'col-start-2 min-w-0' : 'min-w-0'}>{children}</div>
+        )}
       </div>
     </Table.Item>
   )
