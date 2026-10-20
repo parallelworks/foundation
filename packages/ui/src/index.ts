@@ -35,6 +35,7 @@ export {
   type CardSize,
 } from './components/Card'
 export { Checkbox, CheckboxGroup, type CheckboxProps } from './components/Checkbox'
+export { CodeBlock, type CodeBlockProps } from './components/CodeBlock'
 export { ColorInput, type ColorInputProps } from './components/ColorInput'
 export {
   Autocomplete,
