@@ -1279,8 +1279,9 @@ export const CreateModalHints: StoryObj<{ failing: boolean; size: ModalSize }> =
 }
 
 /** Opening the dialog's own team menu before typing a title leaves the empty title unmarked:
- *  that is still filling the form in. The title is marked once a create is tried, or when
- *  focus leaves the dialog with it empty. */
+ *  that is still filling the form in. Escape closes the menu and hands focus back to its chip,
+ *  with no tooltip there to take the next Escape, which closes the dialog. The title is marked
+ *  once a create is tried, or when focus leaves the dialog with it empty. */
 export const CreateModalTitleUnmarked: StoryObj = {
   name: 'Create modal, title unmarked while choosing a team',
   render: () => <NewIssueDemo failing={false} />,
@@ -1288,13 +1289,20 @@ export const CreateModalTitleUnmarked: StoryObj = {
     await userEvent.click(within(canvasElement).getByRole('button', { name: 'New issue' }))
     const title = await screen.findByPlaceholderText('Issue title')
     await waitFor(() => expect(title).toHaveFocus())
-    await userEvent.click(screen.getByRole('button', { name: /^Web/ }))
-    const platform = await screen.findByRole('menuitemcheckbox', { name: 'Platform' })
-    await expect(title).not.toHaveAttribute('aria-invalid', 'true')
-    // A team chosen and the menu closed, the title is still unmarked.
-    await userEvent.click(platform)
+    const chip = () => screen.getByRole('button', { name: /^(Web|Platform)/ })
+    // Escape closes the searched menu, back on its chip, and leaves the dialog open.
+    await userEvent.click(chip())
+    await expect(await screen.findByRole('searchbox', { name: 'Search teams' })).toHaveFocus()
+    await userEvent.keyboard('{Escape}')
     await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
-    await expect(screen.getByRole('button', { name: /^Platform/ })).toBeVisible()
+    await expect(chip()).toHaveFocus()
+    await expect(screen.getByRole('dialog')).toBeVisible()
+    await expect(title).not.toHaveAttribute('aria-invalid', 'true')
+    // Choosing a team leaves it unmarked too.
+    await userEvent.click(chip())
+    await userEvent.click(await screen.findByRole('menuitemcheckbox', { name: 'Platform' }))
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+    await expect(chip()).toHaveTextContent('Platform')
     await expect(title).not.toHaveAttribute('aria-invalid', 'true')
   },
 }

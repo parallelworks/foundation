@@ -93,7 +93,7 @@ describe('CreateModal name', () => {
   it("leaves an empty name unmarked while focus moves to the dialog's own controls", async () => {
     render(<Blank />)
     const name = await screen.findByRole('textbox', { name: 'Issue title' })
-    name.focus()
+    await waitFor(() => expect(name).toHaveFocus())
     // Into the type menu, which opens apart from the dialog's own element.
     const trigger = screen.getByRole('button', { name: /Issue/ })
     trigger.focus()
@@ -109,6 +109,38 @@ describe('CreateModal name', () => {
     expect(name).not.toBeInvalid()
   })
 
+  it('closes a searched type menu on the first Escape and the dialog on the second', async () => {
+    const onClose = vi.fn()
+    render(
+      <CreateModal
+        open
+        onClose={onClose}
+        typeLabel="Web"
+        typeMenu={[
+          { label: 'Web', onClick: vi.fn() },
+          { label: 'Platform', onClick: vi.fn() },
+        ]}
+        typeMenuSearch={{ placeholder: 'Search teams', empty: 'No team matches' }}
+        namePlaceholder="Issue title"
+        onSubmit={vi.fn()}
+      />,
+    )
+    const name = await screen.findByRole('textbox', { name: 'Issue title' })
+    const trigger = screen.getByRole('button', { name: /^Web/ })
+    fireEvent.click(trigger)
+    const search = await screen.findByRole('searchbox', { name: 'Search teams' })
+    await waitFor(() => expect(search).toHaveFocus())
+    fireEvent.keyDown(search, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+    await waitFor(() => expect(trigger).toHaveFocus())
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    await settle()
+    expect(name).not.toBeInvalid()
+    fireEvent.keyDown(trigger, { key: 'Escape' })
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+  })
+
   it('marks an empty name once a submit is tried', async () => {
     render(<Blank />)
     const name = await screen.findByRole('textbox', { name: 'Issue title' })
@@ -120,11 +152,11 @@ describe('CreateModal name', () => {
   it('marks an empty name once focus leaves the dialog', async () => {
     render(<Blank outside />)
     const name = await screen.findByRole('textbox', { name: 'Issue title' })
-    name.focus()
+    // Once the dialog has put focus there itself, so its opening doesn't refocus it later.
+    await waitFor(() => expect(name).toHaveFocus())
     // Focus that lands on nothing in the dialog, as on the page behind it.
     name.blur()
-    await settle()
-    expect(name).toBeInvalid()
+    await waitFor(() => expect(name).toBeInvalid())
   })
 
   it('starts each opening with a fresh name', async () => {
