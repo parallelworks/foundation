@@ -22,6 +22,10 @@ import AgentMessageParts from './agent/AgentMessageParts'
 import ChatMessage from './ChatMessage'
 import { Reasoning, ReasoningBody } from './Reasoning'
 
+// How long after a click or key press inside the thread its growth counts as
+// the reader's own.
+const READER_GROWTH_MS = 600
+
 const jumpClasses =
   'chat-composer rounded-full bg-(--theme-panel-bg) px-3 py-1.5 text-xs font-medium theme-text transition-colors hover:bg-(--theme-muted-panel-bg)'
 
@@ -312,15 +316,32 @@ export default function ChatMessageList({
     if (!content || typeof ResizeObserver === 'undefined') {
       return
     }
+    // Growth the reader caused, such as opening a tool's row, stays put: the
+    // row they clicked must not jump out from under the pointer.
+    let touchedAt = Number.NEGATIVE_INFINITY
+    const touched = () => {
+      touchedAt = performance.now()
+    }
+    content.addEventListener('click', touched, true)
+    content.addEventListener('keydown', touched, true)
     const observer = new ResizeObserver(() => {
       const el = containerRef.current
-      if (el && isNearBottomRef.current && !hasQueuedMessages) {
+      if (
+        el &&
+        isNearBottomRef.current &&
+        !hasQueuedMessages &&
+        performance.now() - touchedAt > READER_GROWTH_MS
+      ) {
         el.scrollTop = el.scrollHeight
         lastScrollTopRef.current = el.scrollTop
       }
     })
     observer.observe(content)
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      content.removeEventListener('click', touched, true)
+      content.removeEventListener('keydown', touched, true)
+    }
   }, [hasContent, hasQueuedMessages])
 
   // If no messages and no streaming, just return empty scrollable container

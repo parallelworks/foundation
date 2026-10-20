@@ -328,8 +328,11 @@ export const HostDrawnToolCall: StoryObj = {
 }
 
 function CostRows({ part }: ToolRendererProps) {
-  const rows = part.result ? (JSON.parse(part.result) as [string, string][]) : []
-  if (part.status !== 'ok' || rows.length === 0) {
+  if (part.status !== 'ok' || !part.result) {
+    return null
+  }
+  const rows = JSON.parse(part.result) as [string, string][]
+  if (rows.length === 0) {
     return null
   }
   return (
