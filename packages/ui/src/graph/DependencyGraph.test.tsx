@@ -1503,3 +1503,17 @@ describe('DependencyGraphPreview', () => {
     expect(nodeIds()).toEqual(['node_build', 'node_deploy'])
   })
 })
+
+describe('DependencyGraph bleed', () => {
+  it('takes the jobs’ panel, graph or list, past the page padding on a phone only when asked', () => {
+    const panelOf = (container: HTMLElement) =>
+      container.querySelector('.panel.overflow-hidden') ??
+      screen.getByRole('button', { name: 'Expand all' }).closest('.panel')
+    const { container, rerender } = render(<DependencyGraph run={run} />)
+    expect(panelOf(container)).not.toHaveClass('max-sm:-mx-4')
+    rerender(<DependencyGraph run={run} bleed />)
+    expect(panelOf(container)).toHaveClass('max-sm:-mx-4', 'max-sm:border-x-0')
+    rerender(<DependencyGraph run={run} bleed viewMode="tree" />)
+    expect(panelOf(container)).toHaveClass('max-sm:-mx-4', 'max-sm:rounded-none')
+  })
+})

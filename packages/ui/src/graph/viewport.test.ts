@@ -73,6 +73,21 @@ describe('fitView', () => {
     expect(fitView({ minX: 0, minY: 0, maxX: 1e7, maxY: 10 }, panel)?.scale).toBe(MIN_SCALE)
   })
 
+  it('stops at a least scale, showing a long graph from its start below what covers the top', () => {
+    const phone = { width: 390, height: 300 }
+    const chain = { minX: 0, minY: 0, maxX: 4000, maxY: 200 }
+    const view = fitView(chain, phone, { minScale: 0.5, top: 40 })
+    expect(view?.scale).toBe(0.5)
+    // A margin of 5% of the panel's height, 15, from the left and under the 40 kept clear.
+    expect(view?.x).toBe(15)
+    expect(view?.y).toBe(55)
+  })
+
+  it('fits a graph that reads at the least scale as before, minding nothing at the top', () => {
+    const small = { minX: 0, minY: 0, maxX: 300, maxY: 100 }
+    expect(fitView(small, panel, { minScale: 0.5, top: 40 })).toEqual(fitView(small, panel))
+  })
+
   it('has nothing to fit without a graph', () => {
     expect(fitView({ minX: 0, minY: 0, maxX: 0, maxY: 0 }, panel)).toBeNull()
   })

@@ -1176,6 +1176,12 @@ function graphBounds(content: HTMLElement): Bounds | null {
   return bounds
 }
 
+// A panel narrower than this is a phone's, where a fit of a whole run would be too small to read.
+const NARROW_PANEL_PX = 640
+
+// On a phone, past the host's `p-4` to the container's edges, with no side borders or corners.
+const BLEED_CLASSES = 'max-sm:-mx-4 max-sm:w-auto max-sm:rounded-none max-sm:border-x-0'
+
 // The least scale a node's text reads at, about 12px, which showing a job or step zooms in to.
 const READABLE_SCALE = 0.5
 
@@ -1221,6 +1227,7 @@ export default function DependencyGraph({
   openStep,
   onCloseLog,
   stickySidebar,
+  bleed = false,
 }: {
   run: GraphRun
   preview?: boolean
@@ -1240,6 +1247,9 @@ export default function DependencyGraph({
   onCloseLog?: (() => void) | undefined
   /** Pins the job list as the page scrolls, under whatever the page already pins at its top. */
   stickySidebar?: boolean | undefined
+  /** On a phone, the jobs' panel, graph or list, reaches past the host's content padding (`p-4`) to
+   *  the container's edges, without side borders or corners, so a job's row has the screen's width. */
+  bleed?: boolean | undefined
 }) {
   const engine = useWorkflowEngine()
   // Animation timing constant (seconds) — controls line draw, dot transitions, and stagger delay
@@ -1651,7 +1661,16 @@ export default function DependencyGraph({
         }
         return
       }
-      const view = fitView(bounds, panel)
+      // A run's graph on a phone fits no farther out than its jobs read, from its start, to be
+      // panned along by touch; a fit of all of a long run there would be too small to read.
+      const narrow = !preview && !editor && panel.width < NARROW_PANEL_PX
+      const view = fitView(
+        bounds,
+        panel,
+        narrow
+          ? { minScale: READABLE_SCALE, top: viewBarRef.current?.offsetHeight ?? 0 }
+          : undefined,
+      )
       if (!view) {
         return
       }
@@ -1669,7 +1688,7 @@ export default function DependencyGraph({
       // Tell the library after paint so it doesn't overwrite our direct DOM change
       requestAnimationFrame(() => transform.setTransform(view.x, view.y, view.scale, 0))
     },
-    [nodeOf, editor, runRowOf],
+    [nodeOf, editor, runRowOf, preview],
   )
 
   // Boxes open and close over CSS transitions, so a fit before they end measures them mid-way:
@@ -2241,7 +2260,7 @@ export default function DependencyGraph({
         )}
         {!preview && <AnnotationBanner executedJobs={jobs} />}
         {viewMode === 'tree' && !preview ? (
-          <div className="panel w-full border">
+          <div className={cx('panel w-full border', bleed && BLEED_CLASSES)}>
             <TreeView
               jobs={jobs}
               slug={runSlug}
@@ -2256,6 +2275,7 @@ export default function DependencyGraph({
             className={cx(
               'panel w-full overflow-hidden relative',
               removeBorder ? 'border-none' : 'border',
+              bleed && BLEED_CLASSES,
               editor && 'outline-none',
             )}
             style={{
