@@ -105,11 +105,15 @@ describe('Markdown compact', () => {
 describe('Markdown tildes', () => {
   it('leaves single tildes as text and strikes double ones', async () => {
     const { container } = render(
-      <Markdown>{'Test clusters (~$1.50/day each), plus snapshots (~$0.40/day). ~~Gone~~ for good.'}</Markdown>,
+      <Markdown>
+        {'Test clusters (~$1.50/day each), plus snapshots (~$0.40/day). ~~Gone~~ for good.'}
+      </Markdown>,
     )
     await screen.findByText('Gone')
     expect(container.querySelectorAll('del')).toHaveLength(1)
     expect(container.querySelector('del')).toHaveTextContent('Gone')
-    expect(container).toHaveTextContent('Test clusters (~$1.50/day each), plus snapshots (~$0.40/day).')
+    expect(container).toHaveTextContent(
+      'Test clusters (~$1.50/day each), plus snapshots (~$0.40/day).',
+    )
   })
 })

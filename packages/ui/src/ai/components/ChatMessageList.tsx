@@ -22,6 +22,9 @@ import AgentMessageParts from './agent/AgentMessageParts'
 import ChatMessage from './ChatMessage'
 import { Reasoning, ReasoningBody } from './Reasoning'
 
+const jumpClasses =
+  'chat-composer rounded-full bg-(--theme-panel-bg) px-3 py-1.5 text-xs font-medium theme-text transition-colors hover:bg-(--theme-muted-panel-bg)'
+
 export type QueueDelivery = 'afterReply' | 'nextStep'
 
 interface ChatMessageListProps {
@@ -483,18 +486,35 @@ export default function ChatMessageList({
         {footer}
         <div className="h-8" />
       </div>
-      {!pinned && (
+      {!pinned && !inputElement && (
         <div className="sticky bottom-4 z-10 flex h-0 items-start justify-center overflow-visible">
           <button
             type="button"
             onClick={jumpToLatest}
-            className="chat-composer -translate-y-full rounded-full bg-(--theme-panel-bg) px-3 py-1.5 text-xs font-medium theme-text transition-colors hover:bg-(--theme-muted-panel-bg)"
+            className={cx(jumpClasses, '-translate-y-full')}
           >
             {strings.chrome.jumpToLatest}
           </button>
         </div>
       )}
-      {inputElement && <div className="sticky bottom-0 z-10">{inputElement}</div>}
+      {inputElement && (
+        <div className="sticky bottom-0 z-10">
+          {/* Rides on the composer's top edge: on its own it would stick at the
+              same bottom as the composer and sit underneath it. */}
+          {!pinned && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-full flex justify-center pb-2">
+              <button
+                type="button"
+                onClick={jumpToLatest}
+                className={cx(jumpClasses, 'pointer-events-auto')}
+              >
+                {strings.chrome.jumpToLatest}
+              </button>
+            </div>
+          )}
+          {inputElement}
+        </div>
+      )}
     </div>
   )
 }
