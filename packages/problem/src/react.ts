@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { createTranslator, useLocale, useTranslations } from 'use-intl'
-import { ApiError, FieldError, toApiError } from './index.js'
+import { ApiError, FieldError, type Params, toApiError } from './index.js'
 import { baseLanguage, sharedMessagesFor } from './messages.js'
 
 type Format = (key: string, values?: Record<string, string | number>) => string
@@ -57,8 +57,43 @@ export function useFieldMessages(): (err: unknown) => FieldMessage[] {
   )
 }
 
+/**
+ * Returns a function that gives a code's message in the active language, with
+ * its params: the app's own at `apiErrors.<code>` when it has one, otherwise
+ * the shared message, otherwise undefined. It is for problems that aren't a
+ * failed request, such as the warnings a server reports about what it was
+ * given, which keep their own text when no catalog has their code; for an
+ * error, use `useErrorMessage`.
+ */
+export function useCodeMessage(): (code: string, params?: Params) => string | undefined {
+  const { app, shared } = useCatalogs()
+  return useCallback(
+    (code: string, params?: Params) => {
+      if (app.has(code)) return app(code, params)
+      if (shared.has(code)) return shared(code, params)
+      return undefined
+    },
+    [app, shared],
+  )
+}
+
 /** Translates an error, given the language the server wrote its detail in. */
 function useTranslate(): (target: ApiError | FieldError, language: string | undefined) => string {
+  const { app, shared, locale } = useCatalogs()
+  return useCallback(
+    (target: ApiError | FieldError, language: string | undefined) => {
+      const fromServer = target instanceof ApiError ? target.message : target.detail
+      if (fromServer && sameLanguage(language, locale)) return fromServer
+      if (app.has(target.code)) return app(target.code, target.params)
+      if (shared.has(target.code)) return shared(target.code, target.params)
+      return shared('unknown')
+    },
+    [app, shared, locale],
+  )
+}
+
+/** The app's `apiErrors` messages and the shared ones, in the active language. */
+function useCatalogs(): { app: Translator; shared: Translator; locale: string } {
   const app = useTranslations('apiErrors') as unknown as Translator
   const locale = useLocale()
   const shared = useMemo(
@@ -70,16 +105,7 @@ function useTranslate(): (target: ApiError | FieldError, language: string | unde
       }) as unknown as Translator,
     [locale],
   )
-  return useCallback(
-    (target: ApiError | FieldError, language: string | undefined) => {
-      const fromServer = target instanceof ApiError ? target.message : target.detail
-      if (fromServer && sameLanguage(language, locale)) return fromServer
-      if (app.has(target.code)) return app(target.code, target.params)
-      if (shared.has(target.code)) return shared(target.code, target.params)
-      return shared('unknown')
-    },
-    [app, shared, locale],
-  )
+  return { app, shared, locale }
 }
 
 function sameLanguage(language: string | undefined, locale: string): boolean {

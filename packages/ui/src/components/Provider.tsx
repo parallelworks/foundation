@@ -285,6 +285,8 @@ export interface UIStrings {
     /** How many warnings: the title of a run's list of warnings, and the name of the mark on a job
      *  or step they're about, such as "2 warnings". */
     warningCount: (count: number) => string
+    /** The link from a warning to the page that explains it, when it has one. */
+    warningAbout: string
   }
   jobActions: {
     openSubworkflowLogs: string
@@ -780,6 +782,21 @@ export type PersistedStateHook = <T>(
   defaultValue: T,
 ) => [T, Dispatch<SetStateAction<T>>]
 
+/** The values a problem's message shows, by name, as a problem's `params` carries them. */
+export type ProblemParams = Readonly<Record<string, string | number>>
+
+/** A problem code's message in the reader's language, with its params; undefined when the host has
+ *  none for the code. */
+export type ProblemMessage = (code: string, params?: ProblemParams) => string | undefined
+
+/** A problem that may carry a code: a run's warning, or one the workflow editor marks. */
+export interface CodedProblem {
+  /** Its text as the server wrote it, shown when the host has no message for its code. */
+  message: string
+  code?: string | null | undefined
+  params?: ProblemParams | null | undefined
+}
+
 export interface UIData {
   /**
    * Host-bound hook resolving a file in a run's artifact tree (logs, scripts).
@@ -810,6 +827,13 @@ export interface UIData {
     storageName: string
   }) => Promise<{ error?: string }>
   usePersistedState: PersistedStateHook
+  /**
+   * Host-bound hook returning a problem code's message in the reader's language, such as
+   * `useCodeMessage` from `@parallelworks/problem/react`. A run's warnings and the editor's
+   * problems that carry a `code` show it, and their own `message` when it gives nothing. Absent,
+   * they show their `message`. Must be a stable function reference — components call it as a hook.
+   */
+  useProblemMessage: () => ProblemMessage
 }
 
 import type { FieldComponent } from '../form/fieldRegistry'
@@ -1140,6 +1164,7 @@ const DEFAULTS: UIProviderValue = {
       annotationSource: (job, step) => `in ${job} → ${step}`,
       stepNumber: (index) => `step ${index}`,
       warningCount: (count) => (count === 1 ? '1 warning' : `${count} warnings`),
+      warningAbout: 'About this warning',
     },
     jobActions: {
       openSubworkflowLogs: 'Open subworkflow logs',
@@ -1543,6 +1568,7 @@ const DEFAULTS: UIProviderValue = {
   data: {
     useRunFile: defaultUseRunFile,
     usePersistedState: useLocalPersistedState,
+    useProblemMessage: useNoProblemMessage,
   },
   slots: {},
 }
@@ -1706,6 +1732,25 @@ export function useRunFile(
   return boundUseRunFile(slug, path, options)
 }
 
+const noProblemMessage: ProblemMessage = () => undefined
+
+function useNoProblemMessage(): ProblemMessage {
+  return noProblemMessage
+}
+
+/** A coded problem's text in the reader's language: the host's message for its code, or else its
+ *  own `message`. */
+export function useProblemText(): (problem: CodedProblem) => string {
+  const { useProblemMessage: boundUseProblemMessage } = useContext(DataContext)
+  const message = boundUseProblemMessage()
+  return useCallback(
+    (problem: CodedProblem) =>
+      (problem.code ? message(problem.code, problem.params ?? undefined) : undefined) ??
+      problem.message,
+    [message],
+  )
+}
+
 export function usePersistedState<T>(
   key: string,
   defaultValue: T,
@@ -1720,8 +1765,9 @@ export interface UIProviderProps {
   strings?: UIStringOverrides | undefined
   /** How the package navigates; read at the moment it navigates, so a new one never re-renders. */
   navigation?: Partial<UINavigation> | undefined
-  /** The host's data hooks and resolvers. `useRunFile` and `usePersistedState` are called as
-   *  hooks, so each must stay the same function for the life of the app. */
+  /** The host's data hooks and resolvers. `useRunFile`, `usePersistedState` and
+   *  `useProblemMessage` are called as hooks, so each must stay the same function for the life of
+   *  the app. */
   data?: Partial<UIData> | undefined
   /** Components the host renders inside the package's; a component made each render would
    *  remount everything it renders. */

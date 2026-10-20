@@ -3,7 +3,7 @@ import { IntlProvider } from 'use-intl'
 import { describe, expect, it } from 'vitest'
 import { ApiError, FieldError } from './index.js'
 import { sharedMessages, sharedMessagesFor } from './messages.js'
-import { type FieldMessage, useErrorMessage, useFieldMessages } from './react.js'
+import { type FieldMessage, useCodeMessage, useErrorMessage, useFieldMessages } from './react.js'
 
 function render(err: unknown, locale = 'en', messages: Record<string, unknown> = {}) {
   let shown = ''
@@ -153,6 +153,56 @@ describe('useFieldMessages', () => {
     expect(fieldMessages(tooLong)).toEqual([
       { path: 'name', message: 'Must be at most 64 characters.' },
     ])
+  })
+})
+
+describe('useCodeMessage', () => {
+  function codeMessage(
+    code: string,
+    params?: Record<string, string | number>,
+    locale = 'en',
+    messages: Record<string, unknown> = {},
+  ) {
+    let shown: string | undefined
+    function Message() {
+      shown = useCodeMessage()(code, params)
+      return null
+    }
+    renderToString(
+      <IntlProvider locale={locale} messages={messages} onError={() => {}}>
+        <Message />
+      </IntlProvider>,
+    )
+    return shown
+  }
+  const messages = {
+    apiErrors: {
+      unknown_input:
+        'There\'s no input "{input}".{suggested, select, true { Did you mean "{suggestion}"?} other {}}',
+    },
+  }
+
+  it("gives the app's message for its code, with its params", () => {
+    expect(
+      codeMessage(
+        'unknown_input',
+        { input: 'rundir', suggested: 'true', suggestion: 'run_dir' },
+        'en',
+        messages,
+      ),
+    ).toBe('There\'s no input "rundir". Did you mean "run_dir"?')
+    expect(
+      codeMessage('unknown_input', { input: 'rundir', suggested: 'false' }, 'en', messages),
+    ).toBe('There\'s no input "rundir".')
+  })
+
+  it('gives the shared message in the active language', () => {
+    expect(codeMessage('too_long', { max: 64 })).toBe('Must be at most 64 characters.')
+    expect(codeMessage('forbidden', undefined, 'ja')).toBe(sharedMessages.ja.apiErrors.forbidden)
+  })
+
+  it('gives nothing for a code no catalog has, so the caller keeps its own text', () => {
+    expect(codeMessage('from_a_newer_server')).toBeUndefined()
   })
 })
 
