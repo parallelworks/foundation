@@ -10,7 +10,7 @@ const meta: Meta<typeof ProblemsButton> = {
     problems: {
       control: 'object',
       description:
-        'What the toolbar counts; one with `pick` opens where it is when clicked. One with a problem `code` and `params` reads as the host’s `useProblemMessage` words it, and one with a `type` links to its page.',
+        'What the toolbar counts; one with `pick` opens where it is when clicked. One with a problem `code` and `params` reads as the host’s `useProblemMessage` words it, given its `type` too, and one with a `type` links to its page.',
     },
   },
   decorators: [

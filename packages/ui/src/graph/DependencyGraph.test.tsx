@@ -1078,6 +1078,44 @@ describe('DependencyGraph run warnings', () => {
     expect(list().getByText('From a newer server.')).toBeInTheDocument()
   })
 
+  it('gives the host a coded warning’s type, so it can word another app’s code as that app does', () => {
+    // As `useCodeMessage` does with a catalog that keeps the workflow engine's messages under its
+    // name, beside the host's own for the same code.
+    const byApp: ProblemMessage = (code, params, type) => {
+      if (code !== 'undefined_input') return undefined
+      return type === '/problems/workflow/undefined_input'
+        ? `No hay ninguna entrada "${params?.['name']}".`
+        : `El formulario no tiene el campo "${params?.['name']}".`
+    }
+    const useByApp = () => byApp
+    render(
+      <UIProvider data={{ useProblemMessage: useByApp }}>
+        <DependencyGraph
+          run={{
+            ...skippedRun,
+            warnings: [
+              {
+                job: 'notify',
+                message: 'There’s no input "rundir".',
+                code: 'undefined_input',
+                params: { name: 'rundir' },
+                type: '/problems/workflow/undefined_input',
+              },
+              {
+                job: 'build',
+                message: 'No field "title".',
+                code: 'undefined_input',
+                params: { name: 'title' },
+              },
+            ],
+          }}
+        />
+      </UIProvider>,
+    )
+    expect(list().getByText('No hay ninguna entrada "rundir".')).toBeInTheDocument()
+    expect(list().getByText('El formulario no tiene el campo "title".')).toBeInTheDocument()
+  })
+
   it('shows a coded warning’s own text when the host renders no codes', () => {
     renderWarned([{ job: 'notify', message: ALWAYS, code: 'older_always' }])
     expect(list().getByText('always', { selector: 'code' })).toBeInTheDocument()

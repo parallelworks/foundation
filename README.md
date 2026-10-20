@@ -205,6 +205,28 @@ and `unknown` cover failures that never reached the server. `toApiError()`
 turns anything thrown into an `ApiError` with `status`, `code`, `params` and
 `fields`, whose `path` (`items[0].name`) matches form field names.
 
+`useCodeMessage()` finds a code's message the same way, for a problem that
+isn't a failed request, such as a warning a server reports about what it was
+given. Its function takes the code, params and type, and gives `undefined`
+when no catalog has the code, so the problem keeps its own text.
+
+An app's own codes can stay at the top level of `apiErrors`. Another
+registry's codes go under its name, so a code both use keeps each one's
+message and params. For a problem whose type names an application, such as
+`/problems/workflow/unknown_input` (relative or absolute), the lookup reads
+`apiErrors.workflow.unknown_input` first, then `apiErrors.unknown_input`, then
+the shared message. `useErrorMessage()` goes by the error's type, and by a
+field's own for the field's message.
+
+```json
+{
+  "apiErrors": {
+    "unknown_input": "The form has no field \"{field}\".",
+    "workflow": { "unknown_input": "There's no input \"{input}\"." }
+  }
+}
+```
+
 ### Lint
 
 `lint/error-text.grit` in `@parallelworks/problem` is a Biome plugin. It fails on an

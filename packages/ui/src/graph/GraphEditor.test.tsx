@@ -2430,8 +2430,9 @@ describe('problems and the YAML beside the graph', () => {
   })
 
   it('shows a coded problem in the host’s words, and links it to its page', async () => {
-    const hostMessage: ProblemMessage = (code, params) =>
-      code === 'job_not_needed'
+    // Worded only for the workflow engine's code, which the host tells apart by its type.
+    const hostMessage: ProblemMessage = (code, params, type) =>
+      code === 'job_not_needed' && type === '/problems/workflow/job_not_needed'
         ? `${params?.['job']} no necesita ${params?.['needed']}.`
         : undefined
     const useHostMessage = () => hostMessage

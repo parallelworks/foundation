@@ -20,7 +20,8 @@ export interface RunWarning {
   /** The values the code's message shows, by name. */
   params?: ProblemParams | null | undefined
   /** The URI of the page that explains it, such as `/problems/workflow/undefined_input`, which the
-   *  warning links to. `about:blank` has none. */
+   *  warning links to, and which the host's `useProblemMessage` gets with its `code`. `about:blank`
+   *  has none. */
   type?: string | null | undefined
 }
 

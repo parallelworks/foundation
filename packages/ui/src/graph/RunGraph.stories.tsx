@@ -69,7 +69,7 @@ const meta: Meta<typeof RunGraph> = {
     warnings: {
       control: 'object',
       description:
-        'The run’s `warnings`: each one’s `message`, its `job`, its `step` index when it is about a step, and the `path` of subworkflow steps it is under, such as `["release", "step_1"]`. A warning may also carry a problem `code` and `params`, which the host’s `useProblemMessage` words in the reader’s language, and a `type`, the page it links to.',
+        'The run’s `warnings`: each one’s `message`, its `job`, its `step` index when it is about a step, and the `path` of subworkflow steps it is under, such as `["release", "step_1"]`. A warning may also carry a problem `code` and `params`, which the host’s `useProblemMessage` words in the reader’s language, and a `type`, the page it links to, which `useProblemMessage` gets too, to pick the messages of the application it names.',
     },
     viewMode: {
       control: 'inline-radio',

@@ -786,8 +786,14 @@ export type PersistedStateHook = <T>(
 export type ProblemParams = Readonly<Record<string, string | number>>
 
 /** A problem code's message in the reader's language, with its params; undefined when the host has
- *  none for the code. */
-export type ProblemMessage = (code: string, params?: ProblemParams) => string | undefined
+ *  none for the code. `type` is the problem's type URI: one that names an application, such as
+ *  `/problems/workflow/undefined_input`, picks that application's message for the code over the
+ *  host's own. */
+export type ProblemMessage = (
+  code: string,
+  params?: ProblemParams,
+  type?: string,
+) => string | undefined
 
 /** A problem that may carry a code: a run's warning, or one the workflow editor marks. */
 export interface CodedProblem {
@@ -795,6 +801,8 @@ export interface CodedProblem {
   message: string
   code?: string | null | undefined
   params?: ProblemParams | null | undefined
+  /** Its type URI, which the host's message for its code is looked up by too. */
+  type?: string | null | undefined
 }
 
 export interface UIData {
@@ -830,8 +838,9 @@ export interface UIData {
   /**
    * Host-bound hook returning a problem code's message in the reader's language, such as
    * `useCodeMessage` from `@parallelworks/problem/react`. A run's warnings and the editor's
-   * problems that carry a `code` show it, and their own `message` when it gives nothing. Absent,
-   * they show their `message`. Must be a stable function reference — components call it as a hook.
+   * problems that carry a `code` show it, given their `params` and `type`, and their own `message`
+   * when it gives nothing. Absent, they show their `message`. Must be a stable function reference —
+   * components call it as a hook.
    */
   useProblemMessage: () => ProblemMessage
 }
@@ -1738,15 +1747,16 @@ function useNoProblemMessage(): ProblemMessage {
   return noProblemMessage
 }
 
-/** A coded problem's text in the reader's language: the host's message for its code, or else its
- *  own `message`. */
+/** A coded problem's text in the reader's language: the host's message for its code and type, or
+ *  else its own `message`. */
 export function useProblemText(): (problem: CodedProblem) => string {
   const { useProblemMessage: boundUseProblemMessage } = useContext(DataContext)
   const message = boundUseProblemMessage()
   return useCallback(
     (problem: CodedProblem) =>
-      (problem.code ? message(problem.code, problem.params ?? undefined) : undefined) ??
-      problem.message,
+      (problem.code
+        ? message(problem.code, problem.params ?? undefined, problem.type ?? undefined)
+        : undefined) ?? problem.message,
     [message],
   )
 }

@@ -59,11 +59,14 @@ even for a one-word name. The host sets the tints with `--avatar-person`,
 edge `--avatar-agent-ring`. An agent's avatar (`kind="agent"`) is a rounded
 square under either coloring, so its shape and not only its color sets it apart.
 
-A run's warnings and the workflow editor's problems may carry a problem `code` and `params`, as a
-server's problem details do. Bind `data.useProblemMessage` to `useCodeMessage` from
+A run's warnings and the workflow editor's problems may carry a problem `code`, `params` and
+`type`, as a server's problem details do. Bind `data.useProblemMessage` to `useCodeMessage` from
 `@parallelworks/problem/react`, and they read in the app's language: the message at
-`apiErrors.<code>` in the app's use-intl catalog, or the shared one. A code with no message, or no
-`useProblemMessage`, shows the `message` the server sent.
+`apiErrors.<code>` in the app's use-intl catalog, or the shared one. It gets each one's `type` too:
+for a type that names an application, such as `/problems/workflow/undefined_input`, the message at
+`apiErrors.workflow.undefined_input` comes first. The app's own codes can stay at the top level of
+`apiErrors`; another registry's go under its name, so a code both use keeps each one's message and
+params. A code with no message, or no `useProblemMessage`, shows the `message` the server sent.
 
 Menus, selects, pickers, popovers, tooltips and hover cards open over the page,
 or over the fullscreen element while there is one. Opened inside a `<dialog>`
