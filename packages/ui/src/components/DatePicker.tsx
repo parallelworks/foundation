@@ -316,7 +316,7 @@ const rangeClassNames: Partial<ClassNames> = {
  *  date filter's picker. Months, weekdays and labels follow the reader's locale. */
 export function Calendar({ min, max, defaultMonth, autoFocus = false, ...props }: CalendarProps) {
   const t = useStrings().datePicker
-  const [weekStartsOn] = useState(firstWeekday)
+  const { caption, weekday, longDay, longWeekday, weekStartsOn } = formatsFor(useLocale())
   const outOfRange: Matcher[] = [
     ...(min ? [{ before: min }] : []),
     ...(max ? [{ after: max }] : []),

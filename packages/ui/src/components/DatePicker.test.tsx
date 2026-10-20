@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { useState } from 'react'
-import { DatePicker, type DatePickerProps } from './DatePicker'
+import { Calendar, DatePicker, type DatePickerProps } from './DatePicker'
 import { UIProvider } from './Provider'
 
 function Controlled({
@@ -111,6 +111,17 @@ describe('DatePicker', () => {
     const grid = await openCalendar()
     expect(grid).toHaveAccessibleName('März 2026')
     // Weeks start on Monday there, where the browser reports it.
+    expect(grid.querySelector('thead th')).toHaveAttribute('aria-label', 'Montag')
+  })
+
+  it("names a standalone calendar's months and weekdays in the provider's locale too", () => {
+    render(
+      <UIProvider locale="de-DE">
+        <Calendar mode="single" selected={new Date(2026, 2, 14)} onSelect={() => {}} />
+      </UIProvider>,
+    )
+    const grid = screen.getByRole('grid')
+    expect(grid).toHaveAccessibleName('März 2026')
     expect(grid.querySelector('thead th')).toHaveAttribute('aria-label', 'Montag')
   })
 })

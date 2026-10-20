@@ -632,8 +632,9 @@ export interface UIStrings {
     customDate: string
     /** Two days a filter spans. */
     between: (from: string, to: string) => string
-    /** A day in a chip; by default without the year while it is this year. */
-    formatDate: (date: Date) => string
+    /** A day in a chip; by default without the year while it is this year. `locale` is
+     *  UIProvider's, when the host gives one. */
+    formatDate: (date: Date, locale?: string) => string
     /** The text picker's hint. */
     textPlaceholder: string
     /** A yes-or-no filter's values. */
@@ -656,8 +657,22 @@ const OPERATOR_WORDS: Record<FilterOperator, (count: number) => string> = {
   isSet: () => 'is set',
   isNotSet: () => 'is not set',
 }
-const SHORT_DAY = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' })
-const MEDIUM_DAY = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' })
+// Built once per locale; the browser's without one.
+const dayFormats = new Map<
+  string | undefined,
+  { short: Intl.DateTimeFormat; medium: Intl.DateTimeFormat }
+>()
+function dayFormat(locale: string | undefined) {
+  let formats = dayFormats.get(locale)
+  if (!formats) {
+    formats = {
+      short: new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }),
+      medium: new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }),
+    }
+    dayFormats.set(locale, formats)
+  }
+  return formats
+}
 
 export type UIStringOverrides = Overrides<UIStrings>
 
@@ -1409,8 +1424,10 @@ const DEFAULTS: UIProviderValue = {
       },
       customDate: 'Custom…',
       between: (from, to) => `${from} – ${to}`,
-      formatDate: (date) =>
-        (date.getFullYear() === new Date().getFullYear() ? SHORT_DAY : MEDIUM_DAY).format(date),
+      formatDate: (date, locale) =>
+        dayFormat(locale)[
+          date.getFullYear() === new Date().getFullYear() ? 'short' : 'medium'
+        ].format(date),
       textPlaceholder: 'Type, then press Enter',
       yes: 'Yes',
       no: 'No',
