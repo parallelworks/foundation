@@ -3,8 +3,10 @@ import '@testing-library/jest-dom/vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import {
   ChartLegendList,
+  ChartReadout,
   ChartTooltipBeside,
   ChartTooltipContent,
+  ChartTooltipFrame,
   chartTooltipPlacement,
   foldSeries,
   OTHER_SERIES_COLOR,
@@ -178,6 +180,47 @@ describe('ChartTooltipContent surface', () => {
     expect(container.firstElementChild).toHaveClass(
       'bg-(--theme-app-bg)',
       'shadow-(--theme-shadow-lg)',
+    )
+  })
+})
+
+describe('ChartReadout and ChartTooltipFrame', () => {
+  const at = (label: string, a: number, b: number) => ({
+    label,
+    items: [
+      { key: 'a', name: 'Compute', value: a, color: 'red' },
+      { key: 'b', name: 'Storage', value: b, color: 'blue' },
+    ],
+  })
+
+  it('keeps every series in its place, zero or not, with the total beside the label', () => {
+    render(<ChartReadout {...at('Oct 9', 0, 5)} />)
+    expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual([
+      'Compute0',
+      'Storage5',
+    ])
+    expect(screen.getByText('Total').parentElement).toHaveTextContent('Total 5')
+  })
+
+  it('reads the rest point while none is hovered, and the hovered one while one is', () => {
+    const { rerender, container } = render(
+      <ChartTooltipFrame x={null} reading={null} rest={at('Oct 12', 1, 2)}>
+        <svg />
+      </ChartTooltipFrame>,
+    )
+    const readout = () => container.querySelector('[data-chart-readout]')
+    expect(readout()).toHaveTextContent('Oct 12')
+    rerender(
+      <ChartTooltipFrame x={40} reading={at('Oct 9', 3, 4)} rest={at('Oct 12', 1, 2)}>
+        <svg />
+      </ChartTooltipFrame>,
+    )
+    expect(readout()).toHaveTextContent('Oct 9')
+    // The floating tooltip is there for a wide chart; the container query picks one.
+    expect(readout()).toHaveClass('@min-[28rem]/chart:hidden')
+    expect(container.querySelector('.pointer-events-none')).toHaveClass(
+      'hidden',
+      '@min-[28rem]/chart:block',
     )
   })
 })

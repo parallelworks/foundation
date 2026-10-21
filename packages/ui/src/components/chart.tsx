@@ -260,7 +260,7 @@ export function ChartTooltipContent({
           <li
             key={item.key}
             className={cx(
-              'flex flex-wrap items-center gap-x-2',
+              'flex items-center gap-2',
               highlighted === item.key
                 ? 'font-semibold'
                 : highlighted != null && 'text-(--theme-muted-text-color)',
@@ -268,10 +268,7 @@ export function ChartTooltipContent({
           >
             <SeriesSwatch color={item.color} />
             <span className="min-w-0 flex-1 truncate">{item.name}</span>
-            {/* Held narrow, the value takes a line of its own so the name keeps its words. */}
-            <span className="ml-auto ps-2 tabular-nums group-data-narrow/tip:basis-full group-data-narrow/tip:text-end">
-              {format(item.value)}
-            </span>
+            <span className="ml-2 tabular-nums">{format(item.value)}</span>
           </li>
         ))}
       </ul>
@@ -299,7 +296,7 @@ export interface ChartTooltipPlacement {
 
 /** Where a chart's tooltip goes so it never covers the point being read: `gap` beside the
  *  crosshair at `x`, on the side with more room, so it flips sides as the crosshair passes the
- *  middle, and held narrower when that side is short, as on a phone, its names truncating.
+ *  middle, and held narrower when that side is short, its names truncating.
  *  Only when that side is narrower still does it go above the plot, clear of every point,
  *  where the chart must leave it room. `start` and `end`
  *  bound it in the same coordinates as `x`, such as the chart's own box, so it stays inside
@@ -347,9 +344,10 @@ export function chartTooltipPlacement({
 /** Holds a chart's tooltip beside its crosshair, inside a positioned box around the plot: `x`
  *  is the crosshair in that box, and the tooltip sits `top` from its top on the side with more
  *  room, flipping as the crosshair passes the middle, held narrower and tighter when that side
- *  is short, as on a phone, and above the plot only when it is shorter still. It stays inside
- *  the box's width and never covers the point being read or the pointer on it. Nothing shows
- *  while `x` is null. */
+ *  is short, and above the plot only when it is shorter still. It stays inside the box's width
+ *  and never covers the point being read or the pointer on it. Nothing shows while `x` is null.
+ *  On a narrow chart, such as on a phone, `ChartTooltipFrame` docks the reading in a readout
+ *  above the plot instead. */
 export function ChartTooltipBeside({
   x,
   top = 0,
@@ -373,7 +371,6 @@ export function ChartTooltipBeside({
     el.style.maxWidth = ''
     el.style.removeProperty('--chart-tooltip-min')
     el.style.removeProperty('--chart-tooltip-pad')
-    delete el.dataset['narrow']
     const width = el.offsetWidth
     const box = el.offsetParent as HTMLElement | null
     const end = box?.clientWidth || document.documentElement.clientWidth || window.innerWidth
@@ -393,17 +390,126 @@ export function ChartTooltipBeside({
     if (placement.maxWidth !== null) {
       el.style.maxWidth = `${placement.maxWidth}px`
       el.style.setProperty('--chart-tooltip-min', '0px')
-      // Held narrow, as on a phone, it gives its names the room its padding took.
+      // Held narrow, it gives its names the room its padding took.
       el.style.setProperty('--chart-tooltip-pad', '0.5rem')
-      el.dataset['narrow'] = ''
     }
   })
   if (x === null) {
     return null
   }
   return (
-    <div ref={ref} className={cx('group/tip pointer-events-none absolute z-10 w-max', className)}>
+    <div ref={ref} className={cx('pointer-events-none absolute z-10 w-max', className)}>
       {children}
+    </div>
+  )
+}
+
+/** A point's reading: what a chart's tooltip or readout shows for it. */
+export interface ChartReading {
+  label?: ReactNode
+  items: readonly ChartTooltipItem[]
+  /** Formats each value and the total; numbers in the host's locale by default. */
+  formatValue?: ((n: number) => string) | undefined
+  /** Adds the total; on by default when there is more than one series. */
+  total?: boolean | undefined
+  highlighted?: string | null | undefined
+}
+
+/** A point's reading docked above a chart's plot, for a chart too narrow for a tooltip beside
+ *  its crosshair: the label and total on one line, then each series' swatch, name and value
+ *  in two columns. Every series keeps its place and its row, zero or not, so the readout keeps
+ *  its height and order as the reading changes. */
+export function ChartReadout({
+  label,
+  items,
+  formatValue,
+  total,
+  highlighted,
+  className,
+}: ChartReading & { className?: string | undefined }) {
+  const { chart: t } = useStrings()
+  const locale = useLocale()
+  const number = useMemo(
+    () => new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }),
+    [locale],
+  )
+  const format = formatValue ?? ((n: number) => number.format(n))
+  const sum = items.reduce((acc, item) => acc + item.value, 0)
+  const showTotal = total ?? items.length > 1
+  return (
+    <div
+      data-chart-readout=""
+      className={cx(
+        'rounded-lg border border-(--theme-border) bg-(--theme-muted-panel-bg)/50 px-2 py-1.5 text-xs text-(--theme-app)',
+        className,
+      )}
+    >
+      <div className="mb-1 flex items-baseline justify-between gap-3">
+        <span className="min-w-0 truncate font-semibold">{label}</span>
+        {showTotal && (
+          <span className="shrink-0 tabular-nums">
+            <span className="text-(--theme-muted-text-color)">{t.total}</span>{' '}
+            <span className="font-semibold">{format(sum)}</span>
+          </span>
+        )}
+      </div>
+      <ul className="m-0 grid list-none grid-cols-2 gap-x-2.5 gap-y-0.5 p-0">
+        {items.map((item) => (
+          <li
+            key={item.key}
+            className={cx(
+              'flex min-w-0 items-center gap-1',
+              highlighted === item.key
+                ? 'font-semibold'
+                : highlighted != null && 'text-(--theme-muted-text-color)',
+            )}
+          >
+            <SeriesSwatch color={item.color} />
+            <span className="min-w-0 flex-1 truncate">{item.name}</span>
+            <span className="tabular-nums">{format(item.value)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+/** A chart's plot with its reading, placed for its width: on a wide chart a tooltip beside the
+ *  crosshair at `x` while a point is hovered, and under 28rem, as on a phone, a readout docked
+ *  above the plot that never covers it or its legend, showing `rest`, such as the latest point,
+ *  while none is. `children` is the plot, and `x` the crosshair in it, or null. The app positions
+ *  nothing: the frame measures itself through a container query. */
+export function ChartTooltipFrame({
+  x,
+  reading,
+  rest,
+  top = 0,
+  gap = 12,
+  className,
+  children,
+}: {
+  x: number | null
+  /** The hovered point's reading, or null while none is. */
+  reading: ChartReading | null
+  /** What the readout shows while no point is hovered, so it keeps its place. */
+  rest: ChartReading
+  top?: number | undefined
+  gap?: number | undefined
+  className?: string | undefined
+  children: ReactNode
+}) {
+  const shown = x !== null && reading ? reading : null
+  return (
+    <div className={cx('@container/chart', className)}>
+      <ChartReadout {...(shown ?? rest)} className="mb-2 @min-[28rem]/chart:hidden" />
+      <div className="relative">
+        {children}
+        {shown && (
+          <ChartTooltipBeside x={x} top={top} gap={gap} className="hidden @min-[28rem]/chart:block">
+            <ChartTooltipContent {...shown} />
+          </ChartTooltipBeside>
+        )}
+      </div>
     </div>
   )
 }
