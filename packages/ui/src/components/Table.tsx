@@ -83,7 +83,12 @@ function Item({ wrap = false, children, className, ...tdProps }: ItemProps) {
       className={cx(
         cellX,
         cellY[density],
-        wrap ? wrapY[density] : 'whitespace-nowrap',
+        // A one-line cell keeps what it holds inside its column, cutting text off with an
+        // ellipsis, so a long value never paints over the next cell. Its 4px margin keeps a
+        // control's focus ring; a cell whose content must reach past it says overflow-visible.
+        wrap
+          ? wrapY[density]
+          : 'overflow-clip text-ellipsis whitespace-nowrap [overflow-clip-margin:4px]',
         className,
         placed?.className,
       )}

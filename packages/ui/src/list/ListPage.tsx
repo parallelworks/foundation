@@ -356,7 +356,10 @@ export function ListRow({
        * menu. Buttons are absolutely positioned so toggling them never changes
        * row height. */}
       {showActions && (
-        <Table.Item className={cx('relative py-2.5', floating && FLOATING_ACTIONS_LANE)}>
+        // Visible: a floating `⋯` reaches over the last column's end.
+        <Table.Item
+          className={cx('relative overflow-visible py-2.5', floating && FLOATING_ACTIONS_LANE)}
+        >
           <div
             className={cx(
               'absolute inset-y-0 right-0 flex items-center gap-0.5 pr-4',
@@ -556,7 +559,14 @@ export function ListColumns<T>({ view }: { view: ListView<T> }) {
               // listTableProps collapses the header row when it holds this marker.
               !view.showColumnHeaders && HEADERS_OFF,
             )}
-            style={col.alwaysVisible ? { minWidth: NAME_MIN_WIDTH_PX } : undefined}
+            style={
+              col.alwaysVisible || col.width !== undefined
+                ? {
+                    ...(col.alwaysVisible && { minWidth: NAME_MIN_WIDTH_PX }),
+                    ...(col.width !== undefined && { width: col.width }),
+                  }
+                : undefined
+            }
             sort={orderBy === undefined ? undefined : columnSort(view, orderBy)}
             onSort={orderBy === undefined ? undefined : () => view.sortBy(orderBy)}
           >

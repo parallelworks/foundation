@@ -90,25 +90,38 @@ const STATE_VARIANT = { running: 'success', stopped: 'muted', pending: 'warning'
 
 /** The columns of an inventory's Cluster tab. With `priorities`, as a host
  *  would set them, the type, state and region stack under the name on a phone,
- *  and the account, zone, start and last-seen times drop as the list narrows.
+ *  and the account, zone and start time drop below 52rem and the last-seen time
+ *  below 36rem.
  *  Without, every column stacks. */
 function columns(priorities: boolean): ColumnDef[] {
   const low = priorities ? ({ priority: 'low' } as const) : {}
   const medium = priorities ? ({ priority: 'medium' } as const) : {}
+  // Widths only with priorities: without, every column shows down to 36rem, and
+  // their widths together would leave the name none.
+  const width = (w: string) => (priorities ? { width: w } : {})
+  // Each column but the name is as wide as its values need, so the name takes
+  // what they leave; without widths, every column takes an equal share.
   return [
+    { key: 'name', label: 'Name', alwaysVisible: true, headerClassName: 'truncate' },
+    { key: 'type', label: 'Type', headerClassName: 'truncate', ...width('9rem') },
+    { key: 'state', label: 'State', headerClassName: 'truncate', ...width('6.5rem') },
     {
-      key: 'name',
-      label: 'Name',
-      alwaysVisible: true,
-      headerClassName: 'story-name-column truncate',
+      key: 'account',
+      label: 'Cloud account',
+      headerClassName: 'truncate',
+      ...width('9rem'),
+      ...low,
     },
-    { key: 'type', label: 'Type', headerClassName: 'truncate' },
-    { key: 'state', label: 'State', headerClassName: 'truncate' },
-    { key: 'account', label: 'Cloud account', headerClassName: 'truncate', ...medium },
-    { key: 'region', label: 'Region', headerClassName: 'truncate' },
-    { key: 'zone', label: 'Zone', headerClassName: 'truncate', ...low },
-    { key: 'started', label: 'Started', headerClassName: 'truncate', ...low },
-    { key: 'lastSeen', label: 'Last seen', headerClassName: 'truncate', ...medium },
+    { key: 'region', label: 'Region', headerClassName: 'truncate', ...width('7rem') },
+    { key: 'zone', label: 'Zone', headerClassName: 'truncate', ...width('7.5rem'), ...low },
+    { key: 'started', label: 'Started', headerClassName: 'truncate', ...width('8rem'), ...low },
+    {
+      key: 'lastSeen',
+      label: 'Last seen',
+      headerClassName: 'truncate',
+      ...width('6.5rem'),
+      ...medium,
+    },
   ]
 }
 
@@ -165,8 +178,6 @@ function ClusterTab({ priorities }: { priorities: boolean }) {
   }
   return (
     <ListPage view={view}>
-      {/* The name column's share where the columns show, as the host's own stylesheet sets it. */}
-      <style>{'@container (min-width: 36rem) { .story-name-column { width: 24%; } }'}</style>
       <Table {...listTableFixedProps}>
         <ListColumns view={view} />
         {CLUSTERS.flatMap((cluster) => [

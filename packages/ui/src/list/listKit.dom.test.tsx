@@ -358,3 +358,44 @@ describe('GroupRow', () => {
     expect(cells[0]).toHaveAttribute('colspan', '3')
   })
 })
+
+describe('cells keep to their column', () => {
+  it('cuts a long value off inside its own cell, and shows it whole in a tooltip', () => {
+    render(
+      <UIProvider>
+        <table style={{ tableLayout: 'fixed', width: 200 }}>
+          <tbody>
+            <tr>
+              <Table.Item style={{ width: 40 }}>
+                <ListCellText>Network interface with a very long name</ListCellText>
+              </Table.Item>
+              <Table.Item>pending</Table.Item>
+            </tr>
+          </tbody>
+        </table>
+      </UIProvider>,
+    )
+    const text = screen.getByText('Network interface with a very long name')
+    // The cell clips what it holds, and the text ends in an ellipsis rather than running on.
+    expect(text.closest('td')).toHaveClass('overflow-clip', 'text-ellipsis', 'whitespace-nowrap')
+    expect(text).toHaveClass('block', 'min-w-0', 'truncate')
+    // Its tooltip opens only while the text is cut off.
+    expect(text).toHaveAttribute('data-overflow-only')
+  })
+
+  it('lets the actions lane reach past its cell, where a floating ⋯ sits over the last column', () => {
+    render(
+      <table>
+        <tbody>
+          <ListRow href={null} items={[]} goTo={() => {}} openMenu={() => {}}>
+            <Table.Item>logs</Table.Item>
+          </ListRow>
+        </tbody>
+      </table>,
+    )
+    const cells = screen.getAllByRole('cell')
+    expect(cells[0]).toHaveClass('overflow-clip')
+    expect(cells.at(-1)).toHaveClass('overflow-visible')
+    expect(cells.at(-1)).not.toHaveClass('overflow-clip')
+  })
+})
