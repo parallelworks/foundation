@@ -164,6 +164,10 @@ export interface ListViewChrome {
   /** Per visible column, whether it stacks under the first on a narrow
    * container ({@link ColumnDef.stack}); `ListRow` reads entry `i`. */
   columnStacks: boolean[]
+  /** Whether the last column is a locked one, such as a delete button's: the
+   * row's `⋯` then keeps a lane of its own after it rather than floating over
+   * it on hover. */
+  lastColumnLocked?: boolean | undefined
   /** The list's filters, which `ListPage` shows as a row of chips under its toolbar. */
   filterState?: ListFilters | undefined
 }
@@ -359,6 +363,9 @@ export function useListView<T>({
 
   const columnClasses = useMemo(() => visibleColumns.map(columnClass), [visibleColumns])
   const columnStacks = useMemo(() => visibleColumns.map(stacks), [visibleColumns])
+  const last = visibleColumns.at(-1)
+  const lastColumnLocked =
+    visibleColumns.length > 1 && last !== undefined && !last.alwaysVisible && isLocked(last)
 
   const toggleColumn = useCallback(
     (key: string) =>
@@ -483,6 +490,7 @@ export function useListView<T>({
     visibleColumns,
     columnClasses,
     columnStacks,
+    lastColumnLocked,
     isVisible,
     pinnedCount,
     actionsWidth,

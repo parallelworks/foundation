@@ -474,3 +474,54 @@ describe('GroupRow detail', () => {
     expect(detail).toHaveClass('hidden', '@[36rem]:block', 'truncate', 'shrink-[100]')
   })
 })
+
+describe('trailing controls with a locked last column', () => {
+  function LockedLast() {
+    const view = useListView<unknown>({
+      storageKey: 'locked-last',
+      columns: [
+        { key: 'name', label: 'Name', alwaysVisible: true },
+        { key: 'type', label: 'Type' },
+        { key: 'delete', label: 'Delete', locked: true, stack: false, width: 40 },
+      ],
+    })
+    return (
+      <ListRowActionsProvider view={view}>
+        <Table {...listTableFixedProps}>
+          <ListColumns view={view} />
+          <ListRow href={null} items={[]} goTo={() => {}} openMenu={() => {}}>
+            <NameCell icon={null} name="gpu-trainer" href={null} />
+            <Table.Item>Instance</Table.Item>
+            <Table.Item>
+              <button type="button">Delete gpu-trainer</button>
+            </Table.Item>
+          </ListRow>
+        </Table>
+      </ListRowActionsProvider>
+    )
+  }
+
+  it('keeps the ⋯ in a lane of its own after a locked column, never floating over it', () => {
+    render(
+      <UIProvider>
+        <LockedLast />
+      </UIProvider>,
+    )
+    const lane = screen.getAllByRole('cell').at(-1)
+    expect(lane).not.toHaveClass('pointer-fine:w-0!')
+    expect(screen.getAllByRole('columnheader').at(-1)).not.toHaveClass('pointer-fine:w-0!')
+  })
+
+  it('lines the ⋯ up at the top of a stacked row, with the controls that stay beside the stack', () => {
+    render(
+      <UIProvider>
+        <LockedLast />
+      </UIProvider>,
+    )
+    const cells = screen.getAllByRole('cell')
+    // The delete column stays a column and sits at the row's top where Type stacks.
+    expect(cells.at(-2)).toHaveClass('@max-[36rem]:align-top', '@max-[36rem]:pt-2.5')
+    const menu = screen.getByRole('button', { name: /more actions/i }).parentElement
+    expect(menu).toHaveClass('@max-[36rem]:items-start', '@max-[36rem]:pt-2')
+  })
+})

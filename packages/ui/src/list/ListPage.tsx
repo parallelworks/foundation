@@ -45,7 +45,8 @@ const RowActionsContext = createContext<{
   always: boolean
   columnClasses: string[]
   columnStacks: boolean[]
-}>({ show: true, always: false, columnClasses: [], columnStacks: [] })
+  lastLocked: boolean
+}>({ show: true, always: false, columnClasses: [], columnStacks: [], lastLocked: false })
 
 function useRowActions(view?: ListViewChrome) {
   return useMemo(
@@ -54,8 +55,15 @@ function useRowActions(view?: ListViewChrome) {
       always: view?.alwaysShowActions ?? false,
       columnClasses: view?.columnClasses ?? [],
       columnStacks: view?.columnStacks ?? [],
+      lastLocked: view?.lastColumnLocked ?? false,
     }),
-    [view?.showActions, view?.alwaysShowActions, view?.columnClasses, view?.columnStacks],
+    [
+      view?.showActions,
+      view?.alwaysShowActions,
+      view?.columnClasses,
+      view?.columnStacks,
+      view?.lastColumnLocked,
+    ],
   )
 }
 
@@ -231,6 +239,7 @@ export function ListRow({
     always: alwaysShowActions,
     columnClasses,
     columnStacks,
+    lastLocked,
   } = useContext(RowActionsContext)
 
   // Apply each column's responsive class to its cell by position. toArray drops
@@ -310,7 +319,9 @@ export function ListRow({
 
   // A row whose only action is a `⋯` shown on hover floats it over its end
   // instead of keeping a lane for it (see ListActionsHeader).
-  const floating = !alwaysShowActions && !(pinnedActions && pinnedActions.length > 0)
+  // Not over a locked column, such as a delete button's, which it would cover: there it keeps
+  // its lane after the column.
+  const floating = !alwaysShowActions && !(pinnedActions && pinnedActions.length > 0) && !lastLocked
 
   // While selecting, a plain click on the row selects it, so the link stays in its cell.
   const stretch = !!href && !selectionActive
@@ -373,6 +384,9 @@ export function ListRow({
           <div
             className={cx(
               'absolute inset-y-0 right-0 flex items-center gap-0.5 pr-4',
+              // Where columns stack under the name, the row's controls line up at its top, with
+              // the name's first line and any column that stays beside the stack.
+              stacked.length > 0 && '@max-[36rem]:items-start @max-[36rem]:pt-2',
               // Over the last column's end, on the row's hover color, so its value
               // gives way to the menu only while the row is hovered or focused.
               floating &&

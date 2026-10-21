@@ -108,18 +108,18 @@ function columns(priorities: boolean): ColumnDef[] {
   // every column takes an equal share.
   return [
     { key: 'name', label: 'Name', alwaysVisible: true, headerClassName: 'truncate' },
-    { key: 'type', label: 'Type', headerClassName: 'truncate', ...width('13%') },
+    { key: 'type', label: 'Type', headerClassName: 'truncate', ...width('11%') },
     { key: 'state', label: 'State', headerClassName: 'truncate', ...width('10%') },
     {
       key: 'account',
       label: 'Cloud account',
       headerClassName: 'truncate',
-      ...width('13%'),
+      ...width('12%'),
       ...low,
     },
     { key: 'region', label: 'Region', headerClassName: 'truncate', ...width('10%') },
-    { key: 'zone', label: 'Zone', headerClassName: 'truncate', ...width('10%'), ...low },
-    { key: 'started', label: 'Started', headerClassName: 'truncate', ...width('11%'), ...low },
+    { key: 'zone', label: 'Zone', headerClassName: 'truncate', ...width('9%'), ...low },
+    { key: 'started', label: 'Started', headerClassName: 'truncate', ...width('10%'), ...low },
     {
       key: 'lastSeen',
       label: 'Last seen',
