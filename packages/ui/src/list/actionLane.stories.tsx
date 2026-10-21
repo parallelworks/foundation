@@ -232,7 +232,7 @@ function RunsPage({ last }: { last: Last }) {
   )
 }
 
-const FLOATING = 'pointer-fine:w-0!'
+const FLOATING = 'pointer-fine:w-10!'
 
 /** An end-aligned last column, such as a runtime: its values sit where a
  *  floating `⋯` would, so the `⋯` keeps a lane of its own after the column

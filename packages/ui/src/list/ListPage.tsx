@@ -389,13 +389,10 @@ export function ListRow({
               // Where columns stack under the name, the row's controls line up at its top, with
               // the name's first line and any column that stays beside the stack.
               stacked.length > 0 && '@max-[36rem]:items-start @max-[36rem]:pt-2',
-              // Over the last column's end, on the row's hover color, so its value
-              // gives way to the menu only while the row is hovered or focused.
+              // In its own lane beside the last column, shown while the row is hovered or focused.
               floating &&
                 !menuActive &&
                 'pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:focus-within:opacity-100',
-              floating &&
-                'pointer-fine:bg-linear-to-l pointer-fine:from-(--theme-hover) pointer-fine:from-70% pointer-fine:to-transparent pointer-fine:pl-6',
             )}
           >
             {/* Below ~44rem pinned buttons collapse into `⋯` (even with "always
