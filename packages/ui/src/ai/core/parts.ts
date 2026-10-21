@@ -175,7 +175,9 @@ export function toolTurnMessages(
     // A reply that paused on a call waiting for approval may hold nothing yet.
     return answer.content || answer.tool_calls?.length ? [answer] : []
   }
-  const final = hasText ? { ...answer, content: answerAfterCalls(parts ?? [], text, answer) } : answer
+  const final = hasText
+    ? { ...answer, content: answerAfterCalls(parts ?? [], text, answer) }
+    : answer
   return [
     ...rounds.flatMap((round) => [
       {
