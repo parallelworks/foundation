@@ -175,7 +175,9 @@ export function toolTurnMessages(
     // A reply that paused on a call waiting for approval may hold nothing yet.
     return answer.content || answer.tool_calls?.length ? [answer] : []
   }
-  const final = hasText ? { ...answer, content: answerAfterCalls(parts ?? [], text, answer) } : answer
+  const final = hasText
+    ? { ...answer, content: answerAfterCalls(parts ?? [], text, answer) }
+    : answer
   return [
     ...rounds.flatMap((round) => [
       {
@@ -207,7 +209,10 @@ export function finalizeParts(parts: MessagePart[]): MessagePart[] {
 /** A finished reply whose text was streamed among its parts: the text after
  *  the last part is the answer, shown below them as the message's content,
  *  the shape a stored conversation is read back in. */
-export function splitAnswer(parts: MessagePart[]): { parts: MessagePart[]; content?: string | null } {
+export function splitAnswer(parts: MessagePart[]): {
+  parts: MessagePart[]
+  content?: string | null
+} {
   if (!parts.some((p) => p.kind === 'text')) {
     return { parts }
   }
