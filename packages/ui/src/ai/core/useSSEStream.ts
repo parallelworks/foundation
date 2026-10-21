@@ -43,6 +43,25 @@ const CATCH_UP_MS = 300
 // other frame, with the elapsed time measured from the last reveal.
 const MIN_DISPATCH_MS = 15
 
+// How far a reveal may run on to finish the word it stopped in. A word shown
+// half-way wraps to the next line once it grows past the edge; revealed
+// whole, it lands where it stays.
+const WORD_RUN_ON = 16
+
+/** Moves a reveal boundary to the end of the word it falls in, when that end is near. */
+export function toWordEnd(text: string, end: number): number {
+  if (end >= text.length || /\s/.test(text[end - 1] ?? ' ')) {
+    return end
+  }
+  const limit = Math.min(text.length, end + WORD_RUN_ON)
+  for (let i = end; i < limit; i++) {
+    if (/\s/.test(text[i] ?? '')) {
+      return i
+    }
+  }
+  return end
+}
+
 /** Characters to reveal after dt ms with remaining characters buffered. */
 export function revealCount(remaining: number, dt: number): number {
   if (remaining <= 0) {
@@ -88,7 +107,7 @@ export function useSSEStream(dispatch: React.Dispatch<ChatAction>): UseSSEStream
       }
       const dt = now - lastRevealTimeRef.current
       if (dt >= MIN_DISPATCH_MS) {
-        const newRevealed = revealed + revealCount(remaining, dt)
+        const newRevealed = toWordEnd(target, revealed + revealCount(remaining, dt))
         revealedLengthRef.current = newRevealed
         dispatch({
           type: 'APPEND_STREAMING_CONTENT',
