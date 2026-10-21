@@ -1159,7 +1159,7 @@ function RollupGroup({
   message: PartRendererProps['message']
 }) {
   const { strings, slots } = useChatConfig()
-  const sentence = useMemo(() => {
+  const { sentence, allNamed } = useMemo(() => {
     const builtin: string[] = []
     const named = new Map<string, { count: number; rollup: (count: number) => string }>()
     for (const m of members) {
@@ -1178,7 +1178,10 @@ function RollupGroup({
       ...[...named.values()].map((n) => n.rollup(n.count)),
       ...rollupClauses(builtin, strings.tools),
     ]
-    return clauses.length ? strings.tools.rollup.sentence(clauses) : ''
+    return {
+      sentence: clauses.length ? strings.tools.rollup.sentence(clauses) : '',
+      allNamed: named.size > 0 && builtin.length === 0,
+    }
   }, [members, slots.toolPresentation, strings.tools])
   return (
     <div className="py-1.5 text-sm" data-testid="tool-rollup">
@@ -1191,7 +1194,12 @@ function RollupGroup({
             <span className="text-(--theme-success) leading-none" aria-hidden="true">
               ●
             </span>
-            <span className="font-mono text-[13px] theme-muted-text min-w-0 truncate">
+            <span
+              className={cx(
+                'text-[13px] min-w-0 truncate',
+                allNamed ? 'theme-text' : 'font-mono theme-muted-text',
+              )}
+            >
               {sentence}
             </span>
           </>

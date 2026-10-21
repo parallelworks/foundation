@@ -462,7 +462,9 @@ function costPresentation(part: ToolCallPart): ToolPresentation | undefined {
       part.status === 'running'
         ? `Checking costs for ${allocation}`
         : `Checked costs for ${allocation}`,
-    summary: rows.length ? `${rows.length} resources` : 'No spend this period',
+    summary: rows.length
+      ? `${rows.length} ${rows.length === 1 ? 'resource' : 'resources'}`
+      : 'No spend this period',
     group: (n) => `Checked costs for ${n} allocations`,
     rollup: (n) => `checked costs for ${n} allocations`,
   }
