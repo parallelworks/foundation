@@ -223,7 +223,14 @@ const LATENCY: Record<string, number[]> = {
   'p99 latency': [320, 360, 340, 410, 450, 380, 350, 330],
 }
 
-function Lines({ hidden = [] }: { hidden?: readonly string[] }) {
+function Lines({
+  hidden = [],
+  reference,
+}: {
+  hidden?: readonly string[]
+  /** An hour marked with a dashed line and a label, such as where reprocessed data begins. */
+  reference?: number
+}) {
   // Every series the chart can show, so hiding one leaves the rest their colors.
   const all = Object.keys(LATENCY)
   const colors = seriesColors(all)
@@ -246,7 +253,7 @@ function Lines({ hidden = [] }: { hidden?: readonly string[] }) {
       className="rounded-xl border border-(--theme-border) bg-(--theme-panel-bg)"
       style={{ width: '100%', maxWidth: 600, padding: 16, boxSizing: 'border-box' }}
     >
-      <div ref={box} style={{ position: 'relative' }}>
+      <div ref={box} style={{ position: 'relative', marginTop: reference === undefined ? 0 : 20 }}>
         <svg
           viewBox={`0 0 ${width} ${height}`}
           preserveAspectRatio="none"
@@ -256,6 +263,17 @@ function Lines({ hidden = [] }: { hidden?: readonly string[] }) {
           onPointerMove={(e) => setIndex(nearest(e))}
           onPointerLeave={() => setIndex(null)}
         >
+          {reference !== undefined && (
+            <line
+              x1={x(reference)}
+              x2={x(reference)}
+              y1={0}
+              y2={height}
+              stroke="var(--theme-muted-text-color)"
+              strokeDasharray="4 3"
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
           {index !== null && (
             <line
               x1={x(index)}
@@ -296,6 +314,20 @@ function Lines({ hidden = [] }: { hidden?: readonly string[] }) {
               }}
             />
           ))}
+        {reference !== undefined && (
+          <span
+            className="text-(--theme-muted-text-color)"
+            style={{
+              position: 'absolute',
+              top: -18,
+              right: `calc(${100 - (reference / last) * 100}% + 4px)`,
+              fontSize: 11,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Reprocessed before this
+          </span>
+        )}
         <ChartTooltipBeside x={index === null ? null : (index / last) * boxWidth}>
           {index !== null && (
             <ChartTooltipContent
@@ -360,6 +392,16 @@ export const LineChartFiltered: StoryObj = {
   render: () => (
     <div style={{ padding: 24 }}>
       <Lines hidden={['p50 latency']} />
+    </div>
+  ),
+}
+
+/** A dashed reference line with its label above the plot, in the lane the plot leaves for it,
+ *  so the tooltip beside the crosshair never covers the label or the point being read. */
+export const LineChartWithReference: StoryObj = {
+  render: () => (
+    <div style={{ padding: 24 }}>
+      <Lines reference={6} />
     </div>
   ),
 }

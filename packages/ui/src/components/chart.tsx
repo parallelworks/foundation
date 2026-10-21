@@ -12,6 +12,7 @@ import {
 } from 'react'
 import { cx } from '../cx'
 import { CATEGORY_CLASSES } from './category'
+import { surfaceClassName } from './floating'
 import { useLocale, useStrings } from './Provider'
 
 /** How many series a chart colors: a series past the eighth folds into "Other" (`foldSeries`)
@@ -247,7 +248,8 @@ export function ChartTooltipContent({
   return (
     <div
       className={cx(
-        'min-w-[var(--chart-tooltip-min,10rem)] rounded-lg border border-(--theme-border) bg-(--theme-panel-bg) p-3 text-xs text-(--theme-app) shadow-(--theme-shadow-lg)',
+        'relative isolate z-10 min-w-[var(--chart-tooltip-min,10rem)] p-(--chart-tooltip-pad,0.75rem) text-xs',
+        surfaceClassName,
         className,
       )}
       style={style}
@@ -258,7 +260,7 @@ export function ChartTooltipContent({
           <li
             key={item.key}
             className={cx(
-              'flex items-center gap-2',
+              'flex flex-wrap items-center gap-x-2',
               highlighted === item.key
                 ? 'font-semibold'
                 : highlighted != null && 'text-(--theme-muted-text-color)',
@@ -266,7 +268,10 @@ export function ChartTooltipContent({
           >
             <SeriesSwatch color={item.color} />
             <span className="min-w-0 flex-1 truncate">{item.name}</span>
-            <span className="ml-2 tabular-nums">{format(item.value)}</span>
+            {/* Held narrow, the value takes a line of its own so the name keeps its words. */}
+            <span className="ml-auto ps-2 tabular-nums group-data-narrow/tip:basis-full group-data-narrow/tip:text-end">
+              {format(item.value)}
+            </span>
           </li>
         ))}
       </ul>
@@ -283,52 +288,68 @@ export function ChartTooltipContent({
 export interface ChartTooltipPlacement {
   /** The tooltip's left edge. */
   left: number
-  side: 'left' | 'right'
-  /** A width to hold it to when neither side has room for all of it, its names truncating. */
+  /** The tooltip's top edge: `top` beside the crosshair, or above the plot when it goes there. */
+  top: number
+  /** Beside the crosshair to its left or right, or above the plot when neither side has room. */
+  side: 'left' | 'right' | 'above'
+  /** A width to hold it to, its names truncating, when its side has room for less than all of
+   *  it. */
   maxWidth: number | null
 }
 
-/** Where a chart's tooltip goes beside a crosshair at `x`, so it never covers the column under
- *  the pointer: `gap` to the `prefer` side, or the other when it doesn't fit between `x` and
- *  that edge, or held to the wider side when neither fits. `start` and `end` bound it, in the
- *  same coordinates as `x`, such as the chart's box or the viewport. A charting library's
- *  tooltip takes `left` as its position. */
+/** Where a chart's tooltip goes so it never covers the point being read: `gap` beside the
+ *  crosshair at `x`, on the side with more room, so it flips sides as the crosshair passes the
+ *  middle, and held narrower when that side is short, as on a phone, its names truncating.
+ *  Only when that side is narrower still does it go above the plot, clear of every point,
+ *  where the chart must leave it room. `start` and `end`
+ *  bound it in the same coordinates as `x`, such as the chart's own box, so it stays inside
+ *  the card, and `top` is the plot's top. A charting library's tooltip takes `left` and `top`
+ *  as its position. */
 export function chartTooltipPlacement({
   x,
   width,
+  height = 0,
   start,
   end,
+  top = 0,
   gap = 12,
+  minWidth = 96,
   prefer = 'right',
 }: {
   x: number
   width: number
+  /** The tooltip's height, for placing it above the plot. */
+  height?: number | undefined
   start: number
   end: number
+  top?: number | undefined
   gap?: number | undefined
+  /** The narrowest it is held to beside the crosshair before it goes above instead. */
+  minWidth?: number | undefined
+  /** The side it takes when both have the same room, such as the left in a right-to-left
+   *  layout. */
   prefer?: 'left' | 'right' | undefined
 }): ChartTooltipPlacement {
   const room = { left: x - gap - start, right: end - x - gap }
-  const order = prefer === 'right' ? (['right', 'left'] as const) : (['left', 'right'] as const)
-  let side: 'left' | 'right' | undefined = order.find((s) => width <= room[s])
-  let maxWidth: number | null = null
-  if (side === undefined) {
-    side = room.right >= room.left ? 'right' : 'left'
-    maxWidth = Math.max(0, room[side])
+  const side: 'left' | 'right' =
+    room.left === room.right ? prefer : room.right > room.left ? 'right' : 'left'
+  if (room[side] >= Math.min(width, minWidth)) {
+    const maxWidth = width <= room[side] ? null : room[side]
+    const shown = maxWidth ?? width
+    return { left: side === 'right' ? x + gap : x - gap - shown, top, side, maxWidth }
   }
-  const shown = maxWidth ?? width
-  return { left: side === 'right' ? x + gap : x - gap - shown, side, maxWidth }
+  const span = Math.max(0, end - start)
+  const shown = Math.min(width, span)
+  const left = Math.min(Math.max(x - shown / 2, start), end - shown)
+  return { left, top: top - height - gap, side: 'above', maxWidth: width > span ? span : null }
 }
 
-/** Keeps a tooltip clear of the viewport's edge by this much. */
-const VIEWPORT_MARGIN = 8
-
 /** Holds a chart's tooltip beside its crosshair, inside a positioned box around the plot: `x`
- *  is the crosshair in that box, and the tooltip sits `top` from its top, to the crosshair's
- *  inline end, or its start where the box has no room. When neither side of the box has room,
- *  as on a phone, it may reach past the box to the viewport's edge, and is held narrower when
- *  even that is too small. It never covers the hovered column or the pointer on it. Nothing
- *  shows while `x` is null. */
+ *  is the crosshair in that box, and the tooltip sits `top` from its top on the side with more
+ *  room, flipping as the crosshair passes the middle, held narrower and tighter when that side
+ *  is short, as on a phone, and above the plot only when it is shorter still. It stays inside
+ *  the box's width and never covers the point being read or the pointer on it. Nothing shows
+ *  while `x` is null. */
 export function ChartTooltipBeside({
   x,
   top = 0,
@@ -351,39 +372,37 @@ export function ChartTooltipBeside({
     // Measure the tooltip at its own width, then place it.
     el.style.maxWidth = ''
     el.style.removeProperty('--chart-tooltip-min')
+    el.style.removeProperty('--chart-tooltip-pad')
+    delete el.dataset['narrow']
     const width = el.offsetWidth
     const box = el.offsetParent as HTMLElement | null
-    const origin = box ? box.getBoundingClientRect().left + box.clientLeft : 0
-    const view = document.documentElement.clientWidth || window.innerWidth
-    const place = (start: number, end: number) =>
-      chartTooltipPlacement({
-        x,
-        width,
-        start,
-        end,
-        gap,
-        prefer: getComputedStyle(el).direction === 'rtl' ? 'left' : 'right',
-      })
-    // Inside the chart's box when it fits beside the crosshair, else out to the viewport's edge.
-    let placement = box ? place(0, box.clientWidth) : null
-    if (placement === null || placement.maxWidth !== null) {
-      placement = place(VIEWPORT_MARGIN - origin, view - VIEWPORT_MARGIN - origin)
-    }
+    const end = box?.clientWidth || document.documentElement.clientWidth || window.innerWidth
+    const placement = chartTooltipPlacement({
+      x,
+      width,
+      height: el.offsetHeight,
+      start: 0,
+      end,
+      top,
+      gap,
+      prefer: getComputedStyle(el).direction === 'rtl' ? 'left' : 'right',
+    })
     el.style.left = `${placement.left}px`
+    el.style.top = `${placement.top}px`
+    el.dataset['side'] = placement.side
     if (placement.maxWidth !== null) {
       el.style.maxWidth = `${placement.maxWidth}px`
       el.style.setProperty('--chart-tooltip-min', '0px')
+      // Held narrow, as on a phone, it gives its names the room its padding took.
+      el.style.setProperty('--chart-tooltip-pad', '0.5rem')
+      el.dataset['narrow'] = ''
     }
   })
   if (x === null) {
     return null
   }
   return (
-    <div
-      ref={ref}
-      className={cx('pointer-events-none absolute z-10 w-max', className)}
-      style={{ top }}
-    >
+    <div ref={ref} className={cx('group/tip pointer-events-none absolute z-10 w-max', className)}>
       {children}
     </div>
   )
