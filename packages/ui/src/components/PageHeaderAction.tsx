@@ -126,7 +126,9 @@ export type PageHeaderActionProps = Target & {
   tooltip?: string | undefined
   /** How a labeled action reads in the bar: `outline`, the page's small
    *  secondary button, as "+ Add" is; or `link`, text in the link color, for a
-   *  page that keeps the older look. An icon-only action is always bare. */
+   *  page that keeps the older look. On a narrow bar the label folds into the
+   *  tooltip and the outline stays, so the action is an outlined icon. An
+   *  `iconOnly` action, such as a pencil beside the title, is always bare. */
   variant?: 'outline' | 'link' | undefined
   /** For an action that removes or breaks something: in the error color where
    *  it is a menu entry, in the header's "…" menu. In the bar it reads as the
