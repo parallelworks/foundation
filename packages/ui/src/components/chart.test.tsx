@@ -67,11 +67,19 @@ describe('ChartTooltipContent', () => {
     { key: 'network', name: 'Network', value: 0, color: 'green' },
   ]
 
-  it('lists the largest first, leaves out zero and adds a total', () => {
+  it('lists every series in the legend’s order, zeros too, and adds a total', () => {
     render(<ChartTooltipContent label="Oct 12" items={items} formatValue={(n) => `$${n}`} />)
     const rows = screen.getAllByRole('listitem').map((li) => li.textContent)
-    expect(rows).toEqual(['Compute$10', 'Storage$2.5'])
+    expect(rows).toEqual(['Storage$2.5', 'Compute$10', 'Network$0'])
     expect(screen.getByText('Total').nextSibling).toHaveTextContent('$12.5')
+  })
+
+  it('lists the largest first and leaves out zeros when the reading asks', () => {
+    render(
+      <ChartTooltipContent items={items} order="value" hideZero formatValue={(n) => `$${n}`} />,
+    )
+    const rows = screen.getAllByRole('listitem').map((li) => li.textContent)
+    expect(rows).toEqual(['Compute$10', 'Storage$2.5'])
   })
 
   it('has no total for one series', () => {
@@ -239,5 +247,30 @@ describe('ChartReadout columns', () => {
     expect(list.style.gridTemplateColumns).toContain('max-content')
     expect(list).toHaveClass('justify-start')
     expect(screen.getByText('p50 latency').closest('li')).toHaveClass('contents')
+  })
+})
+
+describe('ChartReadout order and zeros', () => {
+  const items = [
+    { key: 'n1', name: 'node01', value: 12, color: 'red' },
+    { key: 'n2', name: 'node02', value: 40, color: 'blue' },
+    { key: 'n3', name: 'node03', value: 0, color: 'green' },
+  ]
+
+  it('keeps the legend’s order and a series at zero by default', () => {
+    render(<ChartReadout items={items} />)
+    expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual([
+      'node0112',
+      'node0240',
+      'node030',
+    ])
+  })
+
+  it('follows the reading’s order and zeros, as the tooltip does', () => {
+    render(<ChartReadout items={items} order="value" hideZero />)
+    expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual([
+      'node0240',
+      'node0112',
+    ])
   })
 })
