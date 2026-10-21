@@ -1,5 +1,15 @@
-import type { ReactElement, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
-import { Children, cloneElement, createContext, isValidElement, useContext, useMemo } from 'react'
+import type { CSSProperties, ReactElement, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
+import {
+  Children,
+  cloneElement,
+  createContext,
+  isValidElement,
+  useContext,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { AppLink, isPlainClick } from '../components/AppLink'
 import type { OpenMenu } from '../components/ContextMenu'
 import { EmptyState } from '../components/EmptyState'
@@ -26,7 +36,7 @@ import {
   STRETCHED_LINK_ROW,
   StretchRowLinkContext,
 } from './ListTable'
-import type { ListView, ListViewChrome } from './listView'
+import type { ColumnDef, ListView, ListViewChrome } from './listView'
 import { MoreButton, type RowAction, rowContextMenuProps, useRowMenuActive } from './rowMenu'
 
 /** Defaults mean rows outside a ListView fully show actions (no view = show everything). */
@@ -411,6 +421,7 @@ export function ListRow({
  */
 export function GroupRow({
   label,
+  detail,
   count,
   trailing,
   children,
@@ -420,6 +431,9 @@ export function GroupRow({
 }: {
   /** The group's name: text, or an icon, a name with its tooltip, badges. */
   label?: ReactNode
+  /** A secondary detail after the label, such as an ID, that gives way first: it shows only
+   *  where the list is at least 36rem wide, and truncates before the label does. */
+  detail?: ReactNode
   /** How many rows the group holds, shown after the label. */
   count?: number | undefined
   /** Set against the row's far end, such as "2/3 running". */
@@ -433,9 +447,18 @@ export function GroupRow({
   className?: string | undefined
 }) {
   const { show: showActions, columnClasses } = useContext(RowActionsContext)
+  const gutters = useRowGutters()
   const content = children ?? (
     <>
       <span className="flex min-w-0 items-center gap-2 text-(--theme-app)">{label}</span>
+      {detail !== undefined && detail !== null && detail !== false && (
+        <span
+          className="ml-2 hidden min-w-0 shrink-[100] truncate text-(--theme-muted-text-color) @[36rem]:block"
+          data-group-detail
+        >
+          {detail}
+        </span>
+      )}
       {count !== undefined && (
         <span className="shrink-0 text-(--theme-muted-text-color)">
           <span className="mx-1.5 opacity-50" aria-hidden="true">
@@ -465,7 +488,7 @@ export function GroupRow({
   }
   const cells = leading + columnClasses.length + (showActions ? 1 : 0)
   return (
-    <tr className={row} data-group-row>
+    <tr className={row} data-group-row ref={gutters.ref} style={gutters.style}>
       {Array.from({ length: cells }, (_, i) => {
         const column = i - leading
         const cls = column >= 0 && column < columnClasses.length ? columnClasses[column] : undefined
@@ -475,9 +498,14 @@ export function GroupRow({
             {i === 0 && (
               // No width of its own, so the cell sizes as an empty one would;
               // the content runs on across the empty cells to the list's far
-              // edge, less the list's 16px gutters (`listTableProps`).
+              // edge, less the row's own padding at each end.
               <div className="w-0">
-                <div className={line} style={{ width: 'calc(100cqw - 2rem)' }}>
+                <div
+                  className={line}
+                  style={{
+                    width: 'calc(100cqw - var(--group-start, 1rem) - var(--group-end, 1rem))',
+                  }}
+                >
                   {content}
                 </div>
               </div>
@@ -487,6 +515,43 @@ export function GroupRow({
       })}
     </tr>
   )
+}
+
+/** The padding at a row's ends, read from its first and last shown cells, as custom properties a
+ *  group row's header subtracts from the list's width: so it lines up with the rows however the
+ *  host pads its list. Until it has measured, 16px, as `listTableProps` pads. */
+function useRowGutters() {
+  const ref = useRef<HTMLTableRowElement>(null)
+  const [gutters, setGutters] = useState<{ start: string; end: string } | null>(null)
+  useLayoutEffect(() => {
+    const row = ref.current
+    if (!row || typeof getComputedStyle === 'undefined') {
+      return
+    }
+    const measure = () => {
+      const cells = Array.from(row.cells).filter((cell) => cell.getClientRects().length > 0)
+      const first = cells[0]
+      const last = cells.at(-1)
+      if (!first || !last) {
+        return
+      }
+      const start = getComputedStyle(first).paddingInlineStart
+      const end = getComputedStyle(last).paddingInlineEnd
+      setGutters((was) => (was?.start === start && was.end === end ? was : { start, end }))
+    }
+    measure()
+    if (typeof ResizeObserver === 'undefined') {
+      return
+    }
+    // Container queries can change which cells show, and so which is last.
+    const observer = new ResizeObserver(measure)
+    observer.observe(row)
+    return () => observer.disconnect()
+  }, [])
+  const style = gutters
+    ? ({ '--group-start': gutters.start, '--group-end': gutters.end } as CSSProperties)
+    : undefined
+  return { ref, style }
 }
 
 function PinnedActionButton({ action, visible }: { action: RowAction; visible: boolean }) {
@@ -538,12 +603,69 @@ function columnSort<T>(view: ListView<T>, orderBy: string): SortDirection {
   return view.orderDir === 'asc' ? 'ascending' : 'descending'
 }
 
+// Which width a column with a share takes: its own where every column shows, more where the low
+// columns have dropped (below 52rem), and more again where the medium and stacked ones have (below
+// 36rem), as `ColumnDef.priority` and `stack` drop them.
+const SHARE_WIDTH = 'w-(--share-narrow) @[36rem]:w-(--share-medium) @[52rem]:w-(--share-wide)'
+
+type Tiers = { wide: number; medium: number; narrow: number }
+
+function percent(width: ColumnDef['width']): number | undefined {
+  const match = typeof width === 'string' ? /^(\d+(?:\.\d+)?)%$/.exec(width.trim()) : null
+  return match ? Number(match[1]) : undefined
+}
+
+/** Each column's width at each tier, for a column whose width is a share of the list. The
+ *  shares of the columns a tier drops go to those left, each in proportion to its own: the
+ *  name's, the rest of the list, among them. */
+function shareWidths(columns: ColumnDef[], stacks: boolean[]): (Tiers | undefined)[] {
+  const shares = columns.map((col) => percent(col.width))
+  const shows = (col: ColumnDef, i: number, tier: keyof Tiers) =>
+    tier === 'wide' || (tier === 'medium' ? col.priority !== 'low' : !col.priority && !stacks[i])
+  const total = shares.reduce<number>((sum, share) => sum + (share ?? 0), 0)
+  const scale = (tier: keyof Tiers) => {
+    const kept = columns.reduce(
+      (sum, col, i) => sum + (shows(col, i, tier) ? (shares[i] ?? 0) : 0),
+      0,
+    )
+    // The list's width less the shares the tier drops.
+    const left = 100 - (total - kept)
+    return left > 0 ? 100 / left : 1
+  }
+  const factors = { wide: 1, medium: scale('medium'), narrow: scale('narrow') }
+  return shares.map((share) =>
+    share === undefined
+      ? undefined
+      : {
+          wide: share,
+          medium: share * factors.medium,
+          narrow: share * factors.narrow,
+        },
+  )
+}
+
+function headerStyle(col: ColumnDef, tiers: Tiers | undefined): CSSProperties | undefined {
+  const style: Record<string, string | number> = {}
+  if (col.alwaysVisible) {
+    style['minWidth'] = NAME_MIN_WIDTH_PX
+  }
+  if (tiers) {
+    style['--share-wide'] = `${tiers.wide}%`
+    style['--share-medium'] = `${tiers.medium}%`
+    style['--share-narrow'] = `${tiers.narrow}%`
+  } else if (col.width !== undefined) {
+    style['width'] = col.width
+  }
+  return Object.keys(style).length > 0 ? (style as CSSProperties) : undefined
+}
+
 /** Name column min-width is by role, not position, so a leading checkbox
  *  doesn't shift it. A column with an `orderBy` the view offers sorts by it.
  *  While the view's column headers are off, the header row collapses: its
  *  cells still size the columns, but nobody sees or hears them, as with any
  *  other display option that is off. */
 export function ListColumns<T>({ view }: { view: ListView<T> }) {
+  const widths = shareWidths(view.visibleColumns, view.columnStacks)
   return (
     <>
       {view.visibleColumns.map((col, i) => {
@@ -556,17 +678,12 @@ export function ListColumns<T>({ view }: { view: ListView<T> }) {
             className={cx(
               col.headerClassName,
               view.columnClasses[i],
+              // A share takes the width its tier gives it, as narrower lists drop columns.
+              widths[i] && SHARE_WIDTH,
               // listTableProps collapses the header row when it holds this marker.
               !view.showColumnHeaders && HEADERS_OFF,
             )}
-            style={
-              col.alwaysVisible || col.width !== undefined
-                ? {
-                    ...(col.alwaysVisible && { minWidth: NAME_MIN_WIDTH_PX }),
-                    ...(col.width !== undefined && { width: col.width }),
-                  }
-                : undefined
-            }
+            style={headerStyle(col, widths[i])}
             sort={orderBy === undefined ? undefined : columnSort(view, orderBy)}
             onSort={orderBy === undefined ? undefined : () => view.sortBy(orderBy)}
           >
