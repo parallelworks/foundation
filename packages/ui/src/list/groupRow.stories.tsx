@@ -88,9 +88,10 @@ const TYPE_ICON = {
 
 const STATE_VARIANT = { running: 'success', stopped: 'muted', pending: 'warning' } as const
 
-/** The columns of an inventory's Cluster tab: only the name has a priority of
- *  its own, so on a phone the rest stack under it. `priorities` gives some of
- *  them one instead, so they drop as the list narrows. */
+/** The columns of an inventory's Cluster tab. With `priorities`, as a host
+ *  would set them, the type, state and region stack under the name on a phone,
+ *  and the account, zone, start and last-seen times drop as the list narrows.
+ *  Without, every column stacks. */
 function columns(priorities: boolean): ColumnDef[] {
   const low = priorities ? ({ priority: 'low' } as const) : {}
   const medium = priorities ? ({ priority: 'medium' } as const) : {}
@@ -104,7 +105,7 @@ function columns(priorities: boolean): ColumnDef[] {
     { key: 'type', label: 'Type', headerClassName: 'truncate' },
     { key: 'state', label: 'State', headerClassName: 'truncate' },
     { key: 'account', label: 'Cloud account', headerClassName: 'truncate', ...medium },
-    { key: 'region', label: 'Region', headerClassName: 'truncate', ...low },
+    { key: 'region', label: 'Region', headerClassName: 'truncate' },
     { key: 'zone', label: 'Zone', headerClassName: 'truncate', ...low },
     { key: 'started', label: 'Started', headerClassName: 'truncate', ...low },
     { key: 'lastSeen', label: 'Last seen', headerClassName: 'truncate', ...medium },
@@ -205,25 +206,25 @@ function ClusterTab({ priorities }: { priorities: boolean }) {
 
 /** An inventory's Cluster tab: each cluster's header row holds its provider's
  *  icon, its name with a tooltip, its owner, its badges and, against the far
- *  end, how many of its resources run. The header has a cell per column, so on
- *  a phone, where the columns stack under the name, the name column keeps the
- *  row's width instead of a hidden column's share. */
+ *  end, how many of its resources run. The header has a cell per column, so
+ *  as columns drop, the group rows' cells drop with them. On a phone the type,
+ *  state and region share one line under each name. */
 export const ClusterTabGroups: StoryObj = {
-  render: () => <ClusterTab priorities={false} />,
+  render: () => <ClusterTab priorities />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(await canvas.findByText('2/3 running')).toBeVisible()
     await expect(canvas.getByText('Orphan')).toBeVisible()
     const nameHeader = canvas.getByRole('columnheader', { name: 'Name' })
-    // The name column keeps at least a quarter of the list, whatever the group rows hold.
+    // The name column keeps at least a fifth of the list, whatever the group rows hold.
     await expect(nameHeader.getBoundingClientRect().width).toBeGreaterThan(
       canvasElement.getBoundingClientRect().width / 5,
     )
   },
 }
 
-/** The same tab with columns that drop as the list narrows: the group rows'
- *  cells drop with them, so the columns left share the width. */
-export const GroupsWithPriorityColumns: StoryObj = {
-  render: () => <ClusterTab priorities />,
+/** The same tab with no priorities: on a phone all seven columns stack, and
+ *  share a line under the name that wraps between values. */
+export const ClusterTabWithoutPriorities: StoryObj = {
+  render: () => <ClusterTab priorities={false} />,
 }

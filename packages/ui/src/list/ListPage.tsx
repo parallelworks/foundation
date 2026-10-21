@@ -12,7 +12,7 @@ import {
   warnIfInert,
 } from '../components/MenuEntries'
 import { useNavigation } from '../components/Provider'
-import { CellPlacementContext, type SortDirection, Table } from '../components/Table'
+import { CellPlacementContext, type SortDirection, STACKED_ITEM, Table } from '../components/Table'
 import { Tooltip } from '../components/Tooltip'
 import { cx } from '../cx'
 import { ListFilterBar } from './ListFilterBar'
@@ -168,8 +168,13 @@ export function ListPage({
   )
 }
 
-// How a list row shows a cell under its first: as a line, in place of a cell.
+// How a list row shows a cell under its first: as an item of a line, in place of a cell.
 const STACKED = { stacked: true }
+
+// The line the stacked values share: it follows the subtitle by a 4px step, and its items wrap
+// with a 4px step between lines and 12px between values.
+const STACKED_LINE =
+  'mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 empty:hidden @[36rem]:hidden'
 
 // A cell given straight to a row, whose content is there to see, rather than through a component.
 const isCellElement = (child: ReactElement) => child.type === Table.Item || child.type === 'td'
@@ -236,17 +241,17 @@ export function ListRow({
     }
     return [child]
   })
+  // The stacked values share one line under the name, flowing inline and wrapping between them,
+  // so a phone's row stays a few lines tall rather than one line per column. It shows only where
+  // the columns' own cells have given way, and is gone when no value renders.
   const under =
-    stacked.length > 0
-      ? stacked.map((child, j) =>
-          // A bare `<td>` can't show as a line, so its content does.
+    stacked.length > 0 ? (
+      <div className={STACKED_LINE} data-stacked-line>
+        {stacked.map((child, j) =>
+          // A bare `<td>` can't show as an item, so its content does.
           isValidElement(child) && child.type === 'td' ? (
-            <div
-              // biome-ignore lint/suspicious/noArrayIndexKey: stacked cells keep their column order
-              key={j}
-              className="mt-1 flex min-w-0 items-center @[36rem]:hidden"
-              data-stacked
-            >
+            // biome-ignore lint/suspicious/noArrayIndexKey: stacked cells keep their column order
+            <div key={j} className={STACKED_ITEM} data-stacked>
               {(child as ReactElement<{ children?: ReactNode }>).props.children}
             </div>
           ) : (
@@ -255,8 +260,9 @@ export function ListRow({
               {child}
             </CellPlacementContext>
           ),
-        )
-      : undefined
+        )}
+      </div>
+    ) : undefined
   const styledCells = cells.map((child, i) => {
     // Where columns stack under the name, a column that stays a column, such as
     // a total, sits on the name's line rather than floating mid-row.
