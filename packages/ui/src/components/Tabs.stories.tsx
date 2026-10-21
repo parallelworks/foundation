@@ -112,7 +112,8 @@ const INVENTORY = [
  *  fades at whichever end hides tabs, and keeps the current tab in view. */
 export const ManyTabs: StoryObj = {
   render: () => (
-    <div className="space-y-6">
+    // Inline: the package's stylesheet doesn't scan stories.
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 24 }}>
       <Tabs label="First tab current" items={INVENTORY} defaultValue="cluster" />
       <Tabs label="A tab past the edge current" items={INVENTORY} defaultValue="orphan" />
     </div>
