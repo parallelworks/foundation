@@ -198,8 +198,32 @@ export function ChartLegendList({
 export interface ChartTooltipItem {
   key: string
   name: ReactNode
+  /** Detail under the name and value, such as what a ratio was measured from, in muted text.
+   *  It wraps onto as many lines as it needs and is never cut. */
+  detail?: ReactNode
   value: number
   color: string
+}
+
+// A 10px swatch centered on a 16px line of extra-small text.
+const SWATCH_ON_LINE = 'mt-[3px]'
+
+/** A series' detail, on the lines under its name and value, in muted text: it wraps onto as
+ *  many lines as it needs and is never cut. */
+function SeriesDetail({ item, className }: { item: ChartTooltipItem; className?: string }) {
+  if (item.detail == null || item.detail === '') {
+    return null
+  }
+  return (
+    <span
+      className={cx(
+        'col-start-2 col-end-[-1] font-normal break-words text-(--theme-muted-text-color)',
+        className,
+      )}
+    >
+      {item.detail}
+    </span>
+  )
 }
 
 /** A reading's rows: zeros left out when asked, and largest first when asked. */
@@ -275,15 +299,18 @@ export function ChartTooltipContent({
           <li
             key={item.key}
             className={cx(
-              'flex items-center gap-2',
+              // The swatch and value line up with the name's line, above any detail.
+              'grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-2',
               highlighted === item.key
                 ? 'font-semibold'
                 : highlighted != null && 'text-(--theme-muted-text-color)',
             )}
           >
-            <SeriesSwatch color={item.color} />
-            <span className="min-w-0 flex-1 truncate">{item.name}</span>
+            <SeriesSwatch color={item.color} className={SWATCH_ON_LINE} />
+            <span className="truncate">{item.name}</span>
             <span className="ml-2 tabular-nums">{format(item.value)}</span>
+            {/* Up to 16rem wide, so a long detail widens the tooltip a little, then wraps. */}
+            <SeriesDetail item={item} className="max-w-64" />
           </li>
         ))}
       </ul>
@@ -452,7 +479,9 @@ function fullWidth(el: HTMLElement | undefined): number {
 }
 // The space between two columns, drawn as the first column's values' end margin (`me-2`).
 const COLUMN_SPACE = 8
-const ONE_COLUMN = 'auto minmax(0, max-content) auto'
+// The last track takes what is left, so a detail can run the readout's whole width; the value
+// stays beside its name.
+const ONE_COLUMN = 'auto minmax(0, max-content) auto 1fr'
 
 /** A point's reading docked above a chart's plot, for a chart too narrow for a tooltip beside
  *  its crosshair: the label and total on one line, then each series' swatch, name and value,
@@ -503,7 +532,9 @@ export function ChartReadout({
       const gap = Number.parseFloat(getComputedStyle(ul).columnGap) || 0
       const need =
         cols.reduce((sum, c) => sum + c.swatch + c.name + c.value, 0) + 5 * gap + COLUMN_SPACE
-      setColumns(rows.length > 1 && need <= ul.clientWidth ? 2 : 1)
+      // A series with a detail takes a row of its own, its detail across the readout under it.
+      const detailed = rows.some((item) => item.detail != null && item.detail !== '')
+      setColumns(rows.length > 1 && !detailed && need <= ul.clientWidth ? 2 : 1)
     }
     choose()
     // Again once its fonts load, which can widen every name, and whenever it resizes.
@@ -538,7 +569,7 @@ export function ChartReadout({
       </div>
       <ul
         ref={list}
-        className="m-0 grid list-none items-center justify-start gap-x-1.5 gap-y-0.5 p-0"
+        className="m-0 grid list-none items-start justify-start gap-x-1.5 gap-y-0.5 p-0"
         style={{ gridTemplateColumns: columns === 2 ? TWO_COLUMNS : ONE_COLUMN }}
       >
         {rows.map((item, i) => (
@@ -551,8 +582,12 @@ export function ChartReadout({
                 : highlighted != null && 'text-(--theme-muted-text-color)',
             )}
           >
-            <SeriesSwatch color={item.color} />
-            <span className="min-w-0 truncate">{item.name}</span>
+            <SeriesSwatch
+              color={item.color}
+              // In one column, each row starts again at the first track, past the empty last one.
+              className={cx(SWATCH_ON_LINE, columns === 1 && 'col-start-1')}
+            />
+            <span className="truncate">{item.name}</span>
             <span
               className={cx(
                 'text-end tabular-nums',
@@ -562,6 +597,8 @@ export function ChartReadout({
             >
               {format(item.value)}
             </span>
+            {/* Across the rest of the readout, taking no width of its own. */}
+            <SeriesDetail item={item} className="[contain:inline-size]" />
           </li>
         ))}
       </ul>

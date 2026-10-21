@@ -488,8 +488,8 @@ interface ReadingSeries {
   key: string
   /** The series' name in the legend. */
   label: string
-  /** Its name in a reading, which may add a second line. */
-  name?: (i: number) => ReactNode
+  /** A line of detail under its name in a reading. */
+  detail?: (i: number) => ReactNode
   values: number[]
 }
 
@@ -525,7 +525,8 @@ function ReadingLines({
     formatValue: format,
     items: series.map((s) => ({
       key: s.key,
-      name: s.name ? s.name(i) : s.label,
+      name: s.label,
+      detail: s.detail?.(i),
       value: s.values[i] ?? 0,
       color: colors[s.key] ?? '',
     })),
@@ -639,8 +640,9 @@ const RATIO_DETAIL: Record<string, [number, number, number][]> = {
   ],
 }
 
-/** A reading whose names carry a second line, such as what a ratio was estimated and invoiced
- *  at: on a phone the readout measures every line, so the second line shows in full too. */
+/** A reading whose series carry a line of detail, such as what a ratio was estimated and
+ *  invoiced at: muted under the name, it wraps onto as many lines as it needs, in the readout
+ *  and in the tooltip, and is never cut. The value stays on the name's line. */
 export const ReadingSecondLine: StoryObj = {
   render: () => (
     // In a dashboard's row, whose cards grow to what they hold unless held.
@@ -652,16 +654,9 @@ export const ReadingSecondLine: StoryObj = {
         series={(['north', 'south'] as const).map((region) => ({
           key: region,
           label: region === 'north' ? 'North region' : 'South region',
-          name: (i: number) => {
+          detail: (i: number) => {
             const [estimated, invoiced, days] = RATIO_DETAIL[region]?.[i] ?? [0, 0, 0]
-            return (
-              <span style={{ display: 'grid' }}>
-                <span>{region === 'north' ? 'North region' : 'South region'}</span>
-                <span className="text-(--theme-muted-text-color) tabular-nums">
-                  {usd.format(estimated)} / {usd.format(invoiced)} · {days} deployment-days
-                </span>
-              </span>
-            )
+            return `${usd.format(estimated)} / ${usd.format(invoiced)} · ${days} deployment-days`
           },
           values: (RATIO_DETAIL[region] ?? []).map(([e, inv]) => e / inv),
         }))}
