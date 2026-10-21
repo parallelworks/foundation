@@ -1,5 +1,132 @@
 # Changelog
 
+## [0.88.1](https://github.com/parallelworks/foundation/compare/ui-v0.88.0...ui-v0.88.1) (2026-10-21)
+
+
+### Bug Fixes
+
+* **ui:** a chart readout shows series names in full when they fit ([#492](https://github.com/parallelworks/foundation/issues/492)) ([bba39b3](https://github.com/parallelworks/foundation/commit/bba39b3db7c41f801acadaaf4735656c401979cb))
+
+## [0.88.0](https://github.com/parallelworks/foundation/compare/ui-v0.87.1...ui-v0.88.0) (2026-10-21)
+
+
+### Features
+
+* **ui:** a list's ⋯ keeps its own lane after an end-aligned last column, the stretched row link is shared, and the name's floor fits a phone-narrow list ([#490](https://github.com/parallelworks/foundation/issues/490)) ([597d104](https://github.com/parallelworks/foundation/commit/597d1045896e54210e4d6735c9c2128ca30c605c))
+
+
+### Bug Fixes
+
+* **ui:** a chart's tooltip is opaque, sits beside the point on a wide chart, and docks as a readout above the plot on a narrow one ([#485](https://github.com/parallelworks/foundation/issues/485)) ([a69975f](https://github.com/parallelworks/foundation/commit/a69975f838c66f933268f6354e0b8c4cd017b0f0))
+
+## [0.87.1](https://github.com/parallelworks/foundation/compare/ui-v0.87.0...ui-v0.87.1) (2026-10-21)
+
+
+### Bug Fixes
+
+* **ui:** a context menu that closes on blur closes as soon as it opens ([#488](https://github.com/parallelworks/foundation/issues/488)) ([04c5bdb](https://github.com/parallelworks/foundation/commit/04c5bdb7dd130b79a921672bc826525a68622b55))
+
+## [0.87.0](https://github.com/parallelworks/foundation/compare/ui-v0.86.1...ui-v0.87.0) (2026-10-21)
+
+
+### Features
+
+* **ui:** a status dot is the legacy lit lamp, vivid at the top and pale below, in themeable lamp colors ([#483](https://github.com/parallelworks/foundation/issues/483)) ([b320a5c](https://github.com/parallelworks/foundation/commit/b320a5cabb40a173ddcd126cf5e6467fdcd52b4b))
+
+
+### Bug Fixes
+
+* **ui:** an off status badge shows the hollow ring the lamp uses ([#487](https://github.com/parallelworks/foundation/issues/487)) ([d7a789d](https://github.com/parallelworks/foundation/commit/d7a789d8b8e328bd7d92aaa08495974e5d5b4798))
+* **ui:** the chat input loses focus after the first message in a new conversation ([#484](https://github.com/parallelworks/foundation/issues/484)) ([ed88feb](https://github.com/parallelworks/foundation/commit/ed88feb66a15d0e4f80633cb761e1ca8a68ec1dd))
+
+## [0.86.1](https://github.com/parallelworks/foundation/compare/ui-v0.86.0...ui-v0.86.1) (2026-10-21)
+
+
+### Bug Fixes
+
+* **ui:** the chat's allocation picker starts on an allocation that can't be charged, and its list shows no spend or reason ([#480](https://github.com/parallelworks/foundation/issues/480)) ([99137d2](https://github.com/parallelworks/foundation/commit/99137d238219008493e22d0c6ee2a63c5b9f49f5))
+
+## [0.86.0](https://github.com/parallelworks/foundation/compare/ui-v0.85.0...ui-v0.86.0) (2026-10-21)
+
+
+### Features
+
+* **ui:** an ended status is a solid shape with its mark cut out, an open one a ring, and status dots carry a soft halo ([#477](https://github.com/parallelworks/foundation/issues/477)) ([bc3a51e](https://github.com/parallelworks/foundation/commit/bc3a51e6830b5f7de6de9137a7d9833798a0d593))
+
+
+### Bug Fixes
+
+* **ui:** a held call whose answer the server refuses shows its choices again, with the error ([#478](https://github.com/parallelworks/foundation/issues/478)) ([2ae81e4](https://github.com/parallelworks/foundation/commit/2ae81e403667b726e00896492893b0e2d75d45f5))
+
+## [0.85.0](https://github.com/parallelworks/foundation/compare/ui-v0.84.2...ui-v0.85.0) (2026-10-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* **ui:** chart series take colors by their place in a checked order, a ninth folds into Other, and the tooltip sits beside the crosshair ([#474](https://github.com/parallelworks/foundation/issues/474))
+
+### Features
+
+* **ui:** page numbers on a phone, tabs that show they scroll, and outline page-header actions ([#473](https://github.com/parallelworks/foundation/issues/473)) ([7eaca81](https://github.com/parallelworks/foundation/commit/7eaca813641f989b1c6dc278b06068bf9bc0f48a))
+
+
+### Bug Fixes
+
+* **ui:** a code block's copy confirms with its check, not a toast ([#471](https://github.com/parallelworks/foundation/issues/471)) ([1762d70](https://github.com/parallelworks/foundation/commit/1762d70b3f80e3624a7baab7a86e10b932c99f13))
+* **ui:** chart series take colors by their place in a checked order, a ninth folds into Other, and the tooltip sits beside the crosshair ([#474](https://github.com/parallelworks/foundation/issues/474)) ([243e491](https://github.com/parallelworks/foundation/commit/243e491a4dfd3a54de499cfe032db73f45994d01))
+* **ui:** explorer downloads only some of the selected files from the browser ([#475](https://github.com/parallelworks/foundation/issues/475)) ([cd7678a](https://github.com/parallelworks/foundation/commit/cd7678aa712d7b7d4971e150157c031717e9a5a0))
+* **ui:** list columns share out dropped widths, a locked column keeps its own, group rows take a detail that gives way first, and tags keep their edge on a hovered row ([#472](https://github.com/parallelworks/foundation/issues/472)) ([5535b89](https://github.com/parallelworks/foundation/commit/5535b89c132d8236bb71529ee589a6f07fd0f8ef))
+
+## [0.84.2](https://github.com/parallelworks/foundation/compare/ui-v0.84.1...ui-v0.84.2) (2026-10-21)
+
+
+### Bug Fixes
+
+* **ui:** a list's group rows hide with its columns and hold a group's icon, badges and totals ([#468](https://github.com/parallelworks/foundation/issues/468)) ([29d799a](https://github.com/parallelworks/foundation/commit/29d799a759aaa1f2dfe117ad8133095707d8c875))
+
+## [0.84.1](https://github.com/parallelworks/foundation/compare/ui-v0.84.0...ui-v0.84.1) (2026-10-21)
+
+
+### Bug Fixes
+
+* **ui:** list rows stack cells a host's own components render, a refresh button can be icon-only on a phone, and a loader can center in the content area ([#462](https://github.com/parallelworks/foundation/issues/462)) ([a685df2](https://github.com/parallelworks/foundation/commit/a685df2698094dca766072dc445feecf26773e7f))
+
+## [0.84.0](https://github.com/parallelworks/foundation/compare/ui-v0.83.3...ui-v0.84.0) (2026-10-21)
+
+
+### Features
+
+* **ui:** hosts name their tool calls in words and keep results behind the row ([#460](https://github.com/parallelworks/foundation/issues/460)) ([598357b](https://github.com/parallelworks/foundation/commit/598357bf3fb84504293d2fbfa8c99b7ab141f88e))
+
+
+### Bug Fixes
+
+* **ui:** a follow-up loses the previous answer when it explained before calling tools ([#457](https://github.com/parallelworks/foundation/issues/457)) ([dc4e8f5](https://github.com/parallelworks/foundation/commit/dc4e8f5a08621c1f996286bffcb34362a597de64))
+* **ui:** badges, tags, keys, avatars, status icons and times can be a tooltip's direct child ([#458](https://github.com/parallelworks/foundation/issues/458)) ([bfd577f](https://github.com/parallelworks/foundation/commit/bfd577f7ffa9532a1a1c0456d8caf770b21ba620))
+* **ui:** streamed replies arrive in bursts, lag the model, and jump when they finish ([#456](https://github.com/parallelworks/foundation/issues/456)) ([7f3de15](https://github.com/parallelworks/foundation/commit/7f3de15ffbea239f05f3466051356a5a233d8c16))
+* **ui:** what a streaming reply says before its tool calls shows below them ([#459](https://github.com/parallelworks/foundation/issues/459)) ([99ccbc8](https://github.com/parallelworks/foundation/commit/99ccbc8b22a963a9dd5076068739c808eaa6afbd))
+
+## [0.83.3](https://github.com/parallelworks/foundation/compare/ui-v0.83.2...ui-v0.83.3) (2026-10-20)
+
+
+### Bug Fixes
+
+* **ui:** chat history drops what the model said between tool calls, and the composer shows the thread through it under translucent themes ([#454](https://github.com/parallelworks/foundation/issues/454)) ([b54ffc9](https://github.com/parallelworks/foundation/commit/b54ffc90048ad290c07d7473bf34864cd5e2d95e))
+
+## [0.83.2](https://github.com/parallelworks/foundation/compare/ui-v0.83.1...ui-v0.83.2) (2026-10-20)
+
+
+### Bug Fixes
+
+* **ui:** chat answers that call one tool many times bury the answer, show failures only by color, and strike out text between tildes ([#452](https://github.com/parallelworks/foundation/issues/452)) ([52a7d07](https://github.com/parallelworks/foundation/commit/52a7d07de8b1e83fa6a169d939bb39570a5e8efc))
+
+## [0.83.1](https://github.com/parallelworks/foundation/compare/ui-v0.83.0...ui-v0.83.1) (2026-10-20)
+
+
+### Bug Fixes
+
+* **ui:** a popover whose trigger has a tooltip opens beside it again, rather than invisible in the corner of the page ([#450](https://github.com/parallelworks/foundation/issues/450)) ([22b228d](https://github.com/parallelworks/foundation/commit/22b228dbd4389eb12fb43c434364b25c19cb1581))
+
 ## [0.83.0](https://github.com/parallelworks/foundation/compare/ui-v0.82.2...ui-v0.83.0) (2026-10-20)
 
 

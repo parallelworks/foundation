@@ -22,6 +22,13 @@ import AgentMessageParts from './agent/AgentMessageParts'
 import ChatMessage from './ChatMessage'
 import { Reasoning, ReasoningBody } from './Reasoning'
 
+// How long after a click or key press inside the thread its growth counts as
+// the reader's own.
+const READER_GROWTH_MS = 600
+
+const jumpClasses =
+  'chat-composer chat-jump rounded-full px-3 py-1.5 text-xs font-medium theme-text transition-colors'
+
 export type QueueDelivery = 'afterReply' | 'nextStep'
 
 interface ChatMessageListProps {
@@ -100,9 +107,12 @@ export default function ChatMessageList({
   const conversationId = messages[0]?.conversationId
   // One object per token rather than per render, so the streaming row's memo
   // holds while something else re-renders the list.
+  // Once tool calls have started, the reply's text streams among them in the
+  // parts, in the order it came, rather than as one block below them.
+  const textInParts = streamingParts.some((part) => part.kind === 'text')
   const providerStreamingMessage = useMemo<Message | null>(
     () =>
-      providerStreaming && streamingContent
+      providerStreaming && streamingContent && !textInParts
         ? {
             id: 'streaming',
             role: 'assistant',
@@ -111,7 +121,7 @@ export default function ChatMessageList({
             ...(conversationId ? { conversationId } : {}),
           }
         : null,
-    [providerStreaming, streamingContent, conversationId],
+    [providerStreaming, streamingContent, textInParts, conversationId],
   )
   const streamingMessage =
     streamingMessageProp === undefined ? providerStreamingMessage : streamingMessageProp
@@ -219,7 +229,12 @@ export default function ChatMessageList({
   const hasContent = messages.length > 0 || !!streamingMessage
   const awaitingApproval = streamingParts.some((part) => part.kind === 'approval' && !part.resolved)
   const showWorkingIndicator =
-    workingIndicator && isStreaming && !streamingReasoning && !streamingMessage && !awaitingApproval
+    workingIndicator &&
+    isStreaming &&
+    !streamingReasoning &&
+    !streamingMessage &&
+    !textInParts &&
+    !awaitingApproval
   // biome-ignore lint/correctness/useExhaustiveDependencies: hasContent re-attaches once the container mounts; it is absent in the empty state.
   useEffect(() => {
     const container = containerRef.current
@@ -284,13 +299,19 @@ export default function ChatMessageList({
     hasQueuedMessages,
   ])
 
-  // Auto-scroll on new messages (non-streaming) — smooth scroll after paint
+  // Auto-scroll on new messages (non-streaming) — smooth scroll after paint.
+  // A reply that just finished streaming is already in view and followed by
+  // the resize observer; a smooth scroll on top of it would fight that.
+  const wasStreamingRef = useRef(isStreaming)
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll on message count change
   useEffect(() => {
+    const streamFinished = wasStreamingRef.current && !isStreaming
+    wasStreamingRef.current = isStreaming
     if (
       !containerRef.current ||
       !isNearBottomRef.current ||
       isStreaming ||
+      streamFinished ||
       !hadMessagesRef.current
     ) {
       return
@@ -309,15 +330,32 @@ export default function ChatMessageList({
     if (!content || typeof ResizeObserver === 'undefined') {
       return
     }
+    // Growth the reader caused, such as opening a tool's row, stays put: the
+    // row they clicked must not jump out from under the pointer.
+    let touchedAt = Number.NEGATIVE_INFINITY
+    const touched = () => {
+      touchedAt = performance.now()
+    }
+    content.addEventListener('click', touched, true)
+    content.addEventListener('keydown', touched, true)
     const observer = new ResizeObserver(() => {
       const el = containerRef.current
-      if (el && isNearBottomRef.current && !hasQueuedMessages) {
+      if (
+        el &&
+        isNearBottomRef.current &&
+        !hasQueuedMessages &&
+        performance.now() - touchedAt > READER_GROWTH_MS
+      ) {
         el.scrollTop = el.scrollHeight
         lastScrollTopRef.current = el.scrollTop
       }
     })
     observer.observe(content)
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      content.removeEventListener('click', touched, true)
+      content.removeEventListener('keydown', touched, true)
+    }
   }, [hasContent, hasQueuedMessages])
 
   // If no messages and no streaming, just return empty scrollable container
@@ -374,7 +412,7 @@ export default function ChatMessageList({
         {/* Thinking / "Thought for" section — visible during and after thinking */}
         {isStreaming && streamingReasoning && (
           <div key="thinking" className="animate-chat-enter">
-            <div className={cx('pt-3', !flush && 'px-4')}>
+            <div className={cx('pt-3', !flush && 'sm:px-4')}>
               <Reasoning
                 label={
                   <ThinkingLabel
@@ -409,14 +447,14 @@ export default function ChatMessageList({
               thinking header and the answer — mirrors the stored-message
               layout where parts precede content. */}
         {isStreaming && streamingParts.length > 0 && (
-          <div key="streaming-parts" className={cx('animate-chat-enter py-1', !flush && 'px-4')}>
+          <div key="streaming-parts" className={cx('animate-chat-enter py-1', !flush && 'sm:px-4')}>
             <AgentMessageParts message={streamingPartsMessage} isStreaming={isStreaming} />
           </div>
         )}
         {/* Working indicator — until the answer starts streaming */}
         {showWorkingIndicator && (
           <div key="waiting" className="animate-chat-enter">
-            <div className={cx('py-3', !flush && 'px-4')}>
+            <div className={cx('py-3', !flush && 'sm:px-4')}>
               <div className="animate-shimmer text-shimmer text-sm">{tThinking.ellipsis}</div>
             </div>
           </div>
@@ -458,7 +496,7 @@ export default function ChatMessageList({
                 data-testid="queued-status"
                 className={cx(
                   '-mt-4 mb-2 flex items-center justify-end gap-2 text-xs theme-muted-text',
-                  !flush && 'px-4',
+                  !flush && 'sm:px-4',
                 )}
               >
                 {removable ? <ClockIcon className="h-3 w-3" /> : <CheckIcon className="h-3 w-3" />}
@@ -483,18 +521,35 @@ export default function ChatMessageList({
         {footer}
         <div className="h-8" />
       </div>
-      {!pinned && (
+      {!pinned && !inputElement && (
         <div className="sticky bottom-4 z-10 flex h-0 items-start justify-center overflow-visible">
           <button
             type="button"
             onClick={jumpToLatest}
-            className="chat-composer -translate-y-full rounded-full bg-(--theme-panel-bg) px-3 py-1.5 text-xs font-medium theme-text transition-colors hover:bg-(--theme-muted-panel-bg)"
+            className={cx(jumpClasses, '-translate-y-full')}
           >
             {strings.chrome.jumpToLatest}
           </button>
         </div>
       )}
-      {inputElement && <div className="sticky bottom-0 z-10">{inputElement}</div>}
+      {inputElement && (
+        <div className="sticky bottom-0 z-10">
+          {/* Rides on the composer's top edge: on its own it would stick at the
+              same bottom as the composer and sit underneath it. */}
+          {!pinned && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-full flex justify-center pb-2">
+              <button
+                type="button"
+                onClick={jumpToLatest}
+                className={cx(jumpClasses, 'pointer-events-auto')}
+              >
+                {strings.chrome.jumpToLatest}
+              </button>
+            </div>
+          )}
+          {inputElement}
+        </div>
+      )}
     </div>
   )
 }
@@ -577,11 +632,16 @@ const MessageRows = memo(function MessageRows({
   // once. The ids shown at the last commit decide it, read here and written
   // after commit, so a render React repeats or discards changes nothing.
   const shownRef = useRef<ReadonlySet<string>>(new Set())
+  const wasStreamingRef = useRef(streaming)
   const shown = shownRef.current
   const appended = shown.size > 0 && messages.some((m) => shown.has(m.id))
+  // The reply that just finished streaming was already on screen as the
+  // streaming row; it takes that row's place without entering again.
+  const streamFinished = wasStreamingRef.current && !streaming
   useLayoutEffect(() => {
     shownRef.current = new Set(messages.map((m) => m.id))
-  }, [messages])
+    wasStreamingRef.current = streaming
+  }, [messages, streaming])
 
   // Pseudo messages render nothing, so the latest is the last one that shows.
   const lastIndex = messages.findLastIndex((m) => !m.pseudo)
@@ -591,7 +651,8 @@ const MessageRows = memo(function MessageRows({
     if (message.pseudo) {
       return null
     }
-    const isNew = appended && !shown.has(message.id)
+    const isNew =
+      appended && !shown.has(message.id) && !(streamFinished && message.role === 'assistant')
     return (
       <div key={message.id} className={isNew ? 'animate-chat-enter' : undefined}>
         <ChatMessage

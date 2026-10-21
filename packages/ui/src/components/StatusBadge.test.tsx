@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 import { render, screen } from '@testing-library/react'
 import { UIProvider } from './Provider'
-import { CountBadge, StatusBadge } from './StatusBadge'
+import { CountBadge, StatusBadge, StatusDot } from './StatusBadge'
 
 describe('StatusBadge', () => {
   it('renders as the element it is given, such as a link', () => {
@@ -77,5 +77,55 @@ describe('CountBadge', () => {
     render(<CountBadge count={3} className="bg-[#c47f17] text-black" />)
     expect(screen.getByText('3')).toHaveClass('bg-[#c47f17]')
     expect(screen.getByText('3')).not.toHaveClass('bg-(--theme-accent)')
+  })
+})
+
+describe('StatusDot', () => {
+  it('is a lamp lit in its tone, 10px beside words', () => {
+    const { container } = render(<StatusDot variant="success" />)
+    const box = container.firstElementChild as HTMLElement
+    expect(box.style.getPropertyValue('--lamp-from')).toBe('var(--lamp-success-from)')
+    expect(box.style.getPropertyValue('--lamp-to')).toBe('var(--lamp-success-to)')
+    expect(box.style.width).toBe('10px')
+    expect(box).toHaveAttribute('aria-hidden', 'true')
+    expect(container.querySelector('[data-lamp]')).toHaveAttribute('data-lamp', 'lit')
+  })
+
+  it('is a hollow ring when off, with no ping', () => {
+    const { container } = render(<StatusDot off pulse />)
+    expect(container.querySelector('[data-lamp]')).toHaveAttribute('data-lamp', 'off')
+    expect(container.querySelector('.animate-ping')).toBeNull()
+  })
+
+  it('is the badge’s own dot, smaller, and flat on a solid fill', () => {
+    const { container } = render(
+      <>
+        <StatusBadge variant="error" dot>
+          Failed
+        </StatusBadge>
+        <StatusBadge variant="error" dot emphasis="solid">
+          Down
+        </StatusBadge>
+      </>,
+    )
+    const [soft, solid] = [...container.querySelectorAll('[data-lamp]')] as HTMLElement[]
+    expect(soft).toHaveAttribute('data-lamp', 'lit')
+    expect(soft?.style.width).toBe('7px')
+    expect(solid).toHaveAttribute('data-lamp', 'flat')
+    expect(solid).toHaveClass('bg-current')
+  })
+
+  it('keeps its ping when it pulses', () => {
+    const { container } = render(<StatusDot variant="info" pulse />)
+    expect(container.querySelector('.animate-ping')).toHaveClass('bg-(--lamp-from)')
+  })
+
+  it('draws an off badge’s dot as the hollow ring', () => {
+    const { container } = render(
+      <StatusBadge variant="muted" dot off>
+        Off
+      </StatusBadge>,
+    )
+    expect(container.querySelector('[data-lamp]')).toHaveAttribute('data-lamp', 'off')
   })
 })

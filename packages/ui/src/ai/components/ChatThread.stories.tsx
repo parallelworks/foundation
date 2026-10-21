@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { useMemo, useState } from 'react'
+import { type CSSProperties, useMemo, useState } from 'react'
+import { userEvent, within } from 'storybook/test'
 import { createMockChatAdapter } from '../adapter/mock'
 import type { ToolRendererProps } from '../core/config'
 import {
@@ -15,6 +16,7 @@ import {
   sendFromComposer,
   storyTeammate,
 } from '../stories/harness'
+import type { ToolCallPart, ToolPresentation } from '../types'
 import ChatEmptyState from './ChatEmptyState'
 import ChatLayout from './ChatLayout'
 import ChatThread from './ChatThread'
@@ -32,6 +34,23 @@ export const Conversation: StoryObj = {
     <StoryChat>
       <StoryViewport>
         <ChatThread conversationId="conv-1" />
+      </StoryViewport>
+    </StoryChat>
+  ),
+}
+
+/** A theme whose panel color is translucent: the composer dock and the jump
+ *  pill still hide the thread scrolling under them. */
+export const TranslucentPanel: StoryObj = {
+  render: () => (
+    <StoryChat>
+      <StoryViewport>
+        <div
+          className="flex h-full min-h-0 flex-col"
+          style={{ '--theme-panel-bg': 'rgb(255 255 255 / 0.9)' } as CSSProperties}
+        >
+          <ChatThread conversationId="conv-1" />
+        </div>
       </StoryViewport>
     </StoryChat>
   ),
@@ -249,6 +268,55 @@ export const HeldToolCall: StoryObj = {
   ),
 }
 
+// The server refuses the first answer before anything streams, as when the
+// call was answered elsewhere: the call asks again beside the error, and the
+// next answer goes through.
+export const HeldToolCallRefused: StoryObj = {
+  render: () => {
+    let refused = false
+    return (
+      <StoryChat
+        adapter={{
+          ...makeStaticAdapter({
+            conversations: [
+              makeConversation({
+                id: 'conv-held',
+                title: 'Stop gputraining',
+                messages: makeHeldCallTurn(),
+              }),
+            ],
+            tools: [
+              {
+                id: 'stop_cluster',
+                label: 'Stop a cluster',
+                description: 'Stops a cluster, keeping its disks',
+                asksFirst: true,
+              },
+            ],
+          }),
+          streamCompletion: async (req, handlers, signal) => {
+            if (!refused) {
+              refused = true
+              throw new Error("Couldn't reach the server. Check your connection and try again.")
+            }
+            return resumeHeldCall(req, handlers, signal)
+          },
+        }}
+        conversationId="conv-held"
+      >
+        <StoryViewport>
+          <ChatThread conversationId="conv-held" />
+        </StoryViewport>
+      </StoryChat>
+    )
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByText('Yes, allow this call'))
+    await canvas.findByText(/Couldn't reach the server/)
+  },
+}
+
 function StopOrDestroyCard({ part, approval, onApprovalAnswer }: ToolRendererProps) {
   const [choice, setChoice] = useState<'stop_cluster' | 'destroy_cluster'>('stop_cluster')
   const name = (JSON.parse(part.args || '{}') as { clusterName?: string }).clusterName
@@ -325,6 +393,186 @@ export const HostDrawnToolCall: StoryObj = {
       </StoryViewport>
     </StoryChat>
   ),
+}
+
+function CostRows({ part }: ToolRendererProps) {
+  if (part.status !== 'ok' || !part.result) {
+    return null
+  }
+  const rows = JSON.parse(part.result) as [string, string][]
+  if (rows.length === 0) {
+    return null
+  }
+  return (
+    <table className="w-full max-w-md text-xs">
+      <tbody>
+        {rows.map(([name, cost]) => (
+          <tr key={name} className="border-b theme-border">
+            <td className="py-1">{name}</td>
+            <td className="py-1 text-right tabular-nums">{cost}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+const costCall = (allocation: string, status: 'ok' | 'error', result: string) => ({
+  kind: 'tool_call' as const,
+  id: `cost-${allocation}-${status}`,
+  name: 'cost_summary',
+  args: JSON.stringify({ allocation, groupBy: ['resource'] }),
+  status,
+  result,
+})
+
+// One tool called again and again folds into a single row that counts the
+// calls and failures; what the host drew for each call stays in view, and a
+// call that drew nothing shows nothing until the row opens.
+export const RepeatedToolCalls: StoryObj = {
+  render: () => {
+    const adapter = makeStaticAdapter({
+      conversations: [
+        makeConversation({
+          id: 'conv-costs',
+          title: 'What is billing me',
+          messages: [
+            {
+              id: 'u-costs',
+              role: 'user',
+              content: 'whats billing me?',
+              conversationId: 'conv-costs',
+            },
+            {
+              id: 'a-costs',
+              role: 'assistant',
+              conversationId: 'conv-costs',
+              model: 'mock:story/streaming',
+              timestamp: '2026-08-16T11:00:00Z',
+              tokensUsed: { prompt_tokens: 61000, completion_tokens: 1200, total_tokens: 62200 },
+              content:
+                'Most of it is two test clusters (~$1.50/day each), plus snapshots (~$0.40/day) that have run for months.',
+              parts: [
+                costCall('research', 'error', 'StartDate is required'),
+                costCall('platform', 'error', 'StartDate is required'),
+                costCall('teaching', 'error', 'StartDate is required'),
+                costCall(
+                  'research',
+                  'ok',
+                  JSON.stringify([
+                    ['slurm-a', '$45.22'],
+                    ['snapshots', '$0.40'],
+                  ]),
+                ),
+                costCall('platform', 'ok', JSON.stringify([['gpu-train', '$12.07']])),
+                costCall('teaching', 'ok', '[]'),
+              ],
+            },
+          ],
+        }),
+      ],
+    })
+    return (
+      <StoryChat
+        adapter={{
+          ...adapter,
+          models: {
+            ...adapter.models,
+            async list() {
+              const listed = await adapter.models.list()
+              return {
+                ...listed,
+                models: listed.models.map((m) => ({ ...m, name: 'Story Large' })),
+              }
+            },
+          },
+        }}
+        config={{ slots: { toolRenderers: { cost_summary: CostRows } } }}
+        conversationId="conv-costs"
+      >
+        <StoryViewport>
+          <ChatThread conversationId="conv-costs" />
+        </StoryViewport>
+      </StoryChat>
+    )
+  },
+}
+
+// The host names its calls in words: the narration, then "Checked costs for 3
+// allocations" folding the calls, each opening to its table and arguments,
+// then the answer.
+function costPresentation(part: ToolCallPart): ToolPresentation | undefined {
+  if (part.name !== 'cost_summary') {
+    return undefined
+  }
+  const { allocation } = JSON.parse(part.args || '{}') as { allocation?: string }
+  const rows = part.status === 'ok' ? (JSON.parse(part.result || '[]') as string[][]) : []
+  return {
+    label:
+      part.status === 'running'
+        ? `Checking costs for ${allocation}`
+        : `Checked costs for ${allocation}`,
+    summary: rows.length
+      ? `${rows.length} ${rows.length === 1 ? 'resource' : 'resources'}`
+      : 'No spend this period',
+    group: (n) => `Checked costs for ${n} allocations`,
+    rollup: (n) => `checked costs for ${n} allocations`,
+  }
+}
+
+export const NamedToolCalls: StoryObj = {
+  render: () => {
+    const adapter = makeStaticAdapter({
+      conversations: [
+        makeConversation({
+          id: 'conv-named',
+          title: 'What is billing me',
+          messages: [
+            {
+              id: 'u-named',
+              role: 'user',
+              content: 'whats billing me?',
+              conversationId: 'conv-named',
+            },
+            {
+              id: 'a-named',
+              role: 'assistant',
+              conversationId: 'conv-named',
+              model: 'mock:story/streaming',
+              timestamp: '2026-08-16T11:00:00Z',
+              content: 'Most of it is two test clusters in research, about $1.50 a day each.',
+              parts: [
+                { kind: 'text', text: 'Checking what each allocation spent this month.' },
+                costCall(
+                  'research',
+                  'ok',
+                  JSON.stringify([
+                    ['slurm-a', '$45.22'],
+                    ['snapshots', '$0.40'],
+                  ]),
+                ),
+                costCall('platform', 'ok', JSON.stringify([['gpu-train', '$12.07']])),
+                costCall('teaching', 'ok', '[]'),
+              ],
+            },
+          ],
+        }),
+      ],
+    })
+    return (
+      <StoryChat
+        adapter={adapter}
+        config={{
+          slots: { toolRenderers: { cost_summary: CostRows }, toolPresentation: costPresentation },
+        }}
+        conversationId="conv-named"
+      >
+        <StoryViewport>
+          <ChatThread conversationId="conv-named" />
+        </StoryViewport>
+      </StoryChat>
+    )
+  },
 }
 
 function EditableStopCard({ part, approval, onApprovalAnswer }: ToolRendererProps) {
@@ -456,6 +704,41 @@ export const StreamingToolCalls: StoryObj<{
             streaming: { toolCalls, toolMs, failLastTool, reasoningMs, replyWords },
           }),
         // Adapterized is rebuilt whenever the story's args change.
+        [],
+      )
+      return (
+        <StoryChat adapter={adapter}>
+          <StoryViewport>
+            <ChatThread conversationId="conv-1" />
+          </StoryViewport>
+        </StoryChat>
+      )
+    }
+    return <Adapterized />
+  },
+  play: async ({ canvasElement }) => {
+    sendFromComposer(canvasElement, 'Check the server tests before answering.')
+  },
+}
+
+// A reply that says what it will check, checks, then answers: the sentence
+// stays above the calls it led into while the reply streams, as it does once
+// the reply is saved.
+export const NarratedToolCalls: StoryObj = {
+  render: () => {
+    const Adapterized = () => {
+      const adapter = useMemo(
+        () =>
+          makeStaticAdapter({
+            streaming: {
+              narration: 'Checking the server tests and the partition config first.',
+              toolCalls: 2,
+              toolMs: 700,
+              reasoningMs: 0,
+              replyWords: 60,
+              wordDelayMs: 40,
+            },
+          }),
         [],
       )
       return (

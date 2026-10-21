@@ -136,6 +136,19 @@ describe('ChatMessage', () => {
       expect(screen.getByText('Failed to send message')).toBeInTheDocument()
     })
 
+    it('displays the error of a reply made only of parts, such as a held call', () => {
+      const message = createMockMessage({
+        role: 'assistant',
+        content: '',
+        parts: [{ kind: 'text', text: 'hi' }],
+        error: 'This call was already answered.',
+      })
+
+      render(<ChatMessage {...defaultProps} message={message} />)
+
+      expect(screen.getByText('This call was already answered.')).toBeInTheDocument()
+    })
+
     it('shows retry button when onRetry is provided', () => {
       const message = createMockMessage({
         role: 'user',
@@ -614,6 +627,21 @@ describe('turn duration row', () => {
     const label = screen.getByText('Ran 2 tool calls')
     expect(label).toBeInTheDocument()
     expect(label.closest('button')).toBeNull()
+  })
+
+  it('leaves the bare call count off a reply that narrated its calls', () => {
+    const message = createMockMessage({
+      role: 'assistant',
+      content: 'Nothing is billing.',
+      parts: [
+        { kind: 'text', text: 'Checking costs.' },
+        { kind: 'tool_call', id: 'c1', name: 'cost_summary', args: '{}', status: 'ok' },
+      ],
+    })
+
+    render(<ChatMessage {...defaultProps} message={message} />)
+
+    expect(screen.queryByText('Ran 1 tool call')).not.toBeInTheDocument()
   })
 
   it('keeps the reasoning row clickable when reasoning text exists', () => {

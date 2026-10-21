@@ -256,6 +256,44 @@ describe('ChatMessageList after a reply', () => {
     expect(scrollIntoView).not.toHaveBeenCalled()
   })
 
+  it('lets a reply that finished streaming take its row without entering again', () => {
+    const user = createMockMessage({ id: 'm1' })
+    const result = render(
+      <ChatMessageList
+        messages={[user]}
+        allMessages={[]}
+        isStreaming
+        streamingMessage={createMockMessage({ id: 'stream', role: 'assistant', content: 'Done.' })}
+      />,
+    )
+    const container = result.container.firstElementChild as HTMLElement
+    const scrollTo = vi.fn()
+    container.scrollTo = scrollTo as typeof container.scrollTo
+    armAtBottom(container)
+
+    result.rerender(
+      <ChatMessageList
+        messages={[user, createMockMessage({ id: 'm2', role: 'assistant', content: 'Done.' })]}
+        allMessages={[]}
+        isStreaming={false}
+        streamingMessage={null}
+      />,
+    )
+
+    const rows = result.getAllByTestId('chat-message')
+    expect(rows).toHaveLength(2)
+    expect(rows[1]?.parentElement).not.toHaveClass('animate-chat-enter')
+    expect(scrollTo).not.toHaveBeenCalled()
+  })
+
+  it('still lets a new question enter', () => {
+    const { container, addMessage } = renderDone()
+    armAtBottom(container)
+    addMessage()
+    const rows = container.querySelectorAll('[data-testid="chat-message"]')
+    expect(rows[1]?.parentElement).toHaveClass('animate-chat-enter')
+  })
+
   it('follows a card that keeps growing while the reader sits at the bottom', () => {
     const { container } = renderDone()
     armAtBottom(container)
@@ -264,6 +302,18 @@ describe('ChatMessageList after a reply', () => {
     resized?.()
 
     expect(container.scrollTop).toBe(1300)
+  })
+
+  it('keeps a row the reader just opened under the pointer', () => {
+    const { container } = renderDone()
+    armAtBottom(container)
+    const before = container.scrollTop
+    fireEvent.click(container.querySelector('[data-testid]') ?? container.firstElementChild!)
+
+    setDimensions(container, { scrollHeight: 1300, clientHeight: 400 })
+    resized?.()
+
+    expect(container.scrollTop).toBe(before)
   })
 
   it('leaves the reader where they are once they scrolled up', () => {
@@ -448,6 +498,19 @@ describe('ChatMessageList while a reply streams', () => {
     mockChat.streamingContent = 'One two'
     rerender(<ChatMessageList messages={messages} allMessages={messages} />)
     expect(messageRenders).toEqual(['streaming'])
+  })
+
+  it('streams the reply inside the parts once they carry its text', () => {
+    mockChat.streamingContent = 'Checking costs.'
+    mockChat.streamingParts = [
+      { kind: 'text', text: 'Checking costs.' },
+      { kind: 'tool_call', id: 't1', name: 'cost_summary', args: '{}', status: 'running' },
+    ]
+    messageRenders.length = 0
+    render(<ChatMessageList messages={[createMockMessage({ id: 'm1' })]} allMessages={[]} />)
+    expect(messageRenders).not.toContain('streaming')
+    mockChat.streamingContent = ''
+    mockChat.streamingParts = []
   })
 
   it("takes the host's reply over the provider's, null included", () => {

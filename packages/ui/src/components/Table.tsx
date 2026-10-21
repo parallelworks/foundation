@@ -43,6 +43,23 @@ const headerY: Record<TableDensity, string> = {
 // title lines up with its values.
 const cellX = 'px-3'
 
+/** What a list row asks of the cell in a place, through whatever component of the host's renders
+ *  it: its column's classes, content to show after its own, or that it shows stacked, under the
+ *  first cell's, as a line in place of a cell. */
+export interface CellPlacement {
+  className?: string | undefined
+  after?: React.ReactNode
+  stacked?: boolean | undefined
+}
+
+/** A stacked column's value on the line under a row's name: it flows inline with the others and
+ *  wraps between them, never inside a value, which truncates if it is wider than the line. */
+export const STACKED_ITEM =
+  'flex min-w-0 max-w-full items-center whitespace-nowrap [&>*]:min-w-0 [&>*]:truncate'
+
+/** Set by a list row around each of its cells; a `Table.Item` takes what it asks. */
+export const CellPlacementContext = createContext<CellPlacement | null>(null)
+
 interface ItemProps extends React.TdHTMLAttributes<HTMLTableCellElement> {
   /** Lets the text wrap; by default a cell keeps to one line. */
   wrap?: boolean
@@ -50,12 +67,37 @@ interface ItemProps extends React.TdHTMLAttributes<HTMLTableCellElement> {
 
 function Item({ wrap = false, children, className, ...tdProps }: ItemProps) {
   const density = useContext(DensityContext)
+  const placed = useContext(CellPlacementContext)
+  if (placed?.stacked) {
+    // One item of the line under the name, shown only where the column's own cell has given way
+    // (see `ListRow`); a cell with nothing in it, such as a status only some rows have, adds none.
+    return React.Children.toArray(children).length > 0 ? (
+      <div className={STACKED_ITEM} data-stacked>
+        {children}
+      </div>
+    ) : null
+  }
   return (
     <td
       {...tdProps}
-      className={cx(cellX, cellY[density], wrap ? wrapY[density] : 'whitespace-nowrap', className)}
+      className={cx(
+        cellX,
+        cellY[density],
+        // A one-line cell keeps what it holds inside its column, cutting text off with an
+        // ellipsis, so a long value never paints over the next cell. Its 4px margin keeps a
+        // control's focus ring; a cell whose content must reach past it says overflow-visible.
+        wrap
+          ? wrapY[density]
+          : 'overflow-clip text-ellipsis whitespace-nowrap [overflow-clip-margin:4px]',
+        className,
+        placed?.className,
+      )}
     >
-      {children}
+      {/* What the cell holds is its own, even another table's cells. */}
+      <CellPlacementContext value={null}>
+        {children}
+        {placed?.after}
+      </CellPlacementContext>
     </td>
   )
 }

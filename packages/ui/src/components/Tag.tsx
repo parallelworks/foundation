@@ -1,4 +1,10 @@
-import { type ReactNode, useLayoutEffect, useRef, useState } from 'react'
+import {
+  type ComponentPropsWithRef,
+  type ReactNode,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import { cx } from '../cx'
 import { RemoveIcon } from '../icons'
 import { AppLink } from './AppLink'
@@ -13,16 +19,21 @@ export interface TagStyle {
 }
 
 /** The one tag look: a pill with a hairline border and 11px text. Another component's chip,
- *  such as a picker's chosen value, uses it to look the same. */
+ *  such as a picker's chosen value, uses it to look the same. It has the panel's fill, so its
+ *  edge shows on a hovered or selected row too, whose fill can match the border. */
 export function tagClasses({ mono = false, caps = false }: TagStyle = {}): string {
   return cx(
-    'inline-flex h-5 max-w-full min-w-0 shrink-0 items-center gap-1 rounded-full border border-(--theme-border) px-2 text-[11px] leading-none whitespace-nowrap text-(--theme-app)',
+    'inline-flex h-5 max-w-full min-w-0 shrink-0 items-center gap-1 rounded-full border border-(--theme-border) bg-(--theme-panel-bg) px-2 text-[11px] leading-none whitespace-nowrap text-(--theme-app)',
     mono ? 'font-mono' : 'font-sans',
     caps && 'text-[10px] font-medium tracking-wide uppercase',
   )
 }
 
-export interface TagProps extends TagStyle {
+/** Any other attribute and the ref reach the tag's element, its link with `href` and no `onRemove`,
+ *  so it can be a Tooltip's or a popover's direct child. */
+export interface TagProps
+  extends TagStyle,
+    Omit<ComponentPropsWithRef<'span'>, 'children' | 'className' | 'color' | 'title'> {
   children: ReactNode
   /** A dot before the text in this color, any CSS color, such as a label's own. */
   color?: string | undefined
@@ -48,6 +59,8 @@ export function Tag({
   mono,
   caps,
   className,
+  ref,
+  ...rest
 }: TagProps) {
   const { dropdown } = useStrings()
   const content = (
@@ -63,21 +76,28 @@ export function Tag({
     </>
   )
   const classes = cx(tagClasses({ mono, caps }), className)
-  const hover = 'transition-colors hover:bg-(--theme-hover)'
+  // The muted panel, not the hover fill: a hovered row has that, and the tag would melt into it.
+  const hover = 'transition-colors hover:bg-(--theme-muted-panel-bg)'
   if (!onRemove) {
     return href ? (
-      <AppLink href={href} title={title} className={cx(classes, hover, 'no-underline')}>
+      <AppLink
+        {...(rest as ComponentPropsWithRef<'a'>)}
+        ref={ref as ComponentPropsWithRef<'a'>['ref']}
+        href={href}
+        title={title}
+        className={cx(classes, hover, 'no-underline')}
+      >
         {content}
       </AppLink>
     ) : (
-      <span title={title} className={classes}>
+      <span {...rest} ref={ref} title={title} className={classes}>
         {content}
       </span>
     )
   }
   const name = removeLabel ?? dropdown.removeValue(typeof children === 'string' ? children : '')
   return (
-    <span title={title} className={cx(classes, 'pr-0.5')}>
+    <span {...rest} ref={ref} title={title} className={cx(classes, 'pr-0.5')}>
       {href ? (
         <AppLink
           href={href}
@@ -259,7 +279,7 @@ function MoreTags({ tags, ...style }: { tags: NormalTag[] } & TagStyle) {
           aria-label={`${common.moreCount(tags.length)}: ${names.join(', ')}`}
           className={cx(
             tagClasses(style),
-            'cursor-pointer text-(--theme-muted-text-color) tabular-nums hover:bg-(--theme-hover) hover:text-(--theme-app) focus-visible:outline-2 focus-visible:outline-(--theme-focus) data-popup-open:bg-(--theme-hover)',
+            'cursor-pointer text-(--theme-muted-text-color) tabular-nums hover:bg-(--theme-muted-panel-bg) hover:text-(--theme-app) focus-visible:outline-2 focus-visible:outline-(--theme-focus) data-popup-open:bg-(--theme-muted-panel-bg)',
           )}
         >
           +{count}

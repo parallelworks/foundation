@@ -79,11 +79,20 @@ export { categoryClasses, categoryOf } from './components/category'
 export {
   type ChartLegendItem,
   ChartLegendList,
+  type ChartReading,
+  ChartReadout,
+  ChartTooltipBeside,
   ChartTooltipContent,
+  ChartTooltipFrame,
   type ChartTooltipItem,
+  type ChartTooltipPlacement,
+  chartTooltipPlacement,
+  foldSeries,
+  OTHER_SERIES_COLOR,
+  OTHER_SERIES_KEY,
+  SERIES_LIMIT,
   SeriesSwatch,
   type SeriesSwatchShape,
-  seriesColor,
   seriesColors,
   seriesOpacity,
   seriesSlotColor,
@@ -159,7 +168,7 @@ export {
   shortcutText,
   useShortcutFormat,
 } from './components/Kbd'
-export { LetterBadge } from './components/LetterBadge'
+export { LetterBadge, type LetterBadgeProps } from './components/LetterBadge'
 export {
   ListboxGroup,
   type ListboxNavigation,
@@ -283,6 +292,7 @@ export {
 } from './components/RunStatusIcon'
 export {
   Elapsed,
+  type ElapsedProps,
   RelativeTime,
   type RelativeTimeFormat,
   type RelativeTimeProps,
@@ -323,6 +333,7 @@ export {
   StatusBadge,
   type StatusBadgeProps,
   StatusDot,
+  type StatusDotProps,
   statusTextClass,
 } from './components/StatusBadge'
 export { StickyBar, type StickyBarProps } from './components/StickyBar'

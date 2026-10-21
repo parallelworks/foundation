@@ -124,32 +124,74 @@ function isStreamedText(part: MessagePart | undefined): boolean {
 }
 
 /** The wire history for an assistant turn whose tool calls the gateway ran:
- *  the calls, each result, then the answer. A turn with no finished tool
- *  calls comes back as the answer alone. */
+ *  each round's calls, with the text that came before them, and each result,
+ *  then the answer. A turn with no finished tool calls comes back as the
+ *  answer alone. */
+// Text after the last call is the answer. A host may instead move that text
+// into the message's content, leaving the parts to end on a call; content that
+// only repeats the text parts, joined, is not an answer of its own.
+function answerAfterCalls(
+  parts: MessagePart[],
+  trailing: string,
+  answer: CompletionMessage,
+): string | null {
+  if (parts.at(-1)?.kind === 'text') {
+    return trailing || null
+  }
+  const texts = parts.flatMap((p) => (p.kind === 'text' ? [p.text] : []))
+  const content = typeof answer.content === 'string' ? answer.content : null
+  if (!content || content === texts.join('\n\n') || content === texts.join('')) {
+    return null
+  }
+  return content
+}
+
 export function toolTurnMessages(
   parts: MessagePart[] | null | undefined,
   answer: CompletionMessage,
 ): CompletionMessage[] {
-  const calls = (parts ?? []).filter(
-    (p): p is ToolCallPart & { result: string } =>
-      p.kind === 'tool_call' && p.status !== 'running' && p.result !== undefined,
-  )
-  if (calls.length === 0) {
+  const rounds: { text: string; calls: (ToolCallPart & { result: string })[] }[] = []
+  let text = ''
+  let calls: (ToolCallPart & { result: string })[] = []
+  let hasText = false
+  for (const p of parts ?? []) {
+    if (p.kind === 'text') {
+      hasText = true
+      if (calls.length > 0) {
+        rounds.push({ text, calls })
+        text = ''
+        calls = []
+      }
+      text += p.text
+    } else if (p.kind === 'tool_call' && p.status !== 'running' && p.result !== undefined) {
+      calls.push(p as ToolCallPart & { result: string })
+    }
+  }
+  if (calls.length > 0) {
+    rounds.push({ text, calls })
+    text = ''
+  }
+  if (rounds.length === 0) {
     // A reply that paused on a call waiting for approval may hold nothing yet.
     return answer.content || answer.tool_calls?.length ? [answer] : []
   }
+  const final = hasText
+    ? { ...answer, content: answerAfterCalls(parts ?? [], text, answer) }
+    : answer
   return [
-    {
-      role: 'assistant',
-      content: null,
-      tool_calls: calls.map((c) => ({
-        id: c.id,
-        type: 'function',
-        function: { name: c.name, arguments: c.args },
-      })),
-    },
-    ...calls.map((c) => ({ role: 'tool', tool_call_id: c.id, content: c.result })),
-    ...(answer.content ? [answer] : []),
+    ...rounds.flatMap((round) => [
+      {
+        role: 'assistant',
+        content: round.text || null,
+        tool_calls: round.calls.map((c) => ({
+          id: c.id,
+          type: 'function',
+          function: { name: c.name, arguments: c.args },
+        })),
+      },
+      ...round.calls.map((c) => ({ role: 'tool', tool_call_id: c.id, content: c.result })),
+    ]),
+    ...(final.content ? [final] : []),
   ]
 }
 
@@ -162,4 +204,20 @@ export function finalizeParts(parts: MessagePart[]): MessagePart[] {
       ? { ...p, status: 'error' as const, result: p.result ?? 'interrupted' }
       : p,
   )
+}
+
+/** A finished reply whose text was streamed among its parts: the text after
+ *  the last part is the answer, shown below them as the message's content,
+ *  the shape a stored conversation is read back in. */
+export function splitAnswer(parts: MessagePart[]): {
+  parts: MessagePart[]
+  content?: string | null
+} {
+  if (!parts.some((p) => p.kind === 'text')) {
+    return { parts }
+  }
+  const last = parts.at(-1)
+  return last?.kind === 'text'
+    ? { parts: parts.slice(0, -1), content: last.text }
+    : { parts, content: null }
 }

@@ -1,8 +1,9 @@
+import { mergeProps } from '@base-ui/react/merge-props'
 import { useRender } from '@base-ui/react/use-render'
-import type { ReactElement, ReactNode } from 'react'
+import type { ComponentPropsWithRef, ReactElement, ReactNode } from 'react'
 import { cx } from '../cx'
 import { useStrings } from './Provider'
-import { type Tone, toneFill, toneSurface, toneText } from './tone'
+import { type Tone, toneSurface, toneText } from './tone'
 
 /** A badge's tone: a status, or the theme's accent for something set apart that
  *  isn't a status, such as "New". */
@@ -50,8 +51,12 @@ const emphasisClasses: Record<BadgeEmphasis, Record<BadgeVariant, string>> = {
   outline: outlineClasses,
 }
 
-// A dot is a graphic, so it takes the vivid shade; the accent's is its own color.
-const dotFill: Record<BadgeVariant, string> = { ...toneFill, accent: 'bg-(--theme-accent)' }
+// A lit lamp, as status lights have always looked: its tone's own light from a vivid top to a
+// pale bottom, from the `--lamp-*` tokens, and a soft shadow that sets it slightly raised.
+const LAMP = 'bg-[linear-gradient(var(--lamp-from),var(--lamp-to))] shadow-[0_0_3px_rgb(0_0_0/0.5)]'
+
+// An unlit lamp: a hollow ring in the strong border color, which holds 3:1 in both modes.
+const LAMP_OFF = 'shadow-[inset_0_0_0_1.5px_var(--theme-border-strong)]'
 
 const sizeClasses = {
   sm: 'gap-1 py-px text-[10px] leading-3.5',
@@ -70,7 +75,10 @@ const shapeClasses: Record<BadgeShape, string> = {
   tag: 'rounded-[4px]',
 }
 
-export interface StatusBadgeProps {
+/** Any other span attribute and the ref reach its element, so it can be a Tooltip's or a popover's
+ *  direct child. */
+export interface StatusBadgeProps
+  extends Omit<ComponentPropsWithRef<'span'>, 'children' | 'className'> {
   /** Badge content */
   children: ReactNode
   /** Visual variant */
@@ -87,6 +95,8 @@ export interface StatusBadgeProps {
   pulse?: boolean | undefined
   /** Show a still indicator in the variant's color */
   dot?: boolean | undefined
+  /** Shows the dot unlit, as a hollow ring, for something off or not known. */
+  off?: boolean | undefined
   /** Size */
   size?: BadgeSize | undefined
   /** Renders the badge as this element, such as a link to what it names. */
@@ -111,15 +121,17 @@ export function StatusBadge({
   truncate = false,
   pulse = false,
   dot = false,
+  off = false,
   size = 'sm',
   render,
   className,
+  ref,
+  ...rest
 }: StatusBadgeProps) {
-  // On a solid fill the dot takes the text's color, or it would vanish into the fill.
-  const indicator = emphasis === 'solid' ? 'bg-current' : dotFill[variant]
   return useRender({
     render: render ?? <span />,
-    props: {
+    ref,
+    props: mergeProps<'span'>(rest, {
       className: cx(
         'inline-flex items-center border font-medium no-underline',
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--theme-focus)',
@@ -133,28 +145,27 @@ export function StatusBadge({
       ),
       children: (
         <>
-          {pulse && (
-            <span className="relative flex h-2 w-2 shrink-0">
-              <span
-                className={cx(
-                  'absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 motion-reduce:hidden',
-                  indicator,
-                )}
-              />
-              <span className={cx('relative inline-flex h-2 w-2 rounded-full', indicator)} />
-            </span>
-          )}
-          {dot && !pulse && (
-            <span className={cx('inline-flex h-1.5 w-1.5 shrink-0 rounded-full', indicator)} />
+          {(pulse || dot) && (
+            <StatusDot
+              variant={variant}
+              pulse={pulse}
+              off={off}
+              size={7}
+              current={emphasis === 'solid'}
+              className="shrink-0"
+            />
           )}
           {truncate ? <span className="min-w-0 truncate">{children}</span> : children}
         </>
       ),
-    },
+    }),
   })
 }
 
-export interface CountBadgeProps {
+/** Any other span attribute and the ref reach its element, so it can be a Tooltip's or a popover's
+ *  direct child. */
+export interface CountBadgeProps
+  extends Omit<ComponentPropsWithRef<'span'>, 'children' | 'className'> {
   count: number
   /** Above it, the count reads as `max` and a plus, such as "99+". */
   max?: number | undefined
@@ -192,6 +203,7 @@ export function CountBadge({
   showZero = false,
   locale,
   className,
+  ...rest
 }: CountBadgeProps) {
   const { common } = useStrings()
   if (count <= 0 && !showZero) {
@@ -201,6 +213,7 @@ export function CountBadge({
   const text = count > max ? common.countOverflow(number.format(max)) : number.format(count)
   return (
     <span
+      {...rest}
       data-count={count}
       className={cx(
         'inline-flex shrink-0 items-center justify-center rounded-full font-semibold tabular-nums',
@@ -215,31 +228,62 @@ export function CountBadge({
   )
 }
 
-interface StatusDotProps {
-  variant?: BadgeVariant
-  pulse?: boolean
-  size?: number
-  className?: string
+/** Any other span attribute and the ref reach its element, so it can be a Tooltip's or a popover's
+ *  direct child. */
+export interface StatusDotProps
+  extends Omit<ComponentPropsWithRef<'span'>, 'children' | 'className'> {
+  /** The status's tone. */
+  variant?: BadgeVariant | undefined
+  /** A ping that ripples out from the lamp, for something under way; still for reduced motion. */
+  pulse?: boolean | undefined
+  /** Unlit: a hollow ring, for a status that is off or not known. */
+  off?: boolean | undefined
+  /** The lamp's width and height in pixels; 10 by default, as beside a status's words. A
+   *  badge's is 7, so it keeps the badge's height. */
+  size?: number | undefined
+  /** A flat dot in the text's color, for one on a solid fill, where the tone would vanish. */
+  current?: boolean | undefined
+  className?: string | undefined
 }
 
+/** A status's lamp, lit in its tone, for a status that stands beside its words without a badge,
+ *  such as "running" in a list's cell. A badge's own dot is a smaller one. Name the status in
+ *  words beside it; the lamp alone is only seen. */
 export function StatusDot({
   variant = 'default',
   pulse = false,
-  size = 8,
+  off = false,
+  size = 10,
+  current = false,
   className,
+  style,
+  ...rest
 }: StatusDotProps) {
+  const look = current ? 'bg-current' : off ? LAMP_OFF : LAMP
   return (
-    <span className={cx('relative inline-flex', className)} style={{ width: size, height: size }}>
-      {pulse && (
+    <span
+      aria-hidden="true"
+      {...rest}
+      className={cx('relative inline-flex', className)}
+      style={{
+        ...style,
+        width: size,
+        height: size,
+        ['--lamp-from' as string]: `var(--lamp-${variant}-from)`,
+        ['--lamp-to' as string]: `var(--lamp-${variant}-to)`,
+      }}
+    >
+      {pulse && !off && (
         <span
           className={cx(
             'absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 motion-reduce:hidden',
-            dotFill[variant],
+            current ? 'bg-current' : 'bg-(--lamp-from)',
           )}
         />
       )}
       <span
-        className={cx('relative inline-flex rounded-full', dotFill[variant])}
+        data-lamp={current ? 'flat' : off ? 'off' : 'lit'}
+        className={cx('relative inline-flex rounded-full', look)}
         style={{ width: size, height: size }}
       />
     </span>

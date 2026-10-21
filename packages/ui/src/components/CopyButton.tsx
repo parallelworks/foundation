@@ -1,17 +1,10 @@
-import {
-  type ComponentPropsWithRef,
-  type CSSProperties,
-  type ReactNode,
-  useEffectEvent,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react'
+import { type ComponentPropsWithRef, type ReactNode, useState } from 'react'
 import { cx } from '../cx'
 import { CheckIcon, CopyIcon, EyeIcon, EyeOffIcon } from '../icons'
 import { type ButtonSize, type ButtonVariant, buttonClasses } from './buttonClasses'
 import { IconButton } from './IconButton'
 import { useStrings } from './Provider'
+import { fadeMask, useHiddenEnds } from './scrollFade'
 import { useCopy } from './useCopy'
 
 // Always a button: a copy is never navigation, so it takes none of IconButton's link props.
@@ -70,6 +63,7 @@ export function CopyButton({
       <button
         type="button"
         {...props}
+        data-copied={copied || undefined}
         aria-label={props['aria-label'] ?? name}
         onClick={onClick}
         className={cx(buttonClasses({ variant, size }), props.className)}
@@ -82,6 +76,8 @@ export function CopyButton({
   return (
     <IconButton
       {...props}
+      // A host can keep the button shown while its check does.
+      data-copied={copied || undefined}
       variant={variant}
       size={size}
       label={name}
@@ -114,57 +110,11 @@ export interface CopyCodeBlockProps {
    *  surface reads on a panel and a tinted callout alike, and the buttons stay right after the
    *  value, always shown. The copy confirms with its check alone, as the change shows there. */
   inline?: boolean | undefined
+  /** False also says "Copied" in a toast. By default the copy confirms with the button's
+   *  check alone, which stays in view until it turns back, as the button is where the reader
+   *  pressed; a failure toasts either way. */
+  quiet?: boolean | undefined
   className?: string | undefined
-}
-
-/** Which ends of a sideways scroller hide some of its content, kept up to date as it
- *  scrolls or resizes. */
-type HiddenEnds = { start: boolean; end: boolean }
-const NO_ENDS: HiddenEnds = { start: false, end: false }
-
-function useHiddenEnds(active: boolean) {
-  const ref = useRef<HTMLElement>(null)
-  const [ends, setEnds] = useState<HiddenEnds>(NO_ENDS)
-  const measureNow = () => {
-    const el = ref.current
-    if (!el || !active) {
-      setEnds(NO_ENDS)
-      return
-    }
-    // Negative while scrolled from the start in a right-to-left line.
-    const scrolled = Math.abs(el.scrollLeft)
-    const start = scrolled > 1
-    const end = scrolled + el.clientWidth < el.scrollWidth - 1
-    setEnds((was) => (was.start === start && was.end === end ? was : { start, end }))
-  }
-  // The observer reads the latest value and room without subscribing again each render.
-  const measure = useEffectEvent(measureNow)
-  // After every render, as the value or its room may have changed; the state bails out
-  // when the ends are the same.
-  useLayoutEffect(() => {
-    measure()
-  })
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!el || !active || typeof ResizeObserver === 'undefined') {
-      return
-    }
-    const observer = new ResizeObserver(() => measure())
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [active])
-  return { ref, ends, onScroll: measureNow }
-}
-
-// How far the fade reaches into a value that runs on past an edge.
-const FADE = '1.25rem'
-
-function fadeMask({ start, end }: HiddenEnds): CSSProperties | undefined {
-  if (!start && !end) {
-    return undefined
-  }
-  const image = `linear-gradient(to var(--fade-end, right), ${start ? `transparent, #000 ${FADE}` : '#000'}, ${end ? `#000 calc(100% - ${FADE}), transparent` : '#000'})`
-  return { maskImage: image, WebkitMaskImage: image }
 }
 
 // A fixed count, so the dots don't say how long the secret is.
@@ -172,7 +122,8 @@ const MASK = '•'.repeat(24)
 
 /** A block of code, such as a command to run, with a button that copies it. The
  *  buttons show while the pointer is over the block or focus is in it, and always
- *  where there is no hover to reveal them. With `inline` it is a compact value in the line
+ *  where there is no hover to reveal them. A copy confirms with the button's check,
+ *  not a toast; a failure still toasts. With `inline` it is a compact value in the line
  *  instead, such as a token shown once, its buttons always beside it. With `secret` it
  *  masks the value until the eye shows it, and copies it either way. */
 export function CopyCodeBlock({
@@ -185,6 +136,7 @@ export function CopyCodeBlock({
   onRevealedChange,
   inline = false,
   wrap = false,
+  quiet = true,
   className,
 }: CopyCodeBlockProps) {
   const { common: t } = useStrings()
@@ -196,6 +148,9 @@ export function CopyCodeBlock({
   }
   const reveal =
     'opacity-0 group-hover/code:opacity-100 group-focus-within/code:opacity-100 pointer-coarse:opacity-100'
+  // The copy's check is its confirmation, so it stays in view while it shows, even once the
+  // pointer has left the block.
+  const revealCopy = `${reveal} data-copied:opacity-100`
   let shown: ReactNode = children ?? text
   if (secret && !revealed && children === undefined) {
     shown = (
@@ -254,7 +209,7 @@ export function CopyCodeBlock({
           {shown}
         </code>
         <span className="flex shrink-0 items-center">
-          <CopyButton text={text} label={label} size="xs" quiet />
+          <CopyButton text={text} label={label} size="xs" quiet={quiet} />
           {revealButton}
         </span>
       </span>
@@ -276,7 +231,8 @@ export function CopyCodeBlock({
         <CopyButton
           text={text}
           label={label}
-          className={cx('bg-(--theme-muted-panel-bg)', reveal)}
+          quiet={quiet}
+          className={cx('bg-(--theme-muted-panel-bg)', revealCopy)}
         />
       </div>
     </div>

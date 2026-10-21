@@ -30,6 +30,7 @@ export {
   type ListFilterBarProps,
 } from './ListFilterBar'
 export {
+  GroupRow,
   ListColumns,
   ListPage,
   type ListPageEmpty,
@@ -40,7 +41,6 @@ export {
 } from './ListPage'
 export {
   actionsColumnWidth,
-  GroupRow,
   ListActionsHeader,
   ListCellText,
   ListError,
@@ -51,6 +51,7 @@ export {
   NAME_MIN_WIDTH_PX,
   NameCell,
   RowSelectCheckbox,
+  STRETCHED_LINK,
 } from './ListTable'
 export { ListToolbar, type ListToolbarProps } from './ListToolbar'
 export { ListDisplayMenu, ListFilterMenu } from './ListViewControls'

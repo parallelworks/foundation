@@ -12,6 +12,7 @@ import {
   type ControlsConfig,
   defaultComponents,
   defaultRehypePlugins,
+  defaultRemarkPlugins,
   type ExtraProps,
   type PluginConfig,
   Streamdown,
@@ -57,6 +58,13 @@ function loadMermaid(): Promise<void> {
 // Passing rehypePlugins replaces Streamdown's list rather than extending it,
 // so its own plugins go first.
 const rehypePlugins = [...Object.values(defaultRehypePlugins), rehypeCodeBreaks]
+
+// A lone `~` is how prose says "about" ("~$3/day"); GFM's default reads a pair
+// of them as strikethrough and crosses out whatever lies between. `~~x~~` still
+// strikes.
+const remarkPlugins = Object.entries(defaultRemarkPlugins).map(([name, plugin]) =>
+  name === 'gfm' ? [Array.isArray(plugin) ? plugin[0] : plugin, { singleTilde: false }] : plugin,
+) as NonNullable<Parameters<typeof Streamdown>[0]['remarkPlugins']>
 
 const httpsImagesRehypePlugins = [
   ...Object.entries(defaultRehypePlugins).flatMap(([name, plugin]) =>
@@ -171,6 +179,30 @@ function makeCode(controls: CodeControls, diagrams: boolean) {
   }
 }
 
+const TABLE_ROW = /^\s*\|/
+const TABLE_DELIMITER = /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/
+
+/** While a reply streams, a table's opening rows read as stray pipes until its
+ *  delimiter row arrives; they are held back until then. */
+export function withoutUnfinishedTable(text: string): string {
+  if ((text.match(/^\s*(```|~~~)/gm)?.length ?? 0) % 2 === 1) {
+    return text
+  }
+  const lines = text.split('\n')
+  let start = lines.length
+  while (start > 0 && TABLE_ROW.test(lines[start - 1] ?? '')) {
+    start--
+  }
+  if (start === lines.length) {
+    return text
+  }
+  const rows = lines.slice(start)
+  if (rows.length >= 2 && TABLE_DELIMITER.test(rows[1] ?? '')) {
+    return text
+  }
+  return lines.slice(0, start).join('\n')
+}
+
 export default function MarkdownImpl({
   children,
   isStreaming,
@@ -211,6 +243,7 @@ export default function MarkdownImpl({
         {...(isStreaming ? ({ caret: 'block', className: 'markdown-streaming' } as const) : {})}
         {...(controls ? { controls } : {})}
         plugins={plugins}
+        remarkPlugins={remarkPlugins}
         rehypePlugins={httpsImagesOnly ? httpsImagesRehypePlugins : rehypePlugins}
         shikiTheme={CODE_THEMES}
         components={{
@@ -222,7 +255,7 @@ export default function MarkdownImpl({
           ...components,
         }}
       >
-        {children || ''}
+        {(isStreaming ? withoutUnfinishedTable(children || '') : children) || ''}
       </Streamdown>
     </div>
   )

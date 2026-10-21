@@ -4,7 +4,8 @@ import { Checkbox } from '../components/Checkbox'
 import { positionKeys } from '../components/keys'
 import { useStrings } from '../components/Provider'
 import { LoadingRegion, Skeleton } from '../components/Skeleton'
-import { Table } from '../components/Table'
+import { CellPlacementContext, Table } from '../components/Table'
+import { Tooltip } from '../components/Tooltip'
 import { cx } from '../cx'
 import { ErrorIcon } from '../icons'
 
@@ -44,10 +45,12 @@ export const listTableFixedProps = {
  *  clicks: it navigates, and no selection claims plain clicks. */
 export const StretchRowLinkContext = createContext(false)
 
-// The link's box covers the row (the `ListRow`'s `<tr>` is its containing
-// block), so the whole row is the link: it opens in a new tab, shows its URL
-// and reads as a link, where a row click handler could do none of these. Its
-// focus ring follows, drawn around the row. Mark the link `data-row-link`.
+/** Makes a link cover its `ListRow` (the row's `<tr>` is its containing block),
+ *  so the whole row is the link: it opens in a new tab, shows its URL and
+ *  reads as a link, where a row click handler could do none of these. Its
+ *  focus ring follows, drawn around the row. A `NameCell` with an `href` does
+ *  this itself; a row whose link is elsewhere, such as a run's number before
+ *  its workflow's name, gives its own link this class and `data-row-link`. */
 export const STRETCHED_LINK =
   "after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-(--theme-link)"
 
@@ -86,6 +89,9 @@ export function NameCell({
   children?: ReactNode
 }) {
   const stretch = useContext(StretchRowLinkContext)
+  // What a row stacks under its first cell goes under the name, past the icon, with `children`.
+  const placed = useContext(CellPlacementContext)
+  const under = placed?.after
   const hasIcon = icon !== null && icon !== undefined && icon !== false
   // The cell is a grid of the icon's column and the name's, so what stacks
   // under the name lines up with it past an icon of any width.
@@ -118,7 +124,7 @@ export function NameCell({
       </div>
     </>
   )
-  return (
+  const cell = (
     <Table.Item className="py-2.5">
       <div
         className={cx(
@@ -141,17 +147,27 @@ export function NameCell({
         ) : (
           <div className={cx('min-w-0', columns)}>{inner}</div>
         )}
-        {!!children && (
-          <div className={hasIcon ? 'col-start-2 min-w-0' : 'min-w-0'}>{children}</div>
+        {(!!children || !!under) && (
+          <div className={hasIcon ? 'col-start-2 min-w-0' : 'min-w-0'}>
+            {children}
+            {under}
+          </div>
         )}
       </div>
     </Table.Item>
+  )
+  // The cell keeps the column's classes; what follows its own is shown here instead.
+  return placed?.after ? (
+    <CellPlacementContext value={{ ...placed, after: undefined }}>{cell}</CellPlacementContext>
+  ) : (
+    cell
   )
 }
 
 /** A row's column text: muted 13px, or monospace for an ID, a path or a
  *  hash. The style sits on the text rather than the cell, so it carries over
- *  when a narrow list stacks the column under the name. */
+ *  when a narrow list stacks the column under the name. Text wider than its
+ *  column is cut off with an ellipsis, and shows whole in a tooltip. */
 export function ListCellText({
   mono = false,
   className,
@@ -161,10 +177,10 @@ export function ListCellText({
   className?: string | undefined
   children: ReactNode
 }) {
-  return (
+  const text = (
     <span
       className={cx(
-        'text-(--theme-muted-text-color)',
+        'block min-w-0 truncate text-(--theme-muted-text-color)',
         mono ? 'font-mono text-xs' : 'text-[13px]',
         className,
       )}
@@ -172,25 +188,12 @@ export function ListCellText({
       {children}
     </span>
   )
-}
-
-export function GroupRow({
-  label,
-  count,
-  colSpan,
-}: {
-  label: string
-  count: number
-  colSpan: number
-}) {
-  return (
-    <tr>
-      <td colSpan={colSpan} className="bg-(--theme-muted-panel-bg) py-1.5 text-xs font-medium">
-        <span className="text-(--theme-app)">{label}</span>
-        <span className="mx-1.5 opacity-50">·</span>
-        <span className="text-(--theme-muted-text-color)">{count}</span>
-      </td>
-    </tr>
+  return typeof children === 'string' || typeof children === 'number' ? (
+    <Tooltip content={children} overflowOnly>
+      {text}
+    </Tooltip>
+  ) : (
+    text
   )
 }
 
@@ -239,7 +242,8 @@ export function ListSkeleton({ rows = 6 }: { rows?: number }) {
   )
 }
 
-/** Prevents the name column from being crushed under table-auto layout during horizontal overflow. */
+/** Prevents the name column from being crushed under table-auto layout during horizontal
+ *  overflow. In a list under 400px wide, the floor is half the list instead. */
 export const NAME_MIN_WIDTH_PX = 200
 
 /** Trailing cell geometry: icon-button size + gap + padding, sized to fit exactly its pinned buttons. */
@@ -327,7 +331,13 @@ export function ListActionsHeader({
   actionCount = 0,
   className,
 }: {
-  view?: { showActions: boolean; actionsWidth: number; alwaysShowActions?: boolean }
+  view?: {
+    showActions: boolean
+    actionsWidth: number
+    alwaysShowActions?: boolean
+    lastColumnLocked?: boolean | undefined
+    reservesActionLane?: boolean | undefined
+  }
   actionCount?: number
   className?: string
 }) {
@@ -337,7 +347,11 @@ export function ListActionsHeader({
     return null
   }
   const width = view ? view.actionsWidth : actionsColumnWidth(actionCount)
-  const floating = !!view && !view.alwaysShowActions && view.actionsWidth === actionsColumnWidth(0)
+  const floating =
+    !!view &&
+    !view.alwaysShowActions &&
+    !(view.reservesActionLane ?? view.lastColumnLocked) &&
+    view.actionsWidth === actionsColumnWidth(0)
   return (
     <Table.Header
       caps={false}

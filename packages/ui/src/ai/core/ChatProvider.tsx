@@ -27,12 +27,13 @@ import type {
   MessagePart,
   ProviderInfo,
   ProviderIssue,
+  TokenUsage,
   ToolCallPart,
   UnreachableSession,
 } from '../types'
 import { chatReducer, initialState } from './chatReducer'
 import { ChatConfigProvider, type ChatUIConfig, resolveChatConfig } from './config'
-import { applyPartDelta, finalizeParts, toolTurnMessages } from './parts'
+import { applyPartDelta, finalizeParts, splitAnswer, toolTurnMessages } from './parts'
 import { providerIssueFor } from './providerIssues'
 import {
   ReportSidebarPresentationContext,
@@ -211,6 +212,7 @@ interface ChatContextValue {
   updateConversationTitle: (id: string, title: string) => Promise<boolean>
   navigateToBranch: (messageId: string) => void
   clearCurrentConversation: () => void
+  consumeInputFocus: (conversationId?: string) => boolean
 }
 
 /** The reply being written, which changes with every streamed token. It has
@@ -222,6 +224,8 @@ export interface ChatStream {
   streamingContent: string
   streamingReasoning: string
   streamingParts: MessagePart[]
+  /** Tokens the streaming reply has used so far, when the stream reports them. */
+  streamingUsage: TokenUsage | null
   thinkingStartTime: number | null
 }
 
@@ -229,6 +233,16 @@ const NO_TOOLS: ChatToolOption[] = []
 
 const ChatContext = createContext<ChatContextValue | undefined>(undefined)
 const ChatStreamContext = createContext<ChatStream | undefined>(undefined)
+// Its own context so a message row that names its model re-renders only when
+// the models change, not on every update to the chat.
+const ChatModelsContext = createContext<ChatModel[]>([])
+
+/** A model's display name by its id, when the adapter listed one; undefined
+ *  outside a ChatProvider or for a model it doesn't list. */
+export function useChatModelName(id: string | null | undefined): string | undefined {
+  const models = useContext(ChatModelsContext)
+  return id ? models.find((m) => m.id === id)?.name || undefined : undefined
+}
 
 export function useChat() {
   const context = useContext(ChatContext)
@@ -292,6 +306,8 @@ export function ChatProvider({
     onStreamingChunk,
     startStreaming,
     stopAnimationLoop,
+    drainReveal,
+    afterReveal,
     resetAnimationRefs,
     targetStreamContentRef,
     streamActiveRef,
@@ -304,6 +320,15 @@ export function ChatProvider({
   // Updated explicitly in: clearCurrentConversation (null), loadConversation (id), sendMessage (new id)
   // Do NOT auto-sync with state - that causes race conditions
   const currentConversationIdRef = useRef<string | null>(null)
+
+  const inputFocusPendingRef = useRef<string | null>(null)
+  const consumeInputFocus = useCallback((conversationId?: string) => {
+    if (!conversationId || inputFocusPendingRef.current !== conversationId) {
+      return false
+    }
+    inputFocusPendingRef.current = null
+    return true
+  }, [])
 
   // The model last chosen, offered again once the models load.
   const [storedModel, storeModel] = usePersistedState<string | null>('aiChat.model', null)
@@ -582,6 +607,7 @@ export function ChatProvider({
       parentId: string,
       onFailure: (message: string) => void,
       routePart?: (delta: PartDelta) => boolean,
+      onAccepted?: () => void,
     ): Promise<StreamOutcome> => {
       backgroundStreamsRef.current.set(targetConversationId, {
         content: '',
@@ -614,6 +640,7 @@ export function ChatProvider({
         const markStreamStart = () => {
           if (thinkingStart === null) {
             thinkingStart = Date.now()
+            onAccepted?.()
           }
         }
 
@@ -621,6 +648,9 @@ export function ChatProvider({
         // Kept locally as well as in the background stream so the final
         // message can attach it after the stream's map entry is deleted.
         let liveParts: MessagePart[] = []
+        // The reply's text so far, which leads the timeline once a part
+        // arrives, so text and tool calls keep the order they came in.
+        let liveText = ''
 
         const {
           content: assistantContent,
@@ -634,6 +664,10 @@ export function ChatProvider({
           {
             onContent: (chunk: string) => {
               markStreamStart()
+              liveText += chunk
+              if (liveParts.length) {
+                liveParts = applyPartDelta(liveParts, { type: 'text', text: chunk })
+              }
               onStreamingChunk(chunk)
             },
             onReasoning: (reasoning: string) => {
@@ -649,6 +683,13 @@ export function ChatProvider({
                 bgStream.reasoning += reasoning
               }
             },
+            onUsage: (usage) => {
+              dispatch({
+                type: 'SET_STREAMING_USAGE',
+                usage,
+                conversationId: targetConversationId,
+              })
+            },
             onMessageId: (messageId: string) => {
               markStreamStart()
               const bgStream = backgroundStreamsRef.current.get(targetConversationId)
@@ -661,12 +702,18 @@ export function ChatProvider({
               if (routePart?.(delta)) {
                 return
               }
-              liveParts = applyPartDelta(liveParts, delta)
-              dispatch({
-                type: 'APPLY_STREAMING_PART',
+              liveParts = applyPartDelta(
+                liveParts.length || !liveText ? liveParts : [{ kind: 'text', text: liveText }],
                 delta,
-                conversationId: targetConversationId,
-              })
+              )
+              // A part shows once the text the model wrote before it has.
+              afterReveal(() =>
+                dispatch({
+                  type: 'APPLY_STREAMING_PART',
+                  delta,
+                  conversationId: targetConversationId,
+                }),
+              )
               const bgStream = backgroundStreamsRef.current.get(targetConversationId)
               if (bgStream) {
                 bgStream.parts = liveParts
@@ -675,6 +722,9 @@ export function ChatProvider({
           },
           controller.signal,
         )
+
+        // Let the reveal catch up so the reply's end is not dropped in at once.
+        await drainReveal()
 
         const thinkingDuration =
           assistantReasoning && thinkingStart !== null
@@ -696,7 +746,7 @@ export function ChatProvider({
           reasoning: assistantReasoning || undefined,
           reasoningDuration: thinkingDuration ?? undefined,
           responsesOutput: responsesOutput.length ? responsesOutput : undefined,
-          ...(liveParts.length ? { parts: finalizeParts(liveParts) } : {}),
+          ...(liveParts.length ? splitAnswer(finalizeParts(liveParts)) : {}),
         }
         dispatch({
           type: 'ADD_MESSAGE',
@@ -747,6 +797,8 @@ export function ChatProvider({
       state.selectedProvider,
       onStreamingChunk,
       stopAnimationLoop,
+      drainReveal,
+      afterReveal,
       streamingConversationIdRef,
       backgroundStreamsRef,
       abortControllerRef,
@@ -843,6 +895,7 @@ export function ChatProvider({
           },
         })
 
+        inputFocusPendingRef.current = newId
         navigation.toConversation(newId)
 
         if (generatedTitle) {
@@ -1017,7 +1070,8 @@ export function ChatProvider({
       isSendingRef.current = true
       const targetConversationId = conversation.id
       const t = resolvedConfig.strings.agentTranscript
-      let pausedParts = paused.parts ?? []
+      const askedParts = paused.parts ?? []
+      let pausedParts = askedParts
       const updatePaused = (updates: Partial<Message>) =>
         dispatch({
           type: 'UPDATE_MESSAGE',
@@ -1028,6 +1082,9 @@ export function ChatProvider({
       const applyToPaused = (delta: PartDelta) => {
         pausedParts = applyPartDelta(pausedParts, delta)
         updatePaused({ parts: pausedParts })
+      }
+      if (paused.error) {
+        updatePaused({ error: null })
       }
       applyToPaused({
         type: 'approval_resolved',
@@ -1065,8 +1122,9 @@ export function ChatProvider({
 
       streamingToConversationRef.current = targetConversationId
       startStreaming(targetConversationId)
+      let accepted = false
       try {
-        await streamReply(
+        const outcome = await streamReply(
           targetConversationId,
           {
             model: modelString,
@@ -1097,7 +1155,17 @@ export function ChatProvider({
             applyToPaused(delta)
             return true
           },
+          () => {
+            accepted = true
+          },
         )
+        // Refused before anything streamed (a conflict, a denied permission,
+        // arguments that don't validate, no network): the call is still held,
+        // so it asks again beside the error.
+        if (outcome === 'failed' && !accepted) {
+          pausedParts = askedParts
+          updatePaused({ parts: askedParts })
+        }
       } finally {
         isSendingRef.current = false
       }
@@ -1354,6 +1422,7 @@ export function ChatProvider({
 
     pendingQueueRef.current = []
     isSendingRef.current = false
+    inputFocusPendingRef.current = null
 
     dispatch({ type: 'SET_CURRENT_CONVERSATION', conversation: null })
   }, [resetAnimationRefs, streamingConversationIdRef])
@@ -1408,6 +1477,7 @@ export function ChatProvider({
       updateConversationTitle,
       navigateToBranch,
       clearCurrentConversation,
+      consumeInputFocus,
     }),
     [
       adapter,
@@ -1457,6 +1527,7 @@ export function ChatProvider({
       updateConversationTitle,
       navigateToBranch,
       clearCurrentConversation,
+      consumeInputFocus,
     ],
   )
 
@@ -1466,6 +1537,7 @@ export function ChatProvider({
       streamingContent: state.streamingContent,
       streamingReasoning: state.streamingReasoning,
       streamingParts: state.streamingParts,
+      streamingUsage: state.streamingUsage,
       thinkingStartTime: state.thinkingStartTime,
     }),
     [
@@ -1473,6 +1545,7 @@ export function ChatProvider({
       state.streamingContent,
       state.streamingReasoning,
       state.streamingParts,
+      state.streamingUsage,
       state.thinkingStartTime,
     ],
   )
@@ -1481,7 +1554,9 @@ export function ChatProvider({
     <ChatConfigProvider value={resolvedConfig}>
       <ReportSidebarPresentationContext.Provider value={reportSidebarPresentation}>
         <ChatContext.Provider value={value}>
-          <ChatStreamContext.Provider value={stream}>{children}</ChatStreamContext.Provider>
+          <ChatModelsContext.Provider value={state.models}>
+            <ChatStreamContext.Provider value={stream}>{children}</ChatStreamContext.Provider>
+          </ChatModelsContext.Provider>
         </ChatContext.Provider>
       </ReportSidebarPresentationContext.Provider>
     </ChatConfigProvider>

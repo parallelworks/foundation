@@ -1,18 +1,21 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { UIProvider } from '../components/Provider'
 import { Table } from '../components/Table'
 import { memoryStorage } from '../test/storage'
-import { ListColumns, ListPage, ListRow, ListRowActionsProvider } from './ListPage'
+import { GroupRow, ListColumns, ListPage, ListRow, ListRowActionsProvider } from './ListPage'
 import {
   actionsColumnWidth,
   ListActionsHeader,
   ListCellText,
+  listTableFixedProps,
   listTableProps,
+  NAME_MIN_WIDTH_PX,
   NameCell,
 } from './ListTable'
 import { ListToolbar } from './ListToolbar'
+import { ListDisplayMenu } from './ListViewControls'
 import { useListSearch } from './listSearch'
 import { useListView } from './listView'
 
@@ -269,5 +272,301 @@ describe('Counts in the host locale', () => {
       </UIProvider>,
     )
     expect(screen.getByRole('status')).toHaveTextContent('1.204 tokens')
+  })
+})
+
+function GroupedList({
+  leading = false,
+  actions = true,
+}: {
+  leading?: boolean
+  actions?: boolean
+}) {
+  const view = useListView<unknown>({
+    storageKey: `grouped${leading ? ':leading' : ''}${actions ? '' : ':no-actions'}`,
+    columns: [
+      { key: 'name', label: 'Name', alwaysVisible: true },
+      { key: 'type', label: 'Type' },
+      { key: 'zone', label: 'Zone', priority: 'low' },
+      { key: 'seen', label: 'Last seen', priority: 'medium' },
+      { key: 'total', label: 'Total', stack: false },
+    ],
+    defaultShowActions: actions,
+  })
+  return (
+    <ListRowActionsProvider view={view}>
+      <Table {...listTableProps}>
+        {leading && <Table.Header>Select</Table.Header>}
+        <ListColumns view={view} />
+        <GroupRow
+          label={<span>gpu-training</span>}
+          count={3}
+          trailing="2/3 running"
+          leading={leading ? 1 : 0}
+        />
+      </Table>
+    </ListRowActionsProvider>
+  )
+}
+
+describe('GroupRow', () => {
+  const groupCells = () =>
+    Array.from(screen.getByText('gpu-training').closest('tr')?.querySelectorAll('td') ?? [])
+
+  it('has a cell per column, each hiding with its column, and one for the actions', () => {
+    render(<GroupedList />)
+    const headers = screen.getAllByRole('columnheader')
+    const cells = groupCells()
+    expect(cells).toHaveLength(headers.length)
+    // Type stacks on a phone, Zone drops below 52rem and Last seen below 36rem.
+    expect(cells[1]).toHaveClass('hidden', '@[36rem]:table-cell')
+    expect(cells[2]).toHaveClass('hidden', '@[52rem]:table-cell')
+    expect(cells[3]).toHaveClass('hidden', '@[36rem]:table-cell')
+    // A column that stays a column, and the name and actions, never hide.
+    for (const i of [0, 4, 5]) {
+      expect(cells[i]).not.toHaveClass('hidden')
+    }
+  })
+
+  it('holds the whole header in its first cell: label, count and what sums it up', () => {
+    render(<GroupedList />)
+    const [first, ...rest] = groupCells()
+    expect(first).toHaveTextContent('gpu-training·32/3 running')
+    for (const cell of rest) {
+      expect(cell).toBeEmptyDOMElement()
+    }
+  })
+
+  it('leaves a cell for each leading column, and none for actions that are off', () => {
+    render(<GroupedList leading actions={false} />)
+    const cells = groupCells()
+    expect(cells).toHaveLength(screen.getAllByRole('columnheader').length)
+    expect(cells[0]).toHaveTextContent('gpu-training')
+    // The columns' classes start after the leading cell.
+    expect(cells[0]).not.toHaveClass('hidden')
+    expect(cells[2]).toHaveClass('@[36rem]:table-cell')
+    expect(cells[3]).toHaveClass('@[52rem]:table-cell')
+  })
+
+  it('spans colSpan columns in one cell outside a list view', () => {
+    render(
+      <table>
+        <tbody>
+          <GroupRow label="Connected resources" count={2} colSpan={3} />
+        </tbody>
+      </table>,
+    )
+    const cells = Array.from(screen.getByText('Connected resources').closest('tr')?.cells ?? [])
+    expect(cells).toHaveLength(1)
+    expect(cells[0]).toHaveAttribute('colspan', '3')
+  })
+})
+
+describe('cells keep to their column', () => {
+  it('cuts a long value off inside its own cell, and shows it whole in a tooltip', () => {
+    render(
+      <UIProvider>
+        <table style={{ tableLayout: 'fixed', width: 200 }}>
+          <tbody>
+            <tr>
+              <Table.Item style={{ width: 40 }}>
+                <ListCellText>Network interface with a very long name</ListCellText>
+              </Table.Item>
+              <Table.Item>pending</Table.Item>
+            </tr>
+          </tbody>
+        </table>
+      </UIProvider>,
+    )
+    const text = screen.getByText('Network interface with a very long name')
+    // The cell clips what it holds, and the text ends in an ellipsis rather than running on.
+    expect(text.closest('td')).toHaveClass('overflow-clip', 'text-ellipsis', 'whitespace-nowrap')
+    expect(text).toHaveClass('block', 'min-w-0', 'truncate')
+    // Its tooltip opens only while the text is cut off.
+    expect(text).toHaveAttribute('data-overflow-only')
+  })
+
+  it('lets the actions lane reach past its cell, where a floating ⋯ sits over the last column', () => {
+    render(
+      <table>
+        <tbody>
+          <ListRow href={null} items={[]} goTo={() => {}} openMenu={() => {}}>
+            <Table.Item>logs</Table.Item>
+          </ListRow>
+        </tbody>
+      </table>,
+    )
+    const cells = screen.getAllByRole('cell')
+    expect(cells[0]).toHaveClass('overflow-clip')
+    expect(cells.at(-1)).toHaveClass('overflow-visible')
+    expect(cells.at(-1)).not.toHaveClass('overflow-clip')
+  })
+})
+
+function SharedWidths() {
+  const view = useListView<unknown>({
+    storageKey: 'shares',
+    columns: [
+      { key: 'name', label: 'Name', alwaysVisible: true },
+      { key: 'type', label: 'Type', width: '20%' },
+      { key: 'zone', label: 'Zone', width: '20%', priority: 'low' },
+      { key: 'seen', label: 'Seen', width: '10%', priority: 'medium' },
+      { key: 'delete', label: 'Delete', locked: true, stack: false, width: 40 },
+    ],
+    defaultShowActions: false,
+  })
+  return (
+    <ListRowActionsProvider view={view}>
+      <Table {...listTableFixedProps}>
+        <ListColumns view={view} />
+      </Table>
+      <ListDisplayMenu view={view} />
+    </ListRowActionsProvider>
+  )
+}
+
+describe('column widths', () => {
+  const header = (name: string) => screen.getByRole('columnheader', { name })
+
+  it('shares out the widths of the columns a narrower list drops among those left', () => {
+    render(
+      <UIProvider>
+        <SharedWidths />
+      </UIProvider>,
+    )
+    const type = header('Type')
+    // Every column shows: its own 20%.
+    expect(type.style.getPropertyValue('--share-wide')).toBe('20%')
+    // Below 52rem Zone's 20% goes to the rest, the name's 50% among them: 20 / 80.
+    expect(type.style.getPropertyValue('--share-medium')).toBe('25%')
+    // Below 36rem Seen and Type drop too (Type stacks), leaving the name all of the list's share.
+    expect(header('Seen').style.getPropertyValue('--share-medium')).toBe('12.5%')
+    expect(type).toHaveClass('@[52rem]:w-(--share-wide)', '@[36rem]:w-(--share-medium)')
+  })
+
+  it('keeps a locked column out of the picker at its own width, and only the name at a minimum', () => {
+    render(
+      <UIProvider>
+        <SharedWidths />
+      </UIProvider>,
+    )
+    const del = header('Delete')
+    expect(del.style.width).toBe('40px')
+    expect(del.style.minWidth).toBe('')
+    expect(header('Name').style.minWidth).toBe(`min(${NAME_MIN_WIDTH_PX}px, 50cqw)`)
+    fireEvent.click(screen.getByRole('button', { name: 'Display options' }))
+    const picker = screen.getByRole('dialog')
+    expect(within(picker).getByText('Type')).toBeInTheDocument()
+    expect(within(picker).queryByText('Delete')).toBeNull()
+  })
+})
+
+describe('GroupRow detail', () => {
+  it('shows a secondary detail only where the list has room, giving way before the label', () => {
+    render(
+      <table>
+        <tbody>
+          <GroupRow label="cfd-burst" detail="dep-7f3a91c2" colSpan={2} />
+        </tbody>
+      </table>,
+    )
+    const detail = screen.getByText('dep-7f3a91c2')
+    expect(detail).toHaveClass('hidden', '@[36rem]:block', 'truncate', 'shrink-[100]')
+  })
+})
+
+describe('trailing controls with a locked last column', () => {
+  function LockedLast() {
+    const view = useListView<unknown>({
+      storageKey: 'locked-last',
+      columns: [
+        { key: 'name', label: 'Name', alwaysVisible: true },
+        { key: 'type', label: 'Type' },
+        { key: 'delete', label: 'Delete', locked: true, stack: false, width: 40 },
+      ],
+    })
+    return (
+      <ListRowActionsProvider view={view}>
+        <Table {...listTableFixedProps}>
+          <ListColumns view={view} />
+          <ListRow href={null} items={[]} goTo={() => {}} openMenu={() => {}}>
+            <NameCell icon={null} name="gpu-trainer" href={null} />
+            <Table.Item>Instance</Table.Item>
+            <Table.Item>
+              <button type="button">Delete gpu-trainer</button>
+            </Table.Item>
+          </ListRow>
+        </Table>
+      </ListRowActionsProvider>
+    )
+  }
+
+  it('keeps the ⋯ in a lane of its own after a locked column, never floating over it', () => {
+    render(
+      <UIProvider>
+        <LockedLast />
+      </UIProvider>,
+    )
+    const lane = screen.getAllByRole('cell').at(-1)
+    expect(lane).not.toHaveClass('pointer-fine:w-0!')
+    expect(screen.getAllByRole('columnheader').at(-1)).not.toHaveClass('pointer-fine:w-0!')
+  })
+
+  it('lines the ⋯ up at the top of a stacked row, with the controls that stay beside the stack', () => {
+    render(
+      <UIProvider>
+        <LockedLast />
+      </UIProvider>,
+    )
+    const cells = screen.getAllByRole('cell')
+    // The delete column stays a column and sits at the row's top where Type stacks.
+    expect(cells.at(-2)).toHaveClass('@max-[36rem]:align-top', '@max-[36rem]:pt-2.5')
+    const menu = screen.getByRole('button', { name: /more actions/i }).parentElement
+    expect(menu).toHaveClass('@max-[36rem]:items-start', '@max-[36rem]:pt-2')
+  })
+})
+
+describe('trailing controls by the last column’s alignment', () => {
+  function LastColumn({ align }: { align?: 'end' }) {
+    const view = useListView<unknown>({
+      storageKey: `last-${align ?? 'start'}`,
+      columns: [
+        { key: 'run', label: 'Run', alwaysVisible: true },
+        { key: 'submitted', label: 'Submitted', stack: false },
+        { key: 'runtime', label: 'Runtime', stack: false, ...(align ? { align } : {}) },
+      ],
+    })
+    return (
+      <ListRowActionsProvider view={view}>
+        <Table {...listTableProps}>
+          <ListColumns view={view} />
+          <ListRow href={null} items={[]} goTo={() => {}} openMenu={() => {}}>
+            <NameCell icon={null} name="#44" href={null} />
+            <Table.Item>2 min ago</Table.Item>
+            <Table.Item>1m 52s</Table.Item>
+          </ListRow>
+        </Table>
+      </ListRowActionsProvider>
+    )
+  }
+
+  it('keeps the ⋯ in a lane of its own after an end-aligned column, whose value it would cover', () => {
+    render(
+      <UIProvider>
+        <LastColumn align="end" />
+      </UIProvider>,
+    )
+    expect(screen.getAllByRole('cell').at(-1)).not.toHaveClass('pointer-fine:w-0!')
+    expect(screen.getAllByRole('columnheader').at(-1)).not.toHaveClass('pointer-fine:w-0!')
+  })
+
+  it('floats the ⋯ over a text column’s blank end', () => {
+    render(
+      <UIProvider>
+        <LastColumn />
+      </UIProvider>,
+    )
+    expect(screen.getAllByRole('cell').at(-1)).toHaveClass('pointer-fine:w-0!')
+    expect(screen.getAllByRole('columnheader').at(-1)).toHaveClass('pointer-fine:w-0!')
   })
 })

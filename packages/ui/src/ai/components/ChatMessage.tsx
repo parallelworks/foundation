@@ -10,6 +10,7 @@ import { RelativeTime } from '../../components/relativeTime'
 import { cx } from '../../cx'
 import { formatDuration } from '../../format'
 import { EditIcon, RetryIcon } from '../../icons'
+import { useChatModelName } from '../core/ChatProvider'
 import { useChatConfig } from '../core/config'
 import { replyText } from '../core/useKeyboardShortcuts'
 import type { ApprovalAnswerValue, AttachmentRef, ChatUser, ChatMessage as Message } from '../types'
@@ -108,8 +109,14 @@ function ChatMessage({
   const hasReasoning = !!message.reasoning
   const toolCallCount = message.parts?.filter((p) => p.kind === 'tool_call').length ?? 0
   const showReasoningButton = !isUser && !isStreaming && hasReasoning
+  // A reply that narrated its calls already reads as a sequence of steps; a
+  // bare count above it adds nothing and would appear only once it finished.
+  const narrated = !!message.parts?.some((p) => p.kind === 'text')
   const showTurnDurationLabel =
-    !isUser && !isStreaming && !hasReasoning && (!!message.reasoningDuration || toolCallCount > 0)
+    !isUser &&
+    !isStreaming &&
+    !hasReasoning &&
+    (!!message.reasoningDuration || (toolCallCount > 0 && (!narrated || !!askerName)))
 
   const { messageMeta: t, thinking: tThinking } = useChatConfig().strings
   const { common } = useStrings()
@@ -188,6 +195,7 @@ function ChatMessage({
   // through and renders the parts above its content with the usual chrome.
   const timestamp = parseTimestamp(message.timestamp)
   const totalTokens = message.tokensUsed?.total_tokens
+  const modelName = useChatModelName(isUser ? undefined : message.model)
   const meta = (timestamp || (!isUser && (message.model || totalTokens))) && (
     <span
       className={cx(
@@ -196,7 +204,9 @@ function ChatMessage({
       )}
     >
       <RelativeTime value={timestamp} />
-      {!isUser && message.model && <span>{message.model}</span>}
+      {!isUser && message.model && (
+        <span title={modelName ? message.model : undefined}>{modelName ?? message.model}</span>
+      )}
       {!isUser && totalTokens ? (
         <span
           title={
@@ -225,6 +235,12 @@ function ChatMessage({
           isStreaming={isStreaming}
           onApprovalAnswer={approvalAnswer}
         />
+        {hasError && (
+          <Callout tone="error" size="sm" className="mt-2">
+            {message.error}
+          </Callout>
+        )}
+        {isStreaming && !isUser && <div aria-hidden className="mt-2 h-7" />}
         {!isUser && !isStreaming && (said || onRegenerate || meta) && (
           <div className="chat-actions -ml-1.5 mt-2 flex items-center gap-0.5">
             {said && (
@@ -453,6 +469,9 @@ function ChatMessage({
                 className={isRightAligned ? 'justify-end' : undefined}
               />
             )}
+
+            {/* Holds the actions' room while the reply streams, so they appear without moving it */}
+            {isStreaming && !isUser && <div aria-hidden className="mt-2 h-7" />}
 
             {/* Actions */}
             {!isStreaming && !isEditing && (

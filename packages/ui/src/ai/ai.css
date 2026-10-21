@@ -347,6 +347,22 @@
     0 10px 24px -10px rgb(0 0 0 / 0.18);
 }
 
+/* The thread scrolls under the dock and the jump pill, so they must hide it
+ * even when a theme makes the panel color translucent: a second layer of the
+ * same color leaves the thread at most a hundredth visible. */
+.chat-composer-dock,
+.chat-jump {
+  background:
+    linear-gradient(var(--theme-panel-bg, #fff), var(--theme-panel-bg, #fff)),
+    var(--theme-panel-bg, #fff);
+}
+
+.chat-jump:hover {
+  background:
+    linear-gradient(var(--theme-muted-panel-bg, #f3f4f6), var(--theme-muted-panel-bg, #f3f4f6)),
+    var(--theme-muted-panel-bg, #f3f4f6);
+}
+
 /* The thread runs under the docked composer and fades out above it, so the
  * last lines dissolve rather than cut off at the dock's edge. */
 .chat-composer-dock::before {
@@ -425,6 +441,20 @@
    that sets the caret: a rule reaching past an element its style attribute selects makes every
    inline style change anywhere on the page restyle that element's whole subtree. */
 .chat-thread .markdown-streaming > :last-child::after {
+  color: var(--chat-accent);
+}
+
+/* A list's caret follows its last item's text rather than sitting on a line
+   of its own under the list. */
+.markdown-streaming > :is(ul, ol):last-child:not([data-sd-caret-hidden])::after {
+  content: none;
+}
+.markdown-streaming > :is(ul, ol):last-child > li:last-child::after {
+  display: inline;
+  vertical-align: baseline;
+  content: var(--streamdown-caret);
+}
+.chat-thread .markdown-streaming > :is(ul, ol):last-child > li:last-child::after {
   color: var(--chat-accent);
 }
 

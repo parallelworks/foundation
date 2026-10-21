@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render } from '@testing-library/react'
+import { render, waitFor } from '@testing-library/react'
 import { act } from 'react'
 import type { ChatAdapter, StreamResult } from '../adapter/types'
 import ChatMessageList from '../components/ChatMessageList'
@@ -258,6 +258,26 @@ describe('starting a new chat', () => {
 
     expect(navigation.toConversation).toHaveBeenCalledWith('conv-new')
   })
+
+  it('hands the focus to the input the first send navigates to, once', async () => {
+    const adapter = makeAdapter()
+    await renderProvider(adapter)
+
+    await act(async () => {
+      await chat.sendMessage('first message')
+    })
+
+    expect(chat.consumeInputFocus()).toBe(false)
+    expect(chat.consumeInputFocus('conv-other')).toBe(false)
+    expect(chat.consumeInputFocus('conv-new')).toBe(true)
+    expect(chat.consumeInputFocus('conv-new')).toBe(false)
+
+    await act(async () => {
+      await chat.sendMessage('second message')
+    })
+
+    expect(chat.consumeInputFocus('conv-new')).toBe(false)
+  })
 })
 
 type StreamControl = {
@@ -487,6 +507,43 @@ describe('streamed parts', () => {
     ])
   })
 
+  it('keeps the text written before and after a tool call in order, live and once finished', async () => {
+    let handlers!: import('../adapter/types').StreamHandlers
+    const done = deferred<StreamResult>()
+    const adapter = makeAdapter({
+      streamCompletion: vi.fn((_req, h) => {
+        handlers = h
+        return done.promise
+      }),
+    })
+    await renderProvider(adapter)
+    await act(async () => {
+      void chat.sendMessage('whats billing me')
+      await flush()
+    })
+
+    await act(async () => {
+      handlers.onContent('Checking costs.')
+      handlers.onPart?.({ type: 'tool_start', id: 't1', name: 'cost_summary', args: '{}' })
+      handlers.onPart?.({ type: 'tool_end', id: 't1', result: '[]' })
+      handlers.onContent('Nothing is billing.')
+    })
+    await waitFor(() =>
+      expect(chat.streamingParts.map((p) => p.kind)).toEqual(['text', 'tool_call', 'text']),
+    )
+
+    await act(async () => {
+      done.resolve({ ...emptyStreamResult(), content: 'Checking costs.Nothing is billing.' })
+      await flush()
+    })
+    await waitFor(() =>
+      expect(chat.currentConversation?.messages.find((m) => m.role === 'assistant')).toBeDefined(),
+    )
+    const assistant = chat.currentConversation?.messages.find((m) => m.role === 'assistant')
+    expect(assistant?.parts?.map((p) => p.kind)).toEqual(['text', 'tool_call'])
+    expect(assistant?.content).toBe('Nothing is billing.')
+  })
+
   it('times the thinking to its last reasoning chunk, not to the end of the answer', async () => {
     let handlers!: import('../adapter/types').StreamHandlers
     const done = deferred<StreamResult>()
@@ -519,8 +576,12 @@ describe('streamed parts', () => {
     })
     now.mockRestore()
 
-    const assistant = chat.currentConversation?.messages.find((m) => m.role === 'assistant')
-    expect(assistant?.reasoningDuration).toBe(3_000)
+    // The reply joins the conversation once its text has finished revealing.
+    await waitFor(() =>
+      expect(
+        chat.currentConversation?.messages.find((m) => m.role === 'assistant')?.reasoningDuration,
+      ).toBe(3_000),
+    )
   })
 
   it('replays the tool calls of a turn and results to the model on the next send', async () => {
@@ -674,6 +735,81 @@ describe('streamed parts', () => {
       args: '{"cores":8}',
       decision: { status: 'approved', edited: true },
     })
+  })
+
+  it('asks again, beside the error, when the answer is refused before anything streams', async () => {
+    let refuse = true
+    const streamCompletion = vi.fn<ChatAdapter['streamCompletion']>(async (req, handlers) => {
+      if (!req.resume) {
+        handlers.onPart?.({ type: 'tool_start', id: 't1', name: 'stop_cluster', args: '{}' })
+        handlers.onPart?.({
+          type: 'approval_request',
+          approval: { kind: 'approval', id: 't1', approvalKind: 'confirm', subject: 'call' },
+        })
+        return { ...emptyStreamResult(), messageId: 'paused' }
+      }
+      if (refuse) {
+        throw new Error('This call was already answered.')
+      }
+      handlers.onPart?.({ type: 'tool_end', id: 't1', result: 'stopping' })
+      return { ...emptyStreamResult(), messageId: 'resumed' }
+    })
+    await renderProvider(makeAdapter({ streamCompletion }))
+    await act(async () => {
+      await chat.sendMessage('stop gpu-a')
+    })
+    const paused = () => chat.currentConversation?.messages.find((m) => m.id === 'paused')
+    const asked = paused()?.parts
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    await act(async () => {
+      await chat.answerToolApproval('t1', {
+        kind: 'confirm',
+        allowed: true,
+        instead: 'destroy_cluster',
+        args: '{"force":true}',
+      })
+    })
+    expect(paused()?.parts).toEqual(asked)
+    expect(paused()?.error).toBe('This call was already answered.')
+
+    refuse = false
+    await act(async () => {
+      await chat.answerToolApproval('t1', { kind: 'confirm', allowed: true })
+    })
+    expect(paused()?.error).toBeNull()
+    expect(paused()?.parts?.[0]).toMatchObject({
+      name: 'stop_cluster',
+      status: 'ok',
+      decision: { status: 'approved' },
+    })
+  })
+
+  it('keeps the answer once the reply has started, even if it then fails', async () => {
+    const streamCompletion = vi.fn<ChatAdapter['streamCompletion']>(async (req, handlers) => {
+      if (!req.resume) {
+        handlers.onPart?.({ type: 'tool_start', id: 't1', name: 'stop_cluster', args: '{}' })
+        handlers.onPart?.({
+          type: 'approval_request',
+          approval: { kind: 'approval', id: 't1', approvalKind: 'confirm', subject: 'call' },
+        })
+        return { ...emptyStreamResult(), messageId: 'paused' }
+      }
+      handlers.onMessageId?.('resumed')
+      throw new Error('The connection dropped.')
+    })
+    await renderProvider(makeAdapter({ streamCompletion }))
+    await act(async () => {
+      await chat.sendMessage('stop gpu-a')
+    })
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    await act(async () => {
+      await chat.answerToolApproval('t1', { kind: 'confirm', allowed: true })
+    })
+
+    const paused = chat.currentConversation?.messages.find((m) => m.id === 'paused')
+    expect(paused?.parts?.[0]).toMatchObject({ decision: { status: 'approved' } })
+    expect(paused?.parts?.[1]).toMatchObject({ kind: 'approval', resolved: true })
   })
 
   it('sends no arguments when the reader left the suggestion as it was', async () => {

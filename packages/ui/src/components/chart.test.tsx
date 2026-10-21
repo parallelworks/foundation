@@ -1,11 +1,16 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
-import { categoryOf } from './category'
 import {
   ChartLegendList,
+  ChartReadout,
+  ChartTooltipBeside,
   ChartTooltipContent,
-  seriesColor,
+  ChartTooltipFrame,
+  chartTooltipPlacement,
+  foldSeries,
+  OTHER_SERIES_COLOR,
+  OTHER_SERIES_KEY,
   seriesColors,
   seriesOpacity,
   seriesSlotColor,
@@ -13,18 +18,39 @@ import {
 import { UIProvider } from './Provider'
 
 describe('series colors', () => {
-  it('gives a key its category slot, built on the theme’s category colors', () => {
-    expect(seriesColor('compute')).toBe(seriesSlotColor(categoryOf('compute')))
-    expect(seriesSlotColor(3)).toContain('var(--theme-category-3)')
-    expect(seriesSlotColor(9)).toContain('var(--theme-category-1)')
+  it('colors series by position, from the theme’s category colors in a checked order', () => {
+    expect(seriesSlotColor(1)).toContain('var(--theme-category-5)')
+    expect(seriesSlotColor(2)).toContain('var(--theme-category-2)')
+    expect(seriesSlotColor(8)).toContain('var(--theme-category-1)')
+    const colors = seriesColors(['Storage', 'Compute', 'Storage', 'GPU'])
+    expect(colors).toEqual({
+      Storage: seriesSlotColor(1),
+      Compute: seriesSlotColor(2),
+      GPU: seriesSlotColor(3),
+    })
   })
 
-  it('never shares a color among eight series', () => {
+  it('never shares a color among eight series, and never makes up a ninth', () => {
     const keys = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
-    const colors = seriesColors(keys)
-    expect(new Set(Object.values(colors)).size).toBe(8)
-    // A key keeps its own slot when nothing took it first.
-    expect(seriesColors(['compute'])['compute']).toBe(seriesColor('compute'))
+    expect(new Set(Object.values(seriesColors(keys))).size).toBe(8)
+    expect(seriesSlotColor(9)).toBe(OTHER_SERIES_COLOR)
+    expect(seriesColors([...keys, 'i'])['i']).toBe(OTHER_SERIES_COLOR)
+  })
+
+  it('leaves a series its color when a filter hides another, given every key', () => {
+    const all = ['Compute', 'Storage', 'Network']
+    const colors = seriesColors(all)
+    const shown = all.filter((k) => k !== 'Compute')
+    expect(shown.map((k) => colors[k])).toEqual([seriesSlotColor(2), seriesSlotColor(3)])
+  })
+
+  it('folds series past the eighth into Other', () => {
+    const eight = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+    expect(foldSeries(eight)).toEqual({ keys: eight, folded: [] })
+    const { keys, folded } = foldSeries([...eight, 'i'])
+    expect(keys).toEqual(['a', 'b', 'c', 'd', 'e', 'f', 'g', OTHER_SERIES_KEY])
+    expect(folded).toEqual(['h', 'i'])
+    expect(seriesColors(keys)[OTHER_SERIES_KEY]).toBe(OTHER_SERIES_COLOR)
   })
 
   it('fades every series but the one in focus', () => {
@@ -82,5 +108,136 @@ describe('ChartTooltipContent locale', () => {
       </UIProvider>,
     )
     expect(screen.getByText('1.234,5')).toBeInTheDocument()
+  })
+})
+
+describe('chartTooltipPlacement', () => {
+  const bounds = { start: 0, end: 400, gap: 12 }
+
+  it('goes beside the crosshair on the side with more room, flipping at the middle', () => {
+    expect(chartTooltipPlacement({ ...bounds, x: 100, width: 160 })).toEqual({
+      left: 112,
+      top: 0,
+      side: 'right',
+      maxWidth: null,
+    })
+    const p = chartTooltipPlacement({ ...bounds, x: 300, width: 160 })
+    expect(p).toEqual({ left: 128, top: 0, side: 'left', maxWidth: null })
+    expect(p.left + 160).toBeLessThan(300)
+  })
+
+  it('takes the side it prefers when both have the same room', () => {
+    expect(chartTooltipPlacement({ ...bounds, x: 200, width: 160 }).side).toBe('right')
+    expect(chartTooltipPlacement({ ...bounds, x: 200, width: 160, prefer: 'left' }).side).toBe(
+      'left',
+    )
+  })
+
+  it('holds itself narrower when its side is a little short, never across the crosshair', () => {
+    const p = chartTooltipPlacement({ start: 0, end: 300, x: 140, width: 180 })
+    expect(p).toEqual({ left: 152, top: 0, side: 'right', maxWidth: 148 })
+  })
+
+  it('goes above the plot, inside the box, when neither side has room for it', () => {
+    // A phone: a 300px chart with the crosshair near the middle and a wide tooltip.
+    const p = chartTooltipPlacement({
+      start: 0,
+      end: 300,
+      x: 150,
+      width: 200,
+      height: 90,
+      top: 0,
+      minWidth: 140,
+    })
+    expect(p).toEqual({ left: 50, top: -102, side: 'above', maxWidth: null })
+    // Near an edge it stays inside the box.
+    const q = chartTooltipPlacement({ start: 0, end: 300, x: 20, width: 290, minWidth: 280 })
+    expect(q.left).toBe(0)
+  })
+})
+
+describe('ChartTooltipBeside', () => {
+  it('shows nothing without a crosshair', () => {
+    const { container } = render(<ChartTooltipBeside x={null}>tip</ChartTooltipBeside>)
+    expect(container).toBeEmptyDOMElement()
+  })
+
+  it('places its tooltip beside the crosshair, out of the pointer’s way', () => {
+    render(
+      <ChartTooltipBeside x={40}>
+        <span>tip</span>
+      </ChartTooltipBeside>,
+    )
+    const tip = screen.getByText('tip').parentElement as HTMLElement
+    expect(tip.style.left).toBe('52px')
+    expect(tip).toHaveClass('pointer-events-none')
+  })
+})
+
+describe('ChartTooltipContent surface', () => {
+  it('stands on the opaque popover surface, so marks never show through it', () => {
+    const { container } = render(<ChartTooltipContent items={[]} />)
+    expect(container.firstElementChild).toHaveClass(
+      'bg-(--theme-app-bg)',
+      'shadow-(--theme-shadow-lg)',
+    )
+  })
+})
+
+describe('ChartReadout and ChartTooltipFrame', () => {
+  const at = (label: string, a: number, b: number) => ({
+    label,
+    items: [
+      { key: 'a', name: 'Compute', value: a, color: 'red' },
+      { key: 'b', name: 'Storage', value: b, color: 'blue' },
+    ],
+  })
+
+  it('keeps every series in its place, zero or not, with the total beside the label', () => {
+    render(<ChartReadout {...at('Oct 9', 0, 5)} />)
+    expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual([
+      'Compute0',
+      'Storage5',
+    ])
+    expect(screen.getByText('Total').parentElement).toHaveTextContent('Total 5')
+  })
+
+  it('reads the rest point while none is hovered, and the hovered one while one is', () => {
+    const { rerender, container } = render(
+      <ChartTooltipFrame x={null} reading={null} rest={at('Oct 12', 1, 2)}>
+        <svg />
+      </ChartTooltipFrame>,
+    )
+    const readout = () => container.querySelector('[data-chart-readout]')
+    expect(readout()).toHaveTextContent('Oct 12')
+    rerender(
+      <ChartTooltipFrame x={40} reading={at('Oct 9', 3, 4)} rest={at('Oct 12', 1, 2)}>
+        <svg />
+      </ChartTooltipFrame>,
+    )
+    expect(readout()).toHaveTextContent('Oct 9')
+    // The floating tooltip is there for a wide chart; the container query picks one.
+    expect(readout()).toHaveClass('@min-[28rem]/chart:hidden')
+    expect(container.querySelector('.pointer-events-none')).toHaveClass(
+      'hidden',
+      '@min-[28rem]/chart:block',
+    )
+  })
+})
+
+describe('ChartReadout columns', () => {
+  it('sizes its columns to their names and values, not to halves of the readout', () => {
+    const { container } = render(
+      <ChartReadout
+        items={[
+          { key: 'a', name: 'p50 latency', value: 130, color: 'red' },
+          { key: 'b', name: 'p95 latency', value: 260, color: 'blue' },
+        ]}
+      />,
+    )
+    const list = container.querySelector('ul') as HTMLElement
+    expect(list.style.gridTemplateColumns).toContain('max-content')
+    expect(list).toHaveClass('justify-start')
+    expect(screen.getByText('p50 latency').closest('li')).toHaveClass('contents')
   })
 })

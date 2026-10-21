@@ -463,13 +463,14 @@ describe('rollup folding', () => {
     expect(screen.getAllByText('out').length).toBeGreaterThan(0)
   })
 
-  it('never folds failed or running members', () => {
+  it('never rolls up failed or running members', () => {
     const items = buildRenderItems([
       tc('t1', 'ReadFile'),
       tc('t2', 'ReadFile', 'error'),
       tc('t3', 'ReadFile'),
     ])
-    expect(items.map((i) => i.kind)).toEqual(['single', 'single', 'single'])
+    // Not a rollup: one tool's calls in a row, a failure among them, share a call group.
+    expect(items.map((i) => i.kind)).toEqual(['calls'])
     const running = buildRenderItems([tc('t1', 'ReadFile'), tc('t2', 'ReadFile', 'running')])
     expect(running.map((i) => i.kind)).toEqual(['single', 'single'])
   })
@@ -717,5 +718,160 @@ describe('status in words', () => {
     expect(hidden).toEqual(
       expect.arrayContaining(['Running…', 'Failed', 'Done', 'In progress', 'To do']),
     )
+  })
+})
+
+describe('call groups', () => {
+  const cost = (id: string, status: 'ok' | 'error', result: string): ToolCallPart => ({
+    kind: 'tool_call',
+    id,
+    name: 'cost_summary',
+    args: JSON.stringify({ allocation: id }),
+    status,
+    result,
+  })
+
+  it('folds one tool’s finished calls in a row, failures and host-drawn ones too', () => {
+    const items = buildRenderItems(
+      [cost('a', 'error', 'boom'), cost('b', 'ok', '{}'), tc('t1', 'Bash')],
+      (name) => name === 'cost_summary',
+    )
+    expect(items.map((i) => i.kind)).toEqual(['calls', 'single'])
+  })
+
+  it('never folds a running call, a waiting one, or one with a decision', () => {
+    const waiting: ToolCallPart = { ...cost('w', 'ok', ''), status: 'waiting' }
+    const decided: ToolCallPart = {
+      ...cost('d', 'ok', '{}'),
+      decision: { status: 'approved', by: 'user', name: 'Ada' },
+    }
+    const running: ToolCallPart = { ...cost('r', 'ok', ''), status: 'running' }
+    for (const other of [waiting, decided, running]) {
+      expect(buildRenderItems([cost('a', 'ok', '{}'), other]).map((i) => i.kind)).not.toContain(
+        'calls',
+      )
+    }
+  })
+
+  it('counts calls and failures, shows what the host drew, and opens to each call', () => {
+    renderParts(
+      [cost('a', 'error', 'StartDate is required'), cost('b', 'ok', 'drawn'), cost('c', 'ok', '')],
+      {},
+      {
+        slots: {
+          toolRenderers: {
+            cost_summary: ({ part }) =>
+              part.result ? <div data-testid="cost-table">{part.result}</div> : null,
+          },
+        },
+      },
+    )
+    expect(screen.getByText(/Ran cost_summary 3 times/)).toBeInTheDocument()
+    expect(screen.getByText(/1 failed/)).toBeInTheDocument()
+    expect(screen.getByTestId('tool-call-group')).toHaveTextContent('drawn')
+    fireEvent.click(screen.getByRole('button', { name: /Ran cost_summary 3 times/ }))
+    expect(screen.getAllByTestId('tool-call-part')).toHaveLength(3)
+    expect(screen.getByText('Failed: StartDate is required')).toBeVisible()
+  })
+})
+
+describe('failed calls', () => {
+  it('say so in words with the error, beside a host drawing too', () => {
+    renderParts(
+      [
+        {
+          kind: 'tool_call',
+          id: 'x',
+          name: 'cost_summary',
+          args: '{}',
+          status: 'error',
+          result: 'StartDate is required\nmore',
+        },
+      ],
+      {},
+      { slots: { toolRenderers: { cost_summary: () => null } } },
+    )
+    expect(screen.getByText(/^Failed: StartDate is required/)).toBeVisible()
+  })
+})
+
+describe('host tool presentation', () => {
+  const call = (
+    id: string,
+    allocation: string,
+    status: ToolCallPart['status'] = 'ok',
+  ): ToolCallPart => ({
+    kind: 'tool_call',
+    id,
+    name: 'cost_summary',
+    args: JSON.stringify({ allocation }),
+    status,
+    result: status === 'ok' ? 'drawn' : '',
+  })
+  const slots = (open = false) => ({
+    toolRenderers: {
+      cost_summary: ({ part }: { part: ToolCallPart }) => (
+        <div data-testid="cost-table">{part.result}</div>
+      ),
+    },
+    toolPresentation: (part: ToolCallPart) =>
+      part.name === 'cost_summary'
+        ? {
+            label: `Checked costs for ${JSON.parse(part.args).allocation}`,
+            summary: '3 resources, $67.50',
+            group: (n: number) => `Checked costs for ${n} allocations`,
+            rollup: (n: number) => `checked costs for ${n} allocations`,
+            open,
+          }
+        : undefined,
+  })
+
+  it('names the call in words, with its arguments and drawing behind the row', () => {
+    renderParts([call('a', 'misc-dev')], {}, { slots: slots() })
+    expect(screen.getByText('Checked costs for misc-dev')).toBeInTheDocument()
+    expect(screen.getByText('3 resources, $67.50')).toBeInTheDocument()
+    expect(screen.queryByTestId('cost-table')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Checked costs for misc-dev/ }))
+    expect(screen.getByTestId('cost-table')).toBeVisible()
+    expect(screen.getByText(/"allocation": "misc-dev"|misc-dev/, { selector: 'pre' })).toBeVisible()
+  })
+
+  it('keeps the drawing open when the host asks', () => {
+    renderParts([call('a', 'misc-dev')], {}, { slots: slots(true) })
+    expect(screen.getByTestId('cost-table')).toBeVisible()
+  })
+
+  it('always shows what a call waiting on an answer asks', () => {
+    renderParts([call('a', 'misc-dev', 'waiting')], {}, { slots: slots() })
+    expect(screen.getByTestId('cost-table')).toBeVisible()
+  })
+
+  it("folds a run of the tool's calls under the host's words", () => {
+    renderParts(
+      [call('a', 'misc-dev'), call('b', 'grey'), call('c', 'aws')],
+      {},
+      { slots: slots() },
+    )
+    expect(screen.getByText('Checked costs for 3 allocations')).toBeInTheDocument()
+    expect(screen.queryAllByTestId('cost-table')).toHaveLength(0)
+  })
+
+  it('joins a rollup with other tools in its own clause', () => {
+    const read: ToolCallPart = {
+      kind: 'tool_call',
+      id: 'r',
+      name: 'ReadFile',
+      args: '{"path":"a.go"}',
+      status: 'ok',
+      result: 'x',
+    }
+    const items = buildRenderItems(
+      [call('a', 'misc-dev'), read],
+      (name) => name === 'cost_summary',
+      () => true,
+    )
+    expect(items.map((i) => i.kind)).toEqual(['rollup'])
+    renderParts([call('a', 'misc-dev'), read], {}, { slots: slots() })
+    expect(screen.getByText('Checked costs for 1 allocations, read 1 file')).toBeInTheDocument()
   })
 })
