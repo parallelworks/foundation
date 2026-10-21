@@ -186,26 +186,6 @@ export function ListCellText({
   )
 }
 
-export function GroupRow({
-  label,
-  count,
-  colSpan,
-}: {
-  label: string
-  count: number
-  colSpan: number
-}) {
-  return (
-    <tr>
-      <td colSpan={colSpan} className="bg-(--theme-muted-panel-bg) py-1.5 text-xs font-medium">
-        <span className="text-(--theme-app)">{label}</span>
-        <span className="mx-1.5 opacity-50">·</span>
-        <span className="text-(--theme-muted-text-color)">{count}</span>
-      </td>
-    </tr>
-  )
-}
-
 /** Says a list couldn't load. It never shows the error's own text, which is
  *  the server's words, in its language and not written for the reader. */
 export function ListError({

@@ -391,6 +391,95 @@ export function ListRow({
   )
 }
 
+/**
+ * A group's header row in a list: its label, such as a status or a cluster,
+ * and, against the row's far end, what sums it up, such as "2/3 running".
+ *
+ * Inside a `ListPage` with a view, it has one cell per column, each hiding
+ * with its column as the list narrows, so a group never holds a hidden
+ * column's width open; its content lays out across the row's visible width
+ * from the first cell. Elsewhere it is one cell spanning `colSpan` columns.
+ */
+export function GroupRow({
+  label,
+  count,
+  trailing,
+  children,
+  leading = 0,
+  colSpan,
+  className,
+}: {
+  /** The group's name: text, or an icon, a name with its tooltip, badges. */
+  label?: ReactNode
+  /** How many rows the group holds, shown after the label. */
+  count?: number | undefined
+  /** Set against the row's far end, such as "2/3 running". */
+  trailing?: ReactNode
+  /** The whole header, laid out in a row, in place of `label`, `count` and `trailing`. */
+  children?: ReactNode
+  /** Cells the list's rows have before its columns, such as a selection checkbox. */
+  leading?: number | undefined
+  /** Outside a list view, the columns the row spans. */
+  colSpan?: number | undefined
+  className?: string | undefined
+}) {
+  const { show: showActions, columnClasses } = useContext(RowActionsContext)
+  const content = children ?? (
+    <>
+      <span className="flex min-w-0 items-center gap-2 text-(--theme-app)">{label}</span>
+      {count !== undefined && (
+        <span className="shrink-0 text-(--theme-muted-text-color)">
+          <span className="mx-1.5 opacity-50" aria-hidden="true">
+            ·
+          </span>
+          {count}
+        </span>
+      )}
+      {trailing !== undefined && trailing !== null && trailing !== false && (
+        <span className="ml-auto flex shrink-0 items-center gap-2 pl-3 text-(--theme-muted-text-color) tabular-nums">
+          {trailing}
+        </span>
+      )}
+    </>
+  )
+  // A fixed height, so a header with badges is as tall as one without.
+  const line = 'flex h-8 min-w-0 items-center text-xs font-medium whitespace-nowrap'
+  const row = cx('bg-(--theme-muted-panel-bg)', className)
+  if (columnClasses.length === 0) {
+    return (
+      <tr className={row}>
+        <td colSpan={colSpan}>
+          <div className={line}>{content}</div>
+        </td>
+      </tr>
+    )
+  }
+  const cells = leading + columnClasses.length + (showActions ? 1 : 0)
+  return (
+    <tr className={row} data-group-row>
+      {Array.from({ length: cells }, (_, i) => {
+        const column = i - leading
+        const cls = column >= 0 && column < columnClasses.length ? columnClasses[column] : undefined
+        return (
+          // biome-ignore lint/suspicious/noArrayIndexKey: one cell per column, in column order
+          <td key={i} className={cx('p-0', cls)}>
+            {i === 0 && (
+              // No width of its own, so the cell sizes as an empty one would;
+              // the content runs on across the empty cells to the list's far
+              // edge, less the list's 16px gutters (`listTableProps`).
+              <div className="w-0">
+                <div className={line} style={{ width: 'calc(100cqw - 2rem)' }}>
+                  {content}
+                </div>
+              </div>
+            )}
+          </td>
+        )
+      })}
+    </tr>
+  )
+}
+
 function PinnedActionButton({ action, visible }: { action: RowAction; visible: boolean }) {
   warnIfInert(action, 'ListPage pinned action')
   const runAction = useRunAction()
