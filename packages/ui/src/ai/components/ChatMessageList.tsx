@@ -404,7 +404,7 @@ export default function ChatMessageList({
         {/* Thinking / "Thought for" section — visible during and after thinking */}
         {isStreaming && streamingReasoning && (
           <div key="thinking" className="animate-chat-enter">
-            <div className={cx('pt-3', !flush && 'px-4')}>
+            <div className={cx('pt-3', !flush && 'sm:px-4')}>
               <Reasoning
                 label={
                   <ThinkingLabel
@@ -439,14 +439,14 @@ export default function ChatMessageList({
               thinking header and the answer — mirrors the stored-message
               layout where parts precede content. */}
         {isStreaming && streamingParts.length > 0 && (
-          <div key="streaming-parts" className={cx('animate-chat-enter py-1', !flush && 'px-4')}>
+          <div key="streaming-parts" className={cx('animate-chat-enter py-1', !flush && 'sm:px-4')}>
             <AgentMessageParts message={streamingPartsMessage} isStreaming={isStreaming} />
           </div>
         )}
         {/* Working indicator — until the answer starts streaming */}
         {showWorkingIndicator && (
           <div key="waiting" className="animate-chat-enter">
-            <div className={cx('py-3', !flush && 'px-4')}>
+            <div className={cx('py-3', !flush && 'sm:px-4')}>
               <div className="animate-shimmer text-shimmer text-sm">{tThinking.ellipsis}</div>
             </div>
           </div>
@@ -488,7 +488,7 @@ export default function ChatMessageList({
                 data-testid="queued-status"
                 className={cx(
                   '-mt-4 mb-2 flex items-center justify-end gap-2 text-xs theme-muted-text',
-                  !flush && 'px-4',
+                  !flush && 'sm:px-4',
                 )}
               >
                 {removable ? <ClockIcon className="h-3 w-3" /> : <CheckIcon className="h-3 w-3" />}
