@@ -104,27 +104,39 @@ export const LoaderInAShell: StoryObj<{ fill: 'content' | 'window' }> = {
   },
 }
 
-/** In a page header or a toolbar: `iconOnly="phone"` shows "Refresh" beside the icon on a wider
- *  screen and only the icon on a phone, where the toolbar has no room, still named "Refresh". */
+/** In a page's toolbar: `iconOnly="phone"` shows when the data was updated beside the icon on a
+ *  wider screen, and only the icon on a phone, where the toolbar has no room, still named
+ *  "Refresh". Below it, each look on its own. */
 export const RefreshIconOnlyOnAPhone: StoryObj = {
   name: 'Refresh, icon only on a phone',
+  parameters: { layout: 'padded' },
   render: () => (
-    <div className="flex items-center justify-between gap-2 border-b border-(--theme-border) px-4 py-2 text-sm">
-      <span className="font-semibold">AI usage</span>
-      <div className="flex items-center gap-1">
-        <RefreshButton iconOnly="phone" onRefresh={() => {}} />
-        <RefreshButton
-          iconOnly="phone"
-          onRefresh={() => {}}
-          updatedAt={Date.now() - 2 * 60_000}
-          variant="outline"
-        />
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between gap-2 rounded-md border border-(--theme-border) px-4 py-2 text-sm">
+        <span className="font-semibold">AI usage</span>
+        <RefreshButton iconOnly="phone" onRefresh={() => {}} updatedAt={Date.now() - 2 * 60_000} />
+      </div>
+      {/* Sizes are inline: the package's stylesheet doesn't scan stories. */}
+      <div className="flex flex-col gap-2 text-xs">
+        <div className="flex items-center gap-4">
+          <span className="theme-muted-text" style={{ width: 56 }}>
+            Ghost
+          </span>
+          <RefreshButton iconOnly="phone" onRefresh={() => {}} />
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="theme-muted-text" style={{ width: 56 }}>
+            Outline
+          </span>
+          <RefreshButton iconOnly="phone" variant="outline" onRefresh={() => {}} />
+        </div>
       </div>
     </div>
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('button', { name: 'Refresh' })).toBeVisible()
+    await expect(canvas.getByRole('button', { name: /^Refresh\.\s?Updated/ })).toBeVisible()
+    await expect(canvas.getAllByRole('button', { name: 'Refresh' })).toHaveLength(2)
   },
 }
 
