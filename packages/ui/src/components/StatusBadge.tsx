@@ -3,7 +3,7 @@ import { useRender } from '@base-ui/react/use-render'
 import type { ComponentPropsWithRef, ReactElement, ReactNode } from 'react'
 import { cx } from '../cx'
 import { useStrings } from './Provider'
-import { type Tone, toneFill, toneSurface, toneText } from './tone'
+import { type Tone, toneSurface, toneText } from './tone'
 
 /** A badge's tone: a status, or the theme's accent for something set apart that
  *  isn't a status, such as "New". */
@@ -52,20 +52,25 @@ const emphasisClasses: Record<BadgeEmphasis, Record<BadgeVariant, string>> = {
 }
 
 // A dot is a graphic, so it takes the vivid shade; the accent's is its own color.
-const dotFill: Record<BadgeVariant, string> = { ...toneFill, accent: 'bg-(--theme-accent)' }
-
-// A soft halo of the dot's own tone around it, so a small dot reads as a lit status rather
-// than a speck. It is a ring, drawn outside the dot without taking room, so a badge keeps
-// its height.
-const dotHalo: Record<BadgeVariant, string> = {
-  default: 'ring-2 ring-(--theme-app)/22',
-  success: 'ring-2 ring-(--theme-success)/22',
-  warning: 'ring-2 ring-(--theme-warning)/22',
-  error: 'ring-2 ring-(--theme-error)/22',
-  info: 'ring-2 ring-(--theme-info)/22',
-  muted: 'ring-2 ring-(--theme-muted-text-color)/22',
-  accent: 'ring-2 ring-(--theme-accent)/22',
+const lampTone: Record<BadgeVariant, string> = {
+  default: 'var(--theme-app)',
+  success: 'var(--theme-success)',
+  warning: 'var(--theme-warning)',
+  error: 'var(--theme-error)',
+  info: 'var(--theme-info)',
+  muted: 'var(--theme-muted-text-color)',
+  accent: 'var(--theme-accent)',
 }
+
+// A lit lamp: the tone lifted brighter at the top down to the vivid tone, and a soft shadow
+// that sets it slightly raised. On a light page its edge is the vivid tone, which holds 3:1
+// where the bright top alone would not. On a dark page a black shadow vanishes, so there it
+// glows faintly in its own tone instead, and the bright top holds 3:1 on its own.
+const LAMP =
+  'bg-[linear-gradient(to_bottom,oklch(from_var(--lamp)_calc(l_+_0.16)_calc(c_*_1.15)_h),var(--lamp)_85%)] shadow-[inset_0_0_0_1px_light-dark(var(--lamp),transparent),0_0_3px_light-dark(rgb(0_0_0/0.45),color-mix(in_oklch,var(--lamp)_70%,transparent))]'
+
+// An unlit lamp: a hollow ring in the strong border color, which holds 3:1 in both modes.
+const LAMP_OFF = 'shadow-[inset_0_0_0_1.5px_var(--theme-border-strong)]'
 
 const sizeClasses = {
   sm: 'gap-1 py-px text-[10px] leading-3.5',
@@ -155,7 +160,7 @@ export function StatusBadge({
             <StatusDot
               variant={variant}
               pulse={pulse}
-              size={pulse ? 8 : 6}
+              size={7}
               current={emphasis === 'solid'}
               className="shrink-0"
             />
@@ -239,46 +244,50 @@ export interface StatusDotProps
   extends Omit<ComponentPropsWithRef<'span'>, 'children' | 'className'> {
   /** The status's tone. */
   variant?: BadgeVariant | undefined
-  /** A ping that ripples out from the dot, for something under way; still for reduced motion. */
+  /** A ping that ripples out from the lamp, for something under way; still for reduced motion. */
   pulse?: boolean | undefined
-  /** The dot's width and height in pixels, without its halo; 8 by default. */
+  /** Unlit: a hollow ring, for a status that is off or not known. */
+  off?: boolean | undefined
+  /** The lamp's width and height in pixels; 10 by default, as beside a status's words. A
+   *  badge's is 7, so it keeps the badge's height. */
   size?: number | undefined
-  /** Takes the text's color with no halo, for a dot on a solid fill, where the tone would
-   *  vanish into it. */
+  /** A flat dot in the text's color, for one on a solid fill, where the tone would vanish. */
   current?: boolean | undefined
   className?: string | undefined
 }
 
-/** A status's dot in its tone with a soft halo, for a status that stands beside its words
- *  without a badge, such as "running" in a list's cell. A badge's own dot is this one. Name
- *  the status in words beside it; the dot alone is only seen. */
+/** A status's lamp, lit in its tone, for a status that stands beside its words without a badge,
+ *  such as "running" in a list's cell. A badge's own dot is a smaller one. Name the status in
+ *  words beside it; the lamp alone is only seen. */
 export function StatusDot({
   variant = 'default',
   pulse = false,
-  size = 8,
+  off = false,
+  size = 10,
   current = false,
   className,
   style,
   ...rest
 }: StatusDotProps) {
-  const fill = current ? 'bg-current' : dotFill[variant]
+  const look = current ? 'bg-current' : off ? LAMP_OFF : LAMP
   return (
     <span
       aria-hidden="true"
       {...rest}
       className={cx('relative inline-flex', className)}
-      style={{ ...style, width: size, height: size }}
+      style={{ ...style, width: size, height: size, ['--lamp' as string]: lampTone[variant] }}
     >
-      {pulse && (
+      {pulse && !off && (
         <span
           className={cx(
             'absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 motion-reduce:hidden',
-            fill,
+            current ? 'bg-current' : 'bg-(--lamp)',
           )}
         />
       )}
       <span
-        className={cx('relative inline-flex rounded-full', fill, !current && dotHalo[variant])}
+        data-lamp={current ? 'flat' : off ? 'off' : 'lit'}
+        className={cx('relative inline-flex rounded-full', look)}
         style={{ width: size, height: size }}
       />
     </span>
