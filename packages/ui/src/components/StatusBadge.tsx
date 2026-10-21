@@ -51,23 +51,9 @@ const emphasisClasses: Record<BadgeEmphasis, Record<BadgeVariant, string>> = {
   outline: outlineClasses,
 }
 
-// A dot is a graphic, so it takes the vivid shade; the accent's is its own color.
-const lampTone: Record<BadgeVariant, string> = {
-  default: 'var(--theme-app)',
-  success: 'var(--theme-success)',
-  warning: 'var(--theme-warning)',
-  error: 'var(--theme-error)',
-  info: 'var(--theme-info)',
-  muted: 'var(--theme-muted-text-color)',
-  accent: 'var(--theme-accent)',
-}
-
-// A lit lamp: the tone lifted brighter at the top down to the vivid tone, and a soft shadow
-// that sets it slightly raised. On a light page its edge is the vivid tone, which holds 3:1
-// where the bright top alone would not. On a dark page a black shadow vanishes, so there it
-// glows faintly in its own tone instead, and the bright top holds 3:1 on its own.
-const LAMP =
-  'bg-[linear-gradient(to_bottom,oklch(from_var(--lamp)_calc(l_+_0.16)_calc(c_*_1.15)_h),var(--lamp)_85%)] shadow-[inset_0_0_0_1px_light-dark(var(--lamp),transparent),0_0_3px_light-dark(rgb(0_0_0/0.45),color-mix(in_oklch,var(--lamp)_70%,transparent))]'
+// A lit lamp, as status lights have always looked: its tone's own light from a vivid top to a
+// pale bottom, from the `--lamp-*` tokens, and a soft shadow that sets it slightly raised.
+const LAMP = 'bg-[linear-gradient(var(--lamp-from),var(--lamp-to))] shadow-[0_0_3px_rgb(0_0_0/0.5)]'
 
 // An unlit lamp: a hollow ring in the strong border color, which holds 3:1 in both modes.
 const LAMP_OFF = 'shadow-[inset_0_0_0_1.5px_var(--theme-border-strong)]'
@@ -275,13 +261,19 @@ export function StatusDot({
       aria-hidden="true"
       {...rest}
       className={cx('relative inline-flex', className)}
-      style={{ ...style, width: size, height: size, ['--lamp' as string]: lampTone[variant] }}
+      style={{
+        ...style,
+        width: size,
+        height: size,
+        ['--lamp-from' as string]: `var(--lamp-${variant}-from)`,
+        ['--lamp-to' as string]: `var(--lamp-${variant}-to)`,
+      }}
     >
       {pulse && !off && (
         <span
           className={cx(
             'absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 motion-reduce:hidden',
-            current ? 'bg-current' : 'bg-(--lamp)',
+            current ? 'bg-current' : 'bg-(--lamp-from)',
           )}
         />
       )}

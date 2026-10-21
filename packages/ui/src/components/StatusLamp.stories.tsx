@@ -32,7 +32,7 @@ interface Row {
 
 const ROWS: Row[] = [
   { name: 'genomics', status: 'on', variant: 'success', legacy: 'green', state: 'rest' },
-  { name: 'climate-model', status: 'error', variant: 'error', legacy: 'red', state: 'hover' },
+  { name: 'climate-model', status: 'error', variant: 'error', legacy: 'red', state: 'rest' },
   {
     name: 'render-farm',
     status: 'starting',
@@ -122,7 +122,15 @@ function Panel({ look, children }: { look: Look; children?: ReactNode }) {
               }
               style={{ borderTop: '1px solid var(--theme-border)' }}
             >
-              <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>{row.name}</td>
+              <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
+                {row.name}
+                {row.state === 'selected' && (
+                  <span className="text-(--theme-muted-text-color)" style={{ fontSize: 11 }}>
+                    {' '}
+                    · selected
+                  </span>
+                )}
+              </td>
               <td style={{ padding: '8px 12px' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                   <Light look={look} row={row} size={10} />
@@ -176,10 +184,9 @@ function Panel({ look, children }: { look: Look; children?: ReactNode }) {
   )
 }
 
-/** The legacy status light, the halo dot it was first replaced with, and the lamp that keeps
- *  the legacy light's lit, slightly raised look in the theme's tones: in a list of clusters
- *  with a hovered and a selected row, and in badges, where the lamp is smaller so a badge keeps
- *  its height. */
+/** The legacy status light, the halo dot it was first replaced with, and the lamp, which is
+ *  the legacy light itself from the `--lamp-*` tokens: in a list of clusters with a selected
+ *  row, and in badges, where the lamp is smaller so a badge keeps its height. */
 export const Compare: StoryObj = {
   render: () => (
     <div style={{ padding: 16 }}>

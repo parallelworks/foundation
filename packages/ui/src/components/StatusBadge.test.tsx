@@ -84,7 +84,8 @@ describe('StatusDot', () => {
   it('is a lamp lit in its tone, 10px beside words', () => {
     const { container } = render(<StatusDot variant="success" />)
     const box = container.firstElementChild as HTMLElement
-    expect(box.style.getPropertyValue('--lamp')).toBe('var(--theme-success)')
+    expect(box.style.getPropertyValue('--lamp-from')).toBe('var(--lamp-success-from)')
+    expect(box.style.getPropertyValue('--lamp-to')).toBe('var(--lamp-success-to)')
     expect(box.style.width).toBe('10px')
     expect(box).toHaveAttribute('aria-hidden', 'true')
     expect(container.querySelector('[data-lamp]')).toHaveAttribute('data-lamp', 'lit')
@@ -116,6 +117,6 @@ describe('StatusDot', () => {
 
   it('keeps its ping when it pulses', () => {
     const { container } = render(<StatusDot variant="info" pulse />)
-    expect(container.querySelector('.animate-ping')).toHaveClass('bg-(--lamp)')
+    expect(container.querySelector('.animate-ping')).toHaveClass('bg-(--lamp-from)')
   })
 })
