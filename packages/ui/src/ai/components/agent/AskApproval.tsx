@@ -11,9 +11,20 @@ import type { ApprovalPart, ApprovalQuestion, ApprovalQuestionAnswer } from '../
 /** What the reader has given one question so far. */
 interface Given {
   picked: string[]
-  /** Answering in their own words; a question without options always is. */
-  own: boolean
   text: string
+  /** A single-select question's typed answer came after its last pick, so it is the answer. */
+  own: boolean
+}
+
+const unanswered: Given = { picked: [], text: '', own: false }
+
+type QuestionKind = 'single' | 'multi' | 'text'
+
+function kindOf(question: ApprovalQuestion): QuestionKind {
+  if ((question.options ?? []).length === 0) {
+    return 'text'
+  }
+  return question.multiSelect ? 'multi' : 'single'
 }
 
 const optionRow =
@@ -29,7 +40,8 @@ function answerOf(question: ApprovalQuestion, given: Given | undefined): Approva
   const picked = (question.options ?? [])
     .map((o) => o.label)
     .filter((label) => given?.picked.includes(label))
-  const text = given?.own ? given.text.trim() : ''
+  // A multi-select question takes its typed text with its ticks; a single-select one, one or the other.
+  const text = given && (kindOf(question) !== 'single' || given.own) ? given.text.trim() : ''
   return { ...(picked.length > 0 ? { picked } : {}), ...(text ? { text } : {}) }
 }
 
@@ -93,9 +105,7 @@ function AskForm({
   const { strings } = useChatConfig()
   const { common } = useStrings()
   const t = strings.agentTranscript
-  const [given, setGiven] = useState<Given[]>(() =>
-    questions.map((q) => ({ picked: [], own: (q.options ?? []).length === 0, text: '' })),
-  )
+  const [given, setGiven] = useState<Given[]>(() => questions.map(() => unanswered))
   const [active, setActive] = useState(0)
   const body = useRef<HTMLDivElement>(null)
   const submit = useRef<HTMLButtonElement>(null)
@@ -136,8 +146,7 @@ function AskForm({
       <div className="text-sm">{q.question}</div>
       <AskQuestionFields
         question={q}
-        given={given[i] ?? { picked: [], own: false, text: '' }}
-        several={several}
+        given={given[i] ?? unanswered}
         onChange={(next) => setGiven(given.map((g, j) => (j === i ? next : g)))}
         onDone={(next) => done(i, next)}
       />
@@ -145,8 +154,9 @@ function AskForm({
   )
 
   const lone = questions[0]
-  // A lone single-select question sends with its pick, and a lone typed answer with its own Send.
-  const loneMulti = !several && !!lone?.multiSelect && (lone.options ?? []).length > 0
+  const loneKind = lone ? kindOf(lone) : 'text'
+  // A lone single-select question sends with a pick, so it needs Send only for a typed answer.
+  const sendShown = several || loneKind !== 'single' || hasAnswer(answers[0])
   return (
     <>
       {several ? (
@@ -177,11 +187,12 @@ function AskForm({
         </div>
       )}
       <div className="flex flex-wrap gap-2">
-        {(several || loneMulti) && (
+        {sendShown && (
           <button
             ref={submit}
             type="button"
             onClick={() => send(answers, false)}
+            disabled={!several && loneKind === 'text' && !hasAnswer(answers[0])}
             className={primaryButton}
           >
             {several ? t.submitAnswers : common.send}
@@ -203,99 +214,86 @@ function AskForm({
 function AskQuestionFields({
   question,
   given,
-  several,
   onChange,
   onDone,
 }: {
   question: ApprovalQuestion
   given: Given
-  several: boolean
   onChange: (next: Given) => void
   onDone: (next: Given) => void
 }) {
   const { strings } = useChatConfig()
-  const { common } = useStrings()
   const t = strings.agentTranscript
-  const options = question.options ?? []
-  const multi = !!question.multiSelect && options.length > 0
-  // Only a field the reader just opened takes focus, never one shown again with its question.
-  const opened = useRef(false)
-  const open = (next: Given) => {
-    opened.current = true
-    onChange(next)
-  }
+  const kind = kindOf(question)
+  const typed = given.text.trim() !== ''
   const submitOwn = (e: FormEvent) => {
     e.preventDefault()
     // A blank answer is one still being written.
-    if (given.text.trim()) {
+    if (typed) {
       onDone(given)
     }
   }
-  const ownField = (
-    <form className="flex gap-2" onSubmit={submitOwn}>
-      <input
-        ref={(field) => {
-          if (field && opened.current) {
-            opened.current = false
-            field.focus()
-          }
-        }}
-        value={given.text}
-        onChange={(e) => onChange({ ...given, text: e.target.value })}
-        aria-label={t.ownAnswerLabel}
-        placeholder={options.length > 0 ? t.ownAnswerLabel : t.typeYourAnswer}
-        className={cx(fieldBox({ size: 'sm' }), 'flex-1')}
-      />
-      {/* Several questions move on with Enter, under one Submit for them all. */}
-      {!several && !multi && (
-        <button type="submit" disabled={!given.text.trim()} className={primaryButton}>
-          {common.send}
-        </button>
-      )}
+  const type = (text: string) =>
+    // Typing on a single-select question makes the typed answer the one picked.
+    onChange(kind === 'single' ? { ...given, text, own: true, picked: [] } : { ...given, text })
+
+  if (kind === 'text') {
+    return (
+      <form onSubmit={submitOwn}>
+        <input
+          value={given.text}
+          onChange={(e) => type(e.target.value)}
+          aria-label={t.ownAnswerLabel}
+          placeholder={t.typeYourAnswer}
+          className={fieldBox({ size: 'sm' })}
+        />
+      </form>
+    )
+  }
+  const options = question.options ?? []
+  // The reader's own answer is typed into its row, which is chosen while it holds the answer.
+  const ownChosen = typed && (kind === 'multi' || given.own)
+  const ownRow = (
+    <form onSubmit={submitOwn}>
+      <label
+        className={cx(
+          optionRow,
+          'cursor-text focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-(--theme-focus)',
+          ownChosen ? 'border-(--theme-focus)' : 'theme-border',
+        )}
+      >
+        <ChoiceMark on={ownChosen} box={kind === 'multi'} />
+        <input
+          value={given.text}
+          onChange={(e) => type(e.target.value)}
+          aria-label={t.ownAnswerLabel}
+          placeholder={t.writeOwnAnswer}
+          className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-(--theme-placeholder)"
+        />
+      </label>
     </form>
   )
-
-  if (options.length === 0) {
-    return ownField
-  }
-  if (multi) {
+  if (kind === 'multi') {
     return (
       <div className="flex flex-col gap-1.5">
-        {options.map((o) => {
-          const ticked = given.picked.includes(o.label)
-          return (
-            <label key={o.label} className={cx(optionRow, 'cursor-pointer theme-border')}>
-              <Checkbox
-                checked={ticked}
-                onCheckedChange={(on) =>
-                  onChange({
-                    ...given,
-                    picked: on
-                      ? [...given.picked, o.label]
-                      : given.picked.filter((label) => label !== o.label),
-                  })
-                }
-                className="mt-px"
-              />
-              <OptionText label={o.label} description={o.description} />
-            </label>
-          )
-        })}
-        <label className={cx(optionRow, 'cursor-pointer theme-border')}>
-          <Checkbox
-            checked={given.own}
-            onCheckedChange={(on) => {
-              if (on) {
-                open({ ...given, own: true })
-              } else {
-                onChange({ ...given, own: false })
+        {options.map((o) => (
+          <label key={o.label} className={cx(optionRow, 'cursor-pointer theme-border')}>
+            <Checkbox
+              checked={given.picked.includes(o.label)}
+              onCheckedChange={(on) =>
+                onChange({
+                  ...given,
+                  picked: on
+                    ? [...given.picked, o.label]
+                    : given.picked.filter((label) => label !== o.label),
+                })
               }
-            }}
-            className="mt-px"
-          />
-          <span className="theme-muted-text">{t.writeOwnAnswer}</span>
-        </label>
-        {given.own && ownField}
+              className="mt-px"
+            />
+            <OptionText label={o.label} description={o.description} />
+          </label>
+        ))}
+        {ownRow}
       </div>
     )
   }
@@ -308,7 +306,7 @@ function AskQuestionFields({
           <button
             key={o.label}
             type="button"
-            aria-pressed={several ? picked : undefined}
+            aria-pressed={picked}
             onClick={() => onDone({ ...given, picked: [o.label], own: false })}
             className={cx(
               optionRow,
@@ -316,42 +314,35 @@ function AskQuestionFields({
               picked ? 'border-(--theme-focus)' : 'theme-border',
             )}
           >
-            <PickMark picked={picked} />
+            <ChoiceMark on={picked} box={false} />
             <OptionText label={o.label} description={o.description} />
           </button>
         )
       })}
-      <button
-        type="button"
-        aria-pressed={several ? given.own : undefined}
-        onClick={() => open({ ...given, picked: [], own: true })}
-        className={cx(
-          optionRow,
-          focusOutline,
-          given.own ? 'border-(--theme-focus)' : 'theme-border',
-        )}
-      >
-        <PickMark picked={given.own} />
-        <span className="theme-muted-text">{t.writeOwnAnswer}</span>
-      </button>
-      {given.own && ownField}
+      {ownRow}
     </div>
   )
 }
 
-/** A single-select row's mark, drawn as the package's radio is. */
-function PickMark({ picked }: { picked: boolean }) {
+/** A row's mark, drawn as the package's radio or checkbox is; the row itself is the control. */
+function ChoiceMark({ on, box }: { on: boolean; box: boolean }) {
   return (
     <span
       aria-hidden="true"
       className={cx(
-        'mt-px flex size-4 shrink-0 items-center justify-center rounded-full border',
-        picked
-          ? 'border-(--theme-focus) bg-(--theme-accent)'
+        'mt-px flex size-4 shrink-0 items-center justify-center border',
+        box ? 'rounded' : 'rounded-full',
+        on
+          ? 'border-(--theme-focus) bg-(--theme-accent) text-(--theme-accent-text)'
           : 'border-(--theme-border-strong) bg-(--theme-input-bg)',
       )}
     >
-      {picked && <span className="size-1.5 rounded-full bg-(--theme-accent-text)" />}
+      {on &&
+        (box ? (
+          <CheckIcon className="size-3" />
+        ) : (
+          <span className="size-1.5 rounded-full bg-(--theme-accent-text)" />
+        ))}
     </span>
   )
 }

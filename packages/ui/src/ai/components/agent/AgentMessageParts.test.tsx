@@ -732,7 +732,7 @@ describe('approval forms', () => {
     })
   })
 
-  it('labels the own-answer field, focuses it, and ignores an empty submit', () => {
+  it('labels the own-answer field and ignores an empty submit', () => {
     const onAnswer = vi.fn()
     renderParts(
       [
@@ -746,9 +746,7 @@ describe('approval forms', () => {
       { onApprovalAnswer: onAnswer },
     )
     expect(screen.getByRole('group', { name: 'Waiting for your answer' })).toBeInTheDocument()
-    fireEvent.click(screen.getByText('Write my own answer…'))
     const field = screen.getByRole('textbox', { name: 'Your answer' })
-    expect(field).toHaveFocus()
     fireEvent.submit(field)
     expect(onAnswer).not.toHaveBeenCalled()
     fireEvent.change(field, { target: { value: 'West' } })

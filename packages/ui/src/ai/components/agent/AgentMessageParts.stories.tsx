@@ -245,10 +245,11 @@ export const ApprovalFeedback: StoryObj<{ kind: 'confirm' | 'ask' }> = {
   ),
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
+    // A confirm opens its field from a button; an ask's field is its last row.
     await userEvent.click(
-      canvas.getByRole('button', {
-        name: args.kind === 'confirm' ? /provide feedback/ : /Write my own answer/,
-      }),
+      args.kind === 'confirm'
+        ? canvas.getByRole('button', { name: /provide feedback/ })
+        : canvas.getByRole('textbox', { name: 'Your answer' }),
     )
     const field = canvas.getByRole('textbox')
     await expect(field).toHaveFocus()
@@ -307,7 +308,10 @@ export const AskQuestions: StoryObj<{ questions: number; multiSelect: boolean }>
       'true',
     )
     await userEvent.click(canvas.getByRole('button', { name: /Hosted/ }))
-    await userEvent.type(canvas.getByRole('textbox'), 'Only the failed shards{Enter}')
+    await userEvent.type(
+      await canvas.findByPlaceholderText('Type your answer…'),
+      'Only the failed shards{Enter}',
+    )
   },
 }
 

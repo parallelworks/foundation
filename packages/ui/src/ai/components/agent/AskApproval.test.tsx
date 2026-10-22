@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ChatConfigProvider, resolveChatConfig } from '../../core/config'
-import type { ApprovalPart, ApprovalQuestion } from '../../types'
+import type { ApprovalQuestion } from '../../types'
 import { AskApproval } from './AskApproval'
 
 const database: ApprovalQuestion = {
@@ -23,12 +23,12 @@ const checks: ApprovalQuestion = {
 }
 const notes: ApprovalQuestion = { question: 'Anything else?', header: 'Notes' }
 
-function renderAsk(questions: ApprovalQuestion[], extra?: Partial<ApprovalPart>) {
+function renderAsk(questions: ApprovalQuestion[]) {
   const onAnswer = vi.fn()
   render(
     <ChatConfigProvider value={resolveChatConfig()}>
       <AskApproval
-        part={{ kind: 'approval', id: 'q1', approvalKind: 'ask', questions, ...extra }}
+        part={{ kind: 'approval', id: 'q1', approvalKind: 'ask', questions }}
         onAnswer={onAnswer}
       />
     </ChatConfigProvider>,
@@ -52,11 +52,13 @@ describe('AskApproval with several questions', () => {
   })
 
   it('moves on to the next question with a pick, focusing its first choice', () => {
-    renderAsk([database, auth])
+    renderAsk([database, auth, checks])
     fireEvent.click(screen.getByRole('button', { name: /Postgres/ }))
     expect(tab('Q2')).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('button', { name: 'OAuth' })).toHaveFocus()
-    expect(screen.getByText('1 of 2 answered')).toBeInTheDocument()
+    expect(screen.getByText('1 of 3 answered')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'SAML' }))
+    expect(screen.getByRole('checkbox', { name: 'Lint' })).toHaveFocus()
   })
 
   it('sends one answer per question, a blank one included', () => {
@@ -69,17 +71,29 @@ describe('AskApproval with several questions', () => {
     })
   })
 
-  it('takes an own answer in place of a pick', async () => {
+  it('takes a typed answer in place of a pick, and a later pick in place of it', async () => {
     const onAnswer = renderAsk([database, auth])
     fireEvent.click(screen.getByRole('button', { name: /Postgres/ }))
     fireEvent.click(tab('Database'))
     await switched()
-    fireEvent.click(screen.getByRole('button', { name: 'Write my own answer…' }))
-    const field = screen.getByRole('textbox', { name: 'Your answer' })
-    expect(field).toHaveFocus()
-    fireEvent.change(field, { target: { value: 'SQLite' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Your answer' }), {
+      target: { value: 'SQLite' },
+    })
+    expect(screen.getByRole('button', { name: /Postgres/ })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Submit answers' }))
-    expect(onAnswer).toHaveBeenCalledWith('q1', { kind: 'ask', answers: [{ text: 'SQLite' }, {}] })
+    expect(onAnswer).toHaveBeenLastCalledWith('q1', {
+      kind: 'ask',
+      answers: [{ text: 'SQLite' }, {}],
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Mongo/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Submit answers' }))
+    expect(onAnswer).toHaveBeenLastCalledWith('q1', {
+      kind: 'ask',
+      answers: [{ picked: ['Mongo'] }, {}],
+    })
   })
 
   it('moves on from a typed answer with Enter, and keeps a blank one waiting', () => {
@@ -120,25 +134,34 @@ describe('AskApproval with one question', () => {
     expect(onAnswer).toHaveBeenCalledWith('q1', { kind: 'ask', answers: [{ picked: ['Mongo'] }] })
   })
 
-  it('ticks multi-select options in option order, with the own answer while its box is ticked', () => {
+  it('ticks multi-select options in option order, with the typed text while there is any', () => {
     const onAnswer = renderAsk([checks])
     fireEvent.click(screen.getByRole('checkbox', { name: 'E2E' }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Lint' }))
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Write my own answer…' }))
-    fireEvent.change(screen.getByRole('textbox', { name: 'Your answer' }), {
-      target: { value: 'and the docs build' },
-    })
+    const field = screen.getByRole('textbox', { name: 'Your answer' })
+    expect(field).toHaveAttribute('placeholder', 'Write my own answer…')
+    fireEvent.change(field, { target: { value: 'and the docs build' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
     expect(onAnswer).toHaveBeenLastCalledWith('q1', {
       kind: 'ask',
       answers: [{ picked: ['Lint', 'E2E'], text: 'and the docs build' }],
     })
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Write my own answer…' }))
+    fireEvent.change(field, { target: { value: '  ' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
     expect(onAnswer).toHaveBeenLastCalledWith('q1', {
       kind: 'ask',
       answers: [{ picked: ['Lint', 'E2E'] }],
     })
+  })
+
+  it('sends a typed answer, with Send shown once there is one', () => {
+    const onAnswer = renderAsk([database])
+    expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument()
+    fireEvent.change(screen.getByRole('textbox', { name: 'Your answer' }), {
+      target: { value: 'SQLite' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    expect(onAnswer).toHaveBeenCalledWith('q1', { kind: 'ask', answers: [{ text: 'SQLite' }] })
   })
 
   it('takes typed text for a question without options, never taking focus as it arrives', () => {
