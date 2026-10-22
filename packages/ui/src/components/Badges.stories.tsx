@@ -120,7 +120,7 @@ function Role({
  *  1. **Status** (`StatusLabel`, `RunStatusLabel`): what state is it in? A lamp or icon and the
  *     state's name, in muted text with no fill.
  *  2. **Flag** (`StatusBadge`): what's notable about this one? A small soft pill right after a
- *     name, tinted only when it warns.
+ *     name: neutral by default, accent for something new to you, warning when it warns.
  *  3. **Tag** (`Tag`): what has someone labelled it? A neutral hairline pill with an optional
  *     color dot, which can link or have an ×.
  *
@@ -190,13 +190,13 @@ export const WhichOne: StoryObj = {
           number={2}
           title="Flag · StatusBadge"
           ask="What's notable about this one?"
-          look="A small soft pill right after a name, for a fixed fact worth noticing: short and rare, at most one or two on a row. It's tinted only when it warns."
+          look="A small soft pill right after a name, for a fixed fact worth noticing: short and rare, at most one or two on a row. Neutral by default, accent for something new to you, warning when it warns, and never success or error, which are statuses."
           examples={
             <Rows>
               {[
                 <>
                   <span style={mono}>variant-calling-44</span>
-                  <StatusBadge variant="accent">Inline</StatusBadge>
+                  <StatusBadge variant="muted">Inline</StatusBadge>
                 </>,
                 <>
                   <span style={name}>v2.14.0</span>
@@ -221,10 +221,9 @@ export const WhichOne: StoryObj = {
             </Rows>
           }
           uses={[
-            'Inline, New, Latest, Your version',
-            'Preview and Beta',
-            'Ends soon, Read only',
-            'Orphaned, External',
+            'Neutral: Inline, Latest, Your version, Read only, Orphaned, External',
+            'Accent, new to you: New, Preview, Beta',
+            'Warning: Ends soon',
           ]}
           notFor="a state that changes (that's a status), or a label someone gave it (that's a tag)."
         />
@@ -268,7 +267,7 @@ export const WhichOne: StoryObj = {
           notFor="a flag: a tag is a label someone chose, never a fact worth noticing, and never tinted."
         />
       </div>
-      <section style={{ ...card, maxWidth: 640 }} aria-labelledby="same-state">
+      <section style={card} aria-labelledby="same-state">
         <h3 id="same-state" style={question}>
           The same state, the same look
         </h3>

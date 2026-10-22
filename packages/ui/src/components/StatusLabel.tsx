@@ -79,8 +79,9 @@ export function runStatusLook(status: string | null | undefined): RunStatusIconS
   return status && RUN_LOOKS.has(status) ? (status as NonNullable<RunStatusIconStatus>) : ''
 }
 
-/** Names a run's status in words, from `strings.runStatus`: an error, a fault or a failure reads
- *  as failed. One it has no name for reads as `fallback` says, or as the server sent it. */
+/** Names a run's status in words, from `strings.runStatus`: every status the run status icon
+ *  draws has a name, an error, a fault or a failure reads as failed, and no status reads as not
+ *  run. Only a status the icon doesn't know reads as `fallback` says, or as the server sent it. */
 export function useRunStatusName(): (
   status: string | null | undefined,
   fallback?: (status: string | null | undefined) => string,
@@ -88,6 +89,13 @@ export function useRunStatusName(): (
   const { runStatus: t } = useStrings()
   return (status, fallback) => {
     switch (status) {
+      case undefined:
+      case null:
+      case '':
+        return t.notRun
+      case 'pending':
+        return t.queued
+      case 'started':
       case 'running':
         return t.running
       case 'canceling':
@@ -100,8 +108,13 @@ export function useRunStatusName(): (
         return t.failed
       case 'canceled':
         return t.canceled
+      case 'warning':
+        return t.warning
+      case 'skipped':
+      case 'skipped-failed':
+        return t.skipped
       default:
-        return fallback ? fallback(status) : (status ?? '')
+        return fallback ? fallback(status) : status
     }
   }
 }
@@ -112,7 +125,7 @@ export interface RunStatusLabelProps
   extends Omit<StatusLabelProps, 'children' | 'variant' | 'off' | 'pulse' | 'icon'> {
   /** The run's status as the server sent it; one with no look shows no icon's shape. */
   status: string | null | undefined
-  /** The name for a status with none in `strings.runStatus`; the status as sent by default. */
+  /** The name for a status the run status icon doesn't know; the status as sent by default. */
   fallback?: ((status: string | null | undefined) => string) | undefined
 }
 

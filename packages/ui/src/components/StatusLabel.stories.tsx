@@ -27,6 +27,7 @@ const TONES: { variant: BadgeVariant; name: string }[] = [
 
 /** A status as a lamp and the state's name: lit in its tone, unlit with `off` for something off
  *  or not known, pinging with `pulse` for something under way, or an icon in place of the lamp.
+ *  A long name truncates.
  *  The lamp or icon is hidden from assistive technology, so the status is read once. See
  *  [Which one](?path=/story/ui-badges--which-one). */
 export const Statuses: StoryObj = {
@@ -42,11 +43,13 @@ export const Statuses: StoryObj = {
         Syncing
       </StatusLabel>
       <StatusLabel icon={<RunStatusIcon status="warning" label="" />}>Degraded</StatusLabel>
-      <div
-        className="border border-(--theme-border)"
-        style={{ width: 120, padding: 8, borderRadius: 8, display: 'flex' }}
-      >
-        <StatusLabel variant="warning">Waiting for capacity</StatusLabel>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 }}>
+        <span className="text-(--theme-muted-text-color)" style={{ fontSize: 11 }}>
+          A long name truncates, here in 120px
+        </span>
+        <div style={{ width: 120, display: 'flex' }}>
+          <StatusLabel variant="warning">Waiting for capacity</StatusLabel>
+        </div>
       </div>
     </div>
   ),
@@ -57,33 +60,41 @@ export const Statuses: StoryObj = {
   },
 }
 
+// Every status the run status icon draws, none, and two it doesn't know.
 const RUN_STATUSES = [
+  'pending',
+  'started',
   'running',
   'canceling',
   'completed',
+  'warning',
   'failed',
   'error',
   'faulted',
   'canceled',
-  'pending',
   'skipped',
+  'skipped-failed',
+  '',
+  'provisioning',
+  'archived',
 ]
 
 /** A run's status: the run status icon and the runs module's name for it, from
- *  `strings.runStatus`. An error, a fault and a failure all read as Failed; a status with no name
- *  reads as `fallback` says, or as the server sent it. See
+ *  `strings.runStatus`. Every status the icon draws has a name: an error, a fault and a failure
+ *  all read as Failed, and a skip after a failure as Skipped. Only a status the icon doesn't
+ *  know reads as `fallback` says, such as "Provisioning", or as the server sent it. See
  *  [Which one](?path=/story/ui-badges--which-one). */
 export const RunStatuses: StoryObj = {
   render: () => (
     <div style={{ ...column, padding: 16 }}>
       {RUN_STATUSES.map((status) => (
         <div key={status} style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <code className="text-(--theme-muted-text-color)" style={{ width: 80, fontSize: 12 }}>
-            {status}
+          <code className="text-(--theme-muted-text-color)" style={{ width: 104, fontSize: 12 }}>
+            {status === '' ? '(none)' : status}
           </code>
           <RunStatusLabel
             status={status}
-            fallback={(s) => (s === 'pending' ? 'Queued' : s === 'skipped' ? 'Skipped' : (s ?? ''))}
+            fallback={(s) => (s === 'provisioning' ? 'Provisioning' : (s ?? ''))}
           />
         </div>
       ))}
@@ -92,6 +103,8 @@ export const RunStatuses: StoryObj = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getAllByText('Failed')).toHaveLength(3)
+    await expect(canvas.getAllByText('Skipped')).toHaveLength(2)
     await expect(canvas.getByText('Queued')).toBeVisible()
+    await expect(canvas.getByText('Not run')).toBeVisible()
   },
 }

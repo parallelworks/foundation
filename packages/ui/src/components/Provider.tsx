@@ -587,13 +587,17 @@ export interface UIStrings {
     delete: string
   }
   /** A run's status in words, beside its icon: one ended in an error or a fault reads as
-   *  failed. */
+   *  failed, and one skipped after a failure as skipped. */
   runStatus: {
+    queued: string
     running: string
     canceling: string
     completed: string
+    warning: string
     failed: string
     canceled: string
+    skipped: string
+    notRun: string
   }
   chart: {
     /** The row under a chart's tooltip that sums its series. */
@@ -1508,11 +1512,15 @@ const DEFAULTS: UIProviderValue = {
       delete: 'Delete',
     },
     runStatus: {
+      queued: 'Queued',
       running: 'Running',
       canceling: 'Canceling',
       completed: 'Completed',
+      warning: 'Warning',
       failed: 'Failed',
       canceled: 'Canceled',
+      skipped: 'Skipped',
+      notRun: 'Not run',
     },
     chart: {
       total: 'Total',

@@ -4,7 +4,8 @@ import { expect, within } from 'storybook/test'
 import { type BadgeSize, type BadgeVariant, StatusBadge } from './StatusBadge'
 
 /** `StatusBadge` is a flag: what's notable about this one. A small soft pill right after a name,
- *  for a fixed fact worth noticing, tinted only when it warns. Not a status, which is a
+ *  for a fixed fact worth noticing: neutral by default, accent for something new to you, warning
+ *  when it warns, and never success or error, which are statuses. Not a status, which is a
  *  `StatusLabel`, and not a label someone gave it, which is a `Tag`. See
  *  [Which one](?path=/story/ui-badges--which-one). */
 const meta: Meta = {
@@ -41,8 +42,9 @@ function Named({
   )
 }
 
-/** A flag right after a name: muted for a plain fact, the accent for something new or set
- *  apart, and `warning` only for one that warns. See
+/** A flag right after a name: neutral (`muted`) by default, such as Inline, Your version and Read
+ *  only; `accent` for something new to you, such as New and Preview; `warning` when it warns,
+ *  such as Ends soon. Never `success` or `error`, which are statuses. See
  *  [Which one](?path=/story/ui-badges--which-one). */
 export const Flags: StoryObj<{ size: BadgeSize }> = {
   args: { size: 'sm' },
@@ -50,7 +52,7 @@ export const Flags: StoryObj<{ size: BadgeSize }> = {
   render: ({ size }) => (
     <div className="flex flex-col gap-3">
       <Named name="variant-calling-44" mono>
-        <StatusBadge variant="accent" size={size}>
+        <StatusBadge variant="muted" size={size}>
           Inline
         </StatusBadge>
       </Named>
@@ -81,8 +83,9 @@ export const Flags: StoryObj<{ size: BadgeSize }> = {
   ),
 }
 
-/** Every tone at every emphasis. A flag is `soft` by default; `solid` is for the one thing that
- *  must catch the eye, such as "New", and `outline` leaves only its edge. */
+/** Every tone at every emphasis. A flag is `soft` by default, and `solid` is for the one thing
+ *  that must catch the eye, such as New. A flag uses only `muted`, `accent` and `warning`;
+ *  `success` and `error` are a status's colors, shown here for a count or a host's own mark. */
 export const Emphases: StoryObj = {
   render: () => (
     <div className="flex flex-col gap-3">
@@ -107,7 +110,7 @@ export const FlagUses: StoryObj = {
   render: () => (
     <div className="flex flex-col gap-4 text-sm">
       <div className="flex items-center gap-2">
-        <StatusBadge caps variant="accent" emphasis="solid">
+        <StatusBadge caps variant="muted">
           All users
         </StatusBadge>
         <StatusBadge caps variant="accent">
@@ -119,7 +122,7 @@ export const FlagUses: StoryObj = {
       </div>
       <div className="flex items-center gap-2">
         <StatusBadge
-          variant="accent"
+          variant="muted"
           size="md"
           render={<a href="#changelog" />}
           className="font-mono"
@@ -128,10 +131,13 @@ export const FlagUses: StoryObj = {
         </StatusBadge>
         <StatusBadge emphasis="outline">Latest</StatusBadge>
       </div>
-      <div className="w-28 rounded-md border border-(--theme-border) p-2">
-        <StatusBadge variant="warning" truncate>
-          Quota nearly used up
-        </StatusBadge>
+      <div className="flex flex-col gap-1">
+        <span className="text-xs theme-muted-text">A long flag truncates, here in 112px</span>
+        <div className="flex w-28">
+          <StatusBadge variant="warning" truncate>
+            Quota nearly used up
+          </StatusBadge>
+        </div>
       </div>
     </div>
   ),

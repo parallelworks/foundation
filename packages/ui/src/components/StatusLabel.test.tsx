@@ -50,15 +50,31 @@ describe('RunStatusLabel', () => {
     expect(screen.getAllByText('Failed')).toHaveLength(3)
   })
 
-  it('shows a status it has no name for as the server sent it, or as the host says', () => {
+  it('names every status the icon draws', () => {
+    render(
+      ['pending', 'started', 'warning', 'skipped', 'skipped-failed', '', undefined].map(
+        (status) => (
+          <RunStatusLabel key={String(status)} status={status} fallback={() => 'unused'} />
+        ),
+      ),
+    )
+    expect(screen.getByText('Queued')).toBeInTheDocument()
+    expect(screen.getByText('Running')).toBeInTheDocument()
+    expect(screen.getByText('Warning')).toBeInTheDocument()
+    expect(screen.getAllByText('Skipped')).toHaveLength(2)
+    expect(screen.getAllByText('Not run')).toHaveLength(2)
+    expect(screen.queryByText('unused')).toBeNull()
+  })
+
+  it('shows a status the icon doesn’t know as the server sent it, or as the host says', () => {
     render(
       <>
         <RunStatusLabel status="archived" />
-        <RunStatusLabel status="pending" fallback={() => 'Queued'} />
+        <RunStatusLabel status="provisioning" fallback={() => 'Provisioning'} />
       </>,
     )
     expect(screen.getByText('archived')).toBeInTheDocument()
-    expect(screen.getByText('Queued')).toBeInTheDocument()
+    expect(screen.getByText('Provisioning')).toBeInTheDocument()
     expect(runStatusLook('archived')).toBe('')
     expect(runStatusLook('pending')).toBe('pending')
   })

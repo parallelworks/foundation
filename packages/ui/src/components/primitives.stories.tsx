@@ -87,7 +87,7 @@ export const RunStatuses: StoryObj = {
             <RunStatusIcon status={status} />
             build
           </span>
-          <RunStatusLabel status={status} fallback={(s) => s || 'not run'} />
+          <RunStatusLabel status={status} />
         </div>
       ))}
     </div>

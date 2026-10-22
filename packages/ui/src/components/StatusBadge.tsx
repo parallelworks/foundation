@@ -98,8 +98,9 @@ export function statusTextClass(variant: BadgeVariant): string {
 
 /** A flag: what's notable about this one. A small soft pill right after a name, for a fixed
  *  fact worth noticing, such as Inline, New, Your version, Preview, Ends soon or Read only: short
- *  and rare, at most one or two on a row. It's tinted only when it warns, such as `warning` for
- *  "Ends soon"; otherwise `muted`, or `accent` for something new or set apart.
+ *  and rare, at most one or two on a row. It's neutral by default (`muted`, such as Inline, Your
+ *  version or Read only), `accent` for something new to you (New, Preview, Beta), `warning` when
+ *  it warns (Ends soon), and never `success` or `error`, which are statuses.
  *
  *  Not for a state, which changes over time: that is a status (`StatusLabel`, or
  *  `RunStatusLabel` for a run), never a tinted pill. Not for a label someone gave it: that is a
