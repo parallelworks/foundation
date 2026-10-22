@@ -15,6 +15,9 @@ export interface ToggleGroupOption<T extends string> {
   /** How many items the option matches, after the label. */
   count?: number | undefined
   disabled?: boolean | undefined
+  /** `warning`: an option asking to be looked at, such as "Needs attention", whose label takes
+   *  the warning tone while it is off. */
+  tone?: 'warning' | undefined
   testId?: string
 }
 
@@ -40,6 +43,7 @@ export interface ToggleGroupProps<T extends string> {
    *  of what the filter lets through. */
   'aria-describedby'?: string | undefined
   testId?: string
+  className?: string | undefined
 }
 
 // Stands in for "nothing pressed" so the All option takes part in the group's
@@ -68,6 +72,7 @@ export function ToggleGroup<T extends string>({
   disabled = false,
   'aria-describedby': describedBy,
   testId,
+  className,
 }: ToggleGroupProps<T>) {
   const strings = useStrings()
   const allCount = typeof all === 'object' ? all.count : undefined
@@ -77,7 +82,7 @@ export function ToggleGroup<T extends string>({
       aria-label={label}
       aria-describedby={describedBy}
       data-testid={testId}
-      className="flex flex-wrap items-center gap-1"
+      className={cx('flex flex-wrap items-center gap-1', className)}
       multiple={multiple}
       disabled={disabled}
       value={pressed}
@@ -114,6 +119,7 @@ function Chip({
   icon,
   count,
   disabled,
+  tone,
   testId,
   size,
 }: Omit<ToggleGroupOption<string>, 'label'> & { label: ReactNode; size: 'sm' | 'md' }) {
@@ -132,6 +138,7 @@ function Chip({
       className={cx(
         buttonClasses({ variant: 'outline', size }),
         'group focus-visible:-outline-offset-2 aria-pressed:bg-(--theme-accent-subtle)',
+        tone === 'warning' && 'not-aria-pressed:text-(--theme-warning-text)',
       )}
     >
       {/* An option that's off dims its icon, such as a logo or a status dot, so
