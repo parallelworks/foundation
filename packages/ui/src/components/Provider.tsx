@@ -586,6 +586,15 @@ export interface UIStrings {
     backspace: string
     delete: string
   }
+  /** A run's status in words, beside its icon: one ended in an error or a fault reads as
+   *  failed. */
+  runStatus: {
+    running: string
+    canceling: string
+    completed: string
+    failed: string
+    canceled: string
+  }
   chart: {
     /** The row under a chart's tooltip that sums its series. */
     total: string
@@ -1497,6 +1506,13 @@ const DEFAULTS: UIProviderValue = {
       tab: 'Tab',
       backspace: 'Backspace',
       delete: 'Delete',
+    },
+    runStatus: {
+      running: 'Running',
+      canceling: 'Canceling',
+      completed: 'Completed',
+      failed: 'Failed',
+      canceled: 'Canceled',
     },
     chart: {
       total: 'Total',
