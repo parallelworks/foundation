@@ -8,9 +8,9 @@ import { composeStories } from '@storybook/react-vite'
 import { cleanup, render } from '@testing-library/react'
 import type React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-
 import * as accessDrawer from './access/AccessDrawer.stories'
 import * as accessPanel from './access/AccessPanel.stories'
+import * as appFrame from './app-frame/AppFrame.stories'
 import * as breadcrumbs from './components/Breadcrumbs.stories'
 import * as callout from './components/Callout.stories'
 import * as codeBlock from './components/CodeBlock.stories'
@@ -60,6 +60,17 @@ import * as userHoverCard from './list/UserHoverCard.stories'
 import * as logviewer from './logviewer/LogViewer.stories'
 import * as themeGenerator from './theme/theme.stories'
 
+window.matchMedia ??= (media) => ({
+  media,
+  matches: false,
+  onchange: null,
+  addListener() {},
+  removeListener() {},
+  addEventListener() {},
+  removeEventListener() {},
+  dispatchEvent: () => true,
+})
+
 // jsdom lacks these; the DAG and explorer rely on them for layout plumbing.
 global.requestAnimationFrame = (() => 0) as typeof requestAnimationFrame
 global.cancelAnimationFrame = (() => {}) as typeof cancelAnimationFrame
@@ -77,6 +88,7 @@ vi.mock('react-zoom-pan-pinch', () => ({
 }))
 
 const SUITES = {
+  appFrame,
   primitives,
   accessDrawer,
   accessPanel,
