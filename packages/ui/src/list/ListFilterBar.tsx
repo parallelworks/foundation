@@ -1261,7 +1261,8 @@ export function ListFilterBar({ filters, trailing, label, className }: ListFilte
 
   const visible = narrow && limit !== null ? limit : chips.length
   const shownChips = chips.filter(
-    (c, i) => i < visible || c.field.required || c.field.pinned || c.filter.field === filters?.draft,
+    (c, i) =>
+      i < visible || c.field.required || c.field.pinned || c.filter.field === filters?.draft,
   )
   const overflow = chips.length - shownChips.length
 
