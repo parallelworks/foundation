@@ -258,7 +258,9 @@ describe('ListPage count', () => {
           total={7}
           count={NOUNS}
           toolbar={<ListToolbar action={<button type="button">Export</button>} />}
-          filterBar={<ListFilterBar filters={filters} />}
+          filterBar={
+            <ListFilterBar filters={filters} trailing={<button type="button">Save view</button>} />
+          }
         >
           rows
         </ListPage>
@@ -270,7 +272,12 @@ describe('ListPage count', () => {
     // One line holds the chips and, at its end, the toolbar.
     const line = chip?.closest('.items-start')
     expect(line).toContainElement(screen.getByRole('button', { name: 'Export' }))
+    // A trailing action joins the toolbar at the line's end.
+    expect(screen.getByRole('button', { name: 'Save view' }).parentElement).toContainElement(
+      screen.getByRole('button', { name: 'Export' }),
+    )
     rerender(<Filtered on={false} />)
+    expect(screen.queryByRole('button', { name: 'Save view' })).toBeNull()
     expect(document.querySelector('[data-filter-chip]')).toBeNull()
     expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'Export' })).toHaveLength(1)

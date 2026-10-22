@@ -1173,10 +1173,13 @@ export interface ListFilterBarProps {
  *  The list's quick filters show above the chips as toggles, always, setting the same filters
  *  the chips edit. At phone width each keeps to one line, and "+n more" opens the rest in the
  *  same sheet. */
-export function ListFilterBar({ end, ...props }: ListFilterBarProps) {
+export function ListFilterBar({ end, trailing, ...props }: ListFilterBarProps) {
   if (end === undefined || end === null || end === false) {
-    return <FilterRow {...props} />
+    return <FilterRow trailing={trailing} {...props} />
   }
+  // The trailing action, such as Save view, joins the controls at the first line's end, so both
+  // end flush with the row's edge.
+  const shows = props.filters !== undefined && rowShows(props.filters)
   return (
     <ListToolbarInlineContext value>
       {/* The chips measure their own width, so they wrap and give way beside the controls. A
@@ -1185,9 +1188,20 @@ export function ListFilterBar({ end, ...props }: ListFilterBarProps) {
         <div className="min-w-0 flex-1 empty:hidden">
           <FilterRow {...props} />
         </div>
-        <div className="ml-auto flex min-h-10 shrink-0 items-center">{end}</div>
+        <div className="ml-auto flex min-h-10 shrink-0 items-center gap-1.5">
+          {shows && trailing}
+          {end}
+        </div>
       </div>
     </ListToolbarInlineContext>
+  )
+}
+
+/** Whether the row has anything to show: a chip, or a quick filter's toggles. */
+function rowShows(filters: ListFilters): boolean {
+  return (
+    orderedChips(filters).length > 0 ||
+    (filters.quick ?? []).some((q) => filters.fields.some((f) => f.key === q.field))
   )
 }
 
