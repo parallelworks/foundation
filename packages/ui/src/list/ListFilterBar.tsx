@@ -282,6 +282,7 @@ export function FilterChip({
                   </span>
                 )}
                 <span
+                  data-filter-value=""
                   className={cx(
                     'min-w-0 truncate',
                     !stretch && 'max-w-40',
@@ -1177,25 +1178,111 @@ export function ListFilterBar({ end, trailing, ...props }: ListFilterBarProps) {
   if (end === undefined || end === null || end === false) {
     return <FilterRow trailing={trailing} {...props} />
   }
-  // The trailing action, such as Save view, joins the controls at the first line's end, so both
-  // end flush with the row's edge.
+  return <SharedRow end={end} trailing={trailing} {...props} />
+}
+
+// The least a chip's value keeps on the controls' line, about "In progress" with its "+1";
+// below it, the trailing action leaves that line rather than crush the chip.
+const VALUE_MIN_PX = 88
+
+/** The chips with the list's controls at their first line's end. */
+function SharedRow({ end, trailing, ...props }: ListFilterBarProps) {
+  const box = useRef<HTMLDivElement>(null)
+  const controls = useRef<HTMLDivElement>(null)
+  const endBox = useRef<HTMLDivElement>(null)
+  const [width, setWidth] = useState(0)
+  // Whether the trailing action, such as Save view, moved to the end of the chips' last line,
+  // and how far it reaches past the chips to end flush with the row's edge.
+  const [trailingLast, setTrailingLast] = useState(false)
+  const [reach, setReach] = useState(0)
+  // Set once the moved action lands on the controls' line, where it must not reach under them.
+  const [noReach, setNoReach] = useState(false)
+  const chipKeys = props.filters?.chips.map((c) => c.field).join('\u0000') ?? ''
   const shows = props.filters !== undefined && rowShows(props.filters)
+
+  useLayoutEffect(() => {
+    const el = box.current
+    if (!el) {
+      return
+    }
+    const measure = () => setWidth(el.getBoundingClientRect().width)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  // A change in width or chips starts over with the action beside the controls.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: width and the chips are what restart the fit
+  useLayoutEffect(() => {
+    setTrailingLast(false)
+    setNoReach(false)
+  }, [width, chipKeys])
+
+  // A chip on the first line squeezed below a readable value moves the action down.
+  useLayoutEffect(() => {
+    const el = box.current
+    if (!el || !trailing || !shows) {
+      return
+    }
+    const chips = Array.from(el.querySelectorAll<HTMLElement>('[data-filter-chip]'))
+    const firstTop = chips[0]?.offsetTop
+    if (trailingLast) {
+      // Moved down, the action reaches under the controls, as wide as they are now, only from
+      // a line below theirs.
+      const moved = el.querySelector<HTMLElement>('[data-filter-trailing]')
+      if (!noReach && moved && moved.offsetTop === firstTop) {
+        setNoReach(true)
+        return
+      }
+      const next = noReach ? 0 : (controls.current?.getBoundingClientRect().width ?? 0) + GAP_PX
+      if (Math.abs(next - reach) > 0.5) {
+        setReach(next)
+      }
+      return
+    }
+    const crushed = chips.some((chip) => {
+      const value = chip.querySelector<HTMLElement>('[data-filter-value]')
+      return (
+        chip.offsetTop === firstTop &&
+        value !== null &&
+        value.clientWidth < Math.min(value.scrollWidth, VALUE_MIN_PX)
+      )
+    })
+    if (crushed) {
+      // Without the action, the controls are as wide as the toolbar alone.
+      setReach((endBox.current?.getBoundingClientRect().width ?? 0) + GAP_PX)
+      setTrailingLast(true)
+    }
+  })
+
   return (
     <ListToolbarInlineContext value>
       {/* The chips measure their own width, so they wrap and give way beside the controls. A
           row with no chips leaves the box empty, and the controls take the line. */}
-      <div className="flex min-h-10 items-start gap-3">
+      <div ref={box} className="flex min-h-10 items-start gap-3">
         <div className="min-w-0 flex-1 empty:hidden">
-          <FilterRow {...props} />
+          <FilterRow
+            {...props}
+            trailing={trailingLast ? trailing : undefined}
+            trailingReach={trailingLast ? reach : 0}
+          />
         </div>
-        <div className="ml-auto flex min-h-10 shrink-0 items-center gap-1.5">
-          {shows && trailing}
-          {end}
+        <div ref={controls} className="ml-auto flex min-h-10 shrink-0 items-center gap-1.5">
+          {/* The action joins the controls at the first line's end, so both end flush with the
+              row's edge. */}
+          {shows && !trailingLast && trailing}
+          <div ref={endBox} className="flex items-center">
+            {end}
+          </div>
         </div>
       </div>
     </ListToolbarInlineContext>
   )
 }
+
+// The gap between the chips and the controls (gap-3).
+const GAP_PX = 12
 
 /** Whether the row has anything to show: a chip, or a quick filter's toggles. */
 function rowShows(filters: ListFilters): boolean {
@@ -1205,7 +1292,17 @@ function rowShows(filters: ListFilters): boolean {
   )
 }
 
-function FilterRow({ filters, trailing, label, className }: Omit<ListFilterBarProps, 'end'>) {
+function FilterRow({
+  filters,
+  trailing,
+  trailingReach = 0,
+  label,
+  className,
+}: Omit<ListFilterBarProps, 'end'> & {
+  /** How far the trailing slot reaches past the row's end, under controls beside the row's
+   *  first line, so it ends flush with the edge they end at. */
+  trailingReach?: number
+}) {
   const strings = useStrings()
   const t = strings.filters
   const registerBar = filters?.registerBar
@@ -1440,7 +1537,15 @@ function FilterRow({ filters, trailing, label, className }: Omit<ListFilterBarPr
       )}
       {!(narrow && addFolded) && addButton(narrow)}
       {!(narrow && (clearFolded || addFolded)) && clearButton}
-      {trailing && <div className="ml-auto flex items-center gap-1.5">{trailing}</div>}
+      {trailing && (
+        <div
+          data-filter-trailing=""
+          className="ml-auto flex items-center gap-1.5"
+          style={trailingReach ? { marginRight: -trailingReach } : undefined}
+        >
+          {trailing}
+        </div>
+      )}
       {!hasQuick && drawer}
     </div>
   )

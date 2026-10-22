@@ -613,6 +613,73 @@ describe('a narrow row', () => {
   })
 })
 
+describe("a row sharing its first line with the list's controls", () => {
+  function Shared() {
+    const [active, setActive] = useState<ActiveFilter[]>([
+      { field: 'status', op: 'is', values: ['started', 'review'] },
+    ])
+    const filters = useListFilters({
+      storageKey: 'shared-row',
+      fields: [
+        {
+          key: 'status',
+          label: 'Status',
+          kind: 'enum',
+          options: [
+            { value: 'started', label: 'In progress' },
+            { value: 'review', label: 'In review' },
+          ],
+        },
+      ],
+      remember: false,
+      store: { value: active, onChange: setActive },
+    })
+    return (
+      <ListFilterBar
+        filters={filters}
+        trailing={<button type="button">Save view</button>}
+        end={<button type="button">Display</button>}
+      />
+    )
+  }
+
+  function valueWidth(client: number) {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.hasAttribute('data-filter-value') ? client : 0
+    })
+    vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.hasAttribute('data-filter-value') ? 140 : 0
+    })
+  }
+
+  it('keeps the trailing action beside the controls while the chips read in full', () => {
+    valueWidth(140)
+    render(<Shared />)
+    const save = screen.getByRole('button', { name: 'Save view' })
+    expect(save.closest('[data-filter-trailing]')).toBeNull()
+    expect(save.parentElement).toContainElement(screen.getByRole('button', { name: 'Display' }))
+    vi.restoreAllMocks()
+  })
+
+  it("moves the trailing action to the chips' last line rather than crush a chip's value", async () => {
+    // Beside Save view and Display, the value would show only "In …".
+    valueWidth(30)
+    render(<Shared />)
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Save view' }).closest('[data-filter-trailing]'),
+      ).not.toBeNull(),
+    )
+    // The controls keep the first line's end.
+    expect(screen.getByRole('button', { name: 'Display' }).closest('[role="group"]')).toBeNull()
+    vi.restoreAllMocks()
+  })
+})
+
 describe('a narrow row with required and pinned fields', () => {
   it('never puts their chips in the sheet, only the ones after them', async () => {
     function Fixed() {
