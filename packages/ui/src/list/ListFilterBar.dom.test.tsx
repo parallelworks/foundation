@@ -475,6 +475,57 @@ describe('a narrow row', () => {
     vi.restoreAllMocks()
   })
 
+  it('gives way down to the pressed toggle, so "+n more" never wraps', async () => {
+    function Quick() {
+      const [active, setActive] = useState<ActiveFilter[]>([
+        { field: 'state', op: 'is', values: ['running'] },
+      ])
+      const filters = useListFilters({
+        storageKey: 'narrow-quick',
+        fields: [
+          {
+            key: 'state',
+            label: 'State',
+            kind: 'enum',
+            options: ['discarded', 'retryable', 'running'].map((v) => ({ value: v, label: v })),
+          },
+        ],
+        remember: false,
+        store: { value: active, onChange: setActive },
+        quick: [{ field: 'state' }],
+      })
+      return <ListFilterBar filters={filters} />
+    }
+    // A 300px row: toggles 110px wide, "+n more" 90px, wrapping as a real row does.
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      if (this.tagName !== 'BUTTON') {
+        return { width: 300, top: 0 } as DOMRect
+      }
+      const row = this.closest('div:not([role])')
+      let x = 0
+      let top = 0
+      for (const button of row?.querySelectorAll('button') ?? []) {
+        const w = button.hasAttribute('aria-pressed') ? 110 : 90
+        if (x + w > 300) {
+          x = 0
+          top += 40
+        }
+        x += w
+        if (button === this) {
+          break
+        }
+      }
+      return { width: 300, top } as DOMRect
+    })
+    render(<Quick />)
+    await waitFor(() => expect(screen.getByRole('button', { name: '+2 more' })).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: /^running/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('button', { name: /^discarded/ })).toBeNull()
+    vi.restoreAllMocks()
+  })
+
   it('keeps Clear on the row where it fits after +', () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
       width: 300,

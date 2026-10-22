@@ -1064,8 +1064,9 @@ function QuickRow({
     for (const button of el.querySelectorAll<HTMLElement>('button')) {
       tops.add(Math.round(button.getBoundingClientRect().top))
     }
+    // Down to none but the pressed ones, which always show, so "+n more" never wraps.
     const shown = limit ?? total
-    if (tops.size > 1 && shown > 1) {
+    if (tops.size > 1 && shown > 0) {
       setLimit(shown - 1)
     }
   })

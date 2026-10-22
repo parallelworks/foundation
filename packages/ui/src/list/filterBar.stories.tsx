@@ -911,10 +911,11 @@ const QUEUE_FIELDS: FilterField[] = [
   },
 ]
 
-/** A filter bar beside a toolbar's buttons, as a dashboard's header holds it, with a queue chip
- *  that leaves no room after "+" on a phone. */
+/** A filter bar beside a toolbar's buttons, as a page's header holds it, with a pressed state
+ *  and a queue chip that leave no room for "+n more" or Clear on their lines on a phone. */
 function SharedLineDemo({ width }: { width?: number }) {
   const [active, setActive] = useState<ActiveFilter[]>([
+    { field: 'state', op: 'is', values: ['running'] },
     { field: 'queue', op: 'is', values: ['cluster-provisioning'] },
   ])
   const filters = useListFilters({
@@ -922,7 +923,7 @@ function SharedLineDemo({ width }: { width?: number }) {
     fields: QUEUE_FIELDS,
     remember: false,
     store: { value: active, onChange: setActive },
-    quick: [{ field: 'state' }],
+    quick: [{ field: 'state', counts: { retryable: 1, running: 2 } }],
   })
   return (
     <Shell width={width}>
@@ -956,8 +957,9 @@ export const SharedLine: StoryObj = {
   render: () => <SharedLineDemo />,
 }
 
-/** At phone width Clear never sits on a line of its own: where it doesn't fit after "+", it is
- *  the last item in the + menu instead. */
+/** At phone width neither "+n more" nor Clear sits on a line of its own: the toggles give way
+ *  down to the pressed one, and where Clear doesn't fit after "+", it is the last item in the +
+ *  menu instead. */
 export const SharedLineAtPhoneWidth: StoryObj = {
   render: () => <SharedLineDemo width={390} />,
 }
