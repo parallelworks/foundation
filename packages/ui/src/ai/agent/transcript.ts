@@ -1,10 +1,12 @@
 // The transcript-shaping rules of a terminal coding agent, so a replayed
 // history renders the same blocks the terminal draws.
+import type { ApprovalOption, ApprovalQuestion } from '../types'
 import { clip, sanitizeLabel } from './toolfmt'
 
 // TodoWrite's plan pins above the composer instead; a block too would repeat
 // it on every update. ExitPlanMode's whole argument is the plan, rendered as
-// its own block. AskUserQuestion's answer arrives in the following tool result.
+// its own block. AskUserQuestion's answers are in the call's decision, or in
+// the following tool result.
 const HIDDEN_TRANSCRIPT_TOOLS = new Set(['AskUserQuestion', 'TodoWrite', 'ExitPlanMode'])
 
 export function hiddenTranscriptTool(name: string): boolean {
@@ -24,8 +26,35 @@ function str(v: unknown): string {
   return typeof v === 'string' ? v : ''
 }
 
-export function askQuestionFromArgs(argsJSON: string): string {
-  return str(parseArgs(argsJSON)['question'])
+/** The questions an AskUserQuestion call asked: its `questions`, or the one
+ *  question a call made before several per call. */
+export function askQuestionsFromArgs(argsJSON: string): ApprovalQuestion[] {
+  const a = parseArgs(argsJSON)
+  const asked = Array.isArray(a['questions']) ? a['questions'] : [a]
+  return asked.flatMap((raw: unknown) => {
+    const q = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+    const question = str(q['question'])
+    if (!question) {
+      return []
+    }
+    const header = str(q['header'])
+    const options = Array.isArray(q['options']) ? q['options'].flatMap(askOption) : []
+    return [
+      {
+        question,
+        ...(header ? { header } : {}),
+        ...(q['multiSelect'] === true ? { multiSelect: true } : {}),
+        ...(options.length > 0 ? { options } : {}),
+      },
+    ]
+  })
+}
+
+function askOption(raw: unknown): ApprovalOption[] {
+  const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+  const label = str(o['label'])
+  const description = str(o['description'])
+  return label ? [{ label, ...(description ? { description } : {}) }] : []
 }
 
 export function planFromArgs(argsJSON: string): string {

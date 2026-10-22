@@ -288,6 +288,19 @@ export interface ChatStrings {
     feedbackLabel: string
     /** Names the field for an answer of the reader's own. */
     ownAnswerLabel: string
+    /** The field of a question that takes typed text alone. */
+    typeYourAnswer: string
+    /** Names the tabs of an ask's questions. */
+    questionsLabel: string
+    /** A question's tab when it has no header of its own. */
+    questionTab: (n: number) => string
+    /** Above an ask's buttons: how many of its questions have an answer. */
+    answeredCount: (answered: number, total: number) => string
+    submitAnswers: string
+    /** Answers an ask by asking to talk its questions through instead. */
+    chatAboutThis: string
+    /** A question sent without an answer. */
+    noAnswer: string
     /** Read out in place of a task's checkbox glyph. */
     todoPending: string
     todoInProgress: string
@@ -589,6 +602,13 @@ export const defaultChatStrings: ChatStrings = {
     approvalWaitingOn: (name) => `Waiting for ${name} to answer`,
     feedbackLabel: 'Feedback for the agent',
     ownAnswerLabel: 'Your answer',
+    typeYourAnswer: 'Type your answer…',
+    questionsLabel: 'Questions',
+    questionTab: (n) => `Q${n}`,
+    answeredCount: (answered, total) => `${answered} of ${total} answered`,
+    submitAnswers: 'Submit answers',
+    chatAboutThis: 'Chat about this',
+    noAnswer: 'No answer',
     todoPending: 'To do',
     todoInProgress: 'In progress',
     todoCompleted: 'Done',

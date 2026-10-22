@@ -12,6 +12,8 @@ import { countLines, utf8Bytes } from '../core/pastes'
 import type {
   Allocation,
   ApprovalPart,
+  ApprovalQuestion,
+  ApprovalQuestionAnswer,
   ApprovalSubject,
   AttachmentRef,
   ChatMessage,
@@ -655,13 +657,53 @@ const confirmSamples: Record<ApprovalSubject, Partial<ApprovalPart>> = {
   },
 }
 
+const askSamples: ApprovalQuestion[] = [
+  {
+    question: 'Which shards should I retry?',
+    header: 'Retry scope',
+    options: [
+      { label: 'Shard 4', description: 'instance-selector failures' },
+      { label: 'Shard 12', description: 'publish-cloud-cluster failures' },
+      { label: 'All shards', description: 'full re-run (slow)' },
+    ],
+  },
+  {
+    question: 'Which runners should the retry use?',
+    header: 'Runners',
+    options: [
+      { label: 'Self-hosted', description: 'the pool the failures ran on' },
+      { label: 'Hosted', description: 'slower to start, but isolated' },
+    ],
+  },
+  { question: 'Anything I should check before retrying?', header: 'Checks' },
+  {
+    question: 'Should anyone hear when it finishes?',
+    options: [{ label: 'The on-call channel' }, { label: 'Nobody' }],
+  },
+]
+
+const askAnswerSamples: ApprovalQuestionAnswer[] = [
+  { picked: ['Shard 4'] },
+  { picked: ['Hosted'] },
+  {},
+  { picked: ['The on-call channel'] },
+]
+
 export function makeApprovalPart(options?: {
   kind?: 'confirm' | 'ask'
   resolved?: boolean
   multiSelect?: boolean
   subject?: ApprovalSubject
+  /** How many questions an ask asks, up to four; none is an ask this card can't read. */
+  questions?: number
+  /** A resolved ask the reader chose to chat about instead. */
+  chat?: boolean
 }): ApprovalPart {
   const kind = options?.kind ?? 'confirm'
+  const count = Math.min(Math.max(options?.questions ?? 1, 0), askSamples.length)
+  const questions = askSamples
+    .slice(0, count)
+    .map((q, i) => (i === 0 && options?.multiSelect ? { ...q, multiSelect: true } : q))
   const base: ApprovalPart =
     kind === 'confirm'
       ? {
@@ -672,25 +714,17 @@ export function makeApprovalPart(options?: {
           agent: 'main',
           mode: 'accept-edits',
         }
-      : {
-          kind: 'approval',
-          id: nextId('appr'),
-          approvalKind: 'ask',
-          question: 'Which shards should I retry?',
-          header: 'Retry scope',
-          multiSelect: options?.multiSelect ?? false,
-          options: [
-            { label: 'Shard 4', description: 'instance-selector failures' },
-            {
-              label: 'Shard 12',
-              description: 'publish-cloud-cluster failures',
-            },
-            { label: 'All shards', description: 'full re-run (slow)' },
-          ],
-        }
+      : { kind: 'approval', id: nextId('appr'), approvalKind: 'ask', questions }
   if (options?.resolved) {
     base.resolved = true
-    base.answer = kind === 'confirm' ? 'Allowed once' : 'Shard 4'
+    if (kind === 'confirm') {
+      base.answer = 'Allowed once'
+    } else {
+      base.answers = askAnswerSamples.slice(0, count)
+      if (options.chat) {
+        base.chat = true
+      }
+    }
   }
   return base
 }
