@@ -707,7 +707,7 @@ const JOB_STATE: Record<JobState, { label: string; tone: Tone }> = {
   pending: { label: 'Pending', tone: 'warning' },
   completed: { label: 'Completed', tone: 'success' },
   failed: { label: 'Failed', tone: 'error' },
-  cancelled: { label: 'Cancelled', tone: 'muted' },
+  cancelled: { label: 'Canceled', tone: 'muted' },
 }
 
 const JOB_NAMES = [
@@ -736,7 +736,7 @@ const JOBS: Job[] = JOB_NAMES.map((name, i) => ({
   partition: (['compute', 'gpu', 'highmem'] as const)[i % 3] ?? 'compute',
   user: OWNERS[i % OWNERS.length] ?? 'alice',
   submitted: dayOffset(-((i * 23) % 400)),
-  overBudget: i % 5 === 1,
+  overBudget: i % 4 === 2,
 }))
 
 /** A job list whose states also show as toggles with how many jobs are in each, beside a
@@ -764,7 +764,7 @@ function QuickFiltersDemo({ width }: { width?: number }) {
         options: (Object.keys(JOB_STATE) as JobState[]).map((s) => ({
           value: s,
           label: JOB_STATE[s].label,
-          icon: <StatusDot variant={JOB_STATE[s].tone} size={6} />,
+          icon: <StatusDot variant={JOB_STATE[s].tone} size={8} />,
         })),
         matches: (row, selected) => selected.includes(row.state),
       },
@@ -855,12 +855,6 @@ function QuickFiltersDemo({ width }: { width?: number }) {
 
 export const QuickFilters: StoryObj = {
   render: () => <QuickFiltersDemo />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(await canvas.findByRole('button', { name: /^Running/ }))
-    await expect(await canvas.findByRole('group', { name: 'State is Running' })).toBeInTheDocument()
-    await userEvent.click(canvas.getByRole('button', { name: /^All/ }))
-  },
 }
 
 export const QuickFiltersDark: StoryObj = {

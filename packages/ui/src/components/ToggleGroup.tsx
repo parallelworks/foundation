@@ -44,6 +44,10 @@ export interface ToggleGroupProps<T extends string> {
   'aria-describedby'?: string | undefined
   testId?: string
   className?: string | undefined
+  /** Whether an option that's off dims its icon so the pressed ones lead (default true).
+   *  `false` keeps icons whose color means something, such as status lamps, at full strength;
+   *  the fill and check still say which are on. */
+  dimIcons?: boolean | undefined
 }
 
 // Stands in for "nothing pressed" so the All option takes part in the group's
@@ -73,6 +77,7 @@ export function ToggleGroup<T extends string>({
   'aria-describedby': describedBy,
   testId,
   className,
+  dimIcons = true,
 }: ToggleGroupProps<T>) {
   const strings = useStrings()
   const allCount = typeof all === 'object' ? all.count : undefined
@@ -100,14 +105,20 @@ export function ToggleGroup<T extends string>({
       }}
     >
       {all && (
-        <Chip value={ALL} label={allLabel ?? strings.common.all} count={allCount} size={size} />
+        <Chip
+          value={ALL}
+          label={allLabel ?? strings.common.all}
+          count={allCount}
+          size={size}
+          dimIcon={dimIcons}
+        />
       )}
       {/* All clears the others rather than joining them, so a rule sets it apart. */}
       {all && options.length > 0 && (
         <span aria-hidden="true" className="mx-0.5 h-5 w-px shrink-0 bg-(--theme-border)" />
       )}
       {options.map((option) => (
-        <Chip key={option.value} {...option} size={size} />
+        <Chip key={option.value} {...option} size={size} dimIcon={dimIcons} />
       ))}
     </BaseToggleGroup>
   )
@@ -122,7 +133,12 @@ function Chip({
   tone,
   testId,
   size,
-}: Omit<ToggleGroupOption<string>, 'label'> & { label: ReactNode; size: 'sm' | 'md' }) {
+  dimIcon,
+}: Omit<ToggleGroupOption<string>, 'label'> & {
+  label: ReactNode
+  size: 'sm' | 'md'
+  dimIcon: boolean
+}) {
   const locale = useLocale()
   return (
     <Toggle
@@ -144,7 +160,12 @@ function Chip({
       {/* An option that's off dims its icon, such as a logo or a status dot, so
           the pressed ones lead. */}
       {icon && (
-        <span className="inline-flex shrink-0 transition-opacity group-not-aria-pressed:opacity-55">
+        <span
+          className={cx(
+            'inline-flex shrink-0 transition-opacity',
+            dimIcon && 'group-not-aria-pressed:opacity-55',
+          )}
+        >
           {icon}
         </span>
       )}
