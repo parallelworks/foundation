@@ -1251,7 +1251,10 @@ separate isolation design.
 `AppFrame` provides a sidebar and an inset content surface. The sidebar collapses
 to a 64px icon rail, resizes with a pointer or keyboard, and becomes a modal
 navigation drawer below 768px. Its header, scrolling navigation, and footer stay
-separate from the page's scrolling content.
+separate from the page's scrolling content. Long navigation labels truncate within
+the current sidebar width; badges remain visible. Navigation scrollbar tracks stay
+hidden while wheel and keyboard scrolling keep destinations reachable in short
+containers.
 
 ```tsx
 import { AppFrame, AppFrameNavItem, AppFrameToggle } from '@parallelworks/ui/app-frame'
@@ -1299,3 +1302,7 @@ the ordinary surface and accent tokens. Content uses `--theme-app-bg` and
 `--theme-border`. Supply translated `labels` for navigation, skip, open, close,
 expand, collapse, and resize actions. The frame owns the main landmark and skip
 link; put page content inside it without nesting a second `<main>`.
+
+Frame styles use the `pw-ui` cascade layer. Put broad host element defaults
+(such as anchor colors and scrollbar styling) in a lower-priority layer declared
+before the package styles, so they do not replace navigation states.

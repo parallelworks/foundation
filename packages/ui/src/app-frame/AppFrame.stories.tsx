@@ -128,6 +128,42 @@ type Story = StoryObj<typeof meta>
 export const Expanded: Story = {}
 export const Collapsed: Story = { args: { defaultExpanded: false } }
 export const Compact: Story = { args: { minWidth: 168, defaultWidth: 184 } }
+export const NarrowLabels: Story = {
+  args: { minWidth: 168, defaultWidth: 168 },
+  render: (args) => (
+    <AppFrame
+      {...args}
+      brand={<strong>Workspace</strong>}
+      navigation={
+        <nav aria-label="Main navigation">
+          {[
+            'Overview',
+            'Project administration',
+            'Pending review requests',
+            'Organization settings',
+          ].map((label, index) => (
+            <AppFrameNavItem
+              key={label}
+              href={`#${index}`}
+              label={label}
+              icon={<GridIcon />}
+              selected={index === 1}
+              badge={index === 2 ? 127 : undefined}
+            />
+          ))}
+        </nav>
+      }
+      footer={<AppFrameToggle />}
+      header={<Header />}
+    >
+      <p style={{ padding: 24 }}>Long navigation labels stay within the resized sidebar.</p>
+    </AppFrame>
+  ),
+}
+export const ShortSidebar: Story = {
+  ...NarrowLabels,
+  args: { ...NarrowLabels.args, style: { height: 200 } },
+}
 export const FullBleed: Story = { args: { fullBleed: true } }
 export const FixedWidth: Story = { args: { resizable: false } }
 export const Banner: Story = {
