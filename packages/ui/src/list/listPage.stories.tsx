@@ -6,7 +6,7 @@ import { useContextMenu } from '../components/ContextMenu'
 import { PageHeader, PageHeaderBar, PageHeaderProvider } from '../components/PageHeader'
 import { PageHeaderAddButton } from '../components/PageHeaderAction'
 import { Pagination } from '../components/Pagination'
-import { StatusBadge } from '../components/StatusBadge'
+import { StatusLabel } from '../components/StatusLabel'
 import { Table } from '../components/Table'
 import { ComputeIcon, KeyIcon, RefreshIcon, StorageIcon } from '../icons'
 import { ActionToolbar } from './ActionToolbar'
@@ -398,9 +398,9 @@ function ResourceName({ resource }: { resource: Resource }) {
 function StateCell({ state }: { state: Resource['state'] }) {
   return (
     <Table.Item className="py-2.5">
-      <StatusBadge variant={state === 'running' ? 'success' : 'muted'} dot>
+      <StatusLabel variant="success" off={state !== 'running'}>
         {state === 'running' ? 'Running' : 'Stopped'}
-      </StatusBadge>
+      </StatusLabel>
     </Table.Item>
   )
 }

@@ -8,6 +8,7 @@ import {
   ListFooterCountContext,
   type ListSearch,
   ListSearchControl,
+  ListToolbarInlineContext,
 } from './listSearch'
 import type { ListView } from './listView'
 
@@ -63,15 +64,24 @@ export function toolbarCount<T>({
 /** A list page's toolbar in the shared order, at its end: the page's own
  *  controls, the filter menu, the display options, the search and an action.
  *  Give it to `ListPage` as its `toolbar`; the list's count goes under its
- *  rows (see `ListPage`'s `count`). */
+ *  rows (see `ListPage`'s `count`), and while filter chips show, the toolbar
+ *  sits at the end of their first line. */
 export function ListToolbar<T>(props: ListToolbarProps<T>) {
   const { view, search, searchLabel, searchPlaceholder, action, children } = props
   const { common } = useStrings()
   // Inside a ListPage that shows the count under its rows, the toolbar leaves it out.
   const inFooter = useContext(ListFooterCountContext)
   const count = inFooter ? undefined : toolbarCount(props)
+  // At the end of the chips' line, the line sets the height.
+  const inline = useContext(ListToolbarInlineContext)
   return (
-    <div className="flex min-h-10 items-center justify-end gap-3 py-1">
+    <div
+      className={
+        inline
+          ? 'flex items-center justify-end gap-3'
+          : 'flex min-h-10 items-center justify-end gap-3 py-1'
+      }
+    >
       {count && (
         // The count keeps its line; an open search gives up width first.
         <div className="mr-auto flex h-8 shrink-0 items-center whitespace-nowrap">

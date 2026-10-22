@@ -4,7 +4,8 @@ import { expect, screen, userEvent, within } from 'storybook/test'
 import { Avatar } from '../components/Avatar'
 import { buttonClasses } from '../components/buttonClasses'
 import { UIProvider } from '../components/Provider'
-import { StatusBadge, StatusDot } from '../components/StatusBadge'
+import { StatusDot } from '../components/StatusBadge'
+import { StatusLabel } from '../components/StatusLabel'
 import { Table } from '../components/Table'
 import type { Tone } from '../components/tone'
 import {
@@ -28,7 +29,8 @@ import {
 import { ListFilterBar } from './ListFilterBar'
 import { ListPage } from './ListPage'
 import { listTableProps } from './ListTable'
-import { ListDisplayMenu, ListFilterMenu } from './ListViewControls'
+import { ListToolbar } from './ListToolbar'
+import { ListFilterMenu } from './ListViewControls'
 import { useListView } from './listView'
 import { useListFilters } from './useListFilters'
 
@@ -245,9 +247,9 @@ function IssuesDemo({ link, width }: { link: string; width?: number }) {
         matches={rows.length}
         count={{ noun: 'issue', nounPlural: 'issues', filterActive: filters.count > 0 }}
         toolbar={
-          <div className="flex items-center justify-end gap-3 py-1.5">
+          <ListToolbar>
             <ListFilterMenu filters={filters} />
-          </div>
+          </ListToolbar>
         }
         filterBar={
           <ListFilterBar
@@ -295,9 +297,9 @@ function IssuesDemo({ link, width }: { link: string; width?: number }) {
                 {issue.assignee ? person(issue.assignee).label : '—'}
               </Table.Item>
               <Table.Item>
-                <StatusBadge variant={STATUS[issue.status].tone}>
+                <StatusLabel variant={STATUS[issue.status].tone}>
                   {STATUS[issue.status].label}
-                </StatusBadge>
+                </StatusLabel>
               </Table.Item>
             </tr>
           ))}
@@ -528,14 +530,7 @@ function ResourcesDemo({ width, defaults }: { width?: number; defaults: boolean 
         total={RESOURCES.length}
         matches={rows.length}
         count={{ noun: 'resource', nounPlural: 'resources' }}
-        toolbar={
-          <div className="flex items-center justify-end gap-3 py-1.5">
-            <div className="flex items-center gap-2">
-              <ListFilterMenu view={view} />
-              <ListDisplayMenu view={view} />
-            </div>
-          </div>
-        }
+        toolbar={<ListToolbar view={view} />}
       >
         <Table {...listTableProps}>
           <Table.Header caps={false}>Name</Table.Header>
@@ -556,7 +551,9 @@ function ResourcesDemo({ width, defaults }: { width?: number; defaults: boolean 
                 {r.provider} · {r.region}
               </Table.Item>
               <Table.Item>
-                <StatusBadge variant={RES_STATUS[r.status]}>{r.status}</StatusBadge>
+                <StatusLabel variant={RES_STATUS[r.status]} off={r.status === 'stopped'}>
+                  {r.status[0]?.toUpperCase() + r.status.slice(1)}
+                </StatusLabel>
               </Table.Item>
               <Table.Item className="hidden @[36rem]:table-cell">{r.owner}</Table.Item>
             </tr>
@@ -815,14 +812,7 @@ function QuickFiltersDemo({ width }: { width?: number }) {
         total={JOBS.length}
         matches={rows.length}
         count={{ noun: 'job', nounPlural: 'jobs' }}
-        toolbar={
-          <div className="flex items-center justify-end gap-3 py-1.5">
-            <div className="flex items-center gap-2">
-              <ListFilterMenu view={view} />
-              <ListDisplayMenu view={view} />
-            </div>
-          </div>
-        }
+        toolbar={<ListToolbar view={view} />}
       >
         <Table {...listTableProps}>
           <Table.Header caps={false}>Job</Table.Header>
@@ -840,9 +830,9 @@ function QuickFiltersDemo({ width }: { width?: number }) {
               </Table.Item>
               <Table.Item className="hidden @[36rem]:table-cell">{r.partition}</Table.Item>
               <Table.Item>
-                <StatusBadge variant={JOB_STATE[r.state].tone}>
+                <StatusLabel variant={JOB_STATE[r.state].tone}>
                   {JOB_STATE[r.state].label}
-                </StatusBadge>
+                </StatusLabel>
               </Table.Item>
             </tr>
           ))}

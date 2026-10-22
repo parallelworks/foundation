@@ -4,6 +4,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import { UIProvider } from '../components/Provider'
 import { Table } from '../components/Table'
 import { memoryStorage } from '../test/storage'
+import { ListFilterBar } from './ListFilterBar'
 import { GroupRow, ListColumns, ListPage, ListRow, ListRowActionsProvider } from './ListPage'
 import {
   actionsColumnWidth,
@@ -18,6 +19,7 @@ import { ListToolbar } from './ListToolbar'
 import { ListDisplayMenu } from './ListViewControls'
 import { ListCount, useListSearch } from './listSearch'
 import { useListView } from './listView'
+import { useListFilters } from './useListFilters'
 
 beforeEach(() => {
   Object.defineProperty(window, 'localStorage', { value: memoryStorage(), configurable: true })
@@ -231,6 +233,47 @@ describe('ListPage count', () => {
     expect(more).toHaveLength(0)
     expect(status).toHaveTextContent('3 of 12 buckets')
     expect(status?.closest('.overflow-auto')).not.toBeNull()
+  })
+
+  it("sets the toolbar at the end of the chips' line, and on a line alone with no chips", () => {
+    function Filtered({ on }: { on: boolean }) {
+      const filters = useListFilters({
+        storageKey: 'shared-line',
+        fields: [
+          {
+            key: 'status',
+            label: 'Status',
+            kind: 'enum',
+            options: [{ value: 'running', label: 'Running' }],
+          },
+        ],
+        remember: false,
+        store: {
+          value: on ? [{ field: 'status', op: 'is', values: ['running'] }] : [],
+          onChange: () => {},
+        },
+      })
+      return (
+        <ListPage
+          total={7}
+          count={NOUNS}
+          toolbar={<ListToolbar action={<button type="button">Export</button>} />}
+          filterBar={<ListFilterBar filters={filters} />}
+        >
+          rows
+        </ListPage>
+      )
+    }
+    const { rerender } = render(<Filtered on />)
+    const chip = document.querySelector('[data-filter-chip]')
+    expect(chip).not.toBeNull()
+    // One line holds the chips and, at its end, the toolbar.
+    const line = chip?.closest('.items-start')
+    expect(line).toContainElement(screen.getByRole('button', { name: 'Export' }))
+    rerender(<Filtered on={false} />)
+    expect(document.querySelector('[data-filter-chip]')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Export' })).toHaveLength(1)
   })
 
   it('hides a count placed by hand while the page shows its own', () => {

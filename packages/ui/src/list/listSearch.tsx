@@ -195,6 +195,10 @@ export interface ListCountProps {
  *  by hand gives way rather than showing twice. */
 export const ListFooterCountContext = createContext(false)
 
+/** True where a toolbar shares a line with the list's filter chips, at its end: a `ListToolbar`
+ *  there drops its own row's height and padding. */
+export const ListToolbarInlineContext = createContext(false)
+
 /** The count's words, "7 tokens" or "2 of 7 tokens", as a status so a screen reader hears the
  *  count change as a filter narrows it. */
 export function ListCountText({ total, matches, filterActive, noun, nounPlural }: ListCountProps) {

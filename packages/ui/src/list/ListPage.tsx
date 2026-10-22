@@ -31,7 +31,7 @@ import { useNavigation } from '../components/Provider'
 import { CellPlacementContext, type SortDirection, STACKED_ITEM, Table } from '../components/Table'
 import { Tooltip } from '../components/Tooltip'
 import { cx } from '../cx'
-import { ListFilterBar } from './ListFilterBar'
+import { ListFilterBar, type ListFilterBarProps } from './ListFilterBar'
 import {
   FLOATING_ACTIONS_LANE,
   HEADERS_OFF,
@@ -97,7 +97,10 @@ export interface ListPageProps {
   bleed?: boolean | undefined
   /** The list's search, filters and view controls, above the rows, such as a
    *  `ListToolbar`. The page's trail and actions, "+ Add" among them, go in
-   *  its `PageHeader`. With `total`, it hides while the list is empty. */
+   *  its `PageHeader`. With `total`, it hides while the list is empty. Once
+   *  the page shows the count under its rows, the toolbar sits at the end of
+   *  the filter chips' first line, or takes the line alone while no chip
+   *  shows. */
   toolbar?: ReactNode
   /** Under the toolbar: the chips of the list's active filters. By default the view's own
    *  `ListFilterBar`, shown while a filter is on; pass one to add a trailing slot, such as Save
@@ -185,7 +188,7 @@ export function ListPage({
   const noneMatch = known && !isEmpty && (matches ?? total) === 0
   // Nothing to search or filter until there is something, so the toolbar waits for rows.
   const controls = total === undefined || toolbarWhenEmpty || (known && total > 0)
-  const bar =
+  const givenBar =
     filterBar === undefined ? (
       view?.filterState && view.filterState.fields.length > 0 ? (
         <ListFilterBar filters={view.filterState} />
@@ -215,6 +218,15 @@ export function ListPage({
   const showsRows =
     !loading && !failed && !isEmpty && !noneMatch && (!counted || counted.matches > 0)
   const footerCount = showsRows ? counted : undefined
+  // With the count gone from the toolbar, the toolbar shares the chips' line, at its end, rather
+  // than keep a line for its controls alone. A toolbar that still holds a count of its own keeps
+  // its line.
+  const shareLine =
+    counted !== undefined &&
+    !!toolbar &&
+    isValidElement<ListFilterBarProps>(givenBar) &&
+    givenBar.type === ListFilterBar
+  const bar = shareLine ? cloneElement(givenBar, { end: toolbar }) : givenBar
   let body: ReactNode = children
   if (loading) {
     body = <ListSkeleton />
@@ -229,10 +241,10 @@ export function ListPage({
     <div className={cx('flex h-full min-h-0 flex-col', bleed && '-m-4')}>
       {/* With the count under the rows, the toolbar leaves its own out. */}
       <ListFooterCountContext value={counted !== undefined}>
-        {!!toolbar && controls && <div className="shrink-0 px-4">{toolbar}</div>}
+        {!!toolbar && !shareLine && controls && <div className="shrink-0 px-4">{toolbar}</div>}
+        {/* The filters' chips go with the toolbar: an empty list has nothing to filter. */}
+        {!!bar && controls && <div className="shrink-0 px-4">{bar}</div>}
       </ListFooterCountContext>
-      {/* The filters' chips go with the toolbar: an empty list has nothing to filter. */}
-      {!!bar && controls && <div className="shrink-0 px-4">{bar}</div>}
       {/* The list body is the @container priority columns measure to auto-hide. */}
       <div className="relative @container min-h-0 flex-1 overflow-auto">
         <ListRowActionsProvider view={view}>{body}</ListRowActionsProvider>

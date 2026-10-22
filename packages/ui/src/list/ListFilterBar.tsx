@@ -41,6 +41,7 @@ import {
   type QuickFilter,
   toDay,
 } from './filterModel'
+import { ListToolbarInlineContext } from './listSearch'
 import type { ListFilters } from './useListFilters'
 
 // biome-ignore lint/suspicious/noExplicitAny: the chip row only reads the fields' shape
@@ -1154,6 +1155,11 @@ export interface ListFilterBarProps {
   filters: ListFilters | undefined
   /** At the row's end, such as Save view or Update view. */
   trailing?: ReactNode
+  /** The list's own controls, such as its toolbar's menus and search, held at the end of the
+   *  first line while the chips wrap beside them, so they never take a line of their own. With
+   *  no chip to show, they take the row alone. `ListPage` puts its toolbar here once the count
+   *  has moved under the rows. */
+  end?: ReactNode
   /** Names the row; defaults to the provider's `filters.activeFilters`. */
   label?: string | undefined
   className?: string | undefined
@@ -1167,7 +1173,25 @@ export interface ListFilterBarProps {
  *  The list's quick filters show above the chips as toggles, always, setting the same filters
  *  the chips edit. At phone width each keeps to one line, and "+n more" opens the rest in the
  *  same sheet. */
-export function ListFilterBar({ filters, trailing, label, className }: ListFilterBarProps) {
+export function ListFilterBar({ end, ...props }: ListFilterBarProps) {
+  if (end === undefined || end === null || end === false) {
+    return <FilterRow {...props} />
+  }
+  return (
+    <ListToolbarInlineContext value>
+      {/* The chips measure their own width, so they wrap and give way beside the controls. A
+          row with no chips leaves the box empty, and the controls take the line. */}
+      <div className="flex min-h-10 items-start gap-3">
+        <div className="min-w-0 flex-1 empty:hidden">
+          <FilterRow {...props} />
+        </div>
+        <div className="ml-auto flex min-h-10 shrink-0 items-center">{end}</div>
+      </div>
+    </ListToolbarInlineContext>
+  )
+}
+
+function FilterRow({ filters, trailing, label, className }: Omit<ListFilterBarProps, 'end'>) {
   const strings = useStrings()
   const t = strings.filters
   const registerBar = filters?.registerBar
@@ -1180,6 +1204,9 @@ export function ListFilterBar({ filters, trailing, label, className }: ListFilte
   // Clear (or Reset) left out of a narrow row rather than stranded on a line of its own; the +
   // menu holds it too.
   const [clearFolded, setClearFolded] = useState(false)
+  // "+" left out of a narrow row rather than leading a line of its own; the "+n filters" sheet
+  // offers it, and Clear, in its footer.
+  const [addFolded, setAddFolded] = useState(false)
   const [sheet, setSheet] = useState(false)
   const [focusAt, setFocusAt] = useState<number | null>(null)
 
@@ -1217,6 +1244,7 @@ export function ListFilterBar({ filters, trailing, label, className }: ListFilte
   useLayoutEffect(() => {
     setLimit(null)
     setClearFolded(false)
+    setAddFolded(false)
   }, [width, chipKeys, narrow])
 
   // Drops chips into the sheet until the row fits on two lines.
@@ -1238,8 +1266,28 @@ export function ListFilterBar({ filters, trailing, label, className }: ListFilte
       setLimit(shown - 1)
       return
     }
-    // Once the chips fit, Clear keeps to the line "+" ends, or goes into its menu.
+    // Once the chips fit, "+" keeps to the line before it rather than lead a line of its own:
+    // another chip gives way to the sheet to make room, and once some are there, "+" joins them.
     const add = el.querySelector<HTMLElement>('[data-filter-add]')
+    const addItem = add ? Array.from(el.children).find((child) => child.contains(add)) : undefined
+    const before = addItem?.previousElementSibling
+    if (
+      addItem instanceof HTMLElement &&
+      before instanceof HTMLElement &&
+      Math.round(addItem.offsetTop) > Math.round(before.offsetTop)
+    ) {
+      if (chips.length > shown) {
+        setAddFolded(true)
+        return
+      }
+      // Down to the required and pinned chips, even the last other one: "+1 filter" then
+      // holds it, on the line "+" shares.
+      if (shown > fixedChips) {
+        setLimit(shown - 1)
+        return
+      }
+    }
+    // Clear keeps to the line "+" ends, or goes into its menu.
     const clear = el.querySelector<HTMLElement>('[data-filter-clear]')
     if (add && clear && Math.round(clear.offsetTop) > Math.round(add.offsetTop)) {
       setClearFolded(true)
@@ -1376,8 +1424,8 @@ export function ListFilterBar({ filters, trailing, label, className }: ListFilte
           {t.overflow(overflow)}
         </button>
       )}
-      {addButton(narrow)}
-      {!(narrow && clearFolded) && clearButton}
+      {!(narrow && addFolded) && addButton(narrow)}
+      {!(narrow && (clearFolded || addFolded)) && clearButton}
       {trailing && <div className="ml-auto flex items-center gap-1.5">{trailing}</div>}
       {!hasQuick && drawer}
     </div>
