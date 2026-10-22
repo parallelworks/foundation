@@ -10,6 +10,7 @@ import { ListFilterBar } from './ListFilterBar'
 import { ListPage } from './ListPage'
 import { ListFilterMenu } from './ListViewControls'
 import { useListView } from './listView'
+import { useListFilters } from './useListFilters'
 
 type Row = { status: string; owner: string }
 
@@ -427,5 +428,59 @@ describe('quick filters', () => {
     expect(screen.getAllByRole('group', { name: 'Needs attention' })).toHaveLength(1)
     fireEvent.click(toggle(/^Needs attention\s*1/))
     expect(rows()).toBe('alice,bob,carol')
+  })
+})
+
+describe('a narrow row', () => {
+  function Narrow() {
+    const [active, setActive] = useState<ActiveFilter[]>([
+      { field: 'queue', op: 'is', values: ['provisioning'] },
+    ])
+    const filters = useListFilters({
+      storageKey: 'narrow',
+      fields: [
+        {
+          key: 'queue',
+          label: 'Queue',
+          kind: 'enum',
+          options: [{ value: 'provisioning', label: 'provisioning' }],
+        },
+      ],
+      remember: false,
+      store: { value: active, onChange: setActive },
+    })
+    return (
+      <>
+        <ListFilterBar filters={filters} />
+        <output data-testid="active">{active.map((f) => f.field).join(',')}</output>
+      </>
+    )
+  }
+
+  it('puts Clear in the + menu rather than on a line of its own', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 300,
+    } as DOMRect)
+    // Clear would wrap below "+".
+    vi.spyOn(HTMLElement.prototype, 'offsetTop', 'get').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.hasAttribute('data-filter-clear') ? 40 : 0
+    })
+    render(<Narrow />)
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Clear' })).toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'Filter' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Clear' }))
+    await waitFor(() => expect(screen.getByTestId('active').textContent).toBe(''))
+    vi.restoreAllMocks()
+  })
+
+  it('keeps Clear on the row where it fits after +', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 300,
+    } as DOMRect)
+    render(<Narrow />)
+    expect(screen.getByRole('button', { name: 'Clear' })).toBeInTheDocument()
+    vi.restoreAllMocks()
   })
 })

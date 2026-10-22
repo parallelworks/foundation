@@ -7,7 +7,16 @@ import { UIProvider } from '../components/Provider'
 import { StatusBadge, StatusDot } from '../components/StatusBadge'
 import { Table } from '../components/Table'
 import type { Tone } from '../components/tone'
-import { AgentIcon, CalendarIcon, ClusterIcon, OrganizationIcon, TagIcon, UserIcon } from '../icons'
+import {
+  AgentIcon,
+  CalendarIcon,
+  ClusterIcon,
+  FilterIcon,
+  OrganizationIcon,
+  RefreshIcon,
+  TagIcon,
+  UserIcon,
+} from '../icons'
 import {
   type ActiveFilter,
   decodeFilters,
@@ -870,5 +879,90 @@ export const QuickFiltersAtPhoneWidth: StoryObj = {
 
 export const QuickFiltersAtPhoneWidthDark: StoryObj = {
   ...QuickFiltersAtPhoneWidth,
+  globals: { mode: 'dark' },
+}
+
+// --- A bar sharing its line ---------------------------------------------------
+
+const QUEUE_FIELDS: FilterField[] = [
+  {
+    key: 'state',
+    label: 'State',
+    kind: 'enum',
+    operators: ['is'],
+    options: (['discarded', 'retryable', 'running'] as const).map((s) => ({
+      value: s,
+      label: { discarded: 'Discarded', retryable: 'Retrying', running: 'Running' }[s],
+      icon: (
+        <StatusDot
+          variant={s === 'discarded' ? 'error' : s === 'retryable' ? 'warning' : 'info'}
+          size={8}
+        />
+      ),
+    })),
+  },
+  {
+    key: 'queue',
+    label: 'Queue',
+    kind: 'enum',
+    operators: ['is'],
+    multiple: false,
+    options: ['cluster-provisioning', 'notifications'].map((q) => ({ value: q, label: q })),
+  },
+]
+
+/** A filter bar beside a toolbar's buttons, as a dashboard's header holds it, with a queue chip
+ *  that leaves no room after "+" on a phone. */
+function SharedLineDemo({ width }: { width?: number }) {
+  const [active, setActive] = useState<ActiveFilter[]>([
+    { field: 'queue', op: 'is', values: ['cluster-provisioning'] },
+  ])
+  const filters = useListFilters({
+    storageKey: `story-shared-line-${width ?? 'wide'}`,
+    fields: QUEUE_FIELDS,
+    remember: false,
+    store: { value: active, onChange: setActive },
+    quick: [{ field: 'state' }],
+  })
+  return (
+    <Shell width={width}>
+      <div className="flex h-12 shrink-0 items-center border-b border-(--theme-border) px-4 text-[16px] font-semibold">
+        Background jobs
+      </div>
+      <div className="flex items-start gap-2 px-4">
+        <ListFilterBar filters={filters} className="min-w-0 flex-1" />
+        <div className="flex shrink-0 items-center gap-1.5 py-1.5">
+          <button
+            type="button"
+            aria-label="Refresh"
+            className={buttonClasses({ variant: 'outline', size: 'sm', iconOnly: true })}
+          >
+            <RefreshIcon aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            aria-label="Filter"
+            className={buttonClasses({ variant: 'outline', size: 'sm', iconOnly: true })}
+          >
+            <FilterIcon aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+    </Shell>
+  )
+}
+
+export const SharedLine: StoryObj = {
+  render: () => <SharedLineDemo />,
+}
+
+/** At phone width Clear never sits on a line of its own: where it doesn't fit after "+", it is
+ *  the last item in the + menu instead. */
+export const SharedLineAtPhoneWidth: StoryObj = {
+  render: () => <SharedLineDemo width={390} />,
+}
+
+export const SharedLineAtPhoneWidthDark: StoryObj = {
+  ...SharedLineAtPhoneWidth,
   globals: { mode: 'dark' },
 }
