@@ -29,7 +29,6 @@ import { ListFilterBar } from './ListFilterBar'
 import { ListPage } from './ListPage'
 import { listTableProps } from './ListTable'
 import { ListDisplayMenu, ListFilterMenu } from './ListViewControls'
-import { ListCount } from './listSearch'
 import { useListView } from './listView'
 import { useListFilters } from './useListFilters'
 
@@ -241,29 +240,28 @@ function IssuesDemo({ link, width }: { link: string; width?: number }) {
       <div className="flex h-12 shrink-0 items-center border-b border-(--theme-border) px-4 text-[16px] font-semibold">
         Issues
       </div>
-      <div className="flex shrink-0 items-center justify-between gap-3 px-4 py-1.5">
-        <ListCount
-          total={ISSUES.length}
-          matches={rows.length}
-          filterActive={filters.count > 0}
-          noun="issue"
-          nounPlural="issues"
-        />
-        <ListFilterMenu filters={filters} />
-      </div>
-      <div className="shrink-0 px-4">
-        <ListFilterBar
-          filters={filters}
-          trailing={
-            filters.count > 0 && (
-              <button type="button" className={buttonClasses({ variant: 'outline', size: 'sm' })}>
-                Save view
-              </button>
-            )
-          }
-        />
-      </div>
-      <div className="min-h-0 flex-1 overflow-auto">
+      <ListPage
+        total={ISSUES.length}
+        matches={rows.length}
+        count={{ noun: 'issue', nounPlural: 'issues', filterActive: filters.count > 0 }}
+        toolbar={
+          <div className="flex items-center justify-end gap-3 py-1.5">
+            <ListFilterMenu filters={filters} />
+          </div>
+        }
+        filterBar={
+          <ListFilterBar
+            filters={filters}
+            trailing={
+              filters.count > 0 && (
+                <button type="button" className={buttonClasses({ variant: 'outline', size: 'sm' })}>
+                  Save view
+                </button>
+              )
+            }
+          />
+        }
+      >
         <Table {...listTableProps}>
           <Table.Header caps={false}>Issue</Table.Header>
           <Table.Header caps={false} className="hidden @[36rem]:table-cell">
@@ -304,7 +302,7 @@ function IssuesDemo({ link, width }: { link: string; width?: number }) {
             </tr>
           ))}
         </Table>
-      </div>
+      </ListPage>
       <div
         className="shrink-0 truncate border-t border-(--theme-border) px-4 py-2 font-mono text-[11px] text-(--theme-muted-text-color)"
         style={{ fontVariantLigatures: 'none' }}
@@ -527,16 +525,12 @@ function ResourcesDemo({ width, defaults }: { width?: number; defaults: boolean 
       </div>
       <ListPage
         view={view}
+        total={RESOURCES.length}
+        matches={rows.length}
+        count={{ noun: 'resource', nounPlural: 'resources' }}
         toolbar={
-          <div className="flex items-center justify-between gap-3 py-1.5">
-            <ListCount
-              total={RESOURCES.length}
-              matches={rows.length}
-              filterActive={view.activeFilterCount > 0}
-              noun="resource"
-              nounPlural="resources"
-            />
-            <div className="ml-auto flex items-center gap-2">
+          <div className="flex items-center justify-end gap-3 py-1.5">
+            <div className="flex items-center gap-2">
               <ListFilterMenu view={view} />
               <ListDisplayMenu view={view} />
             </div>
@@ -818,16 +812,12 @@ function QuickFiltersDemo({ width }: { width?: number }) {
       </div>
       <ListPage
         view={view}
+        total={JOBS.length}
+        matches={rows.length}
+        count={{ noun: 'job', nounPlural: 'jobs' }}
         toolbar={
-          <div className="flex items-center justify-between gap-3 py-1.5">
-            <ListCount
-              total={JOBS.length}
-              matches={rows.length}
-              filterActive={view.activeFilterCount > 0}
-              noun="job"
-              nounPlural="jobs"
-            />
-            <div className="ml-auto flex items-center gap-2">
+          <div className="flex items-center justify-end gap-3 py-1.5">
+            <div className="flex items-center gap-2">
               <ListFilterMenu view={view} />
               <ListDisplayMenu view={view} />
             </div>

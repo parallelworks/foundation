@@ -37,7 +37,7 @@ import {
   RowSelectCheckbox,
 } from './ListTable'
 import { ListDisplayMenu, ListFilterMenu } from './ListViewControls'
-import { ListCount, ListSearchControl, useListSearch } from './listSearch'
+import { ListSearchControl, useListSearch } from './listSearch'
 import { useListView } from './listView'
 import { type RowAction, useCopySubmenu } from './rowMenu'
 
@@ -380,18 +380,16 @@ function ClustersPage({
       />
       <ListPage
         view={view}
+        total={state === 'ready' ? all.length : undefined}
+        matches={rows.length}
+        count={{
+          noun: 'cluster',
+          nounPlural: 'clusters',
+          filterActive: query.length > 0 || view.activeFilterCount > 0,
+        }}
         toolbar={
-          <div className="flex items-center justify-between gap-3 py-1.5">
-            {state === 'ready' && (
-              <ListCount
-                total={all.length}
-                matches={rows.length}
-                filterActive={query.length > 0 || view.activeFilterCount > 0}
-                noun="cluster"
-                nounPlural="clusters"
-              />
-            )}
-            <div className="ml-auto flex items-center gap-2">
+          <div className="flex items-center justify-end gap-3 py-1.5">
+            <div className="flex items-center gap-2">
               <ListSearchControl search={search} placeholder="Search clusters" />
               <ListFilterMenu view={view} />
               <ListDisplayMenu view={view} />

@@ -1,4 +1,10 @@
-import type { CSSProperties, ReactElement, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
+import type {
+  ComponentProps,
+  CSSProperties,
+  ReactElement,
+  MouseEvent as ReactMouseEvent,
+  ReactNode,
+} from 'react'
 import {
   Children,
   cloneElement,
@@ -36,6 +42,8 @@ import {
   STRETCHED_LINK_ROW,
   StretchRowLinkContext,
 } from './ListTable'
+import { ListToolbar, type ListToolbarProps, toolbarCount } from './ListToolbar'
+import { ListCountText, ListFooterCountContext } from './listSearch'
 import type { ColumnDef, ListView, ListViewChrome } from './listView'
 import { MoreButton, type RowAction, rowContextMenuProps, useRowMenuActive } from './rowMenu'
 
@@ -118,7 +126,26 @@ export interface ListPageProps {
   /** Keeps the toolbar while the list is empty, for one whose controls still
    *  matter then, such as a filter set by default that hides everything. */
   toolbarWhenEmpty?: boolean | undefined
+  /** Names what the list counts. With `total` (and `matches`), the page
+   *  shows the count under its last row: "7 tokens", or "2 of 7 tokens"
+   *  while a search or filter narrows the list. It shows only while there
+   *  are rows: the empty and no-matches states say enough. A `ListToolbar`'s
+   *  own `count` shows there too. */
+  count?: ListPageCount | undefined
+  /** Under the last row, on the count's line: a `Pagination`, or a "Load
+   *  more" button. */
+  pager?: ReactNode
   children: ReactNode
+}
+
+/** What a list's count calls its rows. */
+export interface ListPageCount {
+  noun: string
+  nounPlural: string
+  /** Whether a search or filter narrows the list, so the count reads "2 of
+   *  7". By default, whether the view's filters are on or `matches` differs
+   *  from `total`; pass it for a search the page holds. */
+  filterActive?: boolean | undefined
 }
 
 /** A list's empty state: what is missing, and what to do about it. */
@@ -148,6 +175,8 @@ export function ListPage({
   empty,
   noMatches,
   toolbarWhenEmpty = false,
+  count,
+  pager,
   children,
 }: ListPageProps) {
   const failed = !loading && error !== undefined && error !== null && !total
@@ -164,6 +193,28 @@ export function ListPage({
     ) : (
       filterBar
     )
+  // A ListToolbar's count moves under the rows, read from its props so it
+  // shows in one place from the first render.
+  const fromToolbar =
+    isValidElement<ListToolbarProps<unknown>>(toolbar) && toolbar.type === ListToolbar
+      ? toolbarCount(toolbar.props)
+      : undefined
+  const counted =
+    count && total !== undefined
+      ? {
+          total,
+          matches: matches ?? total,
+          filterActive:
+            count.filterActive ??
+            ((view?.filterState?.count ?? 0) > 0 || (matches ?? total) !== total),
+          noun: count.noun,
+          nounPlural: count.nounPlural,
+        }
+      : fromToolbar
+  // The count shows under rows only: never while loading, failed, empty or matching nothing.
+  const showsRows =
+    !loading && !failed && !isEmpty && !noneMatch && (!counted || counted.matches > 0)
+  const footerCount = showsRows ? counted : undefined
   let body: ReactNode = children
   if (loading) {
     body = <ListSkeleton />
@@ -176,13 +227,40 @@ export function ListPage({
   }
   return (
     <div className={cx('flex h-full min-h-0 flex-col', bleed && '-m-4')}>
-      {!!toolbar && controls && <div className="shrink-0 px-4">{toolbar}</div>}
+      {/* With the count under the rows, the toolbar leaves its own out. */}
+      <ListFooterCountContext value={counted !== undefined}>
+        {!!toolbar && controls && <div className="shrink-0 px-4">{toolbar}</div>}
+      </ListFooterCountContext>
       {/* The filters' chips go with the toolbar: an empty list has nothing to filter. */}
       {!!bar && controls && <div className="shrink-0 px-4">{bar}</div>}
       {/* The list body is the @container priority columns measure to auto-hide. */}
       <div className="relative @container min-h-0 flex-1 overflow-auto">
         <ListRowActionsProvider view={view}>{body}</ListRowActionsProvider>
+        {(footerCount || (showsRows && !!pager)) && (
+          <ListFooter count={footerCount} pager={pager} />
+        )}
       </div>
+    </div>
+  )
+}
+
+/** The line under a list's last row: its count at the rows' start, its pager at their end. */
+function ListFooter({
+  count,
+  pager,
+}: {
+  count: ComponentProps<typeof ListCountText> | undefined
+  pager: ReactNode
+}) {
+  return (
+    // No rule or band of its own: it sits on the rows' last divider, its text
+    // on the rows' 16px start. A pager that renders nothing leaves it empty, and
+    // then it takes no space. A `Pagination` takes the rest of the line (it
+    // sizes by its own width), its position beside its steps, and its inset
+    // gives way to the line's.
+    <div className="flex min-h-10 flex-wrap items-center gap-x-3 px-4 empty:hidden [&>:not([role=status])]:ml-auto [&>nav]:flex-1 [&>nav]:px-0 [&>nav>div:first-child]:justify-end">
+      {count && <ListCountText {...count} />}
+      {pager}
     </div>
   )
 }
