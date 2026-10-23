@@ -1281,6 +1281,8 @@ screens. The drawer supplies its own close button, traps focus, closes on Escape
 or an outside click, and returns focus to its opener. Navigation items close it
 on an ordinary click; modified links keep the current view in place. A changed
 `navigationKey` also dismisses it.
+Reopening mobile navigation restores its scroll position within the current
+section. Closing it unmounts its contents, including any nested popups.
 Use `navigationResetKey` for a section identifier when navigation scroll should
 survive route changes within that section. It defaults to `navigationKey`.
 `sidebarProps` passes host attributes, styling, and events to the desktop sidebar
@@ -1290,6 +1292,8 @@ own layout, dialog semantics, and measured width.
 The host owns routing, persistence, identity, permissions, and page tools. Links
 use `UIProvider`'s link slot. Pass `expanded`/`onExpandedChange` and
 `width`/`onWidthChange` to persist preferences, or use the uncontrolled defaults.
+Pointer drags preview their width locally and call `onWidthChange` once when the
+gesture ends, so persistence does not run on every pointer movement.
 `defaultWidth` is 240, bounded by `minWidth` (200) and `maxWidth` (400); compact
 applications can choose smaller bounds. The resize handle supports arrows, Home,
 End, drag-to-collapse, and double-click to restore `defaultWidth`. Logical layout

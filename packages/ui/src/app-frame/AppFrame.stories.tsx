@@ -168,6 +168,65 @@ export const ShortSidebar: Story = {
 }
 export const FullBleed: Story = { args: { fullBleed: true } }
 export const FixedWidth: Story = { args: { resizable: false } }
+export const ControlledResize: Story = {
+  render: (args) => {
+    const [width, setWidth] = useState(240)
+    const [commits, setCommits] = useState(0)
+    return (
+      <AppFrame
+        {...args}
+        width={width}
+        onWidthChange={(next) => {
+          setWidth(next)
+          setCommits((count) => count + 1)
+        }}
+        brand={({ expanded }) => (
+          <strong style={{ display: 'block', textAlign: expanded ? 'start' : 'center' }}>
+            {expanded ? 'Workspace' : 'W'}
+          </strong>
+        )}
+        navigation={<AppFrameNavItem label="Projects" icon={<ListViewIcon />} selected />}
+        footer={<AppFrameToggle />}
+        header={<Header />}
+      >
+        <div style={{ padding: 24 }}>
+          <p>Saved width: {width}px</p>
+          <p>Width updates: {commits}</p>
+          <p>Drag the sidebar edge. The saved preference updates once when you release it.</p>
+        </div>
+      </AppFrame>
+    )
+  },
+}
+export const ExternalLinks: Story = {
+  render: (args) => (
+    <AppFrame
+      {...args}
+      brand={({ expanded }) => (
+        <strong style={{ display: 'block', textAlign: expanded ? 'start' : 'center' }}>
+          {expanded ? 'Workspace' : 'W'}
+        </strong>
+      )}
+      navigation={
+        <nav aria-label="Main navigation">
+          <AppFrameNavItem label="Projects" icon={<ListViewIcon />} selected />
+          <AppFrameNavItem
+            label="Documentation"
+            icon={<GridIcon />}
+            href="https://example.com/docs"
+            target="_blank"
+          />
+        </nav>
+      }
+      footer={<AppFrameToggle />}
+      header={<Header />}
+    >
+      <p style={{ padding: 24 }}>
+        New-tab destinations stay named in both the expanded sidebar and icon rail.
+      </p>
+    </AppFrame>
+  ),
+}
 export const SectionNavigation: Story = {
   render: (args) => {
     const [route, setRoute] = useState('projects/1')
@@ -230,6 +289,27 @@ export const MobileOpen: Story = {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: 'Open navigation' }))
     await expect(canvas.getByRole('dialog', { name: 'Main navigation' })).toBeVisible()
+  },
+}
+export const MobileSectionNavigation: Story = {
+  ...SectionNavigation,
+  args: { ...Mobile.args },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: 'Open navigation' }))
+    const project = canvas.getByRole('button', { name: 'Project 24' })
+    project.scrollIntoView({ block: 'nearest' })
+    const scroll = project.closest('.pw-frame-links')
+    const position = scroll?.scrollTop
+    await userEvent.click(project)
+    await userEvent.click(canvas.getByRole('button', { name: 'Open navigation' }))
+    await expect(canvas.getByRole('button', { name: 'Project 24' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+    await expect(
+      canvas.getByRole('button', { name: 'Project 24' }).closest('.pw-frame-links')?.scrollTop,
+    ).toBe(position)
   },
 }
 export const KeyboardResize: Story = {

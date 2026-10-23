@@ -4,6 +4,7 @@ import {
   type HTMLAttributes,
   type MouseEvent,
   type ReactNode,
+  useCallback,
   useContext,
   useEffect,
   useId,
@@ -74,6 +75,7 @@ export interface AppFrameProps extends Omit<HTMLAttributes<HTMLDivElement>, 'chi
   onExpandedChange?: (expanded: boolean) => void
   width?: number
   defaultWidth?: number
+  /** Commits once when a drag ends, and on each keyboard or reset action. */
   onWidthChange?: (width: number) => void
   minWidth?: number
   maxWidth?: number
@@ -151,6 +153,7 @@ export function AppFrame({
   const navigationId = `${id}-navigation`
   const [ownExpanded, setOwnExpanded] = useState(defaultExpanded)
   const [ownWidth, setOwnWidth] = useState(defaultWidth)
+  const [dragWidth, setDragWidth] = useState<number | null>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [resizing, setResizing] = useState(false)
   const desktopExpanded = controlledExpanded ?? ownExpanded
@@ -158,13 +161,31 @@ export function AppFrame({
   const maximum = Math.max(minimum, maxWidth)
   const clamp = (n: number) =>
     Math.min(maximum, Math.max(minimum, Number.isFinite(n) ? n : defaultWidth))
-  const width = clamp(controlledWidth ?? ownWidth)
+  const width = clamp(dragWidth ?? controlledWidth ?? ownWidth)
   const isMobile = useMobile(mobileBreakpoint)
   const labels = { ...defaultLabels, ...labelOverrides }
   const navRef = useRef<HTMLElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const savedScrollTop = useRef(0)
+  const restoreScroll = useCallback((node: HTMLDivElement | null) => {
+    scrollRef.current = node
+    if (node) node.scrollTop = savedScrollTop.current
+  }, [])
   const portalRef = useRef<HTMLDivElement>(null)
-  const drag = useRef<{ origin: number; direction: number } | null>(null)
+  const drag = useRef<{
+    origin: number
+    direction: number
+    pointerId: number
+    startWidth: number
+    width: number
+  } | null>(null)
+  useEffect(() => {
+    if (!isMobile && resizable) return
+    // Removing a captured handle can prevent its lost-capture event from reaching React.
+    drag.current = null
+    setDragWidth(null)
+    setResizing(false)
+  }, [isMobile, resizable])
   const setExpanded = (next: boolean) => {
     setOwnExpanded(next)
     onExpandedChange?.(next)
@@ -200,32 +221,49 @@ export function AppFrame({
     if (
       previousLocation.current.navigationResetKey !== navigationResetKey ||
       previousLocation.current.isMobile !== isMobile
-    )
+    ) {
+      savedScrollTop.current = 0
       scrollRef.current?.scrollTo({ top: 0 })
+    }
     previousLocation.current = { navigationKey, navigationResetKey, isMobile }
   }, [navigationKey, navigationResetKey, isMobile])
   const navContent = (
     <>
       {brand && <div className="pw-frame-brand">{slot(brand, state)}</div>}
-      <div className="pw-frame-links" ref={scrollRef}>
+      <div
+        className="pw-frame-links"
+        ref={restoreScroll}
+        onScroll={(event) => {
+          savedScrollTop.current = event.currentTarget.scrollTop
+        }}
+      >
         {slot(navigation, state)}
       </div>
       {footer && <div className="pw-frame-footer">{slot(footer, state)}</div>}
     </>
   )
-  const resize = (clientX: number) => {
-    if (!drag.current) return
-    const next = (clientX - drag.current.origin) * drag.current.direction
+  const resize = (clientX: number, pointerId: number) => {
+    const current = drag.current
+    if (!current || current.pointerId !== pointerId) return
+    const next = (clientX - current.origin) * current.direction
     // Hysteresis keeps a slow drag near the rail boundary from flickering.
     if (desktopExpanded && next < minimum - 80) setExpanded(false)
     else if (!desktopExpanded && next >= minimum - 50) {
       setExpanded(true)
-      setWidth(next)
-    } else if (desktopExpanded) setWidth(next)
+      current.width = clamp(next)
+      setDragWidth(current.width)
+    } else if (desktopExpanded) {
+      current.width = clamp(next)
+      setDragWidth(current.width)
+    }
   }
-  const endResize = () => {
+  const endResize = (event: { pointerId: number }) => {
+    const ended = drag.current
+    if (!ended || ended.pointerId !== event.pointerId) return
     drag.current = null
     setResizing(false)
+    setDragWidth(null)
+    if (desktopExpanded && ended.width !== ended.startWidth) setWidth(ended.width)
   }
   return (
     <Context value={state}>
@@ -272,16 +310,22 @@ export function AppFrame({
                   aria-valuenow={Math.round(desktopExpanded ? width : railWidth)}
                   className="pw-frame-resize"
                   onPointerDown={(event) => {
-                    if (event.button !== 0) return
+                    if (event.button !== 0 || event.isPrimary === false || drag.current) return
                     event.preventDefault()
                     const rect = navRef.current?.getBoundingClientRect()
                     if (!rect) return
                     const rtl = getComputedStyle(event.currentTarget).direction === 'rtl'
-                    drag.current = { origin: rtl ? rect.right : rect.left, direction: rtl ? -1 : 1 }
+                    drag.current = {
+                      origin: rtl ? rect.right : rect.left,
+                      direction: rtl ? -1 : 1,
+                      pointerId: event.pointerId,
+                      startWidth: width,
+                      width,
+                    }
                     event.currentTarget.setPointerCapture(event.pointerId)
                     setResizing(true)
                   }}
-                  onPointerMove={(event) => resize(event.clientX)}
+                  onPointerMove={(event) => resize(event.clientX, event.pointerId)}
                   onPointerUp={endResize}
                   onPointerCancel={endResize}
                   onLostPointerCapture={endResize}
@@ -404,7 +448,6 @@ export function AppFrameNavItem({
   const { expanded, closeNavigation } = useFrameContext()
   const props = {
     className: cx('pw-frame-nav-item', className),
-    'aria-label': label,
     'aria-current': selected ? ('page' as const) : undefined,
     onClick: (event: MouseEvent<HTMLElement>) => {
       if (disabled) {
@@ -419,11 +462,11 @@ export function AppFrameNavItem({
         <span className="pw-frame-nav-icon" aria-hidden="true">
           {icon}
         </span>
-        {expanded && (
-          <>
-            <span className="pw-frame-nav-label">{label}</span>
-            {badge != null && <span className="pw-frame-nav-badge">{badge}</span>}
-          </>
+        <span className={expanded ? 'pw-frame-nav-label' : 'sr-only'}>{label}</span>
+        {expanded && badge != null && (
+          <span className="pw-frame-nav-badge" aria-hidden="true">
+            {badge}
+          </span>
         )}
       </>
     ),
