@@ -81,8 +81,12 @@ export interface AppFrameProps extends Omit<HTMLAttributes<HTMLDivElement>, 'chi
   resizable?: boolean
   /** Viewport width below which navigation becomes a modal drawer. */
   mobileBreakpoint?: number
-  /** A changed route key closes mobile navigation and resets its scroll. */
+  /** A changed route key closes mobile navigation. */
   navigationKey?: string
+  /** Reset navigation scroll only when this section changes; defaults to navigationKey. */
+  navigationResetKey?: string
+  /** Attributes shared by desktop navigation and the mobile dialog. */
+  sidebarProps?: HTMLAttributes<HTMLElement>
   /** Removes the inset and border around content. */
   fullBleed?: boolean
   labels?: Partial<AppFrameLabels>
@@ -132,6 +136,8 @@ export function AppFrame({
   resizable = true,
   mobileBreakpoint = 768,
   navigationKey,
+  navigationResetKey = navigationKey,
+  sidebarProps,
   fullBleed = false,
   labels: labelOverrides,
   mainId: suppliedMainId,
@@ -178,17 +184,26 @@ export function AppFrame({
     labels,
     navigationId,
   }
-  const previousLocation = useRef({ navigationKey, isMobile })
+  const previousLocation = useRef({ navigationKey, navigationResetKey, isMobile })
   useEffect(() => {
     if (
       previousLocation.current.navigationKey === navigationKey &&
+      previousLocation.current.navigationResetKey === navigationResetKey &&
       previousLocation.current.isMobile === isMobile
     )
       return
-    previousLocation.current = { navigationKey, isMobile }
-    setMobileOpen(false)
-    scrollRef.current?.scrollTo({ top: 0 })
-  }, [navigationKey, isMobile])
+    if (
+      previousLocation.current.navigationKey !== navigationKey ||
+      previousLocation.current.isMobile !== isMobile
+    )
+      setMobileOpen(false)
+    if (
+      previousLocation.current.navigationResetKey !== navigationResetKey ||
+      previousLocation.current.isMobile !== isMobile
+    )
+      scrollRef.current?.scrollTo({ top: 0 })
+    previousLocation.current = { navigationKey, navigationResetKey, isMobile }
+  }, [navigationKey, navigationResetKey, isMobile])
   const navContent = (
     <>
       {brand && <div className="pw-frame-brand">{slot(brand, state)}</div>}
@@ -235,12 +250,13 @@ export function AppFrame({
         <div className="pw-frame-body">
           {!isMobile && (
             <aside
+              {...sidebarProps}
               ref={navRef}
               id={navigationId}
-              className="pw-frame-sidebar"
+              className={cx('pw-frame-sidebar', sidebarProps?.className)}
               data-sidebar-mode={desktopExpanded ? 'expanded' : 'rail'}
               data-resizing={resizing || undefined}
-              style={{ width: desktopExpanded ? width : railWidth }}
+              style={{ ...sidebarProps?.style, width: desktopExpanded ? width : railWidth }}
             >
               {navContent}
               {resizable && (
@@ -310,11 +326,13 @@ export function AppFrame({
             <Dialog.Portal container={portalRef}>
               <Dialog.Backdrop className="pw-frame-backdrop" />
               <Dialog.Popup
+                {...sidebarProps}
                 id={navigationId}
-                className="pw-frame-drawer"
+                className={cx('pw-frame-drawer', sidebarProps?.className)}
                 aria-label={labels.navigation}
                 aria-modal="true"
-                style={{ width: Math.max(width, 240) }}
+                data-sidebar-mode="drawer"
+                style={{ ...sidebarProps?.style, width: Math.max(width, 240) }}
               >
                 <div className="pw-frame-mobile-close">
                   <Dialog.Close className="pw-frame-toggle" aria-label={labels.closeNavigation}>
@@ -338,7 +356,9 @@ export function AppFrameToggle({
 }: Omit<HTMLAttributes<HTMLButtonElement>, 'children'>) {
   const { expanded, isMobile, mobileOpen, toggle, labels, navigationId } = useFrameContext()
   const label = isMobile
-    ? labels.openNavigation
+    ? mobileOpen
+      ? labels.closeNavigation
+      : labels.openNavigation
     : expanded
       ? labels.collapseSidebar
       : labels.expandSidebar

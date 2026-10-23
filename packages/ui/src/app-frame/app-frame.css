@@ -185,6 +185,7 @@
     border: 1px solid var(--theme-border);
     border-radius: 12px;
     background: var(--theme-app-bg);
+    background-clip: padding-box;
   }
   .pw-frame-header,
   .pw-frame-banner {

@@ -98,4 +98,42 @@ describe('AppFrame', () => {
     view.rerender(<AppFrame {...props} navigationKey="settings" />)
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
+  it('keeps navigation scroll within a section and resets it when sections change', () => {
+    const view = render(
+      <AppFrame {...props} navigationKey="/projects/one" navigationResetKey="projects" />,
+    )
+    const scroll = view.container.querySelector('.pw-frame-links')!
+    const scrollTo = vi.fn()
+    Object.defineProperty(scroll, 'scrollTo', { value: scrollTo })
+    view.rerender(
+      <AppFrame {...props} navigationKey="/projects/two" navigationResetKey="projects" />,
+    )
+    expect(scrollTo).not.toHaveBeenCalled()
+    view.rerender(<AppFrame {...props} navigationKey="/settings" navigationResetKey="settings" />)
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0 })
+  })
+  it.each([false, true])(
+    'passes host attributes and events to navigation (mobile: %s)',
+    async (isMobile) => {
+      mobile = isMobile
+      const onContextMenu = vi.fn()
+      render(
+        <AppFrame
+          {...props}
+          sidebarProps={{
+            'aria-label': 'Workspace navigation',
+            onContextMenu,
+            className: 'host-navigation',
+          }}
+        />,
+      )
+      if (isMobile) fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }))
+      const navigation = isMobile
+        ? await screen.findByRole('dialog')
+        : screen.getByRole('complementary')
+      expect(navigation).toHaveClass('host-navigation')
+      fireEvent.contextMenu(navigation)
+      expect(onContextMenu).toHaveBeenCalledOnce()
+    },
+  )
 })

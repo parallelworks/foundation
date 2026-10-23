@@ -1280,6 +1280,11 @@ screens. The drawer supplies its own close button, traps focus, closes on Escape
 or an outside click, and returns focus to its opener. Navigation items close it
 on an ordinary click; modified links keep the current view in place. A changed
 `navigationKey` also dismisses it.
+Use `navigationResetKey` for a section identifier when navigation scroll should
+survive route changes within that section. It defaults to `navigationKey`.
+`sidebarProps` passes host attributes, styling, and events to the desktop sidebar
+and mobile dialog, for example a navigation context menu. The frame retains its
+own layout, dialog semantics, and measured width.
 
 The host owns routing, persistence, identity, permissions, and page tools. Links
 use `UIProvider`'s link slot. Pass `expanded`/`onExpandedChange` and

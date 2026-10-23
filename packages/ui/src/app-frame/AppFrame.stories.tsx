@@ -109,6 +109,8 @@ const meta = {
     resizable: { control: 'boolean' },
     mobileBreakpoint: { control: 'number' },
     navigationKey: { control: 'text' },
+    navigationResetKey: { control: 'text' },
+    sidebarProps: { control: 'object' },
     fullBleed: { control: 'boolean' },
     labels: { control: 'object' },
     mainId: { control: 'text' },
@@ -166,6 +168,43 @@ export const ShortSidebar: Story = {
 }
 export const FullBleed: Story = { args: { fullBleed: true } }
 export const FixedWidth: Story = { args: { resizable: false } }
+export const SectionNavigation: Story = {
+  render: (args) => {
+    const [route, setRoute] = useState('projects/1')
+    return (
+      <AppFrame
+        {...args}
+        navigationKey={route}
+        navigationResetKey={route.split('/')[0] ?? route}
+        sidebarProps={{ 'aria-label': 'Workspace navigation' }}
+        brand={<strong>Workspace</strong>}
+        navigation={
+          <nav aria-label="Main navigation">
+            {Array.from({ length: 24 }, (_, i) => `projects/${i + 1}`).map((project) => (
+              <AppFrameNavItem
+                key={project}
+                label={`Project ${project.split('/')[1]}`}
+                icon={<ListViewIcon />}
+                selected={route === project}
+                onClick={() => setRoute(project)}
+              />
+            ))}
+          </nav>
+        }
+        footer={<AppFrameToggle />}
+        header={<Header />}
+      >
+        <div style={{ padding: 24 }}>
+          <p>{route}</p>
+          <p>Scroll navigation, then select another project. The list stays in place.</p>
+          <button type="button" onClick={() => setRoute('settings')}>
+            Switch to settings
+          </button>
+        </div>
+      </AppFrame>
+    )
+  },
+}
 export const Banner: Story = {
   args: {
     banner: (
