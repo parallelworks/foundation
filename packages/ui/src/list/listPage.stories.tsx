@@ -396,9 +396,10 @@ function ResourceName({ resource }: { resource: Resource }) {
 }
 
 function StateCell({ state }: { state: Resource['state'] }) {
+  // A status: a lamp and its name, unlit for a resource that's off.
   return (
-    <Table.Item className="py-2.5">
-      <StatusLabel variant="success" off={state !== 'running'}>
+    <Table.Item className="py-2.5 text-[13px]">
+      <StatusLabel variant={state === 'running' ? 'success' : 'muted'} off={state !== 'running'}>
         {state === 'running' ? 'Running' : 'Stopped'}
       </StatusLabel>
     </Table.Item>
