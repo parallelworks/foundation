@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.92.0](https://github.com/parallelworks/foundation/compare/ui-v0.91.0...ui-v0.92.0) (2026-10-23)
+
+
+### Features
+
+* **ui:** a list's stacked values can each take a line or join the one before, they read as secondary text, and the name takes a phone's row ([#508](https://github.com/parallelworks/foundation/issues/508)) ([be7070f](https://github.com/parallelworks/foundation/commit/be7070f91873fb54ade4121b3b601f51baba7f57))
+
+## [0.91.0](https://github.com/parallelworks/foundation/compare/ui-v0.90.0...ui-v0.91.0) (2026-10-22)
+
+
+### Features
+
+* **ui:** a list's count shows under its last row, beside its pager, rather than above its filters ([#507](https://github.com/parallelworks/foundation/issues/507)) ([c130f16](https://github.com/parallelworks/foundation/commit/c130f1690b7df76ff93ee9327e057e531cce01bd))
+
 ## [0.90.0](https://github.com/parallelworks/foundation/compare/ui-v0.89.0...ui-v0.90.0) (2026-10-22)
 
 

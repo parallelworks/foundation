@@ -34,6 +34,7 @@ export {
   GroupRow,
   ListColumns,
   ListPage,
+  type ListPageCount,
   type ListPageEmpty,
   type ListPageProps,
   ListRow,
@@ -72,6 +73,7 @@ export {
   type ListViewChrome,
   type ListViewConfig,
   type OrderByOption,
+  type StackLine,
   useListView,
 } from './listView'
 export {
