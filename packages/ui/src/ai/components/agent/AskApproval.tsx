@@ -1,0 +1,390 @@
+import { type FormEvent, useEffect, useRef, useState } from 'react'
+import { Checkbox } from '../../../components/Checkbox'
+import { fieldBox, focusOutline } from '../../../components/fieldBox'
+import { useStrings } from '../../../components/Provider'
+import { TabPanel, Tabs } from '../../../components/Tabs'
+import { cx } from '../../../cx'
+import { ArrowRightIcon, ChatIcon, CheckIcon } from '../../../icons'
+import { type PartRendererProps, useChatConfig } from '../../core/config'
+import type { ApprovalPart, ApprovalQuestion, ApprovalQuestionAnswer } from '../../types'
+
+/** What the reader has given one question so far. */
+interface Given {
+  picked: string[]
+  text: string
+  /** A single-select question's typed answer came after its last pick, so it is the answer. */
+  own: boolean
+}
+
+const unanswered: Given = { picked: [], text: '', own: false }
+
+type QuestionKind = 'single' | 'multi' | 'text'
+
+function kindOf(question: ApprovalQuestion): QuestionKind {
+  if ((question.options ?? []).length === 0) {
+    return 'text'
+  }
+  return question.multiSelect ? 'multi' : 'single'
+}
+
+const optionRow =
+  'flex w-full items-start gap-2 rounded-md border px-3 py-1.5 text-left text-xs hover:theme-hover'
+const primaryButton =
+  'px-3 py-1 text-xs font-medium rounded-full bg-(--theme-accent) text-(--theme-accent-text) disabled:opacity-50'
+const outlineButton =
+  'px-3 py-1 text-xs font-medium rounded-full border theme-border hover:theme-hover'
+const quietButton = 'px-3 py-1 text-xs rounded-full theme-muted-text hover:theme-hover'
+
+function answerOf(question: ApprovalQuestion, given: Given | undefined): ApprovalQuestionAnswer {
+  // In option order, however they were ticked.
+  const picked = (question.options ?? [])
+    .map((o) => o.label)
+    .filter((label) => given?.picked.includes(label))
+  // A multi-select question takes its typed text with its ticks; a single-select one, one or the other.
+  const text = given && (kindOf(question) !== 'single' || given.own) ? given.text.trim() : ''
+  return { ...(picked.length > 0 ? { picked } : {}), ...(text ? { text } : {}) }
+}
+
+function hasAnswer(answer: ApprovalQuestionAnswer | undefined): boolean {
+  return (answer?.picked?.length ?? 0) > 0 || !!answer?.text
+}
+
+/** An answer on one line: the options picked, then the reader's own words. */
+function joinAnswer(answer: ApprovalQuestionAnswer | undefined): string {
+  return [...(answer?.picked ?? []), ...(answer?.text ? [answer.text] : [])].join(', ')
+}
+
+/** An ask's questions, answered here when the reader can, or listed with who has to answer. */
+export function AskApproval({
+  part,
+  onAnswer,
+}: {
+  part: ApprovalPart
+  onAnswer?: PartRendererProps['onApprovalAnswer']
+}) {
+  const questions = part.questions ?? []
+  // An ask with no questions this card can read is answered where it was asked.
+  if (!onAnswer || questions.length === 0) {
+    return <AskPending part={part} questions={questions} />
+  }
+  return <AskForm id={part.id} questions={questions} onAnswer={onAnswer} />
+}
+
+function AskPending({ part, questions }: { part: ApprovalPart; questions: ApprovalQuestion[] }) {
+  const { strings } = useChatConfig()
+  const t = strings.agentTranscript
+  return (
+    <>
+      {questions.map((q) => (
+        <div key={q.question} className="space-y-0.5">
+          <div className="text-sm">{q.question}</div>
+          {(q.options ?? []).length > 0 && (
+            <div className="text-xs theme-muted-text">
+              <span className="font-medium">{t.approvalOptions}: </span>
+              {(q.options ?? []).map((o) => o.label).join(' · ')}
+            </div>
+          )}
+        </div>
+      ))}
+      <div className="text-xs theme-muted-text">
+        {part.waitingOn ? t.approvalWaitingOn(part.waitingOn) : t.approvalPending}
+      </div>
+    </>
+  )
+}
+
+function AskForm({
+  id,
+  questions,
+  onAnswer,
+}: {
+  id: string
+  questions: ApprovalQuestion[]
+  onAnswer: NonNullable<PartRendererProps['onApprovalAnswer']>
+}) {
+  const { strings } = useChatConfig()
+  const { common } = useStrings()
+  const t = strings.agentTranscript
+  const [given, setGiven] = useState<Given[]>(() => questions.map(() => unanswered))
+  const [active, setActive] = useState(0)
+  const body = useRef<HTMLDivElement>(null)
+  const submit = useRef<HTMLButtonElement>(null)
+  // The question an answer moved on to, whose first control takes focus once it shows.
+  const focusNext = useRef<number | null>(null)
+  const several = questions.length > 1
+  const answers = questions.map((q, i) => answerOf(q, given[i]))
+
+  const send = (all: ApprovalQuestionAnswer[], chat: boolean) =>
+    onAnswer(id, { kind: 'ask', answers: all, ...(chat ? { chat: true } : {}) })
+
+  // A question with its answer moves on to the next, the last to Submit; a lone one sends.
+  const done = (i: number, next: Given) => {
+    const all = given.map((g, j) => (j === i ? next : g))
+    setGiven(all)
+    if (!several) {
+      send(
+        questions.map((q, j) => answerOf(q, all[j])),
+        false,
+      )
+    } else if (i < questions.length - 1) {
+      focusNext.current = i + 1
+      setActive(i + 1)
+    } else {
+      submit.current?.focus()
+    }
+  }
+
+  useEffect(() => {
+    if (focusNext.current === active) {
+      focusNext.current = null
+      body.current?.querySelector<HTMLElement>('button, input')?.focus()
+    }
+  }, [active])
+
+  const fields = (q: ApprovalQuestion, i: number) => (
+    <div ref={i === active ? body : undefined} className="space-y-2">
+      <div className="text-sm">{q.question}</div>
+      <AskQuestionFields
+        question={q}
+        given={given[i] ?? unanswered}
+        onChange={(next) => setGiven(given.map((g, j) => (j === i ? next : g)))}
+        onDone={(next) => done(i, next)}
+      />
+    </div>
+  )
+
+  const lone = questions[0]
+  const loneKind = lone ? kindOf(lone) : 'text'
+  // A lone single-select question sends with a pick, so it needs Send only for a typed answer.
+  const sendShown = several || loneKind !== 'single' || hasAnswer(answers[0])
+  return (
+    <>
+      {several ? (
+        <Tabs
+          label={t.questionsLabel}
+          items={questions.map((q, i) => ({
+            value: String(i),
+            label: q.header || t.questionTab(i + 1),
+            ...(hasAnswer(answers[i])
+              ? { icon: <CheckIcon aria-hidden="true" className="size-3.5" /> }
+              : {}),
+          }))}
+          value={String(active)}
+          onValueChange={(value) => setActive(Number(value))}
+        >
+          {questions.map((q, i) => (
+            <TabPanel key={q.question} value={String(i)} className="pt-2">
+              {fields(q, i)}
+            </TabPanel>
+          ))}
+        </Tabs>
+      ) : (
+        lone && fields(lone, 0)
+      )}
+      {several && (
+        <div className="text-xs theme-muted-text">
+          {t.answeredCount(answers.filter(hasAnswer).length, questions.length)}
+        </div>
+      )}
+      <div className="flex flex-wrap gap-2">
+        {sendShown && (
+          <button
+            ref={submit}
+            type="button"
+            onClick={() => send(answers, false)}
+            disabled={!several && loneKind === 'text' && !hasAnswer(answers[0])}
+            className={primaryButton}
+          >
+            {several ? t.submitAnswers : common.send}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => send(answers, true)}
+          className={several ? outlineButton : quietButton}
+        >
+          {t.chatAboutThis}
+        </button>
+      </div>
+    </>
+  )
+}
+
+/** One question's options and own answer: picks for a single-select question, ticks for a multi-select one. */
+function AskQuestionFields({
+  question,
+  given,
+  onChange,
+  onDone,
+}: {
+  question: ApprovalQuestion
+  given: Given
+  onChange: (next: Given) => void
+  onDone: (next: Given) => void
+}) {
+  const { strings } = useChatConfig()
+  const t = strings.agentTranscript
+  const kind = kindOf(question)
+  const typed = given.text.trim() !== ''
+  const submitOwn = (e: FormEvent) => {
+    e.preventDefault()
+    // A blank answer is one still being written.
+    if (typed) {
+      onDone(given)
+    }
+  }
+  const type = (text: string) =>
+    // Typing on a single-select question makes the typed answer the one picked.
+    onChange(kind === 'single' ? { ...given, text, own: true, picked: [] } : { ...given, text })
+
+  if (kind === 'text') {
+    return (
+      <form onSubmit={submitOwn}>
+        <input
+          value={given.text}
+          onChange={(e) => type(e.target.value)}
+          aria-label={t.ownAnswerLabel}
+          placeholder={t.typeYourAnswer}
+          className={fieldBox({ size: 'sm' })}
+        />
+      </form>
+    )
+  }
+  const options = question.options ?? []
+  // The reader's own answer is typed into its row, which is chosen while it holds the answer.
+  const ownChosen = typed && (kind === 'multi' || given.own)
+  const ownRow = (
+    <form onSubmit={submitOwn}>
+      <label
+        className={cx(
+          optionRow,
+          'cursor-text focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-(--theme-focus)',
+          ownChosen ? 'border-(--theme-focus)' : 'theme-border',
+        )}
+      >
+        <ChoiceMark on={ownChosen} box={kind === 'multi'} />
+        <input
+          value={given.text}
+          onChange={(e) => type(e.target.value)}
+          aria-label={t.ownAnswerLabel}
+          placeholder={t.writeOwnAnswer}
+          className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-(--theme-placeholder)"
+        />
+      </label>
+    </form>
+  )
+  if (kind === 'multi') {
+    return (
+      <div className="flex flex-col gap-1.5">
+        {options.map((o) => (
+          <label key={o.label} className={cx(optionRow, 'cursor-pointer theme-border')}>
+            <Checkbox
+              checked={given.picked.includes(o.label)}
+              onCheckedChange={(on) =>
+                onChange({
+                  ...given,
+                  picked: on
+                    ? [...given.picked, o.label]
+                    : given.picked.filter((label) => label !== o.label),
+                })
+              }
+              className="mt-px"
+            />
+            <OptionText label={o.label} description={o.description} />
+          </label>
+        ))}
+        {ownRow}
+      </div>
+    )
+  }
+  // Rows rather than a radio group, so moving through them with the keyboard never picks one.
+  return (
+    <div className="flex flex-col gap-1.5">
+      {options.map((o) => {
+        const picked = given.picked.includes(o.label)
+        return (
+          <button
+            key={o.label}
+            type="button"
+            aria-pressed={picked}
+            onClick={() => onDone({ ...given, picked: [o.label], own: false })}
+            className={cx(
+              optionRow,
+              focusOutline,
+              picked ? 'border-(--theme-focus)' : 'theme-border',
+            )}
+          >
+            <ChoiceMark on={picked} box={false} />
+            <OptionText label={o.label} description={o.description} />
+          </button>
+        )
+      })}
+      {ownRow}
+    </div>
+  )
+}
+
+/** A row's mark, drawn as the package's radio or checkbox is; the row itself is the control. */
+function ChoiceMark({ on, box }: { on: boolean; box: boolean }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cx(
+        'mt-px flex size-4 shrink-0 items-center justify-center border',
+        box ? 'rounded' : 'rounded-full',
+        on
+          ? 'border-(--theme-focus) bg-(--theme-accent) text-(--theme-accent-text)'
+          : 'border-(--theme-border-strong) bg-(--theme-input-bg)',
+      )}
+    >
+      {on &&
+        (box ? (
+          <CheckIcon className="size-3" />
+        ) : (
+          <span className="size-1.5 rounded-full bg-(--theme-accent-text)" />
+        ))}
+    </span>
+  )
+}
+
+function OptionText({ label, description }: { label: string; description?: string | undefined }) {
+  return (
+    <span className="min-w-0">
+      <span className="block font-medium">{label}</span>
+      {description && <span className="block theme-muted-text">{description}</span>}
+    </span>
+  )
+}
+
+/** A settled ask: each question with what it was given, or the one answer an older record kept. */
+export function AskAnswered({ part }: { part: ApprovalPart }) {
+  const { strings } = useChatConfig()
+  const t = strings.agentTranscript
+  const answers = part.answers
+  return (
+    <>
+      {(part.questions ?? []).map((q, i) => (
+        <div key={q.question}>
+          <div className="theme-text">{q.question}</div>
+          {answers && (
+            <div className="flex items-center gap-1.5">
+              <ArrowRightIcon aria-hidden="true" className="size-3 shrink-0" />
+              {hasAnswer(answers[i]) ? (
+                <span className="theme-text">{joinAnswer(answers[i])}</span>
+              ) : (
+                <span className="italic">{t.noAnswer}</span>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+      <div className="flex items-center gap-2">
+        {part.chat ? <ChatIcon className="w-3.5 h-3.5" /> : <CheckIcon className="w-3.5 h-3.5" />}
+        <span>
+          {part.chat ? t.chatAboutThis : t.answered}
+          {!answers && part.answer ? `: ${part.answer}` : ''}
+        </span>
+      </div>
+    </>
+  )
+}
