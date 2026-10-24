@@ -28,8 +28,9 @@ type Pinger interface {
 
 // Options configure New.
 type Options struct {
-	// Logger records requests, panics and server errors. Defaults to
-	// slog.Default().
+	// Logger records requests, panics and server errors: a request that
+	// worked at debug level, a client error at info and a server error at
+	// error. Defaults to slog.Default().
 	Logger *slog.Logger
 	// Routes registers the application's handlers, such as its huma API.
 	Routes func(mux *http.ServeMux)
@@ -87,7 +88,8 @@ const DefaultContentSecurityPolicy = "default-src 'self'; " +
 // is proxied from DevServer, the CSP also accepts spa.DevNonce. Requests that
 // change state are refused when a browser sent them from another site, which
 // keeps cookie sessions safe from cross-site request forgery. Each request is
-// logged, and a panic is logged and answered with a 500.
+// logged, at debug level when it worked, and a panic is logged and answered
+// with a 500.
 func New(opts Options) http.Handler {
 	if opts.Logger == nil {
 		opts.Logger = slog.Default()
