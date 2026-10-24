@@ -363,8 +363,8 @@ export function AppFrame({
               </main>
             </div>
           </div>
+          <div ref={portalRef} />
         </div>
-        <div ref={portalRef} />
         {isMobile && (
           <Dialog.Root open={mobileOpen} onOpenChange={setMobileOpen}>
             <Dialog.Portal container={portalRef}>
@@ -376,7 +376,7 @@ export function AppFrame({
                 aria-label={labels.navigation}
                 aria-modal="true"
                 data-sidebar-mode="drawer"
-                style={{ ...sidebarProps?.style, width: Math.max(width, 240) }}
+                style={{ ...sidebarProps?.style, width }}
               >
                 <div className="pw-frame-mobile-close">
                   <Dialog.Close className="pw-frame-toggle" aria-label={labels.closeNavigation}>

@@ -1298,13 +1298,15 @@ gesture ends, so persistence does not run on every pointer movement.
 applications can choose smaller bounds. The resize handle supports arrows, Home,
 End, drag-to-collapse, and double-click to restore `defaultWidth`. Logical layout
 and resizing support right-to-left direction. Reduced motion disables resizing
-transitions. `resizable={false}` removes the handle.
+and drawer transitions. `resizable={false}` removes the handle.
 
 `brand`, `navigation`, and `footer` accept nodes or functions receiving the frame
 state. `header` sits above the main content; `banner` spans both columns.
 `fullBleed` removes the 8px inset and 12px rounded border. The frame fills the
 viewport by default; pass `style={{ height: '100%' }}` for a bounded container.
-The mobile drawer covers the viewport.
+The mobile drawer stays inside the frame, below its banner, and uses the chosen
+sidebar width, capped to leave 48px for dismissal. It slides from the navigation
+edge while the backdrop fades; both finish in 200ms and respect reduced motion.
 
 The five `--theme-sidebar-*` tokens produced by `generateTheme` style navigation:
 `bg`, `text`, `hover`, `active-bg`, and `active-text`. Without them the frame uses

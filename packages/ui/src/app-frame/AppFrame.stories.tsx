@@ -291,6 +291,18 @@ export const MobileOpen: Story = {
     await expect(canvas.getByRole('dialog', { name: 'Main navigation' })).toBeVisible()
   },
 }
+export const MobileBanner: Story = {
+  ...MobileOpen,
+  args: { ...Mobile.args, ...Banner.args, defaultWidth: 208 },
+}
+export const MobileRtl: Story = {
+  ...MobileBanner,
+  render: (args) => (
+    <div dir="rtl">
+      <Demo {...args} />
+    </div>
+  ),
+}
 export const MobileSectionNavigation: Story = {
   ...SectionNavigation,
   args: { ...Mobile.args },

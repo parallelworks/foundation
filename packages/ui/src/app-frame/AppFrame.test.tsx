@@ -166,6 +166,22 @@ describe('AppFrame', () => {
     view.rerender(<AppFrame {...props} navigationKey="settings" />)
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
+  it('uses the chosen sidebar width for mobile navigation', async () => {
+    mobile = true
+    render(<AppFrame {...props} width={208} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }))
+    expect(await screen.findByRole('dialog')).toHaveStyle({ width: '208px' })
+  })
+  it('contains the mobile overlay below the banner and beside the page', async () => {
+    mobile = true
+    const view = render(<AppFrame {...props} banner={<div>Service notice</div>} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }))
+    const dialog = await screen.findByRole('dialog')
+    const body = view.container.querySelector('.pw-frame-body')!
+    expect(body).toContainElement(dialog)
+    expect(body).toContainElement(view.container.querySelector('.pw-frame-backdrop') as HTMLElement)
+    expect(body).not.toContainElement(screen.getByText('Service notice'))
+  })
   it('preserves mobile navigation scroll until its section changes', async () => {
     mobile = true
     const view = render(
