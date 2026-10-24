@@ -22,9 +22,7 @@ function layOut(barWidth: number) {
   ) {
     return this.classList.contains('h-12') ? barWidth : 0
   })
-  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (
-    this: Element,
-  ) {
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
     const el = this as HTMLElement
     const search = (control: Element | null | undefined) =>
       control?.tagName === 'BUTTON' ? 28 : control ? 288 : 0
@@ -79,7 +77,8 @@ const trail = () => bar().getByRole('navigation', { name: 'Breadcrumb', hidden: 
 const searchButton = () => bar().getByRole('button', { name: /^Search allocations/, hidden: true })
 const field = () => screen.getByRole('textbox', { name: 'Search allocations' })
 /** The layer over the bar's row that a search takes the bar in. */
-const cover = () => trail().parentElement?.parentElement?.lastElementChild as HTMLElement
+const row = () => (trail().parentElement as HTMLElement).parentElement as HTMLElement
+const cover = () => row().lastElementChild as HTMLElement
 
 describe('a list search in a narrow page header', () => {
   it('takes the whole bar, covering the trail and the other controls', async () => {
@@ -102,11 +101,7 @@ describe('a list search in a narrow page header', () => {
     layOut(360)
     render(<AllocationsHeader />)
     // The bar's markup, but for the tooltip the focused button opens.
-    const markup = () =>
-      (trail().parentElement?.parentElement as HTMLElement).innerHTML.replaceAll(
-        ' data-popup-open=""',
-        '',
-      )
+    const markup = () => row().innerHTML.replaceAll(' data-popup-open=""', '')
     const before = markup()
     fireEvent.click(searchButton())
     await waitFor(() => expect(field()).toHaveFocus())
