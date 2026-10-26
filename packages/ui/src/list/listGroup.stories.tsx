@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { expect, userEvent, within } from 'storybook/test'
 import { AppLink } from '../components/AppLink'
 import { useContextMenu } from '../components/ContextMenu'
-import { Meter } from '../components/Meter'
+import { ProgressBar } from '../components/Meter'
 import { StatusLabel } from '../components/StatusLabel'
 import { Table } from '../components/Table'
 import { ClusterIcon, QueueIcon } from '../icons'
@@ -20,7 +20,7 @@ export default meta
 
 interface Queue {
   name: string
-  state: 'up' | 'draining' | 'down'
+  state: 'up' | 'drain' | 'down' | 'inactive'
   nodes: string
   timeLimit: string
   jobs: number
@@ -30,6 +30,11 @@ interface Cluster {
   key: string
   name: string
   scheduler: string
+  /** Nodes running work, healthy. */
+  allocated: number
+  /** Nodes partly in use. */
+  mixed: number
+  down: number
   idle: number
   total: number
   queues: Queue[]
@@ -40,36 +45,53 @@ const CLUSTERS: Cluster[] = [
     key: 'gpu-west',
     name: 'gpu-west',
     scheduler: 'slurm 24.05',
+    allocated: 22,
+    mixed: 2,
+    down: 2,
     idle: 6,
     total: 32,
     queues: [
       { name: 'gpu', state: 'up', nodes: '24 nodes', timeLimit: '2 days', jobs: 41 },
       { name: 'gpu-debug', state: 'up', nodes: '4 nodes', timeLimit: '1 hour', jobs: 3 },
-      { name: 'gpu-long', state: 'draining', nodes: '4 nodes', timeLimit: '7 days', jobs: 8 },
+      { name: 'gpu-long', state: 'drain', nodes: '4 nodes', timeLimit: '7 days', jobs: 8 },
     ],
   },
   {
     key: 'cpu-east',
     name: 'cpu-east',
     scheduler: 'pbs 2024.1',
+    allocated: 16,
+    mixed: 0,
+    down: 0,
     idle: 112,
     total: 128,
     queues: [
       { name: 'batch', state: 'up', nodes: '96 nodes', timeLimit: '1 day', jobs: 120 },
       { name: 'interactive', state: 'up', nodes: '16 nodes', timeLimit: '8 hours', jobs: 12 },
+      { name: 'legacy', state: 'inactive', nodes: '0 nodes', timeLimit: '1 day', jobs: 0 },
     ],
   },
   {
     key: 'burst-cloud',
     name: 'burst-cloud',
     scheduler: 'slurm 23.11',
+    allocated: 0,
+    mixed: 0,
+    down: 8,
     idle: 0,
     total: 8,
     queues: [{ name: 'spot', state: 'down', nodes: '8 nodes', timeLimit: '4 hours', jobs: 0 }],
   },
 ]
 
-const STATE_VARIANT = { up: 'success', draining: 'warning', down: 'error' } as const
+// Each state's name and lamp, by what it means: up is healthy, draining needs a look, down
+// failed, and an inactive queue is off.
+const STATE_LOOK = {
+  up: { label: 'Up', variant: 'success', off: false },
+  drain: { label: 'Drain', variant: 'warning', off: false },
+  down: { label: 'Down', variant: 'error', off: false },
+  inactive: { label: 'Inactive', variant: 'muted', off: true },
+} as const
 
 const COLUMNS: ColumnDef[] = [
   { key: 'name', label: 'Queue', alwaysVisible: true },
@@ -82,7 +104,6 @@ const COLUMNS: ColumnDef[] = [
 /** A cluster's header: its name, which leads to it, its scheduler where there is room, how
  *  many queues it holds and, against the far end, how much of it is free. */
 function ClusterHeader({ cluster }: { cluster: Cluster }) {
-  const used = cluster.total - cluster.idle
   return (
     <GroupRow
       label={
@@ -101,9 +122,16 @@ function ClusterHeader({ cluster }: { cluster: Cluster }) {
       trailing={
         <>
           <span className="hidden w-24 @[36rem]:block">
-            <Meter
-              value={used}
+            {/* Nodes in use are healthy green, partly used ones blue and down ones red; the
+                idle ones are the empty track. */}
+            <ProgressBar
+              value={cluster.allocated}
               max={cluster.total}
+              tone="success"
+              segments={[
+                { value: cluster.mixed, tone: 'info' },
+                { value: cluster.down, tone: 'error' },
+              ]}
               showValue="none"
               size="sm"
               aria-label={`${cluster.name} nodes in use`}
@@ -120,7 +148,7 @@ function ClusterHeader({ cluster }: { cluster: Cluster }) {
 
 function Frame({ width, children }: { width?: number | undefined; children: ReactNode }) {
   return (
-    <div className="flex justify-center bg-(--theme-app-bg) p-4" style={{ height: 600 }}>
+    <div className="flex justify-center bg-(--theme-app-bg) p-4" style={{ height: 720 }}>
       <div
         className="flex h-full w-full flex-col overflow-hidden rounded-xl border border-(--theme-border) bg-(--theme-panel-bg)"
         style={width ? { maxWidth: width } : undefined}
@@ -148,7 +176,16 @@ function Queues({
   const cell = (key: string, q: Queue) => {
     switch (key) {
       case 'state':
-        return <StatusLabel variant={STATE_VARIANT[q.state]}>{q.state}</StatusLabel>
+        return (
+          // A status label takes the size of the text around it: the cells' 13px.
+          <StatusLabel
+            variant={STATE_LOOK[q.state].variant}
+            off={STATE_LOOK[q.state].off}
+            className="text-[13px]"
+          >
+            {STATE_LOOK[q.state].label}
+          </StatusLabel>
+        )
       case 'nodes':
         return <ListCellText>{q.nodes}</ListCellText>
       case 'timeLimit':
@@ -217,7 +254,7 @@ export const Collapsible: StoryObj = {
     await userEvent.click(toggle)
     await expect(toggle).toHaveAttribute('aria-expanded', 'false')
     await expect(canvas.queryByText('interactive')).toBeNull()
-    await expect(canvas.getByRole('status')).toHaveTextContent('6 queues')
+    await expect(canvas.getByRole('status')).toHaveTextContent('7 queues')
     await userEvent.click(toggle)
     await expect(canvas.getByText('interactive')).toBeVisible()
   },
