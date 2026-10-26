@@ -45,7 +45,7 @@ function QueueTiles({ href = false }: { href?: boolean }) {
         lamp={{ variant: 'info', pulse: true }}
         href={link('running')}
       />
-      <StatTile value={17} label="Pending" lamp={{ variant: 'warning' }} href={link('pending')} />
+      <StatTile value={17} label="Pending" lamp={{ off: true }} href={link('pending')} />
       <StatTile value={2} label="Failed" lamp={{ variant: 'error' }} href={link('failed')} />
       <StatTile
         value={35}
@@ -125,14 +125,15 @@ export const Plain: StoryObj = {
   },
 }
 
-/** A lamp level with the label, in each tone: pinging for work under way (only while the count
- *  is above zero), and unlit for something off, such as idle nodes. */
+/** A lamp level with the label, by what the state means: work under way is blue and pings (only
+ *  while the count is above zero), something waiting its turn or off is the unlit ring, a failure
+ *  is red and work done is green. Amber is for a state that needs a look, not for waiting. */
 export const Lamps: StoryObj = {
   render: () => (
     <div style={{ ...page, display: 'grid', gridTemplateColumns: 'repeat(3, 160px)', gap: 12 }}>
       <StatTile value={3} label="Running" lamp={{ variant: 'info', pulse: true }} />
       <StatTile value={0} label="Running" lamp={{ variant: 'info', pulse: true }} />
-      <StatTile value={17} label="Pending" lamp={{ variant: 'warning' }} />
+      <StatTile value={17} label="Pending" lamp={{ off: true }} />
       <StatTile value={2} label="Failed" lamp={{ variant: 'error' }} />
       <StatTile value={96} label="Completed" lamp={{ variant: 'success' }} />
       <StatTile value={35} label="Idle" lamp={{ off: true }} />
@@ -206,11 +207,7 @@ export const LongLabels: StoryObj = {
   render: () => (
     <div style={phone}>
       <StatTileGroup>
-        <StatTile
-          value={4}
-          label="Waiting for capacity on the shared queue"
-          lamp={{ variant: 'warning' }}
-        />
+        <StatTile value={4} label="Waiting for capacity on the shared queue" lamp={{ off: true }} />
         <StatTile value={12} label="Completed with warnings in the last day" />
         <StatTile
           value={35}
@@ -249,8 +246,8 @@ export const Loading: StoryObj = {
     <div style={page}>
       <StatTileGroup>
         <StatTile value={0} label="Your jobs" loading />
-        <StatTile value={0} label="Running" lamp={{ variant: 'info' }} loading />
-        <StatTile value={0} label="Pending" lamp={{ variant: 'warning' }} loading />
+        <StatTile value={0} label="Running" lamp={{ variant: 'info', pulse: true }} loading />
+        <StatTile value={0} label="Pending" lamp={{ off: true }} loading />
         <StatTile value={0} label="Failed" lamp={{ variant: 'error' }} loading />
       </StatTileGroup>
     </div>

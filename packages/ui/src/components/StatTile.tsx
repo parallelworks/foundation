@@ -17,10 +17,14 @@ import { useLocale, useStrings } from './Provider'
 import { Skeleton } from './Skeleton'
 import { type BadgeVariant, StatusDot } from './StatusBadge'
 
-/** A tile's lamp, as a status's: lit in a tone, unlit with `off`, or an icon in its place. */
+/** A tile's lamp, as a status's: lit in a tone, unlit with `off`, or an icon in its place. Its
+ *  tone says what the state means, as every status lamp's does: work under way is `info` with
+ *  `pulse`, something waiting its turn or off (pending jobs, idle nodes) is `off`, a failure is
+ *  `error`, work done is `success`, and `warning` is only for a state that needs a look. */
 export interface StatTileLamp {
   variant?: BadgeVariant | undefined
-  /** Unlit, a hollow ring, for a count of something off, such as idle nodes. */
+  /** Unlit, a hollow ring, for a count of something waiting or off, such as pending jobs or idle
+   *  nodes. */
   off?: boolean | undefined
   /** A ping from the lamp, for work under way. It pings only while the count is above zero. */
   pulse?: boolean | undefined
@@ -160,7 +164,9 @@ export function StatTile({
           <Skeleton width="3ch" height={24} className="my-1 text-2xl" />
         ) : (
           <>
-            <span className="min-w-0 truncate text-2xl leading-8 font-semibold tracking-tight tabular-nums text-(--theme-app)">
+            {/* Proportional figures: the UI face's tabular 1 has a slab foot, and a tile's
+                value stands alone, never in a column of others to line up with. */}
+            <span className="min-w-0 truncate text-2xl leading-8 font-semibold tracking-tight text-(--theme-app)">
               {shown}
             </span>
             {suffix != null && (
