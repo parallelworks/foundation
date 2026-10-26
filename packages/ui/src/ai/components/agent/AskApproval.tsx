@@ -15,9 +15,10 @@ interface Given {
   text: string
   /** A single-select question's typed answer came after its last pick, so it is the answer. */
   own: boolean
+  notes: string
 }
 
-const unanswered: Given = { picked: [], text: '', own: false }
+const unanswered: Given = { picked: [], text: '', own: false, notes: '' }
 
 type QuestionKind = 'single' | 'multi' | 'text'
 
@@ -36,6 +37,17 @@ const outlineButton =
   'px-3 py-1 text-xs font-medium rounded-full border theme-border hover:theme-hover'
 const quietButton = 'px-3 py-1 text-xs rounded-full theme-muted-text hover:theme-hover'
 
+function hasPreview(preview: string | undefined): preview is string {
+  return !!preview?.trim()
+}
+
+/** Only a single-select question shows its options' previews, and takes notes beside them. */
+function showsPreviews(question: ApprovalQuestion): boolean {
+  return (
+    kindOf(question) === 'single' && (question.options ?? []).some((o) => hasPreview(o.preview))
+  )
+}
+
 function answerOf(question: ApprovalQuestion, given: Given | undefined): ApprovalQuestionAnswer {
   // In option order, however they were ticked.
   const picked = (question.options ?? [])
@@ -43,11 +55,12 @@ function answerOf(question: ApprovalQuestion, given: Given | undefined): Approva
     .filter((label) => given?.picked.includes(label))
   // A multi-select question takes its typed text with its ticks; a single-select one, one or the other.
   const text = given && (kindOf(question) !== 'single' || given.own) ? given.text.trim() : ''
-  return { ...(picked.length > 0 ? { picked } : {}), ...(text ? { text } : {}) }
-}
-
-function hasPreview(preview: string | undefined): preview is string {
-  return !!preview?.trim()
+  const notes = given && showsPreviews(question) ? given.notes.trim() : ''
+  return {
+    ...(picked.length > 0 ? { picked } : {}),
+    ...(text ? { text } : {}),
+    ...(notes ? { notes } : {}),
+  }
 }
 
 /** A preview reads as markdown in a monospace box: verbatim, unless it fences its own code. */
@@ -64,7 +77,7 @@ function fencedPreview(preview: string): string {
 const previewHoverDelay = 150
 
 function hasAnswer(answer: ApprovalQuestionAnswer | undefined): boolean {
-  return (answer?.picked?.length ?? 0) > 0 || !!answer?.text
+  return (answer?.picked?.length ?? 0) > 0 || !!answer?.text || !!answer?.notes
 }
 
 /** An answer on one line: the options picked, then the reader's own words. */
@@ -282,7 +295,7 @@ function AskQuestionFields({
       </form>
     )
   }
-  const previews = kind === 'single' && options.some((o) => hasPreview(o.preview))
+  const previews = showsPreviews(question)
   // The reader's own answer is typed into its row, which is chosen while it holds the answer.
   const ownChosen = typed && (kind === 'multi' || given.own)
   const ownRow = (
@@ -369,21 +382,39 @@ function AskQuestionFields({
     return rows
   }
   const option = options[shown]
+  const submitNotes = (e: FormEvent) => {
+    e.preventDefault()
+    // Enter answers with the pick so far, or the notes alone.
+    if (hasAnswer(answerOf(question, given))) {
+      onDone(given)
+    }
+  }
   return (
     <div className="@container/ask">
       <div className="flex flex-col gap-2 @md/ask:flex-row">
         <div className="shrink-0 @md/ask:w-56">{rows}</div>
-        <PreviewPane
-          label={option?.label ?? t.ownAnswerLabel}
-          preview={option?.preview}
-          // As tall as the tallest preview, so moving through the options never shifts what is under it.
-          lines={Math.max(
-            3,
-            ...options.map((o) =>
-              hasPreview(o.preview) ? o.preview.replace(/\n+$/, '').split('\n').length + 1 : 0,
-            ),
-          )}
-        />
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <PreviewPane
+            label={option?.label ?? t.ownAnswerLabel}
+            preview={option?.preview}
+            // As tall as the tallest preview, so moving through the options never shifts what is under it.
+            lines={Math.max(
+              3,
+              ...options.map((o) =>
+                hasPreview(o.preview) ? o.preview.replace(/\n+$/, '').split('\n').length + 1 : 0,
+              ),
+            )}
+          />
+          <form onSubmit={submitNotes}>
+            <input
+              value={given.notes}
+              onChange={(e) => onChange({ ...given, notes: e.target.value })}
+              aria-label={t.notesLabel}
+              placeholder={t.notesPlaceholder}
+              className={fieldBox({ size: 'sm' })}
+            />
+          </form>
+        </div>
       </div>
     </div>
   )
@@ -404,7 +435,7 @@ function PreviewPane({
     <section
       aria-label={t.previewOf(label)}
       style={{ '--preview-lines': lines } as CSSProperties}
-      className="min-h-[calc(var(--preview-lines)*1lh)] min-w-0 flex-1 rounded-md border theme-border px-3 py-1.5 text-xs"
+      className="min-h-[calc(var(--preview-lines)*1lh)] rounded-md border theme-border px-3 py-1.5 text-xs"
     >
       <div aria-hidden="true" className="font-medium">
         {label}
@@ -464,7 +495,7 @@ export function AskAnswered({ part }: { part: ApprovalPart }) {
             <div className="flex items-center gap-1.5">
               <ArrowRightIcon aria-hidden="true" className="size-3 shrink-0" />
               {hasAnswer(answers[i]) ? (
-                <span className="theme-text">{joinAnswer(answers[i])}</span>
+                <span className="theme-text">{joinAnswer(answers[i]) || t.notesOnly}</span>
               ) : (
                 <span className="italic">{t.noAnswer}</span>
               )}

@@ -158,10 +158,11 @@ export interface ApprovalQuestion {
   options?: ApprovalOption[]
 }
 
-/** What one question was given: the options picked, in option order, and the reader's own words. */
+/** What one question was given: the options picked, in option order, the reader's own words, and their notes on a question with previews. */
 export interface ApprovalQuestionAnswer {
   picked?: string[]
   text?: string
+  notes?: string
 }
 
 export type ApprovalAnswerValue =

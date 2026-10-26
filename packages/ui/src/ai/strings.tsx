@@ -306,6 +306,11 @@ export interface ChatStrings {
     noPreview: string
     /** Names the pane showing an option's preview. */
     previewOf: (label: string) => string
+    /** Names the field for notes on a question with previews. */
+    notesLabel: string
+    notesPlaceholder: string
+    /** An answer that is notes alone, which an answered ask shows in place of the notes. */
+    notesOnly: string
     /** Read out in place of a task's checkbox glyph. */
     todoPending: string
     todoInProgress: string
@@ -617,6 +622,9 @@ export const defaultChatStrings: ChatStrings = {
     noAnswer: 'No answer',
     noPreview: 'No preview for this option',
     previewOf: (label) => `Preview: ${label}`,
+    notesLabel: 'Notes',
+    notesPlaceholder: 'Add notes on this design…',
+    notesOnly: '(notes only)',
     todoPending: 'To do',
     todoInProgress: 'In progress',
     todoCompleted: 'Done',

@@ -258,8 +258,40 @@ describe('AskApproval with option previews', () => {
     }
   })
 
-  it("leaves a multi-select question's previews out", () => {
+  it('sends the notes with the option picked after them', () => {
+    const onAnswer = renderAsk([layout])
+    fireEvent.change(screen.getByRole('textbox', { name: 'Notes' }), {
+      target: { value: ' narrower ' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Tabs' }))
+    expect(onAnswer).toHaveBeenCalledWith('q1', {
+      kind: 'ask',
+      answers: [{ picked: ['Tabs'], notes: 'narrower' }],
+    })
+  })
+
+  it('sends the notes alone on Enter, and keeps empty ones waiting', () => {
+    const onAnswer = renderAsk([layout])
+    const notes = screen.getByRole('textbox', { name: 'Notes' })
+    fireEvent.submit(notes)
+    expect(onAnswer).not.toHaveBeenCalled()
+    fireEvent.change(notes, { target: { value: 'something in between' } })
+    fireEvent.submit(notes)
+    expect(onAnswer).toHaveBeenCalledWith('q1', {
+      kind: 'ask',
+      answers: [{ notes: 'something in between' }],
+    })
+  })
+
+  it('counts notes as an answer', () => {
+    renderAsk([layout, auth])
+    fireEvent.change(screen.getByRole('textbox', { name: 'Notes' }), { target: { value: 'x' } })
+    expect(screen.getByText('1 of 2 answered')).toBeInTheDocument()
+  })
+
+  it("leaves a multi-select question's previews and notes out", () => {
     renderAsk([{ ...layout, multiSelect: true }])
     expect(screen.queryByRole('region')).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Notes' })).not.toBeInTheDocument()
   })
 })

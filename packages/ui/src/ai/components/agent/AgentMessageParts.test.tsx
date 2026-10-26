@@ -302,14 +302,34 @@ describe('approval parts', () => {
           { question: 'Anything else?' },
         ],
         resolved: true,
-        answers: [{ picked: ['Postgres'] }, { picked: ['Lint'], text: 'and the e2e suite' }, {}],
+        answers: [
+          { picked: ['Postgres'], notes: 'the managed one' },
+          { picked: ['Lint'], text: 'and the e2e suite' },
+          {},
+        ],
       },
     ])
     expect(screen.getByText('Postgres')).toBeInTheDocument()
+    expect(screen.queryByText(/the managed one/)).not.toBeInTheDocument()
     expect(screen.getByText('Lint, and the e2e suite')).toBeInTheDocument()
     expect(screen.getByText('No answer')).toBeInTheDocument()
     expect(screen.getByText('Answered')).toBeInTheDocument()
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('shows an answer of notes alone as notes only, not the notes', () => {
+    renderParts([
+      {
+        kind: 'approval',
+        id: 'a8',
+        approvalKind: 'ask',
+        questions: [{ question: 'Which db?', options: [{ label: 'Postgres', preview: 'pg' }] }],
+        resolved: true,
+        answers: [{ notes: 'something in between' }],
+      },
+    ])
+    expect(screen.getByText('(notes only)')).toBeInTheDocument()
+    expect(screen.queryByText(/something in between/)).not.toBeInTheDocument()
   })
 
   it('says a resolved ask went to chat, keeping the answers given so far', () => {

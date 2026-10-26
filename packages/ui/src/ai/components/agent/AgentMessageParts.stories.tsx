@@ -324,7 +324,7 @@ export const AskQuestions: StoryObj<{ questions: number; multiSelect: boolean }>
 }
 
 // Options with previews: the pane beside them shows the focused option's, or the
-// one the pointer rests on, and stacks under them in a narrow card.
+// one the pointer rests on, with notes under it, and stacks under them in a narrow card.
 export const AskPreviews: StoryObj<{ questions: number }> = {
   args: { questions: 1 },
   argTypes: { questions: { control: { type: 'range', min: 1, max: 4 } } },
@@ -335,6 +335,7 @@ export const AskPreviews: StoryObj<{ questions: number }> = {
     await expect(
       await canvas.findByRole('region', { name: 'Preview: Shard 12' }),
     ).toBeInTheDocument()
+    await userEvent.type(canvas.getByRole('textbox', { name: 'Notes' }), 'Only the flaky jobs')
   },
 }
 
