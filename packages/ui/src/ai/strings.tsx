@@ -302,6 +302,10 @@ export interface ChatStrings {
     chatAboutThis: string
     /** A question sent without an answer. */
     noAnswer: string
+    /** In the preview pane, for an option that has no preview of its own. */
+    noPreview: string
+    /** Names the pane showing an option's preview. */
+    previewOf: (label: string) => string
     /** Read out in place of a task's checkbox glyph. */
     todoPending: string
     todoInProgress: string
@@ -611,6 +615,8 @@ export const defaultChatStrings: ChatStrings = {
     submitAnswers: 'Submit answers',
     chatAboutThis: 'Chat about this',
     noAnswer: 'No answer',
+    noPreview: 'No preview for this option',
+    previewOf: (label) => `Preview: ${label}`,
     todoPending: 'To do',
     todoInProgress: 'In progress',
     todoCompleted: 'Done',

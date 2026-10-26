@@ -1,10 +1,15 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ChatConfigProvider, resolveChatConfig } from '../../core/config'
 import type { ApprovalQuestion } from '../../types'
 import { AskApproval } from './AskApproval'
+
+vi.mock('../../ui/Markdown', () => ({
+  __esModule: true,
+  default: ({ children }: { children: string }) => <div data-testid="markdown">{children}</div>,
+}))
 
 const database: ApprovalQuestion = {
   question: 'Which database?',
@@ -204,5 +209,57 @@ describe('AskApproval it cannot answer', () => {
     expect(screen.getByText(/OAuth · SAML/)).toBeInTheDocument()
     expect(screen.getByText('Waiting for Dana to answer')).toBeInTheDocument()
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+})
+
+const layout: ApprovalQuestion = {
+  question: 'Which layout?',
+  header: 'Layout',
+  options: [
+    { label: 'Sidebar', preview: '| nav | body |\n|-----|------|\n| a   | b    |' },
+    { label: 'Tabs', preview: '```ts\nconst tabs = ["Overview"]\n```' },
+    { label: 'Single page' },
+  ],
+}
+
+const pane = (label: string) => screen.getByRole('region', { name: `Preview: ${label}` })
+
+describe('AskApproval with option previews', () => {
+  it('fences a preview as text, so a mockup shows as written, unless it fences its own code', () => {
+    renderAsk([layout])
+    expect(pane('Sidebar')).toBeInTheDocument()
+    expect(screen.getByTestId('markdown').textContent).toBe(
+      '```text\n| nav | body |\n|-----|------|\n| a   | b    |\n```',
+    )
+    fireEvent.focus(screen.getByRole('button', { name: 'Tabs' }))
+    expect(screen.getByTestId('markdown').textContent).toBe('```ts\nconst tabs = ["Overview"]\n```')
+  })
+
+  it("shows the focused option's preview, and says when one has none", () => {
+    renderAsk([layout])
+    fireEvent.focus(screen.getByRole('button', { name: 'Tabs' }))
+    expect(pane('Tabs')).toHaveTextContent('const tabs = ["Overview"]')
+    fireEvent.focus(screen.getByRole('button', { name: 'Single page' }))
+    expect(pane('Single page')).toHaveTextContent('No preview for this option')
+    fireEvent.focus(screen.getByRole('textbox', { name: 'Your answer' }))
+    expect(pane('Your answer')).toHaveTextContent('No preview for this option')
+  })
+
+  it('follows a pointer that rests on an option', () => {
+    vi.useFakeTimers()
+    try {
+      renderAsk([layout])
+      fireEvent.mouseEnter(screen.getByRole('button', { name: 'Tabs' }))
+      expect(pane('Sidebar')).toBeInTheDocument()
+      act(() => vi.advanceTimersByTime(150))
+      expect(pane('Tabs')).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("leaves a multi-select question's previews out", () => {
+    renderAsk([{ ...layout, multiSelect: true }])
+    expect(screen.queryByRole('region')).not.toBeInTheDocument()
   })
 })

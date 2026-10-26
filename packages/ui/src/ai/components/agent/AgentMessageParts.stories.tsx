@@ -262,10 +262,18 @@ export const ApprovalFeedback: StoryObj<{ kind: 'confirm' | 'ask' }> = {
 
 // Answering settles the card the way a host does, so the story shows what the
 // reader sees after Submit or Chat about this.
-function AskRoundTrip({ questions, multiSelect }: { questions: number; multiSelect: boolean }) {
+function AskRoundTrip({
+  questions,
+  multiSelect,
+  previews = false,
+}: {
+  questions: number
+  multiSelect: boolean
+  previews?: boolean
+}) {
   const ask = useMemo(
-    () => makeApprovalPart({ kind: 'ask', questions, multiSelect }),
-    [questions, multiSelect],
+    () => makeApprovalPart({ kind: 'ask', questions, multiSelect, previews }),
+    [questions, multiSelect, previews],
   )
   const [answer, setAnswer] = useState<ApprovalAnswerValue | null>(null)
   const message = useMemo(() => {
@@ -312,6 +320,21 @@ export const AskQuestions: StoryObj<{ questions: number; multiSelect: boolean }>
       await canvas.findByPlaceholderText('Type your answer…'),
       'Only the failed shards{Enter}',
     )
+  },
+}
+
+// Options with previews: the pane beside them shows the focused option's, or the
+// one the pointer rests on, and stacks under them in a narrow card.
+export const AskPreviews: StoryObj<{ questions: number }> = {
+  args: { questions: 1 },
+  argTypes: { questions: { control: { type: 'range', min: 1, max: 4 } } },
+  render: ({ questions }) => <AskRoundTrip questions={questions} multiSelect={false} previews />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.hover(canvas.getByRole('button', { name: /Shard 12/ }))
+    await expect(
+      await canvas.findByRole('region', { name: 'Preview: Shard 12' }),
+    ).toBeInTheDocument()
   },
 }
 

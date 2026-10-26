@@ -682,6 +682,13 @@ const askSamples: ApprovalQuestion[] = [
   },
 ]
 
+// The first question's options with a preview each: two mockups and one bringing its own fenced code.
+const askPreviewSamples = [
+  'retry  shard-4\n  instance-selector      3 failed\n  ──────────────────────────\n  about 4 min on self-hosted',
+  'retry  shard-12\n  publish-cloud-cluster  5 failed\n  ──────────────────────────\n  about 6 min on self-hosted',
+  '```sh\npw runs retry --all-shards\n```\nRe-runs **every** shard, about 25 minutes.',
+]
+
 const askAnswerSamples: ApprovalQuestionAnswer[] = [
   { picked: ['Shard 4'] },
   { picked: ['Hosted'] },
@@ -698,12 +705,28 @@ export function makeApprovalPart(options?: {
   questions?: number
   /** A resolved ask the reader chose to chat about instead. */
   chat?: boolean
+  /** The first question's options carry previews. */
+  previews?: boolean
 }): ApprovalPart {
   const kind = options?.kind ?? 'confirm'
   const count = Math.min(Math.max(options?.questions ?? 1, 0), askSamples.length)
-  const questions = askSamples
-    .slice(0, count)
-    .map((q, i) => (i === 0 && options?.multiSelect ? { ...q, multiSelect: true } : q))
+  const questions = askSamples.slice(0, count).map((q, i) => {
+    if (i !== 0) {
+      return q
+    }
+    return {
+      ...q,
+      ...(options?.multiSelect ? { multiSelect: true } : {}),
+      ...(options?.previews
+        ? {
+            options: (q.options ?? []).map((o, j) => {
+              const preview = askPreviewSamples[j]
+              return preview ? { ...o, preview } : o
+            }),
+          }
+        : {}),
+    }
+  })
   const base: ApprovalPart =
     kind === 'confirm'
       ? {

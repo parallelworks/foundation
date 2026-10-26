@@ -145,6 +145,8 @@ export interface SubagentPart {
 export interface ApprovalOption {
   label: string
   description?: string
+  /** Markdown shown beside the options while this one is focused; a multi-select question ignores it. */
+  preview?: string
 }
 
 /** One question of an ask; one without options takes typed text alone. */

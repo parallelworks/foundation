@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useRef, useState } from 'react'
+import { type CSSProperties, type FormEvent, useEffect, useRef, useState } from 'react'
 import { Checkbox } from '../../../components/Checkbox'
 import { fieldBox, focusOutline } from '../../../components/fieldBox'
 import { useStrings } from '../../../components/Provider'
@@ -7,6 +7,7 @@ import { cx } from '../../../cx'
 import { ArrowRightIcon, ChatIcon, CheckIcon } from '../../../icons'
 import { type PartRendererProps, useChatConfig } from '../../core/config'
 import type { ApprovalPart, ApprovalQuestion, ApprovalQuestionAnswer } from '../../types'
+import Markdown from '../../ui/Markdown'
 
 /** What the reader has given one question so far. */
 interface Given {
@@ -44,6 +45,23 @@ function answerOf(question: ApprovalQuestion, given: Given | undefined): Approva
   const text = given && (kindOf(question) !== 'single' || given.own) ? given.text.trim() : ''
   return { ...(picked.length > 0 ? { picked } : {}), ...(text ? { text } : {}) }
 }
+
+function hasPreview(preview: string | undefined): preview is string {
+  return !!preview?.trim()
+}
+
+/** A preview reads as markdown in a monospace box: verbatim, unless it fences its own code. */
+function fencedPreview(preview: string): string {
+  const body = preview.replace(/\n+$/, '')
+  if (/^ {0,3}`{3,}[^`]*$/m.test(body)) {
+    return body
+  }
+  const fence = '`'.repeat(Math.max(2, ...(body.match(/`+/g) ?? []).map((run) => run.length)) + 1)
+  return `${fence}text\n${body}\n${fence}`
+}
+
+// A pointer passing over the options on its way elsewhere doesn't flash each preview.
+const previewHoverDelay = 150
 
 function hasAnswer(answer: ApprovalQuestionAnswer | undefined): boolean {
   return (answer?.picked?.length ?? 0) > 0 || !!answer?.text
@@ -225,6 +243,20 @@ function AskQuestionFields({
   const { strings } = useChatConfig()
   const t = strings.agentTranscript
   const kind = kindOf(question)
+  const options = question.options ?? []
+  // The option the pane shows: focused, or hovered for a moment; past the options, the own answer.
+  const [shown, setShown] = useState(() =>
+    Math.max(
+      options.findIndex((o) => given.picked.includes(o.label)),
+      0,
+    ),
+  )
+  const hover = useRef<ReturnType<typeof setTimeout>>(undefined)
+  useEffect(() => () => clearTimeout(hover.current), [])
+  const show = (i: number) => {
+    clearTimeout(hover.current)
+    setShown(i)
+  }
   const typed = given.text.trim() !== ''
   const submitOwn = (e: FormEvent) => {
     e.preventDefault()
@@ -250,7 +282,7 @@ function AskQuestionFields({
       </form>
     )
   }
-  const options = question.options ?? []
+  const previews = kind === 'single' && options.some((o) => hasPreview(o.preview))
   // The reader's own answer is typed into its row, which is chosen while it holds the answer.
   const ownChosen = typed && (kind === 'multi' || given.own)
   const ownRow = (
@@ -266,6 +298,7 @@ function AskQuestionFields({
         <input
           value={given.text}
           onChange={(e) => type(e.target.value)}
+          onFocus={previews ? () => show(options.length) : undefined}
           aria-label={t.ownAnswerLabel}
           placeholder={t.writeOwnAnswer}
           className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-(--theme-placeholder)"
@@ -298,9 +331,9 @@ function AskQuestionFields({
     )
   }
   // Rows rather than a radio group, so moving through them with the keyboard never picks one.
-  return (
+  const rows = (
     <div className="flex flex-col gap-1.5">
-      {options.map((o) => {
+      {options.map((o, i) => {
         const picked = given.picked.includes(o.label)
         return (
           <button
@@ -308,6 +341,16 @@ function AskQuestionFields({
             type="button"
             aria-pressed={picked}
             onClick={() => onDone({ ...given, picked: [o.label], own: false })}
+            {...(previews
+              ? {
+                  onFocus: () => show(i),
+                  onMouseEnter: () => {
+                    clearTimeout(hover.current)
+                    hover.current = setTimeout(setShown, previewHoverDelay, i)
+                  },
+                  onMouseLeave: () => clearTimeout(hover.current),
+                }
+              : {})}
             className={cx(
               optionRow,
               focusOutline,
@@ -321,6 +364,57 @@ function AskQuestionFields({
       })}
       {ownRow}
     </div>
+  )
+  if (!previews) {
+    return rows
+  }
+  const option = options[shown]
+  return (
+    <div className="@container/ask">
+      <div className="flex flex-col gap-2 @md/ask:flex-row">
+        <div className="shrink-0 @md/ask:w-56">{rows}</div>
+        <PreviewPane
+          label={option?.label ?? t.ownAnswerLabel}
+          preview={option?.preview}
+          // As tall as the tallest preview, so moving through the options never shifts what is under it.
+          lines={Math.max(
+            3,
+            ...options.map((o) =>
+              hasPreview(o.preview) ? o.preview.replace(/\n+$/, '').split('\n').length + 1 : 0,
+            ),
+          )}
+        />
+      </div>
+    </div>
+  )
+}
+
+function PreviewPane({
+  label,
+  preview,
+  lines,
+}: {
+  label: string
+  preview: string | undefined
+  lines: number
+}) {
+  const { strings } = useChatConfig()
+  const t = strings.agentTranscript
+  return (
+    <section
+      aria-label={t.previewOf(label)}
+      style={{ '--preview-lines': lines } as CSSProperties}
+      className="min-h-[calc(var(--preview-lines)*1lh)] min-w-0 flex-1 rounded-md border theme-border px-3 py-1.5 text-xs"
+    >
+      <div aria-hidden="true" className="font-medium">
+        {label}
+      </div>
+      {hasPreview(preview) ? (
+        <Markdown>{fencedPreview(preview)}</Markdown>
+      ) : (
+        <div className="theme-muted-text">{t.noPreview}</div>
+      )}
+    </section>
   )
 }
 
