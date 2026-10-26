@@ -119,6 +119,19 @@ describe('fitView', () => {
     expect(tall?.scale).toBeCloseTo((300 - 40 - 30) / 1000)
   })
 
+  it('centers a graph that fits in the room under what covers the top, when asked', () => {
+    const pane = { width: 600, height: 600 }
+    // Too small to fill the pane at the closest a fit comes, it sits in the middle of the room left.
+    const view = fitView({ minX: 0, minY: 0, maxX: 300, maxY: 60 }, pane, {
+      clear: 40,
+      center: true,
+    })
+    const scale = FIT_MAX_SCALE
+    expect(view?.scale).toBe(scale)
+    expect(view?.x).toBeCloseTo((600 - 300 * scale) / 2)
+    expect(view?.y).toBeCloseTo(40 + 30 + (600 - 40 - 60 - 60 * scale) / 2)
+  })
+
   it('has nothing to fit without a graph', () => {
     expect(fitView({ minX: 0, minY: 0, maxX: 0, maxY: 0 }, panel)).toBeNull()
   })

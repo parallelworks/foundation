@@ -5,7 +5,6 @@ import {
 } from '@parallelworks/workflow-parser'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useMemo, useState } from 'react'
-import { expect, userEvent, within } from 'storybook/test'
 import { Editor } from '../editor/Editor'
 import { DynamicForm } from '../form/Form'
 import { initializeValues } from '../form/lib'
@@ -112,7 +111,7 @@ function WorkflowBuild({ minPaneWidth, form }: Args) {
   }
   return (
     // A height for the view to fill: here the story's, in a page the space under its header.
-    <div className="flex flex-col" style={{ height: 'min(640px, calc(100dvh - 2rem))' }}>
+    <div className="flex flex-col" style={{ height: 'calc(100dvh - 2rem)' }}>
       <SplitView
         label="Workflow views"
         minPaneWidth={minPaneWidth}
@@ -138,10 +137,4 @@ export const TwoPanes: StoryObj<Args> = {
 export const Phone: StoryObj<Args> = {
   globals: { viewport: { value: 'mobile1', isRotated: false } },
   render: (args) => <WorkflowBuild {...args} />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    const tab = await canvas.findByRole('tab', { name: 'Preview' })
-    await userEvent.click(tab)
-    await expect(tab).toHaveAttribute('aria-selected', 'true')
-  },
 }

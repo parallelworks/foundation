@@ -1192,6 +1192,8 @@ function graphBounds(content: HTMLElement): Bounds | null {
 
 // A panel narrower than this is a phone's, where a fit of a whole run would be too small to read.
 const NARROW_PANEL_PX = 640
+// The widest a preview's pane is when it runs the graph down the pane: a phone's.
+const TALL_PANEL_MAX_PX = 480
 
 // On a phone, past the host's `p-4` to the container's edges, with no side borders or corners.
 const BLEED_CLASSES = 'max-sm:-mx-4 max-sm:w-auto max-sm:rounded-none max-sm:border-x-0'
@@ -1354,7 +1356,11 @@ export default function DependencyGraph({
   const containerHeight = topOffset !== null ? Math.max(windowSize.h - topOffset - 16, 160) : null
   // On a phone a run's graph runs down the screen, its ranks as rows, so scrolling follows the work
   // and most pipelines fit the width at a size their jobs read at.
-  const runsDown = !preview && !editor && windowSize.w < NARROW_PANEL_PX
+  // A preview filling a narrow pane taller than it is wide, as on a phone, runs down it too, so the
+  // graph takes the pane's height rather than a strip across its top. A pane beside an editor on a
+  // wider screen keeps the graph running across.
+  const [tallPanel, setTallPanel] = useState(false)
+  const runsDown = !editor && (preview ? fill && tallPanel : windowSize.w < NARROW_PANEL_PX)
 
   // The panel is only as tall as the graph, up to that cap, so a small graph
   // leaves no empty box above the step summaries under it. The transform
@@ -1691,15 +1697,17 @@ export default function DependencyGraph({
       }
       const narrow = !preview && !editor && panel.width < NARROW_PANEL_PX
       const barHeight = viewBarRef.current?.offsetHeight ?? 0
+      // A preview's panel is often small, and its view buttons would cover the graph's top. One
+      // that fills a pane centers the graph in it, as the pane doesn't shrink to the graph.
+      const previewFit = preview
+        ? { clear: barHeight + VIEW_BAR_OFFSET_PX, center: fill }
+        : undefined
       const view = fitView(
         bounds,
         panel,
         narrow || runsDown
-          ? { minScale: READABLE_SCALE, top: barHeight, width: runsDown }
-          : // A preview's panel is often small, and its view buttons would cover the graph's top.
-            preview
-            ? { clear: barHeight + VIEW_BAR_OFFSET_PX }
-            : undefined,
+          ? { minScale: READABLE_SCALE, width: runsDown, ...(previewFit ?? { top: barHeight }) }
+          : previewFit,
       )
       if (!view) {
         return
@@ -1718,7 +1726,7 @@ export default function DependencyGraph({
       // Tell the library after paint so it doesn't overwrite our direct DOM change
       requestAnimationFrame(() => transform.setTransform(view.x, view.y, view.scale, 0))
     },
-    [nodeOf, editor, runRowOf, preview, runsDown],
+    [nodeOf, editor, runRowOf, preview, runsDown, fill],
   )
 
   // Boxes open and close over CSS transitions, so a fit before they end measures them mid-way:
@@ -1936,6 +1944,10 @@ export default function DependencyGraph({
     }
     let raf = 0
     const observer = new ResizeObserver(() => {
+      const { clientWidth, clientHeight } = containerEl
+      if (clientWidth > 0) {
+        setTallPanel(clientWidth < TALL_PANEL_MAX_PX && clientHeight > clientWidth)
+      }
       cancelAnimationFrame(raf)
       raf = requestAnimationFrame(() => {
         if (!viewed.current) {
