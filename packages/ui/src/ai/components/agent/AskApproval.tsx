@@ -1,4 +1,4 @@
-import { type CSSProperties, type FormEvent, useEffect, useRef, useState } from 'react'
+import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { Checkbox } from '../../../components/Checkbox'
 import { fieldBox, focusOutline } from '../../../components/fieldBox'
 import { useStrings } from '../../../components/Provider'
@@ -381,7 +381,6 @@ function AskQuestionFields({
   if (!previews) {
     return rows
   }
-  const option = options[shown]
   const submitNotes = (e: FormEvent) => {
     e.preventDefault()
     // Enter answers with the pick so far, or the notes alone.
@@ -394,17 +393,17 @@ function AskQuestionFields({
       <div className="flex flex-col gap-2 @md/ask:flex-row">
         <div className="shrink-0 @md/ask:w-56">{rows}</div>
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-          <PreviewPane
-            label={option?.label ?? t.ownAnswerLabel}
-            preview={option?.preview}
-            // As tall as the tallest preview, so moving through the options never shifts what is under it.
-            lines={Math.max(
-              3,
-              ...options.map((o) =>
-                hasPreview(o.preview) ? o.preview.replace(/\n+$/, '').split('\n').length + 1 : 0,
-              ),
-            )}
-          />
+          {/* Every pane shares one cell, so the tallest sets its height and moving through the options never shifts what is under it. */}
+          <div className="grid grid-cols-1">
+            {options.map((o, i) => (
+              <PreviewPane key={o.label} label={o.label} preview={o.preview} shown={i === shown} />
+            ))}
+            <PreviewPane
+              label={t.ownAnswerLabel}
+              preview={undefined}
+              shown={shown === options.length}
+            />
+          </div>
           <form onSubmit={submitNotes}>
             <input
               value={given.notes}
@@ -423,19 +422,23 @@ function AskQuestionFields({
 function PreviewPane({
   label,
   preview,
-  lines,
+  shown,
 }: {
   label: string
   preview: string | undefined
-  lines: number
+  shown: boolean
 }) {
   const { strings } = useChatConfig()
   const t = strings.agentTranscript
   return (
     <section
       aria-label={t.previewOf(label)}
-      style={{ '--preview-lines': lines } as CSSProperties}
-      className="min-h-[calc(var(--preview-lines)*1lh)] rounded-md border theme-border px-3 py-1.5 text-xs"
+      aria-hidden={shown ? undefined : true}
+      inert={!shown}
+      className={cx(
+        'col-start-1 row-start-1 rounded-md border theme-border px-3 py-1.5 text-xs',
+        !shown && 'invisible',
+      )}
     >
       <div aria-hidden="true" className="font-medium">
         {label}

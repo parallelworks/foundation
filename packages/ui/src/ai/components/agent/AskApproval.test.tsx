@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ChatConfigProvider, resolveChatConfig } from '../../core/config'
 import type { ApprovalQuestion } from '../../types'
@@ -227,12 +227,24 @@ const pane = (label: string) => screen.getByRole('region', { name: `Preview: ${l
 describe('AskApproval with option previews', () => {
   it('fences a preview as text, so a mockup shows as written, unless it fences its own code', () => {
     renderAsk([layout])
-    expect(pane('Sidebar')).toBeInTheDocument()
-    expect(screen.getByTestId('markdown').textContent).toBe(
+    expect(within(pane('Sidebar')).getByTestId('markdown').textContent).toBe(
       '```text\n| nav | body |\n|-----|------|\n| a   | b    |\n```',
     )
     fireEvent.focus(screen.getByRole('button', { name: 'Tabs' }))
-    expect(screen.getByTestId('markdown').textContent).toBe('```ts\nconst tabs = ["Overview"]\n```')
+    expect(within(pane('Tabs')).getByTestId('markdown').textContent).toBe(
+      '```ts\nconst tabs = ["Overview"]\n```',
+    )
+  })
+
+  it('lays every preview in the pane, reaching only the shown one, so it is as tall as the tallest', () => {
+    renderAsk([layout])
+    expect(screen.getAllByRole('region')).toEqual([pane('Sidebar')])
+    const tabs = screen.getByText(/const tabs = \["Overview"\]/).closest('section')
+    expect(tabs).toHaveAttribute('aria-hidden', 'true')
+    expect(tabs).toHaveAttribute('inert')
+    fireEvent.focus(screen.getByRole('button', { name: 'Tabs' }))
+    expect(screen.getAllByRole('region')).toEqual([pane('Tabs')])
+    expect(pane('Tabs')).not.toHaveAttribute('inert')
   })
 
   it("shows the focused option's preview, and says when one has none", () => {
