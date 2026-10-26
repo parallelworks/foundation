@@ -4,6 +4,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import { UIProvider } from '../components/Provider'
 import { Table } from '../components/Table'
 import { memoryStorage } from '../test/storage'
+import { ListFilterBar } from './ListFilterBar'
 import { GroupRow, ListColumns, ListPage, ListRow, ListRowActionsProvider } from './ListPage'
 import {
   actionsColumnWidth,
@@ -16,8 +17,9 @@ import {
 } from './ListTable'
 import { ListToolbar } from './ListToolbar'
 import { ListDisplayMenu } from './ListViewControls'
-import { useListSearch } from './listSearch'
+import { ListCount, useListSearch } from './listSearch'
 import { useListView } from './listView'
+import { useListFilters } from './useListFilters'
 
 beforeEach(() => {
   Object.defineProperty(window, 'localStorage', { value: memoryStorage(), configurable: true })
@@ -136,6 +138,249 @@ describe('ListToolbar', () => {
       />,
     )
     expect(screen.getByRole('status')).toHaveTextContent('3 of 12 buckets')
+  })
+})
+
+const NOUNS = { noun: 'bucket', nounPlural: 'buckets' }
+
+describe('ListPage count', () => {
+  it('shows the count under the last row, not in the toolbar', () => {
+    render(
+      <ListPage total={7} count={NOUNS} toolbar={<div data-testid="toolbar">tools</div>}>
+        <table>
+          <tbody>
+            <tr>
+              <td>last row</td>
+            </tr>
+          </tbody>
+        </table>
+      </ListPage>,
+    )
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent('7 buckets')
+    expect(screen.getByTestId('toolbar')).not.toContainElement(status)
+    const row = screen.getByText('last row')
+    expect(row.compareDocumentPosition(status) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('says how many match while a filter narrows the list', () => {
+    render(
+      <ListPage total={7} matches={2} count={NOUNS}>
+        rows
+      </ListPage>,
+    )
+    expect(screen.getByRole('status')).toHaveTextContent('2 of 7 buckets')
+  })
+
+  it('shows no count with the empty or no-matches state, and says nothing while loading', () => {
+    const { rerender } = render(
+      <ListPage total={0} count={NOUNS} empty={{ title: 'No buckets yet' }}>
+        rows
+      </ListPage>,
+    )
+    expect(screen.getByText('No buckets yet')).toBeInTheDocument()
+    // Only a screen reader finds the count: the line under the rows is gone.
+    expect(screen.getByRole('status')).toHaveTextContent('0 buckets')
+    expect(screen.getByRole('status').parentElement).toHaveClass('sr-only')
+    rerender(
+      <ListPage total={7} matches={0} count={NOUNS} noMatches="No buckets match">
+        rows
+      </ListPage>,
+    )
+    expect(screen.getByText('No buckets match')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('0 of 7 buckets')
+    expect(screen.getByRole('status').parentElement).toHaveClass('sr-only')
+    rerender(
+      <ListPage loading total={7} count={NOUNS}>
+        rows
+      </ListPage>,
+    )
+    expect(screen.queryByText('7 buckets')).toBeNull()
+  })
+
+  it('keeps one count status mounted from rows to no matches and back, so each change is heard', () => {
+    function Searched({ matches }: { matches: number }) {
+      return (
+        <ListPage total={7} matches={matches} count={NOUNS} noMatches="No buckets match">
+          rows
+        </ListPage>
+      )
+    }
+    const { rerender } = render(<Searched matches={7} />)
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent('7 buckets')
+    expect(status.parentElement).not.toHaveClass('sr-only')
+
+    rerender(<Searched matches={0} />)
+    expect(screen.getByText('No buckets match')).toBeInTheDocument()
+    expect(screen.getAllByRole('status')).toEqual([status])
+    expect(status).toBeInTheDocument()
+    expect(status).toHaveTextContent('0 of 7 buckets')
+    expect(status.parentElement).toHaveClass('sr-only')
+
+    rerender(<Searched matches={2} />)
+    expect(screen.getAllByRole('status')).toEqual([status])
+    expect(status).toHaveTextContent('2 of 7 buckets')
+    expect(status.parentElement).not.toHaveClass('sr-only')
+
+    rerender(<Searched matches={7} />)
+    expect(screen.getAllByRole('status')).toEqual([status])
+    expect(status).toHaveTextContent('7 buckets')
+  })
+
+  it('keeps the count status mounted, and empty, while loading or failed', () => {
+    const { rerender } = render(
+      <ListPage loading total={0} count={NOUNS}>
+        rows
+      </ListPage>,
+    )
+    const status = screen
+      .getAllByRole('status')
+      .find((el) => el.closest('.sr-only') && !el.textContent?.includes('Loading'))
+    expect(status).toBeDefined()
+    expect(status).toBeEmptyDOMElement()
+    rerender(
+      <ListPage error={new Error('timed out')} errorNoun="buckets" total={0} count={NOUNS}>
+        rows
+      </ListPage>,
+    )
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(screen.getAllByRole('status')).toEqual([status])
+    expect(status).toBeEmptyDOMElement()
+    rerender(
+      <ListPage total={7} count={NOUNS}>
+        rows
+      </ListPage>,
+    )
+    expect(screen.getAllByRole('status')).toEqual([status])
+    expect(status).toHaveTextContent('7 buckets')
+  })
+
+  it("keeps a ListToolbar's count status mounted through no matches", () => {
+    function Searched({ matches }: { matches: number }) {
+      return (
+        <ListPage
+          total={7}
+          matches={matches}
+          noMatches="No buckets match"
+          toolbar={
+            <ListToolbar count={{ total: 7, matches, filterActive: matches !== 7, ...NOUNS }} />
+          }
+        >
+          rows
+        </ListPage>
+      )
+    }
+    const { rerender } = render(<Searched matches={3} />)
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent('3 of 7 buckets')
+    rerender(<Searched matches={0} />)
+    expect(screen.getAllByRole('status')).toEqual([status])
+    expect(status).toHaveTextContent('0 of 7 buckets')
+    rerender(<Searched matches={7} />)
+    expect(screen.getAllByRole('status')).toEqual([status])
+    expect(status).toHaveTextContent('7 buckets')
+  })
+
+  it('puts the count and the pager on one line', () => {
+    render(
+      <ListPage total={7} count={NOUNS} pager={<button type="button">Load more</button>}>
+        rows
+      </ListPage>,
+    )
+    const status = screen.getByRole('status')
+    expect(status.parentElement).toContainElement(screen.getByRole('button', { name: 'Load more' }))
+  })
+
+  it('leaves out the line when there is neither a count nor a pager to show', () => {
+    const { container } = render(
+      <ListPage total={7} pager={null}>
+        rows
+      </ListPage>,
+    )
+    expect(container.querySelector('.min-h-10')).toBeNull()
+  })
+
+  it("moves a ListToolbar's count under the rows, once", () => {
+    render(
+      <ListPage
+        total={12}
+        matches={3}
+        toolbar={
+          <ListToolbar
+            count={{ total: 12, matches: 3, filterActive: true, ...NOUNS }}
+            action={<button type="button">Export</button>}
+          />
+        }
+      >
+        rows
+      </ListPage>,
+    )
+    const [status, ...more] = screen.getAllByRole('status')
+    expect(more).toHaveLength(0)
+    expect(status).toHaveTextContent('3 of 12 buckets')
+    expect(status?.closest('.overflow-auto')).not.toBeNull()
+  })
+
+  it("sets the toolbar at the end of the chips' line, and on a line alone with no chips", () => {
+    function Filtered({ on }: { on: boolean }) {
+      const filters = useListFilters({
+        storageKey: 'shared-line',
+        fields: [
+          {
+            key: 'status',
+            label: 'Status',
+            kind: 'enum',
+            options: [{ value: 'running', label: 'Running' }],
+          },
+        ],
+        remember: false,
+        store: {
+          value: on ? [{ field: 'status', op: 'is', values: ['running'] }] : [],
+          onChange: () => {},
+        },
+      })
+      return (
+        <ListPage
+          total={7}
+          count={NOUNS}
+          toolbar={<ListToolbar action={<button type="button">Export</button>} />}
+          filterBar={
+            <ListFilterBar filters={filters} trailing={<button type="button">Save view</button>} />
+          }
+        >
+          rows
+        </ListPage>
+      )
+    }
+    const { rerender } = render(<Filtered on />)
+    const chip = document.querySelector('[data-filter-chip]')
+    expect(chip).not.toBeNull()
+    // One line holds the chips and, at its end, the toolbar.
+    const line = chip?.closest('.items-start')
+    expect(line).toContainElement(screen.getByRole('button', { name: 'Export' }))
+    // A trailing action joins the toolbar at the line's end.
+    expect(screen.getByRole('button', { name: 'Save view' }).parentElement).toContainElement(
+      screen.getByRole('button', { name: 'Export' }),
+    )
+    rerender(<Filtered on={false} />)
+    expect(screen.queryByRole('button', { name: 'Save view' })).toBeNull()
+    expect(document.querySelector('[data-filter-chip]')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Export' })).toHaveLength(1)
+  })
+
+  it('hides a count placed by hand while the page shows its own', () => {
+    render(
+      <ListPage
+        total={7}
+        count={NOUNS}
+        toolbar={<ListCount total={7} matches={7} filterActive={false} {...NOUNS} />}
+      >
+        rows
+      </ListPage>,
+    )
+    expect(screen.getAllByRole('status')).toHaveLength(1)
   })
 })
 
@@ -442,6 +687,39 @@ describe('column widths', () => {
     // Below 36rem Seen and Type drop too (Type stacks), leaving the name all of the list's share.
     expect(header('Seen').style.getPropertyValue('--share-medium')).toBe('12.5%')
     expect(type).toHaveClass('@[52rem]:w-(--share-wide)', '@[36rem]:w-(--share-medium)')
+  })
+
+  it('gives the name the whole row on a phone where the columns left beside it all stack', () => {
+    function NamedShare() {
+      const view = useListView<unknown>({
+        storageKey: 'name-share',
+        columns: [
+          { key: 'name', label: 'Name', alwaysVisible: true, width: '28%' },
+          { key: 'state', label: 'State' },
+          { key: 'user', label: 'User' },
+          { key: 'runtime', label: 'Runtime', priority: 'medium' },
+        ],
+      })
+      return (
+        <ListRowActionsProvider view={view}>
+          <Table {...listTableProps}>
+            <ListColumns view={view} />
+          </Table>
+        </ListRowActionsProvider>
+      )
+    }
+    render(
+      <UIProvider>
+        <NamedShare />
+      </UIProvider>,
+    )
+    const name = header('Name')
+    // Beside the other columns it keeps its own share.
+    expect(name.style.getPropertyValue('--share-wide')).toBe('28%')
+    expect(name.style.getPropertyValue('--share-medium')).toBe('28%')
+    // On a phone the rest stack under it or drop, so it takes the row rather than leaving the spare
+    // width to the row's actions.
+    expect(name.style.getPropertyValue('--share-narrow')).toBe('100%')
   })
 
   it('keeps a locked column out of the picker at its own width, and only the name at a minimum', () => {

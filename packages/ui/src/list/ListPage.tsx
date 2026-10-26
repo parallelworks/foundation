@@ -5,6 +5,8 @@ import {
   createContext,
   isValidElement,
   useContext,
+  useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -22,10 +24,20 @@ import {
   warnIfInert,
 } from '../components/MenuEntries'
 import { useNavigation } from '../components/Provider'
-import { CellPlacementContext, type SortDirection, STACKED_ITEM, Table } from '../components/Table'
+import {
+  CellPlacementContext,
+  hasContent,
+  type SortDirection,
+  STACKED_ITEM,
+  STACKED_JOINED,
+  Table,
+  TableBodyContext,
+} from '../components/Table'
 import { Tooltip } from '../components/Tooltip'
 import { cx } from '../cx'
-import { ListFilterBar } from './ListFilterBar'
+import { isDev } from '../dev'
+import { ChevronRightIcon } from '../icons'
+import { ListFilterBar, type ListFilterBarProps } from './ListFilterBar'
 import {
   FLOATING_ACTIONS_LANE,
   HEADERS_OFF,
@@ -36,7 +48,9 @@ import {
   STRETCHED_LINK_ROW,
   StretchRowLinkContext,
 } from './ListTable'
-import type { ColumnDef, ListView, ListViewChrome } from './listView'
+import { ListToolbar, type ListToolbarProps, toolbarCount } from './ListToolbar'
+import { type ListCountProps, ListCountStatus, ListFooterCountContext } from './listSearch'
+import type { ColumnDef, ListGroupState, ListView, ListViewChrome, StackLine } from './listView'
 import { MoreButton, type RowAction, rowContextMenuProps, useRowMenuActive } from './rowMenu'
 
 /** Defaults mean rows outside a ListView fully show actions (no view = show everything). */
@@ -45,8 +59,18 @@ const RowActionsContext = createContext<{
   always: boolean
   columnClasses: string[]
   columnStacks: boolean[]
+  columnStackLines: (StackLine | undefined)[]
   reservesLane: boolean
-}>({ show: true, always: false, columnClasses: [], columnStacks: [], reservesLane: false })
+}>({
+  show: true,
+  always: false,
+  columnClasses: [],
+  columnStacks: [],
+  columnStackLines: [],
+  reservesLane: false,
+})
+
+const NO_STACK_LINES: (StackLine | undefined)[] = []
 
 function useRowActions(view?: ListViewChrome) {
   return useMemo(
@@ -55,6 +79,7 @@ function useRowActions(view?: ListViewChrome) {
       always: view?.alwaysShowActions ?? false,
       columnClasses: view?.columnClasses ?? [],
       columnStacks: view?.columnStacks ?? [],
+      columnStackLines: view?.columnStackLines ?? NO_STACK_LINES,
       reservesLane: view?.reservesActionLane ?? view?.lastColumnLocked ?? false,
     }),
     [
@@ -62,11 +87,22 @@ function useRowActions(view?: ListViewChrome) {
       view?.alwaysShowActions,
       view?.columnClasses,
       view?.columnStacks,
+      view?.columnStackLines,
       view?.lastColumnLocked,
       view?.reservesActionLane,
     ],
   )
 }
+
+// The view's remembered collapsed groups, for the list's `ListGroup`s.
+const GroupStateContext = createContext<ListGroupState | undefined>(undefined)
+
+// A collapsible group's toggle, for its header row.
+const GroupToggleContext = createContext<{
+  collapsed: boolean
+  toggle: () => void
+  controls: string
+} | null>(null)
 
 export function ListRowActionsProvider({
   view,
@@ -76,7 +112,11 @@ export function ListRowActionsProvider({
   children: ReactNode
 }) {
   const rowActions = useRowActions(view)
-  return <RowActionsContext.Provider value={rowActions}>{children}</RowActionsContext.Provider>
+  return (
+    <RowActionsContext.Provider value={rowActions}>
+      <GroupStateContext value={view?.groupState}>{children}</GroupStateContext>
+    </RowActionsContext.Provider>
+  )
 }
 
 // The name cell's own top padding, so the value lines up with the name.
@@ -89,7 +129,10 @@ export interface ListPageProps {
   bleed?: boolean | undefined
   /** The list's search, filters and view controls, above the rows, such as a
    *  `ListToolbar`. The page's trail and actions, "+ Add" among them, go in
-   *  its `PageHeader`. With `total`, it hides while the list is empty. */
+   *  its `PageHeader`. With `total`, it hides while the list is empty. Once
+   *  the page shows the count under its rows, the toolbar sits at the end of
+   *  the filter chips' first line, or takes the line alone while no chip
+   *  shows. */
   toolbar?: ReactNode
   /** Under the toolbar: the chips of the list's active filters. By default the view's own
    *  `ListFilterBar`, shown while a filter is on; pass one to add a trailing slot, such as Save
@@ -118,7 +161,26 @@ export interface ListPageProps {
   /** Keeps the toolbar while the list is empty, for one whose controls still
    *  matter then, such as a filter set by default that hides everything. */
   toolbarWhenEmpty?: boolean | undefined
+  /** Names what the list counts. With `total` (and `matches`), the page
+   *  shows the count under its last row: "7 tokens", or "2 of 7 tokens"
+   *  while a search or filter narrows the list. It shows only while there
+   *  are rows: the empty and no-matches states say enough. A `ListToolbar`'s
+   *  own `count` shows there too. */
+  count?: ListPageCount | undefined
+  /** Under the last row, on the count's line: a `Pagination`, or a "Load
+   *  more" button. */
+  pager?: ReactNode
   children: ReactNode
+}
+
+/** What a list's count calls its rows. */
+export interface ListPageCount {
+  noun: string
+  nounPlural: string
+  /** Whether a search or filter narrows the list, so the count reads "2 of
+   *  7". By default, whether the view's filters are on or `matches` differs
+   *  from `total`; pass it for a search the page holds. */
+  filterActive?: boolean | undefined
 }
 
 /** A list's empty state: what is missing, and what to do about it. */
@@ -148,6 +210,8 @@ export function ListPage({
   empty,
   noMatches,
   toolbarWhenEmpty = false,
+  count,
+  pager,
   children,
 }: ListPageProps) {
   const failed = !loading && error !== undefined && error !== null && !total
@@ -156,7 +220,7 @@ export function ListPage({
   const noneMatch = known && !isEmpty && (matches ?? total) === 0
   // Nothing to search or filter until there is something, so the toolbar waits for rows.
   const controls = total === undefined || toolbarWhenEmpty || (known && total > 0)
-  const bar =
+  const givenBar =
     filterBar === undefined ? (
       view?.filterState && view.filterState.fields.length > 0 ? (
         <ListFilterBar filters={view.filterState} />
@@ -164,6 +228,41 @@ export function ListPage({
     ) : (
       filterBar
     )
+  // A ListToolbar's count moves under the rows, read from its props so it
+  // shows in one place from the first render.
+  const fromToolbar =
+    isValidElement<ListToolbarProps<unknown>>(toolbar) && toolbar.type === ListToolbar
+      ? toolbarCount(toolbar.props)
+      : undefined
+  const counted =
+    count && total !== undefined
+      ? {
+          total,
+          matches: matches ?? total,
+          filterActive:
+            count.filterActive ??
+            ((view?.filterState?.count ?? 0) > 0 || (matches ?? total) !== total),
+          noun: count.noun,
+          nounPlural: count.nounPlural,
+        }
+      : fromToolbar
+  // The count shows under rows only: never while loading, failed, empty or matching nothing.
+  const showsRows =
+    !loading && !failed && !isEmpty && !noneMatch && (!counted || counted.matches > 0)
+  // A page that counts its rows keeps the count's status mounted for as long as it is, so a screen
+  // reader hears every change, to no matches and back. It says nothing while loading or failed,
+  // which speak for themselves.
+  const countable = !!count || fromToolbar !== undefined
+  const spokenCount = loading || failed ? undefined : counted
+  // With the count gone from the toolbar, the toolbar shares the chips' line, at its end, rather
+  // than keep a line for its controls alone. A toolbar that still holds a count of its own keeps
+  // its line.
+  const shareLine =
+    counted !== undefined &&
+    !!toolbar &&
+    isValidElement<ListFilterBarProps>(givenBar) &&
+    givenBar.type === ListFilterBar
+  const bar = shareLine ? cloneElement(givenBar, { end: toolbar }) : givenBar
   let body: ReactNode = children
   if (loading) {
     body = <ListSkeleton />
@@ -176,24 +275,74 @@ export function ListPage({
   }
   return (
     <div className={cx('flex h-full min-h-0 flex-col', bleed && '-m-4')}>
-      {!!toolbar && controls && <div className="shrink-0 px-4">{toolbar}</div>}
-      {/* The filters' chips go with the toolbar: an empty list has nothing to filter. */}
-      {!!bar && controls && <div className="shrink-0 px-4">{bar}</div>}
+      {/* With the count under the rows, the toolbar leaves its own out. */}
+      <ListFooterCountContext value={counted !== undefined}>
+        {!!toolbar && !shareLine && controls && <div className="shrink-0 px-4">{toolbar}</div>}
+        {/* The filters' chips go with the toolbar: an empty list has nothing to filter. */}
+        {!!bar && controls && <div className="shrink-0 px-4">{bar}</div>}
+      </ListFooterCountContext>
       {/* The list body is the @container priority columns measure to auto-hide. */}
       <div className="relative @container min-h-0 flex-1 overflow-auto">
         <ListRowActionsProvider view={view}>{body}</ListRowActionsProvider>
+        {(countable || (showsRows && !!pager)) && (
+          <ListFooter
+            count={spokenCount}
+            countable={countable}
+            pager={showsRows ? pager : null}
+            shown={showsRows && (counted !== undefined || !!pager)}
+          />
+        )}
       </div>
+    </div>
+  )
+}
+
+/** The line under a list's last row: its count at the rows' start, its pager at their end. With no
+ *  rows to show, only a screen reader finds it, so the count's status stays mounted. */
+function ListFooter({
+  count,
+  countable,
+  pager,
+  shown,
+}: {
+  count: ListCountProps | undefined
+  countable: boolean
+  pager: ReactNode
+  shown: boolean
+}) {
+  return (
+    // No rule or band of its own: it sits on the rows' last divider, its text
+    // on the rows' 16px start. A pager that renders nothing leaves it empty, and
+    // then it takes no space. A `Pagination` takes the rest of the line (it
+    // sizes by its own width), its position beside its steps, and its inset
+    // gives way to the line's. Hidden, it keeps the same element, so the count's
+    // status is never remounted.
+    <div
+      className={
+        shown
+          ? 'flex min-h-10 flex-wrap items-center gap-x-3 px-4 empty:hidden [&>:not([role=status])]:ml-auto [&>nav]:flex-1 [&>nav]:px-0 [&>nav>div:first-child]:justify-end'
+          : 'sr-only'
+      }
+    >
+      {countable && <ListCountStatus count={count} />}
+      {pager}
     </div>
   )
 }
 
 // How a list row shows a cell under its first: as an item of a line, in place of a cell.
 const STACKED = { stacked: true }
+const STACKED_JOINED_PLACEMENT = { stacked: true, joined: true }
 
 // The line the stacked values share: it follows the subtitle by a 4px step, and its items wrap
 // with a 4px step between lines and 12px between values.
 const STACKED_LINE =
-  'mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 empty:hidden @[36rem]:hidden'
+  'mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-(--theme-muted-text-color) empty:hidden @[36rem]:hidden'
+
+// Stacked values on lines of their own: the same steps, each line wrapping on its own.
+const STACKED_LINES =
+  'mt-1 flex min-w-0 flex-col gap-y-1 text-xs text-(--theme-muted-text-color) empty:hidden @[36rem]:hidden'
+const STACKED_LINES_LINE = 'flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1'
 
 // A cell given straight to a row, whose content is there to see, rather than through a component.
 const isCellElement = (child: ReactElement) => child.type === Table.Item || child.type === 'td'
@@ -240,6 +389,7 @@ export function ListRow({
     always: alwaysShowActions,
     columnClasses,
     columnStacks,
+    columnStackLines,
     reservesLane,
   } = useContext(RowActionsContext)
 
@@ -255,34 +405,57 @@ export function ListRow({
     if (i === 0 || !columnStacks[i] || !isValidElement(child)) {
       return []
     }
+    const line = columnStackLines[i]
     if (isCellElement(child)) {
       const content = (child as ReactElement<{ children?: ReactNode }>).props.children
-      return Children.toArray(content).length > 0 ? [child] : []
+      return hasContent(content) ? [{ child, line }] : []
     }
-    return [child]
+    return [{ child, line }]
   })
-  // The stacked values share one line under the name, flowing inline and wrapping between them,
-  // so a phone's row stays a few lines tall rather than one line per column. It shows only where
-  // the columns' own cells have given way, and is gone when no value renders.
-  const under =
-    stacked.length > 0 ? (
-      <div className={STACKED_LINE} data-stacked-line>
-        {stacked.map((child, j) =>
-          // A bare `<td>` can't show as an item, so its content does.
-          isValidElement(child) && child.type === 'td' ? (
-            // biome-ignore lint/suspicious/noArrayIndexKey: stacked cells keep their column order
-            <div key={j} className={STACKED_ITEM} data-stacked>
-              {(child as ReactElement<{ children?: ReactNode }>).props.children}
-            </div>
-          ) : (
-            // biome-ignore lint/suspicious/noArrayIndexKey: stacked cells keep their column order
-            <CellPlacementContext key={j} value={STACKED}>
-              {child}
-            </CellPlacementContext>
-          ),
-        )}
+  // A stacked value as an item of its line; one joined to the value before it brings its dot.
+  const item = (child: ReactNode, j: number, joined = false) =>
+    // A bare `<td>` can't show as an item, so its content does.
+    isValidElement(child) && child.type === 'td' ? (
+      <div key={j} className={cx(STACKED_ITEM, joined && STACKED_JOINED)} data-stacked>
+        {(child as ReactElement<{ children?: ReactNode }>).props.children}
       </div>
-    ) : undefined
+    ) : (
+      <CellPlacementContext key={j} value={joined ? STACKED_JOINED_PLACEMENT : STACKED}>
+        {child}
+      </CellPlacementContext>
+    )
+  // The stacked values share one line under the name, flowing inline and wrapping between them,
+  // so a phone's row stays a few lines tall rather than one line per column. A column can ask for
+  // a line of its own, or to join the value before it after a dot, so every row reads alike. It
+  // shows only where the columns' own cells have given way, and is gone when no value renders.
+  let under: ReactNode
+  if (stacked.length > 0 && stacked.every(({ line }) => line === undefined)) {
+    under = (
+      <div className={STACKED_LINE} data-stacked-line>
+        {stacked.map(({ child }, j) => item(child, j))}
+      </div>
+    )
+  } else if (stacked.length > 0) {
+    const lines: ReactNode[][] = []
+    stacked.forEach(({ child, line }, j) => {
+      const current = lines.at(-1)
+      if (!current || line === 'own') {
+        lines.push([item(child, j)])
+        return
+      }
+      current.push(item(child, j, line === 'join'))
+    })
+    under = (
+      <div className={STACKED_LINES} data-stacked-lines>
+        {lines.map((values, k) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: the lines keep their columns' order
+          <div key={k} className={STACKED_LINES_LINE} data-stacked-line>
+            {values}
+          </div>
+        ))}
+      </div>
+    )
+  }
   const styledCells = cells.map((child, i) => {
     // Where columns stack under the name, a column that stays a column, such as
     // a total, sits on the name's line rather than floating mid-row.
@@ -426,6 +599,102 @@ export function ListRow({
   )
 }
 
+export interface ListGroupProps {
+  /** The group's header: a `GroupRow`, or a component of the host's that renders one. Its
+   *  row holds the toggle. */
+  header: ReactNode
+  /** Names the group to the list's view, which remembers it collapsed or expanded under its
+   *  `storageKey` and counts it in Collapse all and Expand all. Unique among the list's groups. */
+  groupKey?: string | undefined
+  /** Collapsed, held by the host; with it, the view neither remembers nor collapses the group. */
+  collapsed?: boolean | undefined
+  /** Collapsed until the reader opens it, the first time the group shows. */
+  defaultCollapsed?: boolean | undefined
+  onCollapsedChange?: ((collapsed: boolean) => void) | undefined
+  /** The group's rows. */
+  children?: ReactNode
+}
+
+/**
+ * A group of a list's rows under a header that collapses them: a click on the header, other
+ * than on a link or button in it, or the chevron's button, which Tab reaches, folds the rows
+ * away and brings them back. A collapsed group's header still shows its count, and the list
+ * still counts its rows.
+ *
+ * It renders `<tbody>`s of its own, so it goes straight among a `Table`'s children, as
+ * `groups.map((g) => <ListGroup key=… header={…}>…</ListGroup>)`, not inside a fragment.
+ */
+export function ListGroup({
+  header,
+  groupKey,
+  collapsed,
+  defaultCollapsed = false,
+  onCollapsedChange,
+  children,
+}: ListGroupProps) {
+  const store = useContext(GroupStateContext)
+  const body = useContext(TableBodyContext)
+  const [own, setOwn] = useState(defaultCollapsed)
+  const controlled = collapsed !== undefined
+  const remembered = !controlled && groupKey !== undefined && store !== undefined
+  const register = store?.register
+  useEffect(() => {
+    if (remembered && register && groupKey !== undefined) {
+      return register(groupKey, defaultCollapsed)
+    }
+    return undefined
+  }, [remembered, register, groupKey, defaultCollapsed])
+  const isCollapsed =
+    collapsed ??
+    (remembered && groupKey !== undefined ? store.isCollapsed(groupKey, defaultCollapsed) : own)
+  const id = useId()
+  const toggle = () => {
+    const next = !isCollapsed
+    if (remembered && groupKey !== undefined) {
+      store.setCollapsed(groupKey, next)
+    } else if (!controlled) {
+      setOwn(next)
+    }
+    onCollapsedChange?.(next)
+  }
+  const context = { collapsed: isCollapsed, toggle, controls: id }
+  if (!body) {
+    if (isDev() && !warnedLooseGroup) {
+      warnedLooseGroup = true
+      console.warn(
+        'ListGroup renders <tbody>s of its own: put it straight among a Table’s children, not in a fragment.',
+      )
+    }
+    return (
+      <>
+        <GroupToggleContext value={context}>{header}</GroupToggleContext>
+        {!isCollapsed && children}
+      </>
+    )
+  }
+  return (
+    <>
+      {/* The header in a body of its own, so the rows' body can leave the page as one. Under a
+          collapsed last group, its rule is the list's last divider, as the last row's would be. */}
+      <tbody className={body.className} data-list-group>
+        <GroupToggleContext value={context}>{header}</GroupToggleContext>
+      </tbody>
+      {/* Collapsed, the rows unmount, and the body they leave is hidden, so nothing reads it. */}
+      <tbody id={id} className={body.className} hidden={isCollapsed} data-list-group-rows>
+        {!isCollapsed && children}
+      </tbody>
+    </>
+  )
+}
+
+let warnedLooseGroup = false
+
+// Table puts it among its bodies, rather than in one.
+ListGroup.isTableSection = true
+
+// Where a click on a collapsible header belongs to a control of its own, not the toggle.
+const OWN_CONTROL = 'a,button,input,label,select,textarea,[role=button],[role=link]'
+
 /**
  * A group's header row in a list: its label, such as a status or a cluster,
  * and, against the row's far end, what sums it up, such as "2/3 running".
@@ -464,9 +733,18 @@ export function GroupRow({
 }) {
   const { show: showActions, columnClasses } = useContext(RowActionsContext)
   const gutters = useRowGutters()
-  const content = children ?? (
+  const toggle = useContext(GroupToggleContext)
+  const labelId = useId()
+  const content = children ? (
+    // The toggle's name, laid out as the header's own content.
+    <span id={labelId} className="contents">
+      {children}
+    </span>
+  ) : (
     <>
-      <span className="flex min-w-0 items-center gap-2 text-(--theme-app)">{label}</span>
+      <span id={labelId} className="flex min-w-0 items-center gap-2 text-(--theme-app)">
+        {label}
+      </span>
       {detail !== undefined && detail !== null && detail !== false && (
         <span
           className="ml-2 hidden min-w-0 shrink-[100] truncate text-(--theme-muted-text-color) @[36rem]:block"
@@ -492,19 +770,60 @@ export function GroupRow({
   )
   // A fixed height, so a header with badges is as tall as one without.
   const line = 'flex h-8 min-w-0 items-center text-xs font-medium whitespace-nowrap'
-  const row = cx('bg-(--theme-muted-panel-bg)', className)
+  const row = cx(
+    'bg-(--theme-muted-panel-bg)',
+    toggle && 'group/group-row cursor-pointer',
+    className,
+  )
+  // Before the label, as a section's title has its chevron: right when collapsed, turned down
+  // when open. It reaches into the row's start, so the label moves over by little more than the
+  // glyph.
+  const chevron = toggle && (
+    <button
+      type="button"
+      aria-expanded={!toggle.collapsed}
+      aria-controls={toggle.controls}
+      aria-labelledby={labelId}
+      onClick={toggle.toggle}
+      className="-ml-1 mr-1 flex h-6 w-5 shrink-0 cursor-pointer items-center justify-center rounded-sm text-(--theme-muted-text-color) group-hover/group-row:text-(--theme-app) focus-visible:outline-2 focus-visible:outline-(--theme-focus)"
+      data-group-toggle
+    >
+      <ChevronRightIcon
+        aria-hidden="true"
+        className={cx(
+          'h-3.5 w-3.5 transition-transform motion-reduce:transition-none',
+          !toggle.collapsed && 'rotate-90',
+        )}
+      />
+    </button>
+  )
+  // The whole header toggles to a pointer, but for its own links and buttons. The chevron's
+  // button is the keyboard's and the screen reader's way.
+  const onClick = toggle
+    ? (e: ReactMouseEvent) => {
+        if (!(e.target as HTMLElement).closest(OWN_CONTROL)) {
+          toggle.toggle()
+        }
+      }
+    : undefined
+  const header = (
+    <>
+      {chevron}
+      {content}
+    </>
+  )
   if (columnClasses.length === 0) {
     return (
-      <tr className={row}>
+      <tr className={row} onClick={onClick}>
         <td colSpan={colSpan}>
-          <div className={line}>{content}</div>
+          <div className={line}>{header}</div>
         </td>
       </tr>
     )
   }
   const cells = leading + columnClasses.length + (showActions ? 1 : 0)
   return (
-    <tr className={row} data-group-row ref={gutters.ref} style={gutters.style}>
+    <tr className={row} data-group-row ref={gutters.ref} style={gutters.style} onClick={onClick}>
       {Array.from({ length: cells }, (_, i) => {
         const column = i - leading
         const cls = column >= 0 && column < columnClasses.length ? columnClasses[column] : undefined
@@ -522,7 +841,7 @@ export function GroupRow({
                     width: 'calc(100cqw - var(--group-start, 1rem) - var(--group-end, 1rem))',
                   }}
                 >
-                  {content}
+                  {header}
                 </div>
               </div>
             )}
@@ -644,6 +963,15 @@ function shareWidths(columns: ColumnDef[], stacks: boolean[]): (Tiers | undefine
       (sum, col, i) => sum + (shows(col, i, tier) ? (shares[i] ?? 0) : 0),
       0,
     )
+    // Where the tier drops columns and every column left holds a share, as when a phone stacks
+    // the rest under the name, the shares take the whole list between them. Otherwise the
+    // auto-laid-out table hands the spare width to the row's actions, and the name, with what
+    // stacks under it, gets half a row.
+    const drops = columns.some((col, i) => !shows(col, i, tier))
+    const unshared = columns.some((col, i) => shows(col, i, tier) && shares[i] === undefined)
+    if (drops && !unshared && kept > 0) {
+      return 100 / kept
+    }
     // The list's width less the shares the tier drops.
     const left = 100 - (total - kept)
     return left > 0 ? 100 / left : 1

@@ -1,5 +1,89 @@
 # Changelog
 
+## [0.96.1](https://github.com/parallelworks/foundation/compare/ui-v0.96.0...ui-v0.96.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* **ui:** a wizard's last button reads in the host's language ([#522](https://github.com/parallelworks/foundation/issues/522)) ([70e742c](https://github.com/parallelworks/foundation/commit/70e742cdf366a0f9f4aa2a8c6d4930dbacbe0857))
+
+## [0.96.0](https://github.com/parallelworks/foundation/compare/ui-v0.95.0...ui-v0.96.0) (2026-10-26)
+
+
+### Features
+
+* **ui:** a list's groups can collapse, and remember which are closed ([#520](https://github.com/parallelworks/foundation/issues/520)) ([ee48532](https://github.com/parallelworks/foundation/commit/ee485322e92101be799c29a51d08d2719fe93992))
+
+## [0.95.0](https://github.com/parallelworks/foundation/compare/ui-v0.94.1...ui-v0.95.0) (2026-10-26)
+
+
+### Features
+
+* **ui:** a stat tile shows a count with its label, lamp and bar, and tiles line up in a group that fits a phone ([#518](https://github.com/parallelworks/foundation/issues/518)) ([30313b4](https://github.com/parallelworks/foundation/commit/30313b4b54ca7b7ee58b1e6a067ed3d12a2f4722))
+
+## [0.94.1](https://github.com/parallelworks/foundation/compare/ui-v0.94.0...ui-v0.94.1) (2026-10-25)
+
+
+### Performance Improvements
+
+* **ui:** make app frame navigation styles optional ([#516](https://github.com/parallelworks/foundation/issues/516)) ([7838d3c](https://github.com/parallelworks/foundation/commit/7838d3c4499446475957a13019b3db64dbe739da))
+
+## [0.94.0](https://github.com/parallelworks/foundation/compare/ui-v0.93.0...ui-v0.94.0) (2026-10-24)
+
+
+### Features
+
+* **ui:** on a phone a list's search takes the whole header bar, and the header never lets its actions overlap the breadcrumbs ([#514](https://github.com/parallelworks/foundation/issues/514)) ([cc8818f](https://github.com/parallelworks/foundation/commit/cc8818fd6b5f353517347cc6fce29c240fc6bf03))
+
+
+### Bug Fixes
+
+* **ui:** a screen reader hears a list's count change to no matches, and back ([#513](https://github.com/parallelworks/foundation/issues/513)) ([36ef248](https://github.com/parallelworks/foundation/commit/36ef2488682bb1e955212ab1dfb0bd512acb0c9a))
+
+## [0.93.0](https://github.com/parallelworks/foundation/compare/ui-v0.92.0...ui-v0.93.0) (2026-10-24)
+
+
+### Features
+
+* **ui:** add a shared application frame with responsive navigation ([#506](https://github.com/parallelworks/foundation/issues/506)) ([f8a474a](https://github.com/parallelworks/foundation/commit/f8a474a04f67e5a4b2b2e5da3062b508f577be4e))
+
+
+### Bug Fixes
+
+* **ui:** drop two lint suppressions the stacked lines don't need ([#511](https://github.com/parallelworks/foundation/issues/511)) ([f4292ac](https://github.com/parallelworks/foundation/commit/f4292ac0162a56e82d93bb74854f95bafdd061b9))
+
+## [0.92.0](https://github.com/parallelworks/foundation/compare/ui-v0.91.0...ui-v0.92.0) (2026-10-23)
+
+
+### Features
+
+* **ui:** a list's stacked values can each take a line or join the one before, they read as secondary text, and the name takes a phone's row ([#508](https://github.com/parallelworks/foundation/issues/508)) ([be7070f](https://github.com/parallelworks/foundation/commit/be7070f91873fb54ade4121b3b601f51baba7f57))
+
+## [0.91.0](https://github.com/parallelworks/foundation/compare/ui-v0.90.0...ui-v0.91.0) (2026-10-22)
+
+
+### Features
+
+* **ui:** a list's count shows under its last row, beside its pager, rather than above its filters ([#507](https://github.com/parallelworks/foundation/issues/507)) ([c130f16](https://github.com/parallelworks/foundation/commit/c130f1690b7df76ff93ee9327e057e531cce01bd))
+
+## [0.90.0](https://github.com/parallelworks/foundation/compare/ui-v0.89.0...ui-v0.90.0) (2026-10-22)
+
+
+### ⚠ BREAKING CHANGES
+
+* **ui:** a status, a flag and a tag each have one look, and a status reads as a lamp or icon with its name ([#505](https://github.com/parallelworks/foundation/issues/505))
+
+### Features
+
+* **ui:** a status, a flag and a tag each have one look, and a status reads as a lamp or icon with its name ([#505](https://github.com/parallelworks/foundation/issues/505)) ([07bf72e](https://github.com/parallelworks/foundation/commit/07bf72eeff70a0cb28239947c4bc07b391fce642))
+* **ui:** the chat's allocation picker has a search box, like the model picker ([#502](https://github.com/parallelworks/foundation/issues/502)) ([31f8611](https://github.com/parallelworks/foundation/commit/31f8611db63514992b9e9918db132d364b0771df))
+
+
+### Bug Fixes
+
+* **ui:** a narrow filter row never leaves Clear or Reset on a line of its own ([#500](https://github.com/parallelworks/foundation/issues/500)) ([ee0bbbc](https://github.com/parallelworks/foundation/commit/ee0bbbc8e1ee77bbe3e5d6d7c923540f5dd23626))
+* **ui:** a narrow filter row never puts a required or pinned chip in the sheet ([#501](https://github.com/parallelworks/foundation/issues/501)) ([d726d03](https://github.com/parallelworks/foundation/commit/d726d032fe160b24c224bfe2979484818abcc681))
+
 ## [0.89.0](https://github.com/parallelworks/foundation/compare/ui-v0.88.2...ui-v0.89.0) (2026-10-22)
 
 

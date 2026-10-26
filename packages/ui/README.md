@@ -8,6 +8,7 @@ so an application ships only what it imports:
 | `.` | theme contract, primitives (buttons, inputs, tables, tooltips, modals, dropdowns, settings layouts, page header), `UIProvider` |
 | `./theme` | theme seeds and presets, `generateTheme`, `applyTheme`, `fitSeed` |
 | `./icons` | the icon barrel |
+| `./app-frame` | inset application frame, resizable navigation, icon rail, and mobile drawer |
 | `./list` | list pages, tables, row menus and list controls |
 | `./form` | `DynamicForm` and its field registry |
 | `./graph` | job dependency graph and tree view, and the visual workflow editor: the graph, the run form as an inputs editor, and their dialogs |
@@ -16,7 +17,7 @@ so an application ships only what it imports:
 | `./file-explorer` | object storage explorer over a host-supplied provider |
 | `./access` | `AccessDrawer`: who has access to a resource, and granting roles to people and groups |
 | `./ai`, `./ai/openai`, `./ai/mock` | chat interface and adapters |
-| `./theme.css`, `./base.css`, `./fonts.css`, `./styles.css`, `./logviewer.css`, `./ai.css` | stylesheets |
+| `./theme.css`, `./base.css`, `./fonts.css`, `./styles.css`, `./logviewer.css`, `./ai.css`, `./app-frame.css` | stylesheets |
 
 Hosts bind strings, navigation, data hooks and the workflow engine through
 `UIProvider`, which also shows the package's toasts:
@@ -88,6 +89,8 @@ Each need has one component. Reach for it before styling markup by hand.
 | Nothing to show yet, or nothing matches | `EmptyState` |
 | A page, card or section that couldn't show what it was asked for, such as a 404 | `ErrorPage`, its words chosen by the status |
 | A list page's toolbar and its loading, error, empty and no-match states | `ListToolbar` in `ListPage` with `total`, `matches`, `empty` and `noMatches` (from `./list`) |
+| A list's rows under headers that collapse, such as queues by cluster | `ListGroup` with a `GroupRow` as its `header`, straight among the `Table`'s children. A click on the header, but not on a link or button in it, or the chevron's button toggles it; `collapsed`, `defaultCollapsed` and `onCollapsedChange` as elsewhere. With a `groupKey` inside a `ListPage` with a view, the view remembers it under `${storageKey}:collapsedGroups`, and Display options collapse or expand every group. A `GroupRow` outside one doesn't collapse |
+| How many rows a list has, or how many of them match ("2 of 7 tokens") | `count` on `ListPage`, with its `total` and `matches`: it shows under the last row, only while there are rows. A `ListToolbar`'s `count` moves there too, and the toolbar then sits at the end of the filter chips' first line (`ListFilterBar`'s `end`), or on a line alone while no chip shows. `ListCount` placed by hand is deprecated |
 | A text field | `Input`, `Textarea`, or a control framed by `Field`, whose `actions` hold buttons that act on it |
 | A number, a date, a color | `NumberInput`, `DatePicker`, `ColorInput` |
 | A one-time code, such as a sign-in check | `OneTimeCodeInput` |
@@ -119,7 +122,8 @@ Each need has one component. Reach for it before styling markup by hand.
 | A message set into the page: guidance, a warning, an error | `Callout`; `variant="bar"` across a surface under its header |
 | A passing notice, or the progress of work in the background | `toast` |
 | How full something is, how far a task has come | `Meter`, `ProgressBar` |
-| Pages of a long list | `Pagination` |
+| Counts at the top of a page, such as jobs running and failed: a value, its label, a lamp, a bar, or a link to the list | `StatTile`, laid out in a `StatTileGroup`, which folds to two columns on a phone with `wide` tiles and any that would sit alone across the row |
+| Pages of a long list | `Pagination`; in a `ListPage`, as its `pager`, on the count's line under the last row, where a "Load more" button goes too |
 | A grouped page of settings | `SettingsCard` with `SettingRow`s |
 | A person or an agent | `Avatar`, colored by name without a picture, or by kind; `AvatarGroup` for an overlapping stack with a "+N" chip |
 | A status in words | `StatusBadge`, or `StatusDot` beside text that says it |
@@ -226,6 +230,14 @@ A page declares its header in one place, and the shell shows it:
   such as a log's follow and refresh: its buttons are outlined, and `primary`
   fills the one, if any, the panel leads to.
   **`toolbar`** is a row under the bar, such as tabs or a time range.
+- A list's controls may sit in **`actions`**: a `ListToolbar` there, with its
+  filter, display options and search, leaves the list's count under its rows.
+  Where its search field, opened, wouldn't fit beside the trail, as on a phone,
+  the open search takes the whole bar until it closes; the rest of the bar
+  stays as it was underneath, hidden and `inert`, and focus returns to the
+  search button. While a search term narrows the list with the field closed,
+  the button shows a dot and its name says so (`searchActive`). Nothing to set
+  up: the bar measures it.
 - **`hidden`** takes the bar away while the page is mounted, for a page that
   fills the window.
 
@@ -1244,3 +1256,92 @@ colors and sizing can obscure labels or make controls hard to use. Keep trusted
 confirmation summaries, permissions, and security notices outside the authored
 layout. Full stylesheets or mutually untrusted embedded applications require a
 separate isolation design.
+
+## Application frame
+
+`AppFrame` provides a sidebar and an inset content surface. The sidebar collapses
+to a 64px icon rail, resizes with a pointer or keyboard, and becomes a modal
+navigation drawer below 768px. Its header, scrolling navigation, and footer stay
+separate from the page's scrolling content. Long navigation labels truncate within
+the current sidebar width; badges remain visible. Navigation scrollbar tracks stay
+hidden while wheel and keyboard scrolling keep destinations reachable in short
+containers.
+
+```tsx
+import { AppFrame, AppFrameNavItem, AppFrameToggle } from '@parallelworks/ui/app-frame'
+import '@parallelworks/ui/app-frame.css'
+
+<AppFrame
+  navigationKey={pathname}
+  brand={({ expanded }) => expanded ? <Wordmark /> : <Mark />}
+  navigation={
+    <nav aria-label="Main navigation">
+      <AppFrameNavItem label="Projects" icon={<ProjectsIcon />} href="/projects" selected />
+    </nav>
+  }
+  footer={({ isMobile }) => !isMobile && <AppFrameToggle />}
+  header={<PageTools />}
+>
+  <ProjectList />
+</AppFrame>
+```
+
+`PageTools` can use `useAppFrame().isMobile` to show an `AppFrameToggle` on small
+screens. The drawer supplies its own close button, traps focus, closes on Escape
+or an outside click, and returns focus to its opener. Navigation items close it
+on an ordinary click; modified links keep the current view in place. A changed
+`navigationKey` also dismisses it.
+Reopening mobile navigation restores its scroll position within the current
+section. Closing it unmounts its contents, including any nested popups.
+Use `navigationResetKey` for a section identifier when navigation scroll should
+survive route changes within that section. It defaults to `navigationKey`.
+`sidebarProps` passes host attributes, styling, and events to the desktop sidebar
+and mobile dialog, for example a navigation context menu. The frame retains its
+own layout, dialog semantics, and measured width.
+
+The host owns routing, persistence, identity, permissions, and page tools. Links
+use `UIProvider`'s link slot. Pass `expanded`/`onExpandedChange` and
+`width`/`onWidthChange` to persist preferences, or use the uncontrolled defaults.
+Pointer drags preview their width locally and call `onWidthChange` once when the
+gesture ends, so persistence does not run on every pointer movement.
+`defaultWidth` is 240, bounded by `minWidth` (200) and `maxWidth` (400); compact
+applications can choose smaller bounds. The resize handle supports arrows, Home,
+End, drag-to-collapse, and double-click to restore `defaultWidth`. Logical layout
+and resizing support right-to-left direction. Reduced motion disables resizing
+and drawer transitions. `resizable={false}` removes the handle.
+
+`brand`, `navigation`, and `footer` accept nodes or functions receiving the frame
+state. `header` sits above the main content; `banner` spans both columns.
+`fullBleed` removes the 8px inset and 12px rounded border. The frame fills the
+viewport by default; pass `style={{ height: '100%' }}` for a bounded container.
+The mobile drawer stays inside the frame, below its banner, and uses the chosen
+sidebar width, capped to leave 48px for dismissal. It slides from the navigation
+edge while the backdrop fades; both finish in 200ms and respect reduced motion.
+
+The five `--theme-sidebar-*` tokens produced by `generateTheme` style navigation:
+`bg`, `text`, `hover`, `active-bg`, and `active-text`. Without them the frame uses
+the ordinary surface and accent tokens. Content uses `--theme-app-bg` and
+`--theme-border`. Supply translated `labels` for navigation, skip, open, close,
+expand, collapse, and resize actions. The frame owns the main landmark and skip
+link; put page content inside it without nesting a second `<main>`.
+
+Frame styles use the `pw-ui` cascade layer. Put broad host element defaults
+(such as anchor colors and scrollbar styling) in a lower-priority layer declared
+before the package styles, so they do not replace navigation states.
+
+Applications that supply their own navigation items can load only the layout:
+
+```tsx
+import { AppFrame, AppFrameToggle } from '@parallelworks/ui/app-frame'
+import '@parallelworks/ui/app-frame/layout.css'
+```
+
+This includes the sidebar, scrolling regions, resize handle, mobile drawer,
+toggle and close buttons, focus indicators, and skip link. Style custom navigation
+items in the host, including their selected, hover, rail, and mobile states.
+
+When using `AppFrameNavItem`, also import
+`@parallelworks/ui/app-frame/navigation.css`. The existing
+`@parallelworks/ui/app-frame.css` import includes both stylesheets and continues
+to work without changes. Use either the combined import or the two separate
+imports; there is no need to load both forms.

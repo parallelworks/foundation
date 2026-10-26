@@ -1,12 +1,22 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import { Button } from '../components/Button'
 import { useContextMenu } from '../components/ContextMenu'
 import { PageHeader, PageHeaderBar, PageHeaderProvider } from '../components/PageHeader'
-import { PageHeaderAddButton } from '../components/PageHeaderAction'
-import { StatusBadge } from '../components/StatusBadge'
+import { PageHeaderAction, PageHeaderAddButton } from '../components/PageHeaderAction'
+import { Pagination } from '../components/Pagination'
+import { type UILinkComponent, UIProvider } from '../components/Provider'
+import { StatusLabel } from '../components/StatusLabel'
 import { Table } from '../components/Table'
-import { ComputeIcon, KeyIcon, RefreshIcon, StorageIcon } from '../icons'
+import {
+  AllocationIcon,
+  ComputeIcon,
+  KeyIcon,
+  RefreshIcon,
+  SidebarOpenIcon,
+  StorageIcon,
+} from '../icons'
 import { ActionToolbar } from './ActionToolbar'
 import { ListColumns, ListPage, ListRow, useListNavigate } from './ListPage'
 import { ListCellText, listTableProps, NameCell } from './ListTable'
@@ -153,17 +163,27 @@ function TokensPage({ state, iconTile, subtitles, toolbarWhenEmpty }: Args) {
   )
 }
 
-/** A settings list in the shared look: "+ Add" in the page header, the count,
- *  display options and search in the toolbar, rows whose icons sit in a tile,
- *  muted cell text and a figure column set against its right edge. Switch the
- *  state to see loading, an error, the empty list (no toolbar) and no matches. */
+/** A settings list in the shared look: "+ Add" in the page header, display
+ *  options and search at the toolbar's end, rows whose icons sit in a tile,
+ *  muted cell text and a figure column set against its right edge, and the
+ *  count under the last row. Switch the state to see loading, an error, the
+ *  empty list (no toolbar, no count) and no matches (no count). */
 export const States: StoryObj<Args> = {
   render: (args) => <TokensPage {...args} />,
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
     if (args.state === 'rows') {
       await expect(canvas.getByRole('columnheader', { name: 'Uses' })).toHaveClass('text-right')
-      await expect(canvas.getByRole('status')).toHaveTextContent('3 tokens')
+      // The count sits under the last row, not in the toolbar.
+      const status = canvas.getByRole('status')
+      await expect(status).toHaveTextContent('3 tokens')
+      const lastRow = canvas.getByText('laptop').closest('tr') as HTMLElement
+      await expect(
+        lastRow.compareDocumentPosition(status) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy()
+    }
+    if (args.state === 'empty' || args.state === 'noMatches') {
+      await expect(canvas.queryByRole('status')).toBeNull()
     }
     if (args.state === 'empty') {
       await expect(canvas.getByText('No API tokens yet')).toBeVisible()
@@ -187,10 +207,118 @@ export const Empty: StoryObj<Args> = {
   render: (args) => <TokensPage {...args} />,
 }
 
-/** A search that leaves nothing keeps the toolbar, so it can be changed. */
+/** A search that leaves nothing keeps the toolbar, so it can be changed; the
+ *  no-matches state says what the count would. */
 export const NoMatches: StoryObj<Args> = {
   args: { state: 'noMatches' },
   render: (args) => <TokensPage {...args} />,
+}
+
+type PagerKind = 'pages' | 'loadMore'
+
+const PAGE_SIZE = 5
+const MANY_TOKENS: Token[] = Array.from({ length: 23 }, (_, i) => ({
+  name: `deploy-key-${String(i + 1).padStart(2, '0')}`,
+  scope: i % 3 === 0 ? 'Read only' : 'Deploy',
+  prefix: `tk_${(0x3a91f0 + i * 7919).toString(16)}`,
+  uses: (i * 37) % 400,
+}))
+
+function PagedTokens({ pager }: { pager: PagerKind }) {
+  const view = useListView<Token>({
+    storageKey: 'story-paged-tokens',
+    columns: [
+      { key: 'name', label: 'Name', alwaysVisible: true },
+      { key: 'prefix', label: 'Prefix' },
+      { key: 'uses', label: 'Uses', align: 'end', stack: false },
+    ],
+  })
+  const { openMenu, contextMenu } = useContextMenu()
+  const goTo = useListNavigate()
+  const [page, setPage] = useState(0)
+  const [loaded, setLoaded] = useState(PAGE_SIZE)
+  const shown =
+    pager === 'pages'
+      ? MANY_TOKENS.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+      : MANY_TOKENS.slice(0, loaded)
+  return (
+    <PageHeaderProvider>
+      <div className="flex flex-col overflow-hidden rounded-md border border-(--theme-border) bg-(--theme-app-bg)">
+        <PageHeader
+          breadcrumbs={[{ label: 'Settings', href: '/settings' }, { label: 'Deploy keys' }]}
+        />
+        <ListPage
+          view={view}
+          total={MANY_TOKENS.length}
+          count={{ noun: 'key', nounPlural: 'keys' }}
+          toolbar={<ListToolbar view={view} />}
+          pager={
+            pager === 'pages' ? (
+              <Pagination
+                page={page}
+                pageSize={PAGE_SIZE}
+                total={MANY_TOKENS.length}
+                onPageChange={setPage}
+              />
+            ) : (
+              loaded < MANY_TOKENS.length && (
+                <Button variant="outline" size="sm" onClick={() => setLoaded((n) => n + PAGE_SIZE)}>
+                  Load more
+                </Button>
+              )
+            )
+          }
+        >
+          <Table {...listTableProps} tbodyClassName="divide-y divide-(--theme-border)">
+            <ListColumns view={view} />
+            {shown.map((token) => (
+              <ListRow
+                key={token.name}
+                href={null}
+                items={[{ label: 'Revoke', destructive: true, onClick: () => {} }]}
+                goTo={goTo}
+                openMenu={openMenu}
+              >
+                <NameCell icon={<KeyIcon />} name={token.name} subtitle={token.scope} href={null} />
+                <Table.Item>
+                  <ListCellText mono>{token.prefix}</ListCellText>
+                </Table.Item>
+                <Table.Item>
+                  <ListCellText className="tabular-nums">{token.uses}</ListCellText>
+                </Table.Item>
+              </ListRow>
+            ))}
+          </Table>
+        </ListPage>
+      </div>
+      {contextMenu}
+    </PageHeaderProvider>
+  )
+}
+
+/** A list read a page at a time: the count and the pager share one line under
+ *  the last row, the count at the rows' start and the pager at their end. */
+export const Paged: StoryObj<{ pager: PagerKind }> = {
+  args: { pager: 'pages' },
+  argTypes: {
+    pager: {
+      control: 'inline-radio',
+      options: ['pages', 'loadMore'],
+      description: 'ListPage pager: a Pagination, or a "Load more" button.',
+    },
+  },
+  render: (args) => <PagedTokens pager={args.pager} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('status')).toHaveTextContent('23 keys')
+  },
+}
+
+/** A list that loads more rows as asked: "Load more" takes the pager's place
+ *  beside the count. */
+export const LoadMore: StoryObj<{ pager: PagerKind }> = {
+  ...Paged,
+  args: { pager: 'loadMore' },
 }
 
 /** A toolbar action busy with what it started: the spinner takes its icon's
@@ -276,11 +404,12 @@ function ResourceName({ resource }: { resource: Resource }) {
 }
 
 function StateCell({ state }: { state: Resource['state'] }) {
+  // A status: a lamp and its name, unlit for a resource that's off.
   return (
-    <Table.Item className="py-2.5">
-      <StatusBadge variant={state === 'running' ? 'success' : 'muted'} dot>
+    <Table.Item className="py-2.5 text-[13px]">
+      <StatusLabel variant={state === 'running' ? 'success' : 'muted'} off={state !== 'running'}>
         {state === 'running' ? 'Running' : 'Stopped'}
-      </StatusBadge>
+      </StatusLabel>
     </Table.Item>
   )
 }
@@ -352,4 +481,268 @@ export const CellsInHostComponents: StoryObj = {
     await expect(name?.querySelector('[data-stacked]')).toHaveTextContent('Running')
     await expect(state).toHaveClass('@[36rem]:table-cell')
   },
+}
+
+interface Job {
+  name: string
+  id: string
+  state: 'running' | 'pending'
+  user: string
+  partition: string
+  nodes: string
+}
+
+const JOBS: Job[] = [
+  {
+    name: 'wrf-forecast',
+    id: '48210',
+    state: 'running',
+    user: 'maya',
+    partition: 'compute',
+    nodes: 'compute-[01-04]',
+  },
+  {
+    name: 'bwa-align',
+    id: '48211',
+    state: 'running',
+    user: 'jo',
+    partition: 'gpu',
+    nodes: 'gpu-01',
+  },
+  {
+    name: 'lammps-md',
+    id: '48212',
+    state: 'pending',
+    user: 'priya',
+    partition: 'compute',
+    nodes: '',
+  },
+]
+
+function JobsList() {
+  const view = useListView<Job>({
+    storageKey: 'story-stacked-lines',
+    columns: [
+      { key: 'name', label: 'Job', alwaysVisible: true },
+      { key: 'state', label: 'State', stackLine: 'own' },
+      { key: 'user', label: 'User', stackLine: 'own' },
+      { key: 'partition', label: 'Partition', stackLine: 'own' },
+      { key: 'nodes', label: 'Nodes', stackLine: 'join' },
+    ],
+  })
+  const { openMenu, contextMenu } = useContextMenu()
+  const goTo = useListNavigate()
+  return (
+    <PageHeaderProvider>
+      <div className="flex flex-col overflow-hidden rounded-md border border-(--theme-border) bg-(--theme-app-bg)">
+        <PageHeader breadcrumbs={[{ label: 'Jobs' }]} />
+        <ListPage view={view} total={JOBS.length} matches={JOBS.length}>
+          <Table {...listTableProps} tbodyClassName="divide-y divide-(--theme-border)">
+            <ListColumns view={view} />
+            {JOBS.map((job) => (
+              <ListRow
+                key={job.id}
+                href={null}
+                onActivate={() => {}}
+                items={[{ label: 'Details', onClick: () => {} }]}
+                goTo={goTo}
+                openMenu={openMenu}
+              >
+                <NameCell
+                  icon={<ComputeIcon />}
+                  name={job.name}
+                  subtitle={`#${job.id}`}
+                  href={null}
+                />
+                <Table.Item className="py-2.5 text-[13px]">
+                  <StatusLabel variant="info" off={job.state === 'pending'}>
+                    {job.state === 'running' ? 'Running' : 'Pending'}
+                  </StatusLabel>
+                </Table.Item>
+                <TextCell value={job.user} />
+                <TextCell value={job.partition} mono />
+                <Table.Item className="max-w-[16rem] truncate py-2.5">
+                  {job.nodes && <ListCellText mono>{job.nodes}</ListCellText>}
+                </Table.Item>
+              </ListRow>
+            ))}
+          </Table>
+        </ListPage>
+      </div>
+      {contextMenu}
+    </PageHeaderProvider>
+  )
+}
+
+/** On a phone, stacked values can each take a line, or join the one before after a dot, so every
+ *  row reads alike however long its values are: the state, then who ran it, then where. They read
+ *  as secondary text, the size of a subtitle. A job not yet placed has no nodes, and its line ends
+ *  at the partition. */
+export const StackedOnLines: StoryObj = {
+  render: () => <JobsList />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const row = canvas.getByText('wrf-forecast').closest('tr') as HTMLElement
+    const lines = Array.from(row.querySelectorAll('[data-stacked-line]'))
+    await expect(lines.map((line) => line.textContent)).toEqual([
+      'Running',
+      'maya',
+      'computecompute-[01-04]',
+    ])
+  },
+}
+
+interface Allocation {
+  team: string
+  lead: string
+  budget: string
+  used: string
+}
+
+const ALLOCATIONS: Allocation[] = [
+  { team: 'Climate modeling', lead: 'maya', budget: '$42,000', used: '68%' },
+  { team: 'Genomics pipeline', lead: 'arjun', budget: '$18,500', used: '91%' },
+  { team: 'Materials simulation', lead: 'lena', budget: '$27,000', used: '34%' },
+  { team: 'Wind tunnel CFD', lead: 'tomas', budget: '$12,750', used: '12%' },
+]
+
+// Links render as anchors that go nowhere, as the workshop's own do.
+const StoryLink: UILinkComponent = ({ href, onClick, children, ...rest }) => (
+  <a
+    href={href}
+    {...rest}
+    onClick={(e) => {
+      e.preventDefault()
+      onClick?.(e)
+    }}
+  >
+    {children}
+  </a>
+)
+
+// The host's navigation toggle, where an app frame puts it: first in the bar.
+const headerSlots = {
+  link: StoryLink,
+  navToggle: () => (
+    <button
+      type="button"
+      aria-label="Open navigation"
+      className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-(--theme-muted-text-color) hover:bg-(--theme-muted-panel-bg)"
+    >
+      <SidebarOpenIcon />
+    </button>
+  ),
+}
+
+function AllocationsPage({ searching }: { searching: boolean }) {
+  const search = useListSearch(true)
+  const view = useListView<Allocation>({
+    storageKey: 'story-header-allocations',
+    columns: [
+      { key: 'team', label: 'Team', alwaysVisible: true },
+      { key: 'budget', label: 'Budget', align: 'end' },
+      { key: 'used', label: 'Used', align: 'end', stack: false },
+    ],
+    facets: [
+      {
+        key: 'lead',
+        label: 'Lead',
+        options: ALLOCATIONS.map((row) => ({ value: row.lead, label: row.lead })),
+        matches: (row, selected) => selected.includes(row.lead),
+      },
+    ],
+  })
+  const { openMenu, contextMenu } = useContextMenu()
+  const goTo = useListNavigate()
+  const { setFilter, openSearch } = search
+  useEffect(() => {
+    if (searching) {
+      openSearch()
+      setFilter('sim')
+    }
+  }, [searching, setFilter, openSearch])
+  const query = search.filter.trim().toLowerCase()
+  const shown = view.applyFilters(
+    ALLOCATIONS.filter((row) => row.team.toLowerCase().includes(query)),
+  )
+  return (
+    <UIProvider slots={headerSlots}>
+      <PageHeaderProvider>
+        <div className="flex min-h-screen flex-col bg-(--theme-app-bg)">
+          <PageHeaderBar />
+          <PageHeader
+            breadcrumbs={[
+              { label: 'Billing', href: '/billing' },
+              { label: 'Budgets', href: '/billing/budgets' },
+              { label: 'Research computing' },
+            ]}
+            actions={
+              <>
+                <ListToolbar view={view} search={search} searchLabel="Search allocations" />
+                <PageHeaderAction
+                  icon={AllocationIcon}
+                  label="Edit allocations"
+                  onClick={() => {}}
+                />
+                <PageHeaderAddButton label="New allocation" onClick={() => {}} />
+              </>
+            }
+          />
+          <ListPage
+            view={view}
+            total={ALLOCATIONS.length}
+            matches={shown.length}
+            count={{
+              noun: 'allocation',
+              nounPlural: 'allocations',
+              filterActive: query !== '' || view.activeFilterCount > 0,
+            }}
+            noMatches="No allocations match"
+          >
+            <Table {...listTableProps}>
+              <ListColumns view={view} />
+              {shown.map((row) => (
+                <ListRow
+                  key={row.team}
+                  href={null}
+                  items={[{ label: 'Edit', onClick: () => {} }]}
+                  goTo={goTo}
+                  openMenu={openMenu}
+                >
+                  <NameCell
+                    icon={<AllocationIcon />}
+                    name={row.team}
+                    subtitle={`Led by ${row.lead}`}
+                    href={null}
+                  />
+                  <Table.Item>
+                    <ListCellText className="tabular-nums">{row.budget}</ListCellText>
+                  </Table.Item>
+                  <Table.Item>
+                    <ListCellText className="tabular-nums">{row.used}</ListCellText>
+                  </Table.Item>
+                </ListRow>
+              ))}
+            </Table>
+          </ListPage>
+          {contextMenu}
+        </div>
+      </PageHeaderProvider>
+    </UIProvider>
+  )
+}
+
+/** A list whose controls sit in the page header, so its count can sit under its rows: the
+ *  filter, display options and search, then the page's own actions. On a phone the header folds
+ *  its actions into "…" and the trail to the current page before anything overlaps. */
+export const ControlsInTheHeader: StoryObj = {
+  parameters: { layout: 'fullscreen' },
+  render: () => <AllocationsPage searching={false} />,
+}
+
+/** The search open with a query typed. Where the field fits beside the trail it opens in place;
+ *  on a narrower header it takes the whole bar until it closes. */
+export const ControlsInTheHeaderSearching: StoryObj = {
+  parameters: { layout: 'fullscreen' },
+  render: () => <AllocationsPage searching />,
 }

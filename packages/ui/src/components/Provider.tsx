@@ -586,6 +586,19 @@ export interface UIStrings {
     backspace: string
     delete: string
   }
+  /** A run's status in words, beside its icon: one ended in an error or a fault reads as
+   *  failed, and one skipped after a failure as skipped. */
+  runStatus: {
+    queued: string
+    running: string
+    canceling: string
+    completed: string
+    warning: string
+    failed: string
+    canceled: string
+    skipped: string
+    notRun: string
+  }
   chart: {
     /** The row under a chart's tooltip that sums its series. */
     total: string
@@ -612,6 +625,8 @@ export interface UIStrings {
     matchCount: (matches: string, total: string, nounPlural: string) => string
     displayOptions: string
     grouping: string
+    /** The Display menu's line that collapses or expands every group the list shows. */
+    groups: string
     ordering: string
     orderDefault: string
     orderFavorites: string
@@ -641,6 +656,8 @@ export interface UIStrings {
     /** Where the page sits, for `Pagination` too narrow for page numbers: it shows "5 / 12". */
     pageOfTotal: (page: number, total: number) => string
     removeSearchTerm: (term: string) => string
+    /** The search button's name while a query it holds narrows the list, its field closed. */
+    searchActive: (label: string) => string
   }
   /** The chip row of a list's active filters, its Filter menu and its pickers. Field and option
    *  labels come from the host's fields, already translated. */
@@ -1498,6 +1515,17 @@ const DEFAULTS: UIProviderValue = {
       backspace: 'Backspace',
       delete: 'Delete',
     },
+    runStatus: {
+      queued: 'Queued',
+      running: 'Running',
+      canceling: 'Canceling',
+      completed: 'Completed',
+      warning: 'Warning',
+      failed: 'Failed',
+      canceled: 'Canceled',
+      skipped: 'Skipped',
+      notRun: 'Not run',
+    },
     chart: {
       total: 'Total',
       other: 'Other',
@@ -1517,6 +1545,7 @@ const DEFAULTS: UIProviderValue = {
       matchCount: (matches, total, nounPlural) => `${matches} of ${total} ${nounPlural}`,
       displayOptions: 'Display options',
       grouping: 'Grouping',
+      groups: 'Groups',
       ordering: 'Ordering',
       orderDefault: 'Default',
       orderFavorites: 'Favorites',
@@ -1543,6 +1572,7 @@ const DEFAULTS: UIProviderValue = {
       page: (page) => `Page ${page}`,
       pageOfTotal: (page, total) => `Page ${page} of ${total}`,
       removeSearchTerm: (term) => `Remove filter ${term}`,
+      searchActive: (label) => `${label}, on`,
     },
     filters: {
       addFilter: 'Filter',

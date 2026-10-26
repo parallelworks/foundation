@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { usePersistedState, useStrings } from '../components/Provider'
 import type { ActiveFilter, FilterField, QuickFilter } from './filterModel'
 import { actionsColumnWidth } from './ListTable'
@@ -30,6 +30,11 @@ export interface ColumnDef {
    * column there: for something short that compares best lined up, like a
    * total. The first column never stacks; it is what the others stack under. */
   stack?: boolean
+  /** Where a stacked column's value sits on the lines under the name. By default the stacked
+   *  values share a line, flowing and wrapping between them. `own` starts a line of its own, for
+   *  a value read first, such as a status; `join` stays on the line before it after a "·", for
+   *  one that belongs with that value, such as a job's nodes after its partition. */
+  stackLine?: StackLine | undefined
   /** The `value` of the {@link OrderByOption} this column sorts by. Its header
    * then sorts the list: it shows, and sets, the same order as Display
    * options' Ordering. */
@@ -48,6 +53,10 @@ export interface ColumnDef {
 
 /** Column responsive importance; `low` drops before `medium`. See {@link ColumnDef.priority}. */
 type ColumnPriority = 'low' | 'medium'
+
+/** How a stacked column's value lines up with the others under the name; see
+ *  {@link ColumnDef.stackLine}. */
+export type StackLine = 'own' | 'join'
 
 // Per-priority "show at/above this container width" classes (hidden below it).
 // Full literal strings so Tailwind's scanner emits them.
@@ -167,6 +176,8 @@ export interface ListViewChrome {
   /** Per visible column, whether it stacks under the first on a narrow
    * container ({@link ColumnDef.stack}); `ListRow` reads entry `i`. */
   columnStacks: boolean[]
+  /** Per visible column, the line its stacked value takes ({@link ColumnDef.stackLine}). */
+  columnStackLines?: (StackLine | undefined)[] | undefined
   /** Whether the last column is a locked one, such as a delete button's: the
    * row's `⋯` then keeps a lane of its own after it rather than floating over
    * it on hover. */
@@ -180,7 +191,23 @@ export interface ListViewChrome {
   reservesActionLane?: boolean | undefined
   /** The list's filters, which `ListPage` shows as a row of chips under its toolbar. */
   filterState?: ListFilters | undefined
+  /** Which of the list's groups are collapsed, remembered with the view: a `ListGroup` with a
+   *  `groupKey` inside the `ListPage` reads and sets it. */
+  groupState?: ListGroupState | undefined
 }
+
+/** The collapsed state of a list's groups, kept by its view under its `storageKey`. */
+export interface ListGroupState {
+  /** Whether the group is collapsed: as the reader last left it, or else `defaultCollapsed`. */
+  isCollapsed: (key: string, defaultCollapsed?: boolean) => boolean
+  setCollapsed: (key: string, collapsed: boolean) => void
+  /** A shown group's place in Collapse all and Expand all, until the returned function drops it. */
+  register: (key: string, defaultCollapsed: boolean) => () => void
+}
+
+// The most groups a view remembers; the oldest choice goes first. A key whose group is gone is
+// only an entry nothing reads, so the cap keeps a list whose groups come and go from growing.
+const REMEMBERED_GROUPS = 200
 
 export interface ListView<T> extends ListViewChrome {
   columns: ColumnDef[]
@@ -230,6 +257,13 @@ export interface ListView<T> extends ListViewChrome {
   /** Restore grouping, columns, header row, and pinned actions to their
    * defaults (does not touch field filters — those have their own Clear). */
   resetDisplay: () => void
+  groupState: ListGroupState
+  /** The keys of the collapsible groups the list shows now. */
+  groupKeys: string[]
+  /** Whether every group the list shows is collapsed. */
+  allGroupsCollapsed: boolean
+  collapseAllGroups: () => void
+  expandAllGroups: () => void
 }
 
 /** Persisted grouping + column-visibility + field-filter state for a list page,
@@ -375,6 +409,7 @@ export function useListView<T>({
 
   const columnClasses = useMemo(() => visibleColumns.map(columnClass), [visibleColumns])
   const columnStacks = useMemo(() => visibleColumns.map(stacks), [visibleColumns])
+  const columnStackLines = useMemo(() => visibleColumns.map((c) => c.stackLine), [visibleColumns])
   const last = visibleColumns.at(-1)
   const lastColumnLocked =
     visibleColumns.length > 1 && last !== undefined && !last.alwaysVisible && isLocked(last)
@@ -496,6 +531,8 @@ export function useListView<T>({
     defaultShowActions,
   ])
 
+  const groups = useGroupState(storageKey)
+
   const activeFilterCount = filterState.count
   const applyFilters = useCallback((rows: T[]) => filterState.apply(rows), [filterState.apply])
 
@@ -504,6 +541,7 @@ export function useListView<T>({
     visibleColumns,
     columnClasses,
     columnStacks,
+    columnStackLines,
     lastColumnLocked,
     reservesActionLane,
     isVisible,
@@ -538,7 +576,85 @@ export function useListView<T>({
     toggleAlwaysShowActions,
     isDisplayDefault,
     resetDisplay,
+    ...groups,
   }
+}
+
+/** Which groups the reader collapsed or expanded, by key, and which groups show now. A choice
+ *  stays with its key while the group is gone, filtered out or emptied, so it holds when the
+ *  group comes back. */
+function useGroupState(storageKey: string) {
+  const [choices, setChoices] = usePersistedState<Record<string, boolean>>(
+    `${storageKey}:collapsedGroups`,
+    {},
+  )
+  const [shown, setShown] = useState<ReadonlyMap<string, boolean>>(() => new Map())
+  // What was stored is only trusted as a map of booleans.
+  const remembered = useMemo(
+    () => (choices && typeof choices === 'object' && !Array.isArray(choices) ? choices : {}),
+    [choices],
+  )
+  const isCollapsed = useCallback(
+    (key: string, defaultCollapsed = false) => {
+      const choice = Object.hasOwn(remembered, key) ? remembered[key] : undefined
+      return typeof choice === 'boolean' ? choice : defaultCollapsed
+    },
+    [remembered],
+  )
+  const setMany = useCallback(
+    (keys: string[], collapsed: boolean) =>
+      setChoices((prev) => {
+        const next: Record<string, boolean> = {}
+        for (const [k, v] of Object.entries(
+          prev && typeof prev === 'object' && !Array.isArray(prev) ? prev : {},
+        )) {
+          if (!keys.includes(k) && typeof v === 'boolean') {
+            next[k] = v
+          }
+        }
+        for (const k of keys) {
+          next[k] = collapsed
+        }
+        const entries = Object.entries(next)
+        return entries.length > REMEMBERED_GROUPS
+          ? Object.fromEntries(entries.slice(-REMEMBERED_GROUPS))
+          : next
+      }),
+    [setChoices],
+  )
+  const setCollapsed = useCallback(
+    (key: string, collapsed: boolean) => setMany([key], collapsed),
+    [setMany],
+  )
+  const register = useCallback((key: string, defaultCollapsed: boolean) => {
+    setShown((prev) => {
+      if (prev.get(key) === defaultCollapsed) {
+        return prev
+      }
+      const next = new Map(prev)
+      next.set(key, defaultCollapsed)
+      return next
+    })
+    return () =>
+      setShown((prev) => {
+        if (!prev.has(key)) {
+          return prev
+        }
+        const next = new Map(prev)
+        next.delete(key)
+        return next
+      })
+  }, [])
+  const groupState = useMemo<ListGroupState>(
+    () => ({ isCollapsed, setCollapsed, register }),
+    [isCollapsed, setCollapsed, register],
+  )
+  const groupKeys = useMemo(() => [...shown.keys()], [shown])
+  const allGroupsCollapsed =
+    groupKeys.length > 0 && groupKeys.every((key) => isCollapsed(key, shown.get(key)))
+  const collapseAllGroups = useCallback(() => setMany(groupKeys, true), [setMany, groupKeys])
+  const expandAllGroups = useCallback(() => setMany(groupKeys, false), [setMany, groupKeys])
+  return { groupState, groupKeys, allGroupsCollapsed, collapseAllGroups, expandAllGroups }
 }
 
 /** A facet as the field it is shorthand for. */

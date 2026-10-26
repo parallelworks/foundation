@@ -4,10 +4,20 @@ import { expect, screen, userEvent, within } from 'storybook/test'
 import { Avatar } from '../components/Avatar'
 import { buttonClasses } from '../components/buttonClasses'
 import { UIProvider } from '../components/Provider'
-import { StatusBadge, StatusDot } from '../components/StatusBadge'
+import { StatusDot } from '../components/StatusBadge'
+import { StatusLabel } from '../components/StatusLabel'
 import { Table } from '../components/Table'
 import type { Tone } from '../components/tone'
-import { AgentIcon, CalendarIcon, ClusterIcon, OrganizationIcon, TagIcon, UserIcon } from '../icons'
+import {
+  AgentIcon,
+  CalendarIcon,
+  ClusterIcon,
+  FilterIcon,
+  OrganizationIcon,
+  RefreshIcon,
+  TagIcon,
+  UserIcon,
+} from '../icons'
 import {
   type ActiveFilter,
   decodeFilters,
@@ -19,8 +29,8 @@ import {
 import { ListFilterBar } from './ListFilterBar'
 import { ListPage } from './ListPage'
 import { listTableProps } from './ListTable'
-import { ListDisplayMenu, ListFilterMenu } from './ListViewControls'
-import { ListCount } from './listSearch'
+import { ListToolbar } from './ListToolbar'
+import { ListFilterMenu } from './ListViewControls'
 import { useListView } from './listView'
 import { useListFilters } from './useListFilters'
 
@@ -232,29 +242,28 @@ function IssuesDemo({ link, width }: { link: string; width?: number }) {
       <div className="flex h-12 shrink-0 items-center border-b border-(--theme-border) px-4 text-[16px] font-semibold">
         Issues
       </div>
-      <div className="flex shrink-0 items-center justify-between gap-3 px-4 py-1.5">
-        <ListCount
-          total={ISSUES.length}
-          matches={rows.length}
-          filterActive={filters.count > 0}
-          noun="issue"
-          nounPlural="issues"
-        />
-        <ListFilterMenu filters={filters} />
-      </div>
-      <div className="shrink-0 px-4">
-        <ListFilterBar
-          filters={filters}
-          trailing={
-            filters.count > 0 && (
-              <button type="button" className={buttonClasses({ variant: 'outline', size: 'sm' })}>
-                Save view
-              </button>
-            )
-          }
-        />
-      </div>
-      <div className="min-h-0 flex-1 overflow-auto">
+      <ListPage
+        total={ISSUES.length}
+        matches={rows.length}
+        count={{ noun: 'issue', nounPlural: 'issues', filterActive: filters.count > 0 }}
+        toolbar={
+          <ListToolbar>
+            <ListFilterMenu filters={filters} />
+          </ListToolbar>
+        }
+        filterBar={
+          <ListFilterBar
+            filters={filters}
+            trailing={
+              filters.count > 0 && (
+                <button type="button" className={buttonClasses({ variant: 'outline', size: 'sm' })}>
+                  Save view
+                </button>
+              )
+            }
+          />
+        }
+      >
         <Table {...listTableProps}>
           <Table.Header caps={false}>Issue</Table.Header>
           <Table.Header caps={false} className="hidden @[36rem]:table-cell">
@@ -288,14 +297,14 @@ function IssuesDemo({ link, width }: { link: string; width?: number }) {
                 {issue.assignee ? person(issue.assignee).label : '—'}
               </Table.Item>
               <Table.Item>
-                <StatusBadge variant={STATUS[issue.status].tone}>
+                <StatusLabel variant={STATUS[issue.status].tone}>
                   {STATUS[issue.status].label}
-                </StatusBadge>
+                </StatusLabel>
               </Table.Item>
             </tr>
           ))}
         </Table>
-      </div>
+      </ListPage>
       <div
         className="shrink-0 truncate border-t border-(--theme-border) px-4 py-2 font-mono text-[11px] text-(--theme-muted-text-color)"
         style={{ fontVariantLigatures: 'none' }}
@@ -518,21 +527,10 @@ function ResourcesDemo({ width, defaults }: { width?: number; defaults: boolean 
       </div>
       <ListPage
         view={view}
-        toolbar={
-          <div className="flex items-center justify-between gap-3 py-1.5">
-            <ListCount
-              total={RESOURCES.length}
-              matches={rows.length}
-              filterActive={view.activeFilterCount > 0}
-              noun="resource"
-              nounPlural="resources"
-            />
-            <div className="ml-auto flex items-center gap-2">
-              <ListFilterMenu view={view} />
-              <ListDisplayMenu view={view} />
-            </div>
-          </div>
-        }
+        total={RESOURCES.length}
+        matches={rows.length}
+        count={{ noun: 'resource', nounPlural: 'resources' }}
+        toolbar={<ListToolbar view={view} />}
       >
         <Table {...listTableProps}>
           <Table.Header caps={false}>Name</Table.Header>
@@ -553,7 +551,9 @@ function ResourcesDemo({ width, defaults }: { width?: number; defaults: boolean 
                 {r.provider} · {r.region}
               </Table.Item>
               <Table.Item>
-                <StatusBadge variant={RES_STATUS[r.status]}>{r.status}</StatusBadge>
+                <StatusLabel variant={RES_STATUS[r.status]} off={r.status === 'stopped'}>
+                  {r.status[0]?.toUpperCase() + r.status.slice(1)}
+                </StatusLabel>
               </Table.Item>
               <Table.Item className="hidden @[36rem]:table-cell">{r.owner}</Table.Item>
             </tr>
@@ -809,21 +809,10 @@ function QuickFiltersDemo({ width }: { width?: number }) {
       </div>
       <ListPage
         view={view}
-        toolbar={
-          <div className="flex items-center justify-between gap-3 py-1.5">
-            <ListCount
-              total={JOBS.length}
-              matches={rows.length}
-              filterActive={view.activeFilterCount > 0}
-              noun="job"
-              nounPlural="jobs"
-            />
-            <div className="ml-auto flex items-center gap-2">
-              <ListFilterMenu view={view} />
-              <ListDisplayMenu view={view} />
-            </div>
-          </div>
-        }
+        total={JOBS.length}
+        matches={rows.length}
+        count={{ noun: 'job', nounPlural: 'jobs' }}
+        toolbar={<ListToolbar view={view} />}
       >
         <Table {...listTableProps}>
           <Table.Header caps={false}>Job</Table.Header>
@@ -841,9 +830,9 @@ function QuickFiltersDemo({ width }: { width?: number }) {
               </Table.Item>
               <Table.Item className="hidden @[36rem]:table-cell">{r.partition}</Table.Item>
               <Table.Item>
-                <StatusBadge variant={JOB_STATE[r.state].tone}>
+                <StatusLabel variant={JOB_STATE[r.state].tone}>
                   {JOB_STATE[r.state].label}
-                </StatusBadge>
+                </StatusLabel>
               </Table.Item>
             </tr>
           ))}
@@ -870,5 +859,179 @@ export const QuickFiltersAtPhoneWidth: StoryObj = {
 
 export const QuickFiltersAtPhoneWidthDark: StoryObj = {
   ...QuickFiltersAtPhoneWidth,
+  globals: { mode: 'dark' },
+}
+
+// --- A bar sharing its line ---------------------------------------------------
+
+const QUEUE_FIELDS: FilterField[] = [
+  {
+    key: 'state',
+    label: 'State',
+    kind: 'enum',
+    operators: ['is'],
+    options: (['discarded', 'retryable', 'running'] as const).map((s) => ({
+      value: s,
+      label: { discarded: 'Discarded', retryable: 'Retrying', running: 'Running' }[s],
+      icon: (
+        <StatusDot
+          variant={s === 'discarded' ? 'error' : s === 'retryable' ? 'warning' : 'info'}
+          size={8}
+        />
+      ),
+    })),
+  },
+  {
+    key: 'queue',
+    label: 'Queue',
+    kind: 'enum',
+    operators: ['is'],
+    multiple: false,
+    options: ['cluster-provisioning', 'notifications'].map((q) => ({ value: q, label: q })),
+  },
+]
+
+/** A filter bar beside a toolbar's buttons, as a page's header holds it, with a pressed state
+ *  and a queue chip that leave no room for "+n more" or Clear on their lines on a phone. */
+function SharedLineDemo({ width }: { width?: number }) {
+  const [active, setActive] = useState<ActiveFilter[]>([
+    { field: 'state', op: 'is', values: ['running'] },
+    { field: 'queue', op: 'is', values: ['cluster-provisioning'] },
+  ])
+  const filters = useListFilters({
+    storageKey: `story-shared-line-${width ?? 'wide'}`,
+    fields: QUEUE_FIELDS,
+    remember: false,
+    store: { value: active, onChange: setActive },
+    quick: [{ field: 'state', counts: { retryable: 1, running: 2 } }],
+  })
+  return (
+    <Shell width={width}>
+      <div className="flex h-12 shrink-0 items-center border-b border-(--theme-border) px-4 text-[16px] font-semibold">
+        Background jobs
+      </div>
+      <div className="flex items-start gap-2 px-4">
+        <ListFilterBar filters={filters} className="min-w-0 flex-1" />
+        <div className="flex shrink-0 items-center gap-1.5 py-1.5">
+          <button
+            type="button"
+            aria-label="Refresh"
+            className={buttonClasses({ variant: 'outline', size: 'sm', iconOnly: true })}
+          >
+            <RefreshIcon aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            aria-label="Filter"
+            className={buttonClasses({ variant: 'outline', size: 'sm', iconOnly: true })}
+          >
+            <FilterIcon aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+    </Shell>
+  )
+}
+
+export const SharedLine: StoryObj = {
+  render: () => <SharedLineDemo />,
+}
+
+/** At phone width neither "+n more" nor Clear sits on a line of its own: the toggles give way
+ *  down to the pressed one, and where Clear doesn't fit after "+", it is the last item in the +
+ *  menu instead. */
+export const SharedLineAtPhoneWidth: StoryObj = {
+  render: () => <SharedLineDemo width={390} />,
+}
+
+export const SharedLineAtPhoneWidthDark: StoryObj = {
+  ...SharedLineAtPhoneWidth,
+  globals: { mode: 'dark' },
+}
+
+// --- Required chips on a narrow row -----------------------------------------
+
+const DASHBOARD_FIELDS: FilterField[] = [
+  {
+    key: 'org',
+    label: 'Organization',
+    icon: <OrganizationIcon />,
+    kind: 'enum',
+    multiple: false,
+    required: true,
+    options: ORGS,
+  },
+  {
+    key: 'time',
+    label: 'Time',
+    icon: <CalendarIcon />,
+    kind: 'date',
+    required: true,
+    presets: ['-1d', '-7d', '-30d', 'month'],
+  },
+  {
+    key: 'group',
+    label: 'Group',
+    kind: 'enum',
+    multiple: false,
+    pinned: true,
+    options: ['hpc-team', 'cfd-lab'].map((g) => ({ value: g, label: g })),
+  },
+  {
+    key: 'user',
+    label: 'User',
+    icon: <UserIcon />,
+    kind: 'enum',
+    multiple: false,
+    options: ['maya', 'jonas'].map((u) => ({ value: u, label: u })),
+  },
+  {
+    key: 'csp',
+    label: 'CSP',
+    kind: 'enum',
+    multiple: false,
+    options: ['AWS', 'GCP'].map((c) => ({ value: c, label: c })),
+  },
+]
+
+/** A cost dashboard's filters: required Organization and Time, a pinned Group, then two more. */
+function RequiredOnPhoneDemo({ width }: { width?: number }) {
+  const [active, setActive] = useState<ActiveFilter[]>([
+    { field: 'org', op: 'is', values: [ORGS[0]?.value ?? ''] },
+    { field: 'time', op: 'is', values: ['-30d'] },
+    { field: 'group', op: 'is', values: ['hpc-team'] },
+    { field: 'user', op: 'is', values: ['maya'] },
+    { field: 'csp', op: 'is', values: ['AWS'] },
+  ])
+  const filters = useListFilters({
+    storageKey: `story-required-phone-${width ?? 'wide'}`,
+    fields: DASHBOARD_FIELDS,
+    remember: false,
+    store: { value: active, onChange: setActive },
+  })
+  return (
+    <Shell width={width}>
+      <div className="flex h-12 shrink-0 items-center border-b border-(--theme-border) px-4 text-[16px] font-semibold">
+        Cost
+      </div>
+      <div className="px-4">
+        <ListFilterBar filters={filters} />
+      </div>
+    </Shell>
+  )
+}
+
+export const RequiredChipsOnARow: StoryObj = {
+  render: () => <RequiredOnPhoneDemo />,
+}
+
+/** At phone width the required and pinned chips always show; the others give way to
+ *  "+n filters". */
+export const RequiredChipsAtPhoneWidth: StoryObj = {
+  render: () => <RequiredOnPhoneDemo width={390} />,
+}
+
+export const RequiredChipsAtPhoneWidthDark: StoryObj = {
+  ...RequiredChipsAtPhoneWidth,
   globals: { mode: 'dark' },
 }

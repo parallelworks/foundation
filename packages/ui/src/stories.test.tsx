@@ -8,9 +8,10 @@ import { composeStories } from '@storybook/react-vite'
 import { cleanup, render } from '@testing-library/react'
 import type React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-
 import * as accessDrawer from './access/AccessDrawer.stories'
 import * as accessPanel from './access/AccessPanel.stories'
+import * as appFrame from './app-frame/AppFrame.stories'
+import * as badges from './components/Badges.stories'
 import * as breadcrumbs from './components/Breadcrumbs.stories'
 import * as callout from './components/Callout.stories'
 import * as codeBlock from './components/CodeBlock.stories'
@@ -29,6 +30,9 @@ import * as overlays from './components/overlays.stories'
 import * as pageHeader from './components/pageHeader.stories'
 import * as pickers from './components/pickers.stories'
 import * as primitives from './components/primitives.stories'
+import * as statTile from './components/StatTile.stories'
+import * as statusBadge from './components/StatusBadge.stories'
+import * as statusLabel from './components/StatusLabel.stories'
 import * as sections from './components/sections.stories'
 import * as tabs from './components/Tabs.stories'
 import * as tags from './components/Tag.stories'
@@ -54,11 +58,23 @@ import * as appShell from './list/appShell.stories'
 import * as filterBar from './list/filterBar.stories'
 import * as list from './list/ListTable.stories'
 import * as listControls from './list/listControls.stories'
+import * as listGroup from './list/listGroup.stories'
 import * as listPage from './list/listPage.stories'
 import * as stickyHeaders from './list/stickyHeaders.stories'
 import * as userHoverCard from './list/UserHoverCard.stories'
 import * as logviewer from './logviewer/LogViewer.stories'
 import * as themeGenerator from './theme/theme.stories'
+
+window.matchMedia ??= (media) => ({
+  media,
+  matches: false,
+  onchange: null,
+  addListener() {},
+  removeListener() {},
+  addEventListener() {},
+  removeEventListener() {},
+  dispatchEvent: () => true,
+})
 
 // jsdom lacks these; the DAG and explorer rely on them for layout plumbing.
 global.requestAnimationFrame = (() => 0) as typeof requestAnimationFrame
@@ -77,6 +93,7 @@ vi.mock('react-zoom-pan-pinch', () => ({
 }))
 
 const SUITES = {
+  appFrame,
   primitives,
   accessDrawer,
   accessPanel,
@@ -86,6 +103,10 @@ const SUITES = {
   charts,
   kbd,
   tags,
+  badges,
+  statusBadge,
+  statusLabel,
+  statTile,
   icons,
   sections,
   descriptionList,
@@ -107,6 +128,7 @@ const SUITES = {
   list,
   actionLane,
   listControls,
+  listGroup,
   filterBar,
   listPage,
   stickyHeaders,
