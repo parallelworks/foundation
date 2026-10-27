@@ -306,10 +306,10 @@ export interface ChatStrings {
     noPreview: string
     /** Names the pane showing an option's preview. */
     previewOf: (label: string) => string
-    /** Names the field for notes on a question with previews. */
+    /** Names the notes on a question with previews, in their field and under an answer. */
     notesLabel: string
     notesPlaceholder: string
-    /** An answer that is notes alone, which an answered ask shows in place of the notes. */
+    /** An answer that is notes alone, which an answered ask shows over the notes. */
     notesOnly: string
     /** Read out in place of a task's checkbox glyph. */
     todoPending: string

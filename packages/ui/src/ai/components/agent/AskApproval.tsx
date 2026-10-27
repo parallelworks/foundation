@@ -493,21 +493,30 @@ export function AskAnswered({ part }: { part: ApprovalPart }) {
   const answers = part.answers
   return (
     <>
-      {(part.questions ?? []).map((q, i) => (
-        <div key={q.question}>
-          <div className="theme-text">{q.question}</div>
-          {answers && (
-            <div className="flex items-center gap-1.5">
-              <ArrowRightIcon aria-hidden="true" className="size-3 shrink-0" />
-              {hasAnswer(answers[i]) ? (
-                <span className="theme-text">{joinAnswer(answers[i]) || t.notesOnly}</span>
-              ) : (
-                <span className="italic">{t.noAnswer}</span>
-              )}
-            </div>
-          )}
-        </div>
-      ))}
+      {(part.questions ?? []).map((q, i) => {
+        const notes = answers?.[i]?.notes
+        return (
+          <div key={q.question}>
+            <div className="theme-text">{q.question}</div>
+            {answers && (
+              <div className="flex items-center gap-1.5">
+                <ArrowRightIcon aria-hidden="true" className="size-3 shrink-0" />
+                {hasAnswer(answers[i]) ? (
+                  <span className="theme-text">{joinAnswer(answers[i]) || t.notesOnly}</span>
+                ) : (
+                  <span className="italic">{t.noAnswer}</span>
+                )}
+              </div>
+            )}
+            {notes && (
+              <div className="flex gap-1.5 pl-4.5">
+                <span className="shrink-0">{t.notesLabel}</span>
+                <span className="whitespace-pre-wrap theme-text">{notes}</span>
+              </div>
+            )}
+          </div>
+        )
+      })}
       <div className="flex items-center gap-2">
         {part.chat ? <ChatIcon className="w-3.5 h-3.5" /> : <CheckIcon className="w-3.5 h-3.5" />}
         <span>

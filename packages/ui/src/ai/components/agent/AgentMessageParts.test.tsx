@@ -310,14 +310,14 @@ describe('approval parts', () => {
       },
     ])
     expect(screen.getByText('Postgres')).toBeInTheDocument()
-    expect(screen.queryByText(/the managed one/)).not.toBeInTheDocument()
+    expect(screen.getByText('the managed one')).toBeInTheDocument()
     expect(screen.getByText('Lint, and the e2e suite')).toBeInTheDocument()
     expect(screen.getByText('No answer')).toBeInTheDocument()
     expect(screen.getByText('Answered')).toBeInTheDocument()
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
-  it('shows an answer of notes alone as notes only, not the notes', () => {
+  it('shows an answer of notes alone as notes only, over the notes', () => {
     renderParts([
       {
         kind: 'approval',
@@ -329,7 +329,7 @@ describe('approval parts', () => {
       },
     ])
     expect(screen.getByText('(notes only)')).toBeInTheDocument()
-    expect(screen.queryByText(/something in between/)).not.toBeInTheDocument()
+    expect(screen.getByText('something in between')).toBeInTheDocument()
   })
 
   it('says a resolved ask went to chat, keeping the answers given so far', () => {
