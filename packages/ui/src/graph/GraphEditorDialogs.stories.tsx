@@ -67,7 +67,8 @@ const STEP_KINDS = `jobs:
           replicas: 2
 `
 
-// The workflow a step reads under withDeployWorkflow, with two configurations it can name.
+// The workflow a step reads under withDeployWorkflow, with two configurations it can name, beside
+// saved inputs of the reader's own.
 const DEPLOY = {
   configurations: {
     staging: { inputs: { region: 'us-east', replicas: 1 } },
@@ -88,7 +89,11 @@ const engine = { ...parser.createWorkflowEngine(), editing: parser }
 const withDeployWorkflow: Decorator = (Story) => (
   <UIProvider
     engine={engine}
-    data={{ workflowActions: TEST_ACTIONS, resolveWorkflowJson: () => Promise.resolve(DEPLOY) }}
+    data={{
+      workflowActions: TEST_ACTIONS,
+      resolveWorkflowJson: () => Promise.resolve(DEPLOY),
+      resolveSavedInputs: () => Promise.resolve(['nightly']),
+    }}
   >
     <Story />
   </UIProvider>

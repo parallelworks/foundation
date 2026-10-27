@@ -4,6 +4,7 @@ import { IconButton } from '../components/IconButton'
 import { Input, Textarea } from '../components/Input'
 import {
   useRepoSuggestions,
+  useSavedInputsResolver,
   useWorkflowActions,
   useWorkflowEditing,
   useWorkflowJsonResolver,
@@ -573,6 +574,7 @@ function useSubworkflowTarget(uses: string, draft: WithDraft): UsesTarget | null
   const editing = useWorkflowEditing()
   const resolve = useWorkflowJsonResolver()
   const repos = useRepoSuggestions()
+  const savedInputs = useSavedInputsResolver()
   const [target, setTarget] = useState<UsesTarget | null>(null)
   const yamlPath = String(draft.values['text:$yaml'] ?? '') || DEFAULT_REPO_YAML
   const host = String(draft.values['text:$host'] ?? '') || DEFAULT_GITLAB_HOST
@@ -581,7 +583,7 @@ function useSubworkflowTarget(uses: string, draft: WithDraft): UsesTarget | null
     setTarget(null)
     // Read once typing pauses, not for every keystroke in the workflow's name or path.
     const timer = window.setTimeout(() => {
-      loadUsesTarget(editing, uses, { yamlPath, host }, { resolve, repos })
+      loadUsesTarget(editing, uses, { yamlPath, host }, { resolve, repos, savedInputs })
         .then((loaded) => {
           if (live) {
             setTarget(loaded)
@@ -597,7 +599,7 @@ function useSubworkflowTarget(uses: string, draft: WithDraft): UsesTarget | null
       live = false
       window.clearTimeout(timer)
     }
-  }, [editing, uses, resolve, repos, yamlPath, host])
+  }, [editing, uses, resolve, repos, savedInputs, yamlPath, host])
   return target
 }
 

@@ -257,6 +257,36 @@ describe('a subworkflow step’s inputs', () => {
     })
   })
 
+  const offered = async (savedInputs: (ref: WorkflowJsonRef) => Promise<string[]>) => {
+    const workflow = { jobs: { build: { steps: [{ uses: 'marketplace/sizer@v2', with: {} }] } } }
+    openStep(workflow, 'build', 0, (dialog) => (
+      <UIProvider
+        data={{
+          resolveWorkflowJson: () => Promise.resolve(CONFIGURED),
+          resolveSavedInputs: savedInputs,
+        }}
+      >
+        {dialog}
+      </UIProvider>
+    ))
+    await screen.findByLabelText('Note')
+    const configuration = screen.getByLabelText(t.fields.configuration)
+    const field = configuration.closest('[data-testid="combobox"]') as HTMLElement
+    fireEvent.click(within(field).getByTestId('combobox-button'))
+    await screen.findByRole('option', { name: 'large' })
+    return screen.getAllByRole('option').map((option) => option.textContent)
+  }
+
+  it('offers the reader’s own saved inputs for the workflow after its own, each once', async () => {
+    const savedInputs = vi.fn(() => Promise.resolve(['mine', 'small']))
+    expect(await offered(savedInputs)).toEqual(['small', 'large', 'mine'])
+    expect(savedInputs).toHaveBeenCalledWith({ kind: 'marketplace', slug: 'sizer', version: 'v2' })
+  })
+
+  it('still offers the workflow’s saved inputs when the reader’s can’t be listed', async () => {
+    expect(await offered(() => Promise.reject(new Error('offline')))).toEqual(['small', 'large'])
+  })
+
   it('takes a configuration named by an expression, but not text that names none', async () => {
     const workflow = {
       jobs: {
