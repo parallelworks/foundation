@@ -55,9 +55,11 @@ export interface CellPlacement {
 }
 
 /** A stacked column's value on the line under a row's name: it flows inline with the others and
- *  wraps between them, never inside a value, which truncates if it is wider than the line. */
+ *  wraps between them, never inside a value, which truncates if it is wider than the line. One
+ *  whose content renders nothing, such as a host's status component for a row with no status,
+ *  takes no room, so the line's gap doesn't indent the value after it. */
 export const STACKED_ITEM =
-  'flex min-w-0 max-w-full items-center whitespace-nowrap [&>*]:min-w-0 [&>*]:truncate'
+  'flex min-w-0 max-w-full items-center whitespace-nowrap empty:hidden [&>*]:min-w-0 [&>*]:truncate'
 
 /** A joined stacked value's dot, part of the value so a value that renders nothing leaves none:
  *  6px either side of it, where the line keeps 12px between values. */
