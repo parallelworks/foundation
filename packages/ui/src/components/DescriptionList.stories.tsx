@@ -304,6 +304,6 @@ export const DenseAndTruncated: StoryObj<{ size: 'sm' | 'xs'; truncate: boolean 
     ),
   play: async ({ canvasElement, args }) => {
     const nodes = within(canvasElement).getByText(/gpu-a100-\[0001/)
-    await expect(nodes.classList.contains('truncate')).toBe(args.truncate)
+    await expect(nodes.classList.contains('text-ellipsis')).toBe(args.truncate)
   },
 }

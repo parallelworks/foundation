@@ -597,6 +597,31 @@ export const EmptyCellsOnAPhone: StoryObj = {
           .left
       await expect(start(lines[1])).toBe(start(lines[0]))
     }
+    // A status lamp's glow, 3px about it, shows whole: no box that clips it, up to its row,
+    // clips nearer to it than that, whether the status is its own cell or on the line.
+    for (const name of canvas.getAllByText('Provisioned')) {
+      const lamp = name.previousElementSibling as HTMLElement
+      if (!lamp.checkVisibility()) {
+        continue
+      }
+      const dot = lamp.getBoundingClientRect()
+      for (let box = lamp.parentElement; box && box.tagName !== 'TR'; box = box.parentElement) {
+        const style = getComputedStyle(box)
+        if (style.overflowX === 'visible' && style.overflowY === 'visible') {
+          continue
+        }
+        const margin =
+          style.overflowX === 'clip' ? Number.parseFloat(style.overflowClipMargin) || 0 : 0
+        const edge = box.getBoundingClientRect()
+        const room = Math.min(
+          dot.left - edge.left,
+          edge.right - dot.right,
+          dot.top - edge.top,
+          edge.bottom - dot.bottom,
+        )
+        await expect(room + margin).toBeGreaterThanOrEqual(3)
+      }
+    }
   },
 }
 
