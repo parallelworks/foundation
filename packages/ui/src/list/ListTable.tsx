@@ -11,6 +11,14 @@ import { ErrorIcon } from '../icons'
 
 const NAME_TEXT = 'font-medium text-[13px] leading-tight text-(--theme-app) truncate'
 const SUBTITLE_TEXT = 'text-xs leading-tight text-(--theme-muted-text-color) truncate'
+// A longer note under the name, such as why a run failed: it wraps inside the name's column, as
+// the cell otherwise keeps to one line, for two lines at most, and shows whole in a tooltip.
+const DESCRIPTION_TEXT =
+  'mt-0.5 line-clamp-2 whitespace-normal text-xs leading-tight [overflow-wrap:anywhere]'
+const DESCRIPTION_TONE = {
+  muted: 'text-(--theme-muted-text-color)',
+  error: 'text-(--theme-error-text)',
+} as const
 
 /** Marks a header cell of a list whose column headers are off; see `listTableProps`. */
 export const HEADERS_OFF = 'list-headers-off'
@@ -65,6 +73,8 @@ export function NameCell({
   iconTile = false,
   name,
   subtitle,
+  description,
+  descriptionTone = 'muted',
   href,
   badge,
   title,
@@ -77,8 +87,18 @@ export function NameCell({
    *  icon bare, centered where the tile would be, so a one-line row stays
    *  as short as its text and its name still lines up with tiled rows. */
   iconTile?: boolean | undefined
-  name: string
-  subtitle?: string | undefined
+  /** The name, or the host's own element for it, such as a link that opens the row's item in
+   *  a new tab: it is cut off with an ellipsis where it is wider than its column. */
+  name: ReactNode
+  /** A second line under the name, cut off with an ellipsis. One that holds links of its own
+   *  needs `href={null}`, as a link can't hold another. */
+  subtitle?: ReactNode
+  /** A longer note under the subtitle, such as why a session failed. It wraps inside the name's
+   *  column for two lines at most, then ends in an ellipsis and shows whole in a tooltip, so it
+   *  never runs past the row on a phone. It sits outside the name's link. */
+  description?: string | undefined
+  /** `error` for a note that says what went wrong. */
+  descriptionTone?: 'muted' | 'error' | undefined
   /** The name's link. Inside a `ListRow` with an `href`, the whole row is
    *  this link, so give both the same URL. */
   href: string | null
@@ -147,8 +167,15 @@ export function NameCell({
         ) : (
           <div className={cx('min-w-0', columns)}>{inner}</div>
         )}
-        {(!!children || !!under) && (
+        {(!!description || !!children || !!under) && (
           <div className={hasIcon ? 'col-start-2 min-w-0' : 'min-w-0'}>
+            {description && (
+              <Tooltip content={description} overflowOnly>
+                <p className={cx(DESCRIPTION_TEXT, DESCRIPTION_TONE[descriptionTone])}>
+                  {description}
+                </p>
+              </Tooltip>
+            )}
             {children}
             {under}
           </div>
