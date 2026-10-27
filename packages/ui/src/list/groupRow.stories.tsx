@@ -454,6 +454,8 @@ interface HostSession {
   state: 'running' | 'error'
   target?: string
   port?: number
+  /** Where an external session's link goes. */
+  url?: string
   error?: string
 }
 
@@ -478,8 +480,20 @@ const HOST_SESSIONS: HostSession[] = [
     error:
       "Resource's agent is not connected. The session can't start until the agent on devadmin/gputrainer reconnects.",
   },
-  { id: 'ss-3', name: 'devadmin/lab-wiki', type: 'link', state: 'running' },
-  { id: 'ss-4', name: 'devadmin/grafana', type: 'link', state: 'running' },
+  {
+    id: 'ss-3',
+    name: 'devadmin/lab-wiki',
+    type: 'link',
+    state: 'running',
+    url: 'wiki.example.com',
+  },
+  {
+    id: 'ss-4',
+    name: 'devadmin/grafana',
+    type: 'link',
+    state: 'running',
+    url: 'grafana.example.com/d/gpu',
+  },
 ]
 
 const HOST_SESSION_GROUPS = [
@@ -592,8 +606,10 @@ function HostSessionsDemo() {
                       {x.name}
                     </a>
                   }
+                  // Every session has a second line, so every row's icon has its tile.
                   subtitle={
-                    x.target && (
+                    x.url ??
+                    (x.target && (
                       <span className="inline-flex items-center gap-1">
                         on
                         <GearsIcon className="size-3.5 shrink-0" />
@@ -602,7 +618,7 @@ function HostSessionsDemo() {
                         </a>
                         <span>{x.port}</span>
                       </span>
-                    )
+                    ))
                   }
                   description={x.error}
                   descriptionTone="error"
