@@ -225,10 +225,11 @@ const layout: ApprovalQuestion = {
 const pane = (label: string) => screen.getByRole('region', { name: `Preview: ${label}` })
 
 describe('AskApproval with option previews', () => {
-  it('fences a preview as text, so a mockup shows as written, unless it fences its own code', () => {
+  it('shows a mockup as written, and a preview that fences its own code as markdown', () => {
     renderAsk([layout])
-    expect(within(pane('Sidebar')).getByTestId('markdown').textContent).toBe(
-      '```text\n| nav | body |\n|-----|------|\n| a   | b    |\n```',
+    expect(within(pane('Sidebar')).queryByTestId('markdown')).not.toBeInTheDocument()
+    expect(pane('Sidebar').querySelector('pre')?.textContent).toBe(
+      '| nav | body |\n|-----|------|\n| a   | b    |',
     )
     fireEvent.focus(screen.getByRole('button', { name: 'Tabs' }))
     expect(within(pane('Tabs')).getByTestId('markdown').textContent).toBe(

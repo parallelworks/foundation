@@ -63,14 +63,16 @@ function answerOf(question: ApprovalQuestion, given: Given | undefined): Approva
   }
 }
 
-/** A preview reads as markdown in a monospace box: verbatim, unless it fences its own code. */
-function fencedPreview(preview: string): string {
-  const body = preview.replace(/\n+$/, '')
-  if (/^ {0,3}`{3,}[^`]*$/m.test(body)) {
-    return body
+/** A preview shows as written, unless it fences its own code, when it reads as markdown. */
+function PreviewText({ preview }: { preview: string }) {
+  if (/^ {0,3}`{3,}[^`]*$/m.test(preview)) {
+    return <Markdown>{preview}</Markdown>
   }
-  const fence = '`'.repeat(Math.max(2, ...(body.match(/`+/g) ?? []).map((run) => run.length)) + 1)
-  return `${fence}text\n${body}\n${fence}`
+  return (
+    <pre className="overflow-x-auto py-1 font-mono leading-5 whitespace-pre">
+      {preview.replace(/\n+$/, '')}
+    </pre>
+  )
 }
 
 // A pointer passing over the options on its way elsewhere doesn't flash each preview.
@@ -444,7 +446,7 @@ function PreviewPane({
         {label}
       </div>
       {hasPreview(preview) ? (
-        <Markdown>{fencedPreview(preview)}</Markdown>
+        <PreviewText preview={preview} />
       ) : (
         <div className="theme-muted-text">{t.noPreview}</div>
       )}
