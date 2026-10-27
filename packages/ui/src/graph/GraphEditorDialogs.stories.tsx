@@ -178,7 +178,7 @@ export const EditRemoteHostStep: StoryObj<typeof meta> = {
   render: ({ view }) => <Dialog source={STEP_KINDS} job="build" step={2} view={view} />,
 }
 
-/** A step that runs a workflow with one of its configurations, setting one input itself. */
+/** A step that runs a workflow with one of its saved inputs, setting one input itself. */
 export const EditConfiguredSubworkflowStep: StoryObj<typeof meta> = {
   decorators: [withDeployWorkflow],
   render: ({ view }) => <Dialog source={STEP_KINDS} job="build" step={3} view={view} />,
