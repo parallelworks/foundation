@@ -4,7 +4,7 @@ import { LoadingRegion, Skeleton } from './Skeleton'
 
 export interface OverviewProps {
   /** The thing's mark, such as its type's icon or an avatar. On a narrow page it shrinks to
-   *  40px beside the name, whatever size it's given. */
+   *  32px beside the name, with no padding, whatever size and padding it's given. */
   icon: ReactNode
   name: ReactNode
   /** Under the name, such as its kind. */
@@ -43,13 +43,15 @@ export function Overview({
         className={cx(
           // Narrow: a grid whose first row is the mark, the name and the actions, with every
           // other line across its full width. Wide: a row with the name block in a column.
-          'grid w-full items-center gap-x-3 gap-y-0.5',
+          'grid w-full items-center gap-x-2.5 gap-y-0.5',
           actions ? 'grid-cols-[auto_minmax(0,1fr)_auto]' : 'grid-cols-[auto_minmax(0,1fr)]',
-          '@md/overview:flex @md/overview:gap-y-0',
+          '@md/overview:flex @md/overview:gap-x-3 @md/overview:gap-y-0',
         )}
       >
-        {/* Important, so a mark the host sized itself shrinks too. */}
-        <div className="col-start-1 row-start-1 shrink-0 @max-md/overview:size-10 @max-md/overview:*:size-full!">
+        {/* Narrow, the mark is the name's height and its drawing starts on the edge the lines
+            below start on, so a host's own size and padding give way: important, as a host may
+            set them inline. */}
+        <div className="col-start-1 row-start-1 shrink-0 @max-md/overview:size-8 @max-md/overview:*:size-full! @max-md/overview:**:p-0!">
           {loading ? <Skeleton circle height={iconSize} className="shrink-0" /> : icon}
         </div>
         {/* Narrow, the name block's lines are the grid's own rows. */}
