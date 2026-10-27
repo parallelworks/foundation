@@ -30,6 +30,7 @@ import * as overlays from './components/overlays.stories'
 import * as pageHeader from './components/pageHeader.stories'
 import * as pickers from './components/pickers.stories'
 import * as primitives from './components/primitives.stories'
+import * as splitView from './components/SplitView.stories'
 import * as statTile from './components/StatTile.stories'
 import * as statusBadge from './components/StatusBadge.stories'
 import * as statusLabel from './components/StatusLabel.stories'
@@ -56,6 +57,7 @@ import * as icons from './icons.stories'
 import * as actionLane from './list/actionLane.stories'
 import * as appShell from './list/appShell.stories'
 import * as filterBar from './list/filterBar.stories'
+import * as listDetail from './list/ListDetail.stories'
 import * as list from './list/ListTable.stories'
 import * as listControls from './list/listControls.stories'
 import * as listGroup from './list/listGroup.stories'
@@ -112,6 +114,7 @@ const SUITES = {
   descriptionList,
   errorPage,
   tabs,
+  splitView,
   loading,
   markdown,
   combobox,
@@ -131,6 +134,7 @@ const SUITES = {
   listGroup,
   filterBar,
   listPage,
+  listDetail,
   stickyHeaders,
   appShell,
   userHoverCard,

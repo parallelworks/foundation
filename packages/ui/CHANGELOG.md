@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.98.0](https://github.com/parallelworks/foundation/compare/ui-v0.97.2...ui-v0.98.0) (2026-10-27)
+
+
+### Features
+
+* **ui:** a list and the item open from it show side by side where they fit and one at a time on a phone ([#532](https://github.com/parallelworks/foundation/issues/532)) ([caee4d2](https://github.com/parallelworks/foundation/commit/caee4d2f87e82ad34238470999bf6f8463718305))
+
+
+### Bug Fixes
+
+* **ui:** on a phone, an open list search fills its toolbar's line instead of keeping a desktop's width ([#536](https://github.com/parallelworks/foundation/issues/536)) ([0782733](https://github.com/parallelworks/foundation/commit/0782733a3b0b12567f2bdbc3992a71f2ee1a1cf4))
+
+## [0.97.2](https://github.com/parallelworks/foundation/compare/ui-v0.97.1...ui-v0.97.2) (2026-10-27)
+
+
+### Bug Fixes
+
+* **ui:** a field's ? and hint follow its label's last word when the label wraps ([#528](https://github.com/parallelworks/foundation/issues/528)) ([1a7edae](https://github.com/parallelworks/foundation/commit/1a7edae9c4e75c92be68a2fd6b6b436ba8113233))
+* **ui:** on a phone, a list's header says what it is sorted by and changes it ([#533](https://github.com/parallelworks/foundation/issues/533)) ([041b79d](https://github.com/parallelworks/foundation/commit/041b79d50db8e0f27d778307a74f171f3d14f6f1))
+
+## [0.97.1](https://github.com/parallelworks/foundation/compare/ui-v0.97.0...ui-v0.97.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* **ui:** a tab row that runs past a phone's width shows an arrow at the end that hides tabs ([#526](https://github.com/parallelworks/foundation/issues/526)) ([9ed9032](https://github.com/parallelworks/foundation/commit/9ed90321830a2db10e850e997b55a72d35ce3708))
+
+## [0.97.0](https://github.com/parallelworks/foundation/compare/ui-v0.96.1...ui-v0.97.0) (2026-10-26)
+
+
+### Features
+
+* **ui:** two panes of one task show side by side where they fit and one at a time on a phone ([#524](https://github.com/parallelworks/foundation/issues/524)) ([8eff1ed](https://github.com/parallelworks/foundation/commit/8eff1edf095066bf9a81a1db1d53905d9e993bb7))
+
 ## [0.96.1](https://github.com/parallelworks/foundation/compare/ui-v0.96.0...ui-v0.96.1) (2026-10-26)
 
 
