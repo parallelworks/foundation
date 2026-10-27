@@ -487,8 +487,8 @@ const HOST_SESSION_GROUPS = [
   { id: 'link', label: 'External' },
 ] as const
 
-/** A sessions list: a checkbox before the columns, the host's own 36px glyph beside each name and
- *  its own link for the name, a subtitle naming the resource it runs on with a link to it, a
+/** A sessions list: a checkbox before the columns, each session's icon in a tile beside its
+ *  name and the host's own link for the name, a subtitle naming the resource it runs on with a link to it, a
  *  failed session's error under that, and the status as a column of its own that stacks under the
  *  name on a phone. */
 function HostSessionsDemo() {
@@ -578,16 +578,9 @@ function HostSessionsDemo() {
               >
                 <NameCell
                   icon={
-                    view.isVisible('icon') && (
-                      <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-(--theme-panel-bg) shadow-sm ring-1 ring-(--theme-border)">
-                        {x.type === 'tunnel' ? (
-                          <CloudIcon className="size-4" />
-                        ) : (
-                          <LinkIcon className="size-4" />
-                        )}
-                      </div>
-                    )
+                    view.isVisible('icon') && (x.type === 'tunnel' ? <CloudIcon /> : <LinkIcon />)
                   }
+                  iconTile
                   // The host's own link, which opens the session in a new tab, and is dimmed
                   // while it can't.
                   name={
@@ -655,8 +648,17 @@ export const SessionsWithErrors: StoryObj = {
       row.getBoundingClientRect().right,
     )
     const line = row.querySelector('[data-stacked-line]') as HTMLElement
-    // Where the status stacks under the name, it starts where the name does.
+    // Where the status stacks under the name, it starts where the name does, and the row's
+    // checkbox sits at its top, centered on the icon's tile and as far from it as the tile is from
+    // the name, rather than in the middle of the lines under them.
     if (line.checkVisibility()) {
+      const box = within(row).getByRole('checkbox').getBoundingClientRect()
+      const tile = (row.querySelector('td .rounded-md') as HTMLElement).getBoundingClientRect()
+      const middle = (r: DOMRect) => r.top + r.height / 2
+      await expect(Math.abs(middle(box) - middle(tile))).toBeLessThan(1)
+      await expect(Math.round(tile.left - box.right)).toBe(
+        Math.round(error.getBoundingClientRect().left - tile.right),
+      )
       await expect(line.getBoundingClientRect().left).toBe(error.getBoundingClientRect().left)
     }
   },

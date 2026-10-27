@@ -140,7 +140,12 @@ export function NameCell({
           </div>
           {badge}
         </div>
-        {subtitle && <div className={SUBTITLE_TEXT}>{subtitle}</div>}
+        {subtitle && (
+          // Marks a two-line name, which a row's selection checkbox centers on (see ListRow).
+          <div className={SUBTITLE_TEXT} data-name-subtitle>
+            {subtitle}
+          </div>
+        )}
       </div>
     </>
   )
@@ -309,6 +314,7 @@ export function RowSelectCheckbox({
     <Checkbox
       aria-label={label}
       checked={checked}
+      data-row-select
       onCheckedChange={(_, details) => onToggle(details.event)}
       // The row opens on a click; ticking its box mustn't.
       onClick={(e) => e.stopPropagation()}
@@ -337,7 +343,12 @@ export function ListSelectAllHeader({
   const t = useStrings().list
   const all = total > 0 && selected >= total
   return (
-    <Table.Header caps={false} className="w-10">
+    // On a narrow list, as in a row's selection cell, the box keeps only the name's own 10px from
+    // what follows it, so the sort line under the header starts where the rows' names do.
+    <Table.Header
+      caps={false}
+      className="w-10 @max-[36rem]:w-px @max-[36rem]:pr-0 @max-[36rem]:[&+th]:pl-2.5"
+    >
       <Checkbox
         aria-label={t.selectAll}
         checked={all}
