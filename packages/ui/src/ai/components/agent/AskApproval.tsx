@@ -69,9 +69,7 @@ function PreviewText({ preview }: { preview: string }) {
     return <Markdown>{preview}</Markdown>
   }
   return (
-    <pre className="overflow-x-auto py-1 font-mono leading-5 whitespace-pre">
-      {preview.replace(/\n+$/, '')}
-    </pre>
+    <pre className="py-1 font-mono leading-5 whitespace-pre">{preview.replace(/\n+$/, '')}</pre>
   )
 }
 
@@ -438,7 +436,7 @@ function PreviewPane({
       aria-hidden={shown ? undefined : true}
       inert={!shown}
       className={cx(
-        'col-start-1 row-start-1 rounded-md border theme-border px-3 py-1.5 text-xs',
+        'col-start-1 row-start-1 max-h-[40vh] overflow-auto rounded-md border theme-border px-3 py-1.5 text-xs',
         !shown && 'invisible',
       )}
     >
