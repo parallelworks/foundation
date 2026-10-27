@@ -46,6 +46,31 @@ async function loadTarget(
   return undefined
 }
 
+/** What a step can pass the workflow its `uses` names. */
+export interface UsesTarget {
+  inputs: Json
+  /** The names under its `configurations`, one of which the step's `$configuration` can name. */
+  configurations: string[]
+}
+
+/** The inputs and configurations of the workflow `uses` names; null when it can't be read. */
+export async function loadUsesTarget(
+  editing: WorkflowEditing,
+  uses: string,
+  where: { yamlPath: string; host: string },
+  sources: UsesSources,
+): Promise<UsesTarget | null> {
+  const doc = await loadTarget(editing, uses, where, sources)
+  if (!doc) {
+    return null
+  }
+  const workflow = asRecord(doc)
+  return {
+    inputs: asRecord(editing.workflowInputsSchema(workflow)),
+    configurations: Object.keys(asRecord(workflow['configurations'])),
+  }
+}
+
 /** The inputs of the workflow a step's `uses` names; null when it can't be read. */
 export async function loadUsesInputs(
   editing: WorkflowEditing,
@@ -53,6 +78,5 @@ export async function loadUsesInputs(
   where: { yamlPath: string; host: string },
   sources: UsesSources,
 ): Promise<Json | null> {
-  const doc = await loadTarget(editing, uses, where, sources)
-  return doc ? asRecord(editing.workflowInputsSchema(asRecord(doc))) : null
+  return (await loadUsesTarget(editing, uses, where, sources))?.inputs ?? null
 }
