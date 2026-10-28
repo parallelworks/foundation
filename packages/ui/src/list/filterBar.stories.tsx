@@ -221,18 +221,26 @@ function Shell({ children, width }: { children: ReactNode; width?: number | unde
 
 /** An issue list whose filters live in the URL, as a host router would hold them; the link
  *  shown under it updates as chips change, and a plain `?label=bug` link still reads. */
-function IssuesDemo({ link, width }: { link: string; width?: number }) {
+function IssuesDemo({
+  link,
+  width,
+  fields = ISSUE_FIELDS,
+}: {
+  link: string
+  width?: number
+  fields?: FilterField<Issue>[]
+}) {
   const [search, setSearch] = useState(() => new URLSearchParams(link))
   const store = useMemo(
     () => ({
-      value: decodeFilters(search, ISSUE_FIELDS),
+      value: decodeFilters(search, fields),
       onChange: (next: ActiveFilter[]) => setSearch(new URLSearchParams(encodeFilters(next))),
     }),
-    [search],
+    [search, fields],
   )
   const filters = useListFilters<Issue>({
     storageKey: `story-issues-${link}`,
-    fields: ISSUE_FIELDS,
+    fields,
     store,
     remember: false,
   })
@@ -364,7 +372,7 @@ export const PeoplePickerOnPhone: StoryObj<IssuesArgs> = {
   },
 }
 
-/** "+ Filter", then a field: its chip appears and its value picker opens on it. */
+/** A field opens its values alongside, with no chip until a value is chosen. */
 export const AddAFilter: StoryObj<IssuesArgs> = {
   args: { link: '?status=started' },
   render: (args) => <IssuesDemo link={args.link} />,
@@ -372,7 +380,129 @@ export const AddAFilter: StoryObj<IssuesArgs> = {
     const canvas = within(canvasElement)
     await userEvent.click(await canvas.findByRole('button', { name: 'Filter' }))
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Assignee' }))
-    await expect(await screen.findByRole('menuitemcheckbox', { name: /Maya Okafor/ })).toBeVisible()
+    await expect(
+      await screen.findByRole('menuitemcheckbox', { name: /Maya Okafor/ }),
+    ).toBeInTheDocument()
+  },
+}
+
+async function openFilterField(canvasElement: HTMLElement, field: string) {
+  const button = canvasElement.querySelector<HTMLButtonElement>('[aria-keyshortcuts="F"]')
+  if (!button) throw new Error('Filter button is missing')
+  await userEvent.click(button)
+  await userEvent.click(await screen.findByRole('menuitem', { name: field }))
+}
+
+export const ValuesInMenu: StoryObj<IssuesArgs> = {
+  args: { link: '?status=started,review' },
+  render: (args) => <IssuesDemo link={args.link} />,
+  play: async ({ canvasElement }) => {
+    await openFilterField(canvasElement, 'Status')
+    await expect(
+      await screen.findByRole('menuitemcheckbox', { name: /In progress/ }),
+    ).toBeInTheDocument()
+  },
+}
+
+export const ValuesInMenuDark: StoryObj<IssuesArgs> = {
+  ...ValuesInMenu,
+  globals: { mode: 'dark' },
+}
+
+export const ValuesInMenuOnPhone: StoryObj<IssuesArgs> = {
+  ...ValuesInMenu,
+  render: (args) => <IssuesDemo link={args.link} width={390} />,
+}
+
+export const SearchValuesInMenu: StoryObj<IssuesArgs> = {
+  args: { link: '?assignee=maya' },
+  render: (args) => <IssuesDemo link={args.link} />,
+  play: async ({ canvasElement }) => {
+    await openFilterField(canvasElement, 'Assignee')
+    await userEvent.type(await screen.findByRole('searchbox', { name: 'Search options…' }), 'Priya')
+  },
+}
+
+export const NoMatchingValuesInMenu: StoryObj<IssuesArgs> = {
+  ...SearchValuesInMenu,
+  args: { link: '' },
+  play: async ({ canvasElement }) => {
+    await openFilterField(canvasElement, 'Assignee')
+    await userEvent.type(
+      await screen.findByRole('searchbox', { name: 'Search options…' }),
+      'Nobody',
+    )
+    await expect(await screen.findByText('No options found')).toBeVisible()
+  },
+}
+
+const loadingFields: FilterField<Issue>[] = [
+  ...ISSUE_FIELDS,
+  {
+    key: 'reviewer',
+    label: 'Reviewer',
+    kind: 'people',
+    icon: <UserIcon />,
+    loadOptions: () => new Promise(() => {}),
+  },
+]
+
+export const LoadingValuesInMenu: StoryObj = {
+  render: () => <IssuesDemo link="" fields={loadingFields} />,
+  play: async ({ canvasElement }) => {
+    await openFilterField(canvasElement, 'Reviewer')
+  },
+}
+
+export const DateValuesInMenu: StoryObj<IssuesArgs> = {
+  ...ValuesInMenu,
+  args: { link: '' },
+  play: async ({ canvasElement }) => {
+    await openFilterField(canvasElement, 'Due')
+  },
+}
+
+export const CalendarInMenu: StoryObj<IssuesArgs> = {
+  ...DateValuesInMenu,
+  play: async ({ canvasElement }) => {
+    await openFilterField(canvasElement, 'Due')
+    await userEvent.click(await screen.findByRole('button', { name: 'Custom…' }))
+  },
+}
+
+const presenceFields = ISSUE_FIELDS.map((field) =>
+  field.key === 'due' ? { ...field, operators: ['isSet', 'isNotSet'] as const } : field,
+)
+
+export const PresenceConditionInMenu: StoryObj = {
+  render: () => <IssuesDemo link="" fields={presenceFields} />,
+  play: async ({ canvasElement }) => {
+    await openFilterField(canvasElement, 'Due')
+  },
+}
+
+export const TextValueInMenu: StoryObj<IssuesArgs> = {
+  ...ValuesInMenu,
+  args: { link: '' },
+  play: async ({ canvasElement }) => {
+    await openFilterField(canvasElement, 'Title')
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Title' }), 'Search')
+  },
+}
+
+export const BooleanValueInMenu: StoryObj<IssuesArgs> = {
+  ...ValuesInMenu,
+  args: { link: '' },
+  play: async ({ canvasElement }) => {
+    await openFilterField(canvasElement, 'Overdue')
+  },
+}
+
+export const SingleValueInMenu: StoryObj<IssuesArgs> = {
+  ...ValuesInMenu,
+  args: { link: '?project=Search%20v2' },
+  play: async ({ canvasElement }) => {
+    await openFilterField(canvasElement, 'Project')
   },
 }
 

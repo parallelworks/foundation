@@ -184,6 +184,18 @@ Some pairs look alike and are split on purpose:
   A `Combobox` filters as you type, for a list long enough to search, and is the
   one that takes several values, new ones, or free text (`Autocomplete`).
 
+## List filters
+
+`ListFilterMenu` accepts a list `view` or the `filters` returned by `useListFilters`.
+Each field opens a value picker beside the menu, so choosing or changing a filter
+happens in one place. Multiple choices stay open; a single choice closes the menu.
+Options support search, groups, icons, counts and asynchronous loading. Dates offer
+presets and a calendar, and text applies on Enter. Opening or dismissing a picker
+without choosing a value leaves the list unchanged.
+
+`ListFilterBar` shows the same active filters as editable chips. Its `+ Filter`
+button opens the same menu. A menu also works on its own, without a chip bar.
+
 ## Page header
 
 A page declares its header in one place, and the shell shows it:

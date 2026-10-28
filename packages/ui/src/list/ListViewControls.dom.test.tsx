@@ -90,7 +90,7 @@ describe('the filter menu', () => {
     render(<Harness />)
     openOwnerFacet()
     fireEvent.click(option('bob') as HTMLElement)
-    expect(screen.getByRole('menuitem', { name: /^Owner\s*1$/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Filter, 1 on' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('menuitem', { name: 'Clear' }))
     expect(screen.getByRole('menuitem', { name: 'Owner' })).toBeInTheDocument()
   })
