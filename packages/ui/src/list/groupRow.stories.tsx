@@ -820,9 +820,11 @@ function HostWorkspacesDemo() {
             )}
             {view.isVisible('status') && (
               <Table.Item className="py-2.5">
+                {/* Waiting is an unlit lamp; amber is for something that needs attention. */}
                 <StatusLabel
                   className="text-[13px]"
-                  variant={x.state === 'running' ? 'success' : 'warning'}
+                  variant={x.state === 'running' ? 'success' : 'muted'}
+                  off={x.state !== 'running'}
                 >
                   {x.state === 'running' ? 'Running' : 'Pending'}
                 </StatusLabel>
