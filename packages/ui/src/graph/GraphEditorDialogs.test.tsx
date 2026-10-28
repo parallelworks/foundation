@@ -3,10 +3,11 @@ import '@testing-library/jest-dom/vitest'
 import { dumpYaml } from '@parallelworks/workflow-parser'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { UIProvider, type WorkflowJsonRef } from '../components/Provider'
 import type { GraphEdit } from '../editing'
 import { STEP_YAML_PATH } from '../editor/settingsYaml'
+import { mockListLayout } from '../test/layout'
 import { GRAPH_EDITOR_STRINGS } from './editorStrings'
 import { JobDialog, StepDialog } from './GraphEditorDialogs'
 import type { Json } from './records'
@@ -166,6 +167,13 @@ describe('step dialog', () => {
 })
 
 describe('a subworkflow step’s inputs', () => {
+  // The configuration list is virtual, and jsdom measures its scroller as empty, so it draws no rows.
+  let restoreLayout: () => void
+  beforeAll(() => {
+    restoreLayout = mockListLayout()
+  })
+  afterAll(() => restoreLayout())
+
   const SIZER = {
     on: {
       execute: {
