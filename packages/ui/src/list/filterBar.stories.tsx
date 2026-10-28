@@ -1068,9 +1068,7 @@ export const SharedLine: StoryObj = {
   render: () => <SharedLineDemo />,
 }
 
-/** At phone width neither "+n more" nor Clear sits on a line of its own: the toggles give way
- *  down to the pressed one, and where Clear doesn't fit after "+", it is the last item in the +
- *  menu instead. */
+/** At phone width the toggles give way down to the pressed one; Clear stays on the bar. */
 export const SharedLineAtPhoneWidth: StoryObj = {
   render: () => <SharedLineDemo width={390} />,
 }
@@ -1149,7 +1147,7 @@ function AuditLogDemo({ chips }: { chips: AuditChips }) {
   )
 }
 
-/** An audit log's filters: a chip per filter, "+ Filter" and Clear, and the filter menu at the
+/** An audit log's filters: a chip per filter, "+" and Clear, and the filter menu at the
  *  row's end, its dot saying a filter is on. The menu sits centered on the chips' first line,
  *  with one chip, with none, and with chips that wrap to two lines. */
 export const BesideTheFilterMenu: StoryObj<{ chips: AuditChips }> = {
@@ -1263,4 +1261,49 @@ export const RequiredChipsAtPhoneWidth: StoryObj = {
 export const RequiredChipsAtPhoneWidthDark: StoryObj = {
   ...RequiredChipsAtPhoneWidth,
   globals: { mode: 'dark' },
+}
+
+function FilterBarActionsDemo({ showSave, width }: { showSave: boolean; width?: number }) {
+  const [active, setActive] = useState<ActiveFilter[]>([
+    { field: 'status', op: 'is', values: ['started'] },
+    { field: 'assignee', op: 'is', values: ['maya'] },
+  ])
+  const filters = useListFilters({
+    storageKey: 'story-filter-actions',
+    fields: ISSUE_FIELDS,
+    remember: false,
+    store: { value: active, onChange: setActive },
+  })
+  return (
+    <div className="bg-(--theme-app-bg) p-4">
+      <div style={width ? { maxWidth: width } : undefined}>
+        <ListFilterBar
+          filters={filters}
+          trailing={
+            showSave && (
+              <button type="button" className={buttonClasses({ variant: 'outline', size: 'sm' })}>
+                Save view
+              </button>
+            )
+          }
+        />
+      </div>
+    </div>
+  )
+}
+
+export const SavedViewActions: StoryObj<{ showSave: boolean }> = {
+  args: { showSave: true },
+  argTypes: { showSave: { control: 'boolean' } },
+  render: (args) => <FilterBarActionsDemo {...args} />,
+}
+
+export const FilterActionsWithoutSave: StoryObj<{ showSave: boolean }> = {
+  ...SavedViewActions,
+  args: { showSave: false },
+}
+
+export const SavedViewActionsAtPhoneWidth: StoryObj<{ showSave: boolean }> = {
+  ...SavedViewActions,
+  render: (args) => <FilterBarActionsDemo {...args} width={390} />,
 }

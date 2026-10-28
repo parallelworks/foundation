@@ -1055,11 +1055,7 @@ export function AddFilterMenu({ filters, trigger, align = 'start' }: AddFilterMe
   const searchable = filters.fields.length > 8
   const needle = query.trim()
   const fields = needle ? filters.fields.filter((f) => matches(needle, f.label)) : filters.fields
-  const removable = filters.active.some(
-    (f) => !filters.fields.find((x) => x.key === f.field)?.required,
-  )
-  const resetting = filters.hasDefaults
-  const showClear = resetting ? !filters.isDefault : removable
+  const showReset = filters.hasDefaults && !filters.isDefault
   const rows = fields.map((field) => (
     <FilterMenuField key={field.key} filters={filters} field={field} />
   ))
@@ -1096,12 +1092,10 @@ export function AddFilterMenu({ filters, trigger, align = 'start' }: AddFilterMe
           </div>
         )}
         {/* Last, so Enter on the first item a key opened the menu to never empties the list. */}
-        {showClear && (
+        {showReset && (
           <>
             <MenuSeparator />
-            <MenuItem onClick={resetting ? filters.reset : filters.clear}>
-              {resetting ? strings.common.reset : strings.common.clear}
-            </MenuItem>
+            <MenuItem onClick={filters.reset}>{strings.common.reset}</MenuItem>
           </>
         )}
       </MenuPopup>
@@ -1342,7 +1336,7 @@ export interface ListFilterBarProps {
 }
 
 /** The chips that say what narrows a list, under its toolbar: one per filter, each editable in
- *  place, then "+ Filter" and Clear (or Reset, where the page has default filters). It shows
+ *  place, then "+" and right-aligned Clear (or Reset, where the page has default filters). It shows
  *  only while a filter is on or a field is required. At phone width it stops at two lines and
  *  a "+n filters" chip opens the rest in a sheet.
  *
@@ -1489,9 +1483,6 @@ function FilterRow({
   const [narrow, setNarrow] = useState(false)
   const [width, setWidth] = useState(0)
   const [limit, setLimit] = useState<number | null>(null)
-  // Clear (or Reset) left out of a narrow row rather than stranded on a line of its own; the +
-  // menu holds it too.
-  const [clearFolded, setClearFolded] = useState(false)
   // "+" left out of a narrow row rather than leading a line of its own; the "+n filters" sheet
   // offers it, and Clear, in its footer.
   const [addFolded, setAddFolded] = useState(false)
@@ -1531,7 +1522,6 @@ function FilterRow({
   // biome-ignore lint/correctness/useExhaustiveDependencies: width and the chips are what restart the fit
   useLayoutEffect(() => {
     setLimit(null)
-    setClearFolded(false)
     setAddFolded(false)
   }, [width, chipKeys, narrow])
 
@@ -1543,7 +1533,7 @@ function FilterRow({
     }
     const tops = new Set<number>()
     for (const child of el.children) {
-      if (!(child as HTMLElement).hasAttribute('data-filter-clear')) {
+      if (!(child as HTMLElement).hasAttribute('data-filter-actions')) {
         tops.add(Math.round((child as HTMLElement).offsetTop))
       }
     }
@@ -1575,14 +1565,9 @@ function FilterRow({
         return
       }
     }
-    // Clear keeps to the line "+" ends, or goes into its menu.
-    const clear = el.querySelector<HTMLElement>('[data-filter-clear]')
-    if (add && clear && Math.round(clear.offsetTop) > Math.round(add.offsetTop)) {
-      setClearFolded(true)
-    }
   })
 
-  // Focus moves on from a chip Backspace removed: to the next chip, else to "+ Filter".
+  // Focus moves on from a chip Backspace removed: to the next chip, else to "+".
   useEffect(() => {
     if (focusAt === null || !row.current) {
       return
@@ -1630,22 +1615,31 @@ function FilterRow({
       {resetting ? strings.common.reset : strings.common.clear}
     </button>
   )
-  const addButton = (narrow: boolean) => (
+  const addButton = (
     <AddFilterMenu
       filters={filters}
       trigger={
         <button
           type="button"
           data-filter-add=""
-          // On a narrow row it is the + alone, so the chips and Clear keep to fewer lines.
-          aria-label={narrow ? t.addFilter : undefined}
-          className={buttonClasses({ variant: 'ghost', size: 'sm', iconOnly: narrow })}
+          aria-label={t.addFilter}
+          className={buttonClasses({ variant: 'ghost', size: 'sm', iconOnly: true })}
         >
           <AddIcon aria-hidden="true" />
-          {!narrow && t.addFilter}
         </button>
       }
     />
+  )
+  const actions = (clearButton || trailing) && (
+    <div
+      data-filter-actions=""
+      data-filter-trailing={trailing ? '' : undefined}
+      className="ml-auto flex shrink-0 items-center gap-1.5"
+      style={trailingReach ? { marginRight: -trailingReach } : undefined}
+    >
+      {clearButton}
+      {trailing}
+    </div>
   )
   const drawer = (
     <Drawer
@@ -1655,8 +1649,8 @@ function FilterRow({
       width={400}
       footer={
         <div className="flex w-full items-center gap-1.5">
-          {addButton(false)}
-          {clearButton}
+          {addButton}
+          {clearButton && <div className="ml-auto">{clearButton}</div>}
         </div>
       }
     >
@@ -1712,17 +1706,8 @@ function FilterRow({
           {t.overflow(overflow)}
         </button>
       )}
-      {!(narrow && addFolded) && addButton(narrow)}
-      {!(narrow && (clearFolded || addFolded)) && clearButton}
-      {trailing && (
-        <div
-          data-filter-trailing=""
-          className="ml-auto flex items-center gap-1.5"
-          style={trailingReach ? { marginRight: -trailingReach } : undefined}
-        >
-          {trailing}
-        </div>
-      )}
+      {!(narrow && addFolded) && addButton}
+      {actions}
       {!hasQuick && drawer}
     </div>
   )
@@ -1738,12 +1723,7 @@ function FilterRow({
         onMore={() => setSheet(true)}
         end={
           // With no chip, the row's end still clears the toggles and holds the trailing slot.
-          empty && (
-            <>
-              {clearButton}
-              {trailing && <div className="ml-auto flex items-center gap-1.5">{trailing}</div>}
-            </>
-          )
+          empty && actions
         }
       />
       {chipRow}

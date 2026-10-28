@@ -193,8 +193,10 @@ Options support search, groups, icons, counts and asynchronous loading. Dates of
 presets and a calendar, and text applies on Enter. Opening or dismissing a picker
 without choosing a value leaves the list unchanged.
 
-`ListFilterBar` shows the same active filters as editable chips. Its `+ Filter`
-button opens the same menu. A menu also works on its own, without a chip bar.
+`ListFilterBar` shows the same active filters as editable chips. Its `+`
+button opens the same menu. Clear sits at the right edge; `trailing` places an
+application-owned Save or Update view button beside it. A menu also works on its
+own, without a chip bar.
 
 ## Page header
 

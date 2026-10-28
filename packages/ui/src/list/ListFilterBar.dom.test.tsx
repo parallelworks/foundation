@@ -460,7 +460,7 @@ describe('a narrow row', () => {
     )
   }
 
-  it('puts Clear in the + menu rather than on a line of its own', async () => {
+  it('keeps Clear on the bar when space is tight', async () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
       width: 300,
     } as DOMRect)
@@ -471,9 +471,7 @@ describe('a narrow row', () => {
       return this.hasAttribute('data-filter-clear') ? 40 : 0
     })
     render(<Narrow />)
-    await waitFor(() => expect(screen.queryByRole('button', { name: 'Clear' })).toBeNull())
-    fireEvent.click(screen.getByRole('button', { name: 'Filter' }))
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Clear' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
     await waitFor(() => expect(screen.getByTestId('active').textContent).toBe(''))
     vi.restoreAllMocks()
   })
@@ -574,8 +572,8 @@ describe('a narrow row', () => {
       expect(screen.getByRole('button', { name: '+1 filter' })).toBeInTheDocument(),
     )
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Filter' })).toBeNull())
-    expect(screen.queryByRole('button', { name: 'Clear' })).toBeNull()
-    // The sheet still offers both.
+    expect(screen.getByRole('button', { name: 'Clear' })).toBeInTheDocument()
+    // The sheet also offers both.
     fireEvent.click(screen.getByRole('button', { name: '+1 filter' }))
     const sheet = await screen.findByRole('dialog')
     expect(within(sheet).getByRole('button', { name: 'Filter' })).toBeInTheDocument()
