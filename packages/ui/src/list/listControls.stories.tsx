@@ -1,8 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import { useState } from 'react'
 import { IconButton } from '../components/IconButton'
 import { Pagination } from '../components/Pagination'
 import { Popover } from '../components/Popover'
-import { InfoIcon } from '../icons'
+import { ColumnsIcon, InfoIcon, ListViewIcon, TimelineIcon } from '../icons'
 import { ListDisplayMenu, ListFilterMenu } from './ListViewControls'
 import { ListSearchControl, useListSearch } from './listSearch'
 import { useListView } from './listView'
@@ -26,7 +27,8 @@ const ROWS: DemoRow[] = [
   { id: '4', name: 'googleflex', status: 'active', owner: 'bob' },
 ]
 
-function ControlsDemo({ searchable }: { searchable: boolean }) {
+function ControlsDemo({ searchable, layouts }: { searchable: boolean; layouts?: boolean }) {
+  const [layout, setLayout] = useState('list')
   const view = useListView<DemoRow>({
     storageKey: 'storybook-demo-list',
     columns: [
@@ -76,7 +78,22 @@ function ControlsDemo({ searchable }: { searchable: boolean }) {
       <div className="flex items-center justify-end gap-2">
         <ListSearchControl search={search} placeholder="Search clusters" />
         <ListFilterMenu view={view} />
-        <ListDisplayMenu view={view} />
+        <ListDisplayMenu
+          view={view}
+          layout={
+            layouts
+              ? {
+                  options: [
+                    { value: 'list', label: 'List', icon: <ListViewIcon /> },
+                    { value: 'board', label: 'Board', icon: <ColumnsIcon /> },
+                    { value: 'timeline', label: 'Timeline', icon: <TimelineIcon /> },
+                  ],
+                  value: layout,
+                  onValueChange: setLayout,
+                }
+              : undefined
+          }
+        />
       </div>
       <ul className="text-sm">
         {rows.map((r) => (
@@ -98,6 +115,15 @@ function ControlsDemo({ searchable }: { searchable: boolean }) {
 export const Controls: StoryObj<{ searchable: boolean }> = {
   args: { searchable: true },
   render: (args) => <ControlsDemo searchable={args.searchable} />,
+}
+
+// A list that can also show as a board or a timeline: the Display panel leads with the
+// layouts. The play opens it.
+export const Layouts: StoryObj = {
+  render: () => <ControlsDemo searchable layouts />,
+  play: async ({ canvasElement }) => {
+    canvasElement.querySelector<HTMLButtonElement>('button[aria-label="Display options"]')?.click()
+  },
 }
 
 export const CappedPager: StoryObj = {
