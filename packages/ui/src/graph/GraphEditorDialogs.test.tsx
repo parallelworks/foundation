@@ -239,7 +239,7 @@ describe('a subworkflow step’s inputs', () => {
     )
     expect(screen.queryByText(t.notActionInput)).toBeNull()
     await screen.findByLabelText('Note')
-    const configuration = screen.getByLabelText(t.fields.configuration)
+    const configuration = screen.getByRole('combobox', { name: t.fields.configuration })
     expect(configuration).toHaveValue('small')
     // The typed name filters what's offered, so both show once it's cleared.
     fireEvent.change(configuration, { target: { value: '' } })
@@ -270,7 +270,7 @@ describe('a subworkflow step’s inputs', () => {
       </UIProvider>
     ))
     await screen.findByLabelText('Note')
-    const configuration = screen.getByLabelText(t.fields.configuration)
+    const configuration = screen.getByRole('combobox', { name: t.fields.configuration })
     const field = configuration.closest('[data-testid="combobox"]') as HTMLElement
     fireEvent.click(within(field).getByTestId('combobox-button'))
     await screen.findByRole('option', { name: 'large' })
