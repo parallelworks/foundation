@@ -68,7 +68,10 @@ describe('askQuestionsFromArgs', () => {
         {
           question: 'Which db?',
           header: 'Database',
-          options: [{ label: 'Postgres', description: 'Relational' }, { label: 'Mongo' }],
+          options: [
+            { label: 'Postgres', description: 'Relational', preview: 'CREATE TABLE runs ()' },
+            { label: 'Mongo' },
+          ],
         },
         { question: 'Which checks?', multiSelect: true, options: [{ label: 'Lint' }] },
         { question: 'Anything else?' },
@@ -78,7 +81,10 @@ describe('askQuestionsFromArgs', () => {
       {
         question: 'Which db?',
         header: 'Database',
-        options: [{ label: 'Postgres', description: 'Relational' }, { label: 'Mongo' }],
+        options: [
+          { label: 'Postgres', description: 'Relational', preview: 'CREATE TABLE runs ()' },
+          { label: 'Mongo' },
+        ],
       },
       { question: 'Which checks?', multiSelect: true, options: [{ label: 'Lint' }] },
       { question: 'Anything else?' },

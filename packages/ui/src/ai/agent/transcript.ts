@@ -53,7 +53,10 @@ function askOption(raw: unknown): ApprovalOption[] {
   const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
   const label = str(o['label'])
   const description = str(o['description'])
-  return label ? [{ label, ...(description ? { description } : {}) }] : []
+  const preview = str(o['preview'])
+  return label
+    ? [{ label, ...(description ? { description } : {}), ...(preview ? { preview } : {}) }]
+    : []
 }
 
 export function planFromArgs(argsJSON: string): string {
