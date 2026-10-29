@@ -330,6 +330,40 @@ describe('ListRow stacked columns', () => {
     expect(Array.from(items).map((item) => item.textContent)).toEqual(['compute'])
   })
 
+  it('collapses a stacked value whose host component renders nothing, so the next starts the line', () => {
+    // A status only some rows have, rendered by the host's own component inside the cell.
+    const NoStatus = () => null
+    render(
+      <ListRowActionsProvider
+        view={{
+          ...view,
+          columnClasses: ['', ...Array(2).fill('hidden @[36rem]:table-cell')],
+          columnStacks: [false, true, true],
+        }}
+      >
+        <table>
+          <tbody>
+            <ListRow href={null} items={[]} goTo={() => {}} openMenu={() => {}}>
+              <NameCell icon={<span />} name="job-48210-scratch" href={null} />
+              <Table.Item>
+                <NoStatus />
+              </Table.Item>
+              <Table.Item>maya</Table.Item>
+            </ListRow>
+          </tbody>
+        </table>
+      </ListRowActionsProvider>,
+    )
+    const line = screen.getAllByRole('cell')[0]?.querySelector('[data-stacked-line]')
+    const [status, owner] = Array.from(line?.querySelectorAll('[data-stacked]') ?? [])
+    // Hidden while empty, so it leaves no gap before the owner.
+    expect(status).toBeEmptyDOMElement()
+    expect(status).toHaveClass('empty:hidden')
+    expect(owner).toHaveTextContent('maya')
+    // And a line of nothing but such values is gone with them.
+    expect(line).toHaveClass('not-has-[>:not(:empty)]:hidden')
+  })
+
   it('reads stacked values as secondary text, the size of a subtitle', () => {
     render(
       <ListRowActionsProvider view={view}>
@@ -558,6 +592,13 @@ describe('ListColumns on a phone', () => {
 
   const sortMenu = () => screen.getByRole('button', { name: /^Sorted by/ })
 
+  it('gives the name the rest of the row where the other columns stack under it', () => {
+    render(<SortableList />)
+    // Over any share a host's class gives it at wider widths.
+    expect(header('Name')).toHaveClass('@max-[36rem]:w-auto!')
+    expect(header('Nodes')).not.toHaveClass('@max-[36rem]:w-auto!')
+  })
+
   it('says what the list is sorted by and which way in the name’s header', () => {
     render(<SortableList />)
     fireEvent.click(within(header('Nodes')).getByRole('button'))
@@ -592,9 +633,29 @@ describe('ListColumns on a phone', () => {
     expect(screen.getByRole('combobox', { name: 'Ordering' })).toHaveTextContent('Nodes')
   })
 
-  it('names the built-in default order', () => {
+  it('names the built-in default order as a phrase of its own', () => {
     render(<SortableList favorites />)
-    expect(sortMenu()).toHaveAccessibleName('Sorted by Default, ascending')
+    const menu = screen.getByRole('button', { name: 'Default order, ascending' })
+    expect(menu).toHaveTextContent('Default order')
+  })
+
+  it('takes the default order’s phrase from the host, not its label set into "Sorted by"', () => {
+    render(
+      <UIProvider
+        strings={{
+          list: {
+            sortedBy: (order) => `Ordenado por ${order}`,
+            orderDefault: 'Predeterminado',
+            sortedByDefault: () => 'Orden predeterminado',
+          },
+        }}
+      >
+        <SortableList favorites />
+      </UIProvider>,
+    )
+    expect(screen.getByRole('button', { name: 'Orden predeterminado' })).toHaveTextContent(
+      'Orden predeterminado',
+    )
   })
 })
 

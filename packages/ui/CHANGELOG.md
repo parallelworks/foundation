@@ -1,5 +1,77 @@
 # Changelog
 
+## [0.102.0](https://github.com/parallelworks/foundation/compare/ui-v0.101.1...ui-v0.102.0) (2026-10-28)
+
+
+### Features
+
+* **ui:** a step that runs another workflow can name its saved inputs or yours ([#538](https://github.com/parallelworks/foundation/issues/538)) ([ffec384](https://github.com/parallelworks/foundation/commit/ffec384dcbdaa5487ffe9365dab495209763309e))
+
+
+### Bug Fixes
+
+* **ui:** a control in a required Field says it's required ([#567](https://github.com/parallelworks/foundation/issues/567)) ([51ff546](https://github.com/parallelworks/foundation/commit/51ff5465925116d47a0f22e220aa596e39976f1b))
+* **ui:** a tab row drops its fade and arrow once its tabs narrow to fit ([#563](https://github.com/parallelworks/foundation/issues/563)) ([3a14e06](https://github.com/parallelworks/foundation/commit/3a14e06401c4017fdeb458ec5b1f7d587535c8dd))
+* **ui:** every keyboard focus ring is the theme's focus color ([#565](https://github.com/parallelworks/foundation/issues/565)) ([fda3345](https://github.com/parallelworks/foundation/commit/fda334515f0a49c73f644904c6601eb9b295ee51))
+
+## [0.101.1](https://github.com/parallelworks/foundation/compare/ui-v0.101.0...ui-v0.101.1) (2026-10-28)
+
+
+### Bug Fixes
+
+* **ui:** a control in a Field given an id takes it, so its label names it ([#560](https://github.com/parallelworks/foundation/issues/560)) ([df9665a](https://github.com/parallelworks/foundation/commit/df9665a50c88abd4cbd4b33f738253c6800e2db9))
+
+## [0.101.0](https://github.com/parallelworks/foundation/compare/ui-v0.100.1...ui-v0.101.0) (2026-10-28)
+
+
+### Features
+
+* **ui:** choose filter values directly from the filter menu ([#558](https://github.com/parallelworks/foundation/issues/558)) ([d3c8559](https://github.com/parallelworks/foundation/commit/d3c85591ee847c177c72010a631b7027c01ef355))
+* **ui:** secret safe and secret safe migration icons ([#557](https://github.com/parallelworks/foundation/issues/557)) ([86ef864](https://github.com/parallelworks/foundation/commit/86ef864afaecb51dc2a5c30293570555d59f98eb))
+
+
+### Bug Fixes
+
+* **ui:** a page's name too long for its header wraps and grows the bar instead of truncating, its ancestors folding first ([#549](https://github.com/parallelworks/foundation/issues/549)) ([a95af8d](https://github.com/parallelworks/foundation/commit/a95af8d37c67fa1f2d2a4ae7579dd47896f10d02))
+* **ui:** a select's chosen option reads as a choice even when its value is empty ([#555](https://github.com/parallelworks/foundation/issues/555)) ([ee579d3](https://github.com/parallelworks/foundation/commit/ee579d38042566a63c8964b13fd3c6d114172ff0))
+* **ui:** long text in a list row's last column ends before its More actions button ([#553](https://github.com/parallelworks/foundation/issues/553)) ([8a08959](https://github.com/parallelworks/foundation/commit/8a08959e68b234d7c96253b03af0953be97c4a47))
+* **ui:** on a phone, a list's name takes the rest of the row whatever width a host gives its column ([#554](https://github.com/parallelworks/foundation/issues/554)) ([84df9be](https://github.com/parallelworks/foundation/commit/84df9be3634eb471d3ca0e497c3fe82ebcdd85df))
+
+## [0.100.1](https://github.com/parallelworks/foundation/compare/ui-v0.100.0...ui-v0.100.1) (2026-10-28)
+
+
+### Bug Fixes
+
+* **ui:** a filter bar's margin holds with no chip when the list's controls share its line ([#551](https://github.com/parallelworks/foundation/issues/551)) ([39f15f8](https://github.com/parallelworks/foundation/commit/39f15f8a41cb5c2db3ff00b4483d62fde1d0982c))
+
+## [0.100.0](https://github.com/parallelworks/foundation/compare/ui-v0.99.0...ui-v0.100.0) (2026-10-27)
+
+
+### Features
+
+* **ui:** a long button label wraps, and Button keeps a caller's aria-busy ([#539](https://github.com/parallelworks/foundation/issues/539)) ([d343bf5](https://github.com/parallelworks/foundation/commit/d343bf592303c86a941c593c60579d60ee2ad0c7))
+
+
+### Bug Fixes
+
+* **ui:** a date filter's last day and last hour read as words in English ([#547](https://github.com/parallelworks/foundation/issues/547)) ([80f2876](https://github.com/parallelworks/foundation/commit/80f28768655b3399057a3dd96a7d93387a401330))
+* **ui:** on a phone, a list row's note wraps inside it, and its stacked line and checkbox line up with its name ([#548](https://github.com/parallelworks/foundation/issues/548)) ([ee1f350](https://github.com/parallelworks/foundation/commit/ee1f35001fd13a3cad51379700946246365b2ebb))
+
+## [0.99.0](https://github.com/parallelworks/foundation/compare/ui-v0.98.0...ui-v0.99.0) (2026-10-27)
+
+
+### Features
+
+* **ui:** description lists in sections share a group's label column ([#542](https://github.com/parallelworks/foundation/issues/542)) ([878a90a](https://github.com/parallelworks/foundation/commit/878a90a126bf3cdb778d3b4507c5ba9010123236))
+
+
+### Bug Fixes
+
+* **ui:** a group's band spans the whole row with a selection checkbox before the columns, and a phone's sort line names the default order as one phrase ([#546](https://github.com/parallelworks/foundation/issues/546)) ([65db9d4](https://github.com/parallelworks/foundation/commit/65db9d477d09aca72b6317aaddbfde78a8f46da3))
+* **ui:** an empty state's description wraps to even lines, so its last line never strands a word ([#540](https://github.com/parallelworks/foundation/issues/540)) ([6260ef8](https://github.com/parallelworks/foundation/commit/6260ef85028ba4dc3f5188dc1ae598526ba03f5e))
+* **ui:** on a narrow page an overview's mark sits beside the name and the lines under it start at the page's edge ([#543](https://github.com/parallelworks/foundation/issues/543)) ([b55911d](https://github.com/parallelworks/foundation/commit/b55911d8dc03e2fc3e447fdac78c81b95c6975e9))
+* **ui:** on a phone, a list row's empty cell takes no room in the line under its name ([#541](https://github.com/parallelworks/foundation/issues/541)) ([a686e20](https://github.com/parallelworks/foundation/commit/a686e208a68c1ee5dc9c065ffc16a5a7684cfa78))
+
 ## [0.98.0](https://github.com/parallelworks/foundation/compare/ui-v0.97.2...ui-v0.98.0) (2026-10-27)
 
 

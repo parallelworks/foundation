@@ -55,9 +55,12 @@ export interface CellPlacement {
 }
 
 /** A stacked column's value on the line under a row's name: it flows inline with the others and
- *  wraps between them, never inside a value, which truncates if it is wider than the line. */
+ *  wraps between them, never inside a value, which truncates if it is wider than the line. Its
+ *  4px clip margin, as a cell's, lets a status lamp's glow at its edge show whole. One
+ *  whose content renders nothing, such as a host's status component for a row with no status,
+ *  takes no room, so the line's gap doesn't indent the value after it. */
 export const STACKED_ITEM =
-  'flex min-w-0 max-w-full items-center whitespace-nowrap [&>*]:min-w-0 [&>*]:truncate'
+  'flex min-w-0 max-w-full items-center whitespace-nowrap empty:hidden [&>*]:min-w-0 [&>*]:overflow-clip [&>*]:text-ellipsis [&>*]:[overflow-clip-margin:4px]'
 
 /** A joined stacked value's dot, part of the value so a value that renders nothing leaves none:
  *  6px either side of it, where the line keeps 12px between values. */
@@ -173,7 +176,7 @@ function Header({
           onClick={onSort}
           // In a right-aligned column the mark leads, so the title still lines up with the values.
           className={cx(
-            'group/sort -mx-1 -my-1 inline-flex cursor-pointer py-1 align-middle items-center gap-1 rounded px-1 text-inherit [text-transform:inherit] hover:text-(--theme-app) focus-visible:outline-2 focus-visible:outline-(--theme-link) in-[.text-right]:flex-row-reverse',
+            'group/sort -mx-1 -my-1 inline-flex cursor-pointer py-1 align-middle items-center gap-1 rounded px-1 text-inherit [text-transform:inherit] hover:text-(--theme-app) focus-visible:outline-2 focus-visible:outline-(--theme-focus) in-[.text-right]:flex-row-reverse',
             sortClassName,
           )}
         >

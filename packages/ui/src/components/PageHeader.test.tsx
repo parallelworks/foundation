@@ -407,7 +407,7 @@ describe('PageHeaderAction', () => {
         <PageHeaderAction icon={Icon} label="Edit" iconOnly onClick={() => {}} />
       </>,
     )
-    expect(screen.getByRole('button', { name: 'Add' })).toHaveClass('border', 'h-6')
+    expect(screen.getByRole('button', { name: 'Add' })).toHaveClass('border', 'min-h-6')
     const open = screen.getByRole('link', { name: 'Open' })
     expect(open).toHaveClass('*:text-(--theme-link)')
     expect(open).not.toHaveClass('border')
@@ -532,7 +532,7 @@ describe('actions too wide for their bar', () => {
     vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (
       this: HTMLElement,
     ) {
-      return this.classList.contains('h-12') ? 360 : 0
+      return this.classList.contains('min-h-12') ? 360 : 0
     })
     vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (
       this: Element,

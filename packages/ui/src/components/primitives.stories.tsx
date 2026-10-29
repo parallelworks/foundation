@@ -41,7 +41,6 @@ import { positionKeys } from './keys'
 import { type BarTone, type BarValuePlacement, Meter, ProgressBar } from './Meter'
 import { Modal, type ModalProps, type ModalSize } from './Modal'
 import { NumberInput } from './NumberInput'
-import { Overview } from './Overview'
 import { Pagination } from './Pagination'
 import { type AvatarColoring, UIProvider } from './Provider'
 import { RunStatusIcon, type RunStatusIconStatus } from './RunStatusIcon'
@@ -635,6 +634,53 @@ export const EmptyStateVariants: StoryObj = {
     await expect(
       within(canvasElement).getByRole('heading', { level: 3, name: 'No thumbnails' }),
     ).toBeVisible()
+  },
+}
+
+// A relative time reads as one phrase, so a line never breaks inside it.
+const lastListed = (when: string) => <span className="whitespace-nowrap">{when}</span>
+
+// A list's jobs that couldn't be fetched, as the list says it.
+function JobsUnavailable({ lang }: { lang: 'en' | 'ja' }) {
+  return lang === 'en' ? (
+    <EmptyState
+      variant="plain"
+      title="Job list unavailable"
+      description={
+        <>The scheduler's jobs couldn't be listed. Last listed {lastListed('4 minutes ago')}.</>
+      }
+    />
+  ) : (
+    <EmptyState
+      variant="plain"
+      title="ジョブ一覧を取得できません"
+      description={
+        <>スケジューラーのジョブ一覧を取得できませんでした。最終取得: {lastListed('4 分前')}。</>
+      }
+    />
+  )
+}
+
+/** A list's jobs that couldn't be fetched, in English and Japanese, across a page and in a
+ *  narrow card: the description wraps to lines of even length, so its last line never
+ *  strands a word or two, such as when the jobs were last listed. */
+export const EmptyStateWrapping: StoryObj = {
+  render: () => (
+    <div className="flex flex-col gap-6">
+      {(['en', 'ja'] as const).map((lang) => (
+        <div key={lang} lang={lang} className="flex flex-col gap-6">
+          <JobsUnavailable lang={lang} />
+          {/* A card on a dashboard, where even the English wraps. */}
+          <div className="panel w-72 max-w-full self-center">
+            <JobsUnavailable lang={lang} />
+          </div>
+        </div>
+      ))}
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const description = within(canvasElement).getAllByText(/最終取得/)[0] as HTMLElement
+    await expect(getComputedStyle(description).textWrapStyle).toBe('balance')
   },
 }
 
@@ -1833,32 +1879,6 @@ export const InfoTipDescribingAControl: StoryObj = {
     )
     await expect(canvas.queryByRole('button', { name: 'More information' })).toBeNull()
   },
-}
-
-/** A thing's summary: its mark, name and kind, a row of badges, and its actions. */
-export const OverviewStory: StoryObj<{ loading: boolean }> = {
-  name: 'Overview',
-  args: { loading: false },
-  render: ({ loading }) => (
-    <Overview
-      className="max-w-xl"
-      loading={loading}
-      iconSize={48}
-      icon={<Avatar name="Grace Hopper" size="2xl" />}
-      name="gpu-trainer-01"
-      type="Cluster"
-      actions={<Button size="sm">Restart</Button>}
-    >
-      <StatusBadge variant="success" dot>
-        Running
-      </StatusBadge>
-    </Overview>
-  ),
-}
-
-export const OverviewLoading: StoryObj = {
-  name: 'Overview loading',
-  render: () => <Overview icon={null} name="Resource" loading className="max-w-sm" />,
 }
 
 export const Switches: StoryObj<{

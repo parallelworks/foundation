@@ -123,6 +123,12 @@ export function ListRowActionsProvider({
 // The name cell's own top padding, so the value lines up with the name.
 const STAYS_BESIDE_STACK = '@max-[36rem]:align-top @max-[36rem]:pt-2.5'
 
+// Where a narrow list stacks or drops the other columns, the name's column takes what the row's
+// checkbox, its `⋯` and any column left beside it don't, over a share a host gives it for wider
+// lists, such as `w-[22%]` on its header or cells. Kept to that share, the list's spare width
+// would go to the fixed columns, and open up between the checkbox and the name.
+const NAME_FILLS_NARROW = '@max-[36rem]:w-auto!'
+
 export interface ListPageProps {
   /** Reaches past the host's content padding (`p-4`) to the container's
    *  edges, for a host whose page container is padded. A list runs edge to
@@ -337,13 +343,27 @@ const STACKED_JOINED_PLACEMENT = { stacked: true, joined: true }
 
 // The line the stacked values share: it follows the subtitle by a 4px step, and its items wrap
 // with a 4px step between lines and 12px between values.
+// A line whose values all render nothing is gone too, rather than leaving its 4px.
 const STACKED_LINE =
-  'mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-(--theme-muted-text-color) empty:hidden @[36rem]:hidden'
+  'mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-(--theme-muted-text-color) not-has-[>:not(:empty)]:hidden @[36rem]:hidden'
 
 // Stacked values on lines of their own: the same steps, each line wrapping on its own.
 const STACKED_LINES =
-  'mt-1 flex min-w-0 flex-col gap-y-1 text-xs text-(--theme-muted-text-color) empty:hidden @[36rem]:hidden'
-const STACKED_LINES_LINE = 'flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1'
+  'mt-1 flex min-w-0 flex-col gap-y-1 text-xs text-(--theme-muted-text-color) not-has-[>*>:not(:empty)]:hidden @[36rem]:hidden'
+const STACKED_LINES_LINE =
+  'flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 not-has-[>:not(:empty)]:hidden'
+
+// A row's selection checkbox on a narrow list, where its row grows lines under the name: it
+// keeps the 10px an icon keeps from its name, rather than a column's 24px, and it sits at the
+// row's top, centered on the name's first line, or on a name and subtitle, the line an icon tile
+// centers on, rather than floating in the middle of the lines under them. The name's cell keeps
+// to the top too, as a column beside the stack does, so the two line up in a row of any height. A name's line is 16px,
+// one with its subtitle 31px, so the box's top is 10px down, as a name cell's padding is, or 10px and half of 31px less its
+// 16px.
+const LEADING_SELECT = {
+  className:
+    '@max-[36rem]:has-[[data-row-select]]:w-px @max-[36rem]:has-[[data-row-select]]:pr-0 @max-[36rem]:has-[[data-row-select]]:align-top @max-[36rem]:has-[[data-row-select]]:pt-2.5 @max-[36rem]:has-[[data-row-select]]:[&+td]:pl-2.5 @max-[36rem]:has-[[data-row-select]]:[&+td]:align-top @max-[36rem]:has-[[data-row-select]]:group-has-[[data-name-subtitle]]:pt-[17.625px]',
+}
 
 // A cell given straight to a row, whose content is there to see, rather than through a component.
 const isCellElement = (child: ReactElement) => child.type === Table.Item || child.type === 'td'
@@ -462,6 +482,7 @@ export function ListRow({
     // a total, sits on the name's line rather than floating mid-row.
     const cls = cx(
       columnClasses[i],
+      i === 0 && NAME_FILLS_NARROW,
       i > 0 && stacked.length > 0 && !columnStacks[i] && STAYS_BESIDE_STACK,
     )
     const after = i === 0 ? under : undefined
@@ -492,10 +513,9 @@ export function ListRow({
     )
   })
 
-  // A row whose only action is a `⋯` shown on hover floats it over its end
-  // instead of keeping a lane for it (see ListActionsHeader).
-  // Not over a locked column, such as a delete button's, or an end-aligned one, such as a
-  // runtime, whose value it would cover: there it keeps its lane after the column.
+  // A row whose only action is a `⋯` shown on hover keeps a narrow lane for it, just the
+  // button's width (see FLOATING_ACTIONS_LANE). After a locked column, such as a delete
+  // button's, or an end-aligned one, such as a runtime, it keeps the full lane.
   const floating =
     !alwaysShowActions && !(pinnedActions && pinnedActions.length > 0) && !reservesLane
 
@@ -547,13 +567,12 @@ export function ListRow({
       onClick={handleRowClick}
       {...rowContextMenuProps(openRowMenu, items)}
     >
-      {leading}
+      {leading && <CellPlacementContext value={LEADING_SELECT}>{leading}</CellPlacementContext>}
       <StretchRowLinkContext.Provider value={stretch}>{styledCells}</StretchRowLinkContext.Provider>
       {/* Actions off by default (Display toggle); right-click still opens the
        * menu. Buttons are absolutely positioned so toggling them never changes
        * row height. */}
       {showActions && (
-        // Visible: a floating `⋯` reaches over the last column's end.
         <Table.Item
           className={cx('relative overflow-visible py-2.5', floating && FLOATING_ACTIONS_LANE)}
         >
@@ -563,13 +582,10 @@ export function ListRow({
               // Where columns stack under the name, the row's controls line up at its top, with
               // the name's first line and any column that stays beside the stack.
               stacked.length > 0 && '@max-[36rem]:items-start @max-[36rem]:pt-2',
-              // Over the last column's end, on the row's hover color, so its value
-              // gives way to the menu only while the row is hovered or focused.
+              // In its own lane, shown while the row is hovered or focused.
               floating &&
                 !menuActive &&
                 'pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:focus-within:opacity-100',
-              floating &&
-                'pointer-fine:bg-linear-to-l pointer-fine:from-(--theme-hover) pointer-fine:from-70% pointer-fine:to-transparent pointer-fine:pl-6',
             )}
           >
             {/* Below ~44rem pinned buttons collapse into `⋯` (even with "always
@@ -822,11 +838,13 @@ export function GroupRow({
       </tr>
     )
   }
-  const cells = leading + columnClasses.length + (showActions ? 1 : 0)
+  // Cells the rows have before the columns that `leading` didn't count, such as a selection
+  // checkbox's, so the band spans the whole row as the rows under it do.
+  const cells = leading + gutters.missing + columnClasses.length + (showActions ? 1 : 0)
   return (
     <tr className={row} data-group-row ref={gutters.ref} style={gutters.style} onClick={onClick}>
       {Array.from({ length: cells }, (_, i) => {
-        const column = i - leading
+        const column = i - leading - gutters.missing
         const cls = column >= 0 && column < columnClasses.length ? columnClasses[column] : undefined
         return (
           // biome-ignore lint/suspicious/noArrayIndexKey: one cell per column, in column order
@@ -855,16 +873,28 @@ export function GroupRow({
 
 /** The padding at a row's ends, read from its first and last shown cells, as custom properties a
  *  group row's header subtracts from the list's width: so it lines up with the rows however the
- *  host pads its list. Until it has measured, 16px, as `listTableProps` pads. */
+ *  host pads its list. Until it has measured, 16px, as `listTableProps` pads. And how many cells
+ *  short of the table's columns the row is, which it adds before its columns. */
 function useRowGutters() {
   const ref = useRef<HTMLTableRowElement>(null)
   const [gutters, setGutters] = useState<{ start: string; end: string } | null>(null)
+  const [missing, setMissing] = useState(0)
   useLayoutEffect(() => {
     const row = ref.current
     if (!row || typeof getComputedStyle === 'undefined') {
       return
     }
     const measure = () => {
+      // The table's columns, counted from its first row that isn't a group's, such as the
+      // header's; the row's own cells, less those it added last time.
+      const span = (tr: HTMLTableRowElement) =>
+        Array.from(tr.cells).reduce((sum, cell) => sum + cell.colSpan, 0)
+      const other = Array.from(row.closest('table')?.rows ?? []).find(
+        (tr) => !tr.hasAttribute('data-group-row'),
+      )
+      if (other) {
+        setMissing((was) => Math.max(0, was + span(other) - span(row)))
+      }
       const cells = Array.from(row.cells).filter((cell) => cell.getClientRects().length > 0)
       const first = cells[0]
       const last = cells.at(-1)
@@ -887,7 +917,7 @@ function useRowGutters() {
   const style = gutters
     ? ({ '--group-start': gutters.start, '--group-end': gutters.end } as CSSProperties)
     : undefined
-  return { ref, style }
+  return { ref, style, missing }
 }
 
 function PinnedActionButton({ action, visible }: { action: RowAction; visible: boolean }) {
@@ -897,7 +927,7 @@ function PinnedActionButton({ action, visible }: { action: RowAction; visible: b
   const props = {
     'aria-label': reason ? `${action.label}. ${reason}` : action.label,
     className: cx(
-      'rounded p-1 cursor-pointer text-(--theme-muted-text-color) transition-colors hover:bg-(--theme-muted-panel-bg) hover:text-(--theme-app) focus-visible:outline-2 focus-visible:outline-(--theme-link) aria-disabled:cursor-not-allowed aria-disabled:opacity-20 aria-disabled:hover:bg-transparent aria-disabled:hover:text-(--theme-muted-text-color) [&>svg]:h-4 [&>svg]:w-4',
+      'rounded p-1 cursor-pointer text-(--theme-muted-text-color) transition-colors hover:bg-(--theme-muted-panel-bg) hover:text-(--theme-app) focus-visible:outline-2 focus-visible:outline-(--theme-focus) aria-disabled:cursor-not-allowed aria-disabled:opacity-20 aria-disabled:hover:bg-transparent aria-disabled:hover:text-(--theme-muted-text-color) [&>svg]:h-4 [&>svg]:w-4',
       visible ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
     ),
   }
@@ -1016,9 +1046,10 @@ export function ListColumns<T>({ view }: { view: ListView<T> }) {
   // Below the medium width the stacked columns' headers give way, and the low ones' drop, so the
   // header that sorts by one is gone: the name's header says what the list is sorted by instead,
   // and changes it.
-  const sortMenu =
-    view.orderBys.length > 0 &&
-    view.visibleColumns.some((col, i) => view.columnStacks[i] || col.priority !== undefined)
+  const narrowDrops = view.visibleColumns.some(
+    (col, i) => view.columnStacks[i] || col.priority !== undefined,
+  )
+  const sortMenu = view.orderBys.length > 0 && narrowDrops
   return (
     <>
       {view.visibleColumns.map((col, i) => {
@@ -1034,6 +1065,7 @@ export function ListColumns<T>({ view }: { view: ListView<T> }) {
               view.columnClasses[i],
               // A share takes the width its tier gives it, as narrower lists drop columns.
               widths[i] && SHARE_WIDTH,
+              i === 0 && narrowDrops && NAME_FILLS_NARROW,
               // listTableProps collapses the header row when it holds this marker.
               !view.showColumnHeaders && HEADERS_OFF,
             )}

@@ -1,13 +1,31 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import { useState } from 'react'
 import { expect, within } from 'storybook/test'
 import { useContextMenu } from '../components/ContextMenu'
 import { IconButton } from '../components/IconButton'
 import { StatusBadge } from '../components/StatusBadge'
+import { StatusLabel } from '../components/StatusLabel'
 import { Table } from '../components/Table'
 import { Tooltip } from '../components/Tooltip'
-import { CloudIcon, DiskIcon, InstanceIcon, NetworkInterfaceIcon, TrashIcon } from '../icons'
+import {
+  CloudIcon,
+  DiskIcon,
+  ExternalLinkIcon,
+  GearsIcon,
+  InstanceIcon,
+  LinkIcon,
+  NetworkInterfaceIcon,
+  TrashIcon,
+} from '../icons'
 import { GroupRow, ListColumns, ListPage, ListRow, useListNavigate } from './ListPage'
-import { ListCellText, listTableFixedProps, NameCell } from './ListTable'
+import {
+  ListCellText,
+  ListSelectAllHeader,
+  listTableFixedProps,
+  listTableProps,
+  NameCell,
+  RowSelectCheckbox,
+} from './ListTable'
 import { type ColumnDef, useListView } from './listView'
 
 const meta: Meta = {
@@ -267,4 +285,601 @@ export const ClusterTabGroups: StoryObj = {
  *  share a line under the name that wraps between values. */
 export const ClusterTabWithoutPriorities: StoryObj = {
   render: () => <ClusterTab priorities={false} />,
+}
+
+interface Session {
+  id: string
+  name: string
+  type: 'desktop' | 'tunnel'
+  state: 'running' | 'starting'
+  owner: string
+}
+
+const SESSIONS: Session[] = [
+  { id: 's-1', name: 'vscode-gpu-dev', type: 'desktop', state: 'running', owner: 'maya' },
+  { id: 's-2', name: 'jupyter-tunnel', type: 'tunnel', state: 'running', owner: 'maya' },
+  { id: 's-3', name: 'tensorboard', type: 'tunnel', state: 'running', owner: 'maya' },
+  { id: 's-4', name: 'mlflow-ui', type: 'tunnel', state: 'starting', owner: 'jonas' },
+  { id: 's-5', name: 'grafana-cluster', type: 'tunnel', state: 'running', owner: 'maya' },
+]
+
+const SESSION_GROUPS = [
+  { id: 'desktop', label: 'VS Code and desktops' },
+  { id: 'tunnel', label: 'Tunnels' },
+] as const
+
+/** A sessions list grouped by type: a selection checkbox before the columns, the columns, and
+ *  the rows' actions, with a group header over each type. */
+function SessionsByTypeDemo() {
+  const goTo = useListNavigate()
+  const { openMenu, contextMenu } = useContextMenu()
+  const view = useListView<Session>({
+    storageKey: 'workshop-sessions-by-type',
+    columns: [
+      {
+        key: 'name',
+        label: 'Name',
+        headerClassName: 'py-2 w-[55%]',
+        alwaysVisible: true,
+        orderBy: 'name',
+      },
+      { key: 'icon', label: 'Icon', inline: true },
+      { key: 'status', label: 'Status', headerClassName: 'py-2', orderBy: 'status' },
+      { key: 'id', label: 'ID', headerClassName: 'py-2', defaultHidden: true },
+    ],
+    orderBys: [
+      { value: 'name', label: 'Name', compare: (a, b) => a.name.localeCompare(b.name) },
+      { value: 'status', label: 'Status', compare: (a, b) => a.state.localeCompare(b.state) },
+    ],
+    isFavorite: () => false,
+    actions: [
+      { key: 'open', label: 'Open in new window', defaultPinned: true },
+      { key: 'details', label: 'Details', defaultPinned: true },
+      { key: 'delete', label: 'Delete' },
+    ],
+  })
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(['s-2']))
+  const toggle = (id: string) =>
+    setSelected((was) => {
+      const next = new Set(was)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  return (
+    <ListPage view={view}>
+      <Table {...listTableProps}>
+        <ListSelectAllHeader
+          selected={selected.size}
+          total={SESSIONS.length}
+          onToggle={() =>
+            setSelected(
+              selected.size === SESSIONS.length ? new Set() : new Set(SESSIONS.map((x) => x.id)),
+            )
+          }
+        />
+        <ListColumns view={view} />
+        {SESSION_GROUPS.flatMap((group) => {
+          const rows = SESSIONS.filter((x) => x.type === group.id)
+          return [
+            // As a host writes it: the columns it spans, without counting the checkbox's.
+            <GroupRow
+              key={`group-${group.id}`}
+              label={group.label}
+              count={rows.length}
+              colSpan={view.visibleColumns.length + 2}
+            />,
+            ...rows.map((x) => (
+              <ListRow
+                key={x.id}
+                href={null}
+                onActivate={() => {}}
+                items={[{ label: 'Delete', onClick: () => {} }]}
+                goTo={goTo}
+                openMenu={openMenu}
+                selected={selected.has(x.id)}
+                pinnedActions={[
+                  {
+                    key: 'open',
+                    label: 'Open in new window',
+                    icon: <ExternalLinkIcon />,
+                    onClick: () => {},
+                  },
+                ]}
+                leading={
+                  <Table.Item className="py-2.5">
+                    <RowSelectCheckbox
+                      checked={selected.has(x.id)}
+                      label={`Select ${x.name}`}
+                      onToggle={() => toggle(x.id)}
+                    />
+                  </Table.Item>
+                }
+              >
+                <NameCell
+                  icon={<InstanceIcon className="size-4" />}
+                  iconTile
+                  name={x.name}
+                  subtitle={x.owner}
+                  href={null}
+                />
+                {view.isVisible('status') && (
+                  <Table.Item className="py-2.5">
+                    <StatusLabel
+                      variant={x.state === 'running' ? 'success' : 'info'}
+                      pulse={x.state === 'starting'}
+                    >
+                      {x.state === 'running' ? 'Running' : 'Starting'}
+                    </StatusLabel>
+                  </Table.Item>
+                )}
+                {view.isVisible('id') && (
+                  <Table.Item className="py-2.5">
+                    <ListCellText mono>{x.id}</ListCellText>
+                  </Table.Item>
+                )}
+              </ListRow>
+            )),
+          ]
+        })}
+      </Table>
+      {contextMenu}
+    </ListPage>
+  )
+}
+
+/** A sessions list grouped by type, with a selection checkbox before its columns and the rows'
+ *  actions after them. Each group's band spans the whole row, as the rows under it do, at any
+ *  width: the header row takes a cell for each of the table's columns, the checkbox's too. */
+export const SessionsByType: StoryObj = {
+  render: () => <SessionsByTypeDemo />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const band = canvas.getByText('Tunnels').closest('tr') as HTMLElement
+    const row = canvas.getByText('jupyter-tunnel').closest('tr') as HTMLElement
+    const span = (tr: HTMLElement) => {
+      const cells = [...tr.querySelectorAll(':scope > td')].filter(
+        (c) => c.getClientRects().length > 0,
+      )
+      return [cells[0]?.getBoundingClientRect().left, cells.at(-1)?.getBoundingClientRect().right]
+    }
+    // The band reaches both edges the row under it reaches.
+    await expect(span(band)).toEqual(span(row))
+  },
+}
+
+interface HostSession {
+  id: string
+  name: string
+  type: 'tunnel' | 'link'
+  state: 'running' | 'error'
+  target?: string
+  port?: number
+  /** Where an external session's link goes. */
+  url?: string
+  error?: string
+}
+
+const HOST_SESSIONS: HostSession[] = [
+  {
+    id: 'ss-1',
+    name: 'devadmin/jupyter-lab',
+    type: 'tunnel',
+    state: 'error',
+    target: 'devadmin/gputrainer',
+    port: 8888,
+    error:
+      "Resource's agent is not connected. The session can't start until the agent on devadmin/gputrainer reconnects.",
+  },
+  {
+    id: 'ss-2',
+    name: 'devadmin/tensorboard',
+    type: 'tunnel',
+    state: 'error',
+    target: 'devadmin/gputrainer',
+    port: 6006,
+    error:
+      "Resource's agent is not connected. The session can't start until the agent on devadmin/gputrainer reconnects.",
+  },
+  {
+    id: 'ss-3',
+    name: 'devadmin/lab-wiki',
+    type: 'link',
+    state: 'running',
+    url: 'wiki.example.com',
+  },
+  {
+    id: 'ss-4',
+    name: 'devadmin/grafana',
+    type: 'link',
+    state: 'running',
+    url: 'grafana.example.com/d/gpu',
+  },
+]
+
+const HOST_SESSION_GROUPS = [
+  { id: 'tunnel', label: 'Tunnels' },
+  { id: 'link', label: 'External' },
+] as const
+
+/** A sessions list: a checkbox before the columns, each session's icon in a tile beside its
+ *  name and the host's own link for the name, a subtitle naming the resource it runs on with a link to it, a
+ *  failed session's error under that, and the status as a column of its own that stacks under the
+ *  name on a phone. */
+function HostSessionsDemo() {
+  const goTo = useListNavigate()
+  const { openMenu, contextMenu } = useContextMenu()
+  const view = useListView<HostSession>({
+    storageKey: 'workshop-host-sessions',
+    columns: [
+      {
+        key: 'name',
+        label: 'Name',
+        headerClassName: 'py-2 w-[55%]',
+        alwaysVisible: true,
+        orderBy: 'name',
+      },
+      { key: 'icon', label: 'Icon', inline: true },
+      { key: 'status', label: 'Status', headerClassName: 'py-2', orderBy: 'status' },
+      { key: 'id', label: 'ID', headerClassName: 'py-2', defaultHidden: true },
+    ],
+    orderBys: [
+      { value: 'name', label: 'Name', compare: (a, b) => a.name.localeCompare(b.name) },
+      { value: 'status', label: 'Status', compare: (a, b) => a.state.localeCompare(b.state) },
+    ],
+    isFavorite: () => false,
+    actions: [
+      { key: 'open', label: 'Open in new window', defaultPinned: true },
+      { key: 'delete', label: 'Delete' },
+    ],
+  })
+  const [selected, setSelected] = useState<Set<string>>(() => new Set())
+  const toggle = (id: string) =>
+    setSelected((was) => {
+      const next = new Set(was)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  return (
+    <ListPage view={view} total={HOST_SESSIONS.length} matches={HOST_SESSIONS.length}>
+      <Table {...listTableProps}>
+        <ListSelectAllHeader
+          selected={selected.size}
+          total={HOST_SESSIONS.length}
+          onToggle={() =>
+            setSelected(
+              selected.size === HOST_SESSIONS.length
+                ? new Set()
+                : new Set(HOST_SESSIONS.map((x) => x.id)),
+            )
+          }
+        />
+        <ListColumns view={view} />
+        {HOST_SESSION_GROUPS.flatMap((group) => {
+          const rows = HOST_SESSIONS.filter((x) => x.type === group.id)
+          return [
+            <GroupRow
+              key={`group-${group.id}`}
+              label={group.label}
+              count={rows.length}
+              colSpan={view.visibleColumns.length + 2}
+            />,
+            ...rows.map((x) => (
+              <ListRow
+                key={x.id}
+                href={null}
+                onActivate={() => {}}
+                items={[{ label: 'Delete', onClick: () => {} }]}
+                goTo={goTo}
+                openMenu={openMenu}
+                selected={selected.has(x.id)}
+                pinnedActions={[
+                  {
+                    key: 'open',
+                    label: 'Open in new window',
+                    icon: <ExternalLinkIcon />,
+                    onClick: () => {},
+                  },
+                ]}
+                leading={
+                  <Table.Item className="py-2.5">
+                    <RowSelectCheckbox
+                      checked={selected.has(x.id)}
+                      label={`Select ${x.name}`}
+                      onToggle={() => toggle(x.id)}
+                    />
+                  </Table.Item>
+                }
+              >
+                <NameCell
+                  icon={
+                    view.isVisible('icon') && (x.type === 'tunnel' ? <CloudIcon /> : <LinkIcon />)
+                  }
+                  iconTile
+                  // The host's own link, which opens the session in a new tab, and is dimmed
+                  // while it can't.
+                  name={
+                    <a
+                      href="#session"
+                      className={x.state === 'error' ? 'opacity-50' : undefined}
+                      aria-disabled={x.state === 'error' || undefined}
+                    >
+                      {x.name}
+                    </a>
+                  }
+                  // Every session has a second line, so every row's icon has its tile.
+                  subtitle={
+                    x.url ??
+                    (x.target && (
+                      <span className="inline-flex items-center gap-1">
+                        on
+                        <GearsIcon className="size-3.5 shrink-0" />
+                        <a href="#resource" className="hover:underline">
+                          {x.target}
+                        </a>
+                        <span>{x.port}</span>
+                      </span>
+                    ))
+                  }
+                  description={x.error}
+                  descriptionTone="error"
+                  href={null}
+                />
+                {view.isVisible('status') && (
+                  <Table.Item className="py-2.5">
+                    <StatusLabel
+                      className="text-[13px]"
+                      variant={x.state === 'running' ? 'success' : 'error'}
+                    >
+                      {x.state === 'running' ? 'Running' : 'Error'}
+                    </StatusLabel>
+                  </Table.Item>
+                )}
+                {view.isVisible('id') && (
+                  <Table.Item className="py-2.5">
+                    <ListCellText mono>{x.id}</ListCellText>
+                  </Table.Item>
+                )}
+              </ListRow>
+            )),
+          ]
+        })}
+      </Table>
+      {contextMenu}
+    </ListPage>
+  )
+}
+
+/** A sessions list where two sessions failed. The error under the name wraps inside the name's
+ *  column for two lines at most, so on a phone it never runs past the row, and the status that
+ *  stacks under it starts at the name's edge, past the glyph, as the name and subtitle do. */
+export const SessionsWithErrors: StoryObj = {
+  render: () => <HostSessionsDemo />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const name = canvas.getByText('devadmin/jupyter-lab')
+    const row = name.closest('tr') as HTMLElement
+    const error = within(row).getByText(/agent is not connected/)
+    // The error ends inside its row, however long it is.
+    await expect(error.getBoundingClientRect().right).toBeLessThanOrEqual(
+      row.getBoundingClientRect().right,
+    )
+    const line = row.querySelector('[data-stacked-line]') as HTMLElement
+    // Where the status stacks under the name, it starts where the name does, and the row's
+    // checkbox sits at its top, centered on the icon's tile and as far from it as the tile is from
+    // the name, rather than in the middle of the lines under them.
+    if (line.checkVisibility()) {
+      const box = within(row).getByRole('checkbox').getBoundingClientRect()
+      const tile = (row.querySelector('td .rounded-md') as HTMLElement).getBoundingClientRect()
+      const middle = (r: DOMRect) => r.top + r.height / 2
+      await expect(Math.abs(middle(box) - middle(tile))).toBeLessThan(1)
+      await expect(Math.round(tile.left - box.right)).toBe(
+        Math.round(error.getBoundingClientRect().left - tile.right),
+      )
+      await expect(line.getBoundingClientRect().left).toBe(error.getBoundingClientRect().left)
+    }
+  },
+}
+
+interface HostWorkspace {
+  id: string
+  name: string
+  owner: string
+  organization: string
+  image: string
+  state: 'running' | 'pending'
+  created: string
+}
+
+const HOST_WORKSPACES: HostWorkspace[] = [
+  {
+    id: 'ws-1',
+    name: 'workspace-mlopez',
+    owner: 'mlopez',
+    organization: 'research',
+    image: 'v7.4.2',
+    state: 'running',
+    created: '3 days ago',
+  },
+  {
+    id: 'ws-2',
+    name: 'workspace-akhan',
+    owner: 'akhan',
+    organization: 'research',
+    image: 'v7.4.2',
+    state: 'running',
+    created: '5 hours ago',
+  },
+  {
+    id: 'ws-3',
+    name: 'workspace-jchen-gpu-notebooks',
+    owner: 'jchen',
+    organization: 'platform',
+    image: 'v7.3.9',
+    state: 'pending',
+    created: '2 min ago',
+  },
+]
+
+/** A workspaces list as a host builds it: a checkbox before the columns, and the name's header
+ *  with a share of the list as its own class at every width, as `w-[22%]`, rather than as
+ *  `ColumnDef.width`. Every other column stacks under the name on a phone. */
+function HostWorkspacesDemo() {
+  const goTo = useListNavigate()
+  const { openMenu } = useContextMenu()
+  const view = useListView<HostWorkspace>({
+    storageKey: 'workshop-host-workspaces',
+    columns: [
+      {
+        key: 'name',
+        label: 'Name',
+        headerClassName: 'py-2 w-[22%]',
+        alwaysVisible: true,
+        orderBy: 'name',
+      },
+      { key: 'icon', label: 'Icon', inline: true },
+      { key: 'owner', label: 'Owner', headerClassName: 'py-2 w-[14%]', orderBy: 'owner' },
+      { key: 'organization', label: 'Organization', headerClassName: 'py-2 w-[12%]' },
+      { key: 'image', label: 'Image', headerClassName: 'py-2 w-[20%]' },
+      { key: 'status', label: 'Status', headerClassName: 'py-2' },
+      { key: 'created', label: 'Created', headerClassName: 'py-2' },
+    ],
+    orderBys: [
+      { value: 'name', label: 'Name', compare: (a, b) => a.name.localeCompare(b.name) },
+      { value: 'owner', label: 'Owner', compare: (a, b) => a.owner.localeCompare(b.owner) },
+    ],
+    isFavorite: () => false,
+    actions: [
+      { key: 'view', label: 'View owner', defaultPinned: true },
+      { key: 'kill', label: 'Kill' },
+    ],
+  })
+  const [selected, setSelected] = useState<Set<string>>(() => new Set())
+  const toggle = (id: string) =>
+    setSelected((was) => {
+      const next = new Set(was)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  return (
+    <ListPage view={view} total={HOST_WORKSPACES.length} matches={HOST_WORKSPACES.length}>
+      <Table {...listTableProps}>
+        <ListSelectAllHeader
+          selected={selected.size}
+          total={HOST_WORKSPACES.length}
+          onToggle={() =>
+            setSelected(
+              selected.size === HOST_WORKSPACES.length
+                ? new Set()
+                : new Set(HOST_WORKSPACES.map((x) => x.id)),
+            )
+          }
+        />
+        <ListColumns view={view} />
+        {HOST_WORKSPACES.map((x) => (
+          <ListRow
+            key={x.id}
+            href={null}
+            items={[{ label: 'Kill', onClick: () => {} }]}
+            goTo={goTo}
+            openMenu={openMenu}
+            selected={selected.has(x.id)}
+            selectionActive={selected.size > 0}
+            onRowSelect={() => toggle(x.id)}
+            pinnedActions={[
+              { key: 'view', label: 'View owner', icon: <ExternalLinkIcon />, href: '#owner' },
+            ]}
+            leading={
+              <Table.Item className="py-2.5">
+                <RowSelectCheckbox
+                  checked={selected.has(x.id)}
+                  label={x.name}
+                  onToggle={() => toggle(x.id)}
+                />
+              </Table.Item>
+            }
+          >
+            <NameCell
+              icon={view.isVisible('icon') ? <InstanceIcon /> : undefined}
+              name={x.name}
+              href={null}
+            />
+            {view.isVisible('owner') && (
+              <Table.Item className="py-2.5">
+                <ListCellText>{x.owner}</ListCellText>
+              </Table.Item>
+            )}
+            {view.isVisible('organization') && (
+              <Table.Item className="py-2.5">
+                <ListCellText>{x.organization}</ListCellText>
+              </Table.Item>
+            )}
+            {view.isVisible('image') && (
+              <Table.Item className="py-2.5">
+                <ListCellText>{x.image}</ListCellText>
+              </Table.Item>
+            )}
+            {view.isVisible('status') && (
+              <Table.Item className="py-2.5">
+                {/* Waiting is an unlit lamp; amber is for something that needs attention. */}
+                <StatusLabel
+                  className="text-[13px]"
+                  variant={x.state === 'running' ? 'success' : 'muted'}
+                  off={x.state !== 'running'}
+                >
+                  {x.state === 'running' ? 'Running' : 'Pending'}
+                </StatusLabel>
+              </Table.Item>
+            )}
+            {view.isVisible('created') && (
+              <Table.Item className="py-2.5">
+                <ListCellText>{x.created}</ListCellText>
+              </Table.Item>
+            )}
+          </ListRow>
+        ))}
+      </Table>
+    </ListPage>
+  )
+}
+
+/** On a phone the name's column takes the width the checkbox and the row's `⋯` leave, whatever
+ *  share the host's own class gives it at wider widths, so the checkbox sits as far from the
+ *  icon as the icon from the name, and the list's spare width isn't a gap between them. */
+async function expectCheckboxBesideIcon(canvasElement: HTMLElement) {
+  const canvas = within(canvasElement)
+  const row = canvas.getByText('workspace-jchen-gpu-notebooks').closest('tr') as HTMLElement
+  const box = within(row).getByRole('checkbox').getBoundingClientRect()
+  const icon = (row.querySelector('td svg') as SVGElement).getBoundingClientRect()
+  const name = within(row).getByText('workspace-jchen-gpu-notebooks').getBoundingClientRect()
+  await expect(icon.left - box.right).toBeGreaterThan(0)
+  await expect(icon.left - box.right).toBeLessThanOrEqual(name.left - icon.left)
+}
+
+/** A host's workspaces list at desktop width: the name keeps the host's 22%. */
+export const HostWidthClass: StoryObj = {
+  render: () => <HostWorkspacesDemo />,
+  play: async ({ canvasElement }) => {
+    await expectCheckboxBesideIcon(canvasElement)
+    const header = within(canvasElement).getByRole('columnheader', { name: /Name/ })
+    const table = header.closest('table') as HTMLElement
+    // Allow for the header's min-width floor on a narrow canvas.
+    if (table.getBoundingClientRect().width * 0.22 >= 200) {
+      await expect(
+        Math.abs(header.getBoundingClientRect().width - table.getBoundingClientRect().width * 0.22),
+      ).toBeLessThan(2)
+    }
+  },
+}
+
+/** The same list on a 390px phone: the other columns stack under the name, and the name's
+ *  column takes the rest of the row rather than its 22%. */
+export const HostWidthClassPhone: StoryObj = {
+  render: () => (
+    <div style={{ width: 390, height: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <HostWorkspacesDemo />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    await expectCheckboxBesideIcon(canvasElement)
+  },
 }

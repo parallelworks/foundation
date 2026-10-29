@@ -20,6 +20,7 @@ const STROKE_WIDTH = 1.5
 /** A glyph drawn as one path on the 16px grid, in the text's size and color by
  *  default, so a class such as `size-4` or a parent's font size sets it. */
 function drawn(d: string, defaults?: IconProps): IconType {
+  // biome-ignore lint/correctness/noComponentHookFactories: the factory runs at module initialization, preserving component identity
   function Icon({
     title,
     children,
@@ -653,6 +654,12 @@ export const ScriptIcon = /* @__PURE__ */ drawn(
 export const SearchIcon = /* @__PURE__ */ drawn(
   'M7 12A5 5 0 1 0 7 2a5 5 0 0 0 0 10ZM14 14l-3.5-3.5',
 )
+export const SecretSafeIcon = /* @__PURE__ */ drawn(
+  'M8 1.75 13 3.5v4c0 3-2.15 5.25-5 6.75-2.85-1.5-5-3.75-5-6.75v-4ZM8 4.9l2.25.8v1.85c0 1.45-.95 2.55-2.25 3.3-1.3-.75-2.25-1.85-2.25-3.3V5.7Z',
+)
+export const SecretSafeMigrationIcon = /* @__PURE__ */ drawn(
+  'M8 1.75 13 3.5v4c0 3-2.15 5.25-5 6.75-2.85-1.5-5-3.75-5-6.75v-4ZM8 4.75v5M6 8l2 2 2-2',
+)
 export const SendIcon = /* @__PURE__ */ drawn(
   'M14.25 1.75 10 14.25 7.5 8.5 1.75 6ZM14.25 1.75 7.5 8.5',
 )
@@ -871,6 +878,7 @@ function StatusSvg({
 /** A solid `shape` with `mark` cut out of it. The mask's id is the instance's own, so two on a
  *  page never borrow each other's. */
 function knockedOut(shape: string, mark: string): IconType {
+  // biome-ignore lint/correctness/noComponentHookFactories: the factory runs at module initialization, preserving component identity
   function Icon({ children, color = 'currentColor', ...props }: IconProps) {
     const id = `status-mask-${useId().replace(/[^\w-]/g, '')}`
     return (

@@ -6,6 +6,7 @@ import DescriptionList, {
   type DescriptionListVariant,
 } from './DescriptionList'
 import { ExternalLink } from './ExternalLink'
+import { Section } from './Section'
 import { StatusLabel } from './StatusLabel'
 
 const meta: Meta = {
@@ -277,6 +278,73 @@ export const Grouped: StoryObj<EventArgs> = {
   },
 }
 
+// A storage's details as its page shows them: its own rows, then its type's settings under a
+// heading of their own.
+function StorageRows() {
+  return (
+    <DescriptionList variant="divided">
+      <DescriptionListItem label="Name">scratch-lustre</DescriptionListItem>
+      <DescriptionListItem label="Namespace">maya</DescriptionListItem>
+      <DescriptionListItem label="Status">
+        <StatusLabel variant="success">Provisioned</StatusLabel>
+      </DescriptionListItem>
+      <DescriptionListItem label="Network">research-vpc</DescriptionListItem>
+      <DescriptionListItem label="Resource group">climate-modeling</DescriptionListItem>
+    </DescriptionList>
+  )
+}
+
+function LustreSettings() {
+  return (
+    <Section collapsible={false} title="Managed Lustre settings">
+      <DescriptionList variant="divided">
+        <DescriptionListItem label="Region">us-central1</DescriptionListItem>
+        <DescriptionListItem label="Zone">us-central1-a</DescriptionListItem>
+        <DescriptionListItem label="Storage size (TiB)">18</DescriptionListItem>
+        <DescriptionListItem label="Performance">250 MBps/TiB</DescriptionListItem>
+      </DescriptionList>
+    </Section>
+  )
+}
+
+/** A storage's definition, its own details and then its type's settings in a `Section` of
+ *  their own. In a `DescriptionListGroup` the section passes the group's columns through, so
+ *  both lists share one label column and every value starts at one edge. Ungrouped, each list
+ *  sizes its column to its own labels. */
+export const AcrossSections: StoryObj<{ grouped: boolean }> = {
+  args: { grouped: true },
+  argTypes: {
+    grouped: { description: 'In a DescriptionListGroup, sharing one label column.' },
+  },
+  render: ({ grouped }) => (
+    <div className="max-w-3xl">
+      <Section title="Storage definition">
+        {grouped ? (
+          <DescriptionListGroup className="px-4 py-2">
+            <StorageRows />
+            <LustreSettings />
+          </DescriptionListGroup>
+        ) : (
+          <div className="flex flex-col gap-6 px-4 py-2">
+            <StorageRows />
+            <LustreSettings />
+          </div>
+        )}
+      </Section>
+    </div>
+  ),
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('heading', { name: 'Managed Lustre settings' })).toBeVisible()
+    const starts = ['scratch-lustre', 'us-central1'].map(
+      (text) => (canvas.getByText(text).closest('dd') as HTMLElement).getBoundingClientRect().left,
+    )
+    if (args.grouped) {
+      await expect(starts[1]).toBe(starts[0])
+    }
+  },
+}
+
 /** A job's details, dense: `size="xs"` sets small type, and `truncate` keeps a
  *  long value to one line with all of it on hover, while `copy` still copies
  *  the whole value. */
@@ -304,6 +372,6 @@ export const DenseAndTruncated: StoryObj<{ size: 'sm' | 'xs'; truncate: boolean 
     ),
   play: async ({ canvasElement, args }) => {
     const nodes = within(canvasElement).getByText(/gpu-a100-\[0001/)
-    await expect(nodes.classList.contains('truncate')).toBe(args.truncate)
+    await expect(nodes.classList.contains('text-ellipsis')).toBe(args.truncate)
   },
 }

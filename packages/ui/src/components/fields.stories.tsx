@@ -386,6 +386,46 @@ export const FrameLabelWrapsOnPhone: StoryObj = {
   globals: { viewport: { value: 'mobile1', isRotated: false } },
 }
 
+/** Given an `id`, a Field hands it to its control: the label points at the control and names it,
+ *  a click on the label focuses it, and a page can find it by that id, such as to move focus to a
+ *  form's first problem. */
+export const FrameWithId: StoryObj = {
+  render: () => (
+    <div className="flex max-w-sm flex-col gap-4">
+      <Field label="Region" id="frame-with-id-region">
+        <Select
+          items={[
+            { value: 'east', label: 'East' },
+            { value: 'west', label: 'West' },
+          ]}
+          placeholder="Pick a region"
+        />
+      </Field>
+      <Field label="Owner" id="frame-with-id-owner">
+        <Combobox items={['Ada', 'Lin']} placeholder="Pick an owner" />
+      </Field>
+      <Field label="Nodes" id="frame-with-id-nodes">
+        <NumberInput placeholder="1" />
+      </Field>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('combobox', { name: 'Region' })).toHaveAttribute(
+      'id',
+      'frame-with-id-region',
+    )
+    await expect(canvas.getByRole('combobox', { name: 'Owner' })).toHaveAttribute(
+      'id',
+      'frame-with-id-owner',
+    )
+    const nodes = canvas.getByRole('textbox', { name: 'Nodes' })
+    await expect(nodes).toHaveAttribute('id', 'frame-with-id-nodes')
+    await userEvent.click(canvas.getByText('Nodes'))
+    await expect(nodes).toHaveFocus()
+  },
+}
+
 // Room above the first field for its help, which opens over the ? when it is hovered, as a
 // page's header would leave it.
 const roomAbove: Decorator = (Story) => (
@@ -1447,5 +1487,78 @@ export const FormLevelErrors: StoryObj<FormErrorArgs> = {
   ),
   play: async ({ canvasElement }) => {
     await expect(within(canvasElement).getAllByRole('alert')).toHaveLength(2)
+  },
+}
+
+/** A page's filters, as a notifications inbox lays them out: read state, kind and team. Each
+ *  starts on its "All …" option, whose value is empty; that is a choice, so it reads in the
+ *  field's text color, while a filter with nothing chosen shows its placeholder in the
+ *  placeholder's. */
+export const FiltersOnAll: StoryObj = {
+  render: () => (
+    <div className="flex flex-wrap items-center gap-2">
+      <Select<'all' | 'unread'>
+        aria-label="Show"
+        size="sm"
+        width="content"
+        defaultValue="all"
+        items={[
+          { value: 'all', label: 'All' },
+          { value: 'unread', label: 'Unread' },
+        ]}
+      />
+      <Select<string>
+        aria-label="Kind"
+        size="sm"
+        width="content"
+        defaultValue=""
+        items={[
+          { value: '', label: 'All kinds' },
+          { value: 'assigned', label: 'Assigned' },
+          { value: 'mentioned', label: 'Mentioned' },
+          { value: 'status', label: 'Status changed' },
+          { value: 'decision', label: 'Decision needed' },
+        ]}
+      />
+      <Select<string>
+        aria-label="Team"
+        size="sm"
+        width="content"
+        defaultValue=""
+        items={[
+          { value: '', label: 'All teams' },
+          { value: 'PLAT', label: 'Platform engineering' },
+          { value: 'MOB', label: 'Mobile apps' },
+          { value: 'DATA', label: 'Data pipelines' },
+          { value: 'SEC', label: 'Security and compliance' },
+        ]}
+      />
+      <Select<string>
+        aria-label="Assignee"
+        size="sm"
+        width="content"
+        placeholder="Assignee"
+        items={[
+          { value: 'maya', label: 'Maya Chen' },
+          { value: 'dev', label: 'Dev Patel' },
+        ]}
+      />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const color = (name: string, text: string) => {
+      const shown = [...within(canvas.getByRole('combobox', { name })).getAllByText(text)].find(
+        (el) => !el.closest('[aria-hidden="true"]'),
+      )
+      if (!shown) {
+        throw new Error(`${name} shows no ${text}`)
+      }
+      return getComputedStyle(shown).color
+    }
+    const chosen = color('Show', 'All')
+    await expect(color('Kind', 'All kinds')).toBe(chosen)
+    await expect(color('Team', 'All teams')).toBe(chosen)
+    await expect(color('Assignee', 'Assignee')).not.toBe(chosen)
   },
 }

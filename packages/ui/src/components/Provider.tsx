@@ -637,6 +637,9 @@ export interface UIStrings {
      *  label, such as a column's. It shows without `direction`, which its arrow shows; a screen
      *  reader hears it with one. */
     sortedBy: (order: string, direction?: 'ascending' | 'descending') => string
+    /** `sortedBy` for the list's own default order, as one phrase, such as "Default order",
+     *  rather than `orderDefault` set into `sortedBy` as if it were a column's name. */
+    sortedByDefault: (direction?: 'ascending' | 'descending') => string
     columnHeaders: string
     showColumnHeaders: string
     /** The header checkbox that ticks every row, or clears them all. */
@@ -871,6 +874,8 @@ export interface UIData {
     options?: { refreshInterval?: number },
   ) => RunFileResult
   resolveWorkflowJson?: (ref: WorkflowJsonRef) => Promise<unknown>
+  /** The names of the reader's own saved inputs for a workflow, which a step can name too. */
+  resolveSavedInputs?: (ref: WorkflowJsonRef) => Promise<string[]>
   /** The built-in actions a workflow step can use, for the editor's step form. */
   workflowActions?: Record<string, WorkflowAction>
   resolveSecretVariables?: () => Promise<string[]>
@@ -1558,6 +1563,7 @@ const DEFAULTS: UIProviderValue = {
       descending: 'Descending',
       sortedBy: (order, direction) =>
         direction ? `Sorted by ${order}, ${direction}` : `Sorted by ${order}`,
+      sortedByDefault: (direction) => (direction ? `Default order, ${direction}` : 'Default order'),
       columnHeaders: 'Column headers',
       showColumnHeaders: 'Show column headers',
       selectAll: 'Select all',
@@ -1607,8 +1613,14 @@ const DEFAULTS: UIProviderValue = {
         }
         const days = preset.match(/^-(\d+)d$/)?.[1]
         const hours = preset.match(/^-(\d+)h$/)?.[1]
+        // One reads as a word, as hosts' plural messages have it: "Last day", "Last 7 days".
+        const last = (count: string, one: string, other: string) =>
+          Number(count) === 1
+            ? `Last ${one}`
+            : `Last ${Number(count).toLocaleString('en')} ${other}`
         return (
-          named[preset] ?? (days ? `Last ${days} days` : hours ? `Last ${hours} hours` : preset)
+          named[preset] ??
+          (days ? last(days, 'day', 'days') : hours ? last(hours, 'hour', 'hours') : preset)
         )
       },
       quickMore: (count) => `+${count} more`,
@@ -1717,6 +1729,10 @@ export function useWorkflowJsonResolver(): UIData['resolveWorkflowJson'] {
 
 export function useRepoSuggestions(): UIData['repoSuggestions'] {
   return useContext(DataContext).repoSuggestions
+}
+
+export function useSavedInputsResolver(): UIData['resolveSavedInputs'] {
+  return useContext(DataContext).resolveSavedInputs
 }
 
 const NO_ACTIONS: Record<string, WorkflowAction> = {}

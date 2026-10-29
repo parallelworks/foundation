@@ -30,6 +30,7 @@ import {
   pickerHintClassName,
   pickerItemClassName,
 } from './comboboxItems'
+import { useFieldControlId, useFieldRequired } from './Field'
 import { type FieldBoxSize, fieldBox } from './fieldBox'
 import { panelClassName, positionerClassName } from './floating'
 import { Loader } from './Loader'
@@ -257,7 +258,7 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
     placeholder,
     disabled,
     required,
-    id,
+    id: ownId,
     'aria-label': ariaLabel,
     'aria-labelledby': ariaLabelledBy,
     'aria-describedby': ariaDescribedBy,
@@ -278,6 +279,8 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
     align = 'start',
     onCreate,
   } = props
+  const id = useFieldControlId(ownId)
+  const fieldRequired = useFieldRequired()
   const entries = useEntries(items)
   const filter = useEntryFilter()
   const t = useStrings().dropdown
@@ -454,7 +457,7 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
       aria-labelledby={ariaLabelledBy}
       aria-describedby={ariaDescribedBy}
       aria-invalid={ariaInvalid || undefined}
-      aria-required={ariaRequired || required || undefined}
+      aria-required={ariaRequired || required || fieldRequired}
       autoComplete="off"
       className={trigger ? popupInputClassName : inputClassName(size)}
     />
@@ -530,7 +533,7 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
           aria-labelledby={named ? `${ariaLabelledBy || labelId} ${valueId}` : undefined}
           aria-describedby={ariaDescribedBy}
           aria-invalid={ariaInvalid || undefined}
-          aria-required={ariaRequired || required || undefined}
+          aria-required={ariaRequired || required || fieldRequired}
           render={trigger}
         />
       </Tooltip>
@@ -727,7 +730,7 @@ export function Autocomplete({
   placeholder,
   disabled,
   required,
-  id,
+  id: ownId,
   'aria-label': ariaLabel,
   'aria-labelledby': ariaLabelledBy,
   'aria-describedby': ariaDescribedBy,
@@ -735,6 +738,8 @@ export function Autocomplete({
   'aria-required': ariaRequired,
   size = 'md',
 }: AutocompleteProps) {
+  const id = useFieldControlId(ownId)
+  const fieldRequired = useFieldRequired()
   const entries = useEntries(items)
   const filter = useEntryFilter()
   const t = useStrings().dropdown
@@ -766,7 +771,7 @@ export function Autocomplete({
           aria-labelledby={ariaLabelledBy}
           aria-describedby={ariaDescribedBy}
           aria-invalid={ariaInvalid || undefined}
-          aria-required={ariaRequired || required || undefined}
+          aria-required={ariaRequired || required || fieldRequired}
           autoComplete="off"
           className={inputClassName(size)}
         />
