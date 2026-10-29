@@ -54,7 +54,7 @@
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run",
+    "test": "vitest run --fsModuleCachePath=node_modules/.vitest-cache",
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {

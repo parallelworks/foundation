@@ -35,7 +35,7 @@
   "scripts": {
     "build": "pnpm messages && rm -rf dist && tsc -p tsconfig.build.json",
     "typecheck": "pnpm messages && tsc -p tsconfig.json",
-    "test": "pnpm messages && vitest run && node lint/check.mjs",
+    "test": "pnpm messages && vitest run --fsModuleCachePath=node_modules/.vitest-cache && node lint/check.mjs",
     "prepublishOnly": "pnpm build",
     "messages": "node scripts/messages.mjs"
   },

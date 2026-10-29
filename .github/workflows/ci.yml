@@ -22,7 +22,7 @@ jobs:
       contents: read # checkout
     services:
       postgres:
-        image: postgres:18@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
+        image: postgres:18@sha256:979bccfde35445db618c65107d27d08c6c21339d8dc3ad4c830c6633947be0e4
         env:
           POSTGRES_DB: foundation_test
           POSTGRES_HOST_AUTH_METHOD: trust

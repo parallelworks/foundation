@@ -24,7 +24,7 @@ overrides:
   "semver@<7.0.0": ">=7.7.4"
   # monaco-editor pins dompurify exactly, so its fixes arrive only with a
   # monaco release; this lifts the pin past the advisories in between.
-  "dompurify@<3.4.16": "^3.4.16"
+  "dompurify@<3.4.17": "^3.4.17"
   # The tailwind CLI pins a watcher that pulls in braces, which has an
   # unpatched denial-of-service advisory; 2.6 drops braces for picomatch.
   # Remove once a tailwind release depends on 2.6.
@@ -33,4 +33,4 @@ overrides:
   # has a prototype-pollution advisory fixed in 0.18.2. They render with the
   # copy ui's stylesheet comes from, so it matches the markup. Remove once they
   # depend on the range ui asks for.
-  "katex@<0.19.0": "^0.19.0"
+  "katex@<0.19.1": "^0.19.1"
