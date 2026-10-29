@@ -245,7 +245,6 @@ export const ApprovalFeedback: StoryObj<{ kind: 'confirm' | 'ask' }> = {
   ),
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
-    // A confirm opens its field from a button; an ask's field is its last row.
     await userEvent.click(
       args.kind === 'confirm'
         ? canvas.getByRole('button', { name: /provide feedback/ })
@@ -260,8 +259,7 @@ export const ApprovalFeedback: StoryObj<{ kind: 'confirm' | 'ask' }> = {
   },
 }
 
-// Answering settles the card the way a host does, so the story shows what the
-// reader sees after Submit or Chat about this.
+// Settles the card on an answer, as a host does.
 function AskRoundTrip({
   questions,
   multiSelect,
@@ -299,8 +297,7 @@ function AskRoundTrip({
   )
 }
 
-// Several questions, one tab each: a pick moves on to the next question, and a
-// typed answer moves on with Enter.
+// Several questions, one tab each; a pick or Enter moves on.
 export const AskQuestions: StoryObj<{ questions: number; multiSelect: boolean }> = {
   args: { questions: 4, multiSelect: false },
   argTypes: { questions: { control: { type: 'range', min: 2, max: 4 } } },
@@ -323,8 +320,7 @@ export const AskQuestions: StoryObj<{ questions: number; multiSelect: boolean }>
   },
 }
 
-// Options with previews: the pane beside them shows the focused option's, or the
-// one the pointer rests on, with notes under it, and stacks under them in a narrow card.
+// The pane follows focus or a resting pointer, and stacks in a narrow card.
 export const AskPreviews: StoryObj<{ questions: number }> = {
   args: { questions: 1 },
   argTypes: { questions: { control: { type: 'range', min: 1, max: 4 } } },

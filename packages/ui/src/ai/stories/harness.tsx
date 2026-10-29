@@ -682,7 +682,6 @@ const askSamples: ApprovalQuestion[] = [
   },
 ]
 
-// The first question's options with a preview each: two mockups and one bringing its own fenced code.
 const askPreviewSamples = [
   'retry  shard-4\n  instance-selector      3 failed\n  ──────────────────────────\n  about 4 min on self-hosted',
   'retry  shard-12\n  publish-cloud-cluster  5 failed\n  ──────────────────────────\n  about 6 min on self-hosted',
@@ -701,11 +700,10 @@ export function makeApprovalPart(options?: {
   resolved?: boolean
   multiSelect?: boolean
   subject?: ApprovalSubject
-  /** How many questions an ask asks, up to four; none is an ask this card can't read. */
+  /** Up to four; none is an ask the card can't read. */
   questions?: number
-  /** A resolved ask the reader chose to chat about instead. */
   chat?: boolean
-  /** The first question's options carry previews. */
+  /** On the first question's options. */
   previews?: boolean
 }): ApprovalPart {
   const kind = options?.kind ?? 'confirm'

@@ -13,7 +13,7 @@ import Markdown from '../../ui/Markdown'
 interface Given {
   picked: string[]
   text: string
-  /** A single-select question's typed answer came after its last pick, so it is the answer. */
+  /** The typed text, not a pick, answers a single-select question. */
   own: boolean
   notes: string
 }
@@ -41,7 +41,6 @@ function hasPreview(preview: string | undefined): preview is string {
   return !!preview?.trim()
 }
 
-/** Only a single-select question shows its options' previews, and takes notes beside them. */
 function showsPreviews(question: ApprovalQuestion): boolean {
   return (
     kindOf(question) === 'single' && (question.options ?? []).some((o) => hasPreview(o.preview))
@@ -53,7 +52,7 @@ function answerOf(question: ApprovalQuestion, given: Given | undefined): Approva
   const picked = (question.options ?? [])
     .map((o) => o.label)
     .filter((label) => given?.picked.includes(label))
-  // A multi-select question takes its typed text with its ticks; a single-select one, one or the other.
+  // A single-select question takes a pick or typed text, not both.
   const text = given && (kindOf(question) !== 'single' || given.own) ? given.text.trim() : ''
   const notes = given && showsPreviews(question) ? given.notes.trim() : ''
   return {
@@ -63,7 +62,7 @@ function answerOf(question: ApprovalQuestion, given: Given | undefined): Approva
   }
 }
 
-/** A preview shows as written, unless it fences its own code, when it reads as markdown. */
+// Read as markdown only when it fences its own code.
 function PreviewText({ preview }: { preview: string }) {
   if (/^ {0,3}`{3,}[^`]*$/m.test(preview)) {
     return <Markdown>{preview}</Markdown>
@@ -73,19 +72,17 @@ function PreviewText({ preview }: { preview: string }) {
   )
 }
 
-// A pointer passing over the options on its way elsewhere doesn't flash each preview.
+// A pointer passing over the options doesn't flash each preview.
 const previewHoverDelay = 150
 
 function hasAnswer(answer: ApprovalQuestionAnswer | undefined): boolean {
   return (answer?.picked?.length ?? 0) > 0 || !!answer?.text || !!answer?.notes
 }
 
-/** An answer on one line: the options picked, then the reader's own words. */
 function joinAnswer(answer: ApprovalQuestionAnswer | undefined): string {
   return [...(answer?.picked ?? []), ...(answer?.text ? [answer.text] : [])].join(', ')
 }
 
-/** An ask's questions, answered here when the reader can, or listed with who has to answer. */
 export function AskApproval({
   part,
   onAnswer,
@@ -140,7 +137,7 @@ function AskForm({
   const [active, setActive] = useState(0)
   const body = useRef<HTMLDivElement>(null)
   const submit = useRef<HTMLButtonElement>(null)
-  // The question an answer moved on to, whose first control takes focus once it shows.
+  // The next question's panel isn't rendered yet, so focus moves in an effect.
   const focusNext = useRef<number | null>(null)
   const several = questions.length > 1
   const answers = questions.map((q, i) => answerOf(q, given[i]))
@@ -148,7 +145,6 @@ function AskForm({
   const send = (all: ApprovalQuestionAnswer[], chat: boolean) =>
     onAnswer(id, { kind: 'ask', answers: all, ...(chat ? { chat: true } : {}) })
 
-  // A question with its answer moves on to the next, the last to Submit; a lone one sends.
   const done = (i: number, next: Given) => {
     const all = given.map((g, j) => (j === i ? next : g))
     setGiven(all)
@@ -186,7 +182,7 @@ function AskForm({
 
   const lone = questions[0]
   const loneKind = lone ? kindOf(lone) : 'text'
-  // A lone single-select question sends with a pick, so it needs Send only for a typed answer.
+  // A pick sends a lone single-select question, so Send is only for typed text.
   const sendShown = several || loneKind !== 'single' || hasAnswer(answers[0])
   return (
     <>
@@ -241,7 +237,6 @@ function AskForm({
   )
 }
 
-/** One question's options and own answer: picks for a single-select question, ticks for a multi-select one. */
 function AskQuestionFields({
   question,
   given,
@@ -257,7 +252,7 @@ function AskQuestionFields({
   const t = strings.agentTranscript
   const kind = kindOf(question)
   const options = question.options ?? []
-  // The option the pane shows: focused, or hovered for a moment; past the options, the own answer.
+  // options.length stands for the own-answer row.
   const [shown, setShown] = useState(() =>
     Math.max(
       options.findIndex((o) => given.picked.includes(o.label)),
@@ -279,7 +274,6 @@ function AskQuestionFields({
     }
   }
   const type = (text: string) =>
-    // Typing on a single-select question makes the typed answer the one picked.
     onChange(kind === 'single' ? { ...given, text, own: true, picked: [] } : { ...given, text })
 
   if (kind === 'text') {
@@ -296,7 +290,6 @@ function AskQuestionFields({
     )
   }
   const previews = showsPreviews(question)
-  // The reader's own answer is typed into its row, which is chosen while it holds the answer.
   const ownChosen = typed && (kind === 'multi' || given.own)
   const ownRow = (
     <form onSubmit={submitOwn}>
@@ -383,7 +376,6 @@ function AskQuestionFields({
   }
   const submitNotes = (e: FormEvent) => {
     e.preventDefault()
-    // Enter answers with the pick so far, or the notes alone.
     if (hasAnswer(answerOf(question, given))) {
       onDone(given)
     }
@@ -393,7 +385,7 @@ function AskQuestionFields({
       <div className="flex flex-col gap-2 @md/ask:flex-row">
         <div className="shrink-0 @md/ask:w-56">{rows}</div>
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-          {/* Every pane shares one cell, so the tallest sets its height and moving through the options never shifts what is under it. */}
+          {/* Panes share one cell, so the tallest sets the height and nothing below shifts. */}
           <div className="grid grid-cols-1">
             {options.map((o, i) => (
               <PreviewPane key={o.label} label={o.label} preview={o.preview} shown={i === shown} />
@@ -452,7 +444,7 @@ function PreviewPane({
   )
 }
 
-/** A row's mark, drawn as the package's radio or checkbox is; the row itself is the control. */
+/** Drawn like a radio or checkbox; the row itself is the control. */
 function ChoiceMark({ on, box }: { on: boolean; box: boolean }) {
   return (
     <span
@@ -484,7 +476,7 @@ function OptionText({ label, description }: { label: string; description?: strin
   )
 }
 
-/** A settled ask: each question with what it was given, or the one answer an older record kept. */
+/** An older record has one `answer` in place of `answers`. */
 export function AskAnswered({ part }: { part: ApprovalPart }) {
   const { strings } = useChatConfig()
   const t = strings.agentTranscript

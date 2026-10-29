@@ -145,7 +145,7 @@ export interface SubagentPart {
 export interface ApprovalOption {
   label: string
   description?: string
-  /** Markdown shown beside the options while this one is focused; a multi-select question ignores it. */
+  /** Shown as written unless it fences its own code; a multi-select question ignores it. */
   preview?: string
 }
 
@@ -158,7 +158,7 @@ export interface ApprovalQuestion {
   options?: ApprovalOption[]
 }
 
-/** What one question was given: the options picked, in option order, the reader's own words, and their notes on a question with previews. */
+/** `picked` is in option order; `notes` come only on a question with previews. */
 export interface ApprovalQuestionAnswer {
   picked?: string[]
   text?: string

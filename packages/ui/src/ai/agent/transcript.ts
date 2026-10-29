@@ -26,8 +26,7 @@ function str(v: unknown): string {
   return typeof v === 'string' ? v : ''
 }
 
-/** The questions an AskUserQuestion call asked: its `questions`, or the one
- *  question a call made before several per call. */
+/** Also reads an older call's lone `question`. */
 export function askQuestionsFromArgs(argsJSON: string): ApprovalQuestion[] {
   const a = parseArgs(argsJSON)
   const asked = Array.isArray(a['questions']) ? a['questions'] : [a]
