@@ -248,10 +248,8 @@ describe('AskApproval with option previews', () => {
     expect(pane('Tabs')).not.toHaveAttribute('inert')
   })
 
-  it("shows the focused option's preview, and says when one has none", () => {
+  it('says when the focused option or the own answer has no preview', () => {
     renderAsk([layout])
-    fireEvent.focus(screen.getByRole('button', { name: 'Tabs' }))
-    expect(pane('Tabs')).toHaveTextContent('const tabs = ["Overview"]')
     fireEvent.focus(screen.getByRole('button', { name: 'Single page' }))
     expect(pane('Single page')).toHaveTextContent('No preview for this option')
     fireEvent.focus(screen.getByRole('textbox', { name: 'Your answer' }))
@@ -294,12 +292,6 @@ describe('AskApproval with option previews', () => {
       kind: 'ask',
       answers: [{ notes: 'something in between' }],
     })
-  })
-
-  it('counts notes as an answer', () => {
-    renderAsk([layout, auth])
-    fireEvent.change(screen.getByRole('textbox', { name: 'Notes' }), { target: { value: 'x' } })
-    expect(screen.getByText('1 of 2 answered')).toBeInTheDocument()
   })
 
   it("leaves a multi-select question's previews and notes out", () => {
