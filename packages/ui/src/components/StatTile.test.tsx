@@ -45,9 +45,18 @@ describe('StatTile', () => {
     const { container, rerender } = render(
       <StatTile value={2} label="Running" lamp={{ variant: 'info', pulse: true }} />,
     )
-    expect(container.querySelector('.animate-ping')).not.toBeNull()
+    expect(container.querySelector('[data-ping]')).not.toBeNull()
     rerender(<StatTile value={0} label="Running" lamp={{ variant: 'info', pulse: true }} />)
-    expect(container.querySelector('.animate-ping')).toBeNull()
+    expect(container.querySelector('[data-ping]')).toBeNull()
+  })
+
+  it('holds its pings until the count loads', () => {
+    const { container, rerender } = render(
+      <StatTile value="—" label="Running" lamp={{ variant: 'info', pulse: true }} loading />,
+    )
+    expect(container.querySelector('[data-ping]')).toBeNull()
+    rerender(<StatTile value={2} label="Running" lamp={{ variant: 'info', pulse: true }} />)
+    expect(container.querySelector('[data-ping]')).not.toBeNull()
   })
 
   it('draws a segmented bar under the label, named for assistive technology', () => {

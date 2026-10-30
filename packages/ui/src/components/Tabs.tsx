@@ -1,8 +1,10 @@
 import { Tabs as BaseTabs } from '@base-ui/react/tabs'
 import {
   type CSSProperties,
+  createContext,
   type ReactNode,
   type Ref,
+  useContext,
   useLayoutEffect,
   useRef,
   useState,
@@ -55,6 +57,12 @@ export interface TabsProps<Value extends string> extends SegmentLayout {
   /** Pins the tab row as the page scrolls, just below whatever the page's
    *  scroller already pins at the top, such as the page header and a toolbar. */
   sticky?: boolean | undefined
+  /** Keeps the panels as tall as the tallest, so changing tabs moves nothing
+   *  below them. Every panel stays mounted, so it suits a few light panels, and a
+   *  closed panel's fields still submit, and still validate, with a form around it. The
+   *  `TabPanel`s share one grid cell, so they must be the children, with no
+   *  element around them and nothing else beside them. */
+  steadyHeight?: boolean | undefined
   /** On the tab row. */
   className?: string | undefined
   testId?: string | undefined
@@ -68,6 +76,9 @@ export interface TabsProps<Value extends string> extends SegmentLayout {
 const TAB_FADE_PX = 48
 // The arrow at an end that hides tabs, over the fade's outer half, where no tab text shows.
 const ARROW_PX = 24
+
+// Panels of steady-height tabs share one grid cell, so the cell is as tall as the tallest.
+const SteadyHeight = createContext(false)
 
 // A toned tab keeps its tone while current; the underline still marks it.
 const lineTone: Record<SegmentTone, string> = {
@@ -90,6 +101,7 @@ export function Tabs<Value extends string>({
   size = 'md',
   end,
   sticky,
+  steadyHeight = false,
   className,
   testId,
   children,
@@ -201,6 +213,11 @@ export function Tabs<Value extends string>({
                 segmented
                   ? segmentGroupClassName(layout)
                   : 'relative flex min-w-0 overflow-x-auto rtl:[--fade-end:left]',
+                // The row is a flex box, so a group that fills grows to its width, as a
+                // SegmentedControl's does in a block.
+                segmented &&
+                  !layout.iconOnly &&
+                  (fill === 'narrow' ? 'max-sm:flex-1' : fill && 'flex-1'),
               )}
             >
               {tabs}
@@ -218,7 +235,12 @@ export function Tabs<Value extends string>({
           {end}
         </div>
       )}
-      {children}
+      {/* Provided either way, so tabs nested in a steady panel don't take on its height. A
+          column of `minmax(0, 1fr)` keeps a wide panel, such as a table that scrolls sideways,
+          from widening every panel past the box. */}
+      <SteadyHeight.Provider value={steadyHeight}>
+        {steadyHeight && children ? <div className="grid grid-cols-1">{children}</div> : children}
+      </SteadyHeight.Provider>
     </BaseTabs.Root>
   )
 }
@@ -271,12 +293,19 @@ export function TabPanel({
   className?: string | undefined
   children: ReactNode
 }) {
+  const steady = useContext(SteadyHeight)
   return (
     <BaseTabs.Panel
       value={value}
-      keepMounted={keepMounted}
+      keepMounted={steady || keepMounted}
+      // A closed panel keeps its space: invisible, and inert as Base UI makes it, rather than
+      // `hidden`, which takes it out of the layout. Spread, since an undefined `hidden` would
+      // replace Base UI's own. Hidden by `inert`, which Base UI sets as the panel closes, not
+      // `data-hidden`, which waits for its exit to finish while it would show over the open one.
+      {...(steady ? { hidden: false } : {})}
       className={cx(
         'rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--theme-focus)',
+        steady && '[grid-area:1/1] [&[inert]]:invisible',
         className,
       )}
     >
