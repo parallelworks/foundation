@@ -380,6 +380,17 @@ export const ToolsDialogApprovals: StoryObj<ToolsMenuStoryArgs> = {
   },
 }
 
+export const ToolsDialogLookups: StoryObj<ToolsMenuStoryArgs> = {
+  ...ToolsDialog,
+  play: async ({ canvasElement }) => {
+    const dialog = await openToolsDialog(canvasElement)
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Lookups' }))
+    await expect(within(dialog).getAllByRole('switch')).toHaveLength(
+      makeManyTools().filter((tool) => !tool.asksFirst).length,
+    )
+  },
+}
+
 export const ToolsDialogEmpty: StoryObj<ToolsMenuStoryArgs> = {
   ...ToolsDialog,
   play: async ({ canvasElement }) => {
