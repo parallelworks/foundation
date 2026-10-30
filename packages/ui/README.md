@@ -60,6 +60,14 @@ even for a one-word name. The host sets the tints with `--avatar-person`,
 edge `--avatar-agent-ring`. An agent's avatar (`kind="agent"`) is a rounded
 square under either coloring, so its shape and not only its color sets it apart.
 
+A few controls take a single key from anywhere on the page: F opens a list's
+filter menu and / its search. Speech input can press them by accident, so WCAG
+2.1.4 asks for a way to turn them off. Give people a setting for it and pass
+`characterKeyShortcuts={false}` while it's off: the keys stop working and the
+tooltips and `aria-keyshortcuts` stop offering them. Shortcuts with a modifier,
+such as ⌘F, stay. `useCharacterKeyShortcuts()` reads it, for a host's own
+single-key shortcuts.
+
 A run's warnings and the workflow editor's problems may carry a problem `code`, `params` and
 `type`, as a server's problem details do. Bind `data.useProblemMessage` to `useCodeMessage` from
 `@parallelworks/problem/react`, and they read in the app's language: the message at
@@ -1380,6 +1388,13 @@ imports; there is no need to load both forms.
 Define story components at module scope and pass preview arguments as props.
 Update adapters and other memoized values through their hook dependencies.
 Use an explicit `key` only when a fixture intentionally needs a fresh start.
+
+The Code panel displays authored story definitions so published builds keep
+readable component names. These snippets are static; Controls still update the
+preview. For composed demos, set `parameters.docs.source.code` from a `?raw`
+source import to include helper components and fixture data with the example.
+Stories can opt into `parameters.docs.source.type: 'dynamic'` when live argument
+substitution is useful.
 
 The component-factory lint rule stays enabled for components, stories, and
 preview helpers. Tests may define a local fixture once for a render result;

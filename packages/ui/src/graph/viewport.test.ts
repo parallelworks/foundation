@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   enclosing,
   FIT_MAX_SCALE,
+  fitShrinking,
+  fitStill,
   fitView,
   intoReach,
   intoView,
@@ -134,6 +136,67 @@ describe('fitView', () => {
 
   it('has nothing to fit without a graph', () => {
     expect(fitView({ minX: 0, minY: 0, maxX: 0, maxY: 0 }, panel)).toBeNull()
+  })
+})
+
+describe('fitStill', () => {
+  it('shows a small graph at the closest a fit comes, centered across, the panel its height', () => {
+    const fit = fitStill({ minX: 100, minY: 50, maxX: 400, maxY: 150 }, 420, 240)
+    expect(fit?.view.scale).toBe(FIT_MAX_SCALE)
+    expect(fit?.view.x).toBeCloseTo((420 - 300 * FIT_MAX_SCALE) / 2 - 100 * FIT_MAX_SCALE)
+    expect(fit?.view.y).toBeCloseTo(12 - 50 * FIT_MAX_SCALE)
+    expect(fit?.height).toBe(Math.ceil(100 * FIT_MAX_SCALE + 24))
+  })
+
+  it('fits a wide graph to the panel’s width, the panel no taller than the graph', () => {
+    const fit = fitStill({ minX: 0, minY: 0, maxX: 6000, maxY: 200 }, 420, 240)
+    const scale = 396 / 6000
+    expect(fit?.view.scale).toBeCloseTo(scale)
+    expect(fit?.view.x).toBeCloseTo(12)
+    expect(fit?.height).toBe(Math.ceil(200 * scale + 24))
+  })
+
+  it('stops a tall graph at the most height it has, centered across', () => {
+    const fit = fitStill({ minX: 0, minY: 0, maxX: 400, maxY: 4000 }, 420, 240)
+    const scale = 216 / 4000
+    expect(fit?.view.scale).toBeCloseTo(scale)
+    expect(fit?.view.x).toBeCloseTo((420 - 400 * scale) / 2)
+    expect(fit?.height).toBe(240)
+  })
+
+  it('has nothing to fit without a graph or a panel', () => {
+    expect(fitStill({ minX: 0, minY: 0, maxX: 0, maxY: 0 }, 420, 240)).toBeNull()
+    expect(fitStill({ minX: 0, minY: 0, maxX: 10, maxY: 10 }, 0, 240)).toBeNull()
+  })
+})
+
+describe('fitShrinking', () => {
+  // A panel as tall as its graph, 24 under it, and no shorter than 160.
+  const heightAt =
+    (bottom: number) =>
+    ({ y, scale }: { y: number; scale: number }) =>
+      Math.max(160, Math.ceil(bottom * scale + y + 24))
+  const tall = { width: 1200, height: 1000 }
+
+  it('fits a graph from the corner of the panel it shrinks to, where the next fit leaves it', () => {
+    const job = { minX: 100, minY: 100, maxX: 400, maxY: 160 }
+    const view = fitShrinking(job, tall, heightAt(job.maxY))
+    // A margin of 5% of the 160 the panel shrinks to, not of the 1000 it starts at.
+    expect(fitView(job, tall)?.y).toBe(50 - 100 * FIT_MAX_SCALE)
+    expect(view).toEqual({
+      x: 8 - 100 * FIT_MAX_SCALE,
+      y: 8 - 100 * FIT_MAX_SCALE,
+      scale: FIT_MAX_SCALE,
+    })
+    expect(fitView(job, { width: tall.width, height: 160 })).toEqual(view)
+  })
+
+  it('settles a panel taller than its least height in a few steps', () => {
+    const graph = { minX: 0, minY: 0, maxX: 600, maxY: 500 }
+    const view = fitShrinking(graph, tall, heightAt(graph.maxY))
+    const settled = view && heightAt(graph.maxY)(view)
+    expect(settled).toBeGreaterThan(160)
+    expect(settled && fitView(graph, { width: tall.width, height: settled })).toEqual(view)
   })
 })
 

@@ -1,5 +1,48 @@
 # Changelog
 
+## [0.105.0](https://github.com/parallelworks/foundation/compare/ui-v0.104.0...ui-v0.105.0) (2026-10-30)
+
+
+### Features
+
+* **ui:** tool presentations can use their message context ([#588](https://github.com/parallelworks/foundation/issues/588)) ([0868cc7](https://github.com/parallelworks/foundation/commit/0868cc73c0b933a1a2e8f63023acb6a168892189))
+
+## [0.104.0](https://github.com/parallelworks/foundation/compare/ui-v0.103.1...ui-v0.104.0) (2026-10-30)
+
+
+### Features
+
+* **ui:** a still run graph, each job tinted by its status, to preview in a hover card ([#585](https://github.com/parallelworks/foundation/issues/585)) ([37dafe9](https://github.com/parallelworks/foundation/commit/37dafe9747361b10643afadb73d251939e2a9b50))
+
+
+### Bug Fixes
+
+* **ui:** explorer panes overlap on phones ([#586](https://github.com/parallelworks/foundation/issues/586)) ([21643cc](https://github.com/parallelworks/foundation/commit/21643ccb1aa3f78660701d1f443a75f8a03a9dbb))
+
+## [0.103.1](https://github.com/parallelworks/foundation/compare/ui-v0.103.0...ui-v0.103.1) (2026-10-30)
+
+
+### Bug Fixes
+
+* **ui:** a run's graph opens in its corner instead of jumping there at the next update ([#583](https://github.com/parallelworks/foundation/issues/583)) ([afc2d3c](https://github.com/parallelworks/foundation/commit/afc2d3c0091675c5a9e04ae634863a5f576e1b6d))
+* **ui:** dropdown searches trigger credential prompts ([#579](https://github.com/parallelworks/foundation/issues/579)) ([b61f8ee](https://github.com/parallelworks/foundation/commit/b61f8eec98b400ff365c7a8b31702de5fcfeb987))
+* **ui:** show authored source in Storybook ([#582](https://github.com/parallelworks/foundation/issues/582)) ([2d43516](https://github.com/parallelworks/foundation/commit/2d435164f123e17deb76bc47afe2349b0b21c3fa))
+* **ui:** tools dialog is oversized and off-center ([#584](https://github.com/parallelworks/foundation/issues/584)) ([17b5bfb](https://github.com/parallelworks/foundation/commit/17b5bfb8d26728e39cecfc92bb438d0422b4ff09))
+
+## [0.103.0](https://github.com/parallelworks/foundation/compare/ui-v0.102.0...ui-v0.103.0) (2026-10-29)
+
+
+### Features
+
+* **ui:** file explorer transfer limit for downloads and uploads ([#577](https://github.com/parallelworks/foundation/issues/577)) ([fe6f393](https://github.com/parallelworks/foundation/commit/fe6f393e32975ad54358dad7dcc02395b87e620f))
+
+
+### Bug Fixes
+
+* **ui:** a drawer's brand link shows its whole focus ring ([#578](https://github.com/parallelworks/foundation/issues/578)) ([7406068](https://github.com/parallelworks/foundation/commit/7406068bb6f169811cd46b44685c7362485a139d))
+* **ui:** a list's single-key shortcuts can be turned off, and its pager and search box keep focus ([#576](https://github.com/parallelworks/foundation/issues/576)) ([353ebfd](https://github.com/parallelworks/foundation/commit/353ebfdc60d3b3f44d730e116a387721b8ad7278))
+* **ui:** preserve state across renderer and story updates ([#574](https://github.com/parallelworks/foundation/issues/574)) ([9c2c328](https://github.com/parallelworks/foundation/commit/9c2c328c6083408d0073db7944fde7a0c96737b3))
+
 ## [0.102.0](https://github.com/parallelworks/foundation/compare/ui-v0.101.1...ui-v0.102.0) (2026-10-28)
 
 
