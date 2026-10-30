@@ -5,6 +5,10 @@ import { useState } from 'react'
 import { UIProvider } from '../components/Provider'
 import {
   applyChange,
+  PROJECT,
+  PROJECT_GRANTS,
+  PROJECT_PEOPLE,
+  PROJECT_ROLES,
   WORKSPACE,
   WORKSPACE_ADMINS,
   WORKSPACE_GRANTS,
@@ -86,6 +90,55 @@ describe('AccessPanel', () => {
         'Viewer',
       ),
     )
+  })
+
+  it('takes a role one holds at a time from its holder when a row changes to it', async () => {
+    const onChange = vi.fn(() => Promise.resolve())
+    render(
+      <UIProvider>
+        <AccessPanel
+          resourceName={PROJECT}
+          roles={PROJECT_ROLES}
+          principals={PROJECT_PEOPLE}
+          grants={PROJECT_GRANTS}
+          singleRole
+          onChange={onChange}
+        />
+      </UIProvider>,
+    )
+    fireEvent.click(screen.getByRole('combobox', { name: 'Role for Ana Ruiz' }))
+    const lead = await screen.findByRole('option', { name: /^Lead/ })
+    fireEvent.pointerDown(lead)
+    fireEvent.click(lead)
+    await waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith({
+        grant: [{ principalId: 'u-ana', roleId: 'lead' }],
+        revoke: [
+          { principalId: 'u-ana', roleId: 'deputy' },
+          { principalId: 'u-tom', roleId: 'lead' },
+        ],
+      }),
+    )
+  })
+
+  it('says the row’s role didn’t change when taking a role one holds at a time fails', async () => {
+    render(
+      <UIProvider>
+        <AccessPanel
+          resourceName={PROJECT}
+          roles={PROJECT_ROLES}
+          principals={PROJECT_PEOPLE}
+          grants={PROJECT_GRANTS}
+          singleRole
+          onChange={() => Promise.reject(new Error('The server didn’t respond.'))}
+        />
+      </UIProvider>,
+    )
+    fireEvent.click(screen.getByRole('combobox', { name: 'Role for Ana Ruiz' }))
+    const lead = await screen.findByRole('option', { name: /^Lead/ })
+    fireEvent.pointerDown(lead)
+    fireEvent.click(lead)
+    expect(await screen.findByText('Couldn’t change Ana Ruiz to Lead')).toBeInTheDocument()
   })
 
   it('switches who can see it, and says when that fails', async () => {

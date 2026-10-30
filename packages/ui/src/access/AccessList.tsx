@@ -23,6 +23,7 @@ import {
   type Overlap,
   overlapOf,
   removalOf,
+  replacedHolders,
 } from './model'
 import { PrincipalTile } from './PrincipalPicker'
 import type { AccessStrings } from './strings'
@@ -781,6 +782,17 @@ function rowMenu(actions: ListActions, entries: () => MenuEntry[]) {
   }
 }
 
+/** Who giving `principalId` a role one holds at a time takes it from, as the role's hint. */
+function replacesHint(
+  model: AccessModel,
+  principalId: string,
+  role: AccessRole,
+  t: AccessStrings,
+): string | undefined {
+  const from = replacedHolders(model, role.id, [principalId])
+  return from.length > 0 ? t.replaces(from.map((holder) => principalLabel(holder, t))) : undefined
+}
+
 /** A principal's row menu: its role, where each holds one, more roles otherwise, then removal. */
 function rowEntries(
   model: AccessModel,
@@ -797,7 +809,10 @@ function rowEntries(
           icon: <KeyIcon />,
           items: model.grantable.map((role) => ({
             label: role.name,
-            description: role.description,
+            description:
+              [role.description, replacesHint(model, principal.id, role, t)]
+                .filter(Boolean)
+                .join(' ') || undefined,
             checked: held.has(role.id),
             onClick: () => {
               if (!held.has(role.id) || held.size > 1) {
@@ -954,7 +969,11 @@ export function ByPrincipalSingle({ model, order, actions, t, sectionId }: ViewP
     const options = [
       ...model.grantable,
       ...(role && !model.grantable.includes(role) ? [role] : []),
-    ].map((r) => ({ value: r.id, label: r.name }))
+    ].map((r) => ({
+      value: r.id,
+      label: r.name,
+      description: replacesHint(model, principalId, r, t),
+    }))
     const control = owner ? (
       <StatusBadge size="md" variant="info">
         {t.owner}
