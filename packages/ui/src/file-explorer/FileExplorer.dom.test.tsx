@@ -558,6 +558,33 @@ describe('FileExplorer storages prop', () => {
   })
 })
 
+describe('FileExplorer storage groups', () => {
+  it('opens the group of a deep-linked storage that joins after mount', async () => {
+    const script = scriptedStorage()
+    const grouped = { ...storage, group: '~buckets' }
+    const view = (storages: TStorage[]) => (
+      <FileExplorerProvider>
+        <FileExplorer
+          getProviderAndClient={script.getProviderAndClient}
+          storages={storages}
+          storageGroups={[{ id: '~buckets', label: 'Buckets' }]}
+          selectedPath={FOLDER_A}
+          onPathChange={() => {}}
+          showUserHierarchy
+        />
+      </FileExplorerProvider>
+    )
+    const { rerender } = render(view([]))
+    await act(async () => {})
+
+    rerender(view([grouped]))
+    await act(async () => {})
+
+    expect(await findTreeItem('Buckets')).toHaveAttribute('aria-expanded', 'true')
+    expect(await findTreeItem('one.txt')).toBeInTheDocument()
+  })
+})
+
 describe('FileExplorer storage removal', () => {
   const other: TStorage = { ...storage, id: 'storage-2', name: 'other', displayName: 'other' }
   const OTHER_ROOT = `${other.user}/${other.name}/`

@@ -302,6 +302,40 @@ describe('createTreeBuilder grouping', () => {
     expect(Object.keys(treeMap).sort()).toEqual(['nat/', 'nat/bkt1/'])
   })
 
+  it('files storages into their type folders after the ungrouped ones', () => {
+    const { parentToChildrenMap, treeMap } = buildTree(
+      [
+        { ...bucket('c', 'zeta', 'nat'), group: '~clusters' },
+        bucket('w', 'workspace', 'nat'),
+        { ...bucket('b', 'data', 'nat'), group: '~buckets' },
+        { ...bucket('a', 'alpha', 'nat'), group: '~clusters' },
+        { ...bucket('x', 'odd', 'nat'), group: '~unknown' },
+      ],
+      {
+        listings: new Map(),
+        storageGroups: [
+          { id: '~clusters', label: 'Clusters' },
+          { id: '~instances', label: 'Instances' },
+          { id: '~buckets', label: 'Buckets' },
+        ],
+      },
+    )
+
+    expect(parentToChildrenMap['nat/']?.map((node) => node.path)).toEqual([
+      'nat/odd/',
+      'nat/workspace/',
+      'nat/~clusters/',
+      'nat/~buckets/',
+    ])
+    expect(treeMap['nat/~clusters/']).toMatchObject({ name: 'Clusters', group: true })
+    expect(parentToChildrenMap['nat/~clusters/']?.map((node) => node.path)).toEqual([
+      'nat/alpha/',
+      'nat/zeta/',
+    ])
+    expect(treeMap['nat/zeta/']?.groupPath).toBe('nat/~clusters/')
+    expect(treeMap['nat/workspace/']?.groupPath).toBeUndefined()
+  })
+
   it("files each directory's entries under the storage whose root prefixes it", () => {
     const { parentToChildrenMap } = buildTree(
       [bucket('a', 'bkt', 'nat'), bucket('b', 'bkt2', 'nat')],

@@ -106,7 +106,7 @@ import {
   retainListings,
   type TListings,
 } from './lib/paging'
-import type { ExplorerObject, TreeNode, TStorage, UploadNode } from './lib/types'
+import type { ExplorerObject, TreeNode, TStorage, TStorageGroup, UploadNode } from './lib/types'
 import {
   calculateUploadNodesTotalSize,
   createTreeBuilder,
@@ -116,6 +116,7 @@ import {
   getNodeChildren,
   getObjectKeyFromNode,
   getParentPath,
+  getStorageRoots,
   getUploadNodesFromDataTransferItems,
   getUriScheme,
   pruneNodesInsideSelectedDirectories,
@@ -175,6 +176,7 @@ type IFileExplorerProps = ExplorerNavigation & {
    * return false to fall through to the built-in preview. */
   onOpenFile?: ((node: TreeNode, storage: TStorage | undefined) => boolean) | undefined
   showUserHierarchy?: boolean
+  storageGroups?: readonly TStorageGroup[] | undefined
   groups?: { name: string; id?: string | undefined }[] | undefined
   groupsLoading?: boolean
   selectedPath: string
@@ -284,6 +286,7 @@ export default function FileExplorer({
   refreshKey,
   onOpenFile,
   showUserHierarchy = false,
+  storageGroups,
   groups = [],
   groupsLoading = false,
   selectedPath,
@@ -342,9 +345,10 @@ export default function FileExplorer({
       buildTree(storages, {
         listings,
         forceUserHierarchy: showUserHierarchy,
+        storageGroups,
         unsortedParents: incompleteDirs,
       }),
-    [buildTree, storages, listings, showUserHierarchy, incompleteDirs],
+    [buildTree, storages, listings, showUserHierarchy, storageGroups, incompleteDirs],
   )
 
   const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set())
@@ -428,12 +432,9 @@ export default function FileExplorer({
 
   const storageRoots = useMemo(() => {
     const roots = new Map<string, string>()
-    for (const node of rootNodes) {
-      const candidates = node.root ? [node] : (parentToChildrenMap[node.path] ?? [])
-      for (const root of candidates) {
-        if (root.root && root.storageId) {
-          roots.set(root.storageId, root.path)
-        }
+    for (const root of getStorageRoots(parentToChildrenMap, rootNodes)) {
+      if (root.storageId) {
+        roots.set(root.storageId, root.path)
       }
     }
     return roots
@@ -690,11 +691,17 @@ export default function FileExplorer({
     }
   }
 
+  const selectedGroupPath = getAncestorDirPaths(normalizedSelectedPath)
+    .map((path) => treeMap[path]?.groupPath)
+    .find(Boolean)
   useEffect(() => {
     if (!normalizedSelectedPath) {
       return
     }
     const ancestors = getAncestorDirPaths(normalizedSelectedPath)
+    if (selectedGroupPath) {
+      ancestors.unshift(selectedGroupPath)
+    }
     if (ancestors.length === 0) {
       return
     }
@@ -708,7 +715,7 @@ export default function FileExplorer({
       }
       return next
     })
-  }, [normalizedSelectedPath])
+  }, [normalizedSelectedPath, selectedGroupPath])
 
   // One request per run, each settling into an update that re-triggers this effect
   // until the chain resolves or reports itself stuck. useLayoutEffect so
@@ -1727,7 +1734,7 @@ export default function FileExplorer({
                         node={rootNode}
                         icon={getNodeIcon(rootNode)}
                         href={href}
-                        storageCount={getNodeChildren(parentToChildrenMap, rootNode.path).length}
+                        storageCount={getStorageRoots(parentToChildrenMap, [rootNode]).length}
                         getItems={() => [
                           href
                             ? { ...open, href }
