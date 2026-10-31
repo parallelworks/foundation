@@ -142,6 +142,30 @@ describe('ListRow stacked columns', () => {
     expect(cells[0]).not.toHaveTextContent('Lisbon')
   })
 
+  it('gives the name the rest of the row on a phone, and at every width once it stands alone', () => {
+    const row = (columnClasses: string[]) =>
+      render(
+        <ListRowActionsProvider view={{ ...view, columnClasses, columnStacks: [] }}>
+          <table>
+            <tbody>
+              <ListRow href={null} items={[]} goTo={() => {}} openMenu={() => {}}>
+                {columnClasses.map((_, i) => (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: fixed cells
+                  <Table.Item key={i}>cell</Table.Item>
+                ))}
+              </ListRow>
+            </tbody>
+          </table>
+        </ListRowActionsProvider>,
+      )
+    const { unmount } = row(['', ''])
+    expect(screen.getAllByRole('cell')[0]).toHaveClass('@max-[36rem]:w-auto!')
+    expect(screen.getAllByRole('cell')[0]).not.toHaveClass('w-auto!')
+    unmount()
+    row([''])
+    expect(screen.getAllByRole('cell')[0]).toHaveClass('w-auto!')
+  })
+
   it('stacks under a NameCell too, past its icon and outside its link', () => {
     render(
       <ListRowActionsProvider
@@ -567,6 +591,26 @@ describe('ListColumns sorting', () => {
     expect(header('Nodes')).toHaveAttribute('aria-sort', 'ascending')
   })
 
+  it('reads a saved order the list no longer offers as its default, in every control', async () => {
+    window.localStorage.setItem('sortable-list:orderBy', JSON.stringify('renamed'))
+    render(<SortableList favorites />)
+    expect(screen.getByRole('button', { name: 'Default order, ascending' })).toBeInTheDocument()
+    openDisplay()
+    expect(screen.getByRole('combobox', { name: 'Ordering' })).toHaveTextContent('Default')
+    // Nothing the viewer chose differs from the list's defaults, so there is nothing to reset.
+    expect(screen.queryByRole('button', { name: 'Reset' })).toBeNull()
+  })
+
+  it('reads a stale saved order as the default the host names', () => {
+    window.localStorage.setItem('sortable-list:orderBy', JSON.stringify('owner'))
+    render(<SortableList />)
+    expect(header('Name')).toHaveAttribute('aria-sort', 'ascending')
+    expect(names()).toEqual(['alpha', 'beta', 'gamma'])
+    openDisplay()
+    expect(screen.getByRole('combobox', { name: 'Ordering' })).toHaveTextContent('Name')
+    expect(screen.queryByRole('button', { name: 'Reset' })).toBeNull()
+  })
+
   it('shows no column as sorted under the built-in default order', () => {
     render(<SortableList favorites />)
     expect(header('Name')).toHaveAttribute('aria-sort', 'none')
@@ -597,6 +641,16 @@ describe('ListColumns on a phone', () => {
     // Over any share a host's class gives it at wider widths.
     expect(header('Name')).toHaveClass('@max-[36rem]:w-auto!')
     expect(header('Nodes')).not.toHaveClass('@max-[36rem]:w-auto!')
+  })
+
+  it('gives the name the rest of the row at every width with every other column hidden', () => {
+    window.localStorage.setItem('sortable-list:hiddenColumns', JSON.stringify(['nodes', 'owner']))
+    render(<SortableList />)
+    expect(screen.getAllByRole('columnheader')[0]).toHaveTextContent('Name')
+    // As a row's name cell does: the header alone sizes a fixed-layout table.
+    expect(header('Name')).toHaveClass('w-auto!')
+    // Nothing gives way, so the name's header keeps its title rather than a sort menu.
+    expect(screen.queryByRole('button', { name: /^Sorted by/ })).toBeNull()
   })
 
   it('says what the list is sorted by and which way in the name’s header', () => {
@@ -636,7 +690,7 @@ describe('ListColumns on a phone', () => {
   it('names the built-in default order as a phrase of its own', () => {
     render(<SortableList favorites />)
     const menu = screen.getByRole('button', { name: 'Default order, ascending' })
-    expect(menu).toHaveTextContent('Default order')
+    expect(menu).toHaveTextContent('Default')
   })
 
   it('takes the default order’s phrase from the host, not its label set into "Sorted by"', () => {

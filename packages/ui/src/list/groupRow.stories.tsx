@@ -720,14 +720,16 @@ const HOST_WORKSPACES: HostWorkspace[] = [
   },
 ]
 
+const HOST_WORKSPACES_KEY = 'workshop-host-workspaces'
+
 /** A workspaces list as a host builds it: a checkbox before the columns, and the name's header
  *  with a share of the list as its own class at every width, as `w-[22%]`, rather than as
  *  `ColumnDef.width`. Every other column stacks under the name on a phone. */
-function HostWorkspacesDemo() {
+function HostWorkspacesDemo({ storageKey = HOST_WORKSPACES_KEY }: { storageKey?: string }) {
   const goTo = useListNavigate()
   const { openMenu } = useContextMenu()
   const view = useListView<HostWorkspace>({
-    storageKey: 'workshop-host-workspaces',
+    storageKey,
     columns: [
       {
         key: 'name',
@@ -877,6 +879,42 @@ export const HostWidthClassPhone: StoryObj = {
   render: () => (
     <div style={{ width: 390, height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <HostWorkspacesDemo />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    await expectCheckboxBesideIcon(canvasElement)
+  },
+}
+
+// The viewer has hidden every column but the name in Display options; the list's icon stays.
+const NAME_ONLY_KEY = `${HOST_WORKSPACES_KEY}:name-only`
+const hideAllButName = () => {
+  localStorage.setItem(
+    `${NAME_ONLY_KEY}:hiddenColumns`,
+    JSON.stringify(['owner', 'organization', 'image', 'status', 'created']),
+  )
+  return () => localStorage.removeItem(`${NAME_ONLY_KEY}:hiddenColumns`)
+}
+
+/** The same list with every column but the name hidden, at desktop width: with no other column
+ *  to take the rest of the row, the name takes it over its 22%, rather than leave it as a gap
+ *  between the checkbox and the name. */
+export const HostWidthClassNameOnly: StoryObj = {
+  beforeEach: hideAllButName,
+  render: () => <HostWorkspacesDemo storageKey={NAME_ONLY_KEY} />,
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getAllByRole('columnheader')).toHaveLength(3)
+    await expectCheckboxBesideIcon(canvasElement)
+  },
+}
+
+/** The same on a 390px phone, where nothing is left to stack or drop: the name's header takes
+ *  the rest of the row as its cells do. */
+export const HostWidthClassNameOnlyPhone: StoryObj = {
+  beforeEach: hideAllButName,
+  render: () => (
+    <div style={{ width: 390, height: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <HostWorkspacesDemo storageKey={NAME_ONLY_KEY} />
     </div>
   ),
   play: async ({ canvasElement }) => {

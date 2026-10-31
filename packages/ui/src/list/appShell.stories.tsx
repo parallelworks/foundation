@@ -530,6 +530,31 @@ export const NarrowSortedByStatus: Story = {
   },
 }
 
+/** A viewer saved an order and a grouping the list has since renamed or dropped. The list reads
+ *  them as its defaults, as if nothing were saved: Display options names the default order and
+ *  no grouping, and offers no Reset the viewer never asked for. */
+export const SavedChoicesNoLongerOffered: Story = {
+  beforeEach: () => {
+    const key = 'workshop-app-shell-clusters'
+    localStorage.setItem(`${key}:orderBy`, JSON.stringify('renamed-default'))
+    localStorage.setItem(`${key}:groupBy`, JSON.stringify('region'))
+    return () => {
+      for (const name of ['orderBy', 'groupBy']) {
+        localStorage.removeItem(`${key}:${name}`)
+      }
+    }
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('button', { name: 'Display options' }))
+    await expect(await screen.findByRole('combobox', { name: 'Ordering' })).toHaveTextContent(
+      'Default',
+    )
+    await expect(screen.getByRole('combobox', { name: 'Grouping' })).toHaveTextContent('None')
+    await expect(screen.queryByRole('button', { name: 'Reset' })).toBeNull()
+  },
+}
+
 /** Rows whose Status is empty add nothing under the name. */
 export const NarrowWithSomeStatusesEmpty: Story = { args: { narrow: true, sparseStatus: true } }
 
