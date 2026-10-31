@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.105.1](https://github.com/parallelworks/foundation/compare/ui-v0.105.0...ui-v0.105.1) (2026-10-31)
+
+
+### Bug Fixes
+
+* **ui:** a list forgets a saved sort it no longer offers, and its name header fills a phone even with every other column hidden ([#595](https://github.com/parallelworks/foundation/issues/595)) ([b37d841](https://github.com/parallelworks/foundation/commit/b37d841f6baf1b0b894323f38d558f574a8dee25))
+* **ui:** a run's graph drawn twice on a page puts the second one's connectors on the first one's jobs ([#590](https://github.com/parallelworks/foundation/issues/590)) ([375f15b](https://github.com/parallelworks/foundation/commit/375f15b1da6dd43b513ce97d2004e76e9dd32b31))
+* **ui:** status lamps that never stop, tabs that move the page, live warnings that go unread and status names that lose their end ([#591](https://github.com/parallelworks/foundation/issues/591)) ([045930f](https://github.com/parallelworks/foundation/commit/045930f9573537fd3b6ba3a0fd02e8766a03c291))
+
 ## [0.105.0](https://github.com/parallelworks/foundation/compare/ui-v0.104.0...ui-v0.105.0) (2026-10-30)
 
 
