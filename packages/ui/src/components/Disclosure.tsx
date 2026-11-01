@@ -33,6 +33,10 @@ export interface DisclosureProps {
    *  that says why a row failed. They sit outside the toggle, so no button holds another and
    *  each is its own stop for Tab; a click on the rest of the line still toggles. */
   summaryControls?: ReactNode
+  /** The summary keeps its width, up to two thirds of the line, and the actions give way
+   *  first, for a row whose summary names it, such as a cluster beside its address. In the
+   *  actions, text that may shorten takes `min-w-0 truncate` and buttons take `shrink-0`. */
+  summaryFirst?: boolean | undefined
   /** On the whole disclosure, summary and detail, such as a row's own menu. */
   onContextMenu?: MouseEventHandler<HTMLDivElement> | undefined
   children: ReactNode
@@ -54,18 +58,24 @@ export function Disclosure({
   chevron = true,
   actions,
   summaryControls,
+  summaryFirst = false,
   onContextMenu,
   children,
 }: DisclosureProps) {
   const trigger = useRef<HTMLButtonElement>(null)
   const hasControls =
     summaryControls !== undefined && summaryControls !== null && summaryControls !== false
+  const actionsClassName = cx(
+    'flex items-center gap-1',
+    summaryFirst ? 'min-w-0 justify-end' : 'shrink-0',
+  )
   const toggle = (
     <Collapsible.Trigger
       ref={trigger}
       className={cx(
         'group/disclosure flex min-w-0 items-start gap-2 rounded-sm text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--theme-focus)',
         disabled ? 'cursor-default' : 'cursor-pointer',
+        summaryFirst && hasControls && 'max-w-2/3 shrink-0',
         summaryClassName,
       )}
     >
@@ -98,12 +108,14 @@ export function Disclosure({
             className={cx('min-w-0 flex-1 self-stretch', !disabled && 'cursor-pointer')}
             onClick={() => trigger.current?.click()}
           />
-          {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
+          {actions && <div className={actionsClassName}>{actions}</div>}
         </div>
       ) : actions ? (
         <div className="flex min-w-0 items-center gap-2">
-          <div className="flex min-w-0 flex-1">{toggle}</div>
-          <div className="flex shrink-0 items-center gap-1">{actions}</div>
+          <div className={cx('flex', summaryFirst ? 'max-w-2/3 shrink-0' : 'min-w-0 flex-1')}>
+            {toggle}
+          </div>
+          <div className={cx(actionsClassName, summaryFirst && 'flex-1')}>{actions}</div>
         </div>
       ) : (
         toggle

@@ -585,3 +585,66 @@ export const DisclosureRowWithControls: StoryObj = {
     await waitFor(() => expect(toggle).toHaveAttribute('aria-expanded', 'true'))
   },
 }
+
+/** A row whose summary names it keeps the name whole, up to two thirds of the line, and its
+ *  actions give way first: the address beside it shortens while the buttons keep their size.
+ *  A name too long for two thirds of the line still shortens. Drag the frame narrower to see
+ *  which gives way. */
+export const DisclosureRowSummaryFirst: StoryObj<{ summaryFirst: boolean }> = {
+  args: { summaryFirst: true },
+  argTypes: {
+    summaryFirst: { description: 'The summary keeps its width and the actions give way first.' },
+  },
+  render: ({ summaryFirst }) => (
+    <div className="w-72 max-w-full rounded-xl border theme-border text-sm">
+      {[
+        { name: 'cfd-prod', address: 'devadmin@54.201.18.77', failed: false },
+        { name: 'genomics', address: 'devadmin@34.123.45.9', failed: false },
+        { name: 'wrf-ensemble-with-a-long-name', address: 'devadmin@10.20.4.11', failed: true },
+      ].map(({ name, address, failed }) => (
+        <Disclosure
+          key={name}
+          chevron={false}
+          summaryFirst={summaryFirst}
+          className="border-b theme-border px-3 py-2 last:border-b-0"
+          summaryClassName="items-center"
+          summary={
+            <>
+              <StatusDot variant={failed ? 'error' : 'success'} />
+              <span className="min-w-0 truncate font-medium">{name}</span>
+            </>
+          }
+          summaryControls={
+            failed ? (
+              <IconButton
+                size="xs"
+                label={`Couldn’t connect to ${name}. View logs`}
+                icon={<WarningIcon className="text-(--theme-error)" />}
+              />
+            ) : undefined
+          }
+          actions={
+            <>
+              <span className="min-w-0 truncate theme-muted-text">{address}</span>
+              <IconButton
+                className="shrink-0"
+                label={`More actions for ${name}`}
+                icon={<MoreIcon />}
+              />
+            </>
+          }
+          panelClassName="pt-2 ps-4"
+        >
+          <p className="m-0 theme-muted-text">Started 3 hours ago in us-east-1.</p>
+        </Disclosure>
+      ))}
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const name = canvas.getByText('cfd-prod')
+    await expect(name.scrollWidth).toBeLessThanOrEqual(name.clientWidth)
+    const address = canvas.getByText('devadmin@54.201.18.77')
+    await expect(address.scrollWidth).toBeGreaterThan(address.clientWidth)
+  },
+}
