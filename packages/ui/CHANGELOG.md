@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.106.0](https://github.com/parallelworks/foundation/compare/ui-v0.105.2...ui-v0.106.0) (2026-11-02)
+
+
+### Features
+
+* **ui:** a disclosure row can keep its name whole while the text beside it gives way ([#598](https://github.com/parallelworks/foundation/issues/598)) ([d1dbe51](https://github.com/parallelworks/foundation/commit/d1dbe51f1c44b130b89047fcd7626644bb3b2433))
+
+## [0.105.2](https://github.com/parallelworks/foundation/compare/ui-v0.105.1...ui-v0.105.2) (2026-11-01)
+
+
+### Bug Fixes
+
+* **ui:** an unlabeled form input reads its key as a sentence-case label ([#596](https://github.com/parallelworks/foundation/issues/596)) ([dd03470](https://github.com/parallelworks/foundation/commit/dd03470aa21a24ecde12f2fb30d958d9f24176df))
+
+## [0.105.1](https://github.com/parallelworks/foundation/compare/ui-v0.105.0...ui-v0.105.1) (2026-10-31)
+
+
+### Bug Fixes
+
+* **ui:** a list forgets a saved sort it no longer offers, and its name header fills a phone even with every other column hidden ([#595](https://github.com/parallelworks/foundation/issues/595)) ([b37d841](https://github.com/parallelworks/foundation/commit/b37d841f6baf1b0b894323f38d558f574a8dee25))
+* **ui:** a run's graph drawn twice on a page puts the second one's connectors on the first one's jobs ([#590](https://github.com/parallelworks/foundation/issues/590)) ([375f15b](https://github.com/parallelworks/foundation/commit/375f15b1da6dd43b513ce97d2004e76e9dd32b31))
+* **ui:** status lamps that never stop, tabs that move the page, live warnings that go unread and status names that lose their end ([#591](https://github.com/parallelworks/foundation/issues/591)) ([045930f](https://github.com/parallelworks/foundation/commit/045930f9573537fd3b6ba3a0fd02e8766a03c291))
+
 ## [0.105.0](https://github.com/parallelworks/foundation/compare/ui-v0.104.0...ui-v0.105.0) (2026-10-30)
 
 

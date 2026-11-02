@@ -77,6 +77,48 @@ describe('Tabs', () => {
     await waitFor(() => expect(screen.getByRole('tab', { name: 'Settings' })).toHaveFocus())
   })
 
+  // Hidden panels leave the layout, so the box would take each panel's height in turn.
+  it('stacks the panels in one cell with a steady height, the closed ones out of sight and reach', async () => {
+    render(
+      <Tabs label="Resource" items={items} defaultValue="overview" steadyHeight>
+        <TabPanel value="overview">Overview panel</TabPanel>
+        <TabPanel value="settings">Settings panel</TabPanel>
+      </Tabs>,
+    )
+    const panel = (text: string) => screen.getByText(text).closest('[role="tabpanel"]')
+    expect(panel('Settings panel')).not.toHaveAttribute('hidden')
+    expect(panel('Settings panel')).toHaveAttribute('data-hidden')
+    expect(panel('Settings panel')).toHaveAttribute('inert')
+    expect(panel('Settings panel')?.parentElement).toBe(panel('Overview panel')?.parentElement)
+    fireEvent.click(screen.getByRole('tab', { name: 'Settings' }))
+    await waitFor(() => expect(panel('Overview panel')).toHaveAttribute('data-hidden'))
+    expect(panel('Overview panel')).not.toHaveAttribute('hidden')
+    expect(panel('Settings panel')).not.toHaveAttribute('inert')
+  })
+
+  it('leaves tabs inside a steady-height panel to show one panel at a time', () => {
+    render(
+      <Tabs label="Resource" items={items} defaultValue="overview" steadyHeight>
+        <TabPanel value="overview">
+          <Tabs
+            label="Logs"
+            items={[
+              { value: 'out', label: 'Output' },
+              { value: 'err', label: 'Errors' },
+            ]}
+            defaultValue="out"
+          >
+            <TabPanel value="out">Output panel</TabPanel>
+            <TabPanel value="err">Errors panel</TabPanel>
+          </Tabs>
+        </TabPanel>
+        <TabPanel value="settings">Settings panel</TabPanel>
+      </Tabs>,
+    )
+    expect(screen.getByText('Output panel')).toBeVisible()
+    expect(screen.queryByText('Errors panel')).toBeNull()
+  })
+
   it('hides a lone tab, but still shows its panel', () => {
     render(
       <Tabs label="Resource" items={[{ value: 'only', label: 'Only' }]}>
@@ -104,6 +146,18 @@ describe('Tabs', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Settings' }))
     expect(screen.getByRole('tab', { name: 'Settings' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('tab', { name: 'Settings' }).className).toContain('shadow-sm')
+  })
+
+  it('grows filling segments to the width of their row', () => {
+    const { rerender } = render(<Tabs label="Views" variant="segmented" fill items={items} />)
+    expect(screen.getByRole('tablist')).toHaveClass('flex-1')
+    rerender(<Tabs label="Views" variant="segmented" fill="narrow" items={items} />)
+    expect(screen.getByRole('tablist')).toHaveClass('max-sm:flex-1')
+    rerender(<Tabs label="Views" variant="segmented" items={items} />)
+    expect(screen.getByRole('tablist')).not.toHaveClass('flex-1')
+    // An icon rail stands as a column at its own width; `fill` doesn't widen it.
+    rerender(<Tabs label="Views" variant="segmented" fill iconOnly items={items} />)
+    expect(screen.getByRole('tablist')).not.toHaveClass('flex-1')
   })
 
   it('names icon-only segments by their labels, with tooltips', async () => {

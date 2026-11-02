@@ -2,7 +2,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { memoryStorage } from '../test/storage'
 import type { FilterFacet } from './listView'
-import { useListView } from './listView'
+import { DEFAULT_ORDER, useListView } from './listView'
 
 vi.mock('use-intl', () => ({
   useTranslations: () => (key: string) => key,
@@ -145,6 +145,74 @@ describe('ordering', () => {
     expect([result.current.orderBy, result.current.orderDir]).toEqual(['size', 'asc'])
     act(() => result.current.sortBy('size'))
     expect([result.current.orderBy, result.current.orderDir]).toEqual(['size', 'desc'])
+  })
+
+  const ordered = (config: { defaultOrderBy?: string; favorites?: boolean } = {}) =>
+    renderHook(() =>
+      useListView<Row>({
+        storageKey: 'order',
+        columns: COLUMNS,
+        orderBys: ORDERS,
+        ...(config.defaultOrderBy !== undefined && { defaultOrderBy: config.defaultOrderBy }),
+        ...(config.favorites && { isFavorite: () => false }),
+      }),
+    ).result
+
+  it('keeps a saved order the list still offers', () => {
+    window.localStorage.setItem('order:orderBy', JSON.stringify('size'))
+    expect(ordered().current.orderBy).toBe('size')
+  })
+
+  it('reads a saved order the list no longer offers as its default, with nothing to reset', () => {
+    window.localStorage.setItem('order:orderBy', JSON.stringify('renamed'))
+    const view = ordered({ defaultOrderBy: 'size' })
+    expect(view.current.orderBy).toBe('size')
+    expect(view.current.isDisplayDefault).toBe(true)
+  })
+
+  it('reads a stale saved order as the built-in default order on a list with favorites', () => {
+    window.localStorage.setItem('order:orderBy', JSON.stringify(''))
+    expect(ordered({ favorites: true }).current.orderBy).toBe(DEFAULT_ORDER)
+  })
+
+  it('sorts by an order chosen after a stale one, as from the default', () => {
+    window.localStorage.setItem('order:orderBy', JSON.stringify('renamed'))
+    const view = ordered()
+    act(() => view.current.sortBy('name'))
+    // The default is "name", so choosing it again flips it rather than starting over.
+    expect([view.current.orderBy, view.current.orderDir]).toEqual(['name', 'desc'])
+    act(() => view.current.sortBy('size'))
+    expect(window.localStorage.getItem('order:orderBy')).toBe(JSON.stringify('size'))
+  })
+})
+
+describe('grouping', () => {
+  beforeEach(() => {
+    Object.defineProperty(window, 'localStorage', { value: memoryStorage(), configurable: true })
+  })
+
+  const grouped = () =>
+    renderHook(() =>
+      useListView<Row>({
+        storageKey: 'group',
+        columns: COLUMNS,
+        groupBys: [
+          { value: 'none', label: 'None' },
+          { value: 'kind', label: 'Kind' },
+        ],
+      }),
+    ).result
+
+  it('keeps a saved grouping the list still offers', () => {
+    window.localStorage.setItem('group:groupBy', JSON.stringify('kind'))
+    expect(grouped().current.groupBy).toBe('kind')
+  })
+
+  it('reads a saved grouping the list no longer offers as its default, with nothing to reset', () => {
+    window.localStorage.setItem('group:groupBy', JSON.stringify('namespace'))
+    const view = grouped()
+    expect(view.current.groupBy).toBe('none')
+    expect(view.current.isDisplayDefault).toBe(true)
   })
 })
 

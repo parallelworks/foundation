@@ -343,7 +343,7 @@ export function useListView<T>({
     `${storageKey}:pinnedActions`,
     defaultPinnedKeys,
   )
-  const [groupBy, setGroupBy] = usePersistedState<string>(
+  const [savedGroupBy, setGroupBy] = usePersistedState<string>(
     `${storageKey}:groupBy`,
     defaultGroupByValue,
   )
@@ -359,10 +359,19 @@ export function useListView<T>({
     `${storageKey}:alwaysShowActions`,
     false,
   )
-  const [orderBy, setOrderBy] = usePersistedState<string>(
+  const [savedOrderBy, setOrderBy] = usePersistedState<string>(
     `${storageKey}:orderBy`,
     defaultOrderByValue,
   )
+  // A saved choice the list no longer offers, such as one an app renamed, reads as the list's
+  // default, as if nothing were saved; otherwise Display options would name no choice and offer a
+  // Reset the viewer never asked for. What is saved stays, so it returns if the option does.
+  const groupBy = groupBys.some((g) => g.value === savedGroupBy)
+    ? savedGroupBy
+    : defaultGroupByValue
+  const orderBy = effectiveOrderBys.some((o) => o.value === savedOrderBy)
+    ? savedOrderBy
+    : defaultOrderByValue
   const [orderDir, setOrderDir] = usePersistedState<OrderDir>(`${storageKey}:orderDir`, 'asc')
   const fields = useMemo<FilterField<T>[]>(
     () => [...facets.map(facetField), ...(filterFields ?? [])],
