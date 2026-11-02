@@ -586,26 +586,23 @@ export const DisclosureRowWithControls: StoryObj = {
   },
 }
 
-/** A row whose summary names it keeps the name whole, up to two thirds of the line, and the
- *  address beside it gives way first: it shortens as the line narrows, and hides once only a
- *  few characters would show, while the buttons keep their size. A name too long for two
- *  thirds of the line still shortens. Drag the frame narrower to see which gives way. */
-export const DisclosureRowSummaryFirst: StoryObj<{ summaryFirst: boolean }> = {
-  args: { summaryFirst: true },
-  argTypes: {
-    summaryFirst: { description: 'The summary keeps its width and the aside gives way first.' },
-  },
-  render: ({ summaryFirst }) => (
+/** A row whose summary names it, with text beside the name that gives way to it, such as a
+ *  cluster's address: the name keeps its width, the address takes the room left over, ends in
+ *  an ellipsis when that runs short and hides when too little would show, and the buttons keep
+ *  their size. A name too long for the line still shortens. Drag the frame narrower to see the
+ *  address give way. */
+export const DisclosureRowWithAside: StoryObj = {
+  render: () => (
     <div className="w-72 max-w-full rounded-xl border theme-border text-sm">
       {[
         { name: 'cfd-prod', address: 'devadmin@54.201.18.77', failed: false },
         { name: 'genomics', address: 'devadmin@34.123.45.9', failed: false },
-        { name: 'wrf-ensemble-with-a-long-name', address: 'devadmin@10.20.4.11', failed: true },
+        { name: 'wrf-ensemble-longname', address: 'devadmin@10.20.4.11', failed: false },
+        { name: 'wrf-ensemble-with-a-long-name', address: 'devadmin@10.20.4.12', failed: true },
       ].map(({ name, address, failed }) => (
         <Disclosure
           key={name}
           chevron={false}
-          summaryFirst={summaryFirst}
           className="border-b theme-border px-3 py-2 last:border-b-0"
           summaryClassName="items-center"
           summary={
@@ -623,7 +620,7 @@ export const DisclosureRowSummaryFirst: StoryObj<{ summaryFirst: boolean }> = {
               />
             ) : undefined
           }
-          aside={<span className="min-w-0 truncate theme-muted-text">{address}</span>}
+          aside={<span className="theme-muted-text">{address}</span>}
           actions={<IconButton label={`More actions for ${name}`} icon={<MoreIcon />} />}
           panelClassName="pt-2 ps-4"
         >

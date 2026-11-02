@@ -33,13 +33,11 @@ export interface DisclosureProps {
    *  that says why a row failed. They sit outside the toggle, so no button holds another and
    *  each is its own stop for Tab; a click on the rest of the line still toggles. */
   summaryControls?: ReactNode
-  /** Text beside the summary that gives way before it, such as a cluster's address: it
-   *  shortens as the line narrows, and hides once less than a few characters would show,
-   *  rather than leaving a letter or two. It sits on one line no taller than the actions. */
+  /** Text beside the summary that gives way to it, such as a cluster's address beside its name.
+   *  It fills the room the summary and actions leave, ends in an ellipsis when that room runs
+   *  short, and hides when the room is too narrow to read (under 5rem). The summary shortens
+   *  only once it and the actions no longer fit. */
   aside?: ReactNode
-  /** The summary keeps its width, up to two thirds of the line, for a row whose summary names
-   *  it: the aside gives way first, then the summary shortens. */
-  summaryFirst?: boolean | undefined
   /** On the whole disclosure, summary and detail, such as a row's own menu. */
   onContextMenu?: MouseEventHandler<HTMLDivElement> | undefined
   children: ReactNode
@@ -62,30 +60,18 @@ export function Disclosure({
   actions,
   summaryControls,
   aside,
-  summaryFirst = false,
   onContextMenu,
   children,
 }: DisclosureProps) {
   const trigger = useRef<HTMLButtonElement>(null)
   const hasControls =
     summaryControls !== undefined && summaryControls !== null && summaryControls !== false
-  // The aside's text wraps to a second line, which the aside's one-line height clips, once the
-  // aside is narrower than its minimum: the empty first item holds the first line open so the
-  // text has somewhere to wrap from.
-  const asideSlot = aside ? (
-    <div className="flex h-6 min-w-0 flex-wrap content-start items-center overflow-hidden before:h-6 before:content-['']">
-      <div className="flex h-6 min-w-20 max-w-max grow basis-20 items-center overflow-hidden">
-        {aside}
-      </div>
-    </div>
-  ) : null
   const toggle = (
     <Collapsible.Trigger
       ref={trigger}
       className={cx(
         'group/disclosure flex min-w-0 items-start gap-2 rounded-sm text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--theme-focus)',
         disabled ? 'cursor-default' : 'cursor-pointer',
-        summaryFirst && hasControls && 'max-w-2/3 shrink-0',
         summaryClassName,
       )}
     >
@@ -98,6 +84,25 @@ export function Disclosure({
       )}
     </Collapsible.Trigger>
   )
+  // The rest of the line, a pointer's way to toggle as the line was before. The toggle itself
+  // is the keyboard's and the screen reader's.
+  const rest = (
+    <div
+      aria-hidden="true"
+      className={cx('min-w-0 flex-1 self-stretch', !disabled && 'cursor-pointer')}
+      onClick={() => trigger.current?.click()}
+    />
+  )
+  // The aside takes only the room left over, so it never pushes the summary: its width comes
+  // from the line, not its text, and the container query hides the text when that room is too
+  // narrow to read.
+  const asideSlot =
+    aside !== undefined && aside !== null && aside !== false ? (
+      <div className="@container flex min-w-0 flex-1 items-center self-stretch">
+        {rest}
+        <div className="min-w-0 truncate @max-[5rem]:hidden">{aside}</div>
+      </div>
+    ) : null
   return (
     <Collapsible.Root
       open={open}
@@ -111,24 +116,19 @@ export function Disclosure({
         <div className="flex min-w-0 items-center gap-2">
           {toggle}
           <div className="flex shrink-0 items-center gap-1">{summaryControls}</div>
-          {/* The rest of the line, a pointer's way to toggle as the line was before. The
-              toggle itself is the keyboard's and the screen reader's. */}
-          <div
-            aria-hidden="true"
-            className={cx('min-w-0 flex-1 self-stretch', !disabled && 'cursor-pointer')}
-            onClick={() => trigger.current?.click()}
-          />
+          {asideSlot ?? rest}
+          {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
+        </div>
+      ) : asideSlot ? (
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0">{toggle}</div>
           {asideSlot}
           {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
         </div>
-      ) : actions || aside ? (
+      ) : actions ? (
         <div className="flex min-w-0 items-center gap-2">
-          <div className={cx('flex', summaryFirst ? 'max-w-2/3 shrink-0' : 'min-w-0 flex-1')}>
-            {toggle}
-          </div>
-          {summaryFirst && <div aria-hidden="true" className="flex-1" />}
-          {asideSlot}
-          {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
+          <div className="flex min-w-0 flex-1">{toggle}</div>
+          <div className="flex shrink-0 items-center gap-1">{actions}</div>
         </div>
       ) : (
         toggle
