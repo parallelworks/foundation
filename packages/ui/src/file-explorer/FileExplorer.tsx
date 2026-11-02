@@ -2307,6 +2307,7 @@ export default function FileExplorer({
         typeLabel={renameTarget?.type === 'directory' ? t.createFolder.folder : t.rename.file}
         namePlaceholder={t.rename.namePlaceholder}
         initialName={renameTarget?.name}
+        showDescription={false}
         submitLabel={t.rename.submit}
         submittingLabel={t.rename.renaming}
         validateName={validateRename}
