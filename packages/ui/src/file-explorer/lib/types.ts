@@ -17,6 +17,7 @@ export type TStorage = {
   name: string
   bucketName?: string
   user: string
+  owner?: string | undefined
   displayName?: string
   type?: string
   created?: string
@@ -83,6 +84,7 @@ export type TreeNode = {
   groupPath?: string | undefined
   group?: boolean | undefined
   groupIcon?: IconType | undefined
+  owner?: string | undefined
   root?: boolean | undefined // True only for the storage root node
 }
 

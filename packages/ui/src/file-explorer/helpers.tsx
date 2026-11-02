@@ -39,6 +39,7 @@ import { carriesFiles, getFileExtension } from './lib/utils'
 
 const SIDEBAR_WIDTH_STORAGE_KEY = 'fileExplorerSidebarWidth'
 const SIDEBAR_WIDTH_DEFAULT = 300
+const GROUP_BY_STORAGE_KEY = 'fileExplorerGroupBy'
 
 const contentTypeIconMap = [
   {
@@ -660,6 +661,7 @@ export {
   CorsIssuePreview,
   CorsPropagatingPreview,
   DragDropZone,
+  GROUP_BY_STORAGE_KEY,
   getNodeIcon,
   NoDataAvailablePreview,
   NoFileSelectedPreview,

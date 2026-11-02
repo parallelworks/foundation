@@ -88,6 +88,7 @@ export type TTreeOptions = {
   listings: ReadonlyMap<string, { readonly entries: readonly TStorageObject[] }>
   forceUserHierarchy?: boolean
   storageGroups?: readonly TStorageGroup[] | undefined
+  viewer?: string | undefined
   unsortedParents?: ReadonlySet<string>
 }
 
@@ -107,6 +108,7 @@ export function createTreeBuilder(): (storages: TStorage[], options: TTreeOption
       last.storages !== storages ||
       last.options.forceUserHierarchy !== options.forceUserHierarchy ||
       last.options.storageGroups !== options.storageGroups ||
+      last.options.viewer !== options.viewer ||
       last.options.unsortedParents !== options.unsortedParents
     ) {
       return false
@@ -223,6 +225,48 @@ export function createTreeBuilder(): (storages: TStorage[], options: TTreeOption
         onlyStorage.user ? `${onlyStorage.user}/${onlyStorage.name}` : onlyStorage.name,
       )
       tree.rootNodes.push(addStorage(onlyStorage, storagePath, options, tree))
+    } else if (options.storageGroups) {
+      const groups = new Map(options.storageGroups.map((group) => [group.id, [] as TreeNode[]]))
+      const ungrouped: TreeNode[] = []
+      for (const storage of storages) {
+        const root = addStorage(
+          storage,
+          ensureTrailingSlash(
+            `${ensureTrailingSlash(storage.user)}${removeLeadingAndTrailingSlashes(storage.name)}`,
+          ),
+          options,
+          tree,
+        )
+        const owner = storage.owner ?? storage.user
+        if (owner !== options.viewer) {
+          root.owner = owner
+        }
+        const grouped = storage.group === undefined ? undefined : groups.get(storage.group)
+        if (grouped) {
+          root.groupPath = `${storage.group}/`
+          grouped.push(root)
+        } else {
+          ungrouped.push(root)
+        }
+      }
+      tree.rootNodes.push(...ungrouped.sort(compareNodes))
+      for (const group of options.storageGroups) {
+        const roots = groups.get(group.id)
+        if (!roots?.length) {
+          continue
+        }
+        const groupPath = `${group.id}/`
+        const groupNode: TreeNode = {
+          name: group.label,
+          path: groupPath,
+          type: 'directory',
+          group: true,
+          groupIcon: group.icon,
+        }
+        tree.treeMap[groupPath] = groupNode
+        tree.parentToChildrenMap[groupPath] = roots.sort(compareNodes)
+        tree.rootNodes.push(groupNode)
+      }
     } else {
       const userGroups: Record<string, TStorage[]> = {}
       for (const storage of storages) {
@@ -243,44 +287,15 @@ export function createTreeBuilder(): (storages: TStorage[], options: TTreeOption
         }
         tree.treeMap[userPath] = userNode
         tree.rootNodes.push(userNode)
-        const groups = new Map(
-          (options.storageGroups ?? []).map((group) => [group.id, [] as TreeNode[]]),
-        )
-        const ungrouped: TreeNode[] = []
-        for (const storage of userGroups[username] ?? []) {
-          const root = addStorage(
+        const storageRoots = (userGroups[username] ?? []).map((storage) =>
+          addStorage(
             storage,
             ensureTrailingSlash(`${userPath}${removeLeadingAndTrailingSlashes(storage.name)}`),
             options,
             tree,
-          )
-          const grouped = storage.group === undefined ? undefined : groups.get(storage.group)
-          if (grouped) {
-            root.groupPath = `${userPath}${storage.group}/`
-            grouped.push(root)
-          } else {
-            ungrouped.push(root)
-          }
-        }
-        const groupNodes: TreeNode[] = []
-        for (const group of options.storageGroups ?? []) {
-          const roots = groups.get(group.id)
-          if (!roots?.length) {
-            continue
-          }
-          const groupPath = `${userPath}${group.id}/`
-          const groupNode: TreeNode = {
-            name: group.label,
-            path: groupPath,
-            type: 'directory',
-            group: true,
-            groupIcon: group.icon,
-          }
-          tree.treeMap[groupPath] = groupNode
-          tree.parentToChildrenMap[groupPath] = roots.sort(compareNodes)
-          groupNodes.push(groupNode)
-        }
-        tree.parentToChildrenMap[userPath] = [...ungrouped.sort(compareNodes), ...groupNodes]
+          ),
+        )
+        tree.parentToChildrenMap[userPath] = storageRoots.sort(compareNodes)
       }
     }
 

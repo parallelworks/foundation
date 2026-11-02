@@ -559,7 +559,9 @@ describe('FileExplorer storages prop', () => {
 })
 
 describe('FileExplorer storage groups', () => {
-  it('opens the group of a deep-linked storage that joins after mount', async () => {
+  afterEach(() => localStorage.clear())
+
+  it('grouped by type, opens the group of a deep-linked storage that joins after mount', async () => {
     const script = scriptedStorage()
     const grouped = { ...storage, group: '~buckets' }
     const view = (storages: TStorage[]) => (
@@ -576,12 +578,34 @@ describe('FileExplorer storage groups', () => {
     )
     const { rerender } = render(view([]))
     await act(async () => {})
+    fireEvent.click(screen.getByRole('button', { name: 'Type' }))
 
     rerender(view([grouped]))
     await act(async () => {})
 
     expect(await findTreeItem('Buckets')).toHaveAttribute('aria-expanded', 'true')
     expect(await findTreeItem('one.txt')).toBeInTheDocument()
+  })
+
+  it('leaves a selected user, which grouping by type removes', async () => {
+    const onPathChange = vi.fn()
+    render(
+      <FileExplorerProvider>
+        <FileExplorer
+          getProviderAndClient={scriptedStorage().getProviderAndClient}
+          storages={[{ ...storage, group: '~buckets' }]}
+          storageGroups={[{ id: '~buckets', label: 'Buckets' }]}
+          selectedPath={`${storage.user}/`}
+          onPathChange={onPathChange}
+          showUserHierarchy
+        />
+      </FileExplorerProvider>,
+    )
+    await act(async () => {})
+
+    fireEvent.click(screen.getByRole('button', { name: 'Type' }))
+
+    expect(onPathChange).toHaveBeenCalledWith('')
   })
 })
 

@@ -33,6 +33,7 @@ import {
 } from '../components/Provider'
 import { RefreshButton } from '../components/RefreshButton'
 import { RelativeTime } from '../components/relativeTime'
+import { SegmentedControl } from '../components/SegmentedControl'
 import { StatusBadge } from '../components/StatusBadge'
 import { useSplitter } from '../components/splitter'
 import { Table } from '../components/Table'
@@ -78,6 +79,7 @@ import { FileTable } from './FileTable'
 import { FileTableHeaders } from './FileTableHeaders'
 import {
   DragDropZone,
+  GROUP_BY_STORAGE_KEY,
   getNodeIcon,
   NoDataAvailablePreview,
   NoFileSelectedPreview,
@@ -177,6 +179,7 @@ type IFileExplorerProps = ExplorerNavigation & {
   onOpenFile?: ((node: TreeNode, storage: TStorage | undefined) => boolean) | undefined
   showUserHierarchy?: boolean
   storageGroups?: readonly TStorageGroup[] | undefined
+  viewer?: string | undefined
   groups?: { name: string; id?: string | undefined }[] | undefined
   groupsLoading?: boolean
   selectedPath: string
@@ -287,6 +290,7 @@ export default function FileExplorer({
   onOpenFile,
   showUserHierarchy = false,
   storageGroups,
+  viewer,
   groups = [],
   groupsLoading = false,
   selectedPath,
@@ -339,16 +343,20 @@ export default function FileExplorer({
     return next
   }, [listings])
 
+  const [groupBy, setGroupBy] = usePersistedState(GROUP_BY_STORAGE_KEY, 'user')
+  const canGroupByType = showUserHierarchy && !!storageGroups?.length
+  const typeGroups = canGroupByType && groupBy === 'type' ? storageGroups : undefined
   const [buildTree] = useState(createTreeBuilder)
   const { treeMap, parentToChildrenMap, rootNodes } = useMemo(
     () =>
       buildTree(storages, {
         listings,
         forceUserHierarchy: showUserHierarchy,
-        storageGroups,
+        storageGroups: typeGroups,
+        viewer,
         unsortedParents: incompleteDirs,
       }),
-    [buildTree, storages, listings, showUserHierarchy, storageGroups, incompleteDirs],
+    [buildTree, storages, listings, showUserHierarchy, typeGroups, viewer, incompleteDirs],
   )
 
   const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set())
@@ -1614,7 +1622,29 @@ export default function FileExplorer({
     >
       {/* File Tree - Left sidebar */}
       <div className="h-full flex flex-col border-r theme-border bg-(--theme-panel-bg)/60">
-        <div className="flex items-center justify-end h-10 px-3 shrink-0 border-b theme-border">
+        <div
+          className={cx(
+            'flex items-center h-10 px-3 shrink-0 border-b theme-border',
+            canGroupByType ? 'justify-between gap-2' : 'justify-end',
+          )}
+        >
+          {canGroupByType && (
+            <SegmentedControl
+              size="sm"
+              label={t.chrome.groupBy}
+              value={groupBy === 'type' ? 'type' : 'user'}
+              onValueChange={(next) => {
+                setGroupBy(next)
+                if (selectedNode && !selectedNode.storageId) {
+                  setSelectedPath('')
+                }
+              }}
+              options={[
+                { value: 'user', label: t.chrome.groupByUser },
+                { value: 'type', label: t.chrome.groupByType },
+              ]}
+            />
+          )}
           <div className="flex gap-x-0.5">
             <RefreshButton iconOnly onRefresh={() => handleRefresh()} />
 
@@ -1734,7 +1764,12 @@ export default function FileExplorer({
                         node={rootNode}
                         icon={getNodeIcon(rootNode)}
                         href={href}
-                        storageCount={getStorageRoots(parentToChildrenMap, [rootNode]).length}
+                        type={rootNode.root ? rootNode.storageType : undefined}
+                        storageCount={
+                          rootNode.root
+                            ? undefined
+                            : getStorageRoots(parentToChildrenMap, [rootNode]).length
+                        }
                         getItems={() => [
                           href
                             ? { ...open, href }
