@@ -199,6 +199,7 @@ function pairs(vars: Partial<ThemeVariables>): [ThemeToken, Shown, number, numbe
     on(`--theme-category-${i}-text` as ThemeToken, [`--theme-category-${i}` as ThemeToken], 4.5, 60)
   }
   on('--theme-sidebar-text', ['--theme-sidebar-bg', '--theme-sidebar-hover'], 4.5, 75)
+  on('--theme-sidebar-muted-text', ['--theme-sidebar-bg', '--theme-sidebar-hover'], 4.5, 60)
   on('--theme-sidebar-active-text', ['--theme-sidebar-active-bg'], 4.5, 75)
   for (const token of [
     '--theme-code-text',

@@ -10,7 +10,7 @@
     border-radius: 8px;
     padding: 8px;
     background: transparent;
-    color: inherit;
+    color: var(--theme-sidebar-muted-text, inherit);
     font: inherit;
     font-size: 14px;
     font-weight: 500;
@@ -22,6 +22,7 @@
   }
   .pw-frame-nav-item:hover {
     background: var(--theme-sidebar-hover, var(--theme-hover));
+    color: var(--theme-sidebar-text, inherit);
   }
   .pw-frame-nav-item[aria-current] {
     background: var(--theme-sidebar-active-bg, var(--theme-accent-subtle));

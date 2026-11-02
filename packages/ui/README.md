@@ -1355,8 +1355,9 @@ The mobile drawer stays inside the frame, below its banner, and uses the chosen
 sidebar width, capped to leave 48px for dismissal. It slides from the navigation
 edge while the backdrop fades; both finish in 200ms and respect reduced motion.
 
-The five `--theme-sidebar-*` tokens produced by `generateTheme` style navigation:
-`bg`, `text`, `hover`, `active-bg`, and `active-text`. Without them the frame uses
+The six `--theme-sidebar-*` tokens produced by `generateTheme` style navigation:
+`bg`, `text`, `muted-text`, `hover`, `active-bg`, and `active-text`. A navigation
+item rests in `muted-text` and takes `text` on hover. Without them the frame uses
 the ordinary surface and accent tokens. Content uses `--theme-app-bg` and
 `--theme-border`. Supply translated `labels` for navigation, skip, open, close,
 expand, collapse, and resize actions. The frame owns the main landmark and skip

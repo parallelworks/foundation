@@ -77,6 +77,7 @@ const FLOORS: Partial<Record<ThemeToken, [ThemeToken, number]>> = {
   '--theme-favorite': ['--theme-app-bg', 3],
   '--theme-favorite-text': ['--theme-app-bg', 4.5],
   '--theme-sidebar-text': ['--theme-sidebar-bg', 4.5],
+  '--theme-sidebar-muted-text': ['--theme-sidebar-bg', 4.5],
   '--theme-sidebar-active-text': ['--theme-sidebar-active-bg', 4.5],
   '--theme-code-text': ['--theme-code-bg', 4.5],
   '--theme-code-comment': ['--theme-code-bg', 4.5],

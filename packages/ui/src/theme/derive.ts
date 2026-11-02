@@ -88,6 +88,7 @@ export const THEME_TOKENS = [
   // Sidebar
   '--theme-sidebar-bg',
   '--theme-sidebar-text',
+  '--theme-sidebar-muted-text',
   '--theme-sidebar-hover',
   '--theme-sidebar-active-bg',
   '--theme-sidebar-active-text',
@@ -495,12 +496,10 @@ function build(
     .map((fill) => [fill, roomFor(fill, t.primary)] as const)
     .reduce((a, b) => (b[1] > a[1] ? b : a))
   set('--theme-sidebar-active-bg', active(room))
-  solved(
-    '--theme-sidebar-text',
-    inkFor(sidebarBase, sidebarBase, sidebarDark),
-    ['--theme-sidebar-bg', '--theme-sidebar-hover'],
-    t.primary,
-  )
+  const sidebarInk = inkFor(sidebarBase, sidebarBase, sidebarDark)
+  const sidebarTextOn: ThemeToken[] = ['--theme-sidebar-bg', '--theme-sidebar-hover']
+  solved('--theme-sidebar-text', sidebarInk, sidebarTextOn, t.primary)
+  solved('--theme-sidebar-muted-text', sidebarInk, sidebarTextOn, t.secondary)
   solved(
     '--theme-sidebar-active-text',
     { l: sidebarBase.l, c: Math.min(activeTint.c, 0.04), h: activeTint.h },
