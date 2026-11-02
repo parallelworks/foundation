@@ -528,6 +528,12 @@ export function ListRow({
   const stretch = !!href && !selectionActive
 
   const handleRowClick = (e: ReactMouseEvent) => {
+    // What the row opened in a portal, such as a drawer or a popover, passes its clicks up to the
+    // row through React, though it isn't in the row: clicking its backdrop or its text isn't
+    // clicking the row.
+    if (!e.currentTarget.contains(e.target as Node)) {
+      return
+    }
     if ((e.target as HTMLElement).closest('a,button,input,label')) {
       return
     }
@@ -823,7 +829,11 @@ export function GroupRow({
   // button is the keyboard's and the screen reader's way.
   const onClick = toggle
     ? (e: ReactMouseEvent) => {
-        if (!(e.target as HTMLElement).closest(OWN_CONTROL)) {
+        // A click in what the header opened in a portal reaches it through React, not from it.
+        if (
+          e.currentTarget.contains(e.target as Node) &&
+          !(e.target as HTMLElement).closest(OWN_CONTROL)
+        ) {
           toggle.toggle()
         }
       }

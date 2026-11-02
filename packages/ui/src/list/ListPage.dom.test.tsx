@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { createPortal } from 'react-dom'
 import { UIProvider } from '../components/Provider'
 import { Table } from '../components/Table'
 import { memoryStorage } from '../test/storage'
@@ -104,6 +105,64 @@ describe('ListRow onActivate', () => {
 
     fireEvent.click(screen.getByText('row'))
     expect(onActivate).toHaveBeenCalledOnce()
+  })
+})
+
+describe('ListRow and what it opens in a portal', () => {
+  // A drawer or a popover a cell opens renders outside the row, in a portal, but React passes
+  // its events up to the row all the same.
+  function RowWithPortal({
+    goTo,
+    onActivate,
+    openMenu,
+  }: {
+    goTo: (to: string) => void
+    onActivate?: () => void
+    openMenu: () => void
+  }) {
+    return (
+      <table>
+        <tbody>
+          <ListRow
+            href={onActivate ? null : '/runs/17'}
+            onActivate={onActivate}
+            items={[{ label: 'Rename', onClick: () => {} }]}
+            goTo={goTo}
+            openMenu={openMenu}
+          >
+            <Table.Item>
+              row
+              {createPortal(<div>opened panel</div>, document.body)}
+            </Table.Item>
+          </ListRow>
+        </tbody>
+      </table>
+    )
+  }
+
+  it('doesn’t navigate on a click in it, as on a drawer’s backdrop or text', () => {
+    const goTo = vi.fn()
+    render(<RowWithPortal goTo={goTo} openMenu={() => {}} />)
+    fireEvent.click(screen.getByText('opened panel'))
+    expect(goTo).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByText('row'))
+    expect(goTo).toHaveBeenCalledWith('/runs/17')
+  })
+
+  it('doesn’t activate on a click in it', () => {
+    const onActivate = vi.fn()
+    render(<RowWithPortal goTo={() => {}} onActivate={onActivate} openMenu={() => {}} />)
+    fireEvent.click(screen.getByText('opened panel'))
+    expect(onActivate).not.toHaveBeenCalled()
+  })
+
+  it('doesn’t open the row’s menu on a right-click in it', () => {
+    const openMenu = vi.fn()
+    render(<RowWithPortal goTo={() => {}} openMenu={openMenu} />)
+    fireEvent.contextMenu(screen.getByText('opened panel'))
+    expect(openMenu).not.toHaveBeenCalled()
+    fireEvent.contextMenu(screen.getByText('row'))
+    expect(openMenu).toHaveBeenCalledOnce()
   })
 })
 
