@@ -112,6 +112,7 @@ import type { ExplorerObject, TreeNode, TStorage, TStorageGroup, UploadNode } fr
 import {
   calculateUploadNodesTotalSize,
   createTreeBuilder,
+  ensureTrailingSlash,
   exceededTransferLimit,
   getDirectoryNameError,
   getDirectoryObjectPath,
@@ -343,7 +344,8 @@ export default function FileExplorer({
     return next
   }, [listings])
 
-  const [groupBy, setGroupBy] = usePersistedState(GROUP_BY_STORAGE_KEY, 'user')
+  const [storedGroupBy, setGroupBy] = usePersistedState(GROUP_BY_STORAGE_KEY, 'user')
+  const groupBy = storedGroupBy === 'type' ? 'type' : 'user'
   const canGroupByType = showUserHierarchy && !!storageGroups?.length
   const typeGroups = canGroupByType && groupBy === 'type' ? storageGroups : undefined
   const [buildTree] = useState(createTreeBuilder)
@@ -378,6 +380,23 @@ export default function FileExplorer({
   }, [selectedPath, treeMap])
   const setSelectedPath = (path: string) =>
     onPathChange ? onPathChange(path) : pathHref && goTo(pathHref(path))
+  const linkedGroupBy = !canGroupByType
+    ? undefined
+    : storageGroups?.some((group) => normalizedSelectedPath.startsWith(`${group.id}/`))
+      ? 'type'
+      : storages.some((storage) => ensureTrailingSlash(storage.user) === normalizedSelectedPath)
+        ? 'user'
+        : undefined
+  const adoptGroupBy = useEffectEvent((next: 'user' | 'type') => {
+    if (next !== groupBy) {
+      setGroupBy(next)
+    }
+  })
+  useEffect(() => {
+    if (linkedGroupBy) {
+      adoptGroupBy(linkedGroupBy)
+    }
+  }, [linkedGroupBy])
 
   // A Set, not an array: membership is tested once per tree row, so an array scan
   // made expansion O(rows x expanded).
@@ -1632,7 +1651,7 @@ export default function FileExplorer({
             <SegmentedControl
               size="sm"
               label={t.chrome.groupBy}
-              value={groupBy === 'type' ? 'type' : 'user'}
+              value={groupBy}
               onValueChange={(next) => {
                 setGroupBy(next)
                 if (selectedNode && !selectedNode.storageId) {
@@ -1770,11 +1789,15 @@ export default function FileExplorer({
                             ? undefined
                             : getStorageRoots(parentToChildrenMap, [rootNode]).length
                         }
-                        getItems={() => [
-                          href
-                            ? { ...open, href }
-                            : { ...open, onClick: () => openUserNode(rootNode) },
-                        ]}
+                        getItems={() =>
+                          rootNode.root
+                            ? buildRowMenu(rootNode)
+                            : [
+                                href
+                                  ? { ...open, href }
+                                  : { ...open, onClick: () => openUserNode(rootNode) },
+                              ]
+                        }
                         openMenu={openMenu}
                         onOpen={openUserNode}
                       />

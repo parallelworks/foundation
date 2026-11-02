@@ -229,14 +229,7 @@ export function createTreeBuilder(): (storages: TStorage[], options: TTreeOption
       const groups = new Map(options.storageGroups.map((group) => [group.id, [] as TreeNode[]]))
       const ungrouped: TreeNode[] = []
       for (const storage of storages) {
-        const root = addStorage(
-          storage,
-          ensureTrailingSlash(
-            `${ensureTrailingSlash(storage.user)}${removeLeadingAndTrailingSlashes(storage.name)}`,
-          ),
-          options,
-          tree,
-        )
+        const root = addStorage(storage, storageRootPath(storage), options, tree)
         const owner = storage.owner ?? storage.user
         if (owner !== options.viewer) {
           root.owner = owner
@@ -288,12 +281,7 @@ export function createTreeBuilder(): (storages: TStorage[], options: TTreeOption
         tree.treeMap[userPath] = userNode
         tree.rootNodes.push(userNode)
         const storageRoots = (userGroups[username] ?? []).map((storage) =>
-          addStorage(
-            storage,
-            ensureTrailingSlash(`${userPath}${removeLeadingAndTrailingSlashes(storage.name)}`),
-            options,
-            tree,
-          ),
+          addStorage(storage, storageRootPath(storage), options, tree),
         )
         tree.parentToChildrenMap[userPath] = storageRoots.sort(compareNodes)
       }
@@ -307,6 +295,12 @@ export function createTreeBuilder(): (storages: TStorage[], options: TTreeOption
     last = { storages, options, tree }
     return tree
   }
+}
+
+function storageRootPath(storage: TStorage): string {
+  return ensureTrailingSlash(
+    `${ensureTrailingSlash(storage.user)}${removeLeadingAndTrailingSlashes(storage.name)}`,
+  )
 }
 
 export function getStorageRoots(

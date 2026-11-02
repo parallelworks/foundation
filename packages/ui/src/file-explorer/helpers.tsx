@@ -118,7 +118,7 @@ function StorageImage({ node }: { node: TreeNode }) {
       src={src}
       alt={alt}
       onError={(e) => {
-        if (fallbackSrc) {
+        if (fallbackSrc && e.currentTarget.getAttribute('src') !== fallbackSrc) {
           e.currentTarget.src = fallbackSrc
         }
       }}

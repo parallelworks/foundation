@@ -604,8 +604,27 @@ describe('FileExplorer storage groups', () => {
     await act(async () => {})
 
     fireEvent.click(screen.getByRole('button', { name: 'Type' }))
+    await act(async () => {})
 
     expect(onPathChange).toHaveBeenCalledWith('')
+    expect(screen.getByRole('button', { name: 'Type' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('opens a link to a type folder grouped by type', async () => {
+    render(
+      <FileExplorerProvider>
+        <FileExplorer
+          getProviderAndClient={scriptedStorage().getProviderAndClient}
+          storages={[{ ...storage, group: '~buckets' }]}
+          storageGroups={[{ id: '~buckets', label: 'Buckets' }]}
+          selectedPath="~buckets/"
+          onPathChange={() => {}}
+          showUserHierarchy
+        />
+      </FileExplorerProvider>,
+    )
+
+    expect(await findTreeItem('Buckets')).toHaveAttribute('aria-selected', 'true')
   })
 })
 
