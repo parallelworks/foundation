@@ -55,6 +55,7 @@ import {
   FolderTreeIcon,
   LinkIcon,
   PreviewIcon,
+  RenameIcon,
   ShareIcon,
   TrashIcon,
   UploadIcon,
@@ -533,6 +534,7 @@ export default function FileExplorer({
 
   const [uploadModalOpen, setUploadModalOpen] = useState(false)
   const [createFolderTarget, setCreateFolderTarget] = useState<TreeNode | null>(null)
+  const [renameTarget, setRenameTarget] = useState<TreeNode | null>(null)
   const [pendingUpload, setPendingUpload] = useState<{
     targetPath: string
     uploadNodes: UploadNode[]
@@ -1198,6 +1200,14 @@ export default function FileExplorer({
       }
     }
     actions.push(...getCreateFolderActions(node, storage))
+    if (storage?.canRename === true && !node.root) {
+      actions.push({
+        key: 'rename',
+        label: t.rename.action,
+        icon: <RenameIcon />,
+        onClick: () => setRenameTarget(node),
+      })
+    }
     actions.push(...(extraRowActions?.(node, storage) ?? []))
     // The storage root has no tree parent to refresh after a delete, and
     // deleting the whole storage is not a file-explorer operation — omit it.
@@ -1573,6 +1583,52 @@ export default function FileExplorer({
       return true
     } catch (error) {
       toast.error(t.createFolder.error(getErrorMessage(error)))
+      return false
+    }
+  }
+
+  const validateRename = (name: string): string | null => {
+    if (!renameTarget || name === renameTarget.name) {
+      return null
+    }
+    const error = getDirectoryNameError(
+      name,
+      getNodeChildren(parentToChildrenMap, getParentPath(renameTarget.path)),
+    )
+    return error ? t.rename.validation[error] : null
+  }
+
+  const handleRename = async (name: string): Promise<boolean> => {
+    const node = renameTarget
+    if (!node || name === node.name) {
+      return true
+    }
+    try {
+      const factory = await getStorageProviderAndClient(node.storageId)
+      if (!factory) {
+        return false
+      }
+      const { storage, provider, client } = factory
+      if (!provider.renameInput || !client.renameEntry) {
+        toast.error(t.rename.unsupported)
+        return false
+      }
+      await client.renameEntry(provider.renameInput(storage.bucketName || storage.name, node, name))
+      const parentPath = getParentPath(node.path)
+      const parentNode = treeMap[parentPath]
+      if (parentNode) {
+        await fetchNodeChildren(parentNode, { replace: true })
+      }
+      const dirPrefix = node.path.endsWith('/') ? node.path : `${node.path}/`
+      const isRenamed = (path: string) => path === node.path || path.startsWith(dirPrefix)
+      clearPreviewCache(isRenamed)
+      if (selectedNode && isRenamed(selectedNode.path) && parentNode) {
+        handleSelectTreeItem(parentPath, parentNode)
+      }
+      toast.success(t.rename.success(name))
+      return true
+    } catch (error) {
+      toast.error(t.rename.error(getErrorMessage(error)))
       return false
     }
   }
@@ -2236,6 +2292,25 @@ export default function FileExplorer({
         submittingLabel={t.createFolder.creating}
         validateName={validateFolderName}
         onSubmit={handleCreateFolder}
+      />
+
+      <CreateModal
+        open={!!renameTarget}
+        onClose={() => setRenameTarget(null)}
+        typeIcon={
+          renameTarget?.type === 'directory' ? (
+            <FolderIcon className="w-3 h-3" />
+          ) : (
+            <FileIcon className="w-3 h-3" />
+          )
+        }
+        typeLabel={renameTarget?.type === 'directory' ? t.createFolder.folder : t.rename.file}
+        namePlaceholder={t.rename.namePlaceholder}
+        initialName={renameTarget?.name}
+        submitLabel={t.rename.submit}
+        submittingLabel={t.rename.renaming}
+        validateName={validateRename}
+        onSubmit={handleRename}
       />
 
       {waitForUpload && (
