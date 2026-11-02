@@ -2297,6 +2297,7 @@ export default function FileExplorer({
       <CreateModal
         open={!!renameTarget}
         onClose={() => setRenameTarget(null)}
+        align="center"
         typeIcon={
           renameTarget?.type === 'directory' ? (
             <FolderIcon className="w-3 h-3" />
