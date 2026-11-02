@@ -56,6 +56,29 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  .pw-frame-nav-item:has(> .pw-frame-nav-text) {
+    align-items: flex-start;
+  }
+  .pw-frame-nav-item:has(> .pw-frame-nav-text) > .pw-frame-nav-icon {
+    height: 20px;
+  }
+  .pw-frame-nav-text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .pw-frame-nav-detail {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    overflow: hidden;
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 16px;
+    white-space: nowrap;
+  }
   .pw-frame-nav-badge {
     flex-shrink: 0;
     font-size: 12px;
