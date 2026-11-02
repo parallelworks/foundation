@@ -33,9 +33,12 @@ export interface DisclosureProps {
    *  that says why a row failed. They sit outside the toggle, so no button holds another and
    *  each is its own stop for Tab; a click on the rest of the line still toggles. */
   summaryControls?: ReactNode
-  /** The summary keeps its width, up to two thirds of the line, and the actions give way
-   *  first, for a row whose summary names it, such as a cluster beside its address. In the
-   *  actions, text that may shorten takes `min-w-0 truncate` and buttons take `shrink-0`. */
+  /** Text beside the summary that gives way before it, such as a cluster's address: it
+   *  shortens as the line narrows, and hides once less than a few characters would show,
+   *  rather than leaving a letter or two. It sits on one line no taller than the actions. */
+  aside?: ReactNode
+  /** The summary keeps its width, up to two thirds of the line, for a row whose summary names
+   *  it: the aside gives way first, then the summary shortens. */
   summaryFirst?: boolean | undefined
   /** On the whole disclosure, summary and detail, such as a row's own menu. */
   onContextMenu?: MouseEventHandler<HTMLDivElement> | undefined
@@ -58,6 +61,7 @@ export function Disclosure({
   chevron = true,
   actions,
   summaryControls,
+  aside,
   summaryFirst = false,
   onContextMenu,
   children,
@@ -65,10 +69,16 @@ export function Disclosure({
   const trigger = useRef<HTMLButtonElement>(null)
   const hasControls =
     summaryControls !== undefined && summaryControls !== null && summaryControls !== false
-  const actionsClassName = cx(
-    'flex items-center gap-1',
-    summaryFirst ? 'min-w-0 justify-end' : 'shrink-0',
-  )
+  // The aside's text wraps to a second line, which the aside's one-line height clips, once the
+  // aside is narrower than its minimum: the empty first item holds the first line open so the
+  // text has somewhere to wrap from.
+  const asideSlot = aside ? (
+    <div className="flex h-6 min-w-0 flex-wrap content-start items-center overflow-hidden before:h-6 before:content-['']">
+      <div className="flex h-6 min-w-20 max-w-max grow basis-20 items-center overflow-hidden">
+        {aside}
+      </div>
+    </div>
+  ) : null
   const toggle = (
     <Collapsible.Trigger
       ref={trigger}
@@ -108,14 +118,17 @@ export function Disclosure({
             className={cx('min-w-0 flex-1 self-stretch', !disabled && 'cursor-pointer')}
             onClick={() => trigger.current?.click()}
           />
-          {actions && <div className={actionsClassName}>{actions}</div>}
+          {asideSlot}
+          {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
         </div>
-      ) : actions ? (
+      ) : actions || aside ? (
         <div className="flex min-w-0 items-center gap-2">
           <div className={cx('flex', summaryFirst ? 'max-w-2/3 shrink-0' : 'min-w-0 flex-1')}>
             {toggle}
           </div>
-          <div className={cx(actionsClassName, summaryFirst && 'flex-1')}>{actions}</div>
+          {summaryFirst && <div aria-hidden="true" className="flex-1" />}
+          {asideSlot}
+          {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
         </div>
       ) : (
         toggle

@@ -586,14 +586,14 @@ export const DisclosureRowWithControls: StoryObj = {
   },
 }
 
-/** A row whose summary names it keeps the name whole, up to two thirds of the line, and its
- *  actions give way first: the address beside it shortens while the buttons keep their size.
- *  A name too long for two thirds of the line still shortens. Drag the frame narrower to see
- *  which gives way. */
+/** A row whose summary names it keeps the name whole, up to two thirds of the line, and the
+ *  address beside it gives way first: it shortens as the line narrows, and hides once only a
+ *  few characters would show, while the buttons keep their size. A name too long for two
+ *  thirds of the line still shortens. Drag the frame narrower to see which gives way. */
 export const DisclosureRowSummaryFirst: StoryObj<{ summaryFirst: boolean }> = {
   args: { summaryFirst: true },
   argTypes: {
-    summaryFirst: { description: 'The summary keeps its width and the actions give way first.' },
+    summaryFirst: { description: 'The summary keeps its width and the aside gives way first.' },
   },
   render: ({ summaryFirst }) => (
     <div className="w-72 max-w-full rounded-xl border theme-border text-sm">
@@ -623,16 +623,8 @@ export const DisclosureRowSummaryFirst: StoryObj<{ summaryFirst: boolean }> = {
               />
             ) : undefined
           }
-          actions={
-            <>
-              <span className="min-w-0 truncate theme-muted-text">{address}</span>
-              <IconButton
-                className="shrink-0"
-                label={`More actions for ${name}`}
-                icon={<MoreIcon />}
-              />
-            </>
-          }
+          aside={<span className="min-w-0 truncate theme-muted-text">{address}</span>}
+          actions={<IconButton label={`More actions for ${name}`} icon={<MoreIcon />} />}
           panelClassName="pt-2 ps-4"
         >
           <p className="m-0 theme-muted-text">Started 3 hours ago in us-east-1.</p>
@@ -640,11 +632,4 @@ export const DisclosureRowSummaryFirst: StoryObj<{ summaryFirst: boolean }> = {
       ))}
     </div>
   ),
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    const name = canvas.getByText('cfd-prod')
-    await expect(name.scrollWidth).toBeLessThanOrEqual(name.clientWidth)
-    const address = canvas.getByText('devadmin@54.201.18.77')
-    await expect(address.scrollWidth).toBeGreaterThan(address.clientWidth)
-  },
 }

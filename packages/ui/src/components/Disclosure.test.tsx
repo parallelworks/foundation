@@ -46,6 +46,19 @@ describe('Disclosure', () => {
   })
 })
 
+describe('Disclosure aside', () => {
+  it('shows its aside beside the summary, outside the toggle', () => {
+    render(
+      <Disclosure summary="cfd-prod" summaryFirst aside="devadmin@10.0.0.1">
+        detail
+      </Disclosure>,
+    )
+    const toggle = screen.getByRole('button', { name: 'cfd-prod' })
+    expect(screen.getByText('devadmin@10.0.0.1')).toBeInTheDocument()
+    expect(toggle).not.toHaveTextContent('devadmin@10.0.0.1')
+  })
+})
+
 describe('DisclosurePanel', () => {
   it('opens for a toggle that lives elsewhere', () => {
     const { rerender } = render(
