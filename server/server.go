@@ -67,6 +67,9 @@ type Options struct {
 	// Wrap wraps the routes inside the security middleware, for example to
 	// attach the authenticated caller to each request.
 	Wrap func(http.Handler) http.Handler
+	// NoRequestLog stops logging each request, for a host that logs them
+	// itself. Panics are still logged.
+	NoRequestLog bool
 }
 
 // DefaultContentSecurityPolicy allows only same-origin resources and no
@@ -91,7 +94,8 @@ const DefaultContentSecurityPolicy = "default-src 'self'; " +
 // is proxied from DevServer, the CSP also accepts spa.DevNonce. Requests that
 // change state are refused when a browser sent them from another site, which
 // keeps cookie sessions safe from cross-site request forgery. Each request is
-// logged, and a panic is logged and answered with a 500.
+// logged unless NoRequestLog is set, and a panic is logged and answered with
+// a 500.
 func New(opts Options) http.Handler {
 	if opts.Logger == nil {
 		opts.Logger = slog.Default()
@@ -133,7 +137,9 @@ func New(opts Options) http.Handler {
 	}
 	h = sameOrigin(h)
 	h = securityHeaders(h, csp, opts.HSTS)
-	h = logRequests(h, opts.Logger, opts.RequestLogLevel)
+	if !opts.NoRequestLog {
+		h = logRequests(h, opts.Logger, opts.RequestLogLevel)
+	}
 	return recoverPanics(h, opts.Logger, opts.APIPrefix)
 }
 
