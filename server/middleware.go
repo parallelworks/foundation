@@ -79,7 +79,10 @@ func (r *statusRecorder) Write(b []byte) (int, error) {
 // WebSocket upgrades and flushing work through the recorder.
 func (r *statusRecorder) Unwrap() http.ResponseWriter { return r.ResponseWriter }
 
-func logRequests(next http.Handler, logger *slog.Logger) http.Handler {
+func logRequests(next http.Handler, logger *slog.Logger, level func(*http.Request, int) slog.Level) http.Handler {
+	if level == nil {
+		level = func(_ *http.Request, status int) slog.Level { return requestLevel(status) }
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		rec := &statusRecorder{ResponseWriter: w}
@@ -88,7 +91,7 @@ func logRequests(next http.Handler, logger *slog.Logger) http.Handler {
 		if r.URL.Path == "/healthz" || r.URL.Path == "/readyz" {
 			return
 		}
-		logger.LogAttrs(r.Context(), requestLevel(rec.status), "http request",
+		logger.LogAttrs(r.Context(), level(r, rec.status), "http request",
 			slog.String("method", r.Method),
 			slog.String("path", r.URL.Path),
 			slog.Int("status", rec.status),
@@ -99,16 +102,15 @@ func logRequests(next http.Handler, logger *slog.Logger) http.Handler {
 	})
 }
 
-// requestLevel keeps a request that worked out of the default log, which
-// polling clients would otherwise fill, and still shows every one that failed.
+// requestLevel is a request's default log level, raised for a failure.
 func requestLevel(status int) slog.Level {
 	switch {
 	case status >= 500:
 		return slog.LevelError
 	case status >= 400:
-		return slog.LevelInfo
+		return slog.LevelWarn
 	}
-	return slog.LevelDebug
+	return slog.LevelInfo
 }
 
 func recoverPanics(next http.Handler, logger *slog.Logger, apiPrefix string) http.Handler {

@@ -230,10 +230,11 @@ func TestPanics(t *testing.T) {
 }
 
 func TestRequestLog(t *testing.T) {
-	logged := func(level slog.Level) string {
+	logged := func(level func(*http.Request, int) slog.Level) string {
 		var logs bytes.Buffer
 		h := newHandler(t, server.Options{
-			Logger: slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: level})),
+			Logger:          slog.New(slog.NewTextHandler(&logs, nil)),
+			RequestLogLevel: level,
 			Routes: func(mux *http.ServeMux) {
 				mux.HandleFunc("GET /api/v1/boom", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusInternalServerError) })
 			},
@@ -244,16 +245,22 @@ func TestRequestLog(t *testing.T) {
 		do(t, h, http.MethodGet, "/api/v1/boom")
 		return logs.String()
 	}
-	// By default only failures show: a missing route, a server error.
-	info := logged(slog.LevelInfo)
-	if strings.Contains(info, "/issues") || !strings.Contains(info, "level=INFO msg=\"http request\" method=GET path=/api/v1/nope status=404") ||
-		!strings.Contains(info, "level=ERROR msg=\"http request\" method=GET path=/api/v1/boom status=500") {
-		t.Errorf("info logs:\n%s", info)
+	// Every request but health checks shows, a failure at a higher level.
+	def := logged(nil)
+	if strings.Contains(def, "/healthz") || !strings.Contains(def, "level=INFO msg=\"http request\" method=GET path=/issues status=200") ||
+		!strings.Contains(def, "level=WARN msg=\"http request\" method=GET path=/api/v1/nope status=404") ||
+		!strings.Contains(def, "level=ERROR msg=\"http request\" method=GET path=/api/v1/boom status=500") {
+		t.Errorf("default logs:\n%s", def)
 	}
-	// Debug shows every request but health checks.
-	debug := logged(slog.LevelDebug)
-	if strings.Contains(debug, "/healthz") || !strings.Contains(debug, "level=DEBUG msg=\"http request\" method=GET path=/issues status=200") {
-		t.Errorf("debug logs:\n%s", debug)
+	// A host can quiet a route it polls and still see failures.
+	quiet := logged(func(r *http.Request, status int) slog.Level {
+		if r.URL.Path == "/issues" && status < 400 {
+			return slog.LevelDebug
+		}
+		return slog.LevelInfo
+	})
+	if strings.Contains(quiet, "/issues") || !strings.Contains(quiet, "path=/api/v1/nope status=404") {
+		t.Errorf("quiet logs:\n%s", quiet)
 	}
 }
 

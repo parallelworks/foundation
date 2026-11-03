@@ -29,9 +29,12 @@ type Pinger interface {
 // Options configure New.
 type Options struct {
 	// Logger records requests, panics and server errors: a request that
-	// worked at debug level, a client error at info and a server error at
+	// worked at info level, a client error at warn and a server error at
 	// error. Defaults to slog.Default().
 	Logger *slog.Logger
+	// RequestLogLevel, if set, picks the level a request is logged at from
+	// the request and its status, such as debug for a route clients poll.
+	RequestLogLevel func(r *http.Request, status int) slog.Level
 	// Routes registers the application's handlers, such as its huma API.
 	Routes func(mux *http.ServeMux)
 	// APIPrefix is where the API lives: a path under it that matches no
@@ -88,8 +91,7 @@ const DefaultContentSecurityPolicy = "default-src 'self'; " +
 // is proxied from DevServer, the CSP also accepts spa.DevNonce. Requests that
 // change state are refused when a browser sent them from another site, which
 // keeps cookie sessions safe from cross-site request forgery. Each request is
-// logged, at debug level when it worked, and a panic is logged and answered
-// with a 500.
+// logged, and a panic is logged and answered with a 500.
 func New(opts Options) http.Handler {
 	if opts.Logger == nil {
 		opts.Logger = slog.Default()
@@ -131,7 +133,7 @@ func New(opts Options) http.Handler {
 	}
 	h = sameOrigin(h)
 	h = securityHeaders(h, csp, opts.HSTS)
-	h = logRequests(h, opts.Logger)
+	h = logRequests(h, opts.Logger, opts.RequestLogLevel)
 	return recoverPanics(h, opts.Logger, opts.APIPrefix)
 }
 
