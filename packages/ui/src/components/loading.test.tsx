@@ -44,6 +44,21 @@ describe('Loader', () => {
 })
 
 describe('RefreshButton', () => {
+  it('shows only its icon on a phone with iconOnly="phone", keeping its label as its name', () => {
+    render(<RefreshButton onRefresh={() => {}} iconOnly="phone" />)
+    const button = screen.getByRole('button', { name: 'Refresh' })
+    expect(button).not.toHaveAttribute('aria-label')
+    expect(screen.getByText('Refresh')).toHaveClass('max-sm:sr-only')
+    // A square on a phone, its usual padding elsewhere.
+    expect(button).toHaveClass('max-sm:w-8', 'max-sm:px-0', 'px-3')
+  })
+
+  it('keeps "Refresh" in its name on a phone while it shows when it was updated', () => {
+    render(<RefreshButton onRefresh={() => {}} iconOnly="phone" updatedAt={Date.now() - 5000} />)
+    const button = screen.getByRole('button', { name: /^Refresh\.\s?Updated/ })
+    expect(button.querySelector('.max-sm\\:sr-only')).toHaveTextContent(/Updated/)
+  })
+
   it('spins and announces until the refresh it started settles', async () => {
     let settle = () => {}
     const onRefresh = vi.fn(
@@ -65,6 +80,30 @@ describe('RefreshButton', () => {
     expect(screen.getByRole('status')).toHaveTextContent('')
   })
 
+  it('stops spinning when the refresh fails, leaving the failure to the host', async () => {
+    let fail = (_: Error) => {}
+    const refresh = new Promise<void>((_, reject) => {
+      fail = reject
+    })
+    // The host holds the promise it returned and reports the failure itself.
+    refresh.catch(() => {})
+    const unhandled = vi.fn()
+    process.on('unhandledRejection', unhandled)
+    try {
+      render(<RefreshButton onRefresh={() => refresh} />)
+      const button = screen.getByRole('button', { name: 'Refresh' })
+      fireEvent.click(button)
+      expect(button).toHaveAttribute('aria-busy', 'true')
+      await act(async () => fail(new Error('offline')))
+      await waitFor(() => expect(button).toHaveAttribute('aria-busy', 'false'))
+      // Rejections are reported after the microtasks that could still handle them.
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(unhandled).not.toHaveBeenCalled()
+    } finally {
+      process.off('unhandledRejection', unhandled)
+    }
+  })
+
   it('spins for a refresh the host tracks', () => {
     render(<RefreshButton onRefresh={() => {}} refreshing />)
     expect(screen.getByRole('button', { name: 'Refresh' })).toHaveAttribute('aria-busy', 'true')
@@ -77,8 +116,67 @@ describe('RefreshButton', () => {
     expect(screen.getByRole('button')).toHaveAccessibleName(/^Refresh\W+Updated 5 minutes ago$/)
   })
 
+  it('reads "Refreshing" while busy, keeping its name', () => {
+    render(<RefreshButton onRefresh={() => {}} refreshing />)
+    const button = screen.getByRole('button', { name: 'Refresh' })
+    expect(button).toHaveTextContent('Refreshing')
+  })
+
+  it('takes any time value, and a class of its own', () => {
+    render(
+      <RefreshButton
+        onRefresh={() => {}}
+        variant="inline"
+        className="-mx-1"
+        updatedAt={new Date(Date.now() - 2 * 60_000).toISOString()}
+      />,
+    )
+    expect(screen.getByRole('button')).toHaveTextContent('Updated 2 minutes ago')
+    expect(screen.getByRole('button')).toHaveClass('-mx-1')
+  })
+
   it('keeps its name when only the icon shows', () => {
     render(<RefreshButton onRefresh={() => {}} iconOnly />)
     expect(screen.getByRole('button', { name: 'Refresh' })).toHaveTextContent('')
+  })
+})
+
+describe('Loader fill="content"', () => {
+  const rect = (r: Partial<DOMRect>) =>
+    ({ top: 0, left: 0, width: 0, height: 0, right: 0, bottom: 0, x: 0, y: 0, ...r }) as DOMRect
+
+  it('centers in the content area beside a sidebar, under what it pins at its top', () => {
+    const boxes: Record<string, DOMRect> = {
+      area: rect({ top: 0, left: 240, width: 784, height: 700, bottom: 700 }),
+      bar: rect({ top: 0, left: 240, width: 784, height: 56, bottom: 56 }),
+    }
+    const spy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function (this: HTMLElement) {
+        return boxes[this.dataset['testid'] ?? ''] ?? rect({})
+      })
+    render(
+      <div className="flex">
+        <nav style={{ width: 240 }}>sidebar</nav>
+        <div data-testid="area" style={{ overflow: 'auto' }}>
+          <div data-testid="bar" style={{ position: 'sticky', top: 0 }}>
+            header
+          </div>
+          <Loader fill="content" />
+        </div>
+      </div>,
+    )
+    const box = document.querySelector<HTMLElement>('[data-loader-area]')
+    expect(box).toHaveClass('fixed', 'pointer-events-none')
+    expect(box).toHaveStyle({ top: '56px', left: '240px', width: '784px', height: '644px' })
+    expect(screen.getByRole('status')).toBeInTheDocument()
+    spy.mockRestore()
+  })
+
+  it('takes the whole window where the document itself scrolls', () => {
+    render(<Loader fill="content" />)
+    const box = document.querySelector<HTMLElement>('[data-loader-area]')
+    expect(box).toHaveClass('fixed', 'inset-0')
+    expect(box?.getAttribute('style')).toBeNull()
   })
 })

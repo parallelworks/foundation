@@ -1,9 +1,18 @@
-import type { ComponentType, ReactNode } from 'react'
+import {
+  type ComponentType,
+  type ReactNode,
+  use,
+  useId,
+  useLayoutEffect,
+  useSyncExternalStore,
+} from 'react'
 import { cx } from '../cx'
 import { AddIcon, MoreIcon } from '../icons'
 import { ActionMenu } from './ActionMenu'
 import { AppLink } from './AppLink'
 import { buttonClasses } from './buttonClasses'
+import { HeaderActionsFitContext } from './headerActionsFit'
+import { Loader } from './Loader'
 import type { MenuEntry } from './MenuEntries'
 import { useStrings } from './Provider'
 import { Tooltip } from './Tooltip'
@@ -28,6 +37,8 @@ interface ControlProps {
   disabled: boolean
   /** Why it can't be pressed: the tooltip while disabled, and part of its name. */
   disabledReason: string | undefined
+  /** Busy with what it started: it keeps focus and can't be pressed again. */
+  loading?: boolean | undefined
   pressed?: boolean | undefined
   className: string
   children: ReactNode
@@ -44,6 +55,7 @@ function HeaderControl({
   tooltip,
   disabled,
   disabledReason,
+  loading = false,
   pressed,
   className,
   children,
@@ -54,7 +66,7 @@ function HeaderControl({
   menu,
 }: ControlProps & Partial<Target>) {
   const { common } = useStrings()
-  if (menu && !disabled) {
+  if (menu && !disabled && !loading) {
     return (
       <ActionMenu items={menu} label={name} triggerClassName={className}>
         {children}
@@ -70,7 +82,8 @@ function HeaderControl({
           href={href}
           reloadDocument={reloadDocument}
           target={external ? '_blank' : undefined}
-          disabled={disabled}
+          disabled={disabled || loading}
+          aria-busy={loading || undefined}
           aria-label={
             reason ? `${name}. ${reason}` : external ? `${name} ${common.opensInNewTab}` : name
           }
@@ -85,9 +98,10 @@ function HeaderControl({
     <Tooltip content={disabled ? (disabledReason ?? tooltip) : tooltip}>
       <button
         type="button"
-        onClick={disabled ? undefined : onClick}
+        onClick={disabled || loading ? undefined : onClick}
         aria-label={reason ? `${name}. ${reason}` : name}
-        aria-disabled={disabled || undefined}
+        aria-disabled={disabled || loading || undefined}
+        aria-busy={loading || undefined}
         aria-pressed={pressed}
         className={className}
       >
@@ -110,54 +124,144 @@ export type PageHeaderActionProps = Target & {
   disabledReason?: string | undefined
   /** A hint shown on hover and focus while it can be pressed. */
   tooltip?: string | undefined
-  /** In the error color, as a destructive menu entry is, for an action that
-   *  removes or breaks something. */
+  /** How a labeled action reads in the bar: `outline`, the page's small
+   *  secondary button, as "+ Add" is; or `link`, text in the link color, for a
+   *  page that keeps the older look. On a narrow bar the label folds into the
+   *  tooltip and the outline stays, so the action is an outlined icon. An
+   *  `iconOnly` action, such as a pencil beside the title, is always bare. */
+  variant?: 'outline' | 'link' | undefined
+  /** For an action that removes or breaks something: in the error color where
+   *  it is a menu entry, in the header's "…" menu. In the bar it reads as the
+   *  others do; a page's destructive actions belong in its menu. */
   destructive?: boolean | undefined
   /** A toggle's state, such as a favorite: set, it reads as pressed. Buttons only. */
   pressed?: boolean | undefined
+  /** Busy with what it started, such as a run starting: a spinner takes the
+   *  icon's place, and it keeps focus but can't be pressed again until done. */
+  loading?: boolean | undefined
 }
 
 /**
  * An action in the page header: a link (`href`, `external` for a new tab,
  * `reloadDocument` for a path the router doesn't serve), a
- * button (`onClick`) or a menu (`menu`). Labeled actions read in the link
- * color, so the page's commands stand apart from the trail.
+ * button (`onClick`) or a menu (`menu`). A labeled action is a small outline
+ * button, as "+ Add" is, so the page's commands stand apart from the trail.
  */
 export function PageHeaderAction({
   icon: Icon,
   label,
   ariaLabel,
   iconOnly = false,
+  variant = 'outline',
   disabled = false,
   disabledReason,
   tooltip,
   destructive = false,
   pressed,
+  loading = false,
   ...target
 }: PageHeaderActionProps) {
-  // The tone colors the icon and label rather than the control, so it can't
-  // lose to the button recipe's own text color by stylesheet order.
-  const tone = destructive
-    ? '*:text-(--theme-error-text)'
-    : iconOnly
-      ? undefined
-      : '*:text-(--theme-link)'
+  const link = variant === 'link' && !iconOnly
+  const className = cx(
+    buttonClasses({ variant: link || iconOnly ? 'ghost' : 'outline', size: 'xs', iconOnly }),
+    // The link color tints the icon and label rather than the control, so it can't lose to the
+    // button recipe's own text color by stylesheet order.
+    link && '*:text-(--theme-link)',
+  )
+  const icon = loading ? <Loader inline decorative size="1em" /> : <Icon />
   return (
-    <HeaderControl
-      {...target}
-      name={ariaLabel ?? label}
-      // The label folds away in a narrow bar, so the tooltip carries it.
-      tooltip={tooltip ?? label}
-      disabled={disabled}
-      disabledReason={disabledReason}
-      pressed={pressed}
-      className={cx(buttonClasses({ variant: 'ghost', size: 'xs', iconOnly }), tone)}
+    <Fitted
+      entry={menuRow({
+        label: ariaLabel ?? label,
+        icon,
+        disabled: disabled || loading,
+        disabledReason,
+        destructive,
+        pressed,
+        target,
+      })}
     >
-      <Icon />
-      {!iconOnly && <span className="@max-md:sr-only">{label}</span>}
-    </HeaderControl>
+      <HeaderControl
+        {...target}
+        name={ariaLabel ?? label}
+        // The label folds away in a narrow bar, so the tooltip carries it.
+        tooltip={tooltip ?? label}
+        disabled={disabled}
+        disabledReason={disabledReason}
+        loading={loading}
+        pressed={pressed}
+        className={className}
+      >
+        {icon}
+        {!iconOnly && <span className="@max-md:sr-only">{label}</span>}
+      </HeaderControl>
+    </Fitted>
   )
 }
+
+/** An action as a row of the header's "…" menu, for when the bar has no room for it. */
+function menuRow({
+  label,
+  icon,
+  disabled,
+  disabledReason,
+  destructive,
+  pressed,
+  target,
+}: {
+  label: string
+  icon: ReactNode
+  disabled: boolean
+  disabledReason: string | undefined
+  destructive?: boolean | undefined
+  pressed?: boolean | undefined
+  target: Target
+}): MenuEntry {
+  const shared = { label, icon, disabled, disabledReason, destructive }
+  if (target.menu) {
+    // A menu of its own becomes a submenu, unless it can't be opened now.
+    return disabled ? { ...shared, onClick: () => {} } : { label, icon, items: target.menu }
+  }
+  if (target.href) {
+    return {
+      ...shared,
+      href: target.href,
+      reloadDocument: target.reloadDocument,
+      target: target.external ? '_blank' : undefined,
+    }
+  }
+  return { ...shared, onClick: target.onClick ?? (() => {}), checked: pressed }
+}
+
+/**
+ * Lets an action in the header's `actions` move into the bar's "…" menu when
+ * the bar runs out of room: it registers its menu row, and hides while it has
+ * moved. Anywhere else, such as among the title actions, it is the action alone.
+ */
+function Fitted({ entry, children }: { entry: MenuEntry; children: ReactNode }) {
+  const fit = use(HeaderActionsFitContext)
+  const id = useId()
+  useLayoutEffect(() => {
+    fit?.register(id, entry)
+  })
+  useLayoutEffect(() => (fit ? () => fit.unregister(id) : undefined), [fit, id])
+  const moved = useSyncExternalStore(
+    fit?.subscribe ?? subscribeNever,
+    () => fit?.isOverflowed(id) ?? false,
+    () => false,
+  )
+  if (!fit) {
+    return children
+  }
+  // `contents` leaves the action the bar's flex item; the bar measures it through this.
+  return (
+    <span data-header-action={id} hidden={moved} className={moved ? undefined : 'contents'}>
+      {children}
+    </span>
+  )
+}
+
+const subscribeNever = () => () => {}
 
 export type PageHeaderAddButtonProps = Target & {
   /** The full action, such as "New cluster": the tooltip and accessible name. */
@@ -166,6 +270,8 @@ export type PageHeaderAddButtonProps = Target & {
   word?: 'add' | 'create' | undefined
   disabled?: boolean | undefined
   disabledReason?: string | undefined
+  /** Busy making it: a spinner takes the plus's place, and it can't be pressed again until done. */
+  loading?: boolean | undefined
 }
 
 /** The page's "+ Add" or "+ Create": with `menu`, a chooser of what to make. */
@@ -174,21 +280,34 @@ export function PageHeaderAddButton({
   word = 'add',
   disabled = false,
   disabledReason,
+  loading = false,
   ...target
 }: PageHeaderAddButtonProps) {
   const { common } = useStrings()
+  const icon = loading ? <Loader inline decorative size="1em" /> : <AddIcon />
   return (
-    <HeaderControl
-      {...target}
-      name={label}
-      tooltip={label}
-      disabled={disabled}
-      disabledReason={disabledReason}
-      className={buttonClasses({ variant: 'outline', size: 'xs' })}
+    <Fitted
+      entry={menuRow({
+        label,
+        icon,
+        disabled: disabled || loading,
+        disabledReason,
+        target,
+      })}
     >
-      <AddIcon />
-      <span className="@max-md:sr-only">{word === 'create' ? common.create : common.add}</span>
-    </HeaderControl>
+      <HeaderControl
+        {...target}
+        name={label}
+        tooltip={label}
+        disabled={disabled}
+        disabledReason={disabledReason}
+        loading={loading}
+        className={buttonClasses({ variant: 'outline', size: 'xs' })}
+      >
+        {icon}
+        <span className="@max-md:sr-only">{word === 'create' ? common.create : common.add}</span>
+      </HeaderControl>
+    </Fitted>
   )
 }
 

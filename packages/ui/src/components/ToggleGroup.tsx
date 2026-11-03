@@ -3,8 +3,9 @@ import { ToggleGroup as BaseToggleGroup } from '@base-ui/react/toggle-group'
 import type { ReactNode } from 'react'
 import { cx } from '../cx'
 import { formatCount } from '../format'
+import { CheckIcon } from '../icons'
 import { buttonClasses } from './buttonClasses'
-import { useStrings } from './Provider'
+import { useLocale, useStrings } from './Provider'
 
 export interface ToggleGroupOption<T extends string> {
   value: T
@@ -14,6 +15,9 @@ export interface ToggleGroupOption<T extends string> {
   /** How many items the option matches, after the label. */
   count?: number | undefined
   disabled?: boolean | undefined
+  /** `warning`: an option asking to be looked at, such as "Needs attention", whose label takes
+   *  the warning tone while it is off. */
+  tone?: 'warning' | undefined
   testId?: string
 }
 
@@ -31,9 +35,19 @@ export interface ToggleGroupProps<T extends string> {
   /** Leads with an "All" option, pressed while nothing else is, that clears
    *  the others. `{ count }` shows the total beside it. */
   all?: boolean | { count?: number | undefined } | undefined
+  /** The All option's words, for one that names what it covers, such as "All types". */
+  allLabel?: ReactNode
   size?: 'sm' | 'md' | undefined
   disabled?: boolean | undefined
+  /** Names an element that says more about the group, such as a live summary
+   *  of what the filter lets through. */
+  'aria-describedby'?: string | undefined
   testId?: string
+  className?: string | undefined
+  /** Whether an option that's off dims its icon so the pressed ones lead (default true).
+   *  `false` keeps icons whose color means something, such as status lamps, at full strength;
+   *  the fill and check still say which are on. */
+  dimIcons?: boolean | undefined
 }
 
 // Stands in for "nothing pressed" so the All option takes part in the group's
@@ -57,9 +71,13 @@ export function ToggleGroup<T extends string>({
   onValueChange,
   multiple = true,
   all = false,
+  allLabel,
   size = 'sm',
   disabled = false,
+  'aria-describedby': describedBy,
   testId,
+  className,
+  dimIcons = true,
 }: ToggleGroupProps<T>) {
   const strings = useStrings()
   const allCount = typeof all === 'object' ? all.count : undefined
@@ -67,8 +85,9 @@ export function ToggleGroup<T extends string>({
   return (
     <BaseToggleGroup<string>
       aria-label={label}
+      aria-describedby={describedBy}
       data-testid={testId}
-      className="flex flex-wrap items-center gap-1"
+      className={cx('flex flex-wrap items-center gap-1', className)}
       multiple={multiple}
       disabled={disabled}
       value={pressed}
@@ -85,9 +104,21 @@ export function ToggleGroup<T extends string>({
         )
       }}
     >
-      {all && <Chip value={ALL} label={strings.common.all} count={allCount} size={size} />}
+      {all && (
+        <Chip
+          value={ALL}
+          label={allLabel ?? strings.common.all}
+          count={allCount}
+          size={size}
+          dimIcon={dimIcons}
+        />
+      )}
+      {/* All clears the others rather than joining them, so a rule sets it apart. */}
+      {all && options.length > 0 && (
+        <span aria-hidden="true" className="mx-0.5 h-5 w-px shrink-0 bg-(--theme-border)" />
+      )}
       {options.map((option) => (
-        <Chip key={option.value} {...option} size={size} />
+        <Chip key={option.value} {...option} size={size} dimIcon={dimIcons} />
       ))}
     </BaseToggleGroup>
   )
@@ -99,28 +130,52 @@ function Chip({
   icon,
   count,
   disabled,
+  tone,
   testId,
   size,
-}: ToggleGroupOption<string> & { size: 'sm' | 'md' }) {
+  dimIcon,
+}: Omit<ToggleGroupOption<string>, 'label'> & {
+  label: ReactNode
+  size: 'sm' | 'md'
+  dimIcon: boolean
+}) {
+  const locale = useLocale()
   return (
     <Toggle
       value={value}
       disabled={disabled}
       data-testid={testId}
       // The outline button's pressed border alone reads faintly across a row of
-      // chips; the selection tint says which are on at a glance.
+      // chips; the selection tint says which are on at a glance, and the check
+      // says it without color. A toggle doesn't rise on hover as a button does
+      // (see buttonClasses). Its focus ring draws inside it, so a row of
+      // options at a card's clipped top edge or on a wrapped line never has it
+      // cut off or laid over a neighbor.
       className={cx(
-        'group aria-pressed:bg-(--theme-accent-subtle)',
         buttonClasses({ variant: 'outline', size }),
+        'group focus-visible:-outline-offset-2 aria-pressed:bg-(--theme-accent-subtle)',
+        tone === 'warning' && 'not-aria-pressed:text-(--theme-warning-text)',
       )}
     >
-      {icon}
+      {/* An option that's off dims its icon, such as a logo or a status dot, so
+          the pressed ones lead. */}
+      {icon && (
+        <span
+          className={cx(
+            'inline-flex shrink-0 transition-opacity',
+            dimIcon && 'group-not-aria-pressed:opacity-55',
+          )}
+        >
+          {icon}
+        </span>
+      )}
       {label}
       {count !== undefined && (
         <span className="tabular-nums text-(--theme-muted-text-color) group-aria-pressed:text-(--theme-app)">
-          {formatCount(count)}
+          {formatCount(count, locale)}
         </span>
       )}
+      <CheckIcon aria-hidden="true" className="hidden shrink-0 group-aria-pressed:block" />
     </Toggle>
   )
 }

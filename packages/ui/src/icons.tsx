@@ -1,6 +1,6 @@
 // The one import point for interface icons. Logos of other companies' products
 // are in './brandIcons'.
-import type { ReactNode, SVGProps } from 'react'
+import { type ReactNode, type SVGProps, useId } from 'react'
 
 export interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'ref'> {
   /** Width and height; the text's size by default. */
@@ -20,6 +20,7 @@ const STROKE_WIDTH = 1.5
 /** A glyph drawn as one path on the 16px grid, in the text's size and color by
  *  default, so a class such as `size-4` or a parent's font size sets it. */
 function drawn(d: string, defaults?: IconProps): IconType {
+  // biome-ignore lint/correctness/noComponentHookFactories: the factory runs at module initialization, preserving component identity
   function Icon({
     title,
     children,
@@ -103,6 +104,9 @@ export const BannerIcon = /* @__PURE__ */ drawn(
 )
 export const BillingIcon = /* @__PURE__ */ drawn(
   'M3.5 3.5h9a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1ZM2.5 6.5h11M4.75 10h2',
+)
+export const BranchIcon = /* @__PURE__ */ drawn(
+  'M4.5 5.75a1.75 1.75 0 1 0 0-3.5 1.75 1.75 0 0 0 0 3.5ZM4.5 13.75a1.75 1.75 0 1 0 0-3.5 1.75 1.75 0 0 0 0 3.5ZM11.5 6.75a1.75 1.75 0 1 0 0-3.5 1.75 1.75 0 0 0 0 3.5ZM4.5 5.75v4.5M11.5 6.75c0 2.75-7 1-7 3.5',
 )
 export const BriefcaseIcon = /* @__PURE__ */ drawn(
   'M3 5h10a1 1 0 0 1 1 1v6.75a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1ZM10.25 13.75V3.25a1 1 0 0 0-1-1h-2.5a1 1 0 0 0-1 1v10.5',
@@ -600,6 +604,9 @@ export const RenewIcon = /* @__PURE__ */ drawn(
 export const ReportIcon = /* @__PURE__ */ drawn(
   'M10.5 3h1.5a1 1 0 0 1 1 1v9.25a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h1.5M6 1.75h4a.5.5 0 0 1 .5.5v1.5a.5.5 0 0 1-.5.5H6a.5.5 0 0 1-.5-.5v-1.5a.5.5 0 0 1 .5-.5ZM5.5 11.25l1.75-2 1.5 1.25 2-2.75',
 )
+export const RepositoryIcon = /* @__PURE__ */ drawn(
+  'M3.5 12.25V3.5A1.5 1.5 0 0 1 5 2h7.5v9H5a1.5 1.5 0 0 0 0 3h7.5M6.5 5h3',
+)
 export const ResetIcon = /* @__PURE__ */ drawn(
   'M2.5 3.5h11M2.5 8h2.75M2.5 12.5h2.75M7.75 10.25a3 3 0 1 0 .875-2.125L7.75 8.875M7.75 7.25v1.625h1.625',
 )
@@ -646,6 +653,12 @@ export const ScriptIcon = /* @__PURE__ */ drawn(
 )
 export const SearchIcon = /* @__PURE__ */ drawn(
   'M7 12A5 5 0 1 0 7 2a5 5 0 0 0 0 10ZM14 14l-3.5-3.5',
+)
+export const SecretSafeIcon = /* @__PURE__ */ drawn(
+  'M8 1.75 13 3.5v4c0 3-2.15 5.25-5 6.75-2.85-1.5-5-3.75-5-6.75v-4ZM8 4.9l2.25.8v1.85c0 1.45-.95 2.55-2.25 3.3-1.3-.75-2.25-1.85-2.25-3.3V5.7Z',
+)
+export const SecretSafeMigrationIcon = /* @__PURE__ */ drawn(
+  'M8 1.75 13 3.5v4c0 3-2.15 5.25-5 6.75-2.85-1.5-5-3.75-5-6.75v-4ZM8 4.75v5M6 8l2 2 2-2',
 )
 export const SendIcon = /* @__PURE__ */ drawn(
   'M14.25 1.75 10 14.25 7.5 8.5 1.75 6ZM14.25 1.75 7.5 8.5',
@@ -819,6 +832,106 @@ export const ZoomInIcon = /* @__PURE__ */ drawn(
 export const ZoomOutIcon = /* @__PURE__ */ drawn(
   'M7 12A5 5 0 1 0 7 2a5 5 0 0 0 0 10ZM14 14l-3.5-3.5M5 7h4',
 )
+
+// Status icons. A status that has ended is a solid shape with its mark cut out through a mask,
+// so the mark shows whatever is behind it — a hovered or selected row, a badge, a tooltip —
+// rather than a color painted to match one surface. One still under way, or not begun, is a
+// ring. They stay on the 16px grid but aren't one path, so they're built here, not `drawn`.
+
+const DISC = 'M8 14.75A6.75 6.75 0 1 0 8 1.25a6.75 6.75 0 0 0 0 13.5Z'
+const TRIANGLE = 'M7.13 1.9a1 1 0 0 1 1.74 0l6.1 10.6a1 1 0 0 1-.87 1.5H1.9a1 1 0 0 1-.87-1.5Z'
+// A cut-out mark loses a little to the shape's edge, so it is cut a touch wider than a stroke.
+const KNOCKOUT_WIDTH = 1.6
+
+/** The `svg` every status icon shares: the 16px grid at the text's size, hidden from assistive
+ *  technology unless a title or label names it. */
+function StatusSvg({
+  title,
+  children,
+  size = '1em',
+  color = 'currentColor',
+  strokeWidth = STROKE_WIDTH,
+  ...props
+}: IconProps) {
+  const named = Boolean(title || props['aria-label'] || props['aria-labelledby'])
+  return (
+    // biome-ignore lint/a11y/noSvgWithoutTitle: hidden from assistive technology unless a title or label names it
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 16 16"
+      width={size}
+      height={size}
+      fill="none"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...(named ? { role: 'img' } : { 'aria-hidden': true })}
+      {...props}
+    >
+      {title && <title>{title}</title>}
+      {children}
+    </svg>
+  )
+}
+
+/** A solid `shape` with `mark` cut out of it. The mask's id is the instance's own, so two on a
+ *  page never borrow each other's. */
+function knockedOut(shape: string, mark: string): IconType {
+  // biome-ignore lint/correctness/noComponentHookFactories: the factory runs at module initialization, preserving component identity
+  function Icon({ children, color = 'currentColor', ...props }: IconProps) {
+    const id = `status-mask-${useId().replace(/[^\w-]/g, '')}`
+    return (
+      <StatusSvg color={color} data-status-icon="filled" {...props}>
+        <mask id={id} maskUnits="userSpaceOnUse" x="0" y="0" width="16" height="16">
+          <rect width="16" height="16" fill="#fff" stroke="none" />
+          <path d={mark} stroke="#000" strokeWidth={KNOCKOUT_WIDTH} />
+        </mask>
+        <path d={shape} fill={color} stroke="none" mask={`url(#${id})`} />
+        {children}
+      </StatusSvg>
+    )
+  }
+  return Icon
+}
+
+/** Done: a solid disc with a check cut out of it. */
+export const SuccessFilledIcon = /* @__PURE__ */ knockedOut(DISC, 'M5.25 8.25 7 10l3.5-4')
+/** Failed: a solid disc with an x cut out of it. */
+export const FailFilledIcon = /* @__PURE__ */ knockedOut(DISC, 'M6 6l4 4M10 6l-4 4')
+/** Canceled: a solid disc with a dash cut out of it. */
+export const CancelFilledIcon = /* @__PURE__ */ knockedOut(DISC, 'M5.5 8h5')
+/** Done with problems: a solid triangle with an exclamation mark cut out of it. */
+export const WarningFilledIcon = /* @__PURE__ */ knockedOut(TRIANGLE, 'M8 6v3M8 11.4h.01')
+
+/** Under way: a faint track, a quarter arc that turns around it and a center dot that breathes.
+ *  Both hold still for a reader who asks for reduced motion. */
+export function RunningRingIcon({ children, color = 'currentColor', ...props }: IconProps) {
+  return (
+    <StatusSvg color={color} data-status-icon="ring" {...props}>
+      <circle cx="8" cy="8" r="6" opacity="0.25" />
+      <path
+        d="M8 2a6 6 0 0 1 6 6"
+        className="origin-center [transform-box:view-box] motion-safe:animate-[spin_1.6s_linear_infinite]"
+      />
+      <circle
+        cx="8"
+        cy="8"
+        r="2.6"
+        fill={color}
+        stroke="none"
+        className="motion-safe:animate-pulse"
+      />
+      {children}
+    </StatusSvg>
+  )
+}
+
+/** Waiting to start: a dashed ring, eight even dashes around it. */
+export const PendingRingIcon = /* @__PURE__ */ drawn('M8 14A6 6 0 1 0 8 2a6 6 0 0 0 0 12Z', {
+  strokeDasharray: '2.2 2.5124',
+})
+
 export { ErrorCheckmark, SuccessCheckmark } from './components/StatusIcons'
 /** @deprecated Renamed NamespaceIcon, which says what it means. */
 export const KubernetesNamespaceIcon = NamespaceIcon

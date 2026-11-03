@@ -79,8 +79,75 @@ func TestCheckCatalog(t *testing.T) {
 	problemtest.CheckCatalog(r, path, reg)
 	if len(r.errs) != 2 ||
 		!strings.Contains(r.errs[0], "apiErrors.last_admin") || !strings.Contains(r.errs[0], "{name}") ||
-		!strings.Contains(r.errs[1], "no apiErrors.quota") {
+		!strings.Contains(r.errs[1], "no apiErrors.app.quota or apiErrors.quota message") {
 		t.Errorf("CheckCatalog reported %q", r.errs)
+	}
+}
+
+// TestCheckCatalogNested checks a catalog that keeps another registry's
+// messages under its name, as useCodeMessage reads them.
+func TestCheckCatalogNested(t *testing.T) {
+	engine := problem.NewRegistry("workflow")
+	engine.Define(problem.Type{Code: "unknown_input", Status: http.StatusUnprocessableEntity, Title: "Unknown input", Params: []string{"input"}})
+
+	tests := []struct {
+		name    string
+		catalog string
+		want    []string // parts of the one error it reports; none when it passes
+	}{
+		{
+			name:    "nested",
+			catalog: `{"apiErrors": {"workflow": {"unknown_input": "No input {input}."}}}`,
+		},
+		{
+			// The top-level message takes the app's own params, which would fail if it were checked.
+			name: "nested over top level",
+			catalog: `{"apiErrors": {"unknown_input": "No field {field}.",
+				"workflow": {"unknown_input": "No input {input}."}}}`,
+		},
+		{
+			name:    "top level only",
+			catalog: `{"apiErrors": {"unknown_input": "No input {input}."}}`,
+		},
+		{
+			name:    "missing",
+			catalog: `{"apiErrors": {"workflow": {}}}`,
+			want:    []string{"no apiErrors.workflow.unknown_input or apiErrors.unknown_input message"},
+		},
+		{
+			name: "bad param in a nested message",
+			catalog: `{"apiErrors": {"unknown_input": "No input {input}.",
+				"workflow": {"unknown_input": "No field {field}."}}}`,
+			want: []string{"apiErrors.workflow.unknown_input: uses {field}"},
+		},
+		{
+			name:    "two levels",
+			catalog: `{"apiErrors": {"workflow": {"inputs": {"unknown_input": "No input {input}."}}}}`,
+			want:    []string{"parse", "apiErrors.workflow.inputs is not a message"},
+		},
+		{
+			name:    "not a message",
+			catalog: `{"apiErrors": {"unknown_input": 3}}`,
+			want:    []string{"parse", "apiErrors.unknown_input is neither a message"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "en.json")
+			if err := os.WriteFile(path, []byte(tt.catalog), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			r := &recorder{TB: t}
+			problemtest.CheckCatalog(r, path, engine)
+			if len(r.errs) != min(len(tt.want), 1) {
+				t.Fatalf("CheckCatalog reported %q, want %q", r.errs, tt.want)
+			}
+			for _, part := range tt.want {
+				if !strings.Contains(r.errs[0], part) {
+					t.Errorf("CheckCatalog reported %q, want %q", r.errs, tt.want)
+				}
+			}
+		})
 	}
 }
 
@@ -91,7 +158,19 @@ func TestCheckMessages(t *testing.T) {
 
 	r := &recorder{TB: t}
 	problemtest.CheckMessages(r, map[string]string{"slug_taken": "{slug} is taken."}, reg)
-	if len(r.errs) != 1 || !strings.Contains(r.errs[0], "no apiErrors.quota") {
+	if len(r.errs) != 1 || !strings.Contains(r.errs[0], "no apiErrors.app.quota or apiErrors.quota message") {
+		t.Errorf("CheckMessages reported %q", r.errs)
+	}
+
+	// Another registry's messages, flattened under its name.
+	engine := problem.NewRegistry("workflow")
+	engine.Define(problem.Type{Code: "unknown_input", Status: http.StatusUnprocessableEntity, Title: "Unknown input", Params: []string{"input"}})
+	r = &recorder{TB: t}
+	problemtest.CheckMessages(r, map[string]string{
+		"unknown_input":          "No field {field}.",
+		"workflow.unknown_input": "No input {input}.",
+	}, engine)
+	if len(r.errs) != 0 {
 		t.Errorf("CheckMessages reported %q", r.errs)
 	}
 }
@@ -114,5 +193,37 @@ func TestCheckGoCatalog(t *testing.T) {
 		if len(rec.errs) == 0 {
 			t.Errorf("%s: no failure", name)
 		}
+	}
+}
+
+func TestCheckGoCatalogComplete(t *testing.T) {
+	r := problem.NewRegistry("gocomplete")
+	r.Define(problem.Type{Code: "name_taken", Status: 409, Title: "Name taken", Doc: "x", Params: []string{"name"}})
+	partial := problem.MustCatalog(fstest.MapFS{
+		"en.json": {Data: []byte(`{"name_taken": "{name} is taken."}`)},
+		"ja.json": {Data: []byte(`{}`)},
+	})
+	// English alone is enough for CheckGoCatalog: ja readers get English.
+	problemtest.CheckGoCatalog(t, partial, r)
+
+	rec := &recorder{TB: t}
+	problemtest.CheckGoCatalogComplete(rec, partial, r)
+	if len(rec.errs) != 1 || !strings.Contains(rec.errs[0], "ja catalog has no apiErrors.name_taken message") {
+		t.Errorf("CheckGoCatalogComplete reported %q", rec.errs)
+	}
+
+	complete := problem.MustCatalog(fstest.MapFS{
+		"en.json": {Data: []byte(`{"name_taken": "{name} is taken."}`)},
+		"ja.json": {Data: []byte(`{"name_taken": "{name}は使われています。"}`)},
+	})
+	problemtest.CheckGoCatalogComplete(t, complete, r)
+
+	rec = &recorder{TB: t}
+	problemtest.CheckGoCatalogComplete(rec, problem.MustCatalog(fstest.MapFS{
+		"en.json": {Data: []byte(`{"name_taken": "{name} is taken."}`)},
+		"ja.json": {Data: []byte(`{"name_taken": "{who}"}`)},
+	}), r)
+	if len(rec.errs) != 1 || !strings.Contains(rec.errs[0], "{who}") {
+		t.Errorf("CheckGoCatalogComplete reported %q", rec.errs)
 	}
 }

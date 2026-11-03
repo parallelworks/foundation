@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ChatConfigProvider, resolveChatConfig } from '../../core/config'
-import type { ChatMessage, MessagePart } from '../../types'
+import type { ChatMessage, MessagePart, ToolCallPart, ToolDecision } from '../../types'
 import AgentMessageParts, { buildRenderItems } from './AgentMessageParts'
 
 vi.mock('../../ui/Markdown', () => ({
@@ -140,6 +140,70 @@ describe('AgentMessageParts dispatch', () => {
   })
 })
 
+describe('host tool renderers', () => {
+  const held: MessagePart[] = [
+    {
+      kind: 'tool_call',
+      id: 'c1',
+      name: 'stop_cluster',
+      args: '{"name":"gpu-a"}',
+      status: 'waiting',
+    },
+    { kind: 'approval', id: 'c1', approvalKind: 'confirm', subject: 'call' },
+  ]
+
+  it('draws a named tool with its approval and answer handler, under the standard row', () => {
+    const onApprovalAnswer = vi.fn()
+    renderParts(
+      held,
+      { onApprovalAnswer },
+      {
+        slots: {
+          toolRenderers: {
+            stop_cluster: ({ part, approval, onApprovalAnswer: answer }) => (
+              <button
+                type="button"
+                data-testid="cluster-card"
+                onClick={() =>
+                  answer?.(approval!.id, {
+                    kind: 'confirm',
+                    allowed: true,
+                    instead: 'destroy_cluster',
+                  })
+                }
+              >
+                {part.args}
+              </button>
+            ),
+          },
+        },
+      },
+    )
+    expect(screen.getByText('stop_cluster')).toBeInTheDocument()
+    expect(screen.getByTestId('cluster-card')).toHaveTextContent('gpu-a')
+    expect(screen.queryByTestId('approval-part')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('cluster-card'))
+    expect(onApprovalAnswer).toHaveBeenCalledWith('c1', {
+      kind: 'confirm',
+      allowed: true,
+      instead: 'destroy_cluster',
+    })
+  })
+
+  it('never folds a host-drawn tool into a run', () => {
+    const parts = [tc('t1', 'ReadFile'), tc('t2', 'ReadFile')]
+    expect(buildRenderItems(parts).map((i) => i.kind)).toEqual(['rollup'])
+    expect(buildRenderItems(parts, (name) => name === 'ReadFile').map((i) => i.kind)).not.toContain(
+      'rollup',
+    )
+  })
+
+  it('leaves other tools to the built-in drawing', () => {
+    renderParts(held, {}, { slots: { toolRenderers: { list_clusters: () => <div /> } } })
+    expect(screen.getAllByTestId('approval-part').length).toBeGreaterThan(0)
+  })
+})
+
 describe('approval parts', () => {
   it('answers a confirm approval through the callback', () => {
     const onAnswer = vi.fn()
@@ -212,14 +276,92 @@ describe('approval parts', () => {
           kind: 'approval',
           id: 'a3',
           approvalKind: 'ask',
-          question: 'Which db?',
-          options: [{ label: 'Postgres' }, { label: 'Mongo' }],
+          questions: [
+            { question: 'Which db?', options: [{ label: 'Postgres' }, { label: 'Mongo' }] },
+          ],
         },
       ],
       { onApprovalAnswer: onAnswer },
     )
     fireEvent.click(screen.getByText('Mongo'))
-    expect(onAnswer).toHaveBeenCalledWith('a3', { kind: 'ask', text: 'Mongo' })
+    expect(onAnswer).toHaveBeenCalledWith('a3', {
+      kind: 'ask',
+      answers: [{ picked: ['Mongo'] }],
+    })
+  })
+
+  it('renders a resolved ask with what each question was given', () => {
+    renderParts([
+      {
+        kind: 'approval',
+        id: 'a5',
+        approvalKind: 'ask',
+        questions: [
+          { question: 'Which db?', options: [{ label: 'Postgres' }] },
+          { question: 'Which checks?', multiSelect: true, options: [{ label: 'Lint' }] },
+          { question: 'Anything else?' },
+        ],
+        resolved: true,
+        answers: [
+          { picked: ['Postgres'], notes: 'the managed one' },
+          { picked: ['Lint'], text: 'and the e2e suite' },
+          {},
+        ],
+      },
+    ])
+    expect(screen.getByText('Postgres')).toBeInTheDocument()
+    expect(screen.getByText('the managed one')).toBeInTheDocument()
+    expect(screen.getByText('Lint, and the e2e suite')).toBeInTheDocument()
+    expect(screen.getByText('No answer')).toBeInTheDocument()
+    expect(screen.getByText('Answered')).toBeInTheDocument()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('shows an answer of notes alone as notes only, over the notes', () => {
+    renderParts([
+      {
+        kind: 'approval',
+        id: 'a8',
+        approvalKind: 'ask',
+        questions: [{ question: 'Which db?', options: [{ label: 'Postgres', preview: 'pg' }] }],
+        resolved: true,
+        answers: [{ notes: 'something in between' }],
+      },
+    ])
+    expect(screen.getByText('(notes only)')).toBeInTheDocument()
+    expect(screen.getByText('something in between')).toBeInTheDocument()
+  })
+
+  it('says a resolved ask went to chat, keeping the answers given so far', () => {
+    renderParts([
+      {
+        kind: 'approval',
+        id: 'a6',
+        approvalKind: 'ask',
+        questions: [{ question: 'Which db?' }, { question: 'Which auth?' }],
+        resolved: true,
+        answers: [{ text: 'Postgres' }, {}],
+        chat: true,
+      },
+    ])
+    expect(screen.getByText('Postgres')).toBeInTheDocument()
+    expect(screen.getByText('Chat about this')).toBeInTheDocument()
+    expect(screen.queryByText('Answered')).not.toBeInTheDocument()
+  })
+
+  it('renders an older resolved ask with the one answer its record kept', () => {
+    renderParts([
+      {
+        kind: 'approval',
+        id: 'a7',
+        approvalKind: 'ask',
+        questions: [{ question: 'Which db?' }],
+        resolved: true,
+        answer: 'Postgres',
+      },
+    ])
+    expect(screen.getByText('Which db?')).toBeInTheDocument()
+    expect(screen.getByText('Answered: Postgres')).toBeInTheDocument()
   })
 
   it('renders a resolved approval inert with its answer', () => {
@@ -239,6 +381,45 @@ describe('approval parts', () => {
     expect(screen.getByText('Answered: Allowed')).toBeInTheDocument()
     expect(screen.queryByText('Yes, allow this command')).not.toBeInTheDocument()
   })
+  it('leaves an answered call to its decision line', () => {
+    renderParts([
+      {
+        kind: 'tool_call',
+        id: 'c1',
+        name: 'stop_cluster',
+        args: '{}',
+        status: 'ok',
+        decision: { status: 'approved', by: 'user', name: 'Bob' },
+      },
+      { kind: 'approval', id: 'c1', approvalKind: 'confirm', resolved: true, answer: 'Allowed' },
+    ])
+    expect(screen.getByTestId('tool-decision')).toHaveTextContent('Allowed by Bob')
+    expect(screen.queryByText('Answered: Allowed')).not.toBeInTheDocument()
+  })
+
+  it('offers no answers once a confirm has expired', () => {
+    renderParts(
+      [
+        {
+          kind: 'approval',
+          id: 'a5',
+          approvalKind: 'confirm',
+          subject: 'call',
+          expiresAt: '2020-01-01T00:00:00Z',
+        },
+      ],
+      { onApprovalAnswer: vi.fn() },
+    )
+    expect(screen.getByText('This request expired. Ask again to run it.')).toBeInTheDocument()
+    expect(screen.queryByText('Yes, allow this call')).not.toBeInTheDocument()
+  })
+
+  it('names who has to answer a confirm the reader cannot', () => {
+    renderParts([
+      { kind: 'approval', id: 'a6', approvalKind: 'confirm', subject: 'call', waitingOn: 'Bob' },
+    ])
+    expect(screen.getByText('Waiting for Bob to answer')).toBeInTheDocument()
+  })
 })
 function tc(id: string, name: string, status: 'ok' | 'running' | 'error' = 'ok'): MessagePart {
   return {
@@ -250,6 +431,93 @@ function tc(id: string, name: string, status: 'ok' | 'running' | 'error' = 'ok')
     result: 'out',
   }
 }
+
+describe('tool decisions', () => {
+  const call = (decision: ToolDecision): ToolCallPart => ({
+    kind: 'tool_call',
+    id: 't1',
+    name: 'Bash',
+    args: '{"command":"sbatch run.sh"}',
+    status: 'ok',
+    result: 'Submitted batch job 42',
+    decision,
+  })
+
+  it.each<[ToolDecision, string]>([
+    [{ status: 'approved', by: 'user', name: 'ana' }, 'Allowed by ana'],
+    [{ status: 'denied', by: 'user', name: 'bob' }, 'Denied by bob'],
+    [{ status: 'approved', by: 'user' }, 'Allowed'],
+    [{ status: 'approved', by: 'auto-reviewer' }, 'Allowed by the auto-reviewer'],
+    [{ status: 'expired', by: 'user' }, 'Expired without an answer'],
+    [{ status: 'timed_out', by: 'user' }, 'Denied: no answer in time'],
+    [{ status: 'timed_out', by: 'auto-reviewer' }, 'Denied: the auto-reviewer timed out'],
+    [{ status: 'failed', by: 'auto-reviewer' }, 'Denied: the auto-reviewer failed'],
+  ])('says who settled the call: %o', (decision, label) => {
+    renderParts([call(decision)])
+    expect(screen.getByTestId('tool-decision')).toHaveTextContent(label)
+  })
+
+  it('says the reader changed the call before allowing it', () => {
+    renderParts([
+      {
+        kind: 'tool_call',
+        id: 'c1',
+        name: 'start_run',
+        args: '{}',
+        status: 'ok',
+        decision: { status: 'approved', by: 'user', name: 'Bob', edited: true },
+      },
+    ])
+    expect(screen.getByTestId('tool-decision')).toHaveTextContent('Allowed with changes by Bob')
+  })
+
+  it('shows when and the note', () => {
+    renderParts([
+      call({
+        status: 'approved',
+        by: 'user',
+        name: 'ana',
+        at: new Date().toISOString(),
+        note: 'directory whitelisted for session',
+      }),
+    ])
+    const line = screen.getByTestId('tool-decision')
+    expect(line.querySelector('time')).toBeInTheDocument()
+    expect(line).toHaveTextContent('directory whitelisted for session')
+  })
+
+  it('shows why the auto-reviewer settled it', () => {
+    renderParts([
+      call({
+        status: 'denied',
+        by: 'auto-reviewer',
+        reason: 'Deleting shared scratch was not asked for.',
+      }),
+    ])
+    expect(screen.getByTestId('tool-decision')).toHaveTextContent(
+      'Denied by the auto-reviewerDeleting shared scratch was not asked for.',
+    )
+  })
+
+  it('keeps an answered call out of a folded run', () => {
+    const read = (id: string): ToolCallPart => ({
+      kind: 'tool_call',
+      id,
+      name: 'Read',
+      args: '{"file_path":"a.ts"}',
+      status: 'ok',
+      result: 'x',
+    })
+    const parts: MessagePart[] = [read('a'), read('b'), read('c')]
+    expect(buildRenderItems(parts).map((i) => i.kind)).toEqual(['rollup'])
+    const answered: MessagePart[] = [
+      read('a'),
+      { ...read('b'), decision: { status: 'approved', by: 'user', name: 'ana' } },
+      read('c'),
+    ]
+    expect(buildRenderItems(answered).map((i) => i.kind)).not.toContain('rollup')
+  })
+})
 
 describe('rollup folding', () => {
   it('folds a run of finished groupable calls into one sentence row', () => {
@@ -273,13 +541,14 @@ describe('rollup folding', () => {
     expect(screen.getAllByText('out').length).toBeGreaterThan(0)
   })
 
-  it('never folds failed or running members', () => {
+  it('never rolls up failed or running members', () => {
     const items = buildRenderItems([
       tc('t1', 'ReadFile'),
       tc('t2', 'ReadFile', 'error'),
       tc('t3', 'ReadFile'),
     ])
-    expect(items.map((i) => i.kind)).toEqual(['single', 'single', 'single'])
+    // Not a rollup: one tool's calls in a row, a failure among them, share a call group.
+    expect(items.map((i) => i.kind)).toEqual(['calls'])
     const running = buildRenderItems([tc('t1', 'ReadFile'), tc('t2', 'ReadFile', 'running')])
     expect(running.map((i) => i.kind)).toEqual(['single', 'single'])
   })
@@ -404,8 +673,9 @@ describe('approvals without an answer handler', () => {
         kind: 'approval',
         id: 'ro2',
         approvalKind: 'ask',
-        question: 'Which database?',
-        options: [{ label: 'Postgres' }, { label: 'Mongo' }],
+        questions: [
+          { question: 'Which database?', options: [{ label: 'Postgres' }, { label: 'Mongo' }] },
+        ],
       },
     ])
     expect(screen.getByText('Which database?')).toBeInTheDocument()
@@ -482,7 +752,7 @@ describe('approval forms', () => {
     })
   })
 
-  it('labels the own-answer field, focuses it, and ignores an empty submit', () => {
+  it('labels the own-answer field and ignores an empty submit', () => {
     const onAnswer = vi.fn()
     renderParts(
       [
@@ -490,21 +760,18 @@ describe('approval forms', () => {
           kind: 'approval',
           id: 'q1',
           approvalKind: 'ask',
-          question: 'Which region?',
-          options: [{ label: 'East' }],
+          questions: [{ question: 'Which region?', options: [{ label: 'East' }] }],
         },
       ],
       { onApprovalAnswer: onAnswer },
     )
     expect(screen.getByRole('group', { name: 'Waiting for your answer' })).toBeInTheDocument()
-    fireEvent.click(screen.getByText('Write my own answer…'))
     const field = screen.getByRole('textbox', { name: 'Your answer' })
-    expect(field).toHaveFocus()
     fireEvent.submit(field)
     expect(onAnswer).not.toHaveBeenCalled()
     fireEvent.change(field, { target: { value: 'West' } })
     fireEvent.submit(field)
-    expect(onAnswer).toHaveBeenCalledWith('q1', { kind: 'ask', text: 'West' })
+    expect(onAnswer).toHaveBeenCalledWith('q1', { kind: 'ask', answers: [{ text: 'West' }] })
   })
 })
 
@@ -527,5 +794,217 @@ describe('status in words', () => {
     expect(hidden).toEqual(
       expect.arrayContaining(['Running…', 'Failed', 'Done', 'In progress', 'To do']),
     )
+  })
+})
+
+describe('call groups', () => {
+  const cost = (id: string, status: 'ok' | 'error', result: string): ToolCallPart => ({
+    kind: 'tool_call',
+    id,
+    name: 'cost_summary',
+    args: JSON.stringify({ allocation: id }),
+    status,
+    result,
+  })
+
+  it('folds one tool’s finished calls in a row, failures and host-drawn ones too', () => {
+    const items = buildRenderItems(
+      [cost('a', 'error', 'boom'), cost('b', 'ok', '{}'), tc('t1', 'Bash')],
+      (name) => name === 'cost_summary',
+    )
+    expect(items.map((i) => i.kind)).toEqual(['calls', 'single'])
+  })
+
+  it('never folds a running call, a waiting one, or one with a decision', () => {
+    const waiting: ToolCallPart = { ...cost('w', 'ok', ''), status: 'waiting' }
+    const decided: ToolCallPart = {
+      ...cost('d', 'ok', '{}'),
+      decision: { status: 'approved', by: 'user', name: 'Ada' },
+    }
+    const running: ToolCallPart = { ...cost('r', 'ok', ''), status: 'running' }
+    for (const other of [waiting, decided, running]) {
+      expect(buildRenderItems([cost('a', 'ok', '{}'), other]).map((i) => i.kind)).not.toContain(
+        'calls',
+      )
+    }
+  })
+
+  it('counts calls and failures, shows what the host drew, and opens to each call', () => {
+    renderParts(
+      [cost('a', 'error', 'StartDate is required'), cost('b', 'ok', 'drawn'), cost('c', 'ok', '')],
+      {},
+      {
+        slots: {
+          toolRenderers: {
+            cost_summary: ({ part }) =>
+              part.result ? <div data-testid="cost-table">{part.result}</div> : null,
+          },
+        },
+      },
+    )
+    expect(screen.getByText(/Ran cost_summary 3 times/)).toBeInTheDocument()
+    expect(screen.getByText(/1 failed/)).toBeInTheDocument()
+    expect(screen.getByTestId('tool-call-group')).toHaveTextContent('drawn')
+    fireEvent.click(screen.getByRole('button', { name: /Ran cost_summary 3 times/ }))
+    expect(screen.getAllByTestId('tool-call-part')).toHaveLength(3)
+    expect(screen.getByText('Failed: StartDate is required')).toBeVisible()
+  })
+})
+
+describe('failed calls', () => {
+  it('say so in words with the error, beside a host drawing too', () => {
+    renderParts(
+      [
+        {
+          kind: 'tool_call',
+          id: 'x',
+          name: 'cost_summary',
+          args: '{}',
+          status: 'error',
+          result: 'StartDate is required\nmore',
+        },
+      ],
+      {},
+      { slots: { toolRenderers: { cost_summary: () => null } } },
+    )
+    expect(screen.getByText(/^Failed: StartDate is required/)).toBeVisible()
+  })
+})
+
+describe('host tool presentation', () => {
+  const call = (
+    id: string,
+    allocation: string,
+    status: ToolCallPart['status'] = 'ok',
+  ): ToolCallPart => ({
+    kind: 'tool_call',
+    id,
+    name: 'cost_summary',
+    args: JSON.stringify({ allocation }),
+    status,
+    result: status === 'ok' ? 'drawn' : '',
+  })
+  const slots = (open = false) => ({
+    toolRenderers: {
+      cost_summary: ({ part }: { part: ToolCallPart }) => (
+        <div data-testid="cost-table">{part.result}</div>
+      ),
+    },
+    toolPresentation: (part: ToolCallPart) =>
+      part.name === 'cost_summary'
+        ? {
+            label: `Checked costs for ${JSON.parse(part.args).allocation}`,
+            summary: '3 resources, $67.50',
+            group: (n: number) => `Checked costs for ${n} allocations`,
+            rollup: (n: number) => `checked costs for ${n} allocations`,
+            open,
+          }
+        : undefined,
+  })
+
+  it('names the call in words, with its arguments and drawing behind the row', () => {
+    renderParts([call('a', 'misc-dev')], {}, { slots: slots() })
+    expect(screen.getByText('Checked costs for misc-dev')).toBeInTheDocument()
+    expect(screen.getByText('3 resources, $67.50')).toBeInTheDocument()
+    expect(screen.queryByTestId('cost-table')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Checked costs for misc-dev/ }))
+    expect(screen.getByTestId('cost-table')).toBeVisible()
+    expect(screen.getByText(/"allocation": "misc-dev"|misc-dev/, { selector: 'pre' })).toBeVisible()
+  })
+
+  it('keeps the drawing open when the host asks', () => {
+    renderParts([call('a', 'misc-dev')], {}, { slots: slots(true) })
+    expect(screen.getByTestId('cost-table')).toBeVisible()
+  })
+
+  it('updates visibility when the surrounding message changes', () => {
+    const estimate = call('a', 'misc-dev')
+    const message = msg([estimate])
+    const toolPresentation = vi.fn((part: ToolCallPart, context?: ChatMessage) => ({
+      label: part.name,
+      open: !context?.parts?.some((p) => p.kind === 'tool_call' && p.name === 'create_resource'),
+    }))
+    const config = resolveChatConfig({ slots: { ...slots(), toolPresentation } })
+    const view = (current: ChatMessage) => (
+      <ChatConfigProvider value={config}>
+        <AgentMessageParts message={current} />
+      </ChatConfigProvider>
+    )
+    const { rerender } = render(view(message))
+    expect(screen.getByTestId('cost-table')).toBeVisible()
+    expect(toolPresentation).toHaveBeenCalledWith(estimate, message)
+
+    const continued = msg([
+      estimate,
+      { ...call('b', 'misc-dev', 'waiting'), name: 'create_resource' },
+    ])
+    rerender(view(continued))
+    expect(toolPresentation).toHaveBeenCalledWith(estimate, continued)
+    expect(screen.queryByTestId('cost-table')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /cost_summary/ }))
+    expect(screen.getByTestId('cost-table')).toBeVisible()
+  })
+
+  it('evaluates visibility for each member of a repeated-call group', () => {
+    const parts = [call('a', 'misc-dev'), call('b', 'grey')]
+    const toolPresentation = vi.fn((part: ToolCallPart, context?: ChatMessage) => ({
+      label: `Checked ${part.id}`,
+      group: () => 'Checked costs twice',
+      open: context?.parts?.[1] === part,
+    }))
+    renderParts(parts, {}, { slots: { ...slots(), toolPresentation } })
+    expect(
+      screen.getAllByTestId('cost-table').filter((node) => !node.closest('[hidden]')),
+    ).toHaveLength(1)
+    for (const part of parts) {
+      expect(toolPresentation).toHaveBeenCalledWith(part, expect.objectContaining({ parts }))
+    }
+    fireEvent.click(screen.getByRole('button', { name: /Checked costs twice/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Checked a/ }))
+    expect(
+      screen.getAllByTestId('cost-table').filter((node) => !node.closest('[hidden]')),
+    ).toHaveLength(2)
+  })
+
+  it('supplies context to presentation callbacks without custom drawings', () => {
+    const parts = [call('a', 'misc-dev')]
+    const toolPresentation = vi.fn(() => ({ label: 'Checked costs' }))
+    renderParts(parts, {}, { slots: { toolPresentation } })
+    expect(screen.getByRole('button', { name: /Checked costs/ })).toBeVisible()
+    expect(toolPresentation).toHaveBeenCalledWith(parts[0], expect.objectContaining({ parts }))
+  })
+
+  it('always shows what a call waiting on an answer asks', () => {
+    renderParts([call('a', 'misc-dev', 'waiting')], {}, { slots: slots() })
+    expect(screen.getByTestId('cost-table')).toBeVisible()
+  })
+
+  it("folds a run of the tool's calls under the host's words", () => {
+    renderParts(
+      [call('a', 'misc-dev'), call('b', 'grey'), call('c', 'aws')],
+      {},
+      { slots: slots() },
+    )
+    expect(screen.getByText('Checked costs for 3 allocations')).toBeInTheDocument()
+    expect(screen.queryAllByTestId('cost-table')).toHaveLength(0)
+  })
+
+  it('joins a rollup with other tools in its own clause', () => {
+    const read: ToolCallPart = {
+      kind: 'tool_call',
+      id: 'r',
+      name: 'ReadFile',
+      args: '{"path":"a.go"}',
+      status: 'ok',
+      result: 'x',
+    }
+    const items = buildRenderItems(
+      [call('a', 'misc-dev'), read],
+      (name) => name === 'cost_summary',
+      () => true,
+    )
+    expect(items.map((i) => i.kind)).toEqual(['rollup'])
+    renderParts([call('a', 'misc-dev'), read], {}, { slots: slots() })
+    expect(screen.getByText('Checked costs for 1 allocations, read 1 file')).toBeInTheDocument()
   })
 })

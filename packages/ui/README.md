@@ -3,28 +3,29 @@
 React components built on one theme contract. Each surface is its own subpath,
 so an application ships only what it imports:
 
-| Subpath | Contents |
-| --- | --- |
-| `.` | theme contract, primitives (buttons, inputs, tables, tooltips, modals, dropdowns, settings layouts, page header), `UIProvider` |
-| `./theme` | theme seeds and presets, `generateTheme`, `applyTheme`, `fitSeed` |
-| `./icons` | the icon barrel |
-| `./list` | list pages, tables, row menus and list controls |
-| `./form` | `DynamicForm` and its field registry |
-| `./graph` | job dependency graph and tree view, and the visual workflow editor: the graph, the run form as an inputs editor, and their dialogs |
-| `./editor` | Monaco editor (`monaco-editor` is an optional peer), loaded on first mount with the languages it needs; YAML validation, completion and hover run in a bundled worker |
-| `./logviewer` | log viewer with ANSI color and search |
-| `./file-explorer` | object storage explorer over a host-supplied provider |
-| `./access` | `AccessDrawer`: who has access to a resource, and granting roles to people and groups |
-| `./ai`, `./ai/openai`, `./ai/mock` | chat interface and adapters |
-| `./theme.css`, `./base.css`, `./fonts.css`, `./styles.css`, `./logviewer.css`, `./ai.css` | stylesheets |
+| Subpath                                                                                                      | Contents                                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.`                                                                                                          | theme contract, primitives (buttons, inputs, tables, tooltips, modals, dropdowns, settings layouts, page header), `UIProvider`                                        |
+| `./theme`                                                                                                    | theme seeds and presets, `generateTheme`, `applyTheme`, `fitSeed`                                                                                                     |
+| `./icons`                                                                                                    | the icon barrel                                                                                                                                                       |
+| `./app-frame`                                                                                                | inset application frame, resizable navigation, icon rail, and mobile drawer                                                                                           |
+| `./list`                                                                                                     | list pages, tables, row menus and list controls                                                                                                                       |
+| `./form`                                                                                                     | `DynamicForm` and its field registry                                                                                                                                  |
+| `./graph`                                                                                                    | job dependency graph and tree view, and the visual workflow editor: the graph, the run form as an inputs editor, and their dialogs                                    |
+| `./editor`                                                                                                   | Monaco editor (`monaco-editor` is an optional peer), loaded on first mount with the languages it needs; YAML validation, completion and hover run in a bundled worker |
+| `./logviewer`                                                                                                | log viewer with ANSI color and search                                                                                                                                 |
+| `./file-explorer`                                                                                            | object storage explorer over a host-supplied provider                                                                                                                 |
+| `./access`                                                                                                   | `AccessDrawer`: who has access to a resource, and granting roles to people and groups                                                                                 |
+| `./ai`, `./ai/openai`, `./ai/mock`                                                                           | chat interface and adapters                                                                                                                                           |
+| `./theme.css`, `./base.css`, `./fonts.css`, `./styles.css`, `./logviewer.css`, `./ai.css`, `./app-frame.css` | stylesheets                                                                                                                                                           |
 
 Hosts bind strings, navigation, data hooks and the workflow engine through
 `UIProvider`, which also shows the package's toasts:
 
 ```tsx
-<UIProvider
+;<UIProvider
   strings={{ common: { save: 'Speichern' }, fileExplorer: { preview: { open: 'Öffnen' } } }}
-  navigation={{ goTo: navigate }}
+  navigation={{ goTo: navigate, goBack: router.history.back, canGoBack: router.history.canGoBack }}
   data={{ useRunFile, usePersistedState }}
   slots={{ link: RouterLink }}
   engine={() => import('./engine').then((m) => m.engine)}
@@ -47,62 +48,109 @@ rule a select or scroll area would inject ships in `theme.css`. A host that
 renders on the server passes its policy's `nonce`, which the few components
 that emit a script to place themselves before hydration put on it.
 
+Pass `locale`, the app's language as a BCP 47 tag such as `de-DE`, so relative
+times, exact times, durations and the date picker read as the app's own text
+does. Without it they follow the date library's default locale, or the browser's.
+`useLocale()` reads it, for a host formatting with `formatDateTime`.
+
+Pass `avatarColoring="kind"` for avatars that tell people from agents at a
+glance: every person shares one tint and every agent another, with two initials
+even for a one-word name. The host sets the tints with `--avatar-person`,
+`--avatar-person-text`, `--avatar-agent`, `--avatar-agent-text` and the agent's
+edge `--avatar-agent-ring`. An agent's avatar (`kind="agent"`) is a rounded
+square under either coloring, so its shape and not only its color sets it apart.
+
+A few controls take a single key from anywhere on the page: F opens a list's
+filter menu and / its search. Speech input can press them by accident, so WCAG
+2.1.4 asks for a way to turn them off. Give people a setting for it and pass
+`characterKeyShortcuts={false}` while it's off: the keys stop working and the
+tooltips and `aria-keyshortcuts` stop offering them. Shortcuts with a modifier,
+such as ⌘F, stay. `useCharacterKeyShortcuts()` reads it, for a host's own
+single-key shortcuts.
+
+A run's warnings and the workflow editor's problems may carry a problem `code`, `params` and
+`type`, as a server's problem details do. Bind `data.useProblemMessage` to `useCodeMessage` from
+`@parallelworks/problem/react`, and they read in the app's language: the message at
+`apiErrors.<code>` in the app's use-intl catalog, or the shared one. It gets each one's `type` too:
+for a type that names an application, such as `/problems/workflow/undefined_input`, the message at
+`apiErrors.workflow.undefined_input` comes first. The app's own codes can stay at the top level of
+`apiErrors`; another registry's go under its name, so a code both use keeps each one's message and
+params. A code with no message, or no `useProblemMessage`, shows the `message` the server sent.
+
+Menus, selects, pickers, popovers, tooltips and hover cards open over the page,
+or over the fullscreen element while there is one. Opened inside a `<dialog>`
+shown with `showModal()`, they open inside that dialog instead: the browser
+draws a modal dialog above everything else and leaves the page behind it inert,
+so a popup over the page would open under it, out of reach.
+
 ## Which component?
 
 Each need has one component. Reach for it before styling markup by hand.
 
-| Need | Use |
-| --- | --- |
-| An action | `Button`; `IconButton` for an icon alone, named by its tooltip |
-| Navigation, in any form | the component's `href` (see [Links](#links)); `AppLink` for a link of your own |
-| Another component's trigger that looks like a button | `buttonClasses()` |
-| A link out of the app | `ExternalLink` |
-| Work under way | `Loader`; `Skeleton` in a `LoadingRegion` for the shape of content still loading |
-| Nothing to show yet, or nothing matches | `EmptyState` |
-| A text field | `Input`, `Textarea`, or a control framed by `Field`, whose `actions` hold buttons that act on it |
-| A number, a date, a color | `NumberInput`, `DatePicker`, `ColorInput` |
-| A one-time code, such as a sign-in check | `OneTimeCodeInput` |
-| A labeled value nobody edits, among fields | `FieldValue` in a `Field` |
-| A record's details, such as in a drawer or a card: names and values on their own | `DescriptionList` of `DescriptionListItem`s; `copy` on an ID, `mono` on a path, `variant="card"` to frame them; titled lists in a `DescriptionListGroup` to share one label column |
-| An error beside a control outside a `Field` | `ErrorText` |
-| A dense field in a toolbar or a table cell | any field control with `size="sm"`; a width in `className` wins, and `cx` merges classes the same way |
-| On or off | `Switch`; `Checkbox` in a list of things to tick, several of which may be on; either in a `Field` with `controlFirst` to read control, label, then its help and description |
-| One of a few choices, all shown | `RadioGroup` in a form; `SegmentedControl` in a toolbar, or as a field's control in a `Field group` |
-| Narrowing a list by values, such as statuses: several at once, or one or none | `ToggleGroup` |
-| Narrowing what is shown by typing | `SearchInput`; `ListSearchControl` on a list page's toolbar |
-| A value from a list | `Select`, or `Combobox` when the list needs filtering; its `details` pane describes the highlighted item, and `onQueryChange` hands the search to the host |
-| Free text with suggestions, or tags | `Autocomplete`; `Combobox` with `multiple creatable` |
-| A range | `Slider` |
-| A page's breadcrumbs, title and commands | `PageHeader`, shown by the shell's `PageHeaderBar` (see [Page header](#page-header)) |
-| A trail anywhere else, such as a folder's path in a panel | `Breadcrumbs`, which folds as the header's trail does |
-| An action in the page header | `PageHeaderAction`; `PageHeaderAddButton` for "+ Add" or "+ Create"; `PageHeaderMenu` for the "…" menu |
-| A titled part of a page or form | `Section` |
-| More detail under a line | `Disclosure` |
-| Views of one thing | `Tabs` |
-| Chrome that stays in view as the page scrolls | `sticky` on `ActionToolbar` or `Tabs`; `StickyBar` around controls of your own. They stack under the page header by themselves (see [Host chrome](#host-chrome)) |
-| A list of actions | `ActionMenu`; `useContextMenu` for a right-click or a row's menu |
-| A panel of controls anchored to a trigger | `Popover` |
-| A hint for a control | `Tooltip`; a `Field`'s `help` for more about a field, which its control reads and which opens as Tab reaches it; `InfoTip` for help about anything else |
-| A preview of what a link leads to | `HoverCard` |
-| A task that blocks the page | `Modal`, laid out with `title`, `description` and `footer` as a `Drawer` is; `ConfirmModal` to confirm one action; `CreateModal` to name and create one thing |
-| A panel beside the page | `Drawer`; `onBack` for a view it opens over its first, such as a form |
-| Who has access to something, and changing it | `AccessDrawer` from `./access` (see [Access](#access)) |
-| A message set into the page: guidance, a warning, an error | `Callout`; `variant="bar"` across a surface under its header |
-| A passing notice, or the progress of work in the background | `toast` |
-| How full something is, how far a task has come | `Meter`, `ProgressBar` |
-| Pages of a long list | `Pagination` |
-| A grouped page of settings | `SettingsCard` with `SettingRow`s |
-| A person | `Avatar`, colored by name without a picture |
-| A status in words | `StatusBadge`, or `StatusDot` beside text that says it |
-| A run's, job's or step's status beside its name | `RunStatusIcon`; `StatusBadge` with `runStatusTone` to say it in words |
-| A copy action | `CopyButton`; `CopyCodeBlock` for a command or snippet; `useCopy` for a menu row or a control of your own |
-| A live relative time or duration | `RelativeTime`, `Elapsed` |
-| Rendered Markdown | `Markdown` |
-| Code or YAML to read or edit | `Editor` from `./editor`; `EditorField` as a form field, `FormCodePanel` for a form's values as JSON |
-| A run's jobs, steps, logs and annotations | `DependencyGraph` from `./graph`, as a graph or a list |
-| A workflow's jobs drawn from its YAML, or edited by hand | `DependencyGraphPreview` from `./graph`, editable with an `editor`; `InputsFormEditor` for its run form |
-| A value that survives a reload | `usePersistedState` |
-| Choosing the app's colors | `ThemeEditor`, applied with `useApplyTheme` |
+| Need                                                                                                                   | Use                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| An action                                                                                                              | `Button`; `IconButton` for an icon alone, named by its tooltip                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Navigation, in any form                                                                                                | the component's `href` (see [Links](#links)); `AppLink` for a link of your own                                                                                                                                                                                                                                                                                                                                                                                          |
+| Another component's trigger that looks like a button                                                                   | `buttonClasses()`                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| A link out of the app                                                                                                  | `ExternalLink`                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Work under way                                                                                                         | `Loader`; `Skeleton` in a `LoadingRegion` for the shape of content still loading                                                                                                                                                                                                                                                                                                                                                                                        |
+| Nothing to show yet, or nothing matches                                                                                | `EmptyState`                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| A page, card or section that couldn't show what it was asked for, such as a 404                                        | `ErrorPage`, its words chosen by the status                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| A list page's toolbar and its loading, error, empty and no-match states                                                | `ListToolbar` in `ListPage` with `total`, `matches`, `empty` and `noMatches` (from `./list`)                                                                                                                                                                                                                                                                                                                                                                            |
+| A list's rows under headers that collapse, such as queues by cluster                                                   | `ListGroup` with a `GroupRow` as its `header`, straight among the `Table`'s children. A click on the header, but not on a link or button in it, or the chevron's button toggles it; `collapsed`, `defaultCollapsed` and `onCollapsedChange` as elsewhere. With a `groupKey` inside a `ListPage` with a view, the view remembers it under `${storageKey}:collapsedGroups`, and Display options collapse or expand every group. A `GroupRow` outside one doesn't collapse |
+| How many rows a list has, or how many of them match ("2 of 7 tokens")                                                  | `count` on `ListPage`, with its `total` and `matches`: it shows under the last row, only while there are rows. A `ListToolbar`'s `count` moves there too, and the toolbar then sits at the end of the filter chips' first line (`ListFilterBar`'s `end`), or on a line alone while no chip shows. `ListCount` placed by hand is deprecated                                                                                                                              |
+| A text field                                                                                                           | `Input`, `Textarea`, or a control framed by `Field`, whose `actions` hold buttons that act on it                                                                                                                                                                                                                                                                                                                                                                        |
+| A number, a date, a color                                                                                              | `NumberInput`, `DatePicker`, `ColorInput`                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| A one-time code, such as a sign-in check                                                                               | `OneTimeCodeInput`                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| A labeled value nobody edits, among fields                                                                             | `FieldValue` in a `Field`                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| A record's details, such as in a drawer or a card: names and values on their own                                       | `DescriptionList` of `DescriptionListItem`s; `copy` on an ID, `mono` on a path, `variant="card"` to frame them; titled lists in a `DescriptionListGroup` to share one label column                                                                                                                                                                                                                                                                                      |
+| An error beside a control outside a `Field`                                                                            | `ErrorText`                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| A dense field in a toolbar or a table cell                                                                             | any field control with `size="sm"`; a width in `className` wins, and `cx` merges classes the same way                                                                                                                                                                                                                                                                                                                                                                   |
+| On or off                                                                                                              | `Switch`; `Checkbox` in a list of things to tick, several of which may be on; either in a `Field` with `controlFirst` to read control, label, then its help and description                                                                                                                                                                                                                                                                                             |
+| One of a few choices, all shown                                                                                        | `RadioGroup` in a form; `SegmentedControl` in a toolbar, or as a field's control in a `Field group`                                                                                                                                                                                                                                                                                                                                                                     |
+| Narrowing a list by values, such as statuses: several at once, or one or none                                          | `ToggleGroup`                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Narrowing what is shown by typing                                                                                      | `SearchInput`; `ListSearchControl` on a list page's toolbar                                                                                                                                                                                                                                                                                                                                                                                                             |
+| A value from a list                                                                                                    | `Select`, or `Combobox` when the list needs filtering; its `details` pane describes the highlighted item, and `onQueryChange` hands the search to the host                                                                                                                                                                                                                                                                                                              |
+| Free text with suggestions, or tags                                                                                    | `Autocomplete`; `Combobox` with `multiple creatable`                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| A range                                                                                                                | `Slider`                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| A page's breadcrumbs, title and commands                                                                               | `PageHeader`, shown by the shell's `PageHeaderBar` (see [Page header](#page-header))                                                                                                                                                                                                                                                                                                                                                                                    |
+| A trail anywhere else, such as a folder's path in a panel                                                              | `Breadcrumbs`, which folds as the header's trail does                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| An action in the page header                                                                                           | `PageHeaderAction`; `PageHeaderAddButton` for "+ Add" or "+ Create"; `PageHeaderMenu` for the "…" menu                                                                                                                                                                                                                                                                                                                                                                  |
+| A titled part of a page or form                                                                                        | `Section`                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| More detail under a line                                                                                               | `Disclosure`                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Views of one thing                                                                                                     | `Tabs`                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| A list beside the item open from it, such as an inbox and the message being read                                       | `ListDetail` from `./list`: side by side where both fit; on a phone the list, then the open item alone at full width, with `detailBreadcrumbs` as the page's trail leading back. Put the open item in the URL so that link and the browser's back button close it                                                                                                                                                                                                       |
+| Two panes of one task side by side, such as text and its preview                                                       | `SplitView`: a handle resizes them, and on a phone one shows at a time with a switch between them. `fill` on `DependencyGraphPreview` and `height="100%"` on `Editor` fill a pane                                                                                                                                                                                                                                                                                       |
+| Chrome that stays in view as the page scrolls                                                                          | `sticky` on `ActionToolbar` or `Tabs`; `StickyBar` around controls of your own. They stack under the page header by themselves (see [Host chrome](#host-chrome))                                                                                                                                                                                                                                                                                                        |
+| A list of actions                                                                                                      | `ActionMenu`; `useContextMenu` for a right-click or a row's menu                                                                                                                                                                                                                                                                                                                                                                                                        |
+| A panel of controls anchored to a trigger                                                                              | `Popover`                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| A hint for a control                                                                                                   | `Tooltip`; a `Field`'s `help` for more about a field, which its control reads and which opens as Tab reaches it; `InfoTip` for help about anything else                                                                                                                                                                                                                                                                                                                 |
+| A preview of what a link leads to                                                                                      | `HoverCard`                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| A task that blocks the page                                                                                            | `Modal`, laid out with `title`, `description` and `footer` as a `Drawer` is; `ConfirmModal` to confirm one action; `CreateModal` to name and create one thing                                                                                                                                                                                                                                                                                                           |
+| A panel beside the page                                                                                                | `Drawer`; `onBack` for a view it opens over its first, such as a form                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Who has access to something, and changing it                                                                           | `AccessDrawer` from `./access` (see [Access](#access))                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| A message set into the page: guidance, a warning, an error                                                             | `Callout`; `variant="bar"` across a surface under its header                                                                                                                                                                                                                                                                                                                                                                                                            |
+| A passing notice, or the progress of work in the background                                                            | `toast`                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| How full something is, how far a task has come                                                                         | `Meter`, `ProgressBar`                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Counts at the top of a page, such as jobs running and failed: a value, its label, a lamp, a bar, or a link to the list | `StatTile`, laid out in a `StatTileGroup`, which folds to two columns on a phone with `wide` tiles and any that would sit alone across the row                                                                                                                                                                                                                                                                                                                          |
+| Pages of a long list                                                                                                   | `Pagination`; in a `ListPage`, as its `pager`, on the count's line under the last row, where a "Load more" button goes too                                                                                                                                                                                                                                                                                                                                              |
+| A grouped page of settings                                                                                             | `SettingsCard` with `SettingRow`s                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| A person or an agent                                                                                                   | `Avatar`, colored by name without a picture, or by kind; `AvatarGroup` for an overlapping stack with a "+N" chip                                                                                                                                                                                                                                                                                                                                                        |
+| A status in words                                                                                                      | `StatusBadge`, or `StatusDot` beside text that says it                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| A thing's tags or labels                                                                                               | `Tag`; `TagList` for several, wrapped or on one line ending in "+N"                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Keys to press                                                                                                          | `Kbd`, with `Mod` for Command or Control; `ariaKeyShortcuts` for the control the keys press                                                                                                                                                                                                                                                                                                                                                                             |
+| A chart's colors, legend and tooltip                                                                                   | `seriesColors` (by each series' place in a stable key list, eight at most) and `foldSeries` (the rest into "Other"), `ChartLegendList`, `ChartTooltipContent` placed beside the crosshair with `ChartTooltipBeside` or `chartTooltipPlacement`, and `useSeriesHighlight`, around a chart drawn by hand or by a library                                                                                                                                                  |
+| A run's, job's or step's status beside its name                                                                        | `RunStatusIcon`; `StatusBadge` with `runStatusTone` to say it in words                                                                                                                                                                                                                                                                                                                                                                                                  |
+| A copy action                                                                                                          | `CopyButton`; `CopyCodeBlock` for a command or snippet, with `secret` for a value shown once; `SelectionCopy` to copy part of a block by selecting it; `useCopy` for a menu row or a control of your own                                                                                                                                                                                                                                                                |
+| A live relative time or duration                                                                                       | `RelativeTime` (with a `fallback`, an `exact` style for its tooltip, or `show="absolute"`), `Elapsed`                                                                                                                                                                                                                                                                                                                                                                   |
+| Fetching again on demand                                                                                               | `RefreshButton`; `variant="inline"` in a line of details; `loading` on an `ActionToolbar` action                                                                                                                                                                                                                                                                                                                                                                        |
+| Rendered Markdown                                                                                                      | `Markdown`                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Code or YAML to read, such as a run's resolved workflow                                                                | `CodeBlock`: highlighted, numbered, with copy and, given a `filename`, download; `fill` for a view that is the code                                                                                                                                                                                                                                                                                                                                                     |
+| Code or YAML to edit                                                                                                   | `Editor` from `./editor`; `EditorField` as a form field, `FormCodePanel` for a form's values as JSON                                                                                                                                                                                                                                                                                                                                                                    |
+| A run's jobs, steps, logs, annotations and warnings                                                                    | `DependencyGraph` from `./graph`, as a graph or a list                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| A workflow's jobs drawn from its YAML, or edited by hand                                                               | `DependencyGraphPreview` from `./graph`, editable with an `editor`; `InputsFormEditor` for its run form                                                                                                                                                                                                                                                                                                                                                                 |
+| A value that survives a reload                                                                                         | `usePersistedState`                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Choosing the app's colors                                                                                              | `ThemeEditor`, applied with `useApplyTheme`                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
 Some pairs look alike and are split on purpose:
 
@@ -135,9 +183,28 @@ Some pairs look alike and are split on purpose:
   its tone, for anything. A `RunStatusIcon` shows the status of something that
   ran as an icon beside its name, and turns while it runs; `runStatusTone` gives
   a badge for the same status the same tone.
+- **CodeBlock or CopyCodeBlock.** A `CodeBlock` is code to read, such as a
+  file or a workflow: a header names it, its lines are highlighted and
+  numbered, and it can fill a pane. A `CopyCodeBlock` is a command or a value
+  to copy, such as an install line or a new API key, with its copy button over
+  it and `secret` to mask it.
 - **Select or Combobox.** A `Select` picks from a short list it shows in full.
   A `Combobox` filters as you type, for a list long enough to search, and is the
   one that takes several values, new ones, or free text (`Autocomplete`).
+
+## List filters
+
+`ListFilterMenu` accepts a list `view` or the `filters` returned by `useListFilters`.
+Each field opens a value picker beside the menu, so choosing or changing a filter
+happens in one place. Multiple choices stay open; a single choice closes the menu.
+Options support search, groups, icons, counts and asynchronous loading. Dates offer
+presets and a calendar, and text applies on Enter. Opening or dismissing a picker
+without choosing a value leaves the list unchanged.
+
+`ListFilterBar` shows the same active filters as editable chips. Its `+`
+button opens the same menu. Clear sits at the right edge; `trailing` places an
+application-owned Save or Update view button beside it. A menu also works on its
+own, without a chip bar.
 
 ## Page header
 
@@ -173,8 +240,9 @@ A page declares its header in one place, and the shell shows it:
   `h1`. An empty label, such as a name still loading, shows a placeholder. The
   trail is a list in a `nav` landmark named by the strings' `breadcrumb`. A
   trail too wide for its bar folds its ancestors into a "…" menu of links
-  (named by `showFullPath`), keeping the parent when it fits beside the page's
-  name; the name truncates last, with the full name on hover. The bar draws it
+  (named by `showFullPath`), keeping the parent when the page's whole name fits
+  beside it. A name still too long wraps, and the bar grows past its 48px to
+  fit, so the whole name reads on a phone without a tooltip. The bar draws it
   with `Breadcrumbs`, which renders the same trail anywhere else: in a flex
   row it takes the room the row's other items leave it, and elsewhere its
   container's width. `current="location"` marks a place within the page, such
@@ -187,6 +255,14 @@ A page declares its header in one place, and the shell shows it:
   such as a log's follow and refresh: its buttons are outlined, and `primary`
   fills the one, if any, the panel leads to.
   **`toolbar`** is a row under the bar, such as tabs or a time range.
+- A list's controls may sit in **`actions`**: a `ListToolbar` there, with its
+  filter, display options and search, leaves the list's count under its rows.
+  Where its search field, opened, wouldn't fit beside the trail, as on a phone,
+  the open search takes the whole bar until it closes; the rest of the bar
+  stays as it was underneath, hidden and `inert`, and focus returns to the
+  search button. While a search term narrows the list with the field closed,
+  the button shows a dot and its name says so (`searchActive`). Nothing to set
+  up: the bar measures it.
 - **`hidden`** takes the bar away while the page is mounted, for a page that
   fills the window.
 
@@ -245,7 +321,10 @@ import type { Theme } from '@parallelworks/ui/theme'
 
 const theme: Theme = {
   version: 1,
-  light: { interface: { base: '#f3f4f6', accent: '#06354f', contrast: 30 }, sidebar: { base: '#06354f' } },
+  light: {
+    interface: { base: '#f3f4f6', accent: '#06354f', contrast: 30 },
+    sidebar: { base: '#06354f' },
+  },
   dark: { interface: { base: '#111418', accent: '#5b9ccf' } },
   code: 'balanced',
 }
@@ -279,15 +358,15 @@ slate and gray scales do, while light text on a dark base carries less. Each tex
 color is then solved: a binary search on lightness, at its own hue and chroma,
 until it reaches its target against every surface it sits on.
 
-| Pair | WCAG at 0 / 30 / 100 | APCA Lc |
-| --- | --- | --- |
-| Body text | 4.5 / 7 / 12 | 75 / 90 / 105 |
-| Secondary text, links, status text, syntax and terminal colors | 4.5 / 4.5 / 7 | 60 / 70 / 85 |
-| Placeholders | 3 / 3 / 4.5 | 45 / 50 / 65 |
-| Focus ring, status icons, dots, borders and bars | 3 / 3 / 4.5 | |
-| Control edges | 3 / 3 / 4.5 | |
-| Text field edges | 1.3 / 1.5 / 3 | |
-| Text on the accent, white text on a solid status fill | 4.5 | |
+| Pair                                                           | WCAG at 0 / 30 / 100 | APCA Lc       |
+| -------------------------------------------------------------- | -------------------- | ------------- |
+| Body text                                                      | 4.5 / 7 / 12         | 75 / 90 / 105 |
+| Secondary text, links, status text, syntax and terminal colors | 4.5 / 4.5 / 7        | 60 / 70 / 85  |
+| Placeholders                                                   | 3 / 3 / 4.5          | 45 / 50 / 65  |
+| Focus ring, status icons, dots, borders and bars               | 3 / 3 / 4.5          |               |
+| Control edges                                                  | 3 / 3 / 4.5          |               |
+| Text field edges                                               | 1.3 / 1.5 / 3        |               |
+| Text on the accent, white text on a solid status fill          | 4.5                  |               |
 
 Lines come in three tokens. `--theme-border` is decorative: card outlines,
 dividers and table lines, which stay quiet. `--theme-border-strong` is a
@@ -311,12 +390,12 @@ fixed hues, so red means the same thing in every theme.
 Each status comes in four tokens, so a red icon stays bright while red words stay
 readable:
 
-| Token | For | Solved to |
-| --- | --- | --- |
-| `--theme-error` | Icons, dots, borders, rings, bars: anything but words | 3:1 on every surface and on the muted tint (WCAG 1.4.11) |
-| `--theme-error-text` | Words in the status: error messages, a destructive menu item or text button, a badge's label | Secondary text's targets, on the surfaces and on the muted tint |
-| `--theme-error-solid` | A fill under a white label, such as a destructive button | White on it at 4.5:1 |
-| `--theme-error-muted` | A tinted background, such as a callout or badge | The vivid shade at 10% (15% in dark mode) |
+| Token                 | For                                                                                          | Solved to                                                       |
+| --------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `--theme-error`       | Icons, dots, borders, rings, bars: anything but words                                        | 3:1 on every surface and on the muted tint (WCAG 1.4.11)        |
+| `--theme-error-text`  | Words in the status: error messages, a destructive menu item or text button, a badge's label | Secondary text's targets, on the surfaces and on the muted tint |
+| `--theme-error-solid` | A fill under a white label, such as a destructive button                                     | White on it at 4.5:1                                            |
+| `--theme-error-muted` | A tinted background, such as a callout or badge                                              | The vivid shade at 10% (15% in dark mode)                       |
 
 The same four exist for `success`, `warning`, `info` and `favorite`. Words never
 take the bare token: `--theme-error` meets only the 3:1 that graphics need. An
@@ -331,7 +410,8 @@ all at one lightness and chroma so none reads louder, and each
 `--theme-category-N-text` is solved to secondary text's targets on its fill. An
 `Avatar` without a picture takes one, picked by an FNV-1a hash of its name (or
 its `colorKey`), so the same name has the same color on every page; a nameless
-one keeps the accent. `categoryOf(key)` gives the same pick, 1–8, and
+one keeps the accent. Under `avatarColoring="kind"` it takes its kind's tint
+instead. `categoryOf(key)` gives the same pick, 1–8, and
 `categoryClasses(key)` its fill and text classes, for anything else drawn
 beside a name, such as a group's icon.
 
@@ -365,9 +445,9 @@ leaves unset follows the `color-scheme` it sets:
 
 ```css
 /* In a Tailwind v4 build: */
-@import '@parallelworks/ui/theme.css';
-@source '../node_modules/@parallelworks/ui/dist/components';
-@source '../node_modules/@parallelworks/ui/dist/list';
+@import "@parallelworks/ui/theme.css";
+@source "../node_modules/@parallelworks/ui/dist/components";
+@source "../node_modules/@parallelworks/ui/dist/list";
 ```
 
 The package publishes only `dist`, built one JavaScript module per source
@@ -417,7 +497,7 @@ returns the seed that comes closest, with a report:
 ```ts
 const { scheme, report } = fitSeed({ '--theme-app-bg': '#f4f6f8', '--theme-accent': '#0b7a75' })
 report.verdict // 'faithful', 'close' or 'changed'
-report.worst   // the tokens furthest from what was stored
+report.worst // the tokens furthest from what was stored
 ```
 
 Each token's distance is ΔEOK × 100, so 2 is about one just-noticeable
@@ -428,23 +508,23 @@ one is meant to differ.
 
 ### Renamed tokens
 
-| Before | Now |
-| --- | --- |
-| `--theme-element` | `--theme-accent` |
-| `--theme-element-text` | `--theme-accent-text` |
-| `--theme-element-hover` | `--theme-accent-hover` |
-| `--theme-panel`, `--theme-hover-text` | `--theme-app` |
-| `--theme-muted-panel-color` | `--theme-muted-text-color` |
-| `--theme-card-bg` | `--theme-panel-bg` |
-| `--theme-card-hover` | `--theme-panel-hover` |
-| `--theme-card-border` | `--theme-border` |
-| `--theme-hover-overlay` | `--theme-hover` |
-| `--theme-input-disabled-text` | `--theme-placeholder` |
-| `--theme-input` | `--theme-focus` |
-| `--theme-auth-shadow` | `--theme-shadow-xl` |
-| `--theme-sidebar-hover-text` | `--theme-sidebar-text` |
-| `--theme-bg` | `--theme-sidebar-bg` |
-| `theme-element` (utility) | `theme-accent` |
+| Before                                | Now                        |
+| ------------------------------------- | -------------------------- |
+| `--theme-element`                     | `--theme-accent`           |
+| `--theme-element-text`                | `--theme-accent-text`      |
+| `--theme-element-hover`               | `--theme-accent-hover`     |
+| `--theme-panel`, `--theme-hover-text` | `--theme-app`              |
+| `--theme-muted-panel-color`           | `--theme-muted-text-color` |
+| `--theme-card-bg`                     | `--theme-panel-bg`         |
+| `--theme-card-hover`                  | `--theme-panel-hover`      |
+| `--theme-card-border`                 | `--theme-border`           |
+| `--theme-hover-overlay`               | `--theme-hover`            |
+| `--theme-input-disabled-text`         | `--theme-placeholder`      |
+| `--theme-input`                       | `--theme-focus`            |
+| `--theme-auth-shadow`                 | `--theme-shadow-xl`        |
+| `--theme-sidebar-hover-text`          | `--theme-sidebar-text`     |
+| `--theme-bg`                          | `--theme-sidebar-bg`       |
+| `theme-element` (utility)             | `theme-accent`             |
 
 `--theme-<status>` (`success`, `error`, `warning`, `info`, `favorite`) was once
 solved as text. It is now the vivid graphic shade, so words that read it move to
@@ -455,14 +535,17 @@ solved as text. It is now the vivid graphic shade, so words that read it move to
 
 Every pressable thing has one look, from `buttonClasses({ variant, size, iconOnly })`:
 
-| Variant | For |
-| --- | --- |
-| `primary` | the one action a view leads to |
-| `secondary` | actions beside it |
+| Variant            | For                                         |
+| ------------------ | ------------------------------------------- |
+| `primary`          | the one action a view leads to              |
+| `secondary`        | actions beside it                           |
 | `outline`, `ghost` | toolbar and inline actions, bordered or not |
-| `danger` | confirming what can't be undone |
+| `danger`           | confirming what can't be undone             |
 
-Sizes are `xs`, `sm` and `md`. `Button` and `IconButton` apply it. An
+Sizes are `xs`, `sm`, `md` (the default, in line with inputs) and `lg`. Each
+is a minimum height: a row keeps a button on one line, and a label wider than
+all the room it has wraps and grows the button, rather than spilling out of a
+narrow screen or under user text spacing. `Button` and `IconButton` apply it. An
 `IconButton` is named by its tooltip, and takes `pressed` for a toggle and
 `dot` for an indicator. Either takes `href` to be a link in the same look. Pass
 `buttonClasses()` to another component's trigger rather than styling a button
@@ -480,18 +563,18 @@ hover, and reads as a link. Every component that can navigate takes `href`,
 with `reloadDocument` for a path the host's router doesn't serve and `target`
 where it opens elsewhere, and renders it through `AppLink`:
 
-| Surface | Navigates with |
-| --- | --- |
-| `Button`, `IconButton`, `Card` | `href` |
-| Menu rows, `RowAction`s (a list row's menu and pinned buttons), `ToolbarAction`s | `href` on the action, with `target: '_blank'` for a new tab |
-| `PageHeaderAction`, `PageHeaderAddButton`, `PageHeader` breadcrumbs | `href`; `external` opens a new tab |
-| `Breadcrumbs` | `href` on the crumb; `onSelect` only for a place with no URL, as the explorer's trail without `pathHref` |
-| `Tabs` that are pages, `Pagination` | `href` on the item, `pageHref` |
-| A list row | `ListRow` `href` with a `NameCell` of the same `href`: the name's link covers the row |
-| A toast's action | `action: { label, href }` |
-| `SidebarRailItem` | `href`; `onSelect` then runs only on a plain click |
-| `FileExplorer` rows, tree, trail and "Open folder" | `pathHref(path)`; `onPathChange` is then optional, and the explorer's own moves go to `navigation.goTo` |
-| `EmptyState`, `SettingsCard` actions | a `Button` with `href` |
+| Surface                                                                          | Navigates with                                                                                           |
+| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `Button`, `IconButton`, `Card`                                                   | `href`                                                                                                   |
+| Menu rows, `RowAction`s (a list row's menu and pinned buttons), `ToolbarAction`s | `href` on the action, with `target: '_blank'` for a new tab                                              |
+| `PageHeaderAction`, `PageHeaderAddButton`, `PageHeader` breadcrumbs              | `href`; `external` opens a new tab                                                                       |
+| `Breadcrumbs`                                                                    | `href` on the crumb; `onSelect` only for a place with no URL, as the explorer's trail without `pathHref` |
+| `Tabs` that are pages, `Pagination`                                              | `href` on the item, `pageHref`                                                                           |
+| A list row                                                                       | `ListRow` `href` with a `NameCell` of the same `href`: the name's link, which the whole row opens        |
+| A toast's action                                                                 | `action: { label, href }`                                                                                |
+| `SidebarRailItem`                                                                | `href`; `onSelect` then runs only on a plain click                                                       |
+| `FileExplorer` rows, tree, trail and "Open folder"                               | `pathHref(path)`; `onPathChange` is then optional, and the explorer's own moves go to `navigation.goTo`  |
+| `EmptyState`, `SettingsCard` actions                                             | a `Button` with `href`                                                                                   |
 
 `AppLink` routes in-app URLs through the provider's `link` slot, so a host
 binds its router's `Link` there once. That link receives the whole URL, search
@@ -501,6 +584,11 @@ modified and middle clicks to the browser. `AppLink` passes every href through
 renders a disabled link with no href and `aria-disabled`, still focusable for
 its tooltip. Work a link's `onClick` does beside navigating, such as closing a
 drawer, belongs to a plain click only: check `isPlainClick(event)`.
+
+A list row's link takes only the clicks on itself, so a reader can select the
+row's other text to copy it. The row opens the link on its other clicks, in a
+new tab with a middle or modified click, but not on one that ends selecting
+its text, and draws the link's focus ring around itself.
 
 ## Toasts
 
@@ -540,7 +628,7 @@ resource.
 ```tsx
 import { AccessDrawer, type AccessChange } from '@parallelworks/ui/access'
 
-<AccessDrawer
+;<AccessDrawer
   open={open}
   onClose={close}
   resourceName={cluster.name}
@@ -548,7 +636,13 @@ import { AccessDrawer, type AccessChange } from '@parallelworks/ui/access'
   permissions={[{ id: 'cluster:login', label: 'Sign in' }]}
   principals={[
     { id: 'org', name: 'Everyone', kind: 'everyone', memberCount: 214 },
-    { id: 'u-ana', name: 'Ana Ruiz', kind: 'user', detail: 'ana@example.com', groupIds: ['g-data'] },
+    {
+      id: 'u-ana',
+      name: 'Ana Ruiz',
+      kind: 'user',
+      detail: 'ana@example.com',
+      groupIds: ['g-data'],
+    },
     { id: 'g-data', name: 'data-eng', kind: 'group', memberCount: 24 },
   ]}
   grants={grants} // { principalId, roleId }[]
@@ -597,9 +691,9 @@ Popups, dialogs and drawers portal to `<body>` and read the tokens from the
 document root. A host with fixed chrome tells overlays where it is, on the same
 root:
 
-| Variable            | Meaning                                                                 |
-| ------------------- | ----------------------------------------------------------------------- |
-| `--app-inset-top`   | The height of a fixed top bar. Drawers and toasts start below it.       |
+| Variable            | Meaning                                                                                                                                                                                                |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--app-inset-top`   | The height of a fixed top bar. Drawers and toasts start below it.                                                                                                                                      |
 | `--app-inset-start` | The width of a fixed sidebar on the start side. Toasts center over the page beside it, and a drawer at its widest leaves that strip, and never less than 2.5rem. Update it when the sidebar collapses. |
 
 ```ts
@@ -624,7 +718,7 @@ in. A header above the scroller, outside it, needs nothing: the page's chrome
 pins at the scroller's top, just under it.
 
 ```tsx
-<div className="overflow-auto">
+;<div className="overflow-auto">
   <header className="sticky top-0 z-(--layer-header)">…</header>
   <main>
     <StickyBar className="px-4 py-1.5">
@@ -640,14 +734,14 @@ Everything the package lays over the page stacks on one scale, set on the
 document root by `base.css`. Give the host's own fixed elements a place on it,
 such as `z-index: 100` for a top bar, rather than a z-index chosen to win:
 
-| Variable          | Default | For                                                    |
-| ----------------- | ------- | ------------------------------------------------------ |
-| `--layer-sticky`  | 10      | toolbars and tab strips that stick as the page scrolls |
-| `--layer-header`  | 20      | the page header, which sticks above them               |
-| `--layer-overlay` | 1000    | a panel over the page, such as a full-screen log       |
-| `--layer-drawer`  | 1100    | drawers                                                |
-| `--layer-modal`   | 1200    | modals                                                 |
-| `--layer-toast`   | 1300    | toasts, so one stays usable while a modal is open      |
+| Variable          | Default | For                                                                                                             |
+| ----------------- | ------- | --------------------------------------------------------------------------------------------------------------- |
+| `--layer-sticky`  | 10      | toolbars and tab strips that stick as the page scrolls                                                          |
+| `--layer-header`  | 20      | the page header, which sticks above them                                                                        |
+| `--layer-overlay` | 1000    | a panel over the page, such as a full-screen log                                                                |
+| `--layer-drawer`  | 1100    | drawers                                                                                                         |
+| `--layer-modal`   | 1200    | modals                                                                                                          |
+| `--layer-toast`   | 1300    | toasts, so one stays usable while a modal is open                                                               |
 | `--layer-popover` | 1400    | menus, selects, popovers, hover cards and tooltips, so one opens over the dialog it belongs to and over a toast |
 
 In Tailwind, `z-(--layer-modal)` reads one. Override a value on `:root` to move
@@ -718,6 +812,9 @@ glyph per meaning across the apps.
   `SuccessIcon` is a run that succeeded. `OwnerIcon` is who owns a resource
   and `DefaultIcon` the one used when nothing else is chosen, while
   `FeaturedIcon` marks an item picked out to show first.
+  `RepositoryIcon` is a code repository, `BranchIcon` a branch in it,
+  `CommitIcon` one commit, `PullRequestIcon` a change asking to merge and
+  `ForkIcon` a copy of a repository.
   `NamespaceIcon`, `CommandShellIcon` and `QuickActionIcon` were
   `KubernetesNamespaceIcon`, `PowershellIcon` and `ZapIcon`; the old names
   still work but are deprecated.
@@ -746,7 +843,7 @@ the host passes once:
 ```tsx
 import { UIProvider } from '@parallelworks/ui'
 
-<UIProvider engine={engine}>{app}</UIProvider>
+;<UIProvider engine={engine}>{app}</UIProvider>
 ```
 
 The engine converts input definitions into the form's field tree, resolves
@@ -771,6 +868,16 @@ near linear in jobs and needs; hovering a job re-renders only the nodes and conn
 highlight changes, and panning, zooming and a running run's clock re-render none. The view fits
 the whole graph, zooms out to 1% to show the shape of the largest, and in to 200% to read a node;
 the wheel zooms by the same factor at every scale, about the pointer.
+
+A run's `warnings` (`RunWarning`: a `message` about a `job`, or about one of its steps by `step`
+index, in the subworkflow its `path` of `[job, 'step_<n>', …]` names) are listed over the graph,
+each linking to its job or step: the link opens the subworkflows, matrix and job around it, brings
+it and what it is in into view below the graph's view bar, readable, and moves focus to it. Each job and step a warning is about, and each one it sits
+inside, carries a mark that lists the warnings on hover, so one skipped without a log is still
+flagged. A job name a matrix ran as several jobs marks each of them. `dag.warningCount` words the
+count. A warning with a `code` reads as the host's `useProblemMessage` words it, and one whose `type`
+names a page, such as `/problems/workflow/undefined_input`, links to that page in a new tab
+(`dag.warningAbout`); the editor's problems list does the same (`problemAbout`).
 
 The editor checks YAML against the schemas a host registers with `configureEditorYaml` from
 `@parallelworks/ui/editor`. The job, step, input and settings dialogs edit their YAML at their own
@@ -844,7 +951,7 @@ export function Chat({ conversationId }: { conversationId: string | null }) {
     <ChatProvider
       adapter={createMockChatAdapter()}
       currentUser={{ id: 'u1', username: 'you', name: 'You' }}
-      navigation={{ toConversation: id => {}, toNewChat: () => {} }}
+      navigation={{ toConversation: (id) => {}, toNewChat: () => {} }}
       activeConversationId={conversationId}
     >
       <ChatLayout>
@@ -913,13 +1020,26 @@ OpenAI-compatible transport sends them as the `X-Platform-Tools` header
 (`TOOLS_HEADER`), comma-separated and empty when every tool is off. A request
 without a tool choice sends no header.
 
+A tool that changes something sets `asksFirst`, which the menu shows, and its
+calls wait for the reader. The gateway streams the call, then a `toolApproval`
+chunk (`toolCallId`, optional `expiresAt`) in place of a result, and ends the
+reply there. Chat shows a confirm under the call with Allow, Deny and Deny
+with feedback, which expires at `expiresAt`. The answer goes back through
+`useChat().answerToolApproval` as a request with no new user turn:
+`StreamRequest.resume` (`messageId`, `toolCallId`, `allowed`, optional
+`feedback`), sent as `resume` in the body. The gateway's `toolResult` for the
+call lands on the reply that paused, and the model's answer streams as a new
+reply under it. In a shared conversation only the person whose message
+started the turn may answer; others see whom it waits on, and a turn someone
+else started says whose access its tools ran with.
+
 Tailwind v4 consumers add the chat rules (markdown rendering, streaming
 animations) and streamdown's classes next to the theme contract:
 
 ```css
-@import 'streamdown/styles.css';
-@import '@parallelworks/ui/ai.css';
-@source '../node_modules/streamdown/dist/*.js';
+@import "streamdown/styles.css";
+@import "@parallelworks/ui/ai.css";
+@source "../node_modules/streamdown/dist/*.js";
 ```
 
 The prebuilt `@parallelworks/ui/styles.css` already includes both.
@@ -933,7 +1053,7 @@ the stylesheet comes from, as with pnpm:
 
 ```yaml
 overrides:
-  'katex@<0.19.0': '^0.19.0'
+  "katex@<0.19.0": "^0.19.0"
 ```
 
 Inline math takes `$$` within a sentence; a single `$` stays text, so prices
@@ -1015,12 +1135,12 @@ nodes: { type: number, label: Nodes }
 
 Layout nodes can nest:
 
-| Type | Properties | Behavior |
-| --- | --- | --- |
-| `field` | `field` | References an input name in the current scope. |
-| `stack` | `children`, optional `gap` | Stacks children vertically. |
-| `grid` | `children`, `columns`, optional `gap`, `align` | Arranges children in equal or weighted columns. |
-| `section` | `children`, `label`, optional `description`, `gap` | Groups controls in a labeled fieldset. |
+| Type      | Properties                                         | Behavior                                        |
+| --------- | -------------------------------------------------- | ----------------------------------------------- |
+| `field`   | `field`                                            | References an input name in the current scope.  |
+| `stack`   | `children`, optional `gap`                         | Stacks children vertically.                     |
+| `grid`    | `children`, `columns`, optional `gap`, `align`     | Arranges children in equal or weighted columns. |
+| `section` | `children`, `label`, optional `description`, `gap` | Groups controls in a labeled fieldset.          |
 
 `columns` accepts a count from 1 to 12, or an array of positive relative weights
 such as `[2, 1]`. For responsive layouts, use an object with `base`, `sm`, `md`,
@@ -1178,3 +1298,111 @@ colors and sizing can obscure labels or make controls hard to use. Keep trusted
 confirmation summaries, permissions, and security notices outside the authored
 layout. Full stylesheets or mutually untrusted embedded applications require a
 separate isolation design.
+
+## Application frame
+
+`AppFrame` provides a sidebar and an inset content surface. The sidebar collapses
+to a 64px icon rail, resizes with a pointer or keyboard, and becomes a modal
+navigation drawer below 768px. Its header, scrolling navigation, and footer stay
+separate from the page's scrolling content. Long navigation labels truncate within
+the current sidebar width; badges remain visible. Navigation scrollbar tracks stay
+hidden while wheel and keyboard scrolling keep destinations reachable in short
+containers.
+
+```tsx
+import { AppFrame, AppFrameNavItem, AppFrameToggle } from '@parallelworks/ui/app-frame'
+import '@parallelworks/ui/app-frame.css'
+
+;<AppFrame
+  navigationKey={pathname}
+  brand={({ expanded }) => (expanded ? <Wordmark /> : <Mark />)}
+  navigation={
+    <nav aria-label="Main navigation">
+      <AppFrameNavItem label="Projects" icon={<ProjectsIcon />} href="/projects" selected />
+    </nav>
+  }
+  footer={({ isMobile }) => !isMobile && <AppFrameToggle />}
+  header={<PageTools />}
+>
+  <ProjectList />
+</AppFrame>
+```
+
+`PageTools` can use `useAppFrame().isMobile` to show an `AppFrameToggle` on small
+screens. The drawer supplies its own close button, traps focus, closes on Escape
+or an outside click, and returns focus to its opener. Navigation items close it
+on an ordinary click; modified links keep the current view in place. A changed
+`navigationKey` also dismisses it.
+Reopening mobile navigation restores its scroll position within the current
+section. Closing it unmounts its contents, including any nested popups.
+Use `navigationResetKey` for a section identifier when navigation scroll should
+survive route changes within that section. It defaults to `navigationKey`.
+`sidebarProps` passes host attributes, styling, and events to the desktop sidebar
+and mobile dialog, for example a navigation context menu. The frame retains its
+own layout, dialog semantics, and measured width.
+
+The host owns routing, persistence, identity, permissions, and page tools. Links
+use `UIProvider`'s link slot. Pass `expanded`/`onExpandedChange` and
+`width`/`onWidthChange` to persist preferences, or use the uncontrolled defaults.
+Pointer drags preview their width locally and call `onWidthChange` once when the
+gesture ends, so persistence does not run on every pointer movement.
+`defaultWidth` is 240, bounded by `minWidth` (200) and `maxWidth` (400); compact
+applications can choose smaller bounds. The resize handle supports arrows, Home,
+End, drag-to-collapse, and double-click to restore `defaultWidth`. Logical layout
+and resizing support right-to-left direction. Reduced motion disables resizing
+and drawer transitions. `resizable={false}` removes the handle.
+
+`brand`, `navigation`, and `footer` accept nodes or functions receiving the frame
+state. `header` sits above the main content; `banner` spans both columns.
+`fullBleed` removes the 8px inset and 12px rounded border. The frame fills the
+viewport by default; pass `style={{ height: '100%' }}` for a bounded container.
+The mobile drawer stays inside the frame, below its banner, and uses the chosen
+sidebar width, capped to leave 48px for dismissal. It slides from the navigation
+edge while the backdrop fades; both finish in 200ms and respect reduced motion.
+
+The five `--theme-sidebar-*` tokens produced by `generateTheme` style navigation:
+`bg`, `text`, `hover`, `active-bg`, and `active-text`. Without them the frame uses
+the ordinary surface and accent tokens. Content uses `--theme-app-bg` and
+`--theme-border`. Supply translated `labels` for navigation, skip, open, close,
+expand, collapse, and resize actions. The frame owns the main landmark and skip
+link; put page content inside it without nesting a second `<main>`.
+
+Frame styles use the `pw-ui` cascade layer. Put broad host element defaults
+(such as anchor colors and scrollbar styling) in a lower-priority layer declared
+before the package styles, so they do not replace navigation states.
+
+Applications that supply their own navigation items can load only the layout:
+
+```tsx
+import { AppFrame, AppFrameToggle } from '@parallelworks/ui/app-frame'
+import '@parallelworks/ui/app-frame/layout.css'
+```
+
+This includes the sidebar, scrolling regions, resize handle, mobile drawer,
+toggle and close buttons, focus indicators, and skip link. Style custom navigation
+items in the host, including their selected, hover, rail, and mobile states.
+
+When using `AppFrameNavItem`, also import
+`@parallelworks/ui/app-frame/navigation.css`. The existing
+`@parallelworks/ui/app-frame.css` import includes both stylesheets and continues
+to work without changes. Use either the combined import or the two separate
+imports; there is no need to load both forms.
+
+## Developing stories and tests
+
+Define story components at module scope and pass preview arguments as props.
+Update adapters and other memoized values through their hook dependencies.
+Use an explicit `key` only when a fixture intentionally needs a fresh start.
+
+The Code panel displays authored story definitions so published builds keep
+readable component names. These snippets are static; Controls still update the
+preview. For composed demos, set `parameters.docs.source.code` from a `?raw`
+source import to include helper components and fixture data with the example.
+Stories can opt into `parameters.docs.source.type: 'dynamic'` when live argument
+substitution is useful.
+
+The component-factory lint rule stays enabled for components, stories, and
+preview helpers. Tests may define a local fixture once for a render result;
+rerenders must reuse that same component type. Shared form test helpers suppress
+only those fixture declarations. Module-initialized icon factories and copying
+rendered text retain their documented exceptions.

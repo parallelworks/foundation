@@ -63,6 +63,7 @@ vi.mock('./fieldRegistry', async (importOriginal) => {
   }
 })
 
+import { UIProvider } from '../components/Provider'
 import { testEngine } from '../test/engine'
 import { renderDynamicForm } from '../test/form'
 
@@ -235,6 +236,27 @@ describe('DynamicForm workflowForm prop', () => {
       const lastValues = form.getValues()
       expect(lastValues).toHaveProperty('hiddenIgnoredField', 'default-value')
     })
+  })
+})
+
+describe('labels', () => {
+  it('names an unlabeled input from its key in sentence case, and keeps a label the workflow gave', async () => {
+    render(
+      <DynamicForm
+        initialValues={{ jobs: { cpusPerTask: 8 } }}
+        formJSONs={{
+          max_nodes: { type: 'number' },
+          numGPUs: { type: 'number' },
+          slurm_account: { type: 'string', label: 'slurm_account (as written)' },
+          jobs: { type: 'object', options: { cpusPerTask: { type: 'number' } } },
+        }}
+      />,
+    )
+    expect(await screen.findByLabelText('Max nodes')).toBeInTheDocument()
+    expect(screen.getByLabelText('Num GPUs')).toBeInTheDocument()
+    expect(screen.getByLabelText('slurm_account (as written)')).toBeInTheDocument()
+    expect(screen.getByLabelText('Cpus per task')).toBeInTheDocument()
+    expect(screen.getByText('Jobs')).toBeInTheDocument()
   })
 })
 
@@ -626,6 +648,28 @@ describe('a repeated wizard page’s buttons', () => {
     await screen.findByRole('heading', { name: 'CPU workers' })
     expect(screen.getByRole('button', { name: 'Remove CPU workers' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '+ Add GPU workers 3' })).toBeInTheDocument()
+  })
+})
+
+describe('a wizard’s last step', () => {
+  it('names its submit in the host’s words', async () => {
+    render(
+      <UIProvider strings={{ form: { runWizard: 'Lancer' } }}>
+        <DynamicForm
+          initialValues={{}}
+          formJSONs={{
+            $meta: { wizard: { mode: 'wizard' } },
+            one: { type: 'step', title: 'One', options: { a: { type: 'string' } } },
+            two: { type: 'step', title: 'Two', options: { b: { type: 'string' } } },
+          }}
+        />
+      </UIProvider>,
+    )
+    await screen.findByTestId('field-a')
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    await screen.findByTestId('field-b')
+    expect(screen.getByRole('button', { name: 'Lancer' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Execute' })).toBeNull()
   })
 })
 

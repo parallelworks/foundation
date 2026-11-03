@@ -3,12 +3,15 @@ import { Combobox as BaseCombobox } from '@base-ui/react/combobox'
 import { useVirtualizer, type Virtualizer } from '@tanstack/react-virtual'
 import { dequal } from 'dequal'
 import {
+  type ClipboardEvent,
   type CSSProperties,
+  type KeyboardEvent,
   type ReactElement,
   type ReactNode,
   type Ref,
   type RefObject,
   useCallback,
+  useEffect,
   useId,
   useImperativeHandle,
   useMemo,
@@ -23,15 +26,19 @@ import {
   type ComboboxLeaf,
   isComboboxGroup as isGroup,
   optionNaming,
+  pickerEndClassName,
+  pickerHintClassName,
   pickerItemClassName,
 } from './comboboxItems'
+import { useFieldControlId, useFieldRequired } from './Field'
 import { type FieldBoxSize, fieldBox } from './fieldBox'
 import { panelClassName, positionerClassName } from './floating'
-import { useFullscreenContainer } from './fullscreen'
 import { Loader } from './Loader'
 import { OptionDescription } from './OptionDescription'
-import { useStrings } from './Provider'
+import { useLocale, useStrings } from './Provider'
+import { usePopupContainer } from './popupContainer'
 import { useQueryMatch } from './search'
+import { tagClasses } from './Tag'
 import { Tooltip } from './Tooltip'
 
 export type {
@@ -77,6 +84,18 @@ type SelectionProps<Value> =
       maxItems?: number | undefined
       /** The longest text that can be typed, such as for a created value. */
       maxLength?: number | undefined
+      /** With `creatable`: turns typed text into the value it adds, such as trimmed and
+       *  lowercased; undefined refuses it. */
+      createValue?: ((typed: string) => string | undefined) | undefined
+      /** With `creatable`: keys that add what is typed, beside Enter, such as `','`. Pasted
+       *  text splits on them too, adding each part. */
+      separators?: readonly string[] | undefined
+      /** With `creatable`: leaving the field adds what is typed, so a value half entered isn't
+       *  lost. */
+      addOnBlur?: boolean | undefined
+      /** With `creatable`: values offered as chips under the field, each added with a press.
+       *  Chosen ones leave the row. */
+      suggested?: readonly string[] | undefined
     }
 
 export type ComboboxProps<Value = string> = FieldProps &
@@ -110,6 +129,17 @@ export type ComboboxProps<Value = string> = FieldProps &
     /** The area the open list stays inside, such as a drawer's body above its footer; by
      *  default, the viewport. With `details`, the list grows to fill it. */
     collisionBoundary?: Element | null | undefined
+    /** Whether the list is open, for a host that opens it itself, such as from a shortcut or
+     *  to keep one picker open at a time. */
+    open?: boolean | undefined
+    defaultOpen?: boolean | undefined
+    onOpenChange?: ((open: boolean) => void) | undefined
+    /** The edge of the field or trigger the open list lines up with. */
+    align?: 'start' | 'end' | undefined
+    /** Offers a row that creates the typed text, such as a label that doesn't exist yet, while
+     *  no item has that text. Choosing it calls this with the text and picks nothing itself:
+     *  the host creates the thing and picks it, if it should. */
+    onCreate?: ((text: string) => void) | undefined
   }
 
 export interface AutocompleteProps extends FieldProps {
@@ -125,6 +155,8 @@ interface Entry<Value> extends ComboboxItem<Value> {
   group?: string | undefined
   /** The row that adds the typed text, which every query keeps. */
   created?: boolean | undefined
+  /** The row that hands the typed text to `onCreate`, adding no value itself. */
+  action?: boolean | undefined
 }
 
 interface EntryGroup<Value> {
@@ -226,7 +258,7 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
     placeholder,
     disabled,
     required,
-    id,
+    id: ownId,
     'aria-label': ariaLabel,
     'aria-labelledby': ariaLabelledBy,
     'aria-describedby': ariaDescribedBy,
@@ -241,14 +273,38 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
     onQueryChange,
     loading = false,
     collisionBoundary,
+    open,
+    defaultOpen,
+    onOpenChange,
+    align = 'start',
+    onCreate,
   } = props
+  const id = useFieldControlId(ownId)
+  const fieldRequired = useFieldRequired()
   const entries = useEntries(items)
   const filter = useEntryFilter()
   const t = useStrings().dropdown
+  const locale = useLocale()
   const list = useRef<VirtualListHandle>(null)
   const uid = useId()
   const [inputValue, setInputValue] = useState<string | null>(null)
+  /** Empties the search, and tells a host that mirrors it. */
+  const clearQuery = (to: '' | null = '') => {
+    if (inputValue) {
+      onQueryChange?.('')
+    }
+    setInputValue(to)
+  }
   const [highlighted, setHighlighted] = useState<Entry<Value> | undefined>(undefined)
+  // Open from the start, the list opens a moment after its rows mount, as any other opening
+  // does, so it lands on the chosen row; Base UI's own first-render open would land on the first.
+  const [startsOpen] = useState(open === undefined && defaultOpen === true)
+  const [ownOpen, setOwnOpen] = useState(false)
+  useEffect(() => {
+    if (startsOpen) {
+      setOwnOpen(true)
+    }
+  }, [startsOpen])
 
   // Values the list doesn't have still show, under itemToStringLabel.
   const entryOf = (value: Value): Entry<Value> =>
@@ -262,38 +318,125 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
 
   const selected = props.multiple ? undefined : toSingle(props.value)
 
-  // Multiple values: how many there are (counted here while uncontrolled), whether the field is
-  // full, and the row that adds the typed text when nothing listed or chosen already has it.
-  const [uncontrolledCount, setUncontrolledCount] = useState(
-    props.multiple ? (props.defaultValue?.length ?? 0) : 0,
+  // Multiple values, held here while uncontrolled so typed and pasted ones can join them;
+  // whether the field is full; and the row that adds the typed text when nothing listed or
+  // chosen already has it.
+  const [ownValues, setOwnValues] = useState<readonly Value[]>(
+    props.multiple ? (props.defaultValue ?? []) : [],
   )
-  const chosen = props.multiple ? (props.value ?? null) : null
+  const chosen: readonly Value[] | null = props.multiple ? (props.value ?? ownValues) : null
   const full =
-    props.multiple &&
-    props.maxItems !== undefined &&
-    (chosen?.length ?? uncontrolledCount) >= props.maxItems
+    props.multiple && props.maxItems !== undefined && (chosen?.length ?? 0) >= props.maxItems
   const isChosen = (entry: Entry<Value>) =>
     chosen?.some((value) => isItemEqualToValue(entry.value, value)) ?? false
+  const setValues = (next: Value[]) => {
+    if (props.multiple) {
+      setOwnValues(next)
+      props.onValueChange?.(next)
+    }
+  }
+  const creatable = props.multiple && props.creatable
   const typed = inputValue?.trim() ?? ''
-  const lowered = typed.toLocaleLowerCase()
-  const sameText = (value: unknown, label?: string) =>
-    label?.toLocaleLowerCase() === lowered ||
-    (typeof value === 'string' && value.toLocaleLowerCase() === lowered)
-  const created: Entry<Value> | undefined =
-    props.multiple &&
-    props.creatable &&
-    typed !== '' &&
-    !full &&
-    !entries.flat.some((entry) => sameText(entry.value, entry.label)) &&
-    !chosen?.some((value) => sameText(value))
-      ? { value: typed as Value, label: t.add(typed), icon: <AddIcon />, created: true }
+  // A value already listed or chosen under the same text isn't made again, in any case.
+  const sameText = (text: string) => (value: unknown, label?: string) => {
+    const lowered = text.toLocaleLowerCase()
+    return (
+      label?.toLocaleLowerCase() === lowered ||
+      (typeof value === 'string' && value.toLocaleLowerCase() === lowered)
+    )
+  }
+  const isNew = (text: string, among: readonly Value[] | null = chosen) =>
+    !entries.flat.some((entry) => sameText(text)(entry.value, entry.label)) &&
+    !among?.some((value) => sameText(text)(value))
+  /** The value typed text adds, or undefined when it adds none. */
+  const toCreated = (text: string, among?: readonly Value[] | null) => {
+    if (!props.multiple || !props.creatable) {
+      return undefined
+    }
+    const value = props.createValue ? props.createValue(text) : text.trim()
+    return value && isNew(value, among) && isNew(text.trim(), among) ? value : undefined
+  }
+  const createdValue = creatable && !full && typed !== '' ? toCreated(typed) : undefined
+  const created: Entry<Value> | undefined = onCreate
+    ? typed !== '' && !full && isNew(typed)
+      ? {
+          value: typed as Value,
+          label: t.create(typed),
+          icon: <AddIcon />,
+          created: true,
+          action: true,
+        }
       : undefined
+    : createdValue !== undefined
+      ? {
+          value: createdValue as Value,
+          label: t.add(createdValue),
+          icon: <AddIcon />,
+          created: true,
+        }
+      : undefined
+  /** Adds what is typed, or each part of pasted text, as values; true when any was added. */
+  const addTyped = (parts: readonly string[]) => {
+    if (!chosen || !props.multiple) {
+      return false
+    }
+    const { maxItems } = props
+    const next = [...chosen]
+    for (const part of parts) {
+      if (maxItems !== undefined && next.length >= maxItems) {
+        break
+      }
+      const value = part.trim() === '' ? undefined : toCreated(part, next)
+      if (value !== undefined) {
+        next.push(value as Value)
+      }
+    }
+    if (next.length === chosen.length) {
+      return false
+    }
+    setValues(next)
+    clearQuery()
+    return true
+  }
+  const separators = props.multiple && props.creatable ? (props.separators ?? []) : []
+  const splitOnSeparators = (text: string) =>
+    separators.reduce<string[]>(
+      (parts, separator) => parts.flatMap((p) => p.split(separator)),
+      [text],
+    )
+  const onInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (separators.includes(event.key) && !event.nativeEvent.isComposing) {
+      event.preventDefault()
+      addTyped([typed])
+    }
+  }
+  const onInputPaste = (event: ClipboardEvent<HTMLInputElement>) => {
+    const text = event.clipboardData.getData('text')
+    const parts = splitOnSeparators(text)
+    if (parts.length > 1) {
+      event.preventDefault()
+      addTyped(parts)
+    }
+  }
+  // Free entry with nothing to pick from: no button to open a list, and no empty one.
+  const freeEntry = creatable && entries.flat.length === 0
   const [first] = entries.items
+  // A typed value to add leads, so Enter adds what was typed. A row that hands the text to
+  // `onCreate` follows the matches instead: Enter picks "performance" for "per", and creates
+  // only once nothing else is listed.
+  const createLast = created?.action === true
   const listItems = !created
     ? entries.items
     : first !== undefined && 'items' in first
-      ? [{ label: '', items: [created], order: -1 }, ...(entries.items as EntryGroup<Value>[])]
-      : [created, ...(entries.items as Entry<Value>[])]
+      ? createLast
+        ? [
+            ...(entries.items as EntryGroup<Value>[]),
+            { label: '', items: [created], order: entries.items.length },
+          ]
+        : [{ label: '', items: [created], order: -1 }, ...(entries.items as EntryGroup<Value>[])]
+      : createLast
+        ? [...(entries.items as Entry<Value>[]), created]
+        : [created, ...(entries.items as Entry<Value>[])]
   // The selection's icon sits in the field until the text no longer names it.
   const selectedIcon =
     selected?.icon && (inputValue === null || inputValue === selected.label) ? selected.icon : null
@@ -305,12 +448,18 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
         full && props.maxItems !== undefined ? t.limitReached(props.maxItems) : placeholder
       }
       maxLength={props.multiple ? props.maxLength : undefined}
+      onKeyDown={separators.length > 0 ? onInputKeyDown : undefined}
+      onPaste={separators.length > 0 ? onInputPaste : undefined}
+      onBlur={
+        props.multiple && props.creatable && props.addOnBlur ? () => addTyped([typed]) : undefined
+      }
       aria-label={ariaLabel || undefined}
       aria-labelledby={ariaLabelledBy}
       aria-describedby={ariaDescribedBy}
       aria-invalid={ariaInvalid || undefined}
-      aria-required={ariaRequired || required || undefined}
+      aria-required={ariaRequired || required || fieldRequired}
       autoComplete="off"
+      data-1p-ignore
       className={trigger ? popupInputClassName : inputClassName(size)}
     />
   )
@@ -340,22 +489,52 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
           </span>
         )}
       </ItemContent>
-      <BaseCombobox.ItemIndicator className="ml-auto flex shrink-0 items-center">
-        <CheckIcon aria-hidden="true" className="size-3.5" />
-      </BaseCombobox.ItemIndicator>
+      <span className={pickerEndClassName}>
+        {entry.hint && (
+          <span id={`${uid}${rowProps.props.index}hint`} className={pickerHintClassName}>
+            {entry.hint}
+          </span>
+        )}
+        {/* Beside a hint, the check keeps its place while unchosen, so hints line up. */}
+        <span className={cx('flex items-center', entry.hint && 'w-3.5')}>
+          <BaseCombobox.ItemIndicator className="flex items-center">
+            <CheckIcon aria-hidden="true" className="size-3.5" />
+          </BaseCombobox.ItemIndicator>
+        </span>
+      </span>
     </BaseCombobox.Item>
   )
 
+  // A trigger named only by its label would hide what it holds, which its own text shows: it
+  // is named by the label and then the value, both from text kept out of sight.
+  const labelId = `${uid}-label`
+  const valueId = `${uid}-value`
+  const named = Boolean(ariaLabel || ariaLabelledBy)
   const parts = trigger ? (
     <>
+      {named && (
+        <>
+          {ariaLabel && !ariaLabelledBy && (
+            <span id={labelId} hidden>
+              {ariaLabel}
+            </span>
+          )}
+          <span id={valueId} hidden>
+            <BaseCombobox.Value>
+              {(value: Entry<Value> | Entry<Value>[] | null) =>
+                Array.isArray(value) ? value.map(entryLabel).join(', ') : entryLabel(value)
+              }
+            </BaseCombobox.Value>
+          </span>
+        </>
+      )}
       <Tooltip content={triggerTooltip}>
         <BaseCombobox.Trigger
           id={id}
-          aria-label={ariaLabel || undefined}
-          aria-labelledby={ariaLabelledBy}
+          aria-labelledby={named ? `${ariaLabelledBy || labelId} ${valueId}` : undefined}
           aria-describedby={ariaDescribedBy}
           aria-invalid={ariaInvalid || undefined}
-          aria-required={ariaRequired || required || undefined}
+          aria-required={ariaRequired || required || fieldRequired}
           render={trigger}
         />
       </Tooltip>
@@ -365,11 +544,15 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
         statusGroups={entries.statusGroups}
         query={inputValue ?? ''}
         header={<div className="border-b border-(--theme-border) p-1.5">{input}</div>}
+        // As wide as its longest rows, from a floor that gives a small chip a list to read up
+        // to a cap that keeps it a list.
         className={
           details
             ? 'w-[min(36rem,var(--available-width))]'
-            : 'w-max min-w-(--anchor-width) max-w-[min(28rem,var(--available-width))]'
+            : 'w-max min-w-[min(max(14rem,var(--anchor-width)),var(--available-width))] max-w-[min(28rem,var(--available-width))]'
         }
+        sizer={details ? undefined : <ListSizer entries={entries.flat} />}
+        align={align}
         loading={loading ? t.searching : undefined}
         details={details?.(highlighted?.created ? undefined : highlighted?.value)}
         collisionBoundary={collisionBoundary}
@@ -380,7 +563,7 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
     <>
       <BaseCombobox.InputGroup
         data-testid="combobox"
-        className={cx(fieldClassName(size), className)}
+        className={cx(fieldClassName(size), freeEntry && 'pr-2', className)}
       >
         {props.multiple ? (
           <BaseCombobox.Chips
@@ -397,14 +580,18 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
                     // biome-ignore lint/suspicious/noArrayIndexKey: a value has no key of its own; the label alone may repeat
                     key={`${index}:${entry.label}`}
                     aria-label={entry.label}
-                    className="flex items-center gap-1 rounded bg-(--theme-muted-panel-bg) py-0.5 pr-0.5 pl-1.5 text-xs outline-none data-highlighted:bg-(--theme-hover)"
+                    // The library's one tag look, so a chosen value reads as the tag it becomes.
+                    className={cx(
+                      tagClasses(),
+                      'pr-0.5 outline-none data-highlighted:bg-(--theme-hover)',
+                    )}
                   >
                     {entry.label}
                     <BaseCombobox.ChipRemove
                       aria-label={t.removeValue(entry.label)}
-                      className="flex size-4 items-center justify-center rounded hover:bg-(--theme-hover)"
+                      className="flex size-4 cursor-pointer items-center justify-center rounded-full text-(--theme-muted-text-color) hover:bg-(--theme-hover) hover:text-(--theme-app)"
                     >
-                      <RemoveIcon aria-hidden="true" className="size-3" />
+                      <RemoveIcon aria-hidden="true" className="size-2.5" />
                     </BaseCombobox.ChipRemove>
                   </BaseCombobox.Chip>
                 ))
@@ -422,17 +609,27 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
             {input}
           </>
         )}
-        <BaseCombobox.Trigger
-          aria-label={t.showOptions}
-          data-testid="combobox-button"
-          className={triggerClassName}
-        >
-          <ChevronDownIcon aria-hidden="true" className="size-3" />
-        </BaseCombobox.Trigger>
+        {!freeEntry && (
+          <BaseCombobox.Trigger
+            aria-label={t.showOptions}
+            data-testid="combobox-button"
+            className={triggerClassName}
+          >
+            <ChevronDownIcon aria-hidden="true" className="size-3" />
+          </BaseCombobox.Trigger>
+        )}
       </BaseCombobox.InputGroup>
+      {props.multiple && props.creatable && props.suggested && (
+        <Suggestions
+          suggested={props.suggested.filter((s) => toCreated(s) !== undefined)}
+          disabled={disabled || full}
+          onAdd={(s) => addTyped([s])}
+        />
+      )}
       <ListPopup<Value>
         listRef={list}
-        empty={t.noOptionsFound}
+        empty={freeEntry ? undefined : t.noOptionsFound}
+        align={align}
         statusGroups={entries.statusGroups}
         query={inputValue ?? ''}
         loading={loading ? t.searching : undefined}
@@ -444,7 +641,9 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
   )
   const root = {
     items: listItems,
-    isItemEqualToValue: (a: Entry<Value>, b: Entry<Value>) => isItemEqualToValue(a.value, b.value),
+    // The create row is itself alone: its text may match a value the host holds.
+    isItemEqualToValue: (a: Entry<Value>, b: Entry<Value>) =>
+      a.action || b.action ? a === b : isItemEqualToValue(a.value, b.value),
     itemToStringLabel: entryLabel,
     // A host that searches for itself gets the items as it gave them.
     filter: onQueryChange ? null : filter,
@@ -464,17 +663,29 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
     },
     disabled,
     required,
+    locale,
     virtualized: true,
-    // Enter takes the leading row: what was typed, or the item that has that text already.
-    autoHighlight: Boolean(props.multiple && props.creatable),
+    // Enter takes the leading row: what was typed, or the item that has that text already. A
+    // button's picker is opened to choose, so it opens on a row and Enter takes it at once.
+    // Base UI types `'always'` on its Autocomplete alone, though its Combobox takes it too.
+    autoHighlight: (trigger ? 'always' : Boolean(creatable || onCreate)) as boolean,
+    ...(open !== undefined ? { open } : startsOpen ? { open: ownOpen } : {}),
+    onOpenChange: (next: boolean) => {
+      setOwnOpen(next)
+      // A picker opens to a fresh search; a field of chips keeps what is half typed.
+      if (!next && (trigger || !props.multiple)) {
+        clearQuery(null)
+      }
+      onOpenChange?.(next)
+    },
     children: parts,
   }
   return props.multiple ? (
     <BaseCombobox.Root<Entry<Value>, true>
       {...root}
       multiple
-      value={toEntries(props.value)}
-      defaultValue={toEntries(props.defaultValue)}
+      value={toEntries(chosen ?? [])}
+      inputValue={inputValue ?? ''}
       onValueChange={(next, details) => {
         // Escape on a closed list would drop every chip at once, with no way back; it's left
         // to whatever holds the field instead, such as a form that steps back or a dialog.
@@ -483,8 +694,14 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
           details.allowPropagation()
           return
         }
-        setUncontrolledCount(next.length)
-        props.onValueChange?.(next.map((entry) => entry.value))
+        const action = next.find((entry) => entry.action)
+        if (action) {
+          details.cancel()
+          clearQuery()
+          onCreate?.(String(action.value))
+          return
+        }
+        setValues(next.map((entry) => entry.value))
       }}
     />
   ) : (
@@ -492,7 +709,14 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
       {...root}
       value={selected}
       defaultValue={toSingle(props.defaultValue)}
-      onValueChange={(next) => props.onValueChange?.(next?.value ?? null)}
+      onValueChange={(next, details) => {
+        if (next?.action) {
+          details.cancel()
+          onCreate?.(String(next.value))
+          return
+        }
+        props.onValueChange?.(next?.value ?? null)
+      }}
     />
   )
 }
@@ -507,7 +731,7 @@ export function Autocomplete({
   placeholder,
   disabled,
   required,
-  id,
+  id: ownId,
   'aria-label': ariaLabel,
   'aria-labelledby': ariaLabelledBy,
   'aria-describedby': ariaDescribedBy,
@@ -515,6 +739,8 @@ export function Autocomplete({
   'aria-required': ariaRequired,
   size = 'md',
 }: AutocompleteProps) {
+  const id = useFieldControlId(ownId)
+  const fieldRequired = useFieldRequired()
   const entries = useEntries(items)
   const filter = useEntryFilter()
   const t = useStrings().dropdown
@@ -546,7 +772,7 @@ export function Autocomplete({
           aria-labelledby={ariaLabelledBy}
           aria-describedby={ariaDescribedBy}
           aria-invalid={ariaInvalid || undefined}
-          aria-required={ariaRequired || required || undefined}
+          aria-required={ariaRequired || required || fieldRequired}
           autoComplete="off"
           className={inputClassName(size)}
         />
@@ -608,6 +834,84 @@ function ItemContent<Value>({
   )
 }
 
+// Rows by their text's length, the longest few of which stand in for all, unseen.
+const SIZER_ROWS = 3
+
+/** Unseen copies of the longest rows, which set the width of a popup whose own rows are
+ *  positioned out of its flow by the virtual list. */
+function ListSizer<Value>({ entries }: { entries: readonly Entry<Value>[] }) {
+  const longest = useMemo(
+    () =>
+      [...entries]
+        .sort(
+          (a, b) =>
+            b.label.length + (b.hint?.length ?? 0) - (a.label.length + (a.hint?.length ?? 0)),
+        )
+        .slice(0, SIZER_ROWS),
+    [entries],
+  )
+  return (
+    <div aria-hidden="true" className="invisible h-0 overflow-hidden px-1">
+      {longest.map((entry, index) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: unseen copies, in a fixed order
+        <div key={index} className={cx(pickerItemClassName, 'w-max')}>
+          {entry.icon && <span className="flex shrink-0 items-center">{entry.icon}</span>}
+          <span className="flex items-center gap-2 whitespace-nowrap">
+            {entry.label}
+            {entry.badge}
+          </span>
+          <span className={pickerEndClassName}>
+            {entry.hint && <span className={pickerHintClassName}>{entry.hint}</span>}
+            <span className="size-3.5" />
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** Values offered under a tag field, each added with a press. */
+function Suggestions({
+  suggested,
+  disabled,
+  onAdd,
+}: {
+  suggested: readonly string[]
+  disabled: boolean | undefined
+  onAdd: (value: string) => void
+}) {
+  const t = useStrings().dropdown
+  const id = useId()
+  if (suggested.length === 0) {
+    return null
+  }
+  return (
+    // biome-ignore lint/a11y/useSemanticElements: a fieldset is for form controls; this groups buttons
+    <div role="group" aria-labelledby={id} className="mt-1.5 flex flex-wrap items-center gap-1">
+      <span id={id} className="mr-0.5 text-xs text-(--theme-muted-text-color)">
+        {t.suggested}
+      </span>
+      {suggested.map((value) => (
+        <button
+          key={value}
+          type="button"
+          disabled={disabled}
+          aria-label={t.add(value)}
+          onClick={() => onAdd(value)}
+          // The tag pill, dashed and muted until pressed: a value not yet added.
+          className={cx(
+            tagClasses(),
+            'cursor-pointer gap-0.5 border-dashed border-(--theme-border-strong) pr-2 pl-1.5 text-(--theme-muted-text-color) transition-colors hover:border-solid hover:bg-(--theme-hover) hover:text-(--theme-app) focus-visible:outline-2 focus-visible:outline-(--theme-focus) disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-dashed disabled:hover:bg-transparent',
+          )}
+        >
+          <AddIcon aria-hidden="true" className="size-2.5" />
+          {value}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function GroupHeading<Value>({ group }: { group: EntryGroup<Value> }) {
   return (
     <>
@@ -650,6 +954,8 @@ function ListPopup<Value>({
   details,
   collisionBoundary,
   renderItem,
+  sizer,
+  align = 'start',
 }: {
   listRef: RefObject<VirtualListHandle | null>
   empty?: string | undefined
@@ -666,8 +972,11 @@ function ListPopup<Value>({
   details?: ReactNode
   collisionBoundary?: Element | null | undefined
   renderItem: (entry: Entry<Value>, row: RowProps) => ReactElement
+  /** Gives a content-wide popup its width, which the list's positioned rows don't. */
+  sizer?: ReactNode
+  align?: 'start' | 'end' | undefined
 }) {
-  const fullscreen = useFullscreenContainer()
+  const portal = usePopupContainer()
   const withDetails = details !== undefined
   const list = (
     <>
@@ -698,9 +1007,9 @@ function ListPopup<Value>({
     </>
   )
   return (
-    <BaseCombobox.Portal container={fullscreen}>
+    <BaseCombobox.Portal {...portal}>
       <BaseCombobox.Positioner
-        align="start"
+        align={align}
         sideOffset={4}
         className={positionerClassName}
         {...(collisionBoundary && { collisionBoundary })}
@@ -736,6 +1045,7 @@ function ListPopup<Value>({
           ) : (
             list
           )}
+          {sizer}
         </BaseCombobox.Popup>
       </BaseCombobox.Positioner>
     </BaseCombobox.Portal>
@@ -793,10 +1103,20 @@ function VirtualList<Value>({
     return toRows(filtered, shown)
   }, [filtered, statusGroups, query, match])
   const scroller = useRef<HTMLDivElement | null>(null)
+  // Once the person scrolls the list themselves, only the keyboard moves it until they type
+  // again: autoHighlight re-highlights the first row whenever the highlighted one scrolls out
+  // of the rendered window, and following that would throw the list back to the top.
+  const scrolledByHand = useRef(false)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: typing starts the list over
+  useEffect(() => {
+    scrolledByHand.current = false
+  }, [query])
   const virtualizer: Virtualizer<HTMLDivElement, Element> = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scroller.current,
-    estimateSize: (i) => (rows[i]?.kind === 'group' ? 28 : 36),
+    // A row is panelItemClassName's py-1.5 around a text-sm line: 32px. An estimate off by even
+    // a few pixels moves the list under the pointer as each row is measured on the way past.
+    estimateSize: (i) => (rows[i]?.kind === 'group' ? 28 : 32),
     overscan: 10,
     paddingStart: 4,
     paddingEnd: 4,
@@ -811,6 +1131,9 @@ function VirtualList<Value>({
       reveal(index, reason) {
         const row = index === undefined ? undefined : rowOfItem[index]
         if (row === undefined || reason === 'pointer') {
+          return
+        }
+        if (reason !== 'keyboard' && scrolledByHand.current) {
           return
         }
         queueMicrotask(() => virtualizer.scrollToIndex(row, { align: 'auto' }))
@@ -837,6 +1160,16 @@ function VirtualList<Value>({
     <div
       role="presentation"
       ref={scrollerRef}
+      onWheel={() => {
+        scrolledByHand.current = true
+      }}
+      onTouchMove={() => {
+        scrolledByHand.current = true
+      }}
+      onPointerDown={(e) => {
+        // The scrollbar: a press on the list itself rather than on one of its rows.
+        if (e.target === e.currentTarget) scrolledByHand.current = true
+      }}
       className={cx(
         // The panel's gutter: the virtualizer pads the ends, so the list takes only the sides.
         'overflow-auto overscroll-contain px-1',

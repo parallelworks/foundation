@@ -2,8 +2,16 @@
 import '@testing-library/jest-dom/vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useRowMenuActive } from '../list/rowMenu'
-import { type OpenMenu, type OpenMenuOptions, useContextMenu } from './ContextMenu'
+import {
+  ContextMenuProvider,
+  type OpenMenu,
+  type OpenMenuOptions,
+  useCloseMenu,
+  useContextMenu,
+  useOpenMenu,
+} from './ContextMenu'
 import type { MenuAction, MenuEntry, MenuSearch } from './MenuEntries'
+import { toast } from './Toast'
 
 const SEARCH: MenuSearch = { placeholder: 'Search types', empty: 'No type matches' }
 
@@ -100,6 +108,42 @@ describe('the context menu', () => {
     expect(writeText).toHaveBeenCalledWith('abc-123')
   })
 
+  it('confirms a copy without a noun, and says when copying fails', async () => {
+    const success = vi.spyOn(toast, 'success')
+    const error = vi.spyOn(toast, 'error')
+    const writeText = vi
+      .fn<(text: string) => Promise<void>>()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('denied'))
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    render(<Menu items={[{ label: 'Copy link', copy: { text: 'https://x.test/1' } }]} />)
+    open()
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Copy link' }))
+    await waitFor(() => expect(success).toHaveBeenCalledWith('Copied to clipboard'))
+    open()
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Copy link' }))
+    await waitFor(() => expect(error).toHaveBeenCalledWith("Couldn't copy to the clipboard"))
+    success.mockRestore()
+    error.mockRestore()
+  })
+
+  it('gives every row’s icon one width, so labels line up whatever the icon’s size', async () => {
+    render(
+      <Menu
+        items={[
+          action('Rename', { icon: <svg className="size-4" /> }),
+          action('Move', { icon: <svg className="size-3.5" /> }),
+        ]}
+      />,
+    )
+    open()
+    for (const name of ['Rename', 'Move']) {
+      const item = await screen.findByRole('menuitem', { name })
+      const slot = item.querySelector('svg')?.parentElement
+      expect(slot).toHaveClass('min-w-4', 'justify-center')
+    }
+  })
+
   it('keeps a disabled item inert and names why', async () => {
     const onClick = vi.fn()
     render(
@@ -149,6 +193,28 @@ describe('the context menu', () => {
     expect(screen.queryByRole('menuitem', { name: 'Number' })).toBeNull()
     fireEvent.change(search, { target: { value: 'zzz' } })
     expect(screen.getByText('No type matches')).toBeInTheDocument()
+  })
+
+  it('shows a row’s hint at its end, read with its label and found by its search', async () => {
+    render(
+      <Menu
+        items={[
+          action('Core Platform', { hint: 'CORE', shortcut: '1', icon: <svg /> }),
+          action('Web', { hint: 'WEB' }),
+        ]}
+        options={{ search: SEARCH }}
+      />,
+    )
+    open()
+    await screen.findAllByRole('menuitem')
+    const core = await screen.findByRole('menuitem', { name: 'Core Platform. CORE' })
+    // The hint sits before the shortcut, which isn't read as part of the name.
+    expect(core.textContent).toMatch(/CORE1$/)
+    const search = screen.getByRole('searchbox', { name: 'Search types' })
+    fireEvent.change(search, { target: { value: 'web' } })
+    expect(screen.getByRole('menuitem', { name: 'Web. WEB' })).toBeInTheDocument()
+    fireEvent.change(search, { target: { value: 'core' } })
+    expect(screen.queryByRole('menuitem', { name: /Web/ })).toBeNull()
   })
 
   it('runs the first match when its search takes Enter', async () => {
@@ -212,5 +278,66 @@ describe('the context menu', () => {
     expect(opener).toHaveAttribute('data-active', 'true')
     fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
     await waitFor(() => expect(opener).toHaveAttribute('data-active', 'false'))
+  })
+
+  it.each([
+    ['wheel', () => fireEvent.wheel(document.body)],
+    ['blur', () => fireEvent.blur(window)],
+    ['resize', () => fireEvent(window, new Event('resize'))],
+  ] as const)('closes on %s when asked to, and tells its opener', async (trigger, happen) => {
+    const onClose = vi.fn()
+    render(<Menu items={[action('Copy')]} options={{ closeOn: [trigger], onClose }} />)
+    open()
+    await menu()
+    act(happen)
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce())
+  })
+
+  it('stays open on a wheel over the menu itself, and on what it wasn’t asked to close on', async () => {
+    render(<Menu items={[action('Copy')]} options={{ closeOn: ['wheel'] }} />)
+    open()
+    const opened = await menu()
+    fireEvent.wheel(opened)
+    act(() => {
+      fireEvent(window, new Event('resize'))
+    })
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+  })
+
+  it('stays open when focus leaves an element on the page, closing on blur only when the window loses it', async () => {
+    render(<Menu items={[action('Copy')]} options={{ closeOn: ['blur'] }} />)
+    const opener = open()
+    await menu()
+    act(() => {
+      fireEvent.blur(opener)
+    })
+    expect(screen.getByRole('menu')).toHaveAttribute('data-open')
+  })
+
+  it('closes the shared menu when its host says', async () => {
+    function Host() {
+      const openMenu = useOpenMenu()
+      const closeMenu = useCloseMenu()
+      return (
+        <>
+          <button type="button" onClick={(e) => openMenu(e.currentTarget, [action('Copy')])}>
+            Open
+          </button>
+          <button type="button" onClick={closeMenu}>
+            Switch pane
+          </button>
+        </>
+      )
+    }
+    render(
+      <ContextMenuProvider>
+        <Host />
+      </ContextMenuProvider>,
+    )
+    open()
+    await menu()
+    act(() => screen.getByRole('button', { name: 'Switch pane', hidden: true }).click())
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
   })
 })

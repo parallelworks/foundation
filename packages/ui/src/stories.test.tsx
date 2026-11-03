@@ -8,23 +8,37 @@ import { composeStories } from '@storybook/react-vite'
 import { cleanup, render } from '@testing-library/react'
 import type React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-
 import * as accessDrawer from './access/AccessDrawer.stories'
+import * as accessPanel from './access/AccessPanel.stories'
+import * as appFrame from './app-frame/AppFrame.stories'
+import * as badges from './components/Badges.stories'
 import * as breadcrumbs from './components/Breadcrumbs.stories'
 import * as callout from './components/Callout.stories'
+import * as codeBlock from './components/CodeBlock.stories'
 import * as combobox from './components/Combobox.stories'
 import * as copy from './components/CopyButton.stories'
+import * as charts from './components/chart.stories'
 import * as controls from './components/controls.stories'
 import * as descriptionList from './components/DescriptionList.stories'
+import * as errorPage from './components/ErrorPage.stories'
 import * as fields from './components/fields.stories'
 import * as imageUpload from './components/ImageUpload.stories'
+import * as kbd from './components/Kbd.stories'
 import * as loading from './components/loading.stories'
 import * as markdown from './components/Markdown.stories'
 import * as menus from './components/Menu.stories'
+import * as overview from './components/Overview.stories'
 import * as overlays from './components/overlays.stories'
 import * as pageHeader from './components/pageHeader.stories'
+import * as pickers from './components/pickers.stories'
 import * as primitives from './components/primitives.stories'
+import * as splitView from './components/SplitView.stories'
+import * as statTile from './components/StatTile.stories'
+import * as statusBadge from './components/StatusBadge.stories'
+import * as statusLabel from './components/StatusLabel.stories'
 import * as sections from './components/sections.stories'
+import * as tabs from './components/Tabs.stories'
+import * as tags from './components/Tag.stories'
 import * as themeEditor from './components/ThemeEditor.stories'
 import * as toasts from './components/Toast.stories'
 import * as toggleGroup from './components/ToggleGroup.stories'
@@ -37,17 +51,35 @@ import * as editorDialogs from './graph/GraphEditorDialogs.stories'
 import * as inputDialog from './graph/InputDialog.stories'
 import * as inputsEditor from './graph/InputsEditor.stories'
 import * as problemsButton from './graph/ProblemsButton.stories'
+import * as runGraph from './graph/RunGraph.stories'
+import * as runGraphPreview from './graph/RunGraphPreview.stories'
 import * as runViews from './graph/runViews.stories'
 import * as stepSummary from './graph/StepSummary.stories'
 import * as settingsDialog from './graph/WorkflowSettingsDialog.stories'
 import * as icons from './icons.stories'
+import * as actionLane from './list/actionLane.stories'
 import * as appShell from './list/appShell.stories'
+import * as filterBar from './list/filterBar.stories'
+import * as listDetail from './list/ListDetail.stories'
 import * as list from './list/ListTable.stories'
 import * as listControls from './list/listControls.stories'
+import * as listGroup from './list/listGroup.stories'
+import * as listPage from './list/listPage.stories'
 import * as stickyHeaders from './list/stickyHeaders.stories'
 import * as userHoverCard from './list/UserHoverCard.stories'
 import * as logviewer from './logviewer/LogViewer.stories'
 import * as themeGenerator from './theme/theme.stories'
+
+window.matchMedia ??= (media) => ({
+  media,
+  matches: false,
+  onchange: null,
+  addListener() {},
+  removeListener() {},
+  addEventListener() {},
+  removeEventListener() {},
+  dispatchEvent: () => true,
+})
 
 // jsdom lacks these; the DAG and explorer rely on them for layout plumbing.
 global.requestAnimationFrame = (() => 0) as typeof requestAnimationFrame
@@ -66,16 +98,31 @@ vi.mock('react-zoom-pan-pinch', () => ({
 }))
 
 const SUITES = {
+  appFrame,
   primitives,
   accessDrawer,
+  accessPanel,
   breadcrumbs,
   callout,
+  codeBlock,
+  charts,
+  kbd,
+  tags,
+  badges,
+  statusBadge,
+  statusLabel,
+  statTile,
   icons,
   sections,
+  overview,
   descriptionList,
+  errorPage,
+  tabs,
+  splitView,
   loading,
   markdown,
   combobox,
+  pickers,
   controls,
   copy,
   imageUpload,
@@ -87,7 +134,12 @@ const SUITES = {
   pageHeader,
   logviewer,
   list,
+  actionLane,
   listControls,
+  listGroup,
+  filterBar,
+  listPage,
+  listDetail,
   stickyHeaders,
   appShell,
   userHoverCard,
@@ -101,6 +153,8 @@ const SUITES = {
   problemsButton,
   settingsDialog,
   runViews,
+  runGraph,
+  runGraphPreview,
   stepSummary,
   fileExplorer,
   themeEditor,

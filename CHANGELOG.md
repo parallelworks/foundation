@@ -1,5 +1,46 @@
 # Changelog
 
+## [0.17.0](https://github.com/parallelworks/foundation/compare/v0.16.0...v0.17.0) (2026-10-29)
+
+
+### Features
+
+* **logctx:** contextual logger enrichment ([#571](https://github.com/parallelworks/foundation/issues/571)) ([195ec72](https://github.com/parallelworks/foundation/commit/195ec7267cc5568208949cf8861edc847c781cd1))
+* **logctx:** contextual structured logging ([#569](https://github.com/parallelworks/foundation/issues/569)) ([7cfefd7](https://github.com/parallelworks/foundation/commit/7cfefd765b7a3989c80f9628477943a844a4b946))
+
+
+### Bug Fixes
+
+* **pgdb:** prevent startup hangs during concurrent index migrations ([#572](https://github.com/parallelworks/foundation/issues/572)) ([460ac4e](https://github.com/parallelworks/foundation/commit/460ac4e0e2786d3b11cdc8a9768230b2106ef9fe))
+
+## [0.16.0](https://github.com/parallelworks/foundation/compare/v0.15.0...v0.16.0) (2026-10-28)
+
+
+### ⚠ BREAKING CHANGES
+
+* **pgdb:** remove bundled job queue integration ([#566](https://github.com/parallelworks/foundation/issues/566))
+
+### Code Refactoring
+
+* **pgdb:** remove bundled job queue integration ([#566](https://github.com/parallelworks/foundation/issues/566)) ([7c31bdf](https://github.com/parallelworks/foundation/commit/7c31bdfed3d9af193fb9537f0e672dd710e71659))
+
+## [0.15.0](https://github.com/parallelworks/foundation/compare/v0.14.1...v0.15.0) (2026-10-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* **problem:** only words a host wrote reach a reader, never a dependency's or huma's error text ([#464](https://github.com/parallelworks/foundation/issues/464))
+
+### Features
+
+* run warnings and editor problems take a problem code, params and type ([#423](https://github.com/parallelworks/foundation/issues/423)) ([72cc81e](https://github.com/parallelworks/foundation/commit/72cc81ee87531d0bab37d24f522cb3a11c31ba10))
+
+
+### Bug Fixes
+
+* **deps:** Go 1.27.3, for the crypto/x509 certificate verification advisory ([#465](https://github.com/parallelworks/foundation/issues/465)) ([57920ce](https://github.com/parallelworks/foundation/commit/57920ce5592c99fd7f6a9c10ad87fae8361dc3b6))
+* **problem:** only words a host wrote reach a reader, never a dependency's or huma's error text ([#464](https://github.com/parallelworks/foundation/issues/464)) ([af65701](https://github.com/parallelworks/foundation/commit/af65701200d099bd93d2c69fbc6ccf1512301348))
+
 ## [0.14.1](https://github.com/parallelworks/foundation/compare/v0.14.0...v0.14.1) (2026-10-14)
 
 

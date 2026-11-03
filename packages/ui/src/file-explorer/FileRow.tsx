@@ -11,7 +11,14 @@ import { cx } from '../cx'
 import { formatBytes } from '../format'
 import { PreviewIcon } from '../icons'
 import { MoreButton, RowSelectCheckbox, rowContextMenuProps, useRowMenuActive } from '../list/index'
-import { STRETCHED_LINK, STRETCHED_LINK_ROW } from '../list/ListTable'
+import {
+  endsTextSelection,
+  openRowInNewTab,
+  pressesRow,
+  rowPressProps,
+  STRETCHED_LINK,
+  STRETCHED_LINK_ROW,
+} from '../list/ListTable'
 import type { TreeNode } from './lib/types'
 
 // Measured row pitch, hairline included. `height` on a `<tr>` is only a minimum,
@@ -29,25 +36,24 @@ export function fileRowHeight(node: TreeNode): number {
   return isTwoLineRow(node) ? ROW_HEIGHT_TALL : ROW_HEIGHT_SHORT
 }
 
-// A click on an interactive control inside the row should not also open the row.
-function isInteractiveTarget(e: React.MouseEvent) {
-  return !!(e.target as HTMLElement).closest('a,button,input,label')
-}
-
-/** Opens the row on a click its controls don't take. Beside a link, which
- *  covers the row, that is only a click on a gap the link leaves, and a
- *  modified one there asks for a new tab, which only the link can give. */
+/** Opens the row on a click its controls don't take, other than one that ends
+ *  selecting its text. Beside a link, a modified click asks for a new tab, as
+ *  it would on the link. */
 function rowClickHandler(onOpen: () => void, href: string | undefined) {
   return (e: React.MouseEvent) => {
-    if (isInteractiveTarget(e) || (href && !isPlainClick(e))) {
+    if (!pressesRow(e) || endsTextSelection(e.currentTarget)) {
+      return
+    }
+    if (href && !isPlainClick(e)) {
+      openRowInNewTab(e, href)
       return
     }
     onOpen()
   }
 }
 
-/** A row's name: with an href, the link that covers the row, so the whole row
- *  opens in a new tab, shows its URL and reads as a link. */
+/** A row's name: with an href, the row's link, whose focus ring is drawn
+ *  around the row, as the row opens it. */
 function RowName({ name, href }: { name: string; href: string | undefined }) {
   return href ? (
     <AppLink href={href} data-row-link className={STRETCHED_LINK}>
@@ -82,6 +88,7 @@ export function UserRow({
   node,
   icon,
   href,
+  type,
   storageCount,
   getItems,
   openMenu,
@@ -91,7 +98,8 @@ export function UserRow({
   icon: ReactNode
   /** Makes the row a link to the user. */
   href?: string | undefined
-  storageCount: number
+  type?: string | undefined
+  storageCount?: number | undefined
   getItems: () => MenuEntry[]
   openMenu: OpenMenu
   onOpen: (node: TreeNode) => void
@@ -106,6 +114,7 @@ export function UserRow({
         href && STRETCHED_LINK_ROW,
       )}
       onClick={rowClickHandler(() => onOpen(node), href)}
+      {...rowPressProps(href)}
       {...rowContextMenuProps(openRowMenu, getItems)}
     >
       <Table.Item className="py-2.5">
@@ -118,8 +127,8 @@ export function UserRow({
           </span>
         </div>
       </Table.Item>
-      <Table.Item className="py-2.5 text-xs uppercase tracking-wider text-(--theme-muted-text-color)">
-        {t.preview.userType}
+      <Table.Item className="hidden py-2.5 text-xs uppercase @min-[40rem]/files:table-cell tracking-wider text-(--theme-muted-text-color)">
+        {node.group ? null : (type ?? t.preview.userType)}
       </Table.Item>
       <Table.Item className="py-2.5 tabular-nums text-(--theme-muted-text-color)">
         {storageCount}
@@ -172,12 +181,13 @@ export function FileRow({
         // so a following arrow key continues from there, but a mouse click should
         // not draw a focus ring. :focus-visible is the browser's own distinction.
         active &&
-          'group-focus-visible/grid:ring-1 group-focus-visible/grid:ring-inset group-focus-visible/grid:ring-(--theme-link)',
+          'group-focus-visible/grid:ring-1 group-focus-visible/grid:ring-inset group-focus-visible/grid:ring-(--theme-focus)',
         'cursor-pointer',
         href && STRETCHED_LINK_ROW,
       )}
       onClick={rowClickHandler(() => onOpen(node), href)}
       style={{ height: fileRowHeight(node) }}
+      {...rowPressProps(href)}
       {...rowContextMenuProps(openRowMenu, getItems)}
     >
       <Table.Item className="py-2.5">
@@ -191,6 +201,11 @@ export function FileRow({
           <div className="min-w-0">
             <div className="truncate text-[13px] font-medium leading-tight text-(--theme-app)">
               <RowName name={node.displayName || node.name} href={href} />
+              {node.owner && (
+                <span className="ml-1.5 font-normal text-xs text-(--theme-muted-text-color)">
+                  {node.owner}
+                </span>
+              )}
             </div>
             {isTwoLineRow(node) && (
               <div className="truncate text-xs leading-tight text-(--theme-muted-text-color)">
@@ -200,13 +215,13 @@ export function FileRow({
           </div>
         </div>
       </Table.Item>
-      <Table.Item className="truncate py-2.5 text-sm tabular-nums text-(--theme-muted-text-color)">
+      <Table.Item className="truncate px-2 py-2.5 text-sm tabular-nums text-(--theme-muted-text-color) @min-[40rem]/files:px-4">
         {typeof node.size === 'number' ? formatBytes(node.size) : '—'}
       </Table.Item>
-      <Table.Item className="truncate py-2.5 text-xs uppercase tracking-wider text-(--theme-muted-text-color)">
+      <Table.Item className="hidden truncate py-2.5 text-xs uppercase @min-[40rem]/files:table-cell tracking-wider text-(--theme-muted-text-color)">
         {typeLabel}
       </Table.Item>
-      <Table.Item className="truncate py-2.5 text-sm text-(--theme-muted-text-color)">
+      <Table.Item className="hidden truncate py-2.5 text-sm @min-[40rem]/files:table-cell text-(--theme-muted-text-color)">
         {!isDir && modifiedDt?.isValid ? <RelativeTime value={modifiedDt} /> : '—'}
       </Table.Item>
       <Table.Item className="relative py-2.5">
@@ -221,10 +236,10 @@ export function FileRow({
                   onPreview(node)
                 }}
                 className={cx(
-                  'rounded p-1 text-(--theme-muted-text-color) transition-colors hover:bg-(--theme-muted-panel-bg) hover:text-(--theme-app) [&>svg]:h-4 [&>svg]:w-4',
+                  'hidden @min-[44rem]/files:inline-flex rounded p-1 text-(--theme-muted-text-color) transition-colors hover:bg-(--theme-muted-panel-bg) hover:text-(--theme-app) [&>svg]:h-4 [&>svg]:w-4',
                   menuActive
                     ? 'opacity-100'
-                    : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
+                    : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100',
                 )}
               >
                 <PreviewIcon />

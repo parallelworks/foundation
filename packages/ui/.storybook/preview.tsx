@@ -4,6 +4,7 @@
 // build:css first.
 import '../dist/styles/fonts.css'
 import '../dist/styles.css'
+import '../dist/app-frame/app-frame.css'
 import '../dist/logviewer/logviewer.css'
 import * as parser from '@parallelworks/workflow-parser'
 import type { Decorator, Preview } from '@storybook/react-vite'
@@ -91,6 +92,8 @@ const preview: Preview = {
     mode: 'preset',
   },
   parameters: {
+    // Runtime JSX uses minified helper names in the published workshop.
+    docs: { codePanel: true, source: { type: 'code' } },
     controls: { expanded: true },
     options: { storySort: { order: ['Introduction', 'UI', 'Chat'] } },
   },

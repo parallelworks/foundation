@@ -51,6 +51,18 @@ describe('Popover', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'first problem' })).toHaveFocus())
   })
 
+  it('sits beside a trigger it opens through a tooltip', async () => {
+    render(<Toolbar side="bottom" align="start" sheet={false} />)
+    const button = screen.getByRole('button', { name: 'Problems' })
+    vi.spyOn(button, 'getBoundingClientRect').mockReturnValue(
+      DOMRect.fromRect({ x: 160, y: 10, width: 28, height: 28 }),
+    )
+    const { panel } = openPanel()
+    const positioner = panel.parentElement as HTMLElement
+    // Placed from the trigger, rather than left at the corner of the page with no anchor.
+    await waitFor(() => expect(positioner.style.transform).toMatch(/^translate\(15\dpx, /))
+  })
+
   it('can focus the panel rather than its first control', async () => {
     render(<Toolbar initialFocus="popup" />)
     const { panel } = openPanel()
@@ -127,5 +139,98 @@ describe('Popover', () => {
     expect(await screen.findByText('options')).toBeInTheDocument()
     act(() => button.focus())
     await waitFor(() => expect(screen.queryByText('Display')).toBeNull())
+  })
+
+  it('opens on hover after the delay it is given', async () => {
+    vi.useFakeTimers()
+    try {
+      render(
+        <Popover
+          openOnHover
+          hoverDelay={0}
+          hoverCloseDelay={100}
+          aria-label="Settings group"
+          trigger={<button type="button">Settings</button>}
+        >
+          group links
+        </Popover>,
+      )
+      const button = screen.getByRole('button', { name: 'Settings' })
+      fireEvent.mouseEnter(button)
+      fireEvent.mouseMove(button)
+      await act(() => vi.advanceTimersByTimeAsync(20))
+      expect(screen.getByText('group links')).toBeInTheDocument()
+      fireEvent.mouseLeave(button)
+      await act(() => vi.advanceTimersByTimeAsync(50))
+      expect(screen.getByText('group links')).toBeInTheDocument()
+      await act(() => vi.advanceTimersByTimeAsync(400))
+      expect(screen.queryByText('group links')).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('waits 300ms on hover by default', async () => {
+    vi.useFakeTimers()
+    try {
+      render(
+        <Popover openOnHover aria-label="Help" trigger={<button type="button">Help</button>}>
+          help text
+        </Popover>,
+      )
+      const button = screen.getByRole('button', { name: 'Help' })
+      fireEvent.mouseEnter(button)
+      fireEvent.mouseMove(button)
+      await act(() => vi.advanceTimersByTimeAsync(200))
+      expect(screen.queryByText('help text')).not.toBeInTheDocument()
+      await act(() => vi.advanceTimersByTimeAsync(200))
+      expect(screen.getByText('help text')).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('opens as a sheet at phone width, unless it is a tip or opened at a point', () => {
+    const sheetOf = (dialog: HTMLElement) =>
+      (dialog.parentElement as HTMLElement).className.includes('max-sm:fixed!')
+    const { unmount } = render(
+      <Popover defaultOpen aria-label="Panel" trigger={<button type="button">Open</button>}>
+        panel
+      </Popover>,
+    )
+    expect(sheetOf(screen.getByRole('dialog', { name: 'Panel' }))).toBe(true)
+    unmount()
+    render(
+      <>
+        <Popover open at={{ clientX: 10, clientY: 10 }} aria-label="At">
+          at a point
+        </Popover>
+        <Popover
+          defaultOpen
+          sheet={false}
+          aria-label="Anchored"
+          trigger={<button type="button">Open</button>}
+        >
+          anchored
+        </Popover>
+      </>,
+    )
+    expect(sheetOf(screen.getByRole('dialog', { name: 'At' }))).toBe(false)
+    expect(sheetOf(screen.getByRole('dialog', { name: 'Anchored' }))).toBe(false)
+  })
+})
+
+describe('Popover flush', () => {
+  it('lets a list reach the panel edges while its title keeps its padding', () => {
+    render(
+      <Popover title="Suggestions" defaultOpen flush trigger={<button type="button">Open</button>}>
+        <ul aria-label="suggestion list">
+          <li>first</li>
+        </ul>
+      </Popover>,
+    )
+    const panel = screen.getByRole('dialog')
+    expect(panel).not.toHaveClass('p-3')
+    expect(screen.getByText('Suggestions')).toHaveClass('px-3', 'pt-3')
   })
 })

@@ -5,12 +5,13 @@ packages that several applications use the same way.
 
 | Package | What it is |
 | --- | --- |
+| [`logctx`](logctx) (Go) | Carries and enriches a structured logger through a context, preserving its handler and parent scope |
 | [`problem`](problem) (Go) | RFC 9457 problem details with stable, localizable codes, and the pages their type URIs resolve to |
 | [`problem/humaproblem`](problem/humaproblem) (Go) | Makes [huma](https://huma.rocks) produce problems, including for request validation |
 | [`problem/problemtest`](problem/problemtest) (Go) | Checks that a web app's catalog has a message for every code |
 | [`problem/problemrules`](problem/problemrules) (Go) | go-ruleguard rules that keep internal errors out of responses |
 | [`server`](server) (Go) | A service's HTTP handler and server: health probes, security headers, CSRF protection, logging, panic recovery, graceful shutdown |
-| [`pgdb`](pgdb) (Go) | An application's own PostgreSQL schema: a pool scoped to it, hopper's job tables and goose migrations in it, and a fresh schema per test |
+| [`pgdb`](pgdb) (Go) | An application's own PostgreSQL schema: a pool scoped to it, goose migrations in it, and a fresh schema per test |
 | [`dev`](dev) (Go, own module) | `go tool dev`: an app's development setup in one terminal, with Postgres and S3 without Docker and a hot-reloading server, and the base of an app's own development command |
 | [`spa`](spa) (Go) | Serves a Vite app from the Go server: the embedded build in production, the Vite dev server in development |
 | [`@parallelworks/problem`](packages/problem) (npm) | `ApiError`, `useErrorMessage()`, the shared codes' messages in five languages, and a Biome lint rule |
@@ -47,9 +48,9 @@ Content-Type: application/problem+json
   "code": "validation",
   "errors": [
     {"type": "/problems/too_long", "code": "too_long", "pointer": "#/name",
-     "params": {"max": 64}, "detail": "expected length <= 64"},
+     "params": {"max": 64}, "detail": "Must be at most 64 characters."},
     {"type": "/problems/required", "code": "required", "parameter": "team", "in": "query",
-     "detail": "required query parameter is missing"}
+     "detail": "This field is required."}
   ]
 }
 ```
@@ -124,7 +125,15 @@ Each page is also data: asked with `Accept: application/json` (and not
 so a CLI can print how to fix a problem without a browser.
 
 huma's request validation then becomes a validation problem whose entries name
-the rule each field failed (`required`, `too_long`, `below_minimum`, ...).
+the rule each field failed (`required`, `too_long`, `below_minimum`, ...), each
+with that rule's message as its detail.
+
+Nothing huma writes is sent. Its messages, and the errors it reports, such as
+encoding/json's text for a malformed body, become the problem's cause, which is
+only logged, so a reader sees the status's message. That includes the message
+given to huma's own constructors: `huma.Error404NotFound("no such team")` is
+sent as a plain 404. To send words of your own, return a problem:
+`problem.Status(http.StatusNotFound, "no such team")`.
 
 ### Messages in the reader's language
 
@@ -144,7 +153,9 @@ l.Write(w, r, p) // in a raw handler
 
 An `about:blank` problem keeps the detail the server wrote for English readers,
 so specific text still reaches them; other languages get the status's message.
-`problemtest.CheckGoCatalog` checks that a catalog covers a registry.
+`problemtest.CheckGoCatalog` checks that a catalog covers a registry in
+English, and `problemtest.CheckGoCatalogComplete` in every language the catalog
+has, so no reader is shown English in its place.
 
 ### Internal errors never reach the client
 
@@ -158,9 +169,12 @@ may see. Everything else stays on the server:
 - `AsDenial()` marks a problem as a refusal to authorize, and `problem.Denied(err)`
   finds it, so a caller never mistakes an unreachable database for "you may not".
   The marker is not sent either.
+- Nothing huma writes is sent (see above): huma's messages and the errors it
+  reports, such as a malformed body's parse error, are the cause.
 - [`problemrules`](problem/problemrules) fails lint on an error, or its
   `Error()` text, passed to `New`, `Newf`, `At`, `AtParameter`, `Status` or
-  `With`. Import it into your go-ruleguard rules file:
+  `With`, and on a call to huma's error constructors, whose message is never
+  sent. Import it into your go-ruleguard rules file:
 
 ```go
 //go:build ruleguard
@@ -175,13 +189,17 @@ import (
 func init() { dsl.ImportRules("", problemrules.Bundle) }
 ```
 
-Test that the web app has a message for every code:
+Test that the web app has a message for every code. The check reads the
+catalog as `useCodeMessage` does (see below): a type's message under its
+registry's name, at `apiErrors.<name>.<code>`, when there is one there, and
+otherwise at `apiErrors.<code>`.
 
 ```go
 func TestEveryCodeHasAMessage(t *testing.T) {
 	problemtest.CheckCatalog(t, "../web/src/i18n/locales/en.json", problems)
 	// or, with apiErrors in its own file, load the map and call
-	// problemtest.CheckMessages(t, messages, problems)
+	// problemtest.CheckMessages(t, messages, problems), with a message
+	// under a registry's name at "<name>.<code>"
 }
 ```
 
@@ -204,6 +222,30 @@ validation problem with one invalid field shows that field's rule; `network`
 and `unknown` cover failures that never reached the server. `toApiError()`
 turns anything thrown into an `ApiError` with `status`, `code`, `params` and
 `fields`, whose `path` (`items[0].name`) matches form field names.
+
+`useCodeMessage()` finds a code's message the same way, for a problem that
+isn't a failed request, such as a warning a server reports about what it was
+given. Its function takes the code, params and type, and gives `undefined`
+when no catalog has the code, so the problem keeps its own text.
+
+An app's own codes can stay at the top level of `apiErrors`. Another
+registry's codes go under its name, so a code both use keeps each one's
+message and params. For a problem whose type names an application, such as
+`/problems/workflow/unknown_input` (relative or absolute), the lookup reads
+`apiErrors.workflow.unknown_input` first, then `apiErrors.unknown_input`, then
+the shared message. `useErrorMessage()` goes by the error's type, and by a
+field's own for the field's message. `problemtest.CheckCatalog` understands
+this layout: it checks each registry's codes under its name, or else at the
+top level.
+
+```json
+{
+  "apiErrors": {
+    "unknown_input": "The form has no field \"{field}\".",
+    "workflow": { "unknown_input": "There's no input \"{input}\"." }
+  }
+}
+```
 
 ### Lint
 

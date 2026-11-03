@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import Markdown from './Markdown'
+import { withoutUnfinishedTable } from './MarkdownImpl'
 
 // jsdom lacks it; streamdown's mermaid block waits for it before drawing.
 global.IntersectionObserver = class {
@@ -29,6 +30,57 @@ describe('Markdown mermaid', () => {
     await waitFor(() =>
       expect(container.querySelector('[data-streamdown="mermaid-block"]')).toBeInTheDocument(),
     )
+  })
+
+  it('keeps an existing code block mounted when a diagram arrives', async () => {
+    const code = '```javascript\nconst value = 1\n```'
+    const { container, rerender } = render(<Markdown>{code}</Markdown>)
+    await waitFor(() => expect(container.querySelector('[data-code-block]')).not.toBeNull())
+    const block = container.querySelector('[data-code-block]')
+
+    rerender(<Markdown>{`${code}\n\n${chart}`}</Markdown>)
+    await waitFor(() =>
+      expect(container.querySelector('[data-streamdown="mermaid-block"]')).toBeInTheDocument(),
+    )
+    expect(container.querySelector('[data-code-block]')).toBe(block)
+  })
+})
+
+describe('Markdown renderer identity', () => {
+  it('preserves code scrolling and link focus when controls change', async () => {
+    const text = '[Documentation](https://example.com/docs)\n\n```javascript\nconst value = 1\n```'
+    const { container, rerender } = render(<Markdown>{text}</Markdown>)
+    const link = await screen.findByRole('link', { name: /Documentation/ })
+    await waitFor(() => expect(container.querySelector('[data-code-block]')).not.toBeNull())
+    const block = container.querySelector('[data-code-block]')!
+    const scroll = block.querySelector('pre')!.parentElement!
+    scroll.scrollTop = 120
+    link.focus()
+
+    rerender(<Markdown controls={false}>{text}</Markdown>)
+
+    expect(container.querySelector('[data-code-block]')).toBe(block)
+    expect(block.querySelector('pre')!.parentElement).toBe(scroll)
+    expect(scroll.scrollTop).toBe(120)
+    expect(screen.getByRole('link', { name: /Documentation/ })).toBe(link)
+    expect(link).toHaveFocus()
+  })
+})
+
+describe('Markdown code line numbers', () => {
+  it.each([
+    ['', 1],
+    ['startLine=0', 1],
+    ['startLine=7', 7],
+    ['startLine=invalid', 1],
+  ] as const)('starts a fence with metadata %j at line %i', async (metadata, first) => {
+    const { container } = render(
+      <Markdown>{`\`\`\`javascript ${metadata}\nconst value = 1\nconst next = 2\n\`\`\``}</Markdown>,
+    )
+    await waitFor(() => expect(container.querySelector('[data-code-block] code')).not.toBeNull())
+    expect(container.querySelector('[data-code-block] code')).toHaveStyle({
+      counterReset: `line ${first - 1}`,
+    })
   })
 })
 
@@ -99,5 +151,42 @@ describe('Markdown compact', () => {
     expect(container.querySelector('.markdown')).toHaveClass('markdown-compact')
     rerender(<Markdown>{'## Results'}</Markdown>)
     expect(container.querySelector('.markdown')).not.toHaveClass('markdown-compact')
+  })
+})
+
+describe('Markdown tildes', () => {
+  it('leaves single tildes as text and strikes double ones', async () => {
+    const { container } = render(
+      <Markdown>
+        {'Test clusters (~$1.50/day each), plus snapshots (~$0.40/day). ~~Gone~~ for good.'}
+      </Markdown>,
+    )
+    await screen.findByText('Gone')
+    expect(container.querySelectorAll('del')).toHaveLength(1)
+    expect(container.querySelector('del')).toHaveTextContent('Gone')
+    expect(container).toHaveTextContent(
+      'Test clusters (~$1.50/day each), plus snapshots (~$0.40/day).',
+    )
+  })
+})
+
+describe('withoutUnfinishedTable', () => {
+  it('holds back a table until its delimiter row arrives', () => {
+    expect(withoutUnfinishedTable('Spend:\n\n| Allocation | Spen')).toBe('Spend:\n')
+    expect(withoutUnfinishedTable('Spend:\n\n| Allocation | Spend |\n| --')).toBe('Spend:\n')
+  })
+
+  it('shows a table once its delimiter row is in', () => {
+    const text = 'Spend:\n\n| Allocation | Spend |\n| --- | --- |\n| AWS | $1'
+    expect(withoutUnfinishedTable(text)).toBe(text)
+  })
+
+  it('leaves pipes inside an open code block alone', () => {
+    const text = '```sh\nls | grep x'
+    expect(withoutUnfinishedTable(text)).toBe(text)
+  })
+
+  it('leaves text without a trailing table alone', () => {
+    expect(withoutUnfinishedTable('a | b in a sentence')).toBe('a | b in a sentence')
   })
 })

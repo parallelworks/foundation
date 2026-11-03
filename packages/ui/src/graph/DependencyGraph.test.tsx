@@ -10,7 +10,7 @@ import {
   waitFor,
   within,
 } from '@testing-library/react'
-import type { ReactNode, Ref } from 'react'
+import { type ReactNode, type Ref, useState } from 'react'
 import { afterEach, beforeAll, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { testEngine } from '../test/engine'
 
@@ -28,6 +28,7 @@ vi.mock('../components/Provider', async (importOriginal) =>
 // The view bar zooms through the library's handle and learns the scale from its onTransform.
 const panZoom = vi.hoisted(() => ({
   onTransform: undefined as ((ref: unknown, state: { scale: number }) => void) | undefined,
+  props: {} as { velocityAnimation?: unknown; onPanningStop?: unknown; onPinchStop?: unknown },
   setTransform: vi.fn(),
   state: { positionX: 0, positionY: 0, scale: 0.6 },
 }))
@@ -38,6 +39,7 @@ vi.mock('react-zoom-pan-pinch', async () => {
       {
         children,
         onTransform,
+        ...props
       }: {
         children: ReactNode | (() => ReactNode)
         onTransform?: (ref: unknown, state: { scale: number }) => void
@@ -45,6 +47,7 @@ vi.mock('react-zoom-pan-pinch', async () => {
       ref: Ref<unknown>,
     ) {
       panZoom.onTransform = onTransform
+      panZoom.props = props
       const wrapper = useRef<HTMLDivElement>(null)
       useImperativeHandle(ref, () => ({
         instance: {
@@ -73,11 +76,16 @@ vi.mock('../logviewer', () => ({
 vi.mock('./AnnotationBanner', () => ({ AnnotationBanner: () => null }))
 
 import { detectMatrixGroups, emptyLayout, layoutFromCols } from '@parallelworks/workflow-parser'
-import { type RunFileResult, UIProvider } from '../components/Provider'
-import DependencyGraph, { addCleanupSteps, DependencyGraphPreview } from './DependencyGraph'
+import { type ProblemMessage, type RunFileResult, UIProvider } from '../components/Provider'
+import DependencyGraph, {
+  addCleanupSteps,
+  DependencyGraphPreview,
+  type ViewMode,
+} from './DependencyGraph'
 import type { DependencyGraphEditor } from './editorApi'
 import { computeGraphLayout } from './graphLayout'
 import { COLUMN_PITCH, SLOT_PITCH } from './gridSpacing'
+import type { RunWarning } from './runWarnings'
 import type { WorkflowJob } from './types'
 import { intoView, MAX_SCALE, MIN_SCALE, wheelFactor } from './viewport'
 
@@ -313,6 +321,60 @@ describe('DependencyGraph view bar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reset view' }))
     expect(screen.getByText('Notify')).toBeInTheDocument()
     expect(screen.queryByText('Prep')).not.toBeInTheDocument()
+  })
+})
+
+describe('DependencyGraph still', () => {
+  it('draws the jobs in their statuses, with nothing around the graph or in it to press', () => {
+    const { container } = render(<DependencyGraph run={run} still />)
+    // Once: there is no job list beside the graph.
+    expect(screen.getAllByText('Build')).toHaveLength(1)
+    expect(container.querySelector('[data-status="completed"]')).toBeInTheDocument()
+    expect(container.querySelector('[data-tone="success"]')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reset view' })).not.toBeInTheDocument()
+    expect(panZoom.props).toMatchObject({ disabled: true })
+    expect(container.querySelector('[inert]')).toContainElement(screen.getByText('Build'))
+  })
+
+  it('draws its own connectors over a graph of the same run, such as in a hover card on its page', () => {
+    const frames: FrameRequestCallback[] = []
+    const raf = vi.spyOn(global, 'requestAnimationFrame').mockImplementation((frame) => {
+      frames.push(frame)
+      return 0
+    })
+    // The page's graph sits far down, where a graph measuring its jobs would draw its lines.
+    const top = vi.spyOn(HTMLElement.prototype, 'offsetTop', 'get').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.closest('[data-testid="page"]') ? 1000 : 0
+    })
+    const drawn = () => {
+      act(() => {
+        for (const frame of frames.splice(0)) {
+          frame(0)
+        }
+      })
+      return screen.getByTestId('card').querySelector('svg path')?.getAttribute('d')
+    }
+    const card = (
+      <div data-testid="card">
+        <DependencyGraph run={run} still />
+      </div>
+    )
+    const { rerender } = render(card)
+    const alone = drawn()
+    rerender(
+      <>
+        <div data-testid="page">
+          <DependencyGraph run={run} />
+        </div>
+        {card}
+      </>,
+    )
+    expect(alone).toBeTruthy()
+    expect(drawn()).toBe(alone)
+    raf.mockRestore()
+    top.mockRestore()
   })
 })
 
@@ -882,6 +944,278 @@ describe('DependencyGraph general log', () => {
   })
 })
 
+describe('DependencyGraph run warnings', () => {
+  const ALWAYS = '`always` is the older spelling of `always()`; use `always()`'
+  // The run's notify job skipped, as one whose if: reads a removed keyword is.
+  const skippedRun = {
+    ...run,
+    executedJobs: {
+      ...run.executedJobs,
+      notify: {
+        status: 'skipped',
+        needs: ['build'],
+        steps: [{ name: 'notify-step', status: 'skipped' }],
+      },
+    },
+  }
+  const renderWarned = (warnings: RunWarning[], extra: Record<string, unknown> = {}) =>
+    render(<DependencyGraph run={{ ...skippedRun, ...extra, warnings }} />)
+  const list = () => within(screen.getByTestId('run-warnings'))
+  // The graph's own row for a job or step, apart from the summary's list beside it.
+  const graphRow = (key: string) =>
+    [...screen.getByTestId('pan-zoom').querySelectorAll<HTMLElement>('[data-run-row]')].find(
+      (el) => el.dataset['runRow'] === key,
+    )
+
+  it('lists each warning with where it is, setting its keywords as code', () => {
+    renderWarned([
+      { job: 'notify', message: ALWAYS },
+      { path: ['build', 'step_1'], job: 'publish', step: 0, message: 'nested' },
+    ])
+    expect(list().getByText('2 warnings')).toBeInTheDocument()
+    const codes = [...screen.getByTestId('run-warnings').querySelectorAll('code')]
+    expect(codes.map((code) => code.textContent)).toEqual(['always', 'always()', 'always()'])
+    expect(list().getByRole('button', { name: 'Notify' })).toBeInTheDocument()
+    expect(
+      list().getByRole('button', { name: 'Build › run-deploy › Publish › publish-step' }),
+    ).toBeInTheDocument()
+  })
+
+  it('marks a skipped job its warning is about, in the graph and in the summary', () => {
+    renderWarned([{ job: 'notify', message: ALWAYS }])
+    const mark = within(graphRow('notify') as HTMLElement).getByRole('img', { name: '1 warning' })
+    expect(mark).toBeInTheDocument()
+    expect(screen.getAllByRole('img', { name: '1 warning' })).toHaveLength(2)
+    expect(
+      within(graphRow('build') as HTMLElement).queryByRole('img', { name: /warning/ }),
+    ).toBeNull()
+  })
+
+  it('opens a skipped job to the step its warning is about and moves focus there', () => {
+    renderWarned([{ job: 'notify', step: 0, message: ALWAYS }])
+    // The job carries its step's mark while its steps are closed.
+    expect(graphRow('notify:0')).toBeUndefined()
+    expect(
+      within(graphRow('notify') as HTMLElement).getByRole('img', { name: '1 warning' }),
+    ).toBeInTheDocument()
+    fireEvent.click(list().getByRole('button', { name: 'Notify › notify-step' }))
+    const step = graphRow('notify:0')
+    expect(step).toHaveFocus()
+    expect(within(step as HTMLElement).getByRole('img', { name: '1 warning' })).toBeInTheDocument()
+  })
+
+  it('opens the subworkflow a warning is in, in place, to its step', () => {
+    renderWarned([{ path: ['build', 'step_1'], job: 'publish', step: 0, message: ALWAYS }])
+    expect(screen.queryByText('Publish')).not.toBeInTheDocument()
+    // The step that runs the subworkflow, and its job, are marked on the way to it.
+    expect(
+      within(graphRow('build') as HTMLElement).getByRole('img', { name: '1 warning' }),
+    ).toBeInTheDocument()
+    fireEvent.click(
+      list().getByRole('button', { name: 'Build › run-deploy › Publish › publish-step' }),
+    )
+    expect(graphRow('build:1')).toBeInTheDocument()
+    expect(graphRow('subworkflows/build/step_1/publish:0')).toHaveFocus()
+    // The run's own graph stays, with the subworkflow open inside it.
+    expect(graphRow('notify')).toBeInTheDocument()
+  })
+
+  it('goes back to the run’s own graph for a warning outside the subworkflow on show', () => {
+    renderWarned([{ job: 'notify', step: 0, message: ALWAYS }])
+    fireEvent.click(screen.getAllByText('Build')[0] as HTMLElement)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Open in new graph' })[0] as HTMLElement)
+    expect(graphRow('notify')).toBeUndefined()
+    fireEvent.click(list().getByRole('button', { name: 'Notify › notify-step' }))
+    expect(graphRow('notify:0')).toHaveFocus()
+  })
+
+  it('marks every run of a matrix the workflow’s job name became, and opens the first', () => {
+    const matrix = (index: number) => ({
+      originaljob: 'train',
+      index,
+      totalingroup: 2,
+      groupjobs: ['train_0', 'train_1'],
+      values: {},
+      failfast: false,
+      maxparallel: 2,
+    })
+    renderWarned([{ job: 'train', step: 0, message: ALWAYS }], {
+      executedJobs: {
+        train_0: {
+          status: 'skipped',
+          _matrix: matrix(0),
+          steps: [{ name: 'fit', status: 'skipped' }],
+        },
+        train_1: {
+          status: 'skipped',
+          _matrix: matrix(1),
+          steps: [{ name: 'fit', status: 'skipped' }],
+        },
+      },
+    })
+    // The closed group carries its runs' mark.
+    const group = screen.getByTestId('pan-zoom').querySelector('[id^="node_"]') as HTMLElement
+    expect(within(group).getByRole('img', { name: '1 warning' })).toBeInTheDocument()
+    fireEvent.click(list().getByRole('button', { name: 'Train › fit' }))
+    expect(graphRow('train_0:0')).toHaveFocus()
+    expect(
+      within(graphRow('train_1') as HTMLElement).getByRole('img', { name: '1 warning' }),
+    ).toBeInTheDocument()
+  })
+
+  it('takes the list of jobs back to the graph to show a warning', () => {
+    function Host() {
+      const [mode, setMode] = useState<ViewMode>('tree')
+      return (
+        <DependencyGraph
+          run={{ ...skippedRun, warnings: [{ job: 'notify', step: 0, message: ALWAYS }] }}
+          viewMode={mode}
+          setViewMode={setMode}
+        />
+      )
+    }
+    render(<Host />)
+    expect(screen.queryByTestId('pan-zoom')).not.toBeInTheDocument()
+    fireEvent.click(list().getByRole('button', { name: 'Notify › notify-step' }))
+    expect(graphRow('notify:0')).toHaveFocus()
+  })
+
+  it('marks the list of jobs’ rows too', () => {
+    render(
+      <DependencyGraph
+        run={{ ...skippedRun, warnings: [{ job: 'notify', message: ALWAYS }] }}
+        viewMode="tree"
+        setViewMode={() => {}}
+      />,
+    )
+    // The summary's mark, and the list's.
+    expect(screen.getAllByRole('img', { name: '1 warning' })).toHaveLength(2)
+  })
+
+  it('names where a warning is as text when the graph can’t show it', () => {
+    renderWarned([{ job: 'gone', step: 2, message: ALWAYS }])
+    expect(list().queryByRole('button')).toBeNull()
+    expect(list().getByText('Gone › step 2')).toBeInTheDocument()
+    cleanup()
+    render(
+      <DependencyGraph
+        run={{ ...skippedRun, warnings: [{ job: 'notify', message: ALWAYS }] }}
+        viewMode="tree"
+      />,
+    )
+    expect(list().queryByRole('button')).toBeNull()
+  })
+
+  // The host's catalog, as `useCodeMessage` gives it: a message for one code, none for any other.
+  const hostMessage: ProblemMessage = (code, params) =>
+    code === 'undefined_input' ? `No hay ninguna entrada "${params?.['name']}".` : undefined
+  const useHostMessage = () => hostMessage
+
+  it('shows a coded warning in the host’s words, and its own text for a code it has none for', () => {
+    render(
+      <UIProvider data={{ useProblemMessage: useHostMessage }}>
+        <DependencyGraph
+          run={{
+            ...skippedRun,
+            warnings: [
+              {
+                job: 'notify',
+                message: 'There’s no input "rundir".',
+                code: 'undefined_input',
+                params: { name: 'rundir' },
+              },
+              { job: 'build', message: 'From a newer server.', code: 'from_a_newer_server' },
+            ],
+          }}
+        />
+      </UIProvider>,
+    )
+    expect(list().getByText('No hay ninguna entrada "rundir".')).toBeInTheDocument()
+    expect(list().queryByText('There’s no input "rundir".')).toBeNull()
+    expect(list().getByText('From a newer server.')).toBeInTheDocument()
+  })
+
+  it('gives the host a coded warning’s type, so it can word another app’s code as that app does', () => {
+    // As `useCodeMessage` does with a catalog that keeps the workflow engine's messages under its
+    // name, beside the host's own for the same code.
+    const byApp: ProblemMessage = (code, params, type) => {
+      if (code !== 'undefined_input') return undefined
+      return type === '/problems/workflow/undefined_input'
+        ? `No hay ninguna entrada "${params?.['name']}".`
+        : `El formulario no tiene el campo "${params?.['name']}".`
+    }
+    const useByApp = () => byApp
+    render(
+      <UIProvider data={{ useProblemMessage: useByApp }}>
+        <DependencyGraph
+          run={{
+            ...skippedRun,
+            warnings: [
+              {
+                job: 'notify',
+                message: 'There’s no input "rundir".',
+                code: 'undefined_input',
+                params: { name: 'rundir' },
+                type: '/problems/workflow/undefined_input',
+              },
+              {
+                job: 'build',
+                message: 'No field "title".',
+                code: 'undefined_input',
+                params: { name: 'title' },
+              },
+            ],
+          }}
+        />
+      </UIProvider>,
+    )
+    expect(list().getByText('No hay ninguna entrada "rundir".')).toBeInTheDocument()
+    expect(list().getByText('El formulario no tiene el campo "title".')).toBeInTheDocument()
+  })
+
+  it('shows a coded warning’s own text when the host renders no codes', () => {
+    renderWarned([{ job: 'notify', message: ALWAYS, code: 'older_always' }])
+    expect(list().getByText('always', { selector: 'code' })).toBeInTheDocument()
+  })
+
+  it('links a warning to the page its type names, and only a page', () => {
+    renderWarned([
+      { job: 'notify', message: 'one', type: '/problems/workflow/older_always' },
+      { job: 'notify', message: 'two', type: 'about:blank' },
+      { job: 'notify', message: 'three' },
+      { job: 'build', message: 'four', type: 'javascript:alert(1)' },
+    ])
+    const links = list().getAllByRole('link', { name: /About this warning/ })
+    expect(links).toHaveLength(1)
+    expect(links[0]).toHaveAttribute('href', '/problems/workflow/older_always')
+    expect(links[0]).toHaveAttribute('target', '_blank')
+  })
+
+  it('takes the count and its wording from the host', () => {
+    render(
+      <UIProvider strings={{ dag: { warningCount: (count) => `${count} avisos` } }}>
+        <DependencyGraph run={{ ...skippedRun, warnings: [{ job: 'notify', message: ALWAYS }] }} />
+      </UIProvider>,
+    )
+    expect(list().getByText('1 avisos')).toBeInTheDocument()
+    expect(screen.getAllByRole('img', { name: '1 avisos' }).length).toBeGreaterThan(0)
+  })
+
+  it('shows nothing for a run without warnings, or in a preview', () => {
+    renderWarned([])
+    expect(screen.queryByTestId('run-warnings')).not.toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: /warning/ })).not.toBeInTheDocument()
+    cleanup()
+    render(
+      <DependencyGraph
+        run={{ ...skippedRun, warnings: [{ job: 'notify', message: ALWAYS }] }}
+        preview
+      />,
+    )
+    expect(screen.queryByTestId('run-warnings')).not.toBeInTheDocument()
+  })
+})
+
 describe('addCleanupSteps', () => {
   it('moves cleanup off the step that declared it, not the one mirrored from the end', () => {
     const { build } = addCleanupSteps({
@@ -1224,5 +1558,57 @@ describe('DependencyGraphPreview', () => {
     }
     render(<DependencyGraphPreview yml={waits} />)
     expect(nodeIds()).toEqual(['node_build', 'node_deploy'])
+  })
+})
+
+describe('DependencyGraph bleed', () => {
+  it('takes the jobs’ panel, graph or list, past the page padding on a phone only when asked', () => {
+    const panelOf = (container: HTMLElement) =>
+      container.querySelector('.panel.overflow-hidden') ??
+      screen.getByRole('button', { name: 'Expand all' }).closest('.panel')
+    const { container, rerender } = render(<DependencyGraph run={run} />)
+    expect(panelOf(container)).not.toHaveClass('max-sm:-mx-4')
+    rerender(<DependencyGraph run={run} bleed />)
+    expect(panelOf(container)).toHaveClass('max-sm:-mx-4', 'max-sm:border-x-0')
+    rerender(<DependencyGraph run={run} bleed viewMode="tree" />)
+    expect(panelOf(container)).toHaveClass('max-sm:-mx-4', 'max-sm:rounded-none')
+  })
+})
+
+describe('DependencyGraph on a phone', () => {
+  const ranksOf = () => document.getElementById('node_build')?.parentElement?.parentElement
+  const at = (width: number) => {
+    const was = window.innerWidth
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
+    onTestFinished(() => {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: was })
+    })
+  }
+
+  it('runs a run’s graph down the screen, its ranks as rows', () => {
+    at(390)
+    render(<DependencyGraph run={run} />)
+    expect(ranksOf()).toHaveClass('flex-col')
+    expect(document.getElementById('node_build')).toHaveClass('my-16')
+  })
+
+  it('keeps a preview, and a wider screen, running across', () => {
+    at(390)
+    const { unmount } = render(<DependencyGraph run={run} preview />)
+    expect(ranksOf()).not.toHaveClass('flex-col')
+    unmount()
+    at(1280)
+    render(<DependencyGraph run={run} />)
+    expect(ranksOf()).not.toHaveClass('flex-col')
+    expect(document.getElementById('node_build')).toHaveClass('m-24')
+  })
+})
+
+describe('DependencyGraph pan', () => {
+  it('flings no further than a touch moves it, and checks the graph is in reach after a pan or pinch', () => {
+    render(<DependencyGraph run={run} />)
+    expect(panZoom.props.velocityAnimation).toEqual({ sensitivityTouch: 0 })
+    expect(panZoom.props.onPanningStop).toBeTypeOf('function')
+    expect(panZoom.props.onPinchStop).toBe(panZoom.props.onPanningStop)
   })
 })

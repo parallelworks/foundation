@@ -67,7 +67,8 @@ export interface TokenUsage {
 // `parts` render through the legacy flat-content path unchanged; adapters that
 // speak an agent protocol populate parts.
 
-export type ToolCallStatus = 'running' | 'ok' | 'error'
+// 'waiting' is a call the user has to approve before it runs.
+export type ToolCallStatus = 'running' | 'waiting' | 'ok' | 'error'
 
 export interface TextPart {
   kind: 'text'
@@ -80,6 +81,38 @@ export interface ReasoningPart {
   durationMs?: number
 }
 
+export type ToolDecisionStatus = 'approved' | 'denied' | 'expired' | 'timed_out' | 'failed'
+
+/** How a call that needed an answer was settled. */
+export interface ToolDecision {
+  status: ToolDecisionStatus
+  by: 'user' | 'auto-reviewer'
+  /** The person who answered, when `by` is a user. */
+  name?: string
+  /** ISO time of the answer. */
+  at?: string
+  note?: string
+  /** Why it was settled this way, such as the auto-reviewer's rationale. */
+  reason?: string
+  /** The reader changed the call's arguments before allowing it. */
+  edited?: boolean
+}
+
+/** How a host names one of its own tool calls in a transcript, in place of
+ *  the raw call: words a person reads, with the arguments behind the row. */
+export interface ToolPresentation {
+  /** The row's label, such as "Checked costs for misc-dev". */
+  label: string
+  /** One line under a finished row, such as "3 resources, $67.50". */
+  summary?: string
+  /** A run of this tool's calls folded into one row, such as "Checked costs for 12 allocations". */
+  group?: (count: number) => string
+  /** This tool's clause in a row that folds different tools, such as "checked costs for 12 allocations". */
+  rollup?: (count: number) => string
+  /** Keeps the host's drawing open under the row, as for a card that asks or shows live progress. Otherwise it opens with the row. */
+  open?: boolean
+}
+
 export interface ToolCallPart {
   kind: 'tool_call'
   id: string
@@ -90,6 +123,7 @@ export interface ToolCallPart {
   result?: string
   // First line of an EditFile diff, when the producer resolved it.
   startLine?: number
+  decision?: ToolDecision
 }
 
 export type SubagentStatus = 'running' | 'done' | 'failed'
@@ -111,6 +145,24 @@ export interface SubagentPart {
 export interface ApprovalOption {
   label: string
   description?: string
+  /** Shown as written unless it fences its own code; a multi-select question ignores it. */
+  preview?: string
+}
+
+/** One question of an ask; one without options takes typed text alone. */
+export interface ApprovalQuestion {
+  question: string
+  /** A short name for the question, on its tab. */
+  header?: string
+  multiSelect?: boolean
+  options?: ApprovalOption[]
+}
+
+/** `picked` is in option order; `notes` come only on a question with previews. */
+export interface ApprovalQuestionAnswer {
+  picked?: string[]
+  text?: string
+  notes?: string
 }
 
 export type ApprovalAnswerValue =
@@ -119,8 +171,20 @@ export type ApprovalAnswerValue =
       allowed: boolean
       allowDir?: boolean
       denyMessage?: string
+      /** A sibling tool to run in place of the one asked for, with the same
+       *  arguments, such as destroying a cluster the model asked to stop. */
+      instead?: string
+      /** The call's arguments as the reader changed them, as JSON text, to
+       *  run in place of the model's suggestion. */
+      args?: string
     }
-  | { kind: 'ask'; text: string; chat?: boolean }
+  | {
+      kind: 'ask'
+      /** One per question, in order; an empty one leaves its question blank. */
+      answers: ApprovalQuestionAnswer[]
+      /** The reader would rather talk the questions through than answer them. */
+      chat?: boolean
+    }
 
 export type ApprovalSubject = 'command' | 'code' | 'path' | 'call'
 
@@ -136,18 +200,27 @@ export interface ApprovalPart {
   reason?: string
   agent?: string
   mode?: string
-  // ask fields
-  question?: string
+  // The card's heading, in place of the tool's name or a lone question's header.
   header?: string
-  multiSelect?: boolean
-  options?: ApprovalOption[]
+  // ask fields
+  questions?: ApprovalQuestion[]
+  // The tool call the approval holds, which a decision on that call names.
+  toolCallId?: string
   // plan fields: the finished plan body awaiting approval, as markdown.
   plan?: string
   // Set false by producers whose backend refuses standing directory grants.
   canAllowDirectory?: boolean
+  // When an unanswered confirm stops being answerable, as an ISO time.
+  expiresAt?: string
+  // Who has to answer, when it is someone other than the reader.
+  waitingOn?: string
   resolved?: boolean
   // Display form of the chosen answer, once resolved.
   answer?: string
+  // What each question of a resolved ask was given, lining up with `questions`.
+  answers?: ApprovalQuestionAnswer[]
+  // A resolved ask the reader chose to chat about instead.
+  chat?: boolean
 }
 
 export interface NoticePart {
@@ -311,6 +384,8 @@ export interface Allocation {
   name: string
   total: number
   used?: number
+  description?: string | undefined
+  disabled?: boolean | undefined
 }
 
 // Host-provided routing: the package never imports a router.

@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useState } from 'react'
-import { expect, userEvent, within } from 'storybook/test'
+import { expect, userEvent, waitFor, within } from 'storybook/test'
 import { Button } from './Button'
 import { Callout, type CalloutProps, type CalloutTone } from './Callout'
 
@@ -9,13 +9,14 @@ const meta: Meta = {
 }
 export default meta
 
-const TONES: CalloutTone[] = ['default', 'info', 'success', 'warning', 'error']
+const TONES: CalloutTone[] = ['default', 'info', 'success', 'warning', 'error', 'muted']
 const NAMES: Record<CalloutTone, string> = {
   default: 'A plain',
   info: 'An info',
   success: 'A success',
   warning: 'A warning',
   error: 'An error',
+  muted: 'A muted',
 }
 
 type CalloutArgs = Pick<CalloutProps, 'tone' | 'variant' | 'size' | 'live'> & {
@@ -91,6 +92,15 @@ export const Tones: StoryObj = {
   },
 }
 
+/** A quiet note that the page is read-only for the reader, with a lock for its icon. */
+export const ReadOnlyNote: StoryObj = {
+  render: () => (
+    <div className="max-w-xl">
+      <Callout tone="muted">Only workspace admins can change these settings.</Callout>
+    </div>
+  ),
+}
+
 /** Full-width bars under a header, for a condition that holds across the surface. */
 export const Bars: StoryObj = {
   render: () => (
@@ -162,5 +172,30 @@ export const Live: StoryObj = {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: 'Save' }))
     await expect(canvas.getByRole('alert')).toHaveTextContent("Couldn't save")
+  },
+}
+
+/** A warning that arrives after the page loaded fills a status region that was already there
+ *  a moment later, since one added with its words in it is often not read. */
+export const LiveWarning: StoryObj = {
+  render: function Render() {
+    const [blocked, setBlocked] = useState(false)
+    return (
+      <div className="flex max-w-xl flex-col items-start gap-3">
+        <Button onClick={() => setBlocked(true)}>Submit</Button>
+        {blocked && (
+          <Callout tone="warning" live title="Finish 2 steps before you submit">
+            Contact, Review
+          </Callout>
+        )}
+      </div>
+    )
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: 'Submit' }))
+    await waitFor(() =>
+      expect(canvas.getByRole('status')).toHaveTextContent('Finish 2 steps before you submit'),
+    )
   },
 }

@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
+import { mockListLayout } from '../test/layout'
 import type { ComboboxItems } from './Combobox'
 import { CreateModalSelect } from './CreateModal'
 
 // jsdom has no layout, so the virtual list would measure its scroller as empty and draw no rows.
 beforeAll(() => {
-  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(240)
-  vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(240)
+  mockListLayout()
 })
 
 const items: ComboboxItems<string> = [
@@ -43,19 +43,23 @@ const setup = (props: Partial<Parameters<typeof CreateModalSelect>[0]> = {}) => 
 }
 
 const open = () => {
-  fireEvent.click(screen.getByRole('combobox', { name: 'Target' }))
+  fireEvent.click(screen.getByRole('combobox', { name: /^Target/ }))
   return screen.findByRole('listbox')
 }
 
 describe('CreateModalSelect', () => {
   it('shows the selection on the pill', () => {
     setup()
-    expect(screen.getByRole('combobox', { name: 'Target' })).toHaveTextContent('User Workspace')
+    expect(screen.getByRole('combobox', { name: 'Target User Workspace' })).toHaveTextContent(
+      'User Workspace',
+    )
   })
 
   it('keeps a value the list no longer offers on the pill', () => {
     setup({ value: 'stale-region' })
-    expect(screen.getByRole('combobox', { name: 'Target' })).toHaveTextContent('stale-region')
+    expect(screen.getByRole('combobox', { name: 'Target stale-region' })).toHaveTextContent(
+      'stale-region',
+    )
   })
 
   it('lists every group and picks the clicked item', async () => {

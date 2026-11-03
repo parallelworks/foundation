@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { act, render, screen } from '@testing-library/react'
 import { DateTime } from 'luxon'
 import { hoverTooltip } from '../test/tooltip'
+import { UIProvider } from './Provider'
 import { Elapsed, RelativeTime, useClock, useRelativeTime } from './relativeTime'
 import { TooltipProvider } from './Tooltip'
 
@@ -45,6 +46,61 @@ describe('useRelativeTime', () => {
     )
     expect(screen.getByText('5 minutes ago')).toBeInTheDocument()
     expect(screen.getByText('5m')).toBeInTheDocument()
+  })
+
+  it('reads a time just recorded, even a moment ahead of the clock, as now', () => {
+    render(<Label value={START.getTime() + 400} />)
+    expect(screen.getByText('now')).toBeInTheDocument()
+    advance(2000)
+    expect(screen.getByText('1 second ago')).toBeInTheDocument()
+  })
+
+  it('reads a compact time still to come with the future string', () => {
+    render(
+      <UIProvider strings={{ time: { inFuture: (label) => `in ${label} from now` } }}>
+        <Label value={START.getTime() + 5 * 60_000} compact />
+        <Label value={START.getTime() + 3 * 3600_000} />
+      </UIProvider>,
+    )
+    expect(screen.getByText('in 5m from now')).toBeInTheDocument()
+    expect(screen.getByText('in 3 hours')).toBeInTheDocument()
+  })
+
+  it('reads a compact time as a date once a week away, with the year only when not this year', () => {
+    render(
+      <>
+        <Label value={ago(6 * 86400)} compact />
+        <Label value={ago(7 * 86400)} compact />
+        <Label value={START.getTime() + 10 * 86400_000} compact />
+        <Label value={ago(40 * 86400)} compact />
+      </>,
+    )
+    expect(screen.getByText('6d')).toBeInTheDocument()
+    expect(screen.getByText('Dec 25, 2025')).toBeInTheDocument()
+    expect(screen.getByText('Jan 11')).toBeInTheDocument()
+    expect(screen.getByText('Nov 22, 2025')).toBeInTheDocument()
+  })
+
+  it("writes a compact date in the provider's locale", () => {
+    render(
+      <UIProvider locale="de-DE">
+        <Label value={START.getTime() + 10 * 86400_000} compact />
+      </UIProvider>,
+    )
+    expect(screen.getByText('11. Jan.')).toBeInTheDocument()
+  })
+
+  it('says yesterday and last week in words', () => {
+    render(
+      <>
+        <Label value={ago(30 * 3600)} />
+        <Label value={ago(8 * 86400)} />
+        <Label value={ago(3 * 86400)} />
+      </>,
+    )
+    expect(screen.getByText('yesterday')).toBeInTheDocument()
+    expect(screen.getByText('last week')).toBeInTheDocument()
+    expect(screen.getByText('3 days ago')).toBeInTheDocument()
   })
 
   it('takes an ISO string, a Date or a DateTime', () => {
@@ -121,6 +177,15 @@ describe('useClock', () => {
 })
 
 describe('Elapsed', () => {
+  it("reads in the provider's locale", () => {
+    render(
+      <UIProvider locale="ja-JP">
+        <Elapsed start={ago(75)} end={START} />
+      </UIProvider>,
+    )
+    expect(screen.getByText(/^1 分\s?15 秒$/)).toBeInTheDocument()
+  })
+
   it('counts while running and stops at its end', () => {
     const { rerender } = render(<Elapsed start={ago(75)} />)
     expect(screen.getByText('1m 15s').tagName).toBe('TIME')
@@ -161,8 +226,72 @@ describe('RelativeTime', () => {
     expect(tooltip).toHaveTextContent(at.toLocaleString(DateTime.DATETIME_MED_WITH_SECONDS))
   })
 
+  it("reads in the provider's locale, the exact time too", async () => {
+    render(
+      <UIProvider locale="de-DE">
+        <RelativeTime value={ago(5 * 60)} />
+      </UIProvider>,
+    )
+    const time = screen.getByText('vor 5 Minuten')
+    const tip = await hoverTooltip(time)
+    expect(tip).toHaveTextContent(
+      DateTime.fromMillis(ago(5 * 60))
+        .setLocale('de-DE')
+        .toLocaleString(DateTime.DATETIME_MED_WITH_SECONDS),
+    )
+  })
+
+  it("keeps the date library's locale without one from the provider", () => {
+    render(
+      <UIProvider>
+        <RelativeTime value={ago(5 * 60)} />
+      </UIProvider>,
+    )
+    expect(screen.getByText('5 minutes ago')).toBeInTheDocument()
+  })
+
   it('renders nothing without a time', () => {
     const { container } = render(<RelativeTime value={null} />)
     expect(container).toBeEmptyDOMElement()
+  })
+
+  it('renders its fallback without a time', () => {
+    render(<RelativeTime value={null} fallback="Never" />)
+    expect(screen.getByText('Never')).toBeInTheDocument()
+  })
+
+  it('writes the exact time in the style asked, with the time zone in full', async () => {
+    render(
+      <UIProvider>
+        <RelativeTime value={ago(5 * 60)} exact="full" />
+      </UIProvider>,
+    )
+    const tip = await hoverTooltip(screen.getByText('5 minutes ago'))
+    expect(tip).toHaveTextContent(
+      DateTime.fromMillis(ago(5 * 60)).toLocaleString(DateTime.DATETIME_FULL),
+    )
+  })
+
+  it('leaves out the tooltip when exact is false', async () => {
+    render(
+      <UIProvider>
+        <RelativeTime value={ago(5 * 60)} exact={false} />
+      </UIProvider>,
+    )
+    await expect(hoverTooltip(screen.getByText('5 minutes ago'))).rejects.toThrow()
+  })
+
+  it('shows the exact time with the relative one on hover', async () => {
+    render(
+      <UIProvider>
+        <RelativeTime value={ago(5 * 60)} show="absolute" exact="short" />
+      </UIProvider>,
+    )
+    const time = screen.getByText(
+      DateTime.fromMillis(ago(5 * 60)).toLocaleString(DateTime.DATETIME_SHORT),
+    )
+    expect(time.tagName).toBe('TIME')
+    const tip = await hoverTooltip(time)
+    expect(tip).toHaveTextContent('5 minutes ago')
   })
 })

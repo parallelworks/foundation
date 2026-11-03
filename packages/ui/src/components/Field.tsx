@@ -35,6 +35,11 @@ export interface FieldControlProps {
 interface ControlContextValue {
   control: FieldControlProps
   labelId: string
+  /** The id the Field was given, for its control to take. None for a group, whose options are
+   *  each their own control. */
+  givenId: string | undefined
+  /** The Field marks its control required. Not in a group, whose options aren't each required. */
+  required: boolean
   /** Called by a control the label names by id rather than by `for`; returns its release. */
   claimLabel: () => () => void
 }
@@ -50,6 +55,20 @@ export const FieldRowContext = createContext(false)
  *  own children. Null outside a Field. */
 export function useFieldControl(): FieldControlProps | null {
   return use(ControlContext)?.control ?? null
+}
+
+/** The id for a control of this package placed in a Field: its own, or else the one the Field
+ *  was given, which the label's `for` points at. Otherwise Base UI ties the label to the control
+ *  itself. */
+export function useFieldControlId(id: string | undefined): string | undefined {
+  return id ?? use(ControlContext)?.givenId
+}
+
+/** Whether a control of this package placed in a Field is required, for it to carry
+ *  `aria-required`: the Field's asterisk is hidden from assistive technology, so the control says
+ *  so itself. Never in a group, whose options aren't each required. */
+export function useFieldRequired(): true | undefined {
+  return use(ControlContext)?.required || undefined
 }
 
 /** The surrounding Field's control props for a control that isn't a Base UI one, such as a
@@ -89,6 +108,7 @@ export interface FieldProps {
   error?: ReactNode
   /** Marks the control invalid without a message, for one shown elsewhere. */
   invalid?: boolean | undefined
+  /** Ends the label in an asterisk, and the control says it's required. */
   required?: boolean | undefined
   disabled?: boolean | undefined
   /** `stacked` puts the label above the control. `inline` puts it in a column to the left, as a
@@ -114,8 +134,8 @@ export interface FieldProps {
   id?: string | undefined
   className?: string | undefined
   /** The control, or a function that places the control props on it. Any control of this
-   *  package, such as Input, Select, Combobox, NumberInput, Switch or DatePicker, takes its label,
-   *  description and invalid state from the Field on its own; a native element needs the
+   *  package, such as Input, Select, Combobox, NumberInput, Switch or DatePicker, takes its id,
+   *  label, description and invalid state from the Field on its own; a native element needs the
    *  function. A value shown but not edited goes in a `FieldValue`. */
   children: ReactNode | ((control: FieldControlProps) => ReactNode)
 }
@@ -169,18 +189,68 @@ const switchOnLabelAndDescription = 'has-[[role=switch]]:max-h-[calc(1lh+1rem)]'
 // edge rather than the switch. The row moves up by the 4px they sit into it, to start at them as
 // a row with a lone label starts at its switch, and the space the eye sees between rows stays.
 const switchRowStartsAtText = 'has-[[role=switch]]:-mt-1'
-const errorTextClassName = 'flex items-center gap-1.5 text-xs text-(--theme-error-text)'
+// The icon keeps to the message's first line, so a message that wraps doesn't pull it
+// down between its lines: a 14px icon on a 16px line, a pixel down.
+const errorTextClassName = 'items-start gap-1.5 text-xs text-(--theme-error-text)'
+const errorIconClassName = 'mt-px size-3.5 shrink-0'
+
+export interface ErrorTextProps {
+  id?: string | undefined
+  /** `sm` is a Field's own error, under one control; `md` is for an error
+   *  about a whole form or an action, such as a Save that failed. */
+  size?: 'sm' | 'md' | undefined
+  /** Sits in a line of text instead of a line of its own, in that text's size; `size`
+   *  applies only on a line of its own. */
+  inline?: boolean | undefined
+  /** Places it, such as its margins, or a card footer's rule and padding. */
+  className?: string | undefined
+  /** Nothing renders without it, so an error that may be absent needs no guard. */
+  children: ReactNode
+}
 
 /** An error in the look a Field gives its own, for a control outside a Field, or for a part of
- *  one rather than the whole of it, such as a row of a list editor. Give it an `id` and name it
- *  in the control's `aria-describedby` so the error is read with the control. */
-export function ErrorText({ id, children }: { id?: string | undefined; children: ReactNode }) {
-  return children ? (
-    <div id={id} role="alert" className={errorTextClassName}>
-      <WarningIcon aria-hidden="true" className="size-3.5 shrink-0" />
+ *  one rather than the whole of it, such as a row of a list editor; `size="md"` for an error
+ *  under a whole form or after an action. It is announced as it appears. Give it an `id` and
+ *  name it in the control's `aria-describedby` so the error is read with the control. */
+export function ErrorText({
+  id,
+  size = 'sm',
+  inline = false,
+  className,
+  children,
+}: ErrorTextProps) {
+  if (!children) {
+    return null
+  }
+  if (inline) {
+    // Inside a sentence it takes the sentence's size and sits on its baseline: the icon is
+    // an em box nudged down onto the text's middle, as an inline icon reads in prose. A flex
+    // box would set its baseline at the icon's foot and lift the message off the line.
+    return (
+      <span id={id} role="alert" className={cx('text-(--theme-error-text)', className)}>
+        <WarningIcon aria-hidden="true" className="me-[0.3em] inline size-[1em] align-[-0.125em]" />
+        {children}
+      </span>
+    )
+  }
+  return (
+    <div
+      id={id}
+      role="alert"
+      className={cx(
+        'flex',
+        size === 'md' ? 'items-start gap-2 text-sm text-(--theme-error-text)' : errorTextClassName,
+        className,
+      )}
+    >
+      {/* At md the message may run to lines of its own, so the icon keeps to the first. */}
+      <WarningIcon
+        aria-hidden="true"
+        className={size === 'md' ? 'mt-0.5 size-4 shrink-0' : errorIconClassName}
+      />
       {children}
     </div>
-  ) : null
+  )
 }
 
 /** A control with its label, help and error, tied to it for assistive technology. One frame
@@ -227,7 +297,13 @@ export function Field({
     setLabelledBy((n) => n + 1)
     return () => setLabelledBy((n) => n - 1)
   }, [])
-  const controlContext = { control, labelId, claimLabel }
+  const controlContext = {
+    control,
+    labelId,
+    givenId: group ? undefined : ownId,
+    required: required && !group,
+    claimLabel,
+  }
 
   const inline = layout === 'inline'
   // In a row of fields, the label and the control take the row's two tracks, the label at the
@@ -298,14 +374,16 @@ export function Field({
       {required && <RequiredMark />}
     </>
   )
-  // Beside the label rather than in it, so a help button doesn't name the control.
+  // Beside the label rather than in it, so a help button doesn't name the control. The ? and
+  // the hint flow with the label's text rather than sitting beside it as flex items, so where a
+  // narrow column wraps the label they follow its last word, not the far end of the row.
   const labelExtras = (
     <>
-      {helpTip}
-      {hint}
-      {actions && <span className={actionsClassName}>{actions}</span>}
+      {helpTip && <span className={controlFirstExtrasClassName}>{helpTip}</span>}
+      {hint && <span className="ms-1">{hint}</span>}
     </>
   )
+  const labelActions = actions && <span className={actionsClassName}>{actions}</span>
   const placed = typeof children === 'function' ? children(control) : children
   // A field inside this one, such as in a group, starts its own row.
   const controlInContext = (
@@ -336,8 +414,8 @@ export function Field({
         </BaseField.Description>
       )}
       {error && (
-        <BaseField.Error id={errorId} match role="alert" className={errorTextClassName}>
-          <WarningIcon aria-hidden="true" className="size-3.5 shrink-0" />
+        <BaseField.Error id={errorId} match role="alert" className={cx('flex', errorTextClassName)}>
+          <WarningIcon aria-hidden="true" className={errorIconClassName} />
           {error}
         </BaseField.Error>
       )}
@@ -483,8 +561,11 @@ export function Field({
       >
         <div className={frame}>
           <Fieldset.Legend id={labelId} className={labelBox}>
-            <span>{nameContent}</span>
-            {labelExtras}
+            <span className="min-w-0">
+              {nameContent}
+              {labelExtras}
+            </span>
+            {labelActions}
           </Fieldset.Legend>
           {body}
         </div>
@@ -499,8 +580,11 @@ export function Field({
       data-field-row={inRow || undefined}
     >
       <div className={labelBox}>
-        {fieldLabel()}
-        {labelExtras}
+        <span className="min-w-0">
+          {fieldLabel()}
+          {labelExtras}
+        </span>
+        {labelActions}
       </div>
       {body}
     </BaseField.Root>
@@ -536,10 +620,16 @@ export function RevealToggle({
   revealed,
   onRevealedChange,
   disabled,
+  align = 'center',
+  size = 'md',
 }: {
   revealed: boolean
   onRevealedChange: (revealed: boolean) => void
   disabled?: boolean | undefined
+  /** `top` keeps it on the first line of a tall box, such as a textarea's, of the box's
+   *  `size`. */
+  align?: 'center' | 'top' | undefined
+  size?: FieldBoxSize | undefined
 }) {
   const { common: t } = useStrings()
   const Icon = revealed ? EyeOffIcon : EyeIcon
@@ -550,7 +640,10 @@ export function RevealToggle({
       aria-pressed={revealed}
       disabled={disabled}
       onClick={() => onRevealedChange(!revealed)}
-      className="absolute inset-y-0 right-0 flex w-9 cursor-pointer items-center justify-center text-(--theme-muted-text-color) hover:text-(--theme-app) disabled:cursor-not-allowed disabled:opacity-50"
+      className={cx(
+        'absolute right-0 flex w-9 cursor-pointer items-center justify-center text-(--theme-muted-text-color) hover:text-(--theme-app) disabled:cursor-not-allowed disabled:opacity-50',
+        align === 'top' ? cx('top-0', { sm: 'h-7', md: 'h-8', lg: 'h-10' }[size]) : 'inset-y-0',
+      )}
     >
       <Icon aria-hidden="true" className="size-4" />
     </button>

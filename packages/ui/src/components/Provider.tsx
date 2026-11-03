@@ -7,7 +7,9 @@ import type { WorkflowAction, WorkflowEditing } from '../editing'
 import type { WorkflowEngine } from '../engine'
 import type { GraphEditorText, InputsEditorText } from '../graph/editorStrings'
 import type { RunLink } from '../graph/types'
+import type { FilterOperator } from '../list/filterModel'
 import { safeUrl } from '../safeUrl'
+import { ContextMenuProvider } from './ContextMenu'
 import { useLocalPersistedState } from './persistedState'
 import { Toaster } from './Toast'
 import { TooltipProvider } from './Tooltip'
@@ -67,6 +69,8 @@ export interface UIStrings {
     copyThing: (label: string) => string
     copiedThing: (label: string) => string
     copyThingFailed: (label: string) => string
+    /** A count past a badge's cap, `max` already formatted, such as "99+". */
+    countOverflow: (max: string) => string
     /** Read out where a value is missing, which shows as a dash. */
     noValue: string
     /** A name field's rule: the characters a key or identifier allows. */
@@ -107,6 +111,9 @@ export interface UIStrings {
     opensInNewTab: string
     /** Names a code editor that has no label of its own. */
     codeEditor: string
+    /** Names a block of code that has no title of its own, by its language,
+     *  such as "yaml code"; `language` is empty when it has none. */
+    codeOf: (language: string) => string
     /** Shown when someone types in a read-only code editor. */
     readOnlyText: string
     /** Names the handle that resizes a panel. */
@@ -117,6 +124,12 @@ export interface UIStrings {
     refreshing: string
     /** A refresh button's label once it knows when the data was fetched. */
     updated: (ago: string) => string
+    /** Read with a "+3" chip that stands for the items a list leaves out. */
+    moreCount: (count: number) => string
+    /** Names the button that copies the text selected in a block. */
+    copySelection: string
+    /** Read in place of a masked secret's dots. */
+    hiddenValue: string
   }
   dropdown: {
     select: (type: string) => string
@@ -126,6 +139,10 @@ export interface UIStrings {
     showOptions: string
     /** The row that adds typed text as a new value. */
     add: (text: string) => string
+    /** The row that creates the thing typed text names, such as a new label. */
+    create: (text: string) => string
+    /** Heads the values offered under a tag field. */
+    suggested: string
     /** In place of the placeholder once a field holds as many values as it takes. */
     limitReached: (max: number) => string
     /** Names the button on a chosen value's chip that takes it out. */
@@ -138,6 +155,10 @@ export interface UIStrings {
     time: string
     previousMonth: string
     nextMonth: string
+    /** Names the box in the calendar's popup that takes a typed date. */
+    typeDate: string
+    /** Under the box while what is typed isn't a date that can be chosen. */
+    invalidDate: string
   }
   colorInput: {
     /** Names the picker beside the hex field: the field's name, or none when it has no plain one. */
@@ -287,6 +308,11 @@ export interface UIStrings {
     annotationSource: (job: string, step: string) => string
     /** A step without a name, numbered from 0 as the run reports it. */
     stepNumber: (index: number) => string
+    /** How many warnings: the title of a run's list of warnings, and the name of the mark on a job
+     *  or step they're about, such as "2 warnings". */
+    warningCount: (count: number) => string
+    /** The link from a warning to the page that explains it, when it has one. */
+    warningAbout: string
   }
   jobActions: {
     openSubworkflowLogs: string
@@ -399,6 +425,7 @@ export interface UIStrings {
     messages: {
       noWriteAccess: string
       uploadsUnsupported: string
+      transferLimitExceeded: (limit: string) => string
       noFilesForDownload: string
       downloadLinkFailed: string
       fileLinkFailed: string
@@ -443,6 +470,9 @@ export interface UIStrings {
       storageIconAlt: string
       type: string
       storages: string
+      groupBy: string
+      groupByUser: string
+      groupByType: string
       modified: string
       lastModified: string
       contentType: string
@@ -469,6 +499,7 @@ export interface UIStrings {
       sizeLimitTitle: string
       sizeLimitBody: (total: string, max: string) => string
       sizeLimitHint: string
+      skippedOverLimit: (limit: string) => string
     }
     confirmDelete: {
       title: string
@@ -551,12 +582,52 @@ export interface UIStrings {
     /** A step's name in the list of steps, numbered from 1. */
     stepLabel: (number: number, title: string) => string
   }
+  /** A compact relative time ("5m", "3h"), which reads as a date after a week. */
   time: {
     now: string
     minutes: (n: number) => string
     hours: (n: number) => string
     days: (n: number) => string
+    /** @deprecated A compact time reads as a date once it is a week away, so no longer counts in years. */
     years: (n: number) => string
+    /** A compact time still to come, such as "in 5m"; `label` is one of the counts above. */
+    inFuture: (label: string) => string
+    /** A compact time a week or more away, such as "Sep 4"; by default with the year only while
+     *  it isn't this year. `locale` is UIProvider's, when the host gives one. */
+    date: (date: Date, locale?: string) => string
+  }
+  /** Key names in a shortcut, as keycaps carry them off an Apple keyboard, such as
+   *  "Strg" for Control in German. An Apple keyboard shows its symbols: ⌘ ⌥ ⇧ ⌃. */
+  keys: {
+    ctrl: string
+    alt: string
+    shift: string
+    meta: string
+    enter: string
+    escape: string
+    space: string
+    tab: string
+    backspace: string
+    delete: string
+  }
+  /** A run's status in words, beside its icon: one ended in an error or a fault reads as
+   *  failed, and one skipped after a failure as skipped. */
+  runStatus: {
+    queued: string
+    running: string
+    canceling: string
+    completed: string
+    warning: string
+    failed: string
+    canceled: string
+    skipped: string
+    notRun: string
+  }
+  chart: {
+    /** The row under a chart's tooltip that sums its series. */
+    total: string
+    /** The series that sums a chart's series past the eighth. */
+    other: string
   }
   list: {
     moreActions: string
@@ -568,6 +639,8 @@ export interface UIStrings {
     labelId: string
     labelUrl: string
     couldNotLoad: (noun: string) => string
+    /** What `ListError` says under its heading when the host gives no message of its own. */
+    couldNotLoadHint: string
     /** What `ListError` names when the host gives no noun. */
     data: string
     /** A list's size, as `ListCount` shows it; `count` is formatted and `noun` agrees with it. */
@@ -576,11 +649,21 @@ export interface UIStrings {
     matchCount: (matches: string, total: string, nounPlural: string) => string
     displayOptions: string
     grouping: string
+    /** The Display menu's line that collapses or expands every group the list shows. */
+    groups: string
     ordering: string
     orderDefault: string
     orderFavorites: string
     ascending: string
     descending: string
+    /** On a phone, where a list's other columns stack under its name, the header's control that
+     *  shows and changes the order, as Display options' Ordering does. `order` is the order's
+     *  label, such as a column's. It shows without `direction`, which its arrow shows; a screen
+     *  reader hears it with one. */
+    sortedBy: (order: string, direction?: 'ascending' | 'descending') => string
+    /** `sortedBy` for the list's own default order, as one phrase, such as "Default order",
+     *  rather than `orderDefault` set into `sortedBy` as if it were a column's name. */
+    sortedByDefault: (direction?: 'ascending' | 'descending') => string
     columnHeaders: string
     showColumnHeaders: string
     /** The header checkbox that ticks every row, or clears them all. */
@@ -600,12 +683,125 @@ export interface UIStrings {
     paginationPrevious: string
     paginationNext: string
     pagination: string
+    /** A numbered page's name in `Pagination`, counting from 1. */
+    page: (page: number) => string
+    /** Where the page sits, for `Pagination` too narrow for page numbers: it shows "5 / 12". */
+    pageOfTotal: (page: number, total: number) => string
     removeSearchTerm: (term: string) => string
+    /** The search button's name while a query it holds narrows the list, its field closed. */
+    searchActive: (label: string) => string
+  }
+  /** The chip row of a list's active filters, its Filter menu and its pickers. Field and option
+   *  labels come from the host's fields, already translated. */
+  filters: {
+    /** The button at the end of the chip row that adds one, and the Filter menu's heading. */
+    addFilter: string
+    /** Names the Filter menu's search over the fields. */
+    searchFields: string
+    /** Names the chip row. */
+    activeFilters: string
+    /** The toolbar's Filter button, saying how many filters are on, since its dot is only seen. */
+    filterButton: (count: number) => string
+    /** A required or pinned filter's value while it has none. */
+    any: string
+    /** The value part of a chip just added, until a value is chosen. */
+    pending: string
+    /** A condition, worded for how many values follow it: "is" / "is any of". */
+    operator: (op: FilterOperator, count: number) => string
+    /** After the first values shown in a chip: "+3". */
+    more: (count: number) => string
+    /** At phone width, the chip that opens every filter in a sheet: "+3 filters". */
+    overflow: (count: number) => string
+    /** The sheet's title. */
+    sheetTitle: string
+    /** Names a chip's remove button. */
+    remove: (field: string) => string
+    /** Names a chip, read as a sentence. */
+    chip: (field: string, operator: string, values: string) => string
+    /** Names a chip's field part, which picks another field. */
+    changeField: (field: string) => string
+    /** Names a chip's condition part. */
+    changeOperator: (operator: string) => string
+    /** Names a chip's value part. */
+    changeValue: (values: string) => string
+    /** Joins the values a chip lists. */
+    list: (values: string[]) => string
+    /** A relative date preset: `today`, `month` (so far), `year` (so far), `all` (every date),
+     *  any `-Nd` (the last N days) or any `-Nh` (the last N hours). */
+    datePreset: (preset: string) => string
+    /** At phone width, the toggle that shows a quick filter's other options: "+3 more". */
+    quickMore: (count: number) => string
+    /** The date picker's entry that picks days on a calendar. */
+    customDate: string
+    /** Two days a filter spans. */
+    between: (from: string, to: string) => string
+    /** A day in a chip; by default without the year while it is this year. `locale` is
+     *  UIProvider's, when the host gives one. */
+    formatDate: (date: Date, locale?: string) => string
+    /** The text picker's hint. */
+    textPlaceholder: string
+    /** A yes-or-no filter's values. */
+    yes: string
+    no: string
+  }
+  /** `ErrorPage`'s words: the way back, and a title and description for each kind of error. */
+  errorPage: {
+    /** Back through the browser's history. */
+    back: string
+    /** Back to the app's start, when there is no history to go back through. */
+    home: string
+    /** The title when nothing more is known about the error. */
+    error: string
+    /** The title for a status no kind covers, such as 418. */
+    statusTitle: (status: string) => string
+    titles: Record<ErrorPageKind, string>
+    descriptions: Record<ErrorPageKind, string>
   }
 }
 
+/** What went wrong, which picks an `ErrorPage`'s words: `notFound` (404),
+ *  `forbidden` (403), `unauthenticated` (401), `unavailable` (502, 503 and
+ *  504), `server` (any other 5xx), and `network` for a request that never
+ *  reached the server. */
+export type ErrorPageKind =
+  | 'notFound'
+  | 'forbidden'
+  | 'unauthenticated'
+  | 'unavailable'
+  | 'server'
+  | 'network'
+
 /** What a host passes to translate the strings: any group, any string in it, at any depth.
  *  A string it leaves out stays in English. */
+const OPERATOR_WORDS: Record<FilterOperator, (count: number) => string> = {
+  is: (n) => (n > 1 ? 'is any of' : 'is'),
+  isNot: (n) => (n > 1 ? 'is none of' : 'is not'),
+  includesAll: (n) => (n > 1 ? 'includes all of' : 'includes'),
+  after: () => 'is after',
+  before: () => 'is before',
+  between: () => 'is between',
+  contains: () => 'contains',
+  notContains: () => 'does not contain',
+  isSet: () => 'is set',
+  isNotSet: () => 'is not set',
+}
+// Built once per locale; the browser's without one.
+const dayFormats = new Map<
+  string | undefined,
+  { short: Intl.DateTimeFormat; medium: Intl.DateTimeFormat }
+>()
+function dayFormat(locale: string | undefined) {
+  let formats = dayFormats.get(locale)
+  if (!formats) {
+    formats = {
+      short: new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }),
+      medium: new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }),
+    }
+    dayFormats.set(locale, formats)
+  }
+  return formats
+}
+
 export type UIStringOverrides = Overrides<UIStrings>
 
 type Overrides<T> = {
@@ -643,6 +839,13 @@ export interface UINavigation {
    * `sourceUrl` is a page the server resolved for it, when there is one. */
   openStepSource: (uses: string, sourceUrl?: string) => void
   openExternal: (href: string) => void
+  /** Goes back one entry in the history, such as an error page's "Back". Bind it
+   *  to the router's history; the browser's by default. */
+  goBack: () => void
+  /** Whether there is an entry of this app's to go back to; when there isn't, an
+   *  error page offers the way home instead. Bind it to the router's own
+   *  answer; by default, whether the tab's history holds more than this page. */
+  canGoBack: () => boolean
 }
 
 export type WorkflowJsonRef =
@@ -660,6 +863,29 @@ export type PersistedStateHook = <T>(
   defaultValue: T,
 ) => [T, Dispatch<SetStateAction<T>>]
 
+/** The values a problem's message shows, by name, as a problem's `params` carries them. */
+export type ProblemParams = Readonly<Record<string, string | number>>
+
+/** A problem code's message in the reader's language, with its params; undefined when the host has
+ *  none for the code. `type` is the problem's type URI: one that names an application, such as
+ *  `/problems/workflow/undefined_input`, picks that application's message for the code over the
+ *  host's own. */
+export type ProblemMessage = (
+  code: string,
+  params?: ProblemParams,
+  type?: string,
+) => string | undefined
+
+/** A problem that may carry a code: a run's warning, or one the workflow editor marks. */
+export interface CodedProblem {
+  /** Its text as the server wrote it, shown when the host has no message for its code. */
+  message: string
+  code?: string | null | undefined
+  params?: ProblemParams | null | undefined
+  /** Its type URI, which the host's message for its code is looked up by too. */
+  type?: string | null | undefined
+}
+
 export interface UIData {
   /**
    * Host-bound hook resolving a file in a run's artifact tree (logs, scripts).
@@ -672,6 +898,8 @@ export interface UIData {
     options?: { refreshInterval?: number },
   ) => RunFileResult
   resolveWorkflowJson?: (ref: WorkflowJsonRef) => Promise<unknown>
+  /** The names of the reader's own saved inputs for a workflow, which a step can name too. */
+  resolveSavedInputs?: (ref: WorkflowJsonRef) => Promise<string[]>
   /** The built-in actions a workflow step can use, for the editor's step form. */
   workflowActions?: Record<string, WorkflowAction>
   resolveSecretVariables?: () => Promise<string[]>
@@ -690,6 +918,14 @@ export interface UIData {
     storageName: string
   }) => Promise<{ error?: string }>
   usePersistedState: PersistedStateHook
+  /**
+   * Host-bound hook returning a problem code's message in the reader's language, such as
+   * `useCodeMessage` from `@parallelworks/problem/react`. A run's warnings and the editor's
+   * problems that carry a `code` show it, given their `params` and `type`, and their own `message`
+   * when it gives nothing. Absent, they show their `message`. Must be a stable function reference —
+   * components call it as a hook.
+   */
+  useProblemMessage: () => ProblemMessage
 }
 
 import type { FieldComponent } from '../form/fieldRegistry'
@@ -832,6 +1068,7 @@ const DEFAULTS: UIProviderValue = {
       copyThing: (label) => `Copy ${label}`,
       copiedThing: (label) => `Copied ${label}`,
       copyThingFailed: (label) => `Couldn't copy ${label}`,
+      countOverflow: (max) => `${max}+`,
       noValue: 'None',
       invalidName: 'Use letters, numbers, dashes, and underscores.',
       invalidNumber: 'Use a number.',
@@ -864,12 +1101,16 @@ const DEFAULTS: UIProviderValue = {
       no: 'No',
       opensInNewTab: '(opens in a new tab)',
       codeEditor: 'Code editor',
+      codeOf: (language) => (language ? `${language} code` : 'Code'),
       readOnlyText: 'This text is read-only.',
       resizePanel: 'Resize panel',
       panelWidth: (px) => `${px} pixels wide`,
       refresh: 'Refresh',
       refreshing: 'Refreshing',
       updated: (ago) => `Updated ${ago}`,
+      moreCount: (count) => `${count} more`,
+      copySelection: 'Copy selection',
+      hiddenValue: 'Hidden value',
     },
     dropdown: {
       select: (type) => `Select ${type}`,
@@ -877,6 +1118,8 @@ const DEFAULTS: UIProviderValue = {
       searching: 'Searching…',
       showOptions: 'Show options',
       add: (text) => `Add “${text}”`,
+      create: (text) => `Create “${text}”`,
+      suggested: 'Suggested',
       limitReached: (max) => `Up to ${max}`,
       removeValue: (label) => `Remove ${label}`,
     },
@@ -885,6 +1128,8 @@ const DEFAULTS: UIProviderValue = {
       time: 'Time',
       previousMonth: 'Previous month',
       nextMonth: 'Next month',
+      typeDate: 'Type a date',
+      invalidDate: 'Not a date that can be chosen',
     },
     colorInput: {
       pick: (name) => (name ? `Pick ${name.toLowerCase()}` : 'Pick a color'),
@@ -1027,6 +1272,8 @@ const DEFAULTS: UIProviderValue = {
           .join(', ')}`,
       annotationSource: (job, step) => `in ${job} → ${step}`,
       stepNumber: (index) => `step ${index}`,
+      warningCount: (count) => (count === 1 ? '1 warning' : `${count} warnings`),
+      warningAbout: 'About this warning',
     },
     jobActions: {
       openSubworkflowLogs: 'Open subworkflow logs',
@@ -1140,6 +1387,8 @@ const DEFAULTS: UIProviderValue = {
       messages: {
         noWriteAccess: 'You do not have write access to this storage.',
         uploadsUnsupported: 'Uploads are not supported for this storage.',
+        transferLimitExceeded: (limit: string) =>
+          `Larger than the ${limit} limit for one download or upload here.`,
         noFilesForDownload: 'No files selected for download.',
         downloadLinkFailed: 'Failed to generate download link',
         fileLinkFailed: 'Failed to generate file link',
@@ -1189,6 +1438,9 @@ const DEFAULTS: UIProviderValue = {
         storageIconAlt: 'An icon for the storage',
         type: 'Type',
         storages: 'Storages',
+        groupBy: 'Group by',
+        groupByUser: 'User',
+        groupByType: 'Type',
         modified: 'Modified',
         lastModified: 'Last modified',
         contentType: 'Content type',
@@ -1214,6 +1466,8 @@ const DEFAULTS: UIProviderValue = {
         sizeLimitBody: (total: string, max: string) =>
           `The total upload size (${total}) exceeds the maximum allowed limit of ${max}.`,
         sizeLimitHint: 'Please reduce the number of files or upload them in smaller batches.',
+        skippedOverLimit: (limit: string) =>
+          `Larger than the ${limit} limit for one upload here, so these are skipped:`,
       },
       confirmDelete: {
         title: 'Confirm delete',
@@ -1298,6 +1552,38 @@ const DEFAULTS: UIProviderValue = {
       hours: (n) => `${n}h`,
       days: (n) => `${n}d`,
       years: (n) => `${n}y`,
+      inFuture: (label) => `in ${label}`,
+      date: (date, locale) =>
+        dayFormat(locale)[
+          date.getFullYear() === new Date().getFullYear() ? 'short' : 'medium'
+        ].format(date),
+    },
+    keys: {
+      ctrl: 'Ctrl',
+      alt: 'Alt',
+      shift: 'Shift',
+      meta: 'Meta',
+      enter: 'Enter',
+      escape: 'Esc',
+      space: 'Space',
+      tab: 'Tab',
+      backspace: 'Backspace',
+      delete: 'Delete',
+    },
+    runStatus: {
+      queued: 'Queued',
+      running: 'Running',
+      canceling: 'Canceling',
+      completed: 'Completed',
+      warning: 'Warning',
+      failed: 'Failed',
+      canceled: 'Canceled',
+      skipped: 'Skipped',
+      notRun: 'Not run',
+    },
+    chart: {
+      total: 'Total',
+      other: 'Other',
     },
     list: {
       moreActions: 'More actions',
@@ -1308,16 +1594,21 @@ const DEFAULTS: UIProviderValue = {
       labelId: 'ID',
       labelUrl: 'URL',
       couldNotLoad: (noun) => `Couldn't load ${noun}`,
+      couldNotLoadHint: 'Something went wrong. Try again in a moment.',
       data: 'data',
       count: (count, noun) => `${count} ${noun}`,
       matchCount: (matches, total, nounPlural) => `${matches} of ${total} ${nounPlural}`,
       displayOptions: 'Display options',
       grouping: 'Grouping',
+      groups: 'Groups',
       ordering: 'Ordering',
       orderDefault: 'Default',
       orderFavorites: 'Favorites',
       ascending: 'Ascending',
       descending: 'Descending',
+      sortedBy: (order, direction) =>
+        direction ? `Sorted by ${order}, ${direction}` : `Sorted by ${order}`,
+      sortedByDefault: (direction) => (direction ? `Default order, ${direction}` : 'Default order'),
       columnHeaders: 'Column headers',
       showColumnHeaders: 'Show column headers',
       selectAll: 'Select all',
@@ -1336,7 +1627,79 @@ const DEFAULTS: UIProviderValue = {
       paginationPrevious: 'Previous',
       paginationNext: 'Next',
       pagination: 'Pagination',
+      page: (page) => `Page ${page}`,
+      pageOfTotal: (page, total) => `Page ${page} of ${total}`,
       removeSearchTerm: (term) => `Remove filter ${term}`,
+      searchActive: (label) => `${label}, on`,
+    },
+    filters: {
+      addFilter: 'Filter',
+      searchFields: 'Filter by…',
+      activeFilters: 'Active filters',
+      filterButton: (count) => (count > 0 ? `Filter, ${count} on` : 'Filter'),
+      any: 'Any',
+      pending: 'Choose…',
+      operator: (op, count) => OPERATOR_WORDS[op](count),
+      more: (count) => `+${count}`,
+      overflow: (count) => `+${count} ${count === 1 ? 'filter' : 'filters'}`,
+      sheetTitle: 'Filters',
+      remove: (field) => `Remove ${field} filter`,
+      chip: (field, operator, values) => [field, operator, values].filter(Boolean).join(' '),
+      changeField: (field) => `Field: ${field}`,
+      changeOperator: (operator) => `Condition: ${operator}`,
+      changeValue: (values) => `Value: ${values}`,
+      list: (values) => values.join(', '),
+      datePreset: (preset) => {
+        const named: Record<string, string> = {
+          today: 'Today',
+          month: 'This month',
+          year: 'This year',
+          all: 'All time',
+        }
+        const days = preset.match(/^-(\d+)d$/)?.[1]
+        const hours = preset.match(/^-(\d+)h$/)?.[1]
+        // One reads as a word, as hosts' plural messages have it: "Last day", "Last 7 days".
+        const last = (count: string, one: string, other: string) =>
+          Number(count) === 1
+            ? `Last ${one}`
+            : `Last ${Number(count).toLocaleString('en')} ${other}`
+        return (
+          named[preset] ??
+          (days ? last(days, 'day', 'days') : hours ? last(hours, 'hour', 'hours') : preset)
+        )
+      },
+      quickMore: (count) => `+${count} more`,
+      customDate: 'Custom…',
+      between: (from, to) => `${from} – ${to}`,
+      formatDate: (date, locale) =>
+        dayFormat(locale)[
+          date.getFullYear() === new Date().getFullYear() ? 'short' : 'medium'
+        ].format(date),
+      textPlaceholder: 'Type, then press Enter',
+      yes: 'Yes',
+      no: 'No',
+    },
+    errorPage: {
+      back: 'Back',
+      home: 'Back to home',
+      error: 'This page couldn’t load',
+      statusTitle: (status) => `Error ${status}`,
+      titles: {
+        notFound: 'Could not find the requested page',
+        forbidden: 'No access',
+        unauthenticated: 'Signed out',
+        unavailable: 'The service is unreachable',
+        server: 'Something went wrong on our side',
+        network: 'You’re offline',
+      },
+      descriptions: {
+        notFound: 'This page does not exist, or you do not have access to it.',
+        forbidden: 'You can’t open this. Ask an administrator for access.',
+        unauthenticated: 'Your session ended. Sign in again to pick up where you were.',
+        unavailable: 'The server isn’t answering right now. Try again in a moment.',
+        server: 'The page couldn’t load because of an error on the server.',
+        network: 'The server couldn’t be reached. Check your connection and try again.',
+      },
     },
   },
   navigation: {
@@ -1358,10 +1721,13 @@ const DEFAULTS: UIProviderValue = {
         window.open(url, '_blank')
       }
     },
+    goBack: () => window.history.back(),
+    canGoBack: () => typeof window !== 'undefined' && window.history.length > 1,
   },
   data: {
     useRunFile: defaultUseRunFile,
     usePersistedState: useLocalPersistedState,
+    useProblemMessage: useNoProblemMessage,
   },
   slots: {},
 }
@@ -1373,9 +1739,35 @@ const NavigationContext = createContext<UINavigation>(DEFAULTS.navigation)
 const DataContext = createContext<UIData>(DEFAULTS.data)
 const SlotsContext = createContext<UISlots>(DEFAULTS.slots)
 const EngineContext = createContext<WorkflowEngineSource | undefined>(undefined)
+const LocaleContext = createContext<string | undefined>(undefined)
+
+/** How avatars without a picture are colored. `name` gives each person a color from the theme's
+ *  categorical palette, picked by name, and one initial for a one-word name. `kind` gives every
+ *  person one tint and every agent another (and a square), with two initials for a one-word name,
+ *  for an app that tells people and agents apart at a glance. */
+export type AvatarColoring = 'name' | 'kind'
+
+const AvatarColoringContext = createContext<AvatarColoring>('name')
+const CharacterKeyShortcutsContext = createContext(true)
 
 export function useStrings(): UIStrings {
   return useContext(StringsContext)
+}
+
+/** The host's locale for dates and times, such as `de-DE`. Undefined without one, which leaves
+ *  each format's own default: the date library's for its times, the browser's for the rest. */
+export function useLocale(): string | undefined {
+  return useContext(LocaleContext)
+}
+
+/** How the host colors avatars, UIProvider's `avatarColoring`. */
+export function useAvatarColoring(): AvatarColoring {
+  return useContext(AvatarColoringContext)
+}
+
+/** Whether single-key shortcuts are on, UIProvider's `characterKeyShortcuts`. */
+export function useCharacterKeyShortcuts(): boolean {
+  return useContext(CharacterKeyShortcutsContext)
 }
 
 export function useNavigation(): UINavigation {
@@ -1388,6 +1780,10 @@ export function useWorkflowJsonResolver(): UIData['resolveWorkflowJson'] {
 
 export function useRepoSuggestions(): UIData['repoSuggestions'] {
   return useContext(DataContext).repoSuggestions
+}
+
+export function useSavedInputsResolver(): UIData['resolveSavedInputs'] {
+  return useContext(DataContext).resolveSavedInputs
 }
 
 const NO_ACTIONS: Record<string, WorkflowAction> = {}
@@ -1505,6 +1901,26 @@ export function useRunFile(
   return boundUseRunFile(slug, path, options)
 }
 
+const noProblemMessage: ProblemMessage = () => undefined
+
+function useNoProblemMessage(): ProblemMessage {
+  return noProblemMessage
+}
+
+/** A coded problem's text in the reader's language: the host's message for its code and type, or
+ *  else its own `message`. */
+export function useProblemText(): (problem: CodedProblem) => string {
+  const { useProblemMessage: boundUseProblemMessage } = useContext(DataContext)
+  const message = boundUseProblemMessage()
+  return useCallback(
+    (problem: CodedProblem) =>
+      (problem.code
+        ? message(problem.code, problem.params ?? undefined, problem.type ?? undefined)
+        : undefined) ?? problem.message,
+    [message],
+  )
+}
+
 export function usePersistedState<T>(
   key: string,
   defaultValue: T,
@@ -1519,8 +1935,9 @@ export interface UIProviderProps {
   strings?: UIStringOverrides | undefined
   /** How the package navigates; read at the moment it navigates, so a new one never re-renders. */
   navigation?: Partial<UINavigation> | undefined
-  /** The host's data hooks and resolvers. `useRunFile` and `usePersistedState` are called as
-   *  hooks, so each must stay the same function for the life of the app. */
+  /** The host's data hooks and resolvers. `useRunFile`, `usePersistedState` and
+   *  `useProblemMessage` are called as hooks, so each must stay the same function for the life of
+   *  the app. */
   data?: Partial<UIData> | undefined
   /** Components the host renders inside the package's; a component made each render would
    *  remount everything it renders. */
@@ -1533,6 +1950,18 @@ export interface UIProviderProps {
    *  that places them before hydration. The components render no inline
    *  `<style>`, so a policy without 'unsafe-inline' styles needs none. */
   nonce?: string | undefined
+  /** The locale dates and times read in, such as `de-DE`, as a BCP 47 tag: relative times,
+   *  exact times and the date picker. Pass the app's language, so they read as its own text
+   *  does. Without one they follow the date library's default locale, or the browser's. */
+  locale?: string | undefined
+  /** How avatars without a picture are colored: by name (the default), or by kind, where people
+   *  share one tint and agents another, set by `--avatar-person` and `--avatar-agent` (see
+   *  `Avatar`). */
+  avatarColoring?: AvatarColoring | undefined
+  /** Whether a single key, such as F to filter or / to search a list, works from anywhere on the
+   *  page (the default). Give people a setting that turns them off, as WCAG 2.1.4 asks, since a
+   *  speech input user's words can press them. Shortcuts with a modifier, such as ⌘F, stay on. */
+  characterKeyShortcuts?: boolean | undefined
   children: React.ReactNode
 }
 
@@ -1562,6 +1991,9 @@ export function UIProvider({
   slots,
   engine: engineProp,
   nonce,
+  locale,
+  avatarColoring = 'name',
+  characterKeyShortcuts = true,
   children,
 }: UIProviderProps) {
   // A loader is the first one passed: an inline arrow is a new function each render, and each
@@ -1590,6 +2022,8 @@ export function UIProvider({
       ),
     openExternal: (href) =>
       (navigationRef.current?.openExternal ?? DEFAULTS.navigation.openExternal)(href),
+    goBack: () => (navigationRef.current?.goBack ?? DEFAULTS.navigation.goBack)(),
+    canGoBack: () => (navigationRef.current?.canGoBack ?? DEFAULTS.navigation.canGoBack)(),
   }))
   return (
     <StringsContext value={mergedStrings}>
@@ -1597,13 +2031,21 @@ export function UIProvider({
         <DataContext value={mergedData}>
           <SlotsContext value={stableSlots}>
             <EngineContext value={engine}>
-              {/* Base UI hides a select's or scroll area's own scrollbar with an
-                  inline <style>, which a same-origin style policy blocks and
-                  reports. theme.css ships that rule instead. */}
-              <CSPProvider nonce={nonce} disableStyleElements>
-                <TooltipProvider>{children}</TooltipProvider>
-                <Toaster />
-              </CSPProvider>
+              <LocaleContext value={locale}>
+                <AvatarColoringContext value={avatarColoring}>
+                  <CharacterKeyShortcutsContext value={characterKeyShortcuts}>
+                    {/* Base UI hides a select's or scroll area's own scrollbar with an
+                      inline <style>, which a same-origin style policy blocks and
+                      reports. theme.css ships that rule instead. */}
+                    <CSPProvider nonce={nonce} disableStyleElements>
+                      <TooltipProvider>
+                        <ContextMenuProvider>{children}</ContextMenuProvider>
+                      </TooltipProvider>
+                      <Toaster />
+                    </CSPProvider>
+                  </CharacterKeyShortcutsContext>
+                </AvatarColoringContext>
+              </LocaleContext>
             </EngineContext>
           </SlotsContext>
         </DataContext>

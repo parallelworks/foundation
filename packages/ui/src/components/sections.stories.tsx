@@ -1,9 +1,13 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useState } from 'react'
-import { expect, userEvent, waitFor, within } from 'storybook/test'
+import { expect, fireEvent, userEvent, waitFor, within } from 'storybook/test'
+import { MoreIcon, StopIcon, WarningIcon } from '../icons'
+import { Button } from './Button'
 import { Disclosure } from './Disclosure'
+import { IconButton } from './IconButton'
 import { InfoTip } from './InfoTip'
-import { Section, type SectionSpacing, type SectionVariant } from './Section'
+import { Section, type SectionSpacing, type SectionTone, type SectionVariant } from './Section'
+import { Select } from './Select'
 import { StatusDot } from './StatusBadge'
 import { StickyBar } from './StickyBar'
 import { Switch } from './Switch'
@@ -24,12 +28,27 @@ export const Sections: StoryObj<{
   variant: SectionVariant
   spacing: SectionSpacing
   collapsible: boolean
+  flush: boolean
+  tone: SectionTone
   description: string
 }> = {
-  args: { variant: 'plain', spacing: 'regular', collapsible: true, description: 'Name and owner.' },
+  args: {
+    variant: 'plain',
+    spacing: 'regular',
+    collapsible: true,
+    flush: false,
+    tone: 'default',
+    description: 'Name and owner.',
+  },
   argTypes: {
-    variant: { control: 'inline-radio', options: ['plain', 'card'] },
+    variant: { control: 'inline-radio', options: ['plain', 'bare', 'card'] },
     spacing: { control: 'inline-radio', options: ['regular', 'tight'] },
+    flush: { description: "A card's content reaches its edges." },
+    tone: {
+      control: 'inline-radio',
+      options: ['default', 'error'],
+      description: 'A card of irreversible actions.',
+    },
   },
   render: ({ description, ...args }) => (
     <div className="flex max-w-xl flex-col gap-6">
@@ -113,6 +132,99 @@ export const SettingsSections: StoryObj = {
     await expect(getComputedStyle(title).color).not.toBe(getComputedStyle(description).color)
     await expect(getComputedStyle(title).color).toBe(getComputedStyle(section as Element).color)
   },
+}
+
+/** No rule under the title: the title and what the section holds sit over its content. */
+export const BareSections: typeof Sections = {
+  ...Sections,
+  name: 'Bare sections',
+  args: { ...Sections.args, variant: 'bare', collapsible: false },
+}
+
+const NODES = [
+  ['gpu-01', 'Ready', '8 cores'],
+  ['gpu-02', 'Ready', '8 cores'],
+  ['cpu-01', 'Draining', '32 cores'],
+]
+
+/** A flush card: a table's rules reach the card's edges instead of sitting inset. */
+export const FlushCard: StoryObj = {
+  name: 'Flush card',
+  render: () => (
+    <div className="max-w-xl">
+      <Section
+        variant="card"
+        flush
+        title="Nodes"
+        beside={<span className="text-xs theme-muted-text">3</span>}
+      >
+        <table className="w-full border-t border-(--theme-border) text-left text-sm">
+          <thead className="theme-muted-panel text-xs">
+            <tr>
+              <th className="px-4 py-2 font-medium">Name</th>
+              <th className="px-4 py-2 font-medium">State</th>
+              <th className="px-4 py-2 font-medium">Size</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-(--theme-border)">
+            {NODES.map(([name, state, size]) => (
+              <tr key={name}>
+                <td className="px-4 py-2">{name}</td>
+                <td className="px-4 py-2">{state}</td>
+                <td className="px-4 py-2">{size}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Section>
+    </div>
+  ),
+}
+
+/** A danger zone: a card whose border and title take the error color over a clear body. */
+export const DangerZone: StoryObj = {
+  name: 'Danger zone',
+  render: () => (
+    <div className="max-w-xl">
+      <Section
+        variant="card"
+        tone="error"
+        collapsible={false}
+        title="Danger zone"
+        description="These can't be undone."
+      >
+        <div className="flex items-center justify-between gap-4 text-sm">
+          <span>Delete this cluster and everything on it.</span>
+          <Button variant="danger" size="sm">
+            Delete cluster
+          </Button>
+        </div>
+      </Section>
+    </div>
+  ),
+}
+
+const RANGES = [
+  { value: '1h', label: 'Last hour' },
+  { value: '24h', label: 'Last day' },
+]
+
+/** In a narrow header the actions take their own line, starting under the title's text,
+ *  instead of squeezing it; a title that wraps keeps its chevron beside its first line. */
+export const WrappingHeader: StoryObj = {
+  name: 'Wrapping header',
+  globals: { viewport: { value: 'mobile1', isRotated: false } },
+  render: () => (
+    <div className="w-[320px] max-w-full">
+      <Section
+        variant="card"
+        title="Workload metrics for the training job"
+        actions={<Select aria-label="Range" items={RANGES} defaultValue="1h" />}
+      >
+        {body}
+      </Section>
+    </div>
+  ),
 }
 
 function RememberedSection() {
@@ -372,4 +484,149 @@ export const Disclosures: StoryObj<{ disabled: boolean }> = {
       await waitFor(() => expect(canvas.getByText('name: build')).toBeVisible())
     }
   },
+}
+
+/** A whole row that toggles its detail, as a list of clusters has: no chevron, with its own
+ *  buttons beside the toggle rather than in it, and its menu on a right-click. */
+export const DisclosureRow: StoryObj<{ chevron: boolean }> = {
+  args: { chevron: false },
+  argTypes: { chevron: { description: 'False drops the chevron.' } },
+  render: ({ chevron }) => (
+    <div className="max-w-xl rounded-xl border theme-border text-sm">
+      {['gpu-cluster-east', 'cpu-batch-west'].map((name) => (
+        <Disclosure
+          key={name}
+          chevron={chevron}
+          className="border-b theme-border px-3 py-2 last:border-b-0"
+          summaryClassName="w-full items-center"
+          summary={
+            <>
+              <StatusDot variant="success" />
+              <span className="min-w-0 flex-1 truncate font-medium">{name}</span>
+              <span className="theme-muted-text">4 nodes</span>
+            </>
+          }
+          actions={
+            <>
+              <IconButton label={`Stop ${name}`} icon={<StopIcon />} />
+              <IconButton label={`More actions for ${name}`} icon={<MoreIcon />} />
+            </>
+          }
+          panelClassName="pt-2 ps-4"
+        >
+          <p className="m-0 theme-muted-text">Started 3 hours ago in us-east-1.</p>
+        </Disclosure>
+      ))}
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const toggle = canvas.getByRole('button', { name: /gpu-cluster-east/ })
+    await expect(toggle).not.toContainElement(
+      canvas.getByRole('button', { name: 'Stop gpu-cluster-east' }),
+    )
+    await userEvent.click(toggle)
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-expanded', 'true'))
+  },
+}
+
+/** Controls that read as part of the summary, on its line right after it, such as a button
+ *  that says why a row failed: outside the toggle, each its own stop for Tab, while a click on
+ *  the rest of the line still opens the row. */
+export const DisclosureRowWithControls: StoryObj = {
+  render: () => (
+    <div className="max-w-xl rounded-xl border theme-border text-sm">
+      {[
+        { name: 'gpu-cluster-east', failed: true },
+        { name: 'cpu-batch-west', failed: false },
+      ].map(({ name, failed }) => (
+        <Disclosure
+          key={name}
+          chevron={false}
+          className="border-b theme-border px-3 py-2 last:border-b-0"
+          summaryClassName="items-center"
+          summary={
+            <>
+              <StatusDot variant={failed ? 'error' : 'success'} />
+              <span className="min-w-0 truncate font-medium">{name}</span>
+            </>
+          }
+          summaryControls={
+            failed ? (
+              <IconButton
+                size="xs"
+                label={`Couldn’t connect to ${name}. View logs`}
+                icon={<WarningIcon className="text-(--theme-error)" />}
+              />
+            ) : undefined
+          }
+          actions={
+            <>
+              <span className="me-2 theme-muted-text">4 nodes</span>
+              <IconButton label={`More actions for ${name}`} icon={<MoreIcon />} />
+            </>
+          }
+          panelClassName="pt-2 ps-4"
+        >
+          <p className="m-0 theme-muted-text">Started 3 hours ago in us-east-1.</p>
+        </Disclosure>
+      ))}
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const toggle = canvas.getByRole('button', { name: 'gpu-cluster-east' })
+    const warning = canvas.getByRole('button', { name: /Couldn’t connect to gpu-cluster-east/ })
+    await expect(toggle).not.toContainElement(warning)
+    // Clicks as a mouse makes them, without the focus ring a scripted click leaves.
+    fireEvent.click(warning)
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(toggle)
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-expanded', 'true'))
+  },
+}
+
+/** A row whose summary names it, with text beside the name that gives way to it, such as a
+ *  cluster's address: the name keeps its width, the address takes the room left over, ends in
+ *  an ellipsis when that runs short and hides when too little would show, and the buttons keep
+ *  their size. A name too long for the line still shortens. Drag the frame narrower to see the
+ *  address give way. */
+export const DisclosureRowWithAside: StoryObj = {
+  render: () => (
+    <div className="w-72 max-w-full rounded-xl border theme-border text-sm">
+      {[
+        { name: 'cfd-prod', address: 'devadmin@54.201.18.77', failed: false },
+        { name: 'genomics', address: 'devadmin@34.123.45.9', failed: false },
+        { name: 'wrf-ensemble-longname', address: 'devadmin@10.20.4.11', failed: false },
+        { name: 'wrf-ensemble-with-a-long-name', address: 'devadmin@10.20.4.12', failed: true },
+      ].map(({ name, address, failed }) => (
+        <Disclosure
+          key={name}
+          chevron={false}
+          className="border-b theme-border px-3 py-2 last:border-b-0"
+          summaryClassName="items-center"
+          summary={
+            <>
+              <StatusDot variant={failed ? 'error' : 'success'} />
+              <span className="min-w-0 truncate font-medium">{name}</span>
+            </>
+          }
+          summaryControls={
+            failed ? (
+              <IconButton
+                size="xs"
+                label={`Couldn’t connect to ${name}. View logs`}
+                icon={<WarningIcon className="text-(--theme-error)" />}
+              />
+            ) : undefined
+          }
+          aside={<span className="theme-muted-text">{address}</span>}
+          actions={<IconButton label={`More actions for ${name}`} icon={<MoreIcon />} />}
+          panelClassName="pt-2 ps-4"
+        >
+          <p className="m-0 theme-muted-text">Started 3 hours ago in us-east-1.</p>
+        </Disclosure>
+      ))}
+    </div>
+  ),
 }

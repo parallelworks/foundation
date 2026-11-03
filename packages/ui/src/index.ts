@@ -1,4 +1,4 @@
-export { ActionMenu } from './components/ActionMenu'
+export { ActionMenu, type ActionMenuProps } from './components/ActionMenu'
 export {
   AppLink,
   type AppLinkProps,
@@ -7,7 +7,12 @@ export {
 } from './components/AppLink'
 export {
   Avatar,
+  AvatarGroup,
+  type AvatarGroupProps,
+  type AvatarInitialsOptions,
+  type AvatarKind,
   type AvatarProps,
+  type AvatarShape,
   type AvatarSize,
   type AvatarStatus,
   avatarInitials,
@@ -21,8 +26,17 @@ export {
   buttonClasses,
 } from './components/buttonClasses'
 export { Callout, type CalloutProps, type CalloutTone } from './components/Callout'
-export { Card, CardHeader, type CardHeaderProps, type CardProps } from './components/Card'
+export {
+  Card,
+  CardHeader,
+  type CardHeaderProps,
+  type CardPadding,
+  type CardProps,
+  type CardSize,
+  type CardTone,
+} from './components/Card'
 export { Checkbox, CheckboxGroup, type CheckboxProps } from './components/Checkbox'
+export { CodeBlock, type CodeBlockProps } from './components/CodeBlock'
 export { ColorInput, type ColorInputProps } from './components/ColorInput'
 export {
   Autocomplete,
@@ -33,11 +47,22 @@ export {
   type ComboboxItems,
   type ComboboxProps,
 } from './components/Combobox'
-export { ConfirmModal, type ConfirmModalProps } from './components/ConfirmModal'
 export {
+  ConfirmModal,
+  type ConfirmModalProps,
+  type ConfirmRequest,
+  useConfirm,
+} from './components/ConfirmModal'
+export {
+  ContextMenuProvider,
+  type MenuCloseTrigger,
+  type MenuOpener,
   type OpenMenu,
   type OpenMenuOptions,
+  useCloseMenu,
   useContextMenu,
+  useMenuOpenedBy,
+  useOpenMenu,
 } from './components/ContextMenu'
 export {
   CopyButton,
@@ -51,21 +76,62 @@ export {
   CreateModalSwitch,
 } from './components/CreateModal'
 export { categoryClasses, categoryOf } from './components/category'
-export { DatePicker, type DatePickerProps } from './components/DatePicker'
+export {
+  type ChartLegendItem,
+  ChartLegendList,
+  type ChartReading,
+  type ChartReadingOrder,
+  ChartReadout,
+  ChartTooltipBeside,
+  ChartTooltipContent,
+  ChartTooltipFrame,
+  type ChartTooltipItem,
+  type ChartTooltipPlacement,
+  chartTooltipPlacement,
+  foldSeries,
+  OTHER_SERIES_COLOR,
+  OTHER_SERIES_KEY,
+  SERIES_LIMIT,
+  SeriesSwatch,
+  type SeriesSwatchShape,
+  seriesColors,
+  seriesOpacity,
+  seriesSlotColor,
+  useSeriesHighlight,
+} from './components/chart'
+export {
+  Calendar,
+  type CalendarProps,
+  DatePicker,
+  type DatePickerProps,
+} from './components/DatePicker'
 export {
   DescriptionListGroup,
   DescriptionListItem,
   type DescriptionListItemProps,
   type DescriptionListProps,
+  type DescriptionListSize,
   type DescriptionListVariant,
   default as DescriptionList,
 } from './components/DescriptionList'
-export { Disclosure, DisclosurePanel, type DisclosureProps } from './components/Disclosure'
+export {
+  collapsePanelClassName,
+  Disclosure,
+  DisclosurePanel,
+  type DisclosureProps,
+} from './components/Disclosure'
 export { Drawer, type DrawerProps } from './components/Drawer'
-export { EmptyState, type EmptyStateProps } from './components/EmptyState'
+export { EmptyState, type EmptyStateProps, type EmptyStateVariant } from './components/EmptyState'
+export {
+  ErrorPage,
+  type ErrorPageKind,
+  type ErrorPageProps,
+  errorPageKind,
+} from './components/ErrorPage'
 export { ExternalLink, type ExternalLinkProps } from './components/ExternalLink'
 export {
   ErrorText,
+  type ErrorTextProps,
   Field,
   type FieldControlProps,
   type FieldLayout,
@@ -77,6 +143,7 @@ export {
   useFieldControl,
   useFieldLabelledControl,
 } from './components/Field'
+export { FileButton, type FileButtonProps } from './components/FileButton'
 export { type FieldBoxOptions, type FieldBoxSize, fieldBox } from './components/fieldBox'
 export type { FloatingAnchor } from './components/floating'
 export { HoverCard, type HoverCardProps } from './components/HoverCard'
@@ -87,8 +154,37 @@ export {
   type ImageUploadProps,
 } from './components/ImageUpload'
 export { formatInfoTipContent, InfoTip } from './components/InfoTip'
-export { Input, type InputProps, Textarea, type TextareaProps } from './components/Input'
-export { LetterBadge } from './components/LetterBadge'
+export {
+  Input,
+  type InputProps,
+  Textarea,
+  type TextareaProps,
+  TitleInput,
+  type TitleInputProps,
+} from './components/Input'
+export {
+  ariaKeyShortcuts,
+  formatShortcut,
+  isApplePlatform,
+  Kbd,
+  type KbdProps,
+  type KbdSize,
+  type KbdVariant,
+  type KeyPlatform,
+  shortcutText,
+  useShortcutFormat,
+} from './components/Kbd'
+export { LetterBadge, type LetterBadgeProps } from './components/LetterBadge'
+export {
+  ListboxGroup,
+  type ListboxNavigation,
+  type ListboxNavigationOptions,
+  ListboxOption,
+  type ListboxOptionProps,
+  ListboxPanel,
+  type ListboxPanelProps,
+  useListboxNavigation,
+} from './components/Listbox'
 export { Loader, type LoaderProps } from './components/Loader'
 export type { MarkdownProps } from './components/Markdown'
 export { default as Markdown } from './components/Markdown'
@@ -101,14 +197,19 @@ export {
   type MenuPopupProps,
   MenuRadioItem,
   MenuSeparator,
+  type MenuSize,
   MenuSubmenuTrigger,
 } from './components/Menu'
 export {
+  isMenuDivider,
+  isMenuGroup,
+  isMenuSubmenu,
   type MenuAction,
   type MenuDivider,
   MenuEntries,
   type MenuEntry,
   MenuFilter,
+  type MenuGroup,
   type MenuSearch,
   type MenuSubmenu,
   menuDivider,
@@ -116,9 +217,11 @@ export {
 export {
   type BarSize,
   type BarTone,
+  type BarValuePlacement,
   levelTone,
   Meter,
   ProgressBar,
+  type ProgressSegment,
 } from './components/Meter'
 export {
   Modal,
@@ -153,7 +256,11 @@ export {
   useClosePopover,
 } from './components/Popover'
 export {
+  type AvatarColoring,
+  type CodedProblem,
   type PersistedStateHook,
+  type ProblemMessage,
+  type ProblemParams,
   type RunFileResult,
   type UIData,
   type UILinkComponent,
@@ -163,9 +270,13 @@ export {
   type UISlots,
   type UIStringOverrides,
   type UIStrings,
+  useAvatarColoring,
+  useCharacterKeyShortcuts,
+  useLocale,
   useNavigation,
   useOptionalWorkflowEngine,
   usePersistedState,
+  useProblemText,
   useProvisionCorsRules,
   useRunFile,
   useSlots,
@@ -180,11 +291,18 @@ export {
 export { Radio, RadioGroup, type RadioProps } from './components/Radio'
 export { RefreshButton, type RefreshButtonProps } from './components/RefreshButton'
 export { RequiredMark } from './components/RequiredMark'
-export { RunStatusIcon, runStatusTone } from './components/RunStatusIcon'
+export {
+  RunStatusIcon,
+  type RunStatusIconProps,
+  type RunStatusIconStatus,
+  runStatusTone,
+} from './components/RunStatusIcon'
 export {
   Elapsed,
+  type ElapsedProps,
   RelativeTime,
   type RelativeTimeFormat,
+  type RelativeTimeProps,
   useClock,
   useElapsed,
   useRelativeTime,
@@ -193,10 +311,16 @@ export { SearchInput, type SearchInputProps } from './components/SearchInput'
 export {
   Section,
   type SectionProps,
+  type SectionTone,
   type SectionVariant,
 } from './components/Section'
-export { SegmentedControl, type SegmentedOption } from './components/SegmentedControl'
+export {
+  SegmentedControl,
+  type SegmentedControlRootProps,
+  type SegmentedOption,
+} from './components/SegmentedControl'
 export { Select, type SelectItem, type SelectProps } from './components/Select'
+export { SelectionCopy } from './components/SelectionCopy'
 export { SettingModeOption } from './components/SettingModeOption'
 export {
   SettingRow,
@@ -206,17 +330,51 @@ export {
 } from './components/SettingsCard'
 export { LoadingRegion, Skeleton, type SkeletonProps } from './components/Skeleton'
 export { Slider, type SliderProps } from './components/Slider'
+export { SplitView, type SplitViewPane, type SplitViewProps } from './components/SplitView'
 export {
+  StatTile,
+  type StatTileBar,
+  StatTileGroup,
+  type StatTileGroupProps,
+  type StatTileLamp,
+  type StatTileProps,
+} from './components/StatTile'
+export {
+  type BadgeEmphasis,
+  type BadgeSize,
   type BadgeVariant,
+  CountBadge,
+  type CountBadgeProps,
   StatusBadge,
+  type StatusBadgeProps,
   StatusDot,
+  type StatusDotProps,
   statusTextClass,
 } from './components/StatusBadge'
+export {
+  RunStatusLabel,
+  type RunStatusLabelProps,
+  runStatusLook,
+  StatusLabel,
+  type StatusLabelProps,
+  useRunStatusName,
+} from './components/StatusLabel'
 export { StickyBar, type StickyBarProps } from './components/StickyBar'
 export { Switch, type SwitchProps } from './components/Switch'
+export type { SegmentTone } from './components/segmented'
 export { isTextEntryContext, useShortcutKey } from './components/shortcutKey'
 export { type SortDirection, Table, type TableDensity } from './components/Table'
 export { type TabItem, TabPanel, Tabs, type TabsProps } from './components/Tabs'
+export {
+  normalizeTags,
+  Tag,
+  type TagItem,
+  TagList,
+  type TagListProps,
+  type TagProps,
+  type TagStyle,
+  tagClasses,
+} from './components/Tag'
 export { ThemeEditor, type ThemeEditorProps, ThemePreview } from './components/ThemeEditor'
 export {
   type ToastAction,
@@ -237,6 +395,7 @@ export {
   TooltipProvider,
   type TooltipSide,
 } from './components/Tooltip'
+export { useClosingValue } from './components/useClosingValue'
 export { type CopyOptions, useCopy } from './components/useCopy'
 export { useCssIsDark } from './components/useCssIsDark'
 export { useApplyTheme, useColorMode } from './components/useTheme'
@@ -276,6 +435,7 @@ export type {
   WorkflowVariables,
 } from './engine'
 export {
+  type DateTimeStyle,
   formatBytes,
   formatCount,
   formatDateTime,

@@ -1,6 +1,6 @@
 import { Toggle } from '@base-ui/react/toggle'
 import type { ReactNode } from 'react'
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { cx } from '../cx'
 import { ChevronDownIcon, FavoriteIcon, FavoriteOutlineIcon } from '../icons'
 import { ActionMenu } from './ActionMenu'
@@ -9,8 +9,10 @@ import { buttonClasses } from './buttonClasses'
 import { Combobox } from './Combobox'
 import { type ComboboxItems, comboboxLeaves } from './comboboxItems'
 import { Disclosure } from './Disclosure'
-import type { MenuEntry } from './MenuEntries'
-import { Modal } from './Modal'
+import { ErrorText } from './Field'
+import { useAutosize } from './Input'
+import type { MenuEntry, MenuSearch } from './MenuEntries'
+import { Modal, type ModalSize } from './Modal'
 import { useStrings } from './Provider'
 import { Switch } from './Switch'
 import { Tooltip } from './Tooltip'
@@ -22,11 +24,16 @@ interface CreateModalProps {
   typeLabel: string
   /** Makes the type chip a dropdown to switch between sibling form types. */
   typeMenu?: MenuEntry[] | undefined
+  /** A search atop the type chip's menu, for a long list such as many teams. */
+  typeMenuSearch?: MenuSearch | undefined
   namePlaceholder: string
   hideName?: boolean
   initialName?: string | undefined
   showDescription?: boolean
   descriptionPlaceholder?: string
+  /** Takes the description's place, such as a rich text editor. Typing in it counts as
+   *  unsaved input, as the description's does. */
+  descriptionField?: ReactNode
   submitLabel?: string
   submittingLabel?: string
   validateName?: ((name: string) => string | null) | undefined
@@ -48,8 +55,23 @@ interface CreateModalProps {
   dirty?: boolean
   /** Show a favorite toggle in the footer. */
   showFavorite?: boolean
-  /** Resolves true to close the modal, false to keep it open (e.g. on error). */
-  onSubmit: (name: string, description: string, favorite: boolean) => Promise<boolean>
+  /** Muted text at the footer's start, such as which keys submit, written with `Kbd` so each
+   *  reader sees their own keyboard's modifier. Hidden on a touch screen, where keys mean
+   *  nothing. `error` takes its place. */
+  footerHint?: ReactNode
+  /** Why the last submit failed, at the footer's start, read out as it appears. */
+  error?: ReactNode
+  /** Its width, as `Modal`'s: `xl` for a long body such as a rich text editor. It narrows to
+   *  fit a small window. */
+  size?: ModalSize | undefined
+  /** Resolves true to close the modal, false to keep it open (e.g. on error). `modifier` is
+   *  true when submitted with ⌘/Ctrl+Enter, so a host can create and then open what it made. */
+  onSubmit: (
+    name: string,
+    description: string,
+    favorite: boolean,
+    how: { modifier: boolean },
+  ) => Promise<boolean>
 }
 
 /** Submits on Enter in the name field or ⌘/Ctrl+Enter from anywhere in the panel. */
@@ -59,11 +81,13 @@ export function CreateModal({
   typeIcon,
   typeLabel,
   typeMenu,
+  typeMenuSearch,
   namePlaceholder,
   hideName = false,
   initialName,
   showDescription = true,
   descriptionPlaceholder,
+  descriptionField,
   submitLabel,
   submittingLabel,
   validateName,
@@ -78,6 +102,9 @@ export function CreateModal({
   onNameChange,
   dirty = false,
   showFavorite = false,
+  footerHint,
+  error,
+  size = 'lg',
   onSubmit,
 }: CreateModalProps) {
   const t = useStrings().modal
@@ -93,7 +120,9 @@ export function CreateModal({
   const [nameFlash, setNameFlash] = useState(false)
   const [nameTouched, setNameTouched] = useState(false)
   const [interacted, setInteracted] = useState(false)
-  const nameRef = useRef<HTMLInputElement>(null)
+  const nameRef = useRef<HTMLTextAreaElement | null>(null)
+  // The name wraps onto as many lines as it needs; where the browser can't size it, by hand.
+  const { element: nameSizer, resize: resizeName } = useAutosize(open && !hideName, name)
   const nameMessageId = useId()
 
   // Each opening starts a fresh form. Reset while rendering, not in an effect,
@@ -124,13 +153,27 @@ export function CreateModal({
     !submitting &&
     (interacted || name !== (initialName ?? '') || description !== '' || favorite || dirty)
 
-  // Red-ring the required name once the user has moved past it: blurred it
-  // empty, entered other content, or tried to submit without it.
-  const nameMissing =
-    !hideName &&
-    !nameOptional &&
-    (!name.trim() || !!nameError) &&
-    (nameTouched || description !== '' || favorite || dirty)
+  // Red-ring the required name once the user has tried to submit without it, or has left the
+  // dialog with it empty. Moving to the dialog's own controls, such as its type menu or a
+  // field below, is still filling it in.
+  const nameMissing = !hideName && !nameOptional && (!name.trim() || !!nameError) && nameTouched
+
+  // Whether focus has landed back in the dialog since the name lost it. React carries focus
+  // events up through portals, so a menu the dialog opens counts as inside it.
+  const focusInside = useRef(false)
+  const leaveCheck = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => clearTimeout(leaveCheck.current), [])
+  const checkLeft = () => {
+    focusInside.current = false
+    clearTimeout(leaveCheck.current)
+    // The next element's focus follows the blur in the same task.
+    leaveCheck.current = setTimeout(() => {
+      // Switching to another window isn't leaving the dialog.
+      if (!focusInside.current && document.hasFocus() && !nameRef.current?.value.trim()) {
+        setNameTouched(true)
+      }
+    })
+  }
 
   const flashName = () => {
     setNameTouched(true)
@@ -139,7 +182,7 @@ export function CreateModal({
     requestAnimationFrame(() => setNameFlash(true))
   }
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (modifier = false) => {
     if (!canSubmit) {
       if (!hideName && !submitting && (!name.trim() || nameError)) {
         flashName()
@@ -152,7 +195,7 @@ export function CreateModal({
     // their own errors, and letting it escape would leave the button stuck on
     // its submitting label with no way back.
     try {
-      close = await onSubmit(name.trim(), description.trim(), favorite)
+      close = await onSubmit(name.trim(), description.trim(), favorite, { modifier })
     } catch (error) {
       console.error(error)
     } finally {
@@ -170,46 +213,70 @@ export function CreateModal({
       open={open}
       onClose={onClose}
       aria-label={`${submitText}: ${typeLabel}`}
-      size="lg"
+      size={size}
       dismissible={!isDirty}
       // The name, ahead of the type chip; a form without one starts at its first control.
       initialFocus={() => nameRef.current ?? true}
+      onFocus={() => {
+        focusInside.current = true
+      }}
       onKeyDown={(e) => {
         if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-          handleSubmit()
+          handleSubmit(true)
         }
       }}
       onMouseDown={(e) => {
         // Keep the caret in the focused field when clicking non-interactive
         // panel areas (the borderless name input has no other affordance).
         // Selectable text is exempt: preventDefault would stop a selection
-        // from ever starting there.
+        // from ever starting there. So is editable content, such as a rich
+        // text description, which a press must be able to focus.
         if (
           e.target instanceof Element &&
-          !e.target.closest('input, textarea, button, a, select, label, code, pre, .select-all')
+          !e.target.closest(
+            'input, textarea, button, a, select, label, code, pre, .select-all, [contenteditable]:not([contenteditable="false"])',
+          )
         ) {
           e.preventDefault()
         }
       }}
       footer={
         <>
-          {showFavorite && (
-            <div className="me-auto">
-              <Tooltip content={favorite ? t.favoriteHintOn : t.favoriteHintOff}>
-                <Toggle
-                  pressed={favorite}
-                  onPressedChange={setFavorite}
-                  aria-label={t.favorite}
-                  className={buttonClasses({ variant: 'ghost', size: 'sm' })}
-                >
-                  {favorite ? (
-                    <FavoriteIcon className="text-(--theme-favorite)" />
-                  ) : (
-                    <FavoriteOutlineIcon />
-                  )}
-                  {favorite ? t.favorited : t.favorite}
-                </Toggle>
-              </Tooltip>
+          {(showFavorite || footerHint || error) && (
+            // Keys mean nothing on a touch screen: a hint alone leaves the footer to its
+            // buttons there.
+            <div
+              className={cx(
+                'me-auto flex min-w-0 items-center gap-3',
+                !showFavorite && !error && 'pointer-coarse:hidden',
+              )}
+            >
+              {showFavorite && (
+                <Tooltip content={favorite ? t.favoriteHintOn : t.favoriteHintOff}>
+                  <Toggle
+                    pressed={favorite}
+                    onPressedChange={setFavorite}
+                    aria-label={t.favorite}
+                    className={buttonClasses({ variant: 'ghost', size: 'sm' })}
+                  >
+                    {favorite ? (
+                      <FavoriteIcon className="text-(--theme-favorite)" />
+                    ) : (
+                      <FavoriteOutlineIcon />
+                    )}
+                    {favorite ? t.favorited : t.favorite}
+                  </Toggle>
+                </Tooltip>
+              )}
+              {error ? (
+                <ErrorText>{error}</ErrorText>
+              ) : (
+                footerHint && (
+                  <p className="m-0 min-w-0 text-xs text-(--theme-muted-text-color) pointer-coarse:hidden">
+                    {footerHint}
+                  </p>
+                )
+              )}
             </div>
           )}
           <Button variant="ghost" size="sm" onClick={onClose}>
@@ -219,7 +286,7 @@ export function CreateModal({
             <Button
               variant="primary"
               size="sm"
-              onClick={handleSubmit}
+              onClick={() => handleSubmit(false)}
               aria-disabled={!canSubmit}
               loading={submitting}
             >
@@ -229,12 +296,23 @@ export function CreateModal({
         </>
       }
     >
-      <div onChangeCapture={() => setInteracted(true)}>
+      {/* Input events too, which a rich editor sends where a field sends change. Only from
+          an editable element: setting state on a field's input event, ahead of its own
+          change handler, makes the browser drop the field's first character. */}
+      <div
+        onChangeCapture={() => setInteracted(true)}
+        onInputCapture={(e) => {
+          if (e.target instanceof HTMLElement && e.target.isContentEditable) {
+            setInteracted(true)
+          }
+        }}
+      >
         <div>
           {typeMenu && typeMenu.length > 0 ? (
             <ActionMenu
               items={typeMenu}
               label={typeLabel}
+              search={typeMenuSearch}
               triggerClassName="inline-flex items-center gap-1.5 px-1.5 py-1 rounded-md bg-(--theme-muted-panel-bg) text-xs font-medium text-(--theme-muted-text-color) transition-colors hover:text-(--theme-app)"
             >
               {typeIcon}
@@ -251,20 +329,28 @@ export function CreateModal({
             <div className="mt-3" />
           ) : (
             <>
-              <input
-                ref={nameRef}
-                type="text"
+              {/* A textarea so a long name wraps and stays readable from its start, still one
+                  value: Enter submits rather than adding a line. */}
+              <textarea
+                ref={(element) => {
+                  nameRef.current = element
+                  nameSizer.current = element
+                }}
+                rows={1}
                 autoComplete="off"
                 data-1p-ignore
                 value={name}
                 onChange={(e) => {
-                  const next = sanitizeName ? sanitizeName(e.target.value) : e.target.value
+                  // One line: a pasted line break joins the lines.
+                  const joined = e.target.value.replace(/\s*\n+\s*/g, ' ')
+                  const next = sanitizeName ? sanitizeName(joined) : joined
                   setName(next)
                   onNameChange?.(next)
+                  resizeName?.()
                 }}
                 onBlur={(e) => {
                   if (!e.target.value.trim()) {
-                    setNameTouched(true)
+                    checkLeft()
                   }
                 }}
                 onKeyDown={(e) => {
@@ -273,7 +359,7 @@ export function CreateModal({
                   if (e.key === 'Enter' && !e.nativeEvent.isComposing && !e.metaKey && !e.ctrlKey) {
                     e.preventDefault()
                     e.stopPropagation()
-                    handleSubmit()
+                    handleSubmit(false)
                   }
                 }}
                 placeholder={namePlaceholder}
@@ -287,7 +373,7 @@ export function CreateModal({
                   // Padding gives the ring/flash box breathing room; the
                   // negative margins cancel it out so the text keeps the same
                   // position as the unpadded layout.
-                  'mt-2 -mb-1 -mx-1.5 w-[calc(100%+0.75rem)] rounded-md border-0 px-1.5 py-1 bg-transparent shadow-none text-lg font-medium text-(--theme-app) placeholder:text-(--theme-placeholder) focus:outline-none',
+                  'mt-2 -mb-1 -mx-1.5 block w-[calc(100%+0.75rem)] resize-none overflow-hidden rounded-md border-0 px-1.5 py-1 bg-transparent shadow-none text-lg leading-snug font-medium text-(--theme-app) [field-sizing:content] placeholder:text-(--theme-placeholder) focus:outline-none',
                   nameFlash && 'animate-field-flash',
                   nameMissing ? 'ring-1 ring-(--theme-error)' : 'focus:ring-0',
                 )}
@@ -302,7 +388,9 @@ export function CreateModal({
                   {hint}
                 </p>
               )}
-              {showDescription ? (
+              {showDescription && descriptionField ? (
+                <div className="mt-1.5">{descriptionField}</div>
+              ) : showDescription ? (
                 <textarea
                   autoComplete="off"
                   data-1p-ignore

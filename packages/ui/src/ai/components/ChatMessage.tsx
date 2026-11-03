@@ -10,9 +10,10 @@ import { RelativeTime } from '../../components/relativeTime'
 import { cx } from '../../cx'
 import { formatDuration } from '../../format'
 import { EditIcon, RetryIcon } from '../../icons'
+import { useChatModelName } from '../core/ChatProvider'
 import { useChatConfig } from '../core/config'
 import { replyText } from '../core/useKeyboardShortcuts'
-import type { ApprovalAnswerValue, AttachmentRef, ChatMessage as Message } from '../types'
+import type { ApprovalAnswerValue, AttachmentRef, ChatUser, ChatMessage as Message } from '../types'
 import Markdown from '../ui/Markdown'
 import { chatProseClasses } from '../ui/prose'
 import AgentMessageParts from './agent/AgentMessageParts'
@@ -93,6 +94,14 @@ function ChatMessage({
       ? message.author
       : undefined
   const isOtherUser = !!otherAuthor
+  // A reply in a turn someone else started: its tools ran with their access,
+  // and only they may answer a call waiting for approval.
+  const asker =
+    !isUser && showAuthor && currentUsername ? turnAuthor(message, allMessages) : undefined
+  const otherAsker = asker && asker.username !== currentUsername ? asker : undefined
+  const askerName = otherAsker ? otherAsker.name || otherAsker.username : undefined
+  const partsMessage = askerName ? waitingOn(message, askerName) : message
+  const approvalAnswer = askerName ? undefined : onApprovalAnswer
   // Right-align only for the current user's messages
   const isRightAligned = isUser && !isOtherUser
   const hasError = !!message.error
@@ -100,8 +109,14 @@ function ChatMessage({
   const hasReasoning = !!message.reasoning
   const toolCallCount = message.parts?.filter((p) => p.kind === 'tool_call').length ?? 0
   const showReasoningButton = !isUser && !isStreaming && hasReasoning
+  // A reply that narrated its calls already reads as a sequence of steps; a
+  // bare count above it adds nothing and would appear only once it finished.
+  const narrated = !!message.parts?.some((p) => p.kind === 'text')
   const showTurnDurationLabel =
-    !isUser && !isStreaming && !hasReasoning && (!!message.reasoningDuration || toolCallCount > 0)
+    !isUser &&
+    !isStreaming &&
+    !hasReasoning &&
+    (!!message.reasoningDuration || (toolCallCount > 0 && (!narrated || !!askerName)))
 
   const { messageMeta: t, thinking: tThinking } = useChatConfig().strings
   const { common } = useStrings()
@@ -180,6 +195,7 @@ function ChatMessage({
   // through and renders the parts above its content with the usual chrome.
   const timestamp = parseTimestamp(message.timestamp)
   const totalTokens = message.tokensUsed?.total_tokens
+  const modelName = useChatModelName(isUser ? undefined : message.model)
   const meta = (timestamp || (!isUser && (message.model || totalTokens))) && (
     <span
       className={cx(
@@ -188,7 +204,9 @@ function ChatMessage({
       )}
     >
       <RelativeTime value={timestamp} />
-      {!isUser && message.model && <span>{message.model}</span>}
+      {!isUser && message.model && (
+        <span title={modelName ? message.model : undefined}>{modelName ?? message.model}</span>
+      )}
       {!isUser && totalTokens ? (
         <span
           title={
@@ -211,12 +229,18 @@ function ChatMessage({
   if (hasParts && !message.content) {
     const said = replyText(message)
     return (
-      <div className={cx('group py-3 w-full', !flush && 'px-4')}>
+      <div className={cx('group py-3 w-full', !flush && 'sm:px-4')}>
         <AgentMessageParts
-          message={message}
+          message={partsMessage}
           isStreaming={isStreaming}
-          onApprovalAnswer={onApprovalAnswer}
+          onApprovalAnswer={approvalAnswer}
         />
+        {hasError && (
+          <Callout tone="error" size="sm" className="mt-2">
+            {message.error}
+          </Callout>
+        )}
+        {isStreaming && !isUser && <div aria-hidden className="mt-2 h-7" />}
         {!isUser && !isStreaming && (said || onRegenerate || meta) && (
           <div className="chat-actions -ml-1.5 mt-2 flex items-center gap-0.5">
             {said && (
@@ -269,7 +293,7 @@ function ChatMessage({
       role="none"
       // A question opens a new turn, so it takes the larger space above it;
       // the room below it holds its hover actions clear of the reply.
-      className={cx('group w-full', isUser ? 'pt-8 pb-5' : 'py-3', !flush && 'px-4')}
+      className={cx('group w-full', isUser ? 'pt-8 pb-5' : 'py-3', !flush && 'sm:px-4')}
     >
       {/* Editing mode - full width container */}
       {isEditing ? (
@@ -338,7 +362,9 @@ function ChatMessage({
                   <span>
                     {message.reasoningDuration
                       ? tThinking.thoughtFor(formatDuration(message.reasoningDuration))
-                      : tThinking.ranToolCalls(toolCallCount)}
+                      : askerName
+                        ? tThinking.ranToolCallsAs(toolCallCount, askerName)
+                        : tThinking.ranToolCalls(toolCallCount)}
                   </span>
                 </div>
               </div>
@@ -348,9 +374,9 @@ function ChatMessage({
             {!isUser && hasParts && (
               <div className="mb-1">
                 <AgentMessageParts
-                  message={message}
+                  message={partsMessage}
                   isStreaming={isStreaming}
-                  onApprovalAnswer={onApprovalAnswer}
+                  onApprovalAnswer={approvalAnswer}
                 />
               </div>
             )}
@@ -444,6 +470,9 @@ function ChatMessage({
               />
             )}
 
+            {/* Holds the actions' room while the reply streams, so they appear without moving it */}
+            {isStreaming && !isUser && <div aria-hidden className="mt-2 h-7" />}
+
             {/* Actions */}
             {!isStreaming && !isEditing && (
               <div
@@ -509,3 +538,28 @@ function ChatMessage({
 }
 
 export default memo(ChatMessage)
+
+/** The author of the user message that started the turn a reply belongs to.
+ *  A reply that resumes after an approval hangs under the reply it resumes. */
+function turnAuthor(message: Message, allMessages: Message[]): ChatUser | undefined {
+  let parentId = message.parentId
+  // Bounded, so a malformed chain that loops cannot hang the render.
+  for (let hops = 0; parentId && hops < allMessages.length; hops++) {
+    const parent = allMessages.find((m) => m.id === parentId)
+    if (parent?.role !== 'assistant') {
+      return parent?.role === 'user' ? parent.author : undefined
+    }
+    parentId = parent.parentId
+  }
+  return undefined
+}
+
+function waitingOn(message: Message, name: string): Message {
+  if (!message.parts?.some((p) => p.kind === 'approval')) {
+    return message
+  }
+  return {
+    ...message,
+    parts: message.parts.map((p) => (p.kind === 'approval' ? { ...p, waitingOn: name } : p)),
+  }
+}
