@@ -71,6 +71,11 @@ export interface ChatStrings {
     noToolsMatch: string
     turnAllOn: string
     turnAllOff: string
+    allTools: string
+    lookups: string
+    turnShownOn: string
+    turnShownOff: string
+    toolsEnabled: (enabled: number, total: number) => string
     /** Closes the tools modal; each switch takes effect as it is flipped. */
     done: string
     /** Marks a tool whose calls wait for the reader's approval. */
@@ -289,6 +294,28 @@ export interface ChatStrings {
     feedbackLabel: string
     /** Names the field for an answer of the reader's own. */
     ownAnswerLabel: string
+    /** The field of a question that takes typed text alone. */
+    typeYourAnswer: string
+    /** Names the tabs of an ask's questions. */
+    questionsLabel: string
+    /** A question's tab when it has no header of its own. */
+    questionTab: (n: number) => string
+    /** Above an ask's buttons: how many of its questions have an answer. */
+    answeredCount: (answered: number, total: number) => string
+    submitAnswers: string
+    /** Answers an ask by asking to talk its questions through instead. */
+    chatAboutThis: string
+    /** A question sent without an answer. */
+    noAnswer: string
+    /** In the preview pane, for an option that has no preview of its own. */
+    noPreview: string
+    /** Names the pane showing an option's preview. */
+    previewOf: (label: string) => string
+    /** Names the notes on a question with previews, in their field and under an answer. */
+    notesLabel: string
+    notesPlaceholder: string
+    /** An answer that is notes alone, which an answered ask shows over the notes. */
+    notesOnly: string
     /** Read out in place of a task's checkbox glyph. */
     todoPending: string
     todoInProgress: string
@@ -409,6 +436,12 @@ export const defaultChatStrings: ChatStrings = {
     noToolsMatch: 'No tools match',
     turnAllOn: 'Turn all on',
     turnAllOff: 'Turn all off',
+    allTools: 'All',
+    lookups: 'Lookups',
+    turnShownOn: 'Enable results',
+    turnShownOff: 'Disable results',
+    toolsEnabled: (enabled, total) =>
+      `${enabled.toLocaleString()} of ${total.toLocaleString()} enabled`,
     done: 'Done',
     asksFirst: 'Asks first',
   },
@@ -591,6 +624,18 @@ export const defaultChatStrings: ChatStrings = {
     approvalWaitingOn: (name) => `Waiting for ${name} to answer`,
     feedbackLabel: 'Feedback for the agent',
     ownAnswerLabel: 'Your answer',
+    typeYourAnswer: 'Type your answer…',
+    questionsLabel: 'Questions',
+    questionTab: (n) => `Q${n}`,
+    answeredCount: (answered, total) => `${answered} of ${total} answered`,
+    submitAnswers: 'Submit answers',
+    chatAboutThis: 'Chat about this',
+    noAnswer: 'No answer',
+    noPreview: 'No preview for this option',
+    previewOf: (label) => `Preview: ${label}`,
+    notesLabel: 'Notes',
+    notesPlaceholder: 'Add notes on this design…',
+    notesOnly: '(notes only)',
     todoPending: 'To do',
     todoInProgress: 'In progress',
     todoCompleted: 'Done',

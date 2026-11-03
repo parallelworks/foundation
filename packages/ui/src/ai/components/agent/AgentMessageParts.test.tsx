@@ -276,14 +276,92 @@ describe('approval parts', () => {
           kind: 'approval',
           id: 'a3',
           approvalKind: 'ask',
-          question: 'Which db?',
-          options: [{ label: 'Postgres' }, { label: 'Mongo' }],
+          questions: [
+            { question: 'Which db?', options: [{ label: 'Postgres' }, { label: 'Mongo' }] },
+          ],
         },
       ],
       { onApprovalAnswer: onAnswer },
     )
     fireEvent.click(screen.getByText('Mongo'))
-    expect(onAnswer).toHaveBeenCalledWith('a3', { kind: 'ask', text: 'Mongo' })
+    expect(onAnswer).toHaveBeenCalledWith('a3', {
+      kind: 'ask',
+      answers: [{ picked: ['Mongo'] }],
+    })
+  })
+
+  it('renders a resolved ask with what each question was given', () => {
+    renderParts([
+      {
+        kind: 'approval',
+        id: 'a5',
+        approvalKind: 'ask',
+        questions: [
+          { question: 'Which db?', options: [{ label: 'Postgres' }] },
+          { question: 'Which checks?', multiSelect: true, options: [{ label: 'Lint' }] },
+          { question: 'Anything else?' },
+        ],
+        resolved: true,
+        answers: [
+          { picked: ['Postgres'], notes: 'the managed one' },
+          { picked: ['Lint'], text: 'and the e2e suite' },
+          {},
+        ],
+      },
+    ])
+    expect(screen.getByText('Postgres')).toBeInTheDocument()
+    expect(screen.getByText('the managed one')).toBeInTheDocument()
+    expect(screen.getByText('Lint, and the e2e suite')).toBeInTheDocument()
+    expect(screen.getByText('No answer')).toBeInTheDocument()
+    expect(screen.getByText('Answered')).toBeInTheDocument()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('shows an answer of notes alone as notes only, over the notes', () => {
+    renderParts([
+      {
+        kind: 'approval',
+        id: 'a8',
+        approvalKind: 'ask',
+        questions: [{ question: 'Which db?', options: [{ label: 'Postgres', preview: 'pg' }] }],
+        resolved: true,
+        answers: [{ notes: 'something in between' }],
+      },
+    ])
+    expect(screen.getByText('(notes only)')).toBeInTheDocument()
+    expect(screen.getByText('something in between')).toBeInTheDocument()
+  })
+
+  it('says a resolved ask went to chat, keeping the answers given so far', () => {
+    renderParts([
+      {
+        kind: 'approval',
+        id: 'a6',
+        approvalKind: 'ask',
+        questions: [{ question: 'Which db?' }, { question: 'Which auth?' }],
+        resolved: true,
+        answers: [{ text: 'Postgres' }, {}],
+        chat: true,
+      },
+    ])
+    expect(screen.getByText('Postgres')).toBeInTheDocument()
+    expect(screen.getByText('Chat about this')).toBeInTheDocument()
+    expect(screen.queryByText('Answered')).not.toBeInTheDocument()
+  })
+
+  it('renders an older resolved ask with the one answer its record kept', () => {
+    renderParts([
+      {
+        kind: 'approval',
+        id: 'a7',
+        approvalKind: 'ask',
+        questions: [{ question: 'Which db?' }],
+        resolved: true,
+        answer: 'Postgres',
+      },
+    ])
+    expect(screen.getByText('Which db?')).toBeInTheDocument()
+    expect(screen.getByText('Answered: Postgres')).toBeInTheDocument()
   })
 
   it('renders a resolved approval inert with its answer', () => {
@@ -595,8 +673,9 @@ describe('approvals without an answer handler', () => {
         kind: 'approval',
         id: 'ro2',
         approvalKind: 'ask',
-        question: 'Which database?',
-        options: [{ label: 'Postgres' }, { label: 'Mongo' }],
+        questions: [
+          { question: 'Which database?', options: [{ label: 'Postgres' }, { label: 'Mongo' }] },
+        ],
       },
     ])
     expect(screen.getByText('Which database?')).toBeInTheDocument()
@@ -673,7 +752,7 @@ describe('approval forms', () => {
     })
   })
 
-  it('labels the own-answer field, focuses it, and ignores an empty submit', () => {
+  it('labels the own-answer field and ignores an empty submit', () => {
     const onAnswer = vi.fn()
     renderParts(
       [
@@ -681,21 +760,18 @@ describe('approval forms', () => {
           kind: 'approval',
           id: 'q1',
           approvalKind: 'ask',
-          question: 'Which region?',
-          options: [{ label: 'East' }],
+          questions: [{ question: 'Which region?', options: [{ label: 'East' }] }],
         },
       ],
       { onApprovalAnswer: onAnswer },
     )
     expect(screen.getByRole('group', { name: 'Waiting for your answer' })).toBeInTheDocument()
-    fireEvent.click(screen.getByText('Write my own answer…'))
     const field = screen.getByRole('textbox', { name: 'Your answer' })
-    expect(field).toHaveFocus()
     fireEvent.submit(field)
     expect(onAnswer).not.toHaveBeenCalled()
     fireEvent.change(field, { target: { value: 'West' } })
     fireEvent.submit(field)
-    expect(onAnswer).toHaveBeenCalledWith('q1', { kind: 'ask', text: 'West' })
+    expect(onAnswer).toHaveBeenCalledWith('q1', { kind: 'ask', answers: [{ text: 'West' }] })
   })
 })
 
@@ -839,6 +915,63 @@ describe('host tool presentation', () => {
   it('keeps the drawing open when the host asks', () => {
     renderParts([call('a', 'misc-dev')], {}, { slots: slots(true) })
     expect(screen.getByTestId('cost-table')).toBeVisible()
+  })
+
+  it('updates visibility when the surrounding message changes', () => {
+    const estimate = call('a', 'misc-dev')
+    const message = msg([estimate])
+    const toolPresentation = vi.fn((part: ToolCallPart, context?: ChatMessage) => ({
+      label: part.name,
+      open: !context?.parts?.some((p) => p.kind === 'tool_call' && p.name === 'create_resource'),
+    }))
+    const config = resolveChatConfig({ slots: { ...slots(), toolPresentation } })
+    const view = (current: ChatMessage) => (
+      <ChatConfigProvider value={config}>
+        <AgentMessageParts message={current} />
+      </ChatConfigProvider>
+    )
+    const { rerender } = render(view(message))
+    expect(screen.getByTestId('cost-table')).toBeVisible()
+    expect(toolPresentation).toHaveBeenCalledWith(estimate, message)
+
+    const continued = msg([
+      estimate,
+      { ...call('b', 'misc-dev', 'waiting'), name: 'create_resource' },
+    ])
+    rerender(view(continued))
+    expect(toolPresentation).toHaveBeenCalledWith(estimate, continued)
+    expect(screen.queryByTestId('cost-table')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /cost_summary/ }))
+    expect(screen.getByTestId('cost-table')).toBeVisible()
+  })
+
+  it('evaluates visibility for each member of a repeated-call group', () => {
+    const parts = [call('a', 'misc-dev'), call('b', 'grey')]
+    const toolPresentation = vi.fn((part: ToolCallPart, context?: ChatMessage) => ({
+      label: `Checked ${part.id}`,
+      group: () => 'Checked costs twice',
+      open: context?.parts?.[1] === part,
+    }))
+    renderParts(parts, {}, { slots: { ...slots(), toolPresentation } })
+    expect(
+      screen.getAllByTestId('cost-table').filter((node) => !node.closest('[hidden]')),
+    ).toHaveLength(1)
+    for (const part of parts) {
+      expect(toolPresentation).toHaveBeenCalledWith(part, expect.objectContaining({ parts }))
+    }
+    fireEvent.click(screen.getByRole('button', { name: /Checked costs twice/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Checked a/ }))
+    expect(
+      screen.getAllByTestId('cost-table').filter((node) => !node.closest('[hidden]')),
+    ).toHaveLength(2)
+  })
+
+  it('supplies context to presentation callbacks without custom drawings', () => {
+    const parts = [call('a', 'misc-dev')]
+    const toolPresentation = vi.fn(() => ({ label: 'Checked costs' }))
+    renderParts(parts, {}, { slots: { toolPresentation } })
+    expect(screen.getByRole('button', { name: /Checked costs/ })).toBeVisible()
+    expect(toolPresentation).toHaveBeenCalledWith(parts[0], expect.objectContaining({ parts }))
   })
 
   it('always shows what a call waiting on an answer asks', () => {

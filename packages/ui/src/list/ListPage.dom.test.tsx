@@ -1,8 +1,12 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { UIProvider } from '../components/Provider'
+import { createPortal } from 'react-dom'
+import type { MockInstance } from 'vitest'
+import { isPlainClick } from '../components/AppLink'
+import { type UILinkComponent, UIProvider } from '../components/Provider'
 import { Table } from '../components/Table'
+import { clearSelection, selectText } from '../test/selection'
 import { memoryStorage } from '../test/storage'
 import { openTooltip } from '../test/tooltip'
 import { ListColumns, ListPage, ListRow, ListRowActionsProvider } from './ListPage'
@@ -105,6 +109,257 @@ describe('ListRow onActivate', () => {
     fireEvent.click(screen.getByText('row'))
     expect(onActivate).toHaveBeenCalledOnce()
   })
+
+  it('doesn’t run on the click that ends selecting the row’s text', () => {
+    const onActivate = vi.fn()
+    render(
+      <table>
+        <tbody>
+          <ListRow
+            href={null}
+            onActivate={onActivate}
+            items={[]}
+            goTo={() => {}}
+            openMenu={() => {}}
+          >
+            <Table.Item>row</Table.Item>
+          </ListRow>
+        </tbody>
+      </table>,
+    )
+
+    selectText(screen.getByText('row'))
+    fireEvent.click(screen.getByText('row'))
+    expect(onActivate).not.toHaveBeenCalled()
+    clearSelection()
+  })
+})
+
+// A middle click, as a mouse sends it: the browser's auxclick, which only the middle and right
+// buttons fire.
+function middleClick(element: Element) {
+  fireEvent(element, new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 1 }))
+}
+
+describe('ListRow and what it opens in a portal', () => {
+  // A drawer or a popover a cell opens renders outside the row, in a portal, but React passes
+  // its events up to the row all the same.
+  function RowWithPortal({
+    goTo,
+    onActivate,
+    openMenu,
+  }: {
+    goTo: (to: string) => void
+    onActivate?: () => void
+    openMenu: () => void
+  }) {
+    return (
+      <table>
+        <tbody>
+          <ListRow
+            href={onActivate ? null : '/runs/17'}
+            onActivate={onActivate}
+            items={[{ label: 'Rename', onClick: () => {} }]}
+            goTo={goTo}
+            openMenu={openMenu}
+          >
+            <Table.Item>
+              row
+              {createPortal(<div>opened panel</div>, document.body)}
+            </Table.Item>
+          </ListRow>
+        </tbody>
+      </table>
+    )
+  }
+
+  it('doesn’t navigate on a click in it, as on a drawer’s backdrop or text', () => {
+    const goTo = vi.fn()
+    render(<RowWithPortal goTo={goTo} openMenu={() => {}} />)
+    fireEvent.click(screen.getByText('opened panel'))
+    expect(goTo).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByText('row'))
+    expect(goTo).toHaveBeenCalledWith('/runs/17')
+  })
+
+  it('doesn’t activate on a click in it', () => {
+    const onActivate = vi.fn()
+    render(<RowWithPortal goTo={() => {}} onActivate={onActivate} openMenu={() => {}} />)
+    fireEvent.click(screen.getByText('opened panel'))
+    expect(onActivate).not.toHaveBeenCalled()
+  })
+
+  it('doesn’t open the row’s menu on a right-click in it', () => {
+    const openMenu = vi.fn()
+    render(<RowWithPortal goTo={() => {}} openMenu={openMenu} />)
+    fireEvent.contextMenu(screen.getByText('opened panel'))
+    expect(openMenu).not.toHaveBeenCalled()
+    fireEvent.contextMenu(screen.getByText('row'))
+    expect(openMenu).toHaveBeenCalledOnce()
+  })
+
+  it('doesn’t open a new tab on a middle click in it', () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null)
+    render(<RowWithPortal goTo={() => {}} openMenu={() => {}} />)
+    middleClick(screen.getByText('opened panel'))
+    expect(open).not.toHaveBeenCalled()
+    middleClick(screen.getByText('row'))
+    expect(open).toHaveBeenCalledWith('/runs/17', '_blank', 'noopener')
+    open.mockRestore()
+  })
+})
+
+describe('ListRow with an href', () => {
+  // Stands in for a host router's link, which takes over only a plain click.
+  const routed: string[] = []
+  const RouterLink: UILinkComponent = ({ href, onClick, ...props }) => (
+    <a
+      {...props}
+      href={href}
+      onClick={(e) => {
+        onClick?.(e)
+        if (!e.defaultPrevented && isPlainClick(e)) {
+          e.preventDefault()
+          routed.push(href)
+        }
+      }}
+    />
+  )
+
+  function renderLinked({
+    href = '/runs/17',
+    selecting = false,
+    onRowSelect,
+  }: {
+    href?: string
+    selecting?: boolean
+    onRowSelect?: () => void
+  } = {}) {
+    const goTo = vi.fn()
+    render(
+      <UIProvider slots={{ link: RouterLink }}>
+        <table>
+          <tbody>
+            <ListRow
+              href={href}
+              items={[]}
+              goTo={goTo}
+              openMenu={() => {}}
+              selectionActive={selecting}
+              onRowSelect={onRowSelect}
+            >
+              <NameCell icon={null} name="rnaseq-quant" subtitle="Run 17" href={href} />
+              <Table.Item>18m 4s</Table.Item>
+            </ListRow>
+          </tbody>
+        </table>
+      </UIProvider>,
+    )
+    return {
+      goTo,
+      name: screen.getByRole('link', { name: /rnaseq-quant/ }),
+      runtime: screen.getByText('18m 4s'),
+    }
+  }
+
+  let open: MockInstance<typeof window.open>
+  beforeEach(() => {
+    open = vi.spyOn(window, 'open').mockReturnValue(null)
+  })
+  afterEach(() => {
+    open.mockRestore()
+    clearSelection()
+    routed.length = 0
+  })
+
+  it('makes its name the row’s link, which takes its own clicks', () => {
+    const { goTo, name } = renderLinked()
+    expect(name).toHaveAttribute('href', '/runs/17')
+    expect(name).toHaveAttribute('data-row-link')
+    fireEvent.click(name)
+    expect(routed).toEqual(['/runs/17'])
+    // The browser opens the link's own new tab.
+    fireEvent.click(name, { metaKey: true })
+    middleClick(name)
+    expect(open).not.toHaveBeenCalled()
+    expect(goTo).not.toHaveBeenCalled()
+  })
+
+  it('opens on a plain click anywhere else on the row', () => {
+    const { goTo, runtime } = renderLinked()
+    fireEvent.click(runtime)
+    expect(goTo).toHaveBeenCalledWith('/runs/17')
+    expect(open).not.toHaveBeenCalled()
+  })
+
+  it('doesn’t open on the click that ends selecting its text, as to copy it', () => {
+    const { goTo, runtime } = renderLinked()
+    selectText(runtime)
+    fireEvent.click(runtime)
+    // Across cells, letting go lands on the row itself.
+    fireEvent.click(runtime.closest('tr') as HTMLElement)
+    fireEvent.click(runtime, { metaKey: true })
+    expect(goTo).not.toHaveBeenCalled()
+    expect(open).not.toHaveBeenCalled()
+    // The next click, with nothing selected, opens it.
+    clearSelection()
+    fireEvent.click(runtime)
+    expect(goTo).toHaveBeenCalledOnce()
+  })
+
+  it('opens with text selected outside the row', () => {
+    const { goTo, runtime } = renderLinked()
+    const outside = document.createElement('p')
+    outside.textContent = 'elsewhere'
+    document.body.append(outside)
+    selectText(outside)
+    fireEvent.click(runtime)
+    expect(goTo).toHaveBeenCalledWith('/runs/17')
+    outside.remove()
+  })
+
+  it('opens in a new tab on a Cmd, Ctrl, Shift or middle click anywhere on the row', () => {
+    const { goTo, runtime } = renderLinked()
+    fireEvent.click(runtime, { metaKey: true })
+    fireEvent.click(runtime, { ctrlKey: true })
+    fireEvent.click(runtime, { shiftKey: true })
+    middleClick(runtime)
+    expect(open.mock.calls).toEqual(Array(4).fill(['/runs/17', '_blank', 'noopener']))
+    // Alt asks for neither, on a link.
+    fireEvent.click(runtime, { altKey: true })
+    expect(open).toHaveBeenCalledTimes(4)
+    expect(goTo).not.toHaveBeenCalled()
+  })
+
+  it('keeps a Shift press from selecting text, and a middle press from scrolling', () => {
+    const { runtime } = renderLinked()
+    expect(fireEvent.mouseDown(runtime, { shiftKey: true })).toBe(false)
+    expect(fireEvent.mouseDown(runtime, { button: 1 })).toBe(false)
+    // A plain press still starts selecting text.
+    expect(fireEvent.mouseDown(runtime)).toBe(true)
+  })
+
+  it('opens no new tab for a URL a link wouldn’t take', () => {
+    const { runtime } = renderLinked({ href: 'javascript:alert(1)' })
+    fireEvent.click(runtime, { metaKey: true })
+    middleClick(runtime)
+    expect(open).not.toHaveBeenCalled()
+  })
+
+  it('selects on a click while selecting, except one that ends selecting text, and opens no tab', () => {
+    const onRowSelect = vi.fn()
+    const { goTo, name, runtime } = renderLinked({ selecting: true, onRowSelect })
+    expect(name).not.toHaveAttribute('data-row-link')
+    selectText(runtime)
+    fireEvent.click(runtime)
+    expect(onRowSelect).not.toHaveBeenCalled()
+    clearSelection()
+    fireEvent.click(runtime)
+    expect(onRowSelect).toHaveBeenCalledOnce()
+    middleClick(runtime)
+    expect(open).not.toHaveBeenCalled()
+    expect(goTo).not.toHaveBeenCalled()
+  })
 })
 
 describe('ListRow stacked columns', () => {
@@ -140,6 +395,30 @@ describe('ListRow stacked columns', () => {
     expect(cells[2]).toHaveClass('hidden', '@[36rem]:table-cell')
     // A column that only drops (priority) isn't stacked.
     expect(cells[0]).not.toHaveTextContent('Lisbon')
+  })
+
+  it('gives the name the rest of the row on a phone, and at every width once it stands alone', () => {
+    const row = (columnClasses: string[]) =>
+      render(
+        <ListRowActionsProvider view={{ ...view, columnClasses, columnStacks: [] }}>
+          <table>
+            <tbody>
+              <ListRow href={null} items={[]} goTo={() => {}} openMenu={() => {}}>
+                {columnClasses.map((_, i) => (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: fixed cells
+                  <Table.Item key={i}>cell</Table.Item>
+                ))}
+              </ListRow>
+            </tbody>
+          </table>
+        </ListRowActionsProvider>,
+      )
+    const { unmount } = row(['', ''])
+    expect(screen.getAllByRole('cell')[0]).toHaveClass('@max-[36rem]:w-auto!')
+    expect(screen.getAllByRole('cell')[0]).not.toHaveClass('w-auto!')
+    unmount()
+    row([''])
+    expect(screen.getAllByRole('cell')[0]).toHaveClass('w-auto!')
   })
 
   it('stacks under a NameCell too, past its icon and outside its link', () => {
@@ -567,6 +846,26 @@ describe('ListColumns sorting', () => {
     expect(header('Nodes')).toHaveAttribute('aria-sort', 'ascending')
   })
 
+  it('reads a saved order the list no longer offers as its default, in every control', async () => {
+    window.localStorage.setItem('sortable-list:orderBy', JSON.stringify('renamed'))
+    render(<SortableList favorites />)
+    expect(screen.getByRole('button', { name: 'Default order, ascending' })).toBeInTheDocument()
+    openDisplay()
+    expect(screen.getByRole('combobox', { name: 'Ordering' })).toHaveTextContent('Default')
+    // Nothing the viewer chose differs from the list's defaults, so there is nothing to reset.
+    expect(screen.queryByRole('button', { name: 'Reset' })).toBeNull()
+  })
+
+  it('reads a stale saved order as the default the host names', () => {
+    window.localStorage.setItem('sortable-list:orderBy', JSON.stringify('owner'))
+    render(<SortableList />)
+    expect(header('Name')).toHaveAttribute('aria-sort', 'ascending')
+    expect(names()).toEqual(['alpha', 'beta', 'gamma'])
+    openDisplay()
+    expect(screen.getByRole('combobox', { name: 'Ordering' })).toHaveTextContent('Name')
+    expect(screen.queryByRole('button', { name: 'Reset' })).toBeNull()
+  })
+
   it('shows no column as sorted under the built-in default order', () => {
     render(<SortableList favorites />)
     expect(header('Name')).toHaveAttribute('aria-sort', 'none')
@@ -591,6 +890,23 @@ describe('ListColumns on a phone', () => {
   })
 
   const sortMenu = () => screen.getByRole('button', { name: /^Sorted by/ })
+
+  it('gives the name the rest of the row where the other columns stack under it', () => {
+    render(<SortableList />)
+    // Over any share a host's class gives it at wider widths.
+    expect(header('Name')).toHaveClass('@max-[36rem]:w-auto!')
+    expect(header('Nodes')).not.toHaveClass('@max-[36rem]:w-auto!')
+  })
+
+  it('gives the name the rest of the row at every width with every other column hidden', () => {
+    window.localStorage.setItem('sortable-list:hiddenColumns', JSON.stringify(['nodes', 'owner']))
+    render(<SortableList />)
+    expect(screen.getAllByRole('columnheader')[0]).toHaveTextContent('Name')
+    // As a row's name cell does: the header alone sizes a fixed-layout table.
+    expect(header('Name')).toHaveClass('w-auto!')
+    // Nothing gives way, so the name's header keeps its title rather than a sort menu.
+    expect(screen.queryByRole('button', { name: /^Sorted by/ })).toBeNull()
+  })
 
   it('says what the list is sorted by and which way in the name’s header', () => {
     render(<SortableList />)
@@ -629,7 +945,7 @@ describe('ListColumns on a phone', () => {
   it('names the built-in default order as a phrase of its own', () => {
     render(<SortableList favorites />)
     const menu = screen.getByRole('button', { name: 'Default order, ascending' })
-    expect(menu).toHaveTextContent('Default order')
+    expect(menu).toHaveTextContent('Default')
   })
 
   it('takes the default order’s phrase from the host, not its label set into "Sorted by"', () => {

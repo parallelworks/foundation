@@ -406,6 +406,7 @@ export interface UIStrings {
     messages: {
       noWriteAccess: string
       uploadsUnsupported: string
+      transferLimitExceeded: (limit: string) => string
       noFilesForDownload: string
       downloadLinkFailed: string
       fileLinkFailed: string
@@ -450,6 +451,9 @@ export interface UIStrings {
       storageIconAlt: string
       type: string
       storages: string
+      groupBy: string
+      groupByUser: string
+      groupByType: string
       modified: string
       lastModified: string
       contentType: string
@@ -476,6 +480,7 @@ export interface UIStrings {
       sizeLimitTitle: string
       sizeLimitBody: (total: string, max: string) => string
       sizeLimitHint: string
+      skippedOverLimit: (limit: string) => string
     }
     confirmDelete: {
       title: string
@@ -876,6 +881,8 @@ export interface UIData {
     options?: { refreshInterval?: number },
   ) => RunFileResult
   resolveWorkflowJson?: (ref: WorkflowJsonRef) => Promise<unknown>
+  /** The names of the reader's own saved inputs for a workflow, which a step can name too. */
+  resolveSavedInputs?: (ref: WorkflowJsonRef) => Promise<string[]>
   /** The built-in actions a workflow step can use, for the editor's step form. */
   workflowActions?: Record<string, WorkflowAction>
   resolveSecretVariables?: () => Promise<string[]>
@@ -1349,6 +1356,8 @@ const DEFAULTS: UIProviderValue = {
       messages: {
         noWriteAccess: 'You do not have write access to this storage.',
         uploadsUnsupported: 'Uploads are not supported for this storage.',
+        transferLimitExceeded: (limit: string) =>
+          `Larger than the ${limit} limit for one download or upload here.`,
         noFilesForDownload: 'No files selected for download.',
         downloadLinkFailed: 'Failed to generate download link',
         fileLinkFailed: 'Failed to generate file link',
@@ -1398,6 +1407,9 @@ const DEFAULTS: UIProviderValue = {
         storageIconAlt: 'An icon for the storage',
         type: 'Type',
         storages: 'Storages',
+        groupBy: 'Group by',
+        groupByUser: 'User',
+        groupByType: 'Type',
         modified: 'Modified',
         lastModified: 'Last modified',
         contentType: 'Content type',
@@ -1423,6 +1435,8 @@ const DEFAULTS: UIProviderValue = {
         sizeLimitBody: (total: string, max: string) =>
           `The total upload size (${total}) exceeds the maximum allowed limit of ${max}.`,
         sizeLimitHint: 'Please reduce the number of files or upload them in smaller batches.',
+        skippedOverLimit: (limit: string) =>
+          `Larger than the ${limit} limit for one upload here, so these are skipped:`,
       },
       confirmDelete: {
         title: 'Confirm delete',
@@ -1704,6 +1718,7 @@ const LocaleContext = createContext<string | undefined>(undefined)
 export type AvatarColoring = 'name' | 'kind'
 
 const AvatarColoringContext = createContext<AvatarColoring>('name')
+const CharacterKeyShortcutsContext = createContext(true)
 
 export function useStrings(): UIStrings {
   return useContext(StringsContext)
@@ -1720,6 +1735,11 @@ export function useAvatarColoring(): AvatarColoring {
   return useContext(AvatarColoringContext)
 }
 
+/** Whether single-key shortcuts are on, UIProvider's `characterKeyShortcuts`. */
+export function useCharacterKeyShortcuts(): boolean {
+  return useContext(CharacterKeyShortcutsContext)
+}
+
 export function useNavigation(): UINavigation {
   return useContext(NavigationContext)
 }
@@ -1730,6 +1750,10 @@ export function useWorkflowJsonResolver(): UIData['resolveWorkflowJson'] {
 
 export function useRepoSuggestions(): UIData['repoSuggestions'] {
   return useContext(DataContext).repoSuggestions
+}
+
+export function useSavedInputsResolver(): UIData['resolveSavedInputs'] {
+  return useContext(DataContext).resolveSavedInputs
 }
 
 const NO_ACTIONS: Record<string, WorkflowAction> = {}
@@ -1904,6 +1928,10 @@ export interface UIProviderProps {
    *  share one tint and agents another, set by `--avatar-person` and `--avatar-agent` (see
    *  `Avatar`). */
   avatarColoring?: AvatarColoring | undefined
+  /** Whether a single key, such as F to filter or / to search a list, works from anywhere on the
+   *  page (the default). Give people a setting that turns them off, as WCAG 2.1.4 asks, since a
+   *  speech input user's words can press them. Shortcuts with a modifier, such as ⌘F, stay on. */
+  characterKeyShortcuts?: boolean | undefined
   children: React.ReactNode
 }
 
@@ -1935,6 +1963,7 @@ export function UIProvider({
   nonce,
   locale,
   avatarColoring = 'name',
+  characterKeyShortcuts = true,
   children,
 }: UIProviderProps) {
   // A loader is the first one passed: an inline arrow is a new function each render, and each
@@ -1974,15 +2003,17 @@ export function UIProvider({
             <EngineContext value={engine}>
               <LocaleContext value={locale}>
                 <AvatarColoringContext value={avatarColoring}>
-                  {/* Base UI hides a select's or scroll area's own scrollbar with an
-                    inline <style>, which a same-origin style policy blocks and
-                    reports. theme.css ships that rule instead. */}
-                  <CSPProvider nonce={nonce} disableStyleElements>
-                    <TooltipProvider>
-                      <ContextMenuProvider>{children}</ContextMenuProvider>
-                    </TooltipProvider>
-                    <Toaster />
-                  </CSPProvider>
+                  <CharacterKeyShortcutsContext value={characterKeyShortcuts}>
+                    {/* Base UI hides a select's or scroll area's own scrollbar with an
+                      inline <style>, which a same-origin style policy blocks and
+                      reports. theme.css ships that rule instead. */}
+                    <CSPProvider nonce={nonce} disableStyleElements>
+                      <TooltipProvider>
+                        <ContextMenuProvider>{children}</ContextMenuProvider>
+                      </TooltipProvider>
+                      <Toaster />
+                    </CSPProvider>
+                  </CharacterKeyShortcutsContext>
                 </AvatarColoringContext>
               </LocaleContext>
             </EngineContext>

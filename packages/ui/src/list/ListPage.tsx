@@ -39,12 +39,16 @@ import { isDev } from '../dev'
 import { ChevronRightIcon } from '../icons'
 import { ListFilterBar, type ListFilterBarProps } from './ListFilterBar'
 import {
+  endsTextSelection,
   FLOATING_ACTIONS_LANE,
   HEADERS_OFF,
   ListActionsHeader,
   ListError,
   ListSkeleton,
   NAME_MIN_WIDTH_PX,
+  openRowInNewTab,
+  pressesRow,
+  rowPressProps,
   STRETCHED_LINK_ROW,
   StretchRowLinkContext,
 } from './ListTable'
@@ -122,6 +126,17 @@ export function ListRowActionsProvider({
 
 // The name cell's own top padding, so the value lines up with the name.
 const STAYS_BESIDE_STACK = '@max-[36rem]:align-top @max-[36rem]:pt-2.5'
+
+// On a narrow list the name's column takes what the row's checkbox, its `⋯` and any column left
+// beside it don't, over a share a host gives it for wider lists, such as `w-[22%]` on its header
+// or cells. Kept to that share, the list's spare width would go to the fixed columns, and open up
+// between the checkbox and the name. Its header and its cells take it alike, whether the other
+// columns stack, drop or are hidden, since the header alone sizes a fixed-layout table.
+const NAME_FILLS_NARROW = '@max-[36rem]:w-auto!'
+// With every other column hidden, nothing else takes the rest at any width: kept to its share, the
+// name would leave the spare width to the checkbox and the `⋯`, so it takes the row.
+const NAME_FILLS_ALONE = 'w-auto!'
+const nameFills = (columns: number) => (columns === 1 ? NAME_FILLS_ALONE : NAME_FILLS_NARROW)
 
 export interface ListPageProps {
   /** Reaches past the host's content padding (`p-4`) to the container's
@@ -376,8 +391,9 @@ export function ListRow({
   className,
   children,
 }: {
-  /** Where the row goes. Its `NameCell` with the same href becomes a link
-   *  covering the row; a click the link doesn't catch still goes there. */
+  /** Where the row goes. Its `NameCell` with the same href is the row's link,
+   *  and a click on the rest of the row goes there too, in a new tab with a
+   *  middle or modified click, unless it ends selecting text in the row. */
   href: string | null
   /** Plain-click handler for rows that open something in place instead of navigating. */
   onActivate?: (() => void) | undefined
@@ -476,6 +492,7 @@ export function ListRow({
     // a total, sits on the name's line rather than floating mid-row.
     const cls = cx(
       columnClasses[i],
+      i === 0 && nameFills(columnClasses.length),
       i > 0 && stacked.length > 0 && !columnStacks[i] && STAYS_BESIDE_STACK,
     )
     const after = i === 0 ? under : undefined
@@ -506,18 +523,21 @@ export function ListRow({
     )
   })
 
-  // A row whose only action is a `⋯` shown on hover floats it over its end
-  // instead of keeping a lane for it (see ListActionsHeader).
-  // Not over a locked column, such as a delete button's, or an end-aligned one, such as a
-  // runtime, whose value it would cover: there it keeps its lane after the column.
+  // A row whose only action is a `⋯` shown on hover keeps a narrow lane for it, just the
+  // button's width (see FLOATING_ACTIONS_LANE). After a locked column, such as a delete
+  // button's, or an end-aligned one, such as a runtime, it keeps the full lane.
   const floating =
     !alwaysShowActions && !(pinnedActions && pinnedActions.length > 0) && !reservesLane
 
-  // While selecting, a plain click on the row selects it, so the link stays in its cell.
+  // While selecting, a plain click on the row selects it, so the name is only its own link.
   const stretch = !!href && !selectionActive
+  const clickable = !!href || !!onActivate || !!selectionActive
 
   const handleRowClick = (e: ReactMouseEvent) => {
-    if ((e.target as HTMLElement).closest('a,button,input,label')) {
+    // What the row opened in a portal, such as a drawer or a popover, passes its clicks up to the
+    // row through React, though it isn't in the row: clicking its backdrop or its text isn't
+    // clicking the row. Its own controls, its name's link among them, take their own clicks.
+    if (!pressesRow(e) || endsTextSelection(e.currentTarget)) {
       return
     }
     if (selectionActive && onRowSelect) {
@@ -525,9 +545,10 @@ export function ListRow({
       return
     }
     if (href) {
-      // A modified click asks for a new tab, which only the link can give.
       if (isPlainClick(e)) {
         goTo(href)
+      } else {
+        openRowInNewTab(e, href)
       }
     } else {
       onActivate?.()
@@ -553,12 +574,13 @@ export function ListRow({
           : menuActive
             ? 'theme-hover'
             : 'hover:theme-hover',
-        (href || onActivate || selectionActive) && 'cursor-pointer',
-        // The row is its stretched link's box; other controls rise above the link.
+        clickable && 'cursor-pointer',
+        // The box its link's focus ring is drawn around.
         stretch && STRETCHED_LINK_ROW,
         className,
       )}
       onClick={handleRowClick}
+      {...rowPressProps(stretch ? href : null, clickable)}
       {...rowContextMenuProps(openRowMenu, items)}
     >
       {leading && <CellPlacementContext value={LEADING_SELECT}>{leading}</CellPlacementContext>}
@@ -567,7 +589,6 @@ export function ListRow({
        * menu. Buttons are absolutely positioned so toggling them never changes
        * row height. */}
       {showActions && (
-        // Visible: a floating `⋯` reaches over the last column's end.
         <Table.Item
           className={cx('relative overflow-visible py-2.5', floating && FLOATING_ACTIONS_LANE)}
         >
@@ -577,13 +598,10 @@ export function ListRow({
               // Where columns stack under the name, the row's controls line up at its top, with
               // the name's first line and any column that stays beside the stack.
               stacked.length > 0 && '@max-[36rem]:items-start @max-[36rem]:pt-2',
-              // Over the last column's end, on the row's hover color, so its value
-              // gives way to the menu only while the row is hovered or focused.
+              // In its own lane, shown while the row is hovered or focused.
               floating &&
                 !menuActive &&
                 'pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:focus-within:opacity-100',
-              floating &&
-                'pointer-fine:bg-linear-to-l pointer-fine:from-(--theme-hover) pointer-fine:from-70% pointer-fine:to-transparent pointer-fine:pl-6',
             )}
           >
             {/* Below ~44rem pinned buttons collapse into `⋯` (even with "always
@@ -812,11 +830,17 @@ export function GroupRow({
       />
     </button>
   )
-  // The whole header toggles to a pointer, but for its own links and buttons. The chevron's
-  // button is the keyboard's and the screen reader's way.
+  // The whole header toggles to a pointer, but for its own links and buttons, and for a click
+  // that ends selecting its text. The chevron's button is the keyboard's and the screen reader's
+  // way.
   const onClick = toggle
     ? (e: ReactMouseEvent) => {
-        if (!(e.target as HTMLElement).closest(OWN_CONTROL)) {
+        // A click in what the header opened in a portal reaches it through React, not from it.
+        if (
+          e.currentTarget.contains(e.target as Node) &&
+          !(e.target as HTMLElement).closest(OWN_CONTROL) &&
+          !endsTextSelection(e.currentTarget)
+        ) {
           toggle.toggle()
         }
       }
@@ -925,7 +949,7 @@ function PinnedActionButton({ action, visible }: { action: RowAction; visible: b
   const props = {
     'aria-label': reason ? `${action.label}. ${reason}` : action.label,
     className: cx(
-      'rounded p-1 cursor-pointer text-(--theme-muted-text-color) transition-colors hover:bg-(--theme-muted-panel-bg) hover:text-(--theme-app) focus-visible:outline-2 focus-visible:outline-(--theme-link) aria-disabled:cursor-not-allowed aria-disabled:opacity-20 aria-disabled:hover:bg-transparent aria-disabled:hover:text-(--theme-muted-text-color) [&>svg]:h-4 [&>svg]:w-4',
+      'rounded p-1 cursor-pointer text-(--theme-muted-text-color) transition-colors hover:bg-(--theme-muted-panel-bg) hover:text-(--theme-app) focus-visible:outline-2 focus-visible:outline-(--theme-focus) aria-disabled:cursor-not-allowed aria-disabled:opacity-20 aria-disabled:hover:bg-transparent aria-disabled:hover:text-(--theme-muted-text-color) [&>svg]:h-4 [&>svg]:w-4',
       visible ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
     ),
   }
@@ -1044,9 +1068,10 @@ export function ListColumns<T>({ view }: { view: ListView<T> }) {
   // Below the medium width the stacked columns' headers give way, and the low ones' drop, so the
   // header that sorts by one is gone: the name's header says what the list is sorted by instead,
   // and changes it.
-  const sortMenu =
-    view.orderBys.length > 0 &&
-    view.visibleColumns.some((col, i) => view.columnStacks[i] || col.priority !== undefined)
+  const narrowDrops = view.visibleColumns.some(
+    (col, i) => view.columnStacks[i] || col.priority !== undefined,
+  )
+  const sortMenu = view.orderBys.length > 0 && narrowDrops
   return (
     <>
       {view.visibleColumns.map((col, i) => {
@@ -1062,6 +1087,7 @@ export function ListColumns<T>({ view }: { view: ListView<T> }) {
               view.columnClasses[i],
               // A share takes the width its tier gives it, as narrower lists drop columns.
               widths[i] && SHARE_WIDTH,
+              i === 0 && nameFills(view.visibleColumns.length),
               // listTableProps collapses the header row when it holds this marker.
               !view.showColumnHeaders && HEADERS_OFF,
             )}

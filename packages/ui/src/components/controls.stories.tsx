@@ -36,83 +36,82 @@ const VARIANTS: ButtonVariant[] = [
 ]
 const SIZES: ButtonSize[] = ['xs', 'sm', 'md', 'lg']
 
+function ButtonsExample() {
+  const [pressed, setPressed] = useState(true)
+  return (
+    <div className="flex flex-col gap-6 p-8 text-sm">
+      <div className="max-w-full overflow-x-auto">
+        <table className="border-separate border-spacing-x-4 border-spacing-y-2">
+          <tbody>
+            {VARIANTS.map((variant) => (
+              <tr key={variant}>
+                <th
+                  scope="row"
+                  className="whitespace-nowrap pr-2 text-left font-medium theme-muted-text"
+                >
+                  {variant}
+                </th>
+                {SIZES.map((size) => (
+                  <td key={size}>
+                    <Button variant={variant} size={size} icon={<AddIcon />}>
+                      Create
+                    </Button>
+                  </td>
+                ))}
+                {SIZES.map((size) => (
+                  <td key={`${size}-icon`}>
+                    <IconButton variant={variant} size={size} label="Add" icon={<AddIcon />} />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          variant="outline"
+          size="sm"
+          aria-pressed={pressed}
+          onClick={() => setPressed((on) => !on)}
+        >
+          Show hidden
+        </Button>
+        <Button variant="primary" size="sm" loading>
+          Saving
+        </Button>
+        <Button variant="primary" size="sm" disabled>
+          Unavailable
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled
+          focusableWhenDisabled
+          aria-label="Delete, which needs write access"
+        >
+          Delete
+        </Button>
+        <Button variant="ghost" size="sm" href="#docs">
+          Read the docs
+        </Button>
+      </div>
+      <div className="max-w-sm">
+        <MethodButton
+          label="Single sign-on"
+          description="Use your organization identity provider"
+          href="/sso"
+        />
+      </div>
+    </div>
+  )
+}
+
 /** The one button look: each variant at each size, its icon-only square, and
  *  the states every button shares. Hovered, a button rises a pixel on a soft
  *  shadow and settles back while pressed. */
 export const Buttons: StoryObj = {
-  render: () => {
-    const Demo = () => {
-      const [pressed, setPressed] = useState(true)
-      return (
-        <div className="flex flex-col gap-6 p-8 text-sm">
-          <div className="max-w-full overflow-x-auto">
-            <table className="border-separate border-spacing-x-4 border-spacing-y-2">
-              <tbody>
-                {VARIANTS.map((variant) => (
-                  <tr key={variant}>
-                    <th
-                      scope="row"
-                      className="whitespace-nowrap pr-2 text-left font-medium theme-muted-text"
-                    >
-                      {variant}
-                    </th>
-                    {SIZES.map((size) => (
-                      <td key={size}>
-                        <Button variant={variant} size={size} icon={<AddIcon />}>
-                          Create
-                        </Button>
-                      </td>
-                    ))}
-                    {SIZES.map((size) => (
-                      <td key={`${size}-icon`}>
-                        <IconButton variant={variant} size={size} label="Add" icon={<AddIcon />} />
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              aria-pressed={pressed}
-              onClick={() => setPressed((on) => !on)}
-            >
-              Show hidden
-            </Button>
-            <Button variant="primary" size="sm" loading>
-              Saving
-            </Button>
-            <Button variant="primary" size="sm" disabled>
-              Unavailable
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled
-              focusableWhenDisabled
-              aria-label="Delete, which needs write access"
-            >
-              Delete
-            </Button>
-            <Button variant="ghost" size="sm" href="#docs">
-              Read the docs
-            </Button>
-          </div>
-          <div className="max-w-sm">
-            <MethodButton
-              label="Single sign-on"
-              description="Use your organization identity provider"
-              href="/sso"
-            />
-          </div>
-        </div>
-      )
-    }
-    return <Demo />
-  },
+  render: () => <ButtonsExample />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const toggle = canvas.getByRole('button', { name: 'Show hidden' })
@@ -660,10 +659,12 @@ function PaginationDemo({
   known,
   sizes,
   numbers,
+  label,
 }: {
   known: boolean
   sizes: boolean
   numbers: boolean
+  label: string
 }) {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(50)
@@ -675,6 +676,7 @@ function PaginationDemo({
       {...(known ? { total: 420 } : { hasNext: page < 4, summary: `Runs from page ${page + 1}` })}
       onPageChange={setPage}
       pageNumbers={numbers}
+      label={label || undefined}
       {...(sizes ? { onPageSizeChange: setPageSize } : {})}
     />
   )
@@ -683,23 +685,57 @@ function PaginationDemo({
 /** Where a page sits in the list, with previous and next. Without a total, a
  *  list that only knows whether more follow says what the page covers itself.
  *  `pageNumbers` numbers the pages between them, for a list read out of order. */
-export const PaginationStory: StoryObj<{ known: boolean; sizes: boolean; numbers: boolean }> = {
+export const PaginationStory: StoryObj<{
+  known: boolean
+  sizes: boolean
+  numbers: boolean
+  label: string
+}> = {
   name: 'Pagination',
-  args: { known: true, sizes: true, numbers: false },
+  args: { known: true, sizes: true, numbers: false, label: 'Pages of runs' },
   argTypes: {
     known: { description: 'The list knows its total.' },
     sizes: { description: 'Offers page sizes.' },
     numbers: { description: 'Numbers the pages; needs a total.' },
+    label: { description: 'Names the pager, so pagers on one page tell apart.' },
   },
   render: (args) => <PaginationDemo {...args} />,
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: 'Next' }))
     if (args.known) {
-      const position = canvas.getByText('101–150 of 420')
+      const position = canvas.getByText('101–150 of 420', { selector: '.truncate' })
       // With room to spare, the position shows in full.
       await expect(position.scrollWidth).toBeLessThanOrEqual(position.clientWidth)
     }
+  },
+}
+
+/** On the last page Next stays where focus left it, read as unavailable, so the press that
+ *  reached the end doesn't drop focus to the page; the position says where it landed. */
+export const PaginationAtTheEnd: StoryObj = {
+  name: 'Pagination at the end',
+  render: function Render() {
+    const [page, setPage] = useState(7)
+    return (
+      <Pagination
+        className="max-w-2xl border-t border-(--theme-border)"
+        page={page}
+        pageSize={50}
+        total={420}
+        onPageChange={setPage}
+      />
+    )
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const next = canvas.getByRole('button', { name: 'Next' })
+    await userEvent.click(next)
+    await expect(next).toHaveFocus()
+    await expect(next).toHaveAttribute('aria-disabled', 'true')
+    await expect(within(canvas.getByRole('navigation')).getByRole('status')).toHaveTextContent(
+      '401–420 of 420',
+    )
   },
 }
 

@@ -324,6 +324,60 @@ describe('DependencyGraph view bar', () => {
   })
 })
 
+describe('DependencyGraph still', () => {
+  it('draws the jobs in their statuses, with nothing around the graph or in it to press', () => {
+    const { container } = render(<DependencyGraph run={run} still />)
+    // Once: there is no job list beside the graph.
+    expect(screen.getAllByText('Build')).toHaveLength(1)
+    expect(container.querySelector('[data-status="completed"]')).toBeInTheDocument()
+    expect(container.querySelector('[data-tone="success"]')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reset view' })).not.toBeInTheDocument()
+    expect(panZoom.props).toMatchObject({ disabled: true })
+    expect(container.querySelector('[inert]')).toContainElement(screen.getByText('Build'))
+  })
+
+  it('draws its own connectors over a graph of the same run, such as in a hover card on its page', () => {
+    const frames: FrameRequestCallback[] = []
+    const raf = vi.spyOn(global, 'requestAnimationFrame').mockImplementation((frame) => {
+      frames.push(frame)
+      return 0
+    })
+    // The page's graph sits far down, where a graph measuring its jobs would draw its lines.
+    const top = vi.spyOn(HTMLElement.prototype, 'offsetTop', 'get').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.closest('[data-testid="page"]') ? 1000 : 0
+    })
+    const drawn = () => {
+      act(() => {
+        for (const frame of frames.splice(0)) {
+          frame(0)
+        }
+      })
+      return screen.getByTestId('card').querySelector('svg path')?.getAttribute('d')
+    }
+    const card = (
+      <div data-testid="card">
+        <DependencyGraph run={run} still />
+      </div>
+    )
+    const { rerender } = render(card)
+    const alone = drawn()
+    rerender(
+      <>
+        <div data-testid="page">
+          <DependencyGraph run={run} />
+        </div>
+        {card}
+      </>,
+    )
+    expect(alone).toBeTruthy()
+    expect(drawn()).toBe(alone)
+    raf.mockRestore()
+    top.mockRestore()
+  })
+})
+
 describe('DependencyGraph sidebar', () => {
   const subRun = {
     id: 'r',

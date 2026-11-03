@@ -694,7 +694,8 @@ function ModalDemo({
   closeButton,
   size = 'md',
   paragraphs = 1,
-}: Partial<ModalArgs>) {
+  description = 'Focus stays inside until the modal closes, then returns to the button that opened it.',
+}: Partial<ModalArgs> & { description?: string }) {
   const [open, setOpen] = useState(false)
   return (
     <>
@@ -709,7 +710,7 @@ function ModalDemo({
         closeButton={closeButton}
         size={size}
         title="Release notes"
-        description="Focus stays inside until the modal closes, then returns to the button that opened it."
+        description={description}
         footer={
           <Button variant="primary" size="sm" onClick={() => setOpen(false)}>
             Done
@@ -755,6 +756,21 @@ export const ModalStory: StoryObj<ModalArgs> = {
   },
 }
 
+export const ModalCentered: StoryObj<ModalArgs> = {
+  ...ModalStory,
+  name: 'Modal, centered',
+  args: { ...ModalStory.args, align: 'center' },
+  play: async ({ canvasElement }) => {
+    await openModal(canvasElement)
+    const dialog = await screen.findByRole('dialog', { name: 'Release notes' })
+    await waitFor(() => {
+      const rect = dialog.getBoundingClientRect()
+      expect(Math.abs(rect.x + rect.width / 2 - window.innerWidth / 2)).toBeLessThan(1)
+      expect(Math.abs(rect.y + rect.height / 2 - window.innerHeight / 2)).toBeLessThan(1)
+    })
+  },
+}
+
 /** A body taller than the window scrolls on its own, keeping the title and the footer in view. */
 export const ModalLongBody: StoryObj = {
   name: 'Modal, long body',
@@ -766,6 +782,34 @@ export const ModalLongBody: StoryObj = {
     const done = within(dialog).getByRole('button', { name: 'Done' })
     const bottom = done.getBoundingClientRect().bottom
     await expect(bottom).toBeLessThanOrEqual(window.innerHeight)
+  },
+}
+
+/** At 400% zoom (a 1280 × 1024 window is 320 × 256) the header and the footer alone fill the
+ *  window, so the whole panel scrolls rather than its body, and nothing in it is out of reach. */
+export const ModalShortWindow: StoryObj = {
+  name: 'Modal, short window',
+  parameters: {
+    viewport: {
+      options: {
+        zoomed: { name: '400% zoom', styles: { width: '320px', height: '256px' }, type: 'mobile' },
+      },
+    },
+  },
+  globals: { viewport: { value: 'zoomed', isRotated: false } },
+  render: () => (
+    <ModalDemo
+      paragraphs={3}
+      description="Focus stays inside until the modal closes, then returns to the button that opened it. Escape closes it."
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    await openModal(canvasElement)
+    const dialog = await screen.findByRole('dialog', { name: 'Release notes' })
+    await waitFor(() => expect(dialog).toBeVisible())
+    const done = within(dialog).getByRole('button', { name: 'Done' })
+    done.scrollIntoView()
+    await expect(done.getBoundingClientRect().bottom).toBeLessThanOrEqual(window.innerHeight)
   },
 }
 

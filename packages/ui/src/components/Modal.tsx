@@ -172,8 +172,14 @@ export function Modal({
           // pt clears the toasts along the top so none covers the panel. At phone width the
           // panel takes the width less an 8px gutter, as a sheet does, so its fields keep room;
           // it stays near the top, where an on-screen keyboard doesn't cover it.
-          'fixed inset-0 z-(--layer-modal) flex justify-center px-4 pt-20 pb-8 max-sm:px-2 max-sm:pb-[max(8px,env(safe-area-inset-bottom))]',
-          align === 'center' ? 'items-center' : 'items-start sm:pt-[max(14vh,5rem)]',
+          'fixed inset-0 z-(--layer-modal) flex justify-center px-4 max-sm:px-2',
+          align === 'center'
+            ? 'items-center py-8 max-sm:py-[max(8px,env(safe-area-inset-bottom))]'
+            : 'items-start pt-20 pb-8 sm:pt-[max(14vh,5rem)] max-sm:pb-[max(8px,env(safe-area-inset-bottom))]',
+          // A window too short for the header, an answer and the footer at once, as at 400% zoom,
+          // would squeeze the body to nothing and push the footer out of reach: there the whole
+          // panel scrolls, from the window's top.
+          '[@media(max-height:28rem)]:items-start [@media(max-height:28rem)]:overflow-y-auto [@media(max-height:28rem)]:py-2',
         )}
       >
         <Dialog.Popup
@@ -197,7 +203,7 @@ export function Modal({
             panel && modalPanelClassName,
             size && [sizeClasses[size], 'max-w-full'],
             panel && (size || laidOut) && 'max-sm:w-full',
-            laidOut && 'flex max-h-full flex-col',
+            laidOut && 'flex max-h-full flex-col [@media(max-height:28rem)]:max-h-none',
             'outline-none',
             popupMotion,
             className,

@@ -1,5 +1,133 @@
 # Changelog
 
+## [0.108.0](https://github.com/parallelworks/foundation/compare/ui-v0.107.0...ui-v0.108.0) (2026-11-02)
+
+
+### Features
+
+* **ui:** navigation groups that fold and open beside the rail, and items with an action at their end ([#608](https://github.com/parallelworks/foundation/issues/608)) ([5070bef](https://github.com/parallelworks/foundation/commit/5070befd44fc7c047a59e272354a819cd8081863))
+
+## [0.107.0](https://github.com/parallelworks/foundation/compare/ui-v0.106.0...ui-v0.107.0) (2026-11-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* **ui:** the chat's question card asks several questions at once, with option previews and notes ([#503](https://github.com/parallelworks/foundation/issues/503))
+
+### Features
+
+* **ui:** a sidebar item's text brightens on hover, halfway to full contrast ([#607](https://github.com/parallelworks/foundation/issues/607)) ([a4fd420](https://github.com/parallelworks/foundation/commit/a4fd4204478c2d8e84437087f0ffc7891d7a740d))
+* **ui:** explorer groups storages by user or by type ([#593](https://github.com/parallelworks/foundation/issues/593)) ([3d500e9](https://github.com/parallelworks/foundation/commit/3d500e9dbc091ca03e7aa4c0b3d2e2f788ec94c9))
+* **ui:** the chat's question card asks several questions at once, with option previews and notes ([#503](https://github.com/parallelworks/foundation/issues/503)) ([55d902c](https://github.com/parallelworks/foundation/commit/55d902c1f2d3e27ac2774c2fb2fd0b694868f313))
+
+
+### Bug Fixes
+
+* **ui:** a right-click on a list row with no menu shows the browser's own menu ([#605](https://github.com/parallelworks/foundation/issues/605)) ([141209e](https://github.com/parallelworks/foundation/commit/141209e9720c16f934f9799560f1e221d7fb376e))
+
+## [0.106.0](https://github.com/parallelworks/foundation/compare/ui-v0.105.2...ui-v0.106.0) (2026-11-02)
+
+
+### Features
+
+* **ui:** a disclosure row can keep its name whole while the text beside it gives way ([#598](https://github.com/parallelworks/foundation/issues/598)) ([d1dbe51](https://github.com/parallelworks/foundation/commit/d1dbe51f1c44b130b89047fcd7626644bb3b2433))
+
+## [0.105.2](https://github.com/parallelworks/foundation/compare/ui-v0.105.1...ui-v0.105.2) (2026-11-01)
+
+
+### Bug Fixes
+
+* **ui:** an unlabeled form input reads its key as a sentence-case label ([#596](https://github.com/parallelworks/foundation/issues/596)) ([dd03470](https://github.com/parallelworks/foundation/commit/dd03470aa21a24ecde12f2fb30d958d9f24176df))
+
+## [0.105.1](https://github.com/parallelworks/foundation/compare/ui-v0.105.0...ui-v0.105.1) (2026-10-31)
+
+
+### Bug Fixes
+
+* **ui:** a list forgets a saved sort it no longer offers, and its name header fills a phone even with every other column hidden ([#595](https://github.com/parallelworks/foundation/issues/595)) ([b37d841](https://github.com/parallelworks/foundation/commit/b37d841f6baf1b0b894323f38d558f574a8dee25))
+* **ui:** a run's graph drawn twice on a page puts the second one's connectors on the first one's jobs ([#590](https://github.com/parallelworks/foundation/issues/590)) ([375f15b](https://github.com/parallelworks/foundation/commit/375f15b1da6dd43b513ce97d2004e76e9dd32b31))
+* **ui:** status lamps that never stop, tabs that move the page, live warnings that go unread and status names that lose their end ([#591](https://github.com/parallelworks/foundation/issues/591)) ([045930f](https://github.com/parallelworks/foundation/commit/045930f9573537fd3b6ba3a0fd02e8766a03c291))
+
+## [0.105.0](https://github.com/parallelworks/foundation/compare/ui-v0.104.0...ui-v0.105.0) (2026-10-30)
+
+
+### Features
+
+* **ui:** tool presentations can use their message context ([#588](https://github.com/parallelworks/foundation/issues/588)) ([0868cc7](https://github.com/parallelworks/foundation/commit/0868cc73c0b933a1a2e8f63023acb6a168892189))
+
+## [0.104.0](https://github.com/parallelworks/foundation/compare/ui-v0.103.1...ui-v0.104.0) (2026-10-30)
+
+
+### Features
+
+* **ui:** a still run graph, each job tinted by its status, to preview in a hover card ([#585](https://github.com/parallelworks/foundation/issues/585)) ([37dafe9](https://github.com/parallelworks/foundation/commit/37dafe9747361b10643afadb73d251939e2a9b50))
+
+
+### Bug Fixes
+
+* **ui:** explorer panes overlap on phones ([#586](https://github.com/parallelworks/foundation/issues/586)) ([21643cc](https://github.com/parallelworks/foundation/commit/21643ccb1aa3f78660701d1f443a75f8a03a9dbb))
+
+## [0.103.1](https://github.com/parallelworks/foundation/compare/ui-v0.103.0...ui-v0.103.1) (2026-10-30)
+
+
+### Bug Fixes
+
+* **ui:** a run's graph opens in its corner instead of jumping there at the next update ([#583](https://github.com/parallelworks/foundation/issues/583)) ([afc2d3c](https://github.com/parallelworks/foundation/commit/afc2d3c0091675c5a9e04ae634863a5f576e1b6d))
+* **ui:** dropdown searches trigger credential prompts ([#579](https://github.com/parallelworks/foundation/issues/579)) ([b61f8ee](https://github.com/parallelworks/foundation/commit/b61f8eec98b400ff365c7a8b31702de5fcfeb987))
+* **ui:** show authored source in Storybook ([#582](https://github.com/parallelworks/foundation/issues/582)) ([2d43516](https://github.com/parallelworks/foundation/commit/2d435164f123e17deb76bc47afe2349b0b21c3fa))
+* **ui:** tools dialog is oversized and off-center ([#584](https://github.com/parallelworks/foundation/issues/584)) ([17b5bfb](https://github.com/parallelworks/foundation/commit/17b5bfb8d26728e39cecfc92bb438d0422b4ff09))
+
+## [0.103.0](https://github.com/parallelworks/foundation/compare/ui-v0.102.0...ui-v0.103.0) (2026-10-29)
+
+
+### Features
+
+* **ui:** file explorer transfer limit for downloads and uploads ([#577](https://github.com/parallelworks/foundation/issues/577)) ([fe6f393](https://github.com/parallelworks/foundation/commit/fe6f393e32975ad54358dad7dcc02395b87e620f))
+
+
+### Bug Fixes
+
+* **ui:** a drawer's brand link shows its whole focus ring ([#578](https://github.com/parallelworks/foundation/issues/578)) ([7406068](https://github.com/parallelworks/foundation/commit/7406068bb6f169811cd46b44685c7362485a139d))
+* **ui:** a list's single-key shortcuts can be turned off, and its pager and search box keep focus ([#576](https://github.com/parallelworks/foundation/issues/576)) ([353ebfd](https://github.com/parallelworks/foundation/commit/353ebfdc60d3b3f44d730e116a387721b8ad7278))
+* **ui:** preserve state across renderer and story updates ([#574](https://github.com/parallelworks/foundation/issues/574)) ([9c2c328](https://github.com/parallelworks/foundation/commit/9c2c328c6083408d0073db7944fde7a0c96737b3))
+
+## [0.102.0](https://github.com/parallelworks/foundation/compare/ui-v0.101.1...ui-v0.102.0) (2026-10-28)
+
+
+### Features
+
+* **ui:** a step that runs another workflow can name its saved inputs or yours ([#538](https://github.com/parallelworks/foundation/issues/538)) ([ffec384](https://github.com/parallelworks/foundation/commit/ffec384dcbdaa5487ffe9365dab495209763309e))
+
+
+### Bug Fixes
+
+* **ui:** a control in a required Field says it's required ([#567](https://github.com/parallelworks/foundation/issues/567)) ([51ff546](https://github.com/parallelworks/foundation/commit/51ff5465925116d47a0f22e220aa596e39976f1b))
+* **ui:** a tab row drops its fade and arrow once its tabs narrow to fit ([#563](https://github.com/parallelworks/foundation/issues/563)) ([3a14e06](https://github.com/parallelworks/foundation/commit/3a14e06401c4017fdeb458ec5b1f7d587535c8dd))
+* **ui:** every keyboard focus ring is the theme's focus color ([#565](https://github.com/parallelworks/foundation/issues/565)) ([fda3345](https://github.com/parallelworks/foundation/commit/fda334515f0a49c73f644904c6601eb9b295ee51))
+
+## [0.101.1](https://github.com/parallelworks/foundation/compare/ui-v0.101.0...ui-v0.101.1) (2026-10-28)
+
+
+### Bug Fixes
+
+* **ui:** a control in a Field given an id takes it, so its label names it ([#560](https://github.com/parallelworks/foundation/issues/560)) ([df9665a](https://github.com/parallelworks/foundation/commit/df9665a50c88abd4cbd4b33f738253c6800e2db9))
+
+## [0.101.0](https://github.com/parallelworks/foundation/compare/ui-v0.100.1...ui-v0.101.0) (2026-10-28)
+
+
+### Features
+
+* **ui:** choose filter values directly from the filter menu ([#558](https://github.com/parallelworks/foundation/issues/558)) ([d3c8559](https://github.com/parallelworks/foundation/commit/d3c85591ee847c177c72010a631b7027c01ef355))
+* **ui:** secret safe and secret safe migration icons ([#557](https://github.com/parallelworks/foundation/issues/557)) ([86ef864](https://github.com/parallelworks/foundation/commit/86ef864afaecb51dc2a5c30293570555d59f98eb))
+
+
+### Bug Fixes
+
+* **ui:** a page's name too long for its header wraps and grows the bar instead of truncating, its ancestors folding first ([#549](https://github.com/parallelworks/foundation/issues/549)) ([a95af8d](https://github.com/parallelworks/foundation/commit/a95af8d37c67fa1f2d2a4ae7579dd47896f10d02))
+* **ui:** a select's chosen option reads as a choice even when its value is empty ([#555](https://github.com/parallelworks/foundation/issues/555)) ([ee579d3](https://github.com/parallelworks/foundation/commit/ee579d38042566a63c8964b13fd3c6d114172ff0))
+* **ui:** long text in a list row's last column ends before its More actions button ([#553](https://github.com/parallelworks/foundation/issues/553)) ([8a08959](https://github.com/parallelworks/foundation/commit/8a08959e68b234d7c96253b03af0953be97c4a47))
+* **ui:** on a phone, a list's name takes the rest of the row whatever width a host gives its column ([#554](https://github.com/parallelworks/foundation/issues/554)) ([84df9be](https://github.com/parallelworks/foundation/commit/84df9be3634eb471d3ca0e497c3fe82ebcdd85df))
+
 ## [0.100.1](https://github.com/parallelworks/foundation/compare/ui-v0.100.0...ui-v0.100.1) (2026-10-28)
 
 
