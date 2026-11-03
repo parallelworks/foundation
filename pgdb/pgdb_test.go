@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -78,6 +79,30 @@ func TestMigrateWithoutMigrationsCreatesEmptySchema(t *testing.T) {
 	if err := pool.QueryRow(t.Context(),
 		"SELECT count(*) FROM information_schema.tables WHERE table_schema = $1", schema).Scan(&n); err != nil || n != 0 {
 		t.Errorf("schema has %d tables (%v); want an empty schema", n, err)
+	}
+}
+
+func TestMigrateOutOfOrder(t *testing.T) {
+	sql := func(table string) *fstest.MapFile {
+		return &fstest.MapFile{Data: []byte("-- +goose Up\nCREATE TABLE " + table + " (id int);\n")}
+	}
+	pool := pgdbtest.Open(t, urlEnv, "")
+	newer := pgdb.Migrations{FS: fstest.MapFS{"00001_a.sql": sql("a"), "00003_c.sql": sql("c")}, Logger: slog.New(slog.DiscardHandler)}
+	if err := pgdb.Migrate(t.Context(), pool, newer); err != nil {
+		t.Fatal(err)
+	}
+	// Another build brings 2, which sorts below the applied 3.
+	older := newer
+	older.FS = fstest.MapFS{"00001_a.sql": sql("a"), "00002_b.sql": sql("b"), "00003_c.sql": sql("c")}
+	if err := pgdb.Migrate(t.Context(), pool, older); err == nil {
+		t.Fatal("migrate applied an out-of-order migration without AllowOutOfOrder")
+	}
+	older.AllowOutOfOrder = true
+	if err := pgdb.Migrate(t.Context(), pool, older); err != nil {
+		t.Fatalf("migrate with AllowOutOfOrder: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), "INSERT INTO b VALUES (1)"); err != nil {
+		t.Errorf("out-of-order migration not applied: %v", err)
 	}
 }
 

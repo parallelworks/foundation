@@ -63,6 +63,10 @@ type Migrations struct {
 	LockKey int64
 	// Logger defaults to slog.Default().
 	Logger *slog.Logger
+	// AllowOutOfOrder applies migrations numbered below the newest applied
+	// one instead of refusing to migrate. A database shared by builds of
+	// different branches otherwise stops every build older than the newest.
+	AllowOutOfOrder bool
 }
 
 // Migrate creates the pool's schema and applies the application's migrations.
@@ -106,7 +110,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, m Migrations) (err error) 
 	if _, err := conn.Exec(ctx, "CREATE SCHEMA IF NOT EXISTS "+pgx.Identifier{schema}.Sanitize()); err != nil {
 		return fmt.Errorf("pgdb: create schema %s: %w", schema, err)
 	}
-	return migrateApp(ctx, pool, m.FS, logger)
+	return migrateApp(ctx, pool, m.FS, m.AllowOutOfOrder, logger)
 }
 
 func acquireMigrationLock(ctx context.Context, conn *pgx.Conn, key int64) error {
@@ -130,13 +134,13 @@ func acquireMigrationLock(ctx context.Context, conn *pgx.Conn, key int64) error 
 	}
 }
 
-func migrateApp(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS, logger *slog.Logger) error {
+func migrateApp(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS, outOfOrder bool, logger *slog.Logger) error {
 	if fsys == nil {
 		return nil
 	}
 	db := stdlib.OpenDBFromPool(pool)
 	defer db.Close()
-	provider, err := goose.NewProvider(goose.DialectPostgres, db, fsys)
+	provider, err := goose.NewProvider(goose.DialectPostgres, db, fsys, goose.WithAllowOutofOrder(outOfOrder))
 	if err != nil {
 		return fmt.Errorf("pgdb: goose: %w", err)
 	}
