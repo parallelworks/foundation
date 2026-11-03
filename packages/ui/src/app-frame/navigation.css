@@ -3,12 +3,12 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    min-height: 36px;
+    min-height: 32px;
     min-width: 0;
     width: 100%;
     border: 0;
     border-radius: 8px;
-    padding: 8px;
+    padding: 6px 8px;
     background: transparent;
     color: inherit;
     font: inherit;
@@ -132,7 +132,6 @@
   }
   .pw-frame-nav-group-items {
     display: grid;
-    gap: 2px;
   }
   .pw-frame-nav-group {
     padding-block: 4px;
@@ -150,9 +149,6 @@
     padding-inline: 0;
     justify-content: center;
     height: 40px;
-  }
-  .pw-frame-drawer .pw-frame-nav-item {
-    min-height: 44px;
   }
   @media (prefers-reduced-motion: reduce) {
     .pw-frame-nav-item,
