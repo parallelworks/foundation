@@ -28,9 +28,9 @@ type Pinger interface {
 
 // Options configure New.
 type Options struct {
-	// Logger records requests, panics and server errors: a request that
-	// worked at info level, a client error at warn and a server error at
-	// error. Defaults to slog.Default().
+	// Logger records requests, panics and server errors: a request at info
+	// level, or at error when it failed with a server error. Defaults to
+	// slog.Default().
 	Logger *slog.Logger
 	// RequestLogLevel, if set, picks the level a request is logged at from
 	// the request and its status, such as debug for a route clients poll.

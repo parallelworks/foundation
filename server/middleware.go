@@ -102,13 +102,11 @@ func logRequests(next http.Handler, logger *slog.Logger, level func(*http.Reques
 	})
 }
 
-// requestLevel is a request's default log level, raised for a failure.
+// requestLevel is a request's default log level. A client error is the
+// client's mistake, not the server's, so only a server error is raised.
 func requestLevel(status int) slog.Level {
-	switch {
-	case status >= 500:
+	if status >= 500 {
 		return slog.LevelError
-	case status >= 400:
-		return slog.LevelWarn
 	}
 	return slog.LevelInfo
 }

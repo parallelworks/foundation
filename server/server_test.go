@@ -245,10 +245,10 @@ func TestRequestLog(t *testing.T) {
 		do(t, h, http.MethodGet, "/api/v1/boom")
 		return logs.String()
 	}
-	// Every request but health checks shows, a failure at a higher level.
+	// Every request but health checks shows, a server error at a higher level.
 	def := logged(nil)
 	if strings.Contains(def, "/healthz") || !strings.Contains(def, "level=INFO msg=\"http request\" method=GET path=/issues status=200") ||
-		!strings.Contains(def, "level=WARN msg=\"http request\" method=GET path=/api/v1/nope status=404") ||
+		!strings.Contains(def, "level=INFO msg=\"http request\" method=GET path=/api/v1/nope status=404") ||
 		!strings.Contains(def, "level=ERROR msg=\"http request\" method=GET path=/api/v1/boom status=500") {
 		t.Errorf("default logs:\n%s", def)
 	}
