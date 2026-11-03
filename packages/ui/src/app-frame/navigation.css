@@ -78,6 +78,7 @@
     font-weight: 400;
     line-height: 16px;
     white-space: nowrap;
+    color: color-mix(in oklch, currentColor 70%, transparent);
   }
   .pw-frame-nav-badge {
     flex-shrink: 0;
