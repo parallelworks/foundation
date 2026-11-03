@@ -1,4 +1,12 @@
-export { type AccessArrangement, AccessDrawer, type AccessDrawerProps } from './AccessDrawer'
+export {
+  type AccessArrangement,
+  AccessDrawer,
+  type AccessDrawerProps,
+  type AccessEditorProps,
+  type AccessManagedElsewhere,
+  AccessPanel,
+  type AccessPanelProps,
+} from './AccessDrawer'
 export {
   ACCESS_STRINGS,
   type AccessStrings,
@@ -14,4 +22,6 @@ export type {
   AccessPermission,
   AccessPrincipal,
   AccessRole,
+  AccessRule,
+  AccessVisibility,
 } from './types'

@@ -14,22 +14,38 @@ export function formatBytes(bytes: number): string {
   return `${sizeNumber.format(bytes / 1024 ** unit)} ${BYTE_UNITS[unit]}`
 }
 
-const countNumber = new Intl.NumberFormat(undefined, {
-  notation: 'compact',
-  maximumFractionDigits: 1,
-})
+const countNumbers = new Map<string | undefined, Intl.NumberFormat>()
+const plainNumbers = new Map<string | undefined, Intl.NumberFormat>()
 
-/** A count short enough for a status line: 512, 1.2K, 3.4M. */
-export function formatCount(n: number): string {
-  return countNumber.format(n)
+/** A count short enough for a status line: 512, 1.2K, 3.4M. `locale`, such
+ *  as `useLocale()` gives, wins over the browser's. */
+export function formatCount(n: number, locale?: string | undefined): string {
+  let format = countNumbers.get(locale)
+  if (!format) {
+    format = new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 })
+    countNumbers.set(locale, format)
+  }
+  return format.format(n)
+}
+
+/** A whole number in full, grouped as `locale` groups it: 1,204 or 1.204.
+ *  `locale`, such as `useLocale()` gives, wins over the browser's. */
+export function formatInteger(n: number, locale?: string | undefined): string {
+  let format = plainNumbers.get(locale)
+  if (!format) {
+    format = new Intl.NumberFormat(locale)
+    plainNumbers.set(locale, format)
+  }
+  return format.format(n)
 }
 
 // Japanese has no narrow units and would fall back to English.
 const UNIT_DISPLAY: Record<string, 'narrow' | 'short'> = { ja: 'short' }
 
 /** A length of time to whole seconds, in the host's locale: 45s, 2m 13s,
- *  1d 2h. Takes milliseconds or a luxon Duration; the sign is dropped. */
-export function formatDuration(value: number | Duration): string {
+ *  1d 2h. Takes milliseconds or a luxon Duration; the sign is dropped.
+ *  `locale` wins over the duration's own and luxon's default. */
+export function formatDuration(value: number | Duration, locale?: string | undefined): string {
   const duration = typeof value === 'number' ? Duration.fromMillis(value) : value
   // shiftTo keeps the largest units whole; luxon's toHuman alone would print
   // "0 days, 0 hours, 3,723 seconds" (https://github.com/moment/luxon/issues/1134).
@@ -42,9 +58,10 @@ export function formatDuration(value: number | Duration): string {
       .filter(([, n]) => n !== 0)
       .map(([unit, n]) => [unit, Math.abs(n)]),
   ) as DurationObjectUnits
+  const shownLocale = locale ?? duration.locale
   const human = Duration.fromObject(
     Object.keys(shown).length > 0 ? shown : { seconds: 0 },
-    duration.locale ? { locale: duration.locale } : {},
+    shownLocale ? { locale: shownLocale } : {},
   )
   return human
     .toHuman({ unitDisplay: UNIT_DISPLAY[human.locale?.split('-')[0] ?? ''] ?? 'narrow' })
@@ -75,16 +92,24 @@ const DATE_TIME_STYLES = {
   short: DateTime.DATETIME_SHORT,
   medium: DateTime.DATETIME_MED,
   seconds: DateTime.DATETIME_MED_WITH_SECONDS,
+  full: DateTime.DATETIME_FULL,
 } as const
 
+/** How `formatDateTime` writes a moment. */
+export type DateTimeStyle = keyof typeof DATE_TIME_STYLES
+
 /** A moment in the reader's locale: `date` reads "Mar 14, 2026", `short`
- *  "3/14/2026, 9:30 AM", `medium` "Mar 14, 2026, 9:30 AM", and `seconds` adds
- *  the seconds. Empty for a missing or invalid time. */
+ *  "3/14/2026, 9:30 AM", `medium` "Mar 14, 2026, 9:30 AM", `seconds` adds
+ *  the seconds, and `full` reads "March 14, 2026 at 9:30 AM EDT", with the
+ *  time zone. `locale`, such as `useLocale()` gives, wins over the time's own
+ *  and luxon's default. Empty for a missing or invalid time. */
 export function formatDateTime(
   value: TimeValue,
-  style: keyof typeof DATE_TIME_STYLES = 'medium',
+  style: DateTimeStyle = 'medium',
+  locale?: string | undefined,
 ): string {
-  return toDateTime(value)?.toLocaleString(DATE_TIME_STYLES[style]) ?? ''
+  const time = toDateTime(value)
+  return (locale ? time?.setLocale(locale) : time)?.toLocaleString(DATE_TIME_STYLES[style]) ?? ''
 }
 
 /** Time left, rounded the way a countdown reads: whole seconds under a minute,

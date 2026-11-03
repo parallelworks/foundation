@@ -1,6 +1,7 @@
 import type {
   Allocation,
   ApprovalPart,
+  ApprovalQuestionAnswer,
   AttachmentRef,
   ChatModel,
   Conversation,
@@ -11,7 +12,9 @@ import type {
   SharePermission,
   SharePermissionLevel,
   TodoItem,
+  TokenUsage,
   ToolCall,
+  ToolDecision,
   UnreachableSession,
 } from '../types'
 import type { CompletionMessage } from './openai/wire'
@@ -49,6 +52,22 @@ export interface StreamRequest {
   // The ids of the host's tools the reader left on, possibly none. Absent
   // when the adapter lists no tools, or before the list has loaded.
   tools?: string[]
+  // Answers a tool call that waits for approval, in place of a new user
+  // turn: the gateway runs or declines it and the reply goes on from there.
+  resume?: ToolApprovalAnswer
+}
+
+export interface ToolApprovalAnswer {
+  // The assistant message holding the call.
+  messageId: string
+  toolCallId: string
+  allowed: boolean
+  // Why the user declined, for the model.
+  feedback?: string
+  // A sibling tool the user chose to run in place of the one asked for.
+  tool?: string
+  // The call's arguments as the user changed them, as JSON text.
+  args?: string
 }
 
 export interface StreamHandlers {
@@ -59,6 +78,8 @@ export interface StreamHandlers {
   // Transcript parts, streamed progressively: an agent adapter's whole
   // timeline, or the tool calls an OpenAI-compatible gateway runs itself.
   onPart?: (delta: PartDelta) => void
+  // Tokens the reply has used so far, each report replacing the last.
+  onUsage?: (usage: TokenUsage) => void
 }
 
 // Progressive events an agent adapter maps onto MessagePart timelines.
@@ -75,7 +96,10 @@ export type PartDelta =
       startLine?: number
     }
   | { type: 'tool_update'; id: string; args: string }
+  // The call waits for the user's approval before it runs.
+  | { type: 'tool_wait'; id: string }
   | { type: 'tool_end'; id: string; result: string; isError?: boolean }
+  | { type: 'tool_decision'; id: string; decision: ToolDecision }
   | {
       type: 'subagent_start'
       id: string
@@ -93,7 +117,13 @@ export type PartDelta =
       report?: string
     }
   | { type: 'approval_request'; approval: ApprovalPart }
-  | { type: 'approval_resolved'; id: string; answer?: string }
+  | {
+      type: 'approval_resolved'
+      id: string
+      answer?: string
+      answers?: ApprovalQuestionAnswer[]
+      chat?: boolean
+    }
   | { type: 'notice' | 'warning'; text: string }
   | { type: 'todo_snapshot'; todos: TodoItem[] }
 
@@ -171,6 +201,8 @@ export interface ChatToolOption {
   id: string
   label: string
   description?: string
+  // The tool changes something, so each call waits for the user's approval.
+  asksFirst?: boolean
 }
 
 export interface ChatToolsAdapter {

@@ -1,9 +1,9 @@
 // Parameterized mock builders for the Storybook workshop. Every story drives
 // these through Storybook args so polish work can be exercised against any
 // state without a backend; new features add a factory (or a factory knob)
-// here and a story that calls it. See ../../.storybook/CONTRIBUTING.md.
+// here and a story that calls it. See ../../../README.md#developing-stories-and-tests.
 import type { ReactNode } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { ChatAdapter, ChatToolOption, StreamHandlers } from '../adapter/types'
 import type { ComposerPastes, PasteUploadResult } from '../components/usePasteCards'
 import { ChatProvider, type ChatProviderProps } from '../core/ChatProvider'
@@ -12,6 +12,8 @@ import { countLines, utf8Bytes } from '../core/pastes'
 import type {
   Allocation,
   ApprovalPart,
+  ApprovalQuestion,
+  ApprovalQuestionAnswer,
   ApprovalSubject,
   AttachmentRef,
   ChatMessage,
@@ -182,6 +184,9 @@ export interface StreamingKnobs {
   toolCalls?: number
   toolMs?: number
   failLastTool?: boolean
+  // A sentence streamed before the tool calls, as a model says what it will
+  // check before it checks.
+  narration?: string
 }
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
@@ -357,11 +362,20 @@ export function makeStaticAdapter(options?: {
           await sleep(reasoningMs / steps, signal)
         }
       }
+      let content = ''
+      if (knobs.narration) {
+        for (const word of knobs.narration.split(' ')) {
+          content += (content ? ' ' : '') + word
+          handlers.onContent(`${word} `)
+          await sleep(wordDelayMs, signal)
+        }
+        content += '\n\n'
+        handlers.onContent('\n\n')
+      }
       await streamToolCalls(knobs, handlers, signal)
       const reply = words(replyWords)
-      let content = ''
       for (const word of reply.split(' ')) {
-        content += (content ? ' ' : '') + word
+        content += (content && !content.endsWith('\n') ? ' ' : '') + word
         handlers.onContent(`${word} `)
         await sleep(wordDelayMs, signal)
       }
@@ -643,13 +657,74 @@ const confirmSamples: Record<ApprovalSubject, Partial<ApprovalPart>> = {
   },
 }
 
+const askSamples: ApprovalQuestion[] = [
+  {
+    question: 'Which shards should I retry?',
+    header: 'Retry scope',
+    options: [
+      { label: 'Shard 4', description: 'instance-selector failures' },
+      { label: 'Shard 12', description: 'publish-cloud-cluster failures' },
+      { label: 'All shards', description: 'full re-run (slow)' },
+    ],
+  },
+  {
+    question: 'Which runners should the retry use?',
+    header: 'Runners',
+    options: [
+      { label: 'Self-hosted', description: 'the pool the failures ran on' },
+      { label: 'Hosted', description: 'slower to start, but isolated' },
+    ],
+  },
+  { question: 'Anything I should check before retrying?', header: 'Checks' },
+  {
+    question: 'Should anyone hear when it finishes?',
+    options: [{ label: 'The on-call channel' }, { label: 'Nobody' }],
+  },
+]
+
+const askPreviewSamples = [
+  'retry  shard-4\n  instance-selector      3 failed\n  ──────────────────────────\n  about 4 min on self-hosted',
+  'retry  shard-12\n  publish-cloud-cluster  5 failed\n  ──────────────────────────\n  about 6 min on self-hosted',
+  '```sh\npw runs retry --all-shards\n```\nRe-runs **every** shard, about 25 minutes.',
+]
+
+const askAnswerSamples: ApprovalQuestionAnswer[] = [
+  { picked: ['Shard 4'] },
+  { picked: ['Hosted'] },
+  {},
+  { picked: ['The on-call channel'] },
+]
+
 export function makeApprovalPart(options?: {
   kind?: 'confirm' | 'ask'
   resolved?: boolean
   multiSelect?: boolean
   subject?: ApprovalSubject
+  /** Up to four; none is an ask the card can't read. */
+  questions?: number
+  chat?: boolean
+  /** On the first question's options. */
+  previews?: boolean
 }): ApprovalPart {
   const kind = options?.kind ?? 'confirm'
+  const count = Math.min(Math.max(options?.questions ?? 1, 0), askSamples.length)
+  const questions = askSamples.slice(0, count).map((q, i) => {
+    if (i !== 0) {
+      return q
+    }
+    return {
+      ...q,
+      ...(options?.multiSelect ? { multiSelect: true } : {}),
+      ...(options?.previews
+        ? {
+            options: (q.options ?? []).map((o, j) => {
+              const preview = askPreviewSamples[j]
+              return preview ? { ...o, preview } : o
+            }),
+          }
+        : {}),
+    }
+  })
   const base: ApprovalPart =
     kind === 'confirm'
       ? {
@@ -660,25 +735,17 @@ export function makeApprovalPart(options?: {
           agent: 'main',
           mode: 'accept-edits',
         }
-      : {
-          kind: 'approval',
-          id: nextId('appr'),
-          approvalKind: 'ask',
-          question: 'Which shards should I retry?',
-          header: 'Retry scope',
-          multiSelect: options?.multiSelect ?? false,
-          options: [
-            { label: 'Shard 4', description: 'instance-selector failures' },
-            {
-              label: 'Shard 12',
-              description: 'publish-cloud-cluster failures',
-            },
-            { label: 'All shards', description: 'full re-run (slow)' },
-          ],
-        }
+      : { kind: 'approval', id: nextId('appr'), approvalKind: 'ask', questions }
   if (options?.resolved) {
     base.resolved = true
-    base.answer = kind === 'confirm' ? 'Allowed once' : 'Shard 4'
+    if (kind === 'confirm') {
+      base.answer = 'Allowed once'
+    } else {
+      base.answers = askAnswerSamples.slice(0, count)
+      if (options.chat) {
+        base.chat = true
+      }
+    }
   }
   return base
 }
@@ -849,35 +916,36 @@ export function pasteIntoComposer(canvasElement: HTMLElement, text: string) {
 
 // ---- Provider harness ------------------------------------------------------
 
+const StoryNavigationContext = createContext<((id: string | null) => void) | undefined>(undefined)
+
 /** A chat link that stays inside Storybook; external targets open in a new tab. */
-function storyChatLink(onNavigate?: (id: string | null) => void) {
-  return function StoryChatLink({ target, className, title, onClick, children }: ChatLinkProps) {
-    if (target.kind === 'external') {
-      return (
-        <a href={target.href} target="_blank" rel="noreferrer" className={className} title={title}>
-          {children}
-        </a>
-      )
-    }
+function StoryChatLink({ target, className, title, onClick, children }: ChatLinkProps) {
+  const onNavigate = useContext(StoryNavigationContext)
+  if (target.kind === 'external') {
     return (
-      <a
-        href={target.kind === 'conversation' ? `#${target.id}` : `#${target.kind}`}
-        className={className}
-        title={title}
-        onClick={(e) => {
-          e.preventDefault()
-          onClick?.(e)
-          if (target.kind === 'conversation') {
-            onNavigate?.(target.id)
-          } else if (target.kind === 'newChat') {
-            onNavigate?.(null)
-          }
-        }}
-      >
+      <a href={target.href} target="_blank" rel="noreferrer" className={className} title={title}>
         {children}
       </a>
     )
   }
+  return (
+    <a
+      href={target.kind === 'conversation' ? `#${target.id}` : `#${target.kind}`}
+      className={className}
+      title={title}
+      onClick={(e) => {
+        e.preventDefault()
+        onClick?.(e)
+        if (target.kind === 'conversation') {
+          onNavigate?.(target.id)
+        } else if (target.kind === 'newChat') {
+          onNavigate?.(null)
+        }
+      }}
+    >
+      {children}
+    </a>
+  )
 }
 
 const noopNavigation = {
@@ -911,10 +979,7 @@ export function StoryChat({
   children: ReactNode
 }) {
   const resolved = useMemo(() => adapter ?? makeStaticAdapter(), [adapter])
-  const resolvedConfig = useMemo(
-    () => ({ LinkComponent: storyChatLink(onNavigate), ...config }),
-    [config, onNavigate],
-  )
+  const resolvedConfig = useMemo(() => ({ LinkComponent: StoryChatLink, ...config }), [config])
   const navigation = useMemo(
     () =>
       onNavigate
@@ -926,16 +991,18 @@ export function StoryChat({
     [onNavigate],
   )
   return (
-    <ChatProvider
-      adapter={resolved}
-      currentUser={storyUser}
-      navigation={navigation}
-      activeConversationId={conversationId}
-      config={resolvedConfig}
-      {...sidebarControl}
-    >
-      {children}
-    </ChatProvider>
+    <StoryNavigationContext value={onNavigate}>
+      <ChatProvider
+        adapter={resolved}
+        currentUser={storyUser}
+        navigation={navigation}
+        activeConversationId={conversationId}
+        config={resolvedConfig}
+        {...sidebarControl}
+      >
+        {children}
+      </ChatProvider>
+    </StoryNavigationContext>
   )
 }
 
@@ -980,5 +1047,104 @@ export function makeManyTools(): ChatToolOption[] {
     { id: 'list_workflows', label: 'List workflows', description: 'Workflows you can run' },
     { id: 'list_buckets', label: 'List buckets', description: 'Buckets you can read' },
     { id: 'read_logs', label: 'Read run logs', description: 'The output of a workflow run' },
+    {
+      id: 'start_cluster',
+      label: 'Start a cluster',
+      description: 'Start a cluster that is off',
+      asksFirst: true,
+    },
+    {
+      id: 'stop_cluster',
+      label: 'Stop a cluster',
+      description: 'Stop a running cluster, keeping its disks',
+      asksFirst: true,
+    },
+    {
+      id: 'create_storage',
+      label: 'Create storage',
+      description: 'Save a new disk or file system definition',
+      asksFirst: true,
+    },
+    {
+      id: 'destroy_storage',
+      label: 'Destroy storage',
+      description: 'Delete storage and its data in the cloud',
+      asksFirst: true,
+    },
+    {
+      id: 'cancel_run',
+      label: 'Cancel a run',
+      description: 'Cancel a running workflow run',
+      asksFirst: true,
+    },
   ]
+}
+
+/** A teammate in a shared conversation. */
+export const storyTeammate: ChatUser = { id: 'u-2', username: 'bob', name: 'Bob Rivera' }
+
+/** A question and the reply that paused on a call waiting for approval. */
+export function makeHeldCallTurn(options?: {
+  conversationId?: string
+  asker?: ChatUser
+}): ChatMessage[] {
+  const conversationId = options?.conversationId ?? 'conv-held'
+  return [
+    makeMessage({
+      id: 'u-stop',
+      role: 'user',
+      content: "gputraining has been idle all weekend, stop it so it isn't billing",
+      author: options?.asker ?? storyUser,
+      conversationId,
+    }),
+    makeMessage({
+      id: 'a-held',
+      parentId: 'u-stop',
+      role: 'assistant',
+      content: '',
+      conversationId,
+      parts: [
+        {
+          kind: 'tool_call',
+          id: 'call-stop',
+          name: 'stop_cluster',
+          args: '{"clusterName":"gputraining"}',
+          status: 'waiting',
+        },
+        {
+          kind: 'approval',
+          id: 'call-stop',
+          approvalKind: 'confirm',
+          subject: 'call',
+          canAllowDirectory: false,
+          expiresAt: '2099-01-01T00:00:00Z',
+        },
+      ],
+    }),
+  ]
+}
+
+/** Answers a held call the way a gateway does: the call's result, then the
+ *  reply going on from it. */
+export const resumeHeldCall: ChatAdapter['streamCompletion'] = async (req, handlers) => {
+  const allowed = req.resume?.allowed !== false
+  handlers.onPart?.({
+    type: 'tool_end',
+    id: req.resume?.toolCallId ?? '',
+    result: allowed ? '{"status":"stopping"}' : 'The user declined this call.',
+    ...(allowed ? {} : { isError: true }),
+  })
+  const content = allowed
+    ? 'gputraining is stopping. Its disks and settings stay, so you can start it again whenever you need it.'
+    : 'Okay, I left gputraining running.'
+  handlers.onContent(content)
+  return {
+    content,
+    messageId: nextId('msg'),
+    toolCalls: [],
+    finishReason: 'stop',
+    model: req.model,
+    reasoning: '',
+    responsesOutput: [],
+  }
 }

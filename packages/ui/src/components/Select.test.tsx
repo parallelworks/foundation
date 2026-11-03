@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { openTooltip } from '../test/tooltip'
+import { Field } from './Field'
 import { Select, type SelectItem } from './Select'
 import { TooltipProvider } from './Tooltip'
 
@@ -30,7 +31,59 @@ function Chip({ initial = 'ask' }: { initial?: string }) {
   )
 }
 
+const teams: SelectItem<string>[] = [
+  { value: '', label: 'All teams' },
+  { value: 'PLAT', label: 'Platform engineering' },
+  { value: 'MOB', label: 'Mobile apps' },
+]
+
+// The trigger's shown text, not the hidden labels that size it, and whether it reads as a
+// placeholder.
+function shownText(name: string) {
+  const trigger = screen.getByRole('combobox', { name })
+  const shown = [...trigger.querySelectorAll('span')].find(
+    (span) =>
+      !span.closest('[aria-hidden="true"]') && span.children.length === 0 && span.textContent,
+  )
+  if (!shown) {
+    throw new Error('nothing shown')
+  }
+  return {
+    text: shown.textContent,
+    placeholder:
+      shown.closest(
+        '[class~="text-(--theme-placeholder)"], [data-placeholder][class~="data-placeholder:text-(--theme-placeholder)"]',
+      ) !== null,
+  }
+}
+
 describe('Select', () => {
+  it.each(['content', 'fill'] as const)(
+    'shows a chosen option whose value is empty as a choice, not a placeholder (%s)',
+    (width) => {
+      render(
+        <Select aria-label="Team" items={teams} value="" width={width} placeholder="Pick a team" />,
+      )
+      expect(shownText('Team')).toEqual({ text: 'All teams', placeholder: false })
+    },
+  )
+
+  it.each(['content', 'fill'] as const)(
+    'shows the placeholder, in its color, for a value no option has (%s)',
+    (width) => {
+      render(
+        <Select
+          aria-label="Team"
+          items={teams.slice(1)}
+          value=""
+          width={width}
+          placeholder="Pick a team"
+        />,
+      )
+      expect(shownText('Team')).toEqual({ text: 'Pick a team', placeholder: true })
+    },
+  )
+
   it('shows the selected label in its own trigger', () => {
     render(<Select aria-label="Mode" items={modes} defaultValue="auto" />)
     expect(screen.getByRole('combobox', { name: 'Mode' })).toHaveTextContent('Auto')
@@ -104,5 +157,76 @@ describe('Select options', () => {
     const [text, indicator] = [...option.children]
     expect(text).toHaveTextContent('AskAsks before every change')
     expect(indicator?.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+  })
+})
+
+describe('Select sizing, reasons and keys', () => {
+  it('sizes to its longest label alone, and fills its row in a Field', () => {
+    const { unmount } = render(<Select aria-label="Mode" items={modes} defaultValue="ask" />)
+    const alone = screen.getByRole('combobox', { name: 'Mode' })
+    expect(alone).toHaveClass('w-fit')
+    // Every label sits unseen in the field, so its width holds as the choice changes.
+    expect(alone).toHaveTextContent('AskAskAutoLocked')
+    unmount()
+    render(
+      <Field label="Mode">
+        <Select items={modes} defaultValue="ask" />
+      </Field>,
+    )
+    expect(screen.getByRole('combobox', { name: 'Mode' })).not.toHaveClass('w-fit')
+  })
+
+  it('keeps its content width in a row, rather than shrinking and cutting off its choice', () => {
+    render(
+      <div className="flex">
+        <Select aria-label="Mode" items={modes} defaultValue="ask" width="content" />
+        <Select aria-label="Fill" items={modes} defaultValue="ask" width="fill" />
+      </div>,
+    )
+    expect(screen.getByRole('combobox', { name: 'Mode' })).toHaveClass('shrink-0', 'max-w-full')
+    expect(screen.getByRole('combobox', { name: 'Fill' })).not.toHaveClass('shrink-0')
+  })
+
+  it('says why it is disabled, staying focusable and shut', async () => {
+    render(
+      <TooltipProvider>
+        <Select
+          aria-label="Key type"
+          items={modes}
+          defaultValue="ask"
+          disabled
+          disabledReason="Set by the platform"
+        />
+      </TooltipProvider>,
+    )
+    const trigger = screen.getByRole('combobox', { name: 'Key type' })
+    expect(trigger).toHaveAttribute('aria-disabled', 'true')
+    expect(trigger).toHaveAccessibleDescription('Set by the platform')
+    act(() => trigger.focus())
+    expect(trigger).toHaveFocus()
+    await waitFor(() => expect(openTooltip()).toHaveTextContent('Set by the platform'))
+    fireEvent.click(trigger)
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+  })
+
+  it('passes keys on its trigger to the host', () => {
+    const onKeyDown = vi.fn()
+    render(<Select aria-label="Mode" items={modes} onKeyDown={onKeyDown} />)
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Mode' }), { key: 'k' })
+    expect(onKeyDown).toHaveBeenCalledTimes(1)
+  })
+
+  it('reads a row by its label and then its hint', async () => {
+    render(
+      <Select
+        aria-label="Team"
+        items={[
+          { value: 'plat', label: 'Platform', hint: 'PLT' },
+          { value: 'des', label: 'Design', hint: 'DES' },
+        ]}
+      />,
+    )
+    fireEvent.click(screen.getByRole('combobox', { name: 'Team' }))
+    expect(await screen.findByRole('option', { name: 'Design DES' })).toBeInTheDocument()
   })
 })

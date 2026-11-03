@@ -216,7 +216,7 @@ export default function ChatInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const attachmentUploadRef = useRef<AttachmentUploadHandle>(null)
   const chat = useChat()
-  const { adapter, flushQueuedMessages, isSelectedModelAvailable, tools } = chat
+  const { adapter, flushQueuedMessages, isSelectedModelAvailable, tools, consumeInputFocus } = chat
   const { isStreaming, stopStreaming, queuedCount } = streamControls(chat, turn)
   const t = useChatConfig().strings.input
   const effectivePlaceholder = placeholder ?? t.placeholder
@@ -238,6 +238,12 @@ export default function ChatInput({
     }),
     [],
   )
+
+  useEffect(() => {
+    if (!disabled && consumeInputFocus(conversationId)) {
+      textareaRef.current?.focus()
+    }
+  }, [disabled, conversationId, consumeInputFocus])
 
   // The box grows with its text. Measured before paint so a new line never
   // flashes a scrollbar.
@@ -401,11 +407,11 @@ export default function ChatInput({
 
   return (
     <div
-      className="chat-composer-dock relative bg-(--theme-panel-bg) px-4 pt-2 pb-5"
+      className="chat-composer-dock relative px-4 pt-2 pb-5"
       {...(attachmentsAvailable ? dragHandlers : {})}
     >
       {isDragging && <DragOverlay className="rounded-2xl" />}
-      <div className="mx-auto w-full max-w-[var(--chat-column,50rem)] space-y-2 px-4">
+      <div className="mx-auto w-full max-w-[var(--chat-column,50rem)] space-y-2 sm:px-4">
         {notices}
         <div>
           {activity && <div className="mb-2">{activity}</div>}
@@ -431,9 +437,7 @@ export default function ChatInput({
             {slash && slashMenu.open && (
               <SlashMenu
                 label={slash.label}
-                listId={slashMenu.listId}
-                matches={slashMenu.matches}
-                active={slashMenu.active}
+                menu={slashMenu}
                 onChoose={(name) => {
                   slashMenu.choose(name)
                   textareaRef.current?.focus()
@@ -471,6 +475,8 @@ export default function ChatInput({
                     placeholder={effectivePlaceholder}
                     aria-label={inputLabel ?? effectivePlaceholder}
                     disabled={disabled}
+                    autoComplete="off"
+                    data-1p-ignore
                     rows={1}
                     className={cx(
                       'theme-text block w-full resize-none overflow-hidden',

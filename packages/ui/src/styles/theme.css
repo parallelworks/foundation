@@ -61,6 +61,7 @@
   --theme-shadow-xl:
     0 25px 80px -20px light-dark(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.6)),
     0 10px 30px -10px light-dark(rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.4));
+  --theme-backdrop: light-dark(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.65));
   --theme-code-bg: light-dark(#e7eaee, #1c242c);
   --theme-code-text: light-dark(#1c2330, #e1e9f2);
   --theme-code-comment: light-dark(#555d6c, #c0c8d1);
@@ -119,6 +120,26 @@
   }
 }
 /* generated:end */
+
+/* A status lamp's light: a vivid top fading to a pale bottom, so it looks lit from inside.
+   The same in light and dark; a theme may set its own. The status's words beside it carry its
+   meaning in the text tones, so the lamp needn't hold a contrast of its own. */
+:root {
+  --lamp-success-from: #13fb04;
+  --lamp-success-to: #aded99;
+  --lamp-error-from: #fb131b;
+  --lamp-error-to: #edad99;
+  --lamp-warning-from: #f9a004;
+  --lamp-warning-to: #ead698;
+  --lamp-info-from: #045ef9;
+  --lamp-info-to: #036efb;
+  --lamp-muted-from: #8a939e;
+  --lamp-muted-to: #d3d8de;
+  --lamp-accent-from: var(--theme-accent);
+  --lamp-accent-to: color-mix(in oklch, var(--theme-accent), white 55%);
+  --lamp-default-from: var(--theme-app);
+  --lamp-default-to: color-mix(in oklch, var(--theme-app), white 55%);
+}
 
 @utility theme-accent {
   background-color: var(--theme-accent, #06354f);
@@ -271,6 +292,100 @@
   .logo-loader-ring {
     animation: none;
     opacity: 1;
+  }
+}
+
+/* ErrorPage: the status code in the theme's gradient over two slowly drifting
+ * glows and a faint grid. A theme that sets --gradient-start and --gradient-mid
+ * picks the two colors; otherwise they are its link color, kept vivid, and that color turned toward
+ * violet, which read on the page in either scheme. */
+@utility error-page-code {
+  background: linear-gradient(
+    135deg,
+    var(--gradient-start, oklch(from var(--theme-link) l max(c, 0.14) h)) 0%,
+    var(--gradient-mid, oklch(from var(--theme-link) l max(c, 0.14) calc(h + 45))) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.error-page-glow {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(120px);
+  animation: error-page-float 8s ease-in-out infinite;
+}
+
+/* Stronger in the dark, where a faint glow on a dark page disappears. */
+.error-page-glow-start {
+  background-color: light-dark(
+    color-mix(
+      in oklab,
+      var(--gradient-start, oklch(from var(--theme-link) l max(c, 0.14) h)) 12%,
+      transparent
+    ),
+    color-mix(
+      in oklab,
+      var(--gradient-start, oklch(from var(--theme-link) l max(c, 0.14) h)) 20%,
+      transparent
+    )
+  );
+}
+
+.error-page-glow-mid {
+  background-color: light-dark(
+    color-mix(
+      in oklab,
+      var(--gradient-mid, oklch(from var(--theme-link) l max(c, 0.14) calc(h + 45))) 12%,
+      transparent
+    ),
+    color-mix(
+      in oklab,
+      var(--gradient-mid, oklch(from var(--theme-link) l max(c, 0.14) calc(h + 45))) 20%,
+      transparent
+    )
+  );
+}
+
+.error-page-grid {
+  background-image:
+    linear-gradient(var(--theme-app) 1px, transparent 1px),
+    linear-gradient(90deg, var(--theme-app) 1px, transparent 1px);
+  background-size: 60px 60px;
+  opacity: 0.03;
+}
+
+.error-page-content {
+  animation: error-page-in 0.5s ease-out both;
+}
+
+@keyframes error-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes error-page-float {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(24px, -24px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .error-page-glow,
+  .error-page-content {
+    animation: none;
   }
 }
 

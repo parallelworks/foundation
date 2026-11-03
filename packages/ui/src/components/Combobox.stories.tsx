@@ -147,12 +147,15 @@ export const ButtonTrigger: StoryObj<FieldArgs> = {
   render: (args) => <ButtonTriggerDemo {...args} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('combobox', { name: 'Cluster' }))
+    // Named by its label and then what it holds.
+    await userEvent.click(canvas.getByRole('combobox', { name: /^Cluster/ }))
     await userEvent.type(await screen.findByPlaceholderText('Pick one'), 'beta')
     await userEvent.click(await screen.findByRole('option', { name: /beta-environment.*-1/ }))
-    await expect(canvas.getByRole('combobox', { name: 'Cluster' })).toHaveTextContent(
-      'beta-environment-with-a-long-descriptive-name-1',
-    )
+    await expect(
+      canvas.getByRole('combobox', {
+        name: 'Cluster beta-environment-with-a-long-descriptive-name-1',
+      }),
+    ).toHaveTextContent('beta-environment-with-a-long-descriptive-name-1')
   },
 }
 
@@ -245,6 +248,33 @@ function MultipleDemo(args: FieldArgs) {
 
 export const Multiple: StoryObj<FieldArgs> = {
   render: (args) => <MultipleDemo {...args} />,
+}
+
+/** A report's user filter searches names without offering to save or fill credentials. */
+export const UserFilter: StoryObj<FieldArgs> = {
+  args: { placeholder: 'All users' },
+  render: (args) => (
+    <Combobox
+      multiple
+      aria-label="User"
+      items={['alice', 'bob', 'carol']}
+      disabled={args.disabled}
+      aria-invalid={args.invalid}
+      placeholder={args.placeholder}
+    />
+  ),
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    const input = canvas.getByRole('combobox', { name: 'User' })
+    await expect(input).toHaveAttribute('data-1p-ignore')
+    if (args.disabled) {
+      return
+    }
+    await userEvent.type(input, 'bob')
+    await userEvent.click(await screen.findByRole('option', { name: 'bob' }))
+    await expect(canvas.getByText('bob')).toBeVisible()
+    await expect(input).toHaveValue('')
+  },
 }
 
 function UnlistedDemo(args: FieldArgs) {

@@ -1,18 +1,25 @@
 import { Menu } from '@base-ui/react/menu'
 import { Toggle } from '@base-ui/react/toggle'
-import { useState } from 'react'
 import { IconButton } from '../components/IconButton'
 import { InfoTip } from '../components/InfoTip'
-import { MenuCheckboxItem, MenuPopup, MenuSubmenuTrigger } from '../components/Menu'
+import { MenuPopup, MenuRadioItem, MenuSeparator } from '../components/Menu'
 import { Popover } from '../components/Popover'
 import { useStrings } from '../components/Provider'
 import { Select } from '../components/Select'
 import { Switch } from '../components/Switch'
-import { useQueryMatch } from '../components/search'
 import { Tooltip } from '../components/Tooltip'
 import { cx } from '../cx'
-import { ChevronDownIcon, ChevronUpIcon, DisplayIcon, FilterIcon } from '../icons'
-import type { FilterFacet, ListView } from './listView'
+import {
+  ChevronDownIcon,
+  ChevronUpIcon,
+  DisplayIcon,
+  FilterIcon,
+  SortDownIcon,
+  SortUpIcon,
+} from '../icons'
+import { AddFilterMenu } from './ListFilterBar'
+import { DEFAULT_ORDER, isLocked, type ListView } from './listView'
+import type { ListFilters } from './useListFilters'
 
 /** A toggle pill, for the Display panel's column and pinned-action pickers. */
 const pillClassName =
@@ -23,8 +30,10 @@ const SECTION_LABEL =
 
 export function ListDisplayMenu<T>({ view, label }: { view: ListView<T>; label?: string }) {
   const { common, list: t } = useStrings()
-  const toggleable = view.columns.filter((c) => !c.alwaysVisible)
+  const toggleable = view.columns.filter((c) => !isLocked(c))
   const hasGrouping = view.groupBys.length > 0
+  // Collapsible groups the list shows now, which it can fold or open all at once.
+  const hasGroups = view.groupKeys.length > 0
   const orderDirLabel = view.orderDir === 'asc' ? t.ascending : t.descending
   return (
     <Popover
@@ -46,8 +55,25 @@ export function ListDisplayMenu<T>({ view, label }: { view: ListView<T>; label?:
           />
         </div>
       )}
-      {view.orderBys.length > 0 && (
+      {hasGroups && (
         <div className={cx('flex items-center justify-between gap-3', hasGrouping && 'mt-2.5')}>
+          <span className="text-[13px] text-(--theme-app)">{t.groups}</span>
+          <button
+            type="button"
+            onClick={view.allGroupsCollapsed ? view.expandAllGroups : view.collapseAllGroups}
+            className="rounded-md border border-(--theme-border) px-2 py-1 text-[12px] text-(--theme-app) hover:bg-(--theme-muted-panel-bg)"
+          >
+            {view.allGroupsCollapsed ? common.expandAll : common.collapseAll}
+          </button>
+        </div>
+      )}
+      {view.orderBys.length > 0 && (
+        <div
+          className={cx(
+            'flex items-center justify-between gap-3',
+            (hasGrouping || hasGroups) && 'mt-2.5',
+          )}
+        >
           <span className="text-[13px] text-(--theme-app)">{t.ordering}</span>
           <div className="flex items-center gap-1">
             <Tooltip content={orderDirLabel}>
@@ -76,7 +102,7 @@ export function ListDisplayMenu<T>({ view, label }: { view: ListView<T>; label?:
       <div
         className={cx(
           'flex items-center justify-between gap-3',
-          (hasGrouping || view.orderBys.length > 0) && 'mt-2.5',
+          (hasGrouping || hasGroups || view.orderBys.length > 0) && 'mt-2.5',
         )}
       >
         <span className="text-[13px] text-(--theme-app)">{t.columnHeaders}</span>
@@ -155,6 +181,59 @@ export function ListDisplayMenu<T>({ view, label }: { view: ListView<T>; label?:
   )
 }
 
+/** The phone's sort control, in the name column's header where the other columns' headers have
+ *  given way: it says what the list is sorted by and which way, and changes both, as Display
+ *  options' Ordering does, from the same state. */
+export function ListSortMenu<T>({ view, className }: { view: ListView<T>; className?: string }) {
+  const t = useStrings().list
+  const current = view.orderBys.find((o) => o.value === view.orderBy) ?? view.orderBys[0]
+  if (!current) {
+    return null
+  }
+  const ascending = view.orderDir === 'asc'
+  const DirIcon = ascending ? SortUpIcon : SortDownIcon
+  // The default order reads as a phrase of its own; any other is named as its column is.
+  const sortedBy = (direction?: 'ascending' | 'descending') =>
+    current.value === DEFAULT_ORDER
+      ? t.sortedByDefault(direction)
+      : t.sortedBy(current.label, direction)
+  return (
+    <Menu.Root>
+      <Menu.Trigger
+        aria-label={sortedBy(ascending ? 'ascending' : 'descending')}
+        className={cx(
+          '-mx-1 -my-1 inline-flex max-w-full cursor-pointer items-center gap-1 rounded px-1 py-1 align-middle text-inherit hover:text-(--theme-app) focus-visible:outline-2 focus-visible:outline-(--theme-focus) data-popup-open:text-(--theme-app)',
+          className,
+        )}
+      >
+        <span className="truncate">{sortedBy()}</span>
+        <DirIcon aria-hidden="true" className="size-3.5 shrink-0" />
+      </Menu.Trigger>
+      <MenuPopup label={t.ordering}>
+        <Menu.RadioGroup value={current.value} onValueChange={(v: string) => view.setOrderBy(v)}>
+          {view.orderBys.map((o) => (
+            <MenuRadioItem key={o.value} value={o.value}>
+              {o.label}
+            </MenuRadioItem>
+          ))}
+        </Menu.RadioGroup>
+        <MenuSeparator />
+        <Menu.RadioGroup
+          value={view.orderDir}
+          onValueChange={(dir: string) => {
+            if (dir !== view.orderDir) {
+              view.toggleOrderDir()
+            }
+          }}
+        >
+          <MenuRadioItem value="asc">{t.ascending}</MenuRadioItem>
+          <MenuRadioItem value="desc">{t.descending}</MenuRadioItem>
+        </Menu.RadioGroup>
+      </MenuPopup>
+    </Menu.Root>
+  )
+}
+
 /** Single-choice picker for the Display panel's grouping and ordering rows. */
 function OptionSelect({
   label,
@@ -174,11 +253,7 @@ function OptionSelect({
       aria-label={label}
       items={options}
       value={value}
-      onValueChange={(next) => {
-        if (next !== null) {
-          onSelect(next)
-        }
-      }}
+      onValueChange={onSelect}
       trigger={
         <button
           type="button"
@@ -192,119 +267,34 @@ function OptionSelect({
   )
 }
 
-/** The Filter button's menu: a submenu for each facet, whose options toggle
- *  without closing it. F opens it. */
-export function ListFilterMenu<T>({ view, label }: { view: ListView<T>; label?: string }) {
-  const { common } = useStrings()
-  if (view.facets.length === 0) {
+/** The toolbar's Filter button, which F presses. Beside a chip row (`ListFilterBar`, which
+ *  `ListPage` shows), it opens the Add filter menu with a value picker beside each field. On a page that
+ *  lays out its own chip row, pass it as the bar's `end`, which centers it on the chips' first
+ *  line however they wrap; set beside the bar in a row of the page's own, it sits above them. */
+export function ListFilterMenu<T>({
+  view,
+  filters,
+  label,
+}: {
+  view?: ListView<T> | undefined
+  /** For a page whose filters come from `useListFilters` rather than a list view. */
+  filters?: ListFilters | undefined
+  label?: string
+}) {
+  const { filters: t } = useStrings()
+  const state = filters ?? view?.filterState
+  if (!state || state.fields.length === 0) {
     return null
   }
-  const active = view.activeFilterCount > 0
-  return (
-    <Menu.Root>
-      <Menu.Trigger
-        render={
-          <IconButton
-            variant="outline"
-            icon={<FilterIcon />}
-            label={label ?? common.filter}
-            dot={active}
-            shortcut="f"
-          />
-        }
-      />
-      <MenuPopup align="end" className="w-56">
-        <div className="flex items-center justify-between px-3 py-1">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-(--theme-muted-text-color)">
-            {common.filter}
-          </span>
-          {active && (
-            <Menu.Item
-              closeOnClick={false}
-              onClick={view.clearFilters}
-              className="cursor-pointer text-[12px] text-(--theme-muted-text-color) outline-none data-highlighted:text-(--theme-app)"
-            >
-              {common.clear}
-            </Menu.Item>
-          )}
-        </div>
-        {view.facets.map((facet) => (
-          <FacetSubmenu key={facet.key} view={view} facet={facet} />
-        ))}
-      </MenuPopup>
-    </Menu.Root>
+  const active = state.count > 0
+  const button = (
+    <IconButton
+      variant="outline"
+      icon={<FilterIcon />}
+      label={label ?? t.filterButton(state.count)}
+      dot={active}
+      shortcut="f"
+    />
   )
-}
-
-function FacetSubmenu<T>({ view, facet }: { view: ListView<T>; facet: FilterFacet<T> }) {
-  const strings = useStrings()
-  const matches = useQueryMatch()
-  const [query, setQuery] = useState('')
-  const selected = view.filters[facet.key] ?? []
-  const needle = query.trim()
-  // A checked option stays listed while typing, so it can still be unchecked.
-  const options = needle
-    ? facet.options.filter((o) => selected.includes(o.value) || matches(needle, o.label))
-    : facet.options
-  const rows = options.map((option) => {
-    const checked = selected.includes(option.value)
-    return (
-      <MenuCheckboxItem
-        key={option.value}
-        checked={checked}
-        closeOnClick={false}
-        onCheckedChange={() =>
-          view.setFacetValues(
-            facet.key,
-            checked ? selected.filter((v) => v !== option.value) : [...selected, option.value],
-          )
-        }
-      >
-        {option.icon}
-        {option.label}
-      </MenuCheckboxItem>
-    )
-  })
-  const submenu = (
-    <Menu.SubmenuRoot>
-      <MenuSubmenuTrigger>
-        {facet.label}
-        {selected.length > 0 && (
-          <span className="ml-auto text-[11px] text-(--theme-muted-text-color)">
-            {selected.length}
-          </span>
-        )}
-      </MenuSubmenuTrigger>
-      {/* Toward the page, since the Filter button sits at the end of the strip. */}
-      <MenuPopup side="inline-start">
-        {facet.searchable ? (
-          <>
-            <div className="sticky top-0 z-[1] border-b border-(--theme-border) bg-(--theme-app-bg) px-3 pb-1.5 pt-0.5">
-              <Menu.Input
-                placeholder={strings.list.searchOptions}
-                aria-label={strings.list.searchOptions}
-                className="w-full bg-transparent text-[13px] text-(--theme-app) outline-none placeholder:text-(--theme-placeholder)"
-              />
-            </div>
-            <Menu.List>{rows}</Menu.List>
-          </>
-        ) : (
-          rows
-        )}
-        {options.length === 0 && (
-          <div className="px-3 py-1.5 text-[13px] text-(--theme-muted-text-color)">
-            {strings.dropdown.noOptionsFound}
-          </div>
-        )}
-      </MenuPopup>
-    </Menu.SubmenuRoot>
-  )
-  // The facet filters its own options, keeping the checked ones in view.
-  return facet.searchable ? (
-    <Menu.FilterProvider filter={null} value={query} onValueChange={setQuery}>
-      {submenu}
-    </Menu.FilterProvider>
-  ) : (
-    submenu
-  )
+  return <AddFilterMenu filters={state} trigger={button} align="end" />
 }

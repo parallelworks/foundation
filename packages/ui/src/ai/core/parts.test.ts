@@ -21,6 +21,21 @@ describe('applyPartDelta', () => {
     expect(parts).toEqual([runningTool()])
   })
 
+  it('records a decision on its tool call', () => {
+    const decision = {
+      status: 'approved',
+      by: 'user',
+      name: 'ana',
+      at: '2026-10-19T12:00:00Z',
+    } as const
+    const parts = applyPartDelta([runningTool('t1'), runningTool('t2')], {
+      type: 'tool_decision',
+      id: 't2',
+      decision,
+    })
+    expect(parts).toEqual([runningTool('t1'), { ...runningTool('t2'), decision }])
+  })
+
   it('does not mutate the input array', () => {
     const before: MessagePart[] = []
     applyPartDelta(before, {
@@ -45,6 +60,22 @@ describe('applyPartDelta', () => {
       args: 'me":1}',
     })
     expect((parts[0] as ToolCallPart).args).toBe('{"name":1}')
+  })
+
+  it('marks the matching call waiting on tool_wait', () => {
+    const parts = applyPartDelta([runningTool('t1'), runningTool('t2')], {
+      type: 'tool_wait',
+      id: 't1',
+    })
+    expect(parts.map((p) => (p as ToolCallPart).status)).toEqual(['waiting', 'running'])
+  })
+
+  it('keeps a waiting call out of the history and out of the interrupted sweep', () => {
+    const waiting: ToolCallPart = { ...runningTool(), status: 'waiting' }
+    expect(finalizeParts([waiting])).toEqual([waiting])
+    expect(toolTurnMessages([waiting], { role: 'assistant', content: 'Stopping it.' })).toEqual([
+      { role: 'assistant', content: 'Stopping it.' },
+    ])
   })
 
   it('resolves the matching call on tool_end and leaves others running', () => {
@@ -127,6 +158,19 @@ describe('applyPartDelta', () => {
         answer: 'yes',
       },
     ])
+  })
+
+  it('resolves an ask with what each question was given', () => {
+    const ask = {
+      kind: 'approval' as const,
+      id: 'q1',
+      approvalKind: 'ask' as const,
+      questions: [{ question: 'Which db?' }, { question: 'Which auth?' }],
+    }
+    const answers = [{ picked: ['Postgres'] }, {}]
+    expect(
+      applyPartDelta([ask], { type: 'approval_resolved', id: 'q1', answers, chat: true }),
+    ).toEqual([{ ...ask, resolved: true, answers, chat: true }])
   })
 
   it('grows the last text or reasoning part and starts a new one when the kind changes', () => {
@@ -242,6 +286,50 @@ describe('toolTurnMessages', () => {
   it('returns the answer alone when no tool call finished', () => {
     expect(toolTurnMessages([runningTool()], answer)).toEqual([answer])
     expect(toolTurnMessages(undefined, answer)).toEqual([answer])
+  })
+
+  it('replays the text between calls with the round it led into', () => {
+    const parts: MessagePart[] = [
+      { kind: 'text', text: 'Checking costs.' },
+      { ...runningTool('t1'), status: 'error', result: 'StartDate is required' },
+      { kind: 'text', text: 'Retrying with a start date.' },
+      { ...runningTool('t2'), status: 'ok', result: '[]' },
+      { kind: 'text', text: 'Nothing is billing.' },
+    ]
+    const stored = {
+      role: 'assistant',
+      content: 'Checking costs.\n\nRetrying with a start date.\n\nNothing is billing.',
+    }
+    const call = (id: string) => ({
+      id,
+      type: 'function',
+      function: { name: 'get_workflow', arguments: '{"name":"helloworld"}' },
+    })
+    expect(toolTurnMessages(parts, stored)).toEqual([
+      { role: 'assistant', content: 'Checking costs.', tool_calls: [call('t1')] },
+      { role: 'tool', tool_call_id: 't1', content: 'StartDate is required' },
+      { role: 'assistant', content: 'Retrying with a start date.', tool_calls: [call('t2')] },
+      { role: 'tool', tool_call_id: 't2', content: '[]' },
+      { role: 'assistant', content: 'Nothing is billing.' },
+    ])
+  })
+
+  it('leaves out the answer when the turn ends on tool results', () => {
+    const parts: MessagePart[] = [
+      { kind: 'text', text: 'Stopping it.' },
+      { ...runningTool('t1'), status: 'ok', result: 'stopped' },
+    ]
+    expect(toolTurnMessages(parts, { role: 'assistant', content: 'Stopping it.' })).toHaveLength(2)
+  })
+
+  it('keeps an answer the host moved from the parts into the content', () => {
+    const parts: MessagePart[] = [
+      { kind: 'text', text: 'Checking costs.' },
+      { ...runningTool('t1'), status: 'ok', result: '[]' },
+    ]
+    const messages = toolTurnMessages(parts, { role: 'assistant', content: 'Nothing is billing.' })
+    expect(messages.at(-1)).toEqual({ role: 'assistant', content: 'Nothing is billing.' })
+    expect(messages).toHaveLength(3)
   })
 
   it('leaves out an empty answer after the tool results', () => {

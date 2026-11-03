@@ -9,6 +9,8 @@ import { Elapsed } from '../components/relativeTime'
 import { cx } from '../cx'
 import { ChevronRightIcon } from '../icons'
 import { LogViewer } from '../logviewer'
+import { WarningMark } from './RunWarningsList'
+import { rowKey, useWarningMarks } from './runWarnings'
 import type { WorkflowJob as Job, WorkflowStep as Step } from './types'
 import { jobLabel, toggled } from './util'
 
@@ -114,6 +116,7 @@ function JobRow({
   const dependencies = Array.isArray(job.needs) ? job.needs : []
   const panelId = useId()
   const { dag: t } = useStrings()
+  const marks = useWarningMarks()
   const skipped = job.status === 'skipped' || job.status === 'skipped-failed'
 
   return (
@@ -134,18 +137,26 @@ function JobRow({
         <Chevron open={isExpanded} hidden={!hasSteps} />
         <RunStatusIcon status={job.status} />
         <div className="flex flex-col gap-1 min-w-0 flex-1">
-          <span className="font-mono text-sm text-[var(--theme-app)] truncate">
-            {jobLabel(jobName, job)}
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span
+              className="font-mono text-sm text-[var(--theme-app)] truncate"
+              title={jobLabel(jobName, job)}
+            >
+              {jobLabel(jobName, job)}
+            </span>
+            <WarningMark warnings={marks.under(rowKey(prefix, jobName))} />
           </span>
           {dependencies.length > 0 && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] text-[var(--theme-muted-text-color)]">
+            // A job that waits on many wraps its chips onto more lines, each chip whole, rather than
+            // breaking a name across lines.
+            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+              <span className="whitespace-nowrap text-xs text-[var(--theme-muted-text-color)]">
                 {t.dependsOn}
               </span>
               {dependencies.map((dep) => (
                 <span
                   key={dep}
-                  className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--theme-muted-panel-bg)] text-[var(--theme-muted-text-color)]"
+                  className="whitespace-nowrap text-xs px-1.5 py-0.5 rounded bg-[var(--theme-muted-panel-bg)] text-[var(--theme-muted-text-color)]"
                 >
                   {jobLabel(dep)}
                 </span>
@@ -153,7 +164,7 @@ function JobRow({
             </div>
           )}
         </div>
-        <div className="flex-1" />
+        {/* The name takes all the room the time leaves, so it truncates only when it must. */}
         <Elapsed
           start={job.startedAt}
           end={job.completedAt}
@@ -208,6 +219,7 @@ function StepRow({
   const panelId = useId()
   const subworkflowPanelId = useId()
   const { dag: t } = useStrings()
+  const marks = useWarningMarks()
 
   const subworkflowJobs = subworkflow?.jobs ?? {}
   const subworkflowJobNames = Object.keys(subworkflowJobs).filter(
@@ -235,7 +247,7 @@ function StepRow({
             type: subworkflow.type,
             className: 'h-4 w-4 flex-shrink-0',
           })}
-        <span className="font-mono text-sm text-[var(--theme-app)] truncate flex-1">
+        <span className="font-mono text-sm text-[var(--theme-app)] truncate min-w-0">
           {label}
           {subworkflow && (
             <span className="ml-2 text-xs text-[var(--theme-muted-text-color)]">
@@ -243,6 +255,8 @@ function StepRow({
             </span>
           )}
         </span>
+        <WarningMark warnings={marks.under(rowKey(prefix, jobName, index))} />
+        <div className="flex-1" />
         <Elapsed
           start={step.startedAt}
           end={step.completedAt}
@@ -293,6 +307,7 @@ export default function TreeView({ jobs, slug, expandedJobs, setExpandedJobs }: 
   const engine = useWorkflowEngine()
   const matrixPanelId = useId()
   const { common, dag } = useStrings()
+  const marks = useWarningMarks()
   // Filter out jobs with if === false (same logic as DAG view)
   const visibleJobNames = useMemo(() => {
     return Object.keys(jobs).filter((jobName) => jobs[jobName]?.if !== false)
@@ -426,6 +441,11 @@ export default function TreeView({ jobs, slug, expandedJobs, setExpandedJobs }: 
                     <span className="font-mono text-sm text-[var(--theme-app)]">
                       {dag.matrixOf(matrixOrigin)} ({dag.jobCount(group.members.length)})
                     </span>
+                    {!isGroupExpanded && (
+                      <WarningMark
+                        warnings={marks.underAny(group.members.map((m) => rowKey('', m)))}
+                      />
+                    )}
                   </button>
                   <DisclosurePanel open={isGroupExpanded} id={`${matrixPanelId}-${matrixOrigin}`}>
                     <div className="pl-4">

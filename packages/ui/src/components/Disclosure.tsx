@@ -1,5 +1,5 @@
 import { Collapsible } from '@base-ui/react/collapsible'
-import type { ReactNode } from 'react'
+import { type MouseEventHandler, type ReactNode, useRef } from 'react'
 import { cx } from '../cx'
 import { ChevronRightIcon } from '../icons'
 
@@ -23,6 +23,23 @@ export interface DisclosureProps {
   summaryClassName?: string | undefined
   /** On the revealed detail: its indent and spacing. */
   panelClassName?: string | undefined
+  /** False drops the chevron, for a row that reads as a toggle on its own, such as a whole
+   *  list row that opens its detail. */
+  chevron?: boolean | undefined
+  /** Controls beside the summary, outside the toggle, so a row can hold buttons without
+   *  nesting them in it. */
+  actions?: ReactNode
+  /** Controls that read as part of the summary, right after it on its line, such as a button
+   *  that says why a row failed. They sit outside the toggle, so no button holds another and
+   *  each is its own stop for Tab; a click on the rest of the line still toggles. */
+  summaryControls?: ReactNode
+  /** Text beside the summary that gives way to it, such as a cluster's address beside its name.
+   *  It fills the room the summary and actions leave, ends in an ellipsis when that room runs
+   *  short, and hides when the room is too narrow to read (under 5rem). The summary shortens
+   *  only once it and the actions no longer fit. */
+  aside?: ReactNode
+  /** On the whole disclosure, summary and detail, such as a row's own menu. */
+  onContextMenu?: MouseEventHandler<HTMLDivElement> | undefined
   children: ReactNode
 }
 
@@ -39,8 +56,53 @@ export function Disclosure({
   className,
   summaryClassName,
   panelClassName,
+  chevron = true,
+  actions,
+  summaryControls,
+  aside,
+  onContextMenu,
   children,
 }: DisclosureProps) {
+  const trigger = useRef<HTMLButtonElement>(null)
+  const hasControls =
+    summaryControls !== undefined && summaryControls !== null && summaryControls !== false
+  const toggle = (
+    <Collapsible.Trigger
+      ref={trigger}
+      className={cx(
+        'group/disclosure flex min-w-0 items-start gap-2 rounded-sm text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--theme-focus)',
+        disabled ? 'cursor-default' : 'cursor-pointer',
+        summaryClassName,
+      )}
+    >
+      {summary}
+      {!disabled && chevron && (
+        <ChevronRightIcon
+          aria-hidden="true"
+          className="mt-1 h-3.5 w-3.5 shrink-0 opacity-70 transition-transform group-data-panel-open/disclosure:rotate-90 motion-reduce:transition-none"
+        />
+      )}
+    </Collapsible.Trigger>
+  )
+  // The rest of the line, a pointer's way to toggle as the line was before. The toggle itself
+  // is the keyboard's and the screen reader's.
+  const rest = (
+    <div
+      aria-hidden="true"
+      className={cx('min-w-0 flex-1 self-stretch', !disabled && 'cursor-pointer')}
+      onClick={() => trigger.current?.click()}
+    />
+  )
+  // The aside takes only the room left over, so it never pushes the summary: its width comes
+  // from the line, not its text, and the container query hides the text when that room is too
+  // narrow to read.
+  const asideSlot =
+    aside !== undefined && aside !== null && aside !== false ? (
+      <div className="@container flex min-w-0 flex-1 items-center self-stretch">
+        {rest}
+        <div className="min-w-0 truncate @max-[5rem]:hidden">{aside}</div>
+      </div>
+    ) : null
   return (
     <Collapsible.Root
       open={open}
@@ -48,22 +110,29 @@ export function Disclosure({
       defaultOpen={defaultOpen}
       disabled={disabled}
       className={className}
+      onContextMenu={onContextMenu}
     >
-      <Collapsible.Trigger
-        className={cx(
-          'group/disclosure flex min-w-0 items-start gap-2 rounded-sm text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--theme-focus)',
-          disabled ? 'cursor-default' : 'cursor-pointer',
-          summaryClassName,
-        )}
-      >
-        {summary}
-        {!disabled && (
-          <ChevronRightIcon
-            aria-hidden="true"
-            className="mt-1 h-3.5 w-3.5 shrink-0 opacity-70 transition-transform group-data-panel-open/disclosure:rotate-90 motion-reduce:transition-none"
-          />
-        )}
-      </Collapsible.Trigger>
+      {hasControls ? (
+        <div className="flex min-w-0 items-center gap-2">
+          {toggle}
+          <div className="flex shrink-0 items-center gap-1">{summaryControls}</div>
+          {asideSlot ?? rest}
+          {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
+        </div>
+      ) : asideSlot ? (
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0">{toggle}</div>
+          {asideSlot}
+          {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
+        </div>
+      ) : actions ? (
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 flex-1">{toggle}</div>
+          <div className="flex shrink-0 items-center gap-1">{actions}</div>
+        </div>
+      ) : (
+        toggle
+      )}
       <Collapsible.Panel
         keepMounted={keepMounted}
         className={cx(collapsePanelClassName, panelClassName)}

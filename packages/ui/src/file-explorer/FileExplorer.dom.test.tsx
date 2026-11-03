@@ -1,12 +1,15 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { isPlainClick } from '../components/AppLink'
 import { type UILinkComponent, UIProvider } from '../components/Provider'
 import { CorsError } from './lib/errors'
 import type { TListPageRequest } from './lib/paging'
 import type { TreeNode, TStorage, TStorageObject } from './lib/types'
+
+const responsive = vi.hoisted(() => ({ width: null as number | null }))
+vi.mock('../components/useWidth', () => ({ useWidth: () => responsive.width }))
 
 vi.mock('./FilePreview', () => ({ FilePreview: () => null }))
 vi.mock('./FilePreview/Inline', () => ({ FilePreviewInline: () => null }))
@@ -555,6 +558,76 @@ describe('FileExplorer storages prop', () => {
   })
 })
 
+describe('FileExplorer storage groups', () => {
+  afterEach(() => localStorage.clear())
+
+  it('grouped by type, opens the group of a deep-linked storage that joins after mount', async () => {
+    const script = scriptedStorage()
+    const grouped = { ...storage, group: '~buckets' }
+    const view = (storages: TStorage[]) => (
+      <FileExplorerProvider>
+        <FileExplorer
+          getProviderAndClient={script.getProviderAndClient}
+          storages={storages}
+          storageGroups={[{ id: '~buckets', label: 'Buckets' }]}
+          selectedPath={FOLDER_A}
+          onPathChange={() => {}}
+          showUserHierarchy
+        />
+      </FileExplorerProvider>
+    )
+    const { rerender } = render(view([]))
+    await act(async () => {})
+    fireEvent.click(screen.getByRole('button', { name: 'Type' }))
+
+    rerender(view([grouped]))
+    await act(async () => {})
+
+    expect(await findTreeItem('Buckets')).toHaveAttribute('aria-expanded', 'true')
+    expect(await findTreeItem('one.txt')).toBeInTheDocument()
+  })
+
+  it('leaves a selected user, which grouping by type removes', async () => {
+    const onPathChange = vi.fn()
+    render(
+      <FileExplorerProvider>
+        <FileExplorer
+          getProviderAndClient={scriptedStorage().getProviderAndClient}
+          storages={[{ ...storage, group: '~buckets' }]}
+          storageGroups={[{ id: '~buckets', label: 'Buckets' }]}
+          selectedPath={`${storage.user}/`}
+          onPathChange={onPathChange}
+          showUserHierarchy
+        />
+      </FileExplorerProvider>,
+    )
+    await act(async () => {})
+
+    fireEvent.click(screen.getByRole('button', { name: 'Type' }))
+    await act(async () => {})
+
+    expect(onPathChange).toHaveBeenCalledWith('')
+    expect(screen.getByRole('button', { name: 'Type' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('opens a link to a type folder grouped by type', async () => {
+    render(
+      <FileExplorerProvider>
+        <FileExplorer
+          getProviderAndClient={scriptedStorage().getProviderAndClient}
+          storages={[{ ...storage, group: '~buckets' }]}
+          storageGroups={[{ id: '~buckets', label: 'Buckets' }]}
+          selectedPath="~buckets/"
+          onPathChange={() => {}}
+          showUserHierarchy
+        />
+      </FileExplorerProvider>,
+    )
+
+    expect(await findTreeItem('Buckets')).toHaveAttribute('aria-selected', 'true')
+  })
+})
+
 describe('FileExplorer storage removal', () => {
   const other: TStorage = { ...storage, id: 'storage-2', name: 'other', displayName: 'other' }
   const OTHER_ROOT = `${other.user}/${other.name}/`
@@ -765,6 +838,50 @@ describe('FileExplorer write without delete', () => {
   })
 })
 
+describe('FileExplorer transfer limit', () => {
+  const capped = { ...storage, canUpload: true, transferLimitBytes: 1024 }
+
+  it('disables download for a file above the limit and names the limit', async () => {
+    const script = scriptedStorage({
+      ...PAGES,
+      'a/': [[file('a/small.txt', 1024), file('a/big.bin', 2048)]],
+    })
+    render(explorer(FOLDER_A, script, [capped]))
+    await act(async () => {})
+
+    fireEvent.contextMenu(await findTreeItem('big.bin'))
+    const download = await screen.findByRole('menuitem', { name: /^Download/ })
+    expect(download).toHaveAttribute('aria-disabled', 'true')
+    expect(download).toHaveAccessibleName(expect.stringContaining('1 KB'))
+
+    fireEvent.keyDown(download, { key: 'Escape' })
+    fireEvent.contextMenu(await findTreeItem('small.txt'))
+    expect(await screen.findByRole('menuitem', { name: 'Download' })).not.toHaveAttribute(
+      'aria-disabled',
+      'true',
+    )
+  })
+
+  it('skips files above the limit from an upload and lists them', async () => {
+    const { container } = render(explorer(FOLDER_A, scriptedStorage(), [capped]))
+    await act(async () => {})
+
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement
+    fireEvent.change(input, {
+      target: {
+        files: [new File(['x'.repeat(10)], 'ok.txt'), new File(['x'.repeat(2048)], 'huge.bin')],
+      },
+    })
+
+    const notice = await screen.findByText(/1 KB limit/)
+    const followsNotice = (node: Node) =>
+      notice.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING
+    expect(followsNotice(screen.getByText('huge.bin'))).toBeTruthy()
+    expect(followsNotice(screen.getByText('ok.txt'))).toBeFalsy()
+    expect(screen.getByRole('button', { name: 'Confirm' })).toBeEnabled()
+  })
+})
+
 describe('FileExplorer landmarks and names', () => {
   it("names the folder's trail and marks the open folder", async () => {
     await renderExplorer(FOLDER_A)
@@ -911,5 +1028,50 @@ describe('FileExplorer links', () => {
     await screen.findByLabelText('Select one.txt')
     expect(screen.queryAllByRole('link')).toHaveLength(0)
     expect((await findTreeItem('b')).tagName).toBe('DIV')
+  })
+})
+
+describe('narrow explorer', () => {
+  beforeEach(() => {
+    responsive.width = 390
+  })
+  afterEach(() => {
+    responsive.width = null
+  })
+
+  it('keeps the file list visible and opens folders in a dismissible drawer', async () => {
+    await renderExplorer(FOLDER_A)
+    await screen.findByLabelText('Select one.txt')
+    expect(screen.queryByRole('tree')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Folders' }))
+    const drawer = await screen.findByRole('dialog', { name: 'Folders' })
+    expect(within(drawer).getByRole('tree')).toBeInTheDocument()
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Close' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('closes the folder drawer when navigation changes the selected path', async () => {
+    const view = await renderExplorer(FOLDER_A)
+    fireEvent.click(screen.getByRole('button', { name: 'Folders' }))
+    await screen.findByRole('dialog', { name: 'Folders' })
+    await view.navigate(FOLDER_B)
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(await screen.findByLabelText('Select three.txt')).toBeInTheDocument()
+  })
+
+  it('keeps an embedded tree visible without adding a folder drawer', async () => {
+    render(
+      <FileExplorerProvider>
+        <FileExplorer
+          treeOnly
+          storages={[storage]}
+          getProviderAndClient={scriptedStorage().getProviderAndClient}
+          selectedPath={ROOT}
+          onPathChange={() => {}}
+        />
+      </FileExplorerProvider>,
+    )
+    expect(screen.getByRole('tree')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Folders' })).not.toBeInTheDocument()
   })
 })

@@ -10,8 +10,9 @@ interface ButtonOwnProps extends ButtonStyle {
   className?: string | undefined
   /** Before the label. */
   icon?: ReactNode
-  /** Busy with what it started: a spinner takes the icon's place, and it can't
-   *  be pressed again until done. */
+  /** Busy with what it started: a spinner takes the icon's place, or without an
+   *  icon sits over the label, so the button keeps its width. It can't be
+   *  pressed again until done. */
   loading?: boolean | undefined
 }
 
@@ -37,20 +38,28 @@ export function Button({
   ...props
 }: ButtonProps) {
   const classes = cx(buttonClasses({ variant, size, iconOnly }), className)
-  const content = (
-    <>
-      {loading ? <Loader inline decorative size="1em" /> : icon}
-      {children}
-    </>
-  )
+  // A caller that shows its own progress, such as a label that says what is
+  // under way, keeps its busy state when `loading` isn't set.
+  const busy = loading || props['aria-busy'] || undefined
+  const content =
+    loading && !icon ? (
+      // The label stays, unseen but still the button's name, so the button
+      // keeps its width and a row of them doesn't shift.
+      <>
+        <span className="inline-flex items-center gap-1.5 opacity-0">{children}</span>
+        <span className="absolute inset-0 flex items-center justify-center">
+          <Loader inline decorative size="1em" />
+        </span>
+      </>
+    ) : (
+      <>
+        {loading ? <Loader inline decorative size="1em" /> : icon}
+        {children}
+      </>
+    )
   if (props.href !== undefined) {
     return (
-      <AppLink
-        {...props}
-        disabled={props.disabled || loading}
-        aria-busy={loading || undefined}
-        className={classes}
-      >
+      <AppLink {...props} disabled={props.disabled || loading} aria-busy={busy} className={classes}>
         {content}
       </AppLink>
     )
@@ -62,7 +71,7 @@ export function Button({
       focusableWhenDisabled={loading || undefined}
       {...props}
       disabled={props.disabled || loading}
-      aria-busy={loading || undefined}
+      aria-busy={busy}
       className={classes}
     >
       {content}
@@ -79,7 +88,7 @@ interface MethodButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>
 }
 
 const methodClasses =
-  'group flex w-full cursor-pointer items-center rounded-xl border border-(--theme-border) bg-(--theme-muted-panel-bg) p-4 text-[0.9375rem] font-medium text-(--theme-app) no-underline transition-[background-color,border-color,translate] duration-200 hover:not-disabled:not-aria-disabled:border-(--theme-muted-text-color) hover:not-disabled:not-aria-disabled:bg-(--theme-border) hover:not-disabled:not-aria-disabled:-translate-y-0.5 active:translate-y-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--theme-link) disabled:cursor-not-allowed disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 motion-reduce:transition-none motion-reduce:hover:translate-y-0'
+  'group flex w-full cursor-pointer items-center rounded-xl border border-(--theme-border) bg-(--theme-muted-panel-bg) p-4 text-[0.9375rem] font-medium text-(--theme-app) no-underline transition-[background-color,border-color,translate] duration-200 hover:not-disabled:not-aria-disabled:border-(--theme-muted-text-color) hover:not-disabled:not-aria-disabled:bg-(--theme-border) hover:not-disabled:not-aria-disabled:-translate-y-0.5 active:translate-y-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--theme-focus) disabled:cursor-not-allowed disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 motion-reduce:transition-none motion-reduce:hover:translate-y-0'
 
 /** One way to go on, such as a sign-in method: a large row with an icon, a
  *  label and a line under it. A list of them is spaced by its container. */

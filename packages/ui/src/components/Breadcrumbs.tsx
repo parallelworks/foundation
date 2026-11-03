@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState } from 'react'
+import { type ReactNode, useLayoutEffect, useState } from 'react'
 import { cx } from '../cx'
 import { ChevronRightIcon, MoreIcon } from '../icons'
 import { ActionMenu } from './ActionMenu'
@@ -15,6 +15,9 @@ export interface Breadcrumb {
   /** Empty while the name is still loading: the trail shows a placeholder. */
   label: string
   href?: string | undefined
+  /** Before the label, such as the section a page belongs to; also beside
+   *  the crumb's row once it folds into the "…" menu. */
+  icon?: ReactNode
 }
 
 export interface BreadcrumbsProps {
@@ -30,7 +33,8 @@ export interface BreadcrumbsProps {
    *  as the open folder. */
   current?: 'page' | 'location' | undefined
   /** Makes the last crumb the page's `h1`, as `PageHeader` does. A page has
-   *  one. */
+   *  one. It wraps rather than truncating: a heading can't take focus, so a
+   *  tooltip would leave the rest of the name to a mouse. */
   heading?: boolean | undefined
   /** Names the landmark; the strings' `breadcrumb` by default. */
   label?: string | undefined
@@ -40,9 +44,10 @@ export interface BreadcrumbsProps {
 /**
  * The trail to where the reader is, as a list in a `nav` landmark. A trail too
  * wide for its room folds its ancestors into a "…" menu, keeping the parent
- * when it fits beside the last crumb, which truncates last, with its full name
- * on hover. In a flex row its room is what the row's other items leave it;
- * elsewhere it fills its container's width.
+ * when the whole last crumb fits beside it. Once every ancestor has folded, a
+ * last crumb still too wide truncates, with its full name on hover, or wraps
+ * when it is the heading. In a flex row its room is what the row's other items
+ * leave it; elsewhere it fills its container's width.
  */
 export function Breadcrumbs({
   crumbs,
@@ -59,23 +64,24 @@ export function Breadcrumbs({
   const last = crumbs[crumbs.length - 1]
   const ancestors = crumbs.slice(0, -1)
   // When the trail doesn't fit, every ancestor but the parent, the way back,
-  // folds into one menu, and the parent too when even it can't fit beside the
-  // last crumb, so the crumbs left stay readable rather than each truncating
-  // to a few letters.
+  // folds into one menu, and the parent too when the last crumb can't fit
+  // whole beside it: where the reader is matters more than the way back, which
+  // the menu still holds.
   const folded = fit === 'none' ? ancestors : fit === 'parent' ? ancestors.slice(0, -1) : []
   const shown = ancestors.slice(folded.length)
   const Last = heading ? 'h1' : 'span'
 
   const menuItem = (crumb: Breadcrumb, index: number): MenuEntry => {
     const name = crumb.label || common.loading
+    const icon = crumb.icon
     if (crumb.href) {
-      return { label: name, href: crumb.href }
+      return { label: name, icon, href: crumb.href }
     }
     if (onSelect) {
-      return { label: name, onClick: () => onSelect(crumb, index) }
+      return { label: name, icon, onClick: () => onSelect(crumb, index) }
     }
     // Still part of the path, so it shows, but there is nowhere to go.
-    return { label: name, disabled: true, onClick: () => {} }
+    return { label: name, icon, disabled: true, onClick: () => {} }
   }
 
   return (
@@ -115,19 +121,29 @@ export function Breadcrumbs({
               ) : (
                 <Tooltip content={crumb.label} overflowOnly>
                   {crumb.href ? (
-                    <AppLink href={crumb.href} className={cx(crumbText, crumbLink, 'max-w-48')}>
-                      {crumb.label}
+                    <AppLink
+                      href={crumb.href}
+                      className={cx(crumbText, crumbLink, crumb.icon && withIcon, 'max-w-48')}
+                    >
+                      <CrumbLabel crumb={crumb} />
                     </AppLink>
                   ) : onSelect ? (
                     <button
                       type="button"
                       onClick={() => onSelect(crumb, index)}
-                      className={cx(crumbText, crumbLink, 'max-w-48 cursor-pointer text-start')}
+                      className={cx(
+                        crumbText,
+                        crumbLink,
+                        crumb.icon && withIcon,
+                        'max-w-48 cursor-pointer text-start',
+                      )}
                     >
-                      {crumb.label}
+                      <CrumbLabel crumb={crumb} />
                     </button>
                   ) : (
-                    <span className={cx(crumbText, 'max-w-48')}>{crumb.label}</span>
+                    <span className={cx(crumbText, crumb.icon && withIcon, 'max-w-48')}>
+                      <CrumbLabel crumb={crumb} />
+                    </span>
                   )}
                 </Tooltip>
               )}
@@ -141,15 +157,29 @@ export function Breadcrumbs({
               <Last aria-current={current} className="m-0">
                 <CrumbPlaceholder />
               </Last>
+            ) : heading ? (
+              // Two lines and their padding fit a 48px bar; a third grows it.
+              <h1
+                aria-current={current}
+                className={cx(
+                  'm-0 block min-w-0 py-1.5 text-[13px] font-medium leading-4 wrap-break-word text-(--theme-app)',
+                  last.icon && withIcon,
+                )}
+              >
+                <CrumbLabel crumb={last} wrap />
+              </h1>
             ) : (
-              // The last resort, once only the parent is left beside it.
+              // The last resort, once every ancestor has folded.
               <Tooltip content={last.label} overflowOnly>
-                <Last
+                <span
                   aria-current={current}
-                  className="m-0 block truncate text-[13px] font-medium leading-none text-(--theme-app)"
+                  className={cx(
+                    'm-0 block truncate text-[13px] font-medium leading-none text-(--theme-app)',
+                    last.icon && withIcon,
+                  )}
                 >
-                  {last.label}
-                </Last>
+                  <CrumbLabel crumb={last} />
+                </span>
               </Tooltip>
             )}
           </li>
@@ -183,8 +213,24 @@ export function Breadcrumbs({
 }
 
 const crumbText = 'block truncate text-(--theme-muted-text-color)'
+// A crumb with an icon lays the two out in a row, the label still truncating.
+const withIcon = 'flex items-center gap-1'
+
+function CrumbLabel({ crumb, wrap = false }: { crumb: Breadcrumb; wrap?: boolean }) {
+  if (!crumb.icon) {
+    return crumb.label
+  }
+  return (
+    <>
+      <span aria-hidden="true" className="inline-flex shrink-0 [&_svg]:size-3.5">
+        {crumb.icon}
+      </span>
+      <span className={cx('min-w-0', !wrap && 'truncate')}>{crumb.label}</span>
+    </>
+  )
+}
 const crumbLink =
-  'rounded-sm transition-colors hover:text-(--theme-app) focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--theme-link)'
+  'rounded-sm transition-colors hover:text-(--theme-app) focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--theme-focus)'
 
 function Separator() {
   return (
@@ -205,10 +251,10 @@ function CrumbPlaceholder() {
 // What a folded trail adds before its crumbs: the "…" button, its chevron and
 // their gaps.
 const FOLD_WIDTH = 48
-// A folded parent's widest (max-w-36), and the least of the last crumb worth
-// keeping beside it.
+// A folded parent's widest (max-w-36), and the gap between it and the last
+// crumb (gap-1.5).
 const PARENT_MAX_WIDTH = 144
-const LAST_MIN_WIDTH = 128
+const CRUMB_GAP = 6
 
 /** How many of the trail's ancestors fit: all, the parent alone, or none. */
 type TrailFit = 'all' | 'parent' | 'none'
@@ -254,8 +300,11 @@ function useTrailFit(nav: HTMLElement | null, natural: HTMLElement | null): Trai
       const steps = [...natural.children]
       const width = (el: Element | undefined) => el?.getBoundingClientRect().width ?? 0
       const parent = Math.min(width(steps[steps.length - 2]), PARENT_MAX_WIDTH)
-      const last = Math.min(width(steps[steps.length - 1]), LAST_MIN_WIDTH)
-      setFit(FOLD_WIDTH + parent + last <= room ? 'parent' : 'none')
+      const last = width(steps[steps.length - 1])
+      // A trail of two has nothing to fold before its parent, so keeping the
+      // parent would be keeping the trail that didn't fit.
+      const keepsParent = steps.length > 2 && FOLD_WIDTH + parent + CRUMB_GAP + last <= room
+      setFit(keepsParent ? 'parent' : 'none')
     }
     const resize = new ResizeObserver(measure)
     // The row resizing, a sibling growing, such as actions that load, or a

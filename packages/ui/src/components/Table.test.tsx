@@ -108,6 +108,25 @@ describe('Table layout', () => {
     expect(padding(screen.getByRole('columnheader'))).toEqual(padding(screen.getByRole('cell')))
   })
 
+  it('holds a compact row to 32px, padding only a cell that wraps', () => {
+    render(
+      <Table density="compact">
+        <Table.Header>Name</Table.Header>
+        <tr>
+          <Table.Item>ada</Table.Item>
+          <Table.Item wrap>a note that wraps</Table.Item>
+        </tr>
+      </Table>,
+    )
+    expect(screen.getByRole('cell', { name: 'ada' })).toHaveClass(
+      'h-8',
+      'py-0',
+      'whitespace-nowrap',
+    )
+    expect(screen.getByRole('cell', { name: 'a note that wraps' })).toHaveClass('h-8', 'py-1')
+    expect(screen.getByRole('columnheader')).toHaveClass('py-1.5')
+  })
+
   it('lets a caller pad a cell its own way, and spans columns', () => {
     render(
       <Table density="compact">
@@ -263,5 +282,28 @@ describe('Table sticky header', () => {
     )
     expect(thead()).not.toHaveClass('sticky')
     expect(thead().style.top).toBe('')
+  })
+})
+
+describe('table options', () => {
+  it('sizes its columns, sets its headers in sentence case, and keeps a header’s own choice', () => {
+    const { container } = render(
+      <Table columns={['20%', undefined]} caps={false} density="dense" flush columnDividers>
+        <Table.Header>Name</Table.Header>
+        <Table.Header caps>Nodes</Table.Header>
+        <tr>
+          <Table.Item>a</Table.Item>
+          <Table.Item>1</Table.Item>
+        </tr>
+      </Table>,
+    )
+    const cols = container.querySelectorAll('colgroup col')
+    expect(cols).toHaveLength(2)
+    expect(cols[0]).toHaveStyle({ width: '20%' })
+    expect(screen.getByRole('columnheader', { name: 'Name' })).not.toHaveClass('uppercase')
+    expect(screen.getByRole('columnheader', { name: 'Nodes' })).toHaveClass('uppercase')
+    expect(screen.getByRole('cell', { name: 'a' })).toHaveClass('py-1', 'text-xs')
+    // The colgroup stays out of the body, where the table's rows go.
+    expect(container.querySelector('tbody colgroup')).toBeNull()
   })
 })

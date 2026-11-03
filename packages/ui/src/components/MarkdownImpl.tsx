@@ -7,9 +7,28 @@ import { math } from '@streamdown/math'
 // once markdown renders. The build keeps this a bare import of the katex
 // package, so the host's bundler resolves the fonts relative to that sheet.
 import 'katex/dist/katex.min.css'
-import { useEffect, useState } from 'react'
-import { defaultRehypePlugins, type PluginConfig, Streamdown } from 'streamdown'
+import {
+  type AnchorHTMLAttributes,
+  type ComponentType,
+  createContext,
+  type HTMLAttributes,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
+import {
+  type ControlsConfig,
+  defaultComponents,
+  defaultRehypePlugins,
+  defaultRemarkPlugins,
+  type ExtraProps,
+  type PluginConfig,
+  Streamdown,
+  useIsCodeFenceIncomplete,
+} from 'streamdown'
 import { cx } from '../cx'
+import { CodeBlock } from './CodeBlock'
 import { CODE_THEMES } from './codeTheme'
 import { ExternalLink } from './ExternalLink'
 import { rehypeHttpsImagesOnly } from './httpsImages'
@@ -49,12 +68,159 @@ function loadMermaid(): Promise<void> {
 // so its own plugins go first.
 const rehypePlugins = [...Object.values(defaultRehypePlugins), rehypeCodeBreaks]
 
+// A lone `~` is how prose says "about" ("~$3/day"); GFM's default reads a pair
+// of them as strikethrough and crosses out whatever lies between. `~~x~~` still
+// strikes.
+const remarkPlugins = Object.entries(defaultRemarkPlugins).map(([name, plugin]) =>
+  name === 'gfm' ? [Array.isArray(plugin) ? plugin[0] : plugin, { singleTilde: false }] : plugin,
+) as NonNullable<Parameters<typeof Streamdown>[0]['remarkPlugins']>
+
 const httpsImagesRehypePlugins = [
   ...Object.entries(defaultRehypePlugins).flatMap(([name, plugin]) =>
     name === 'harden' ? [rehypeHttpsImagesOnly, plugin] : [plugin],
   ),
   rehypeCodeBreaks,
 ]
+
+interface CodeControls {
+  copy: boolean
+  /** The file's name without its extension, or null for no download button. */
+  download: string | null
+}
+
+const CodeContext = createContext<CodeControls & { diagrams: boolean }>({
+  copy: true,
+  download: 'file',
+  diagrams: false,
+})
+
+// The renderer's own reading of `controls`: on unless turned off, as a whole,
+// for code, or per button.
+function codeControls(controls: ControlsConfig | undefined): CodeControls {
+  if (controls === false) {
+    return { copy: false, download: null }
+  }
+  const code = controls === undefined || controls === true ? true : controls.code
+  if (code === false) {
+    return { copy: false, download: null }
+  }
+  if (code === undefined || code === true) {
+    return { copy: true, download: 'file' }
+  }
+  const { download } = code
+  return {
+    copy: code.copy !== false,
+    download: download === false ? null : typeof download === 'object' ? download.filename : 'file',
+  }
+}
+
+const EXTENSIONS: Record<string, string> = {
+  javascript: 'js',
+  typescript: 'ts',
+  python: 'py',
+  ruby: 'rb',
+  rust: 'rs',
+  golang: 'go',
+  bash: 'sh',
+  shell: 'sh',
+  shellscript: 'sh',
+  zsh: 'sh',
+  console: 'sh',
+  markdown: 'md',
+  text: 'txt',
+  plaintext: 'txt',
+  csharp: 'cs',
+  kotlin: 'kt',
+  powershell: 'ps1',
+  dockerfile: 'Dockerfile',
+}
+
+// The download's extension for a fence's language: its usual one where it has
+// a name of its own, the language itself where that is one, such as yaml or go.
+function extensionFor(language: string): string {
+  const lang = language.toLowerCase()
+  return EXTENSIONS[lang] ?? (/^[a-z0-9+]{1,10}$/.test(lang) ? lang : 'txt')
+}
+
+const LANGUAGE = /language-([^\s]+)/
+const START_LINE = /startLine=(\d+)/
+const NO_LINE_NUMBERS = /\bnoLineNumbers\b/
+
+type CodeProps = HTMLAttributes<HTMLElement> & ExtraProps & { 'data-block'?: string }
+
+const DefaultCode = defaultComponents.code as ComponentType<CodeProps>
+
+function textOf(children: unknown): string {
+  if (typeof children === 'string') {
+    return children
+  }
+  if (Array.isArray(children)) {
+    return children.map(textOf).join('')
+  }
+  if (children && typeof children === 'object' && 'props' in children) {
+    return textOf((children as { props: { children?: unknown } }).props.children)
+  }
+  return ''
+}
+
+// A fenced block renders as the CodeBlock a page uses, so the two can't drift;
+// inline code and diagrams stay the renderer's own. Until the diagram plugin
+// has loaded, a diagram's fence shows as its code.
+function MarkdownCode(props: CodeProps) {
+  const { copy, download, diagrams } = useContext(CodeContext)
+  const incomplete = useIsCodeFenceIncomplete()
+  const language = props.className?.match(LANGUAGE)?.[1] ?? ''
+  if (!('data-block' in props) || (diagrams && language === 'mermaid')) {
+    return <DefaultCode {...props} />
+  }
+  const meta = props.node?.properties?.['metastring']
+  const metastring = typeof meta === 'string' ? meta : ''
+  const start = Number.parseInt(metastring.match(START_LINE)?.[1] ?? '1', 10)
+  return (
+    <CodeBlock
+      className="my-3.5"
+      code={textOf(props.children)}
+      language={language}
+      copy={copy}
+      filename={download === null ? undefined : `${download}.${extensionFor(language)}`}
+      lineNumbers={NO_LINE_NUMBERS.test(metastring) ? false : undefined}
+      startLine={Math.max(1, start)}
+      maxHeight={400}
+      streaming={incomplete}
+    />
+  )
+}
+
+function MarkdownLink({
+  node: _node,
+  ...props
+}: AnchorHTMLAttributes<HTMLAnchorElement> & ExtraProps) {
+  return <ExternalLink {...props} className={cx('link wrap-break-word', props.className)} />
+}
+
+const TABLE_ROW = /^\s*\|/
+const TABLE_DELIMITER = /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/
+
+/** While a reply streams, a table's opening rows read as stray pipes until its
+ *  delimiter row arrives; they are held back until then. */
+export function withoutUnfinishedTable(text: string): string {
+  if ((text.match(/^\s*(```|~~~)/gm)?.length ?? 0) % 2 === 1) {
+    return text
+  }
+  const lines = text.split('\n')
+  let start = lines.length
+  while (start > 0 && TABLE_ROW.test(lines[start - 1] ?? '')) {
+    start--
+  }
+  if (start === lines.length) {
+    return text
+  }
+  const rows = lines.slice(start)
+  if (rows.length >= 2 && TABLE_DELIMITER.test(rows[1] ?? '')) {
+    return text
+  }
+  return lines.slice(0, start).join('\n')
+}
 
 export default function MarkdownImpl({
   children,
@@ -81,28 +247,36 @@ export default function MarkdownImpl({
     }
   }, [needsMermaid])
   const plugins = needsMermaid && pluginsWithMermaid ? pluginsWithMermaid : basePlugins
+  const { copy, download } = codeControls(controls)
+  const diagrams = plugins === pluginsWithMermaid
+  // Configuration changes must update mounted blocks without replacing their type.
+  const codeConfig = useMemo(() => ({ copy, download, diagrams }), [copy, download, diagrams])
+  const renderers = useMemo(
+    () => ({ code: MarkdownCode, a: MarkdownLink, ...components }),
+    [components],
+  )
   return (
-    <div
-      className={cx('markdown whitespace-normal text-start w-full', compact && 'markdown-compact')}
-    >
-      <Streamdown
-        mode={isStreaming ? 'streaming' : 'static'}
-        isAnimating={isStreaming ?? false}
-        {...(isStreaming ? ({ caret: 'block', className: 'markdown-streaming' } as const) : {})}
-        {...(controls ? { controls } : {})}
-        plugins={plugins}
-        rehypePlugins={httpsImagesOnly ? httpsImagesRehypePlugins : rehypePlugins}
-        shikiTheme={CODE_THEMES}
-        components={{
-          a: ({ node, ...props }) => (
-            <ExternalLink {...props} className={cx('link wrap-break-word', props.className)} />
-          ),
-          // The host's overrides win per tag, `a` included.
-          ...components,
-        }}
+    <CodeContext value={codeConfig}>
+      <div
+        className={cx(
+          'markdown whitespace-normal text-start w-full',
+          compact && 'markdown-compact',
+        )}
       >
-        {children || ''}
-      </Streamdown>
-    </div>
+        <Streamdown
+          mode={isStreaming ? 'streaming' : 'static'}
+          isAnimating={isStreaming ?? false}
+          {...(isStreaming ? ({ caret: 'block', className: 'markdown-streaming' } as const) : {})}
+          {...(controls === undefined ? {} : { controls })}
+          plugins={plugins}
+          remarkPlugins={remarkPlugins}
+          rehypePlugins={httpsImagesOnly ? httpsImagesRehypePlugins : rehypePlugins}
+          shikiTheme={CODE_THEMES}
+          components={renderers}
+        >
+          {(isStreaming ? withoutUnfinishedTable(children || '') : children) || ''}
+        </Streamdown>
+      </div>
+    </CodeContext>
   )
 }

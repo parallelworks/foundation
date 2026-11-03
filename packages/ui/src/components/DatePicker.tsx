@@ -1,14 +1,16 @@
 import { Popover } from '@base-ui/react/popover'
-import { type ClassNames, DayPicker, type Matcher } from '@daypicker/react'
-import { useState } from 'react'
+import { type ClassNames, type DateRange, DayPicker, type Matcher } from '@daypicker/react'
+import { type ReactElement, type ReactNode, useId, useRef, useState } from 'react'
 import { cx } from '../cx'
 import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon } from '../icons'
 import { buttonClasses } from './buttonClasses'
 import { useFieldLabelledControl } from './Field'
 import { type FieldBoxSize, fieldBox } from './fieldBox'
 import { panelClassName, positionerClassName } from './floating'
-import { useFullscreenContainer } from './fullscreen'
-import { useStrings } from './Provider'
+import { useLocale, useStrings } from './Provider'
+import { usePopupContainer } from './popupContainer'
+import { Tooltip } from './Tooltip'
+import { formatNumericDate, parseTypedDate } from './typedDate'
 
 export interface DatePickerProps {
   /** As a native date input holds it: `yyyy-MM-dd`, or with `withTime` the local
@@ -38,7 +40,24 @@ export interface DatePickerProps {
   size?: FieldBoxSize | undefined
   /** On the row that holds the date and the time: its width or margin. */
   className?: string | undefined
+  /** Renders the field as this button, such as a chip that says the date its own way. The
+   *  button shows the date itself; `placeholder` and `size` then go unused. */
+  trigger?: ReactElement | undefined
+  /** A hint on the trigger button. */
+  triggerTooltip?: ReactNode
+  /** The edge of the field the calendar lines up with. */
+  align?: 'start' | 'end' | undefined
 }
+
+function CalendarChevron({ orientation }: { orientation?: string | undefined }) {
+  return orientation === 'left' ? (
+    <ChevronLeftIcon aria-hidden="true" />
+  ) : (
+    <ChevronRightIcon aria-hidden="true" />
+  )
+}
+
+const calendarComponents = { Chevron: CalendarChevron }
 
 const pad = (n: number) => String(n).padStart(2, '0')
 const toDay = (date: Date) =>
@@ -58,9 +77,9 @@ function parseDay(value: string | undefined): Date | undefined {
 const timeOf = (value: string | undefined) => value?.match(/T(\d{2}:\d{2}(?::\d{2})?)/)?.[1]
 
 /** The locale's first day of the week, where the browser reports it; Sunday otherwise. */
-function firstWeekday(): 0 | 1 | 2 | 3 | 4 | 5 | 6 {
+function firstWeekday(tag: string | undefined): 0 | 1 | 2 | 3 | 4 | 5 | 6 {
   try {
-    const locale = new Intl.Locale(navigator.language) as Intl.Locale & {
+    const locale = new Intl.Locale(tag ?? navigator.language) as Intl.Locale & {
       getWeekInfo?: () => { firstDay: number }
       weekInfo?: { firstDay: number }
     }
@@ -71,11 +90,29 @@ function firstWeekday(): 0 | 1 | 2 | 3 | 4 | 5 | 6 {
   }
 }
 
-const caption = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' })
-const weekday = new Intl.DateTimeFormat(undefined, { weekday: 'narrow' })
-const longDay = new Intl.DateTimeFormat(undefined, { dateStyle: 'full' })
-const shownDay = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' })
-const longWeekday = new Intl.DateTimeFormat(undefined, { weekday: 'long' })
+function dateFormats(locale: string | undefined) {
+  return {
+    caption: new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }),
+    weekday: new Intl.DateTimeFormat(locale, { weekday: 'narrow' }),
+    longDay: new Intl.DateTimeFormat(locale, { dateStyle: 'full' }),
+    shownDay: new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }),
+    // A day this year goes without its year, as dates read elsewhere in a page.
+    shownDayThisYear: new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }),
+    longWeekday: new Intl.DateTimeFormat(locale, { weekday: 'long' }),
+    weekStartsOn: firstWeekday(locale),
+  }
+}
+
+// Built once per locale, since every picker on a page shares one; the browser's without a locale.
+const formatsByLocale = new Map<string | undefined, ReturnType<typeof dateFormats>>()
+function formatsFor(locale: string | undefined) {
+  let formats = formatsByLocale.get(locale)
+  if (!formats) {
+    formats = dateFormats(locale)
+    formatsByLocale.set(locale, formats)
+  }
+  return formats
+}
 
 const calendarClassNames: Partial<ClassNames> = {
   root: 'relative p-3',
@@ -131,15 +168,25 @@ export function DatePicker({
   'aria-required': ariaRequired,
   size = 'md',
   className,
+  trigger,
+  triggerTooltip,
+  align = 'start',
 }: DatePickerProps) {
-  const fullscreen = useFullscreenContainer()
+  const portal = usePopupContainer()
   const t = useStrings().datePicker
   const { common } = useStrings()
   // The trigger is a button Base UI doesn't name from a Field's label, so it reads the Field.
   const field = useFieldLabelledControl()
   const [open, setOpen] = useState(false)
-  const [weekStartsOn] = useState(firstWeekday)
+  const locale = useLocale()
+  const { caption, weekday, longDay, shownDay, shownDayThisYear, longWeekday, weekStartsOn } =
+    formatsFor(locale)
   const day = parseDay(value)
+  const uid = useId()
+  // The month on show, and what is typed in the box above it.
+  const [month, setMonth] = useState<Date | undefined>(undefined)
+  const [typed, setTyped] = useState('')
+  const typedBox = useRef<HTMLInputElement>(null)
   const time = timeOf(value) ?? timeOf(min) ?? '00:00'
   const earliest = parseDay(min)
   const latest = parseDay(max)
@@ -161,89 +208,156 @@ export function DatePicker({
     emit(next)
     setOpen(false)
   }
+  const onOpenChange = (next: boolean) => {
+    if (next) {
+      setMonth(opensOn ?? new Date())
+      setTyped(day ? formatNumericDate(day, locale) : '')
+    }
+    setOpen(next)
+  }
+  const inRange = (date: Date) => (!earliest || date >= earliest) && (!latest || date <= latest)
+  const typedDay = typed.trim() ? parseTypedDate(typed, locale) : undefined
+  const typedInvalid = typed.trim() !== '' && (!typedDay || !inRange(typedDay))
+  const shown = day
+    ? (day.getFullYear() === new Date().getFullYear() ? shownDayThisYear : shownDay).format(day)
+    : undefined
+  const triggerProps = {
+    id: id ?? field?.id,
+    disabled,
+    'aria-label': ariaLabel,
+    'aria-labelledby': ariaLabelledBy ?? (ariaLabel ? undefined : field?.['aria-labelledby']),
+    'aria-describedby': ariaDescribedBy ?? field?.['aria-describedby'],
+    'aria-invalid': ariaInvalid || field?.['aria-invalid'],
+    'aria-required': ariaRequired || field?.['aria-required'],
+  }
 
   // A day at an end of the range bounds the time too, as datetime-local's min and max do.
   const sameDay = (bound: string | undefined) =>
     day !== undefined && parseDay(bound)?.getTime() === day.getTime()
 
-  return (
-    <div className={cx('flex w-full items-center', size === 'sm' ? 'gap-1.5' : 'gap-2', className)}>
-      <Popover.Root open={open} onOpenChange={setOpen}>
-        <Popover.Trigger
-          id={id ?? field?.id}
-          disabled={disabled}
-          aria-label={ariaLabel}
-          aria-labelledby={ariaLabelledBy ?? (ariaLabel ? undefined : field?.['aria-labelledby'])}
-          aria-describedby={ariaDescribedBy ?? field?.['aria-describedby']}
-          aria-invalid={ariaInvalid || field?.['aria-invalid']}
-          aria-required={ariaRequired || field?.['aria-required']}
-          className={triggerClassName(size)}
-        >
-          <CalendarIcon
-            aria-hidden="true"
-            className={cx(
-              'shrink-0 text-(--theme-muted-text-color)',
-              size === 'sm' ? 'size-3' : 'size-3.5',
-            )}
-          />
-          <span className={cx('truncate', !day && 'text-(--theme-placeholder)')}>
-            {day ? shownDay.format(day) : (placeholder ?? t.pickDate)}
-          </span>
-        </Popover.Trigger>
-        <Popover.Portal container={fullscreen}>
-          <Popover.Positioner align="start" sideOffset={4} className={positionerClassName}>
-            <Popover.Popup className={panelClassName}>
-              <DayPicker
-                {...(required
-                  ? { mode: 'single', required: true, selected: day, onSelect: pick }
-                  : { mode: 'single', selected: day, onSelect: pick })}
-                {...(opensOn && { defaultMonth: opensOn })}
-                {...(earliest && { startMonth: earliest })}
-                {...(latest && { endMonth: latest })}
-                disabled={outOfRange}
-                weekStartsOn={weekStartsOn}
-                autoFocus
-                showOutsideDays
-                fixedWeeks
-                classNames={calendarClassNames}
-                formatters={{
-                  formatCaption: (month) => caption.format(month),
-                  formatWeekdayName: (date) => weekday.format(date),
+  const picker = (
+    <Popover.Root open={open} onOpenChange={onOpenChange}>
+      <Tooltip content={triggerTooltip}>
+        {trigger ? (
+          <Popover.Trigger {...triggerProps} render={trigger} />
+        ) : (
+          <Popover.Trigger {...triggerProps} className={triggerClassName(size)}>
+            <CalendarIcon
+              aria-hidden="true"
+              className={cx(
+                'shrink-0 text-(--theme-muted-text-color)',
+                size === 'sm' ? 'size-3' : 'size-3.5',
+              )}
+            />
+            <span className={cx('truncate', !day && 'text-(--theme-placeholder)')}>
+              {shown ?? placeholder ?? t.pickDate}
+            </span>
+          </Popover.Trigger>
+        )}
+      </Tooltip>
+      <Popover.Portal {...portal}>
+        <Popover.Positioner align={align} sideOffset={4} className={positionerClassName}>
+          {/* Typing is the quickest way in; the calendar is a Tab away. */}
+          <Popover.Popup initialFocus={typedBox} className={panelClassName}>
+            <div className="border-b border-(--theme-border) p-2">
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                spellCheck={false}
+                aria-label={t.typeDate}
+                aria-invalid={typedInvalid || undefined}
+                aria-describedby={typedInvalid ? `${uid}invalid` : undefined}
+                placeholder={formatNumericDate(new Date(), locale)}
+                value={typed}
+                ref={typedBox}
+                onChange={(event) => {
+                  const next = event.target.value
+                  setTyped(next)
+                  const parsed = parseTypedDate(next, locale)
+                  if (parsed) {
+                    setMonth(parsed)
+                  }
                 }}
-                labels={{
-                  labelDayButton: (date) => longDay.format(date),
-                  labelPrevious: () => t.previousMonth,
-                  labelNext: () => t.nextMonth,
-                  labelGrid: (month) => caption.format(month),
-                  labelWeekday: (date) => longWeekday.format(date),
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    if (typedDay && inRange(typedDay)) {
+                      pick(typedDay)
+                    }
+                  }
                 }}
-                components={{
-                  Chevron: ({ orientation }) =>
-                    orientation === 'left' ? (
-                      <ChevronLeftIcon aria-hidden="true" />
-                    ) : (
-                      <ChevronRightIcon aria-hidden="true" />
-                    ),
-                }}
+                className={cx(fieldBox({ size: 'sm' }), 'tabular-nums')}
               />
-              {!required && day && (
-                <div className="flex justify-end border-t border-(--theme-border) px-3 py-2">
-                  <button
-                    type="button"
-                    className={buttonClasses({ variant: 'ghost', size: 'xs' })}
-                    onClick={() => {
-                      emit(undefined)
-                      setOpen(false)
-                    }}
-                  >
-                    {common.clear}
-                  </button>
+              {typedInvalid && (
+                <div
+                  id={`${uid}invalid`}
+                  className="mt-1 text-xs text-(--theme-error-text)"
+                  aria-live="polite"
+                >
+                  {t.invalidDate}
                 </div>
               )}
-            </Popover.Popup>
-          </Popover.Positioner>
-        </Popover.Portal>
-      </Popover.Root>
+            </div>
+            <DayPicker
+              {...(required
+                ? { mode: 'single', required: true, selected: day, onSelect: pick }
+                : { mode: 'single', selected: day, onSelect: pick })}
+              {...(month && { month })}
+              onMonthChange={setMonth}
+              {...(earliest && { startMonth: earliest })}
+              {...(latest && { endMonth: latest })}
+              disabled={outOfRange}
+              weekStartsOn={weekStartsOn}
+              showOutsideDays
+              fixedWeeks
+              classNames={calendarClassNames}
+              formatters={{
+                formatCaption: (month) => caption.format(month),
+                formatWeekdayName: (date) => weekday.format(date),
+              }}
+              labels={{
+                labelDayButton: (date) => longDay.format(date),
+                labelPrevious: () => t.previousMonth,
+                labelNext: () => t.nextMonth,
+                labelGrid: (month) => caption.format(month),
+                labelWeekday: (date) => longWeekday.format(date),
+              }}
+              components={calendarComponents}
+            />
+            {!required && day && (
+              <div className="flex justify-end border-t border-(--theme-border) px-3 py-2">
+                <button
+                  type="button"
+                  className={buttonClasses({ variant: 'ghost', size: 'xs' })}
+                  onClick={() => {
+                    emit(undefined)
+                    setOpen(false)
+                  }}
+                >
+                  {common.clear}
+                </button>
+              </div>
+            )}
+          </Popover.Popup>
+        </Popover.Positioner>
+      </Popover.Portal>
+    </Popover.Root>
+  )
+  // A trigger of the host's own stands where the host puts it, as one button.
+  if (trigger && !withTime) {
+    return picker
+  }
+  return (
+    <div
+      className={cx(
+        trigger ? 'inline-flex' : 'flex w-full',
+        'items-center',
+        size === 'sm' ? 'gap-1.5' : 'gap-2',
+        className,
+      )}
+    >
+      {picker}
       {withTime && (
         <input
           type="time"
@@ -265,5 +379,74 @@ export function DatePicker({
         />
       )}
     </div>
+  )
+}
+
+export type CalendarProps = {
+  /** The earliest and latest days that can be chosen. */
+  min?: Date | undefined
+  max?: Date | undefined
+  /** The month it opens on, when it differs from the chosen day's. */
+  defaultMonth?: Date | undefined
+  /** Moves focus to the chosen day, or today, as it appears. */
+  autoFocus?: boolean | undefined
+} & (
+  | { mode: 'single'; selected: Date | undefined; onSelect: (day: Date | undefined) => void }
+  | {
+      /** Two days, both included; the second click ends the range. */
+      mode: 'range'
+      selected: DateRange | undefined
+      onSelect: (range: DateRange | undefined) => void
+    }
+)
+
+const rangeClassNames: Partial<ClassNames> = {
+  ...calendarClassNames,
+  selected: '',
+  range_start:
+    '[&>button]:bg-(--theme-accent) [&>button]:text-(--theme-accent-text) [&>button]:hover:bg-(--theme-accent)',
+  range_end:
+    '[&>button]:bg-(--theme-accent) [&>button]:text-(--theme-accent-text) [&>button]:hover:bg-(--theme-accent)',
+  range_middle: '[&>button]:bg-(--theme-accent-subtle) [&>button]:rounded-none',
+}
+
+/** The month grid DatePicker opens, for a panel that holds a calendar in place, such as a
+ *  date filter's picker. Months, weekdays and labels follow the reader's locale. */
+export function Calendar({ min, max, defaultMonth, autoFocus = false, ...props }: CalendarProps) {
+  const t = useStrings().datePicker
+  const { caption, weekday, longDay, longWeekday, weekStartsOn } = formatsFor(useLocale())
+  const outOfRange: Matcher[] = [
+    ...(min ? [{ before: min }] : []),
+    ...(max ? [{ after: max }] : []),
+  ]
+  const opensOn =
+    defaultMonth ?? (props.mode === 'single' ? props.selected : props.selected?.from) ?? min
+  return (
+    <DayPicker
+      {...(props.mode === 'single'
+        ? { mode: 'single', selected: props.selected, onSelect: props.onSelect }
+        : { mode: 'range', selected: props.selected, onSelect: props.onSelect })}
+      {...(opensOn && { defaultMonth: opensOn })}
+      {...(min && { startMonth: min })}
+      {...(max && { endMonth: max })}
+      disabled={outOfRange}
+      weekStartsOn={weekStartsOn}
+      autoFocus={autoFocus}
+      showOutsideDays
+      fixedWeeks
+      classNames={props.mode === 'range' ? rangeClassNames : calendarClassNames}
+      formatters={{
+        formatCaption: (month) => caption.format(month),
+        formatWeekdayName: (date) => weekday.format(date),
+      }}
+      labels={{
+        labelDayButton: (date) => longDay.format(date),
+        labelPrevious: () => t.previousMonth,
+        labelNext: () => t.nextMonth,
+        labelGrid: (month) => caption.format(month),
+        labelWeekday: (date) => longWeekday.format(date),
+      }}
+      components={calendarComponents}
+    />
   )
 }

@@ -33,6 +33,17 @@ const ROW_PAD_FILE = 28
 export const TREE_ROW_HEIGHT = 30
 const TREE_SKELETON_HEIGHT = 64
 
+const rowForKey: Partial<
+  Record<string, (rows: readonly TreeRow[], index: number) => TreeRow | undefined>
+> = {
+  ArrowDown: (rows, index) => stepRow(rows, index, 1),
+  ArrowUp: (rows, index) => stepRow(rows, index, -1),
+  ArrowRight: firstChildRow,
+  ArrowLeft: parentRow,
+  Home: (rows) => edgeRow(rows, 'first'),
+  End: (rows) => edgeRow(rows, 'last'),
+}
+
 function rowHeight(row: TreeRow): number {
   return row.kind === 'skeleton' ? TREE_SKELETON_HEIGHT : TREE_ROW_HEIGHT
 }
@@ -211,18 +222,10 @@ export function TreeView({
       // The tree view pattern's keys: Up and Down step, Right enters an open
       // folder, Left goes to the parent, Home and End jump to the ends. Rows
       // toggle open and closed in dispatchRowKey before anything lands here.
-      const pick: Partial<Record<string, (index: number) => TreeRow | undefined>> = {
-        ArrowDown: (i) => stepRow(rows, i, 1),
-        ArrowUp: (i) => stepRow(rows, i, -1),
-        ArrowRight: (i) => firstChildRow(rows, i),
-        ArrowLeft: (i) => parentRow(rows, i),
-        Home: () => edgeRow(rows, 'first'),
-        End: () => edgeRow(rows, 'last'),
-      }
-      const target = pick[e.key]
+      const target = rowForKey[e.key]
       if (target) {
         e.preventDefault()
-        move(node, target)
+        move(node, (index) => target(rows, index))
       }
     },
     [move, onPreviewFile, rows],
@@ -661,7 +664,7 @@ const TreeRowItem = memo(function TreeRowItem({
     className: cx(
       'group relative flex items-center gap-1.5 pr-2 py-1 rounded-md cursor-pointer',
       'transition-colors duration-150',
-      'focus:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-(--theme-link)',
+      'focus:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-(--theme-focus)',
       isSelected
         ? 'bg-(--theme-accent)/15 font-medium'
         : dragActive
@@ -679,6 +682,11 @@ const TreeRowItem = memo(function TreeRowItem({
       <>
         <RowIcons isDirectory={isDirectory} isExpanded={isExpanded} customIcon={customIcon} />
         <span className="text-sm truncate">{label}</span>
+        {node.owner && (
+          <span className="shrink-0 max-w-[40%] truncate text-xs theme-muted-text">
+            {node.owner}
+          </span>
+        )}
       </>
     ),
   }

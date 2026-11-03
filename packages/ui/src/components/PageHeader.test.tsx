@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { createContext, type ReactNode, use, useState } from 'react'
 import { openTooltip } from '../test/tooltip'
+import { overflowingActions } from './headerActionsFit'
 import { type Breadcrumb, PageHeader, PageHeaderBar, PageHeaderProvider } from './PageHeader'
 import { PageHeaderAction, PageHeaderAddButton, PageHeaderMenu } from './PageHeaderAction'
 import { PageHeaderStore } from './pageHeaderStore'
@@ -46,6 +47,46 @@ describe('PageHeader in a shell', () => {
     expect(title).toHaveAttribute('aria-current', 'page')
     expect(within(nav).queryByRole('link', { name: 'training-data' })).toBeNull()
     expect(screen.getByTestId('page')).toBeEmptyDOMElement()
+  })
+
+  it('leaves the heading to the page’s body when asked, keeping the crumb current', () => {
+    render(
+      <Shell>
+        <PageHeader
+          breadcrumbs={trail}
+          heading={false}
+          actions={<button type="button">Share</button>}
+        />
+        <h1>Quarterly report</h1>
+      </Shell>,
+    )
+    const nav = bar().getByRole('navigation', { name: 'Breadcrumb' })
+    const current = nav.querySelector('[aria-current="page"]')
+    expect(current).toHaveTextContent('training-data')
+    expect(current?.tagName).toBe('SPAN')
+    expect(bar().queryByRole('heading')).toBeNull()
+    expect(bar().getByRole('button', { name: 'Share' })).toBeInTheDocument()
+    // The page's own is its one h1.
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+  })
+
+  it('takes the heading choice from the page whose trail shows', () => {
+    render(
+      <Shell>
+        <PageHeader breadcrumbs={[{ label: 'Storage' }]} />
+        <PageHeader breadcrumbs={trail} heading={false} />
+      </Shell>,
+    )
+    expect(bar().queryByRole('heading')).toBeNull()
+    expect(screen.getByTestId('bar').querySelector('[aria-current="page"]')).toHaveTextContent(
+      'training-data',
+    )
+  })
+
+  it('leaves the heading out without a shell too', () => {
+    const { container } = render(<PageHeader breadcrumbs={trail} heading={false} />)
+    expect(screen.queryByRole('heading')).toBeNull()
+    expect(container.querySelector('[aria-current="page"]')).toHaveTextContent('training-data')
   })
 
   it('shows the actions in the bar from the first render, with the page’s context', () => {
@@ -285,6 +326,21 @@ describe('PageHeader without a provider', () => {
     expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
   })
+
+  it('shows the surface it sits on, where the shell bar paints its own', () => {
+    const outer = (el: HTMLElement) => el.closest('.\\@container') as HTMLElement
+    const { unmount } = render(<PageHeader breadcrumbs={trail} />)
+    const inPlace = outer(screen.getByRole('navigation', { name: 'Breadcrumb' }))
+    expect(inPlace.className).not.toMatch(/\bbg-/)
+    unmount()
+    render(
+      <Shell>
+        <PageHeader breadcrumbs={trail} />
+      </Shell>,
+    )
+    const shellBar = outer(bar().getByRole('navigation', { name: 'Breadcrumb' }))
+    expect(shellBar).toHaveClass('bg-(--theme-app-bg)')
+  })
 })
 
 describe('PageHeaderStore', () => {
@@ -294,13 +350,31 @@ describe('PageHeaderStore', () => {
     const store = new PageHeaderStore()
     const listener = vi.fn()
     store.subscribe(listener)
-    store.set(1, { breadcrumbs: [{ label: 'A' }], hidden: false, nodes: null, fills })
+    store.set(1, {
+      breadcrumbs: [{ label: 'A' }],
+      heading: true,
+      hidden: false,
+      nodes: null,
+      fills,
+    })
     const first = store.getSnapshot()
     // An equal trail in a new array, as an inline prop makes each render.
-    store.set(1, { breadcrumbs: [{ label: 'A' }], hidden: false, nodes: null, fills })
+    store.set(1, {
+      breadcrumbs: [{ label: 'A' }],
+      heading: true,
+      hidden: false,
+      nodes: null,
+      fills,
+    })
     expect(listener).toHaveBeenCalledTimes(1)
     expect(store.getSnapshot()).toBe(first)
-    store.set(1, { breadcrumbs: [{ label: 'B' }], hidden: false, nodes: null, fills })
+    store.set(1, {
+      breadcrumbs: [{ label: 'B' }],
+      heading: true,
+      hidden: false,
+      nodes: null,
+      fills,
+    })
     expect(listener).toHaveBeenCalledTimes(2)
   })
 })
@@ -324,17 +398,25 @@ describe('PageHeaderAction', () => {
     expect(out).toHaveAttribute('rel', 'noopener noreferrer')
   })
 
-  it('colors a destructive action’s content in the error color', () => {
+  it('is a small outline button by default, link-colored text when asked, and never red in the bar', () => {
     render(
       <>
+        <PageHeaderAction icon={Icon} label="Add" onClick={() => {}} />
+        <PageHeaderAction icon={Icon} label="Open" href="/somewhere" variant="link" />
         <PageHeaderAction icon={Icon} label="Remove" destructive onClick={() => {}} />
-        <PageHeaderAction icon={Icon} label="Open" href="/somewhere" />
+        <PageHeaderAction icon={Icon} label="Edit" iconOnly onClick={() => {}} />
       </>,
     )
-    expect(screen.getByRole('button', { name: 'Remove' })).toHaveClass(
-      '*:text-(--theme-error-text)',
-    )
-    expect(screen.getByRole('link', { name: 'Open' })).toHaveClass('*:text-(--theme-link)')
+    expect(screen.getByRole('button', { name: 'Add' })).toHaveClass('border', 'min-h-6')
+    const open = screen.getByRole('link', { name: 'Open' })
+    expect(open).toHaveClass('*:text-(--theme-link)')
+    expect(open).not.toHaveClass('border')
+    // Destructive reads in the error color only as a menu entry; in the bar it is like the others.
+    const remove = screen.getByRole('button', { name: 'Remove' })
+    expect(remove).toHaveClass('border')
+    expect(remove.className).not.toContain('theme-error')
+    // An icon beside the title stays bare.
+    expect(screen.getByRole('button', { name: 'Edit' })).not.toHaveClass('border')
   })
 
   it('stays focusable when disabled, says why and swallows presses', async () => {
@@ -418,5 +500,113 @@ describe('PageHeaderMenu', () => {
   it('is named Actions unless told otherwise', () => {
     render(<PageHeaderMenu items={[{ label: 'Delete', onClick: () => {} }]} />)
     expect(screen.getByRole('button', { name: 'Actions' })).toBeInTheDocument()
+  })
+})
+
+describe('a busy header action', () => {
+  it('shows a spinner, keeps focus and can’t be pressed again', () => {
+    const onClick = vi.fn()
+    render(<PageHeaderAction icon={Icon} label="Run" onClick={onClick} loading />)
+    const run = screen.getByRole('button', { name: 'Run' })
+    expect(run).toHaveAttribute('aria-busy', 'true')
+    expect(run).toHaveAttribute('aria-disabled', 'true')
+    expect(run).not.toBeDisabled()
+    fireEvent.click(run)
+    expect(onClick).not.toHaveBeenCalled()
+  })
+
+  it('works the same for the add button', () => {
+    const onClick = vi.fn()
+    render(<PageHeaderAddButton label="New cluster" onClick={onClick} loading />)
+    fireEvent.click(screen.getByRole('button', { name: 'New cluster' }))
+    expect(onClick).not.toHaveBeenCalled()
+  })
+})
+
+describe('actions too wide for their bar', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  // A 360px bar, a trail kept at 160px, and actions 100px each with 4px gaps:
+  // one fits beside the "…" button.
+  function layOut() {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.classList.contains('min-h-12') ? 360 : 0
+    })
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: Element,
+    ) {
+      const el = this as HTMLElement
+      let width = 0
+      if (el.parentElement?.dataset['headerAction'] !== undefined) {
+        width = 100
+      } else if (el.querySelector('[data-header-action]')) {
+        const shown = [...el.querySelectorAll('[data-header-action]')].filter(
+          (item) => !item.hasAttribute('hidden'),
+        ).length
+        const menu = el.querySelector('[aria-label="More actions"]') ? 1 : 0
+        width = shown * 100 + menu * 24 + Math.max(0, shown + menu - 1) * 4
+      }
+      return { width, height: 24, top: 0, left: 0, right: width, bottom: 24 } as DOMRect
+    })
+  }
+
+  it('moves the trailing ones into a menu that runs them', async () => {
+    layOut()
+    const archive = vi.fn()
+    render(
+      <Shell>
+        <PageHeader
+          breadcrumbs={trail}
+          actions={
+            <>
+              <PageHeaderAction icon={Icon} label="Run" onClick={() => {}} />
+              <PageHeaderAction icon={Icon} label="Duplicate" href="/duplicate" />
+              <PageHeaderAction icon={Icon} label="Archive" onClick={archive} />
+            </>
+          }
+        />
+      </Shell>,
+    )
+    const more = await waitFor(() => bar().getByRole('button', { name: 'More actions' }))
+    expect(bar().getByRole('button', { name: 'Run' })).toBeVisible()
+    expect(bar().queryByRole('button', { name: 'Archive' })).toBeNull()
+    fireEvent.click(more)
+    expect(screen.getByRole('menuitem', { name: 'Duplicate' }).closest('a')).toHaveAttribute(
+      'href',
+      '/duplicate',
+    )
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Archive' }))
+    expect(archive).toHaveBeenCalledOnce()
+  })
+
+  it('keeps every action while they fit', () => {
+    render(
+      <Shell>
+        <PageHeader
+          breadcrumbs={trail}
+          actions={<PageHeaderAction icon={Icon} label="Run" onClick={() => {}} />}
+        />
+      </Shell>,
+    )
+    expect(bar().queryByRole('button', { name: 'More actions' })).toBeNull()
+  })
+})
+
+describe('overflowingActions', () => {
+  const items = ['a', 'b', 'c'].map((id) => ({ id, width: 100 }))
+
+  it('moves nothing while all fit', () => {
+    expect(overflowingActions(items, 308, [], 308)).toEqual([])
+  })
+
+  it('moves the last ones first, making room for the menu button', () => {
+    expect(overflowingActions(items, 308, [], 184)).toEqual(['b', 'c'])
+  })
+
+  it('gives the same answer once they have moved', () => {
+    expect(overflowingActions(items, 128, ['b', 'c'], 184)).toEqual(['b', 'c'])
+    expect(overflowingActions(items, 128, ['b', 'c'], 400)).toEqual([])
   })
 })

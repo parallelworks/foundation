@@ -12,7 +12,7 @@ import {
   PageHeaderMenu,
 } from '../components/PageHeaderAction'
 import { type UILinkComponent, UIProvider, useNavigation } from '../components/Provider'
-import { StatusBadge } from '../components/StatusBadge'
+import { StatusLabel } from '../components/StatusLabel'
 import { Table } from '../components/Table'
 import {
   ChevronDoubleDownIcon,
@@ -27,9 +27,8 @@ import {
   TrashIcon,
 } from '../icons'
 import { ActionToolbar, type ToolbarItem } from './ActionToolbar'
-import { ListColumns, ListPage, ListRow, useListNavigate } from './ListPage'
+import { GroupRow, ListColumns, ListPage, ListRow, useListNavigate } from './ListPage'
 import {
-  GroupRow,
   ListError,
   ListSelectAllHeader,
   ListSkeleton,
@@ -37,8 +36,8 @@ import {
   NameCell,
   RowSelectCheckbox,
 } from './ListTable'
-import { ListDisplayMenu, ListFilterMenu } from './ListViewControls'
-import { ListCount, ListSearchControl, useListSearch } from './listSearch'
+import { ListToolbar } from './ListToolbar'
+import { useListSearch } from './listSearch'
 import { useListView } from './listView'
 import { type RowAction, useCopySubmenu } from './rowMenu'
 
@@ -353,7 +352,13 @@ function ClustersPage({
       {view.isVisible('status') && (
         <Table.Item className="py-2.5">
           {(!sparseStatus || row.status !== 'stopped') && (
-            <StatusBadge variant={STATUS_VARIANT[row.status]}>{row.status}</StatusBadge>
+            <StatusLabel
+              variant={STATUS_VARIANT[row.status]}
+              off={row.status === 'stopped'}
+              className="text-[13px]"
+            >
+              {row.status[0]?.toUpperCase() + row.status.slice(1)}
+            </StatusLabel>
           )}
         </Table.Item>
       )}
@@ -381,24 +386,14 @@ function ClustersPage({
       />
       <ListPage
         view={view}
-        toolbar={
-          <div className="flex items-center justify-between gap-3 py-1.5">
-            {state === 'ready' && (
-              <ListCount
-                total={all.length}
-                matches={rows.length}
-                filterActive={query.length > 0 || view.activeFilterCount > 0}
-                noun="cluster"
-                nounPlural="clusters"
-              />
-            )}
-            <div className="ml-auto flex items-center gap-2">
-              <ListSearchControl search={search} placeholder="Search clusters" />
-              <ListFilterMenu view={view} />
-              <ListDisplayMenu view={view} />
-            </div>
-          </div>
-        }
+        total={state === 'ready' ? all.length : undefined}
+        matches={rows.length}
+        count={{
+          noun: 'cluster',
+          nounPlural: 'clusters',
+          filterActive: query.length > 0 || view.activeFilterCount > 0,
+        }}
+        toolbar={<ListToolbar view={view} search={search} searchPlaceholder="Search clusters" />}
       >
         {state === 'loading' ? (
           <ListSkeleton />
@@ -431,11 +426,7 @@ function ClustersPage({
                           key={status}
                           label={status}
                           count={group.length}
-                          colSpan={
-                            (selectable ? 1 : 0) +
-                            view.visibleColumns.length +
-                            (view.showActions ? 1 : 0)
-                          }
+                          leading={selectable ? 1 : 0}
                         />,
                         ...group.map(renderRow),
                       ]
@@ -511,6 +502,58 @@ export const SelectedRows: Story = { args: { selectable: true } }
 
 /** At phone width the Status column gives way and each status sits under its row's name. */
 export const NarrowStacksStatus: Story = { args: { narrow: true } }
+
+/** At phone width the headers that sort by Status and the rest have given way, so the name's
+ *  header says what the list is sorted by and which way, and opens a menu that changes both,
+ *  from the same order as Display options' Ordering. Here it's sorted by Status, descending. */
+export const NarrowSortedByStatus: Story = {
+  args: { narrow: true },
+  beforeEach: () => {
+    for (const key of ['orderBy', 'orderDir']) {
+      localStorage.removeItem(`workshop-app-shell-clusters:${key}`)
+    }
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const sort = await canvas.findByRole('button', { name: /sorted by default/i })
+    await userEvent.click(sort)
+    await userEvent.click(await screen.findByRole('menuitemradio', { name: 'Status' }))
+    await userEvent.click(canvas.getByRole('button', { name: /sorted by status, ascending/i }))
+    await userEvent.click(await screen.findByRole('menuitemradio', { name: 'Descending' }))
+    const sorted = canvas.getByRole('button', { name: /sorted by status, descending/i })
+    await expect(sorted).toBeVisible()
+    // Stopped sorts last ascending, so first descending.
+    const rows = canvas.getAllByRole('row').slice(1)
+    await expect(rows[0]).toHaveTextContent('Stopped')
+    // The header row's own sort button for Name has given way to the menu.
+    await expect(canvas.queryByRole('button', { name: 'Name' })).toBeNull()
+  },
+}
+
+/** A viewer saved an order and a grouping the list has since renamed or dropped. The list reads
+ *  them as its defaults, as if nothing were saved: Display options names the default order and
+ *  no grouping, and offers no Reset the viewer never asked for. */
+export const SavedChoicesNoLongerOffered: Story = {
+  beforeEach: () => {
+    const key = 'workshop-app-shell-clusters'
+    localStorage.setItem(`${key}:orderBy`, JSON.stringify('renamed-default'))
+    localStorage.setItem(`${key}:groupBy`, JSON.stringify('region'))
+    return () => {
+      for (const name of ['orderBy', 'groupBy']) {
+        localStorage.removeItem(`${key}:${name}`)
+      }
+    }
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('button', { name: 'Display options' }))
+    await expect(await screen.findByRole('combobox', { name: 'Ordering' })).toHaveTextContent(
+      'Default',
+    )
+    await expect(screen.getByRole('combobox', { name: 'Grouping' })).toHaveTextContent('None')
+    await expect(screen.queryByRole('button', { name: 'Reset' })).toBeNull()
+  },
+}
 
 /** Rows whose Status is empty add nothing under the name. */
 export const NarrowWithSomeStatusesEmpty: Story = { args: { narrow: true, sparseStatus: true } }
@@ -661,13 +704,16 @@ const PANEL_RIGHT: ToolbarItem[] = [
   },
 ]
 
-function PanelToolbar({ width }: { width: number }) {
+function PanelToolbar({ width, refreshing = false }: { width: number; refreshing?: boolean }) {
+  const right = PANEL_RIGHT.map((item) =>
+    item.key === 'refresh' ? { ...item, loading: refreshing } : item,
+  )
   return (
     <MockHost>
       {() => (
         // Inline: the package's stylesheet doesn't scan stories.
         <div className="p-4" style={{ maxWidth: width + 32 }}>
-          <ActionToolbar label="Cluster controls" groups={PANEL_GROUPS} right={PANEL_RIGHT} />
+          <ActionToolbar label="Cluster controls" groups={PANEL_GROUPS} right={right} />
         </div>
       )}
     </MockHost>
@@ -679,15 +725,19 @@ function PanelToolbar({ width }: { width: number }) {
  *  in the error color. It is one tab stop: the arrow keys move between its
  *  items, the disabled Delete included, whose reason is part of its name. Drag
  *  the width to see it fold. */
-export const Toolbar: StoryObj<{ width: number }> = {
-  args: { width: 1000 },
+export const Toolbar: StoryObj<{ width: number; refreshing: boolean }> = {
+  args: { width: 1000, refreshing: false },
   argTypes: {
     width: {
       control: { type: 'range', min: 240, max: 1100, step: 10 },
       description: "The toolbar's width, in pixels.",
     },
+    refreshing: {
+      control: 'boolean',
+      description: 'Refresh is `loading`: a spinner takes its icon and a press does nothing more.',
+    },
   },
-  render: ({ width }) => <PanelToolbar width={width} />,
+  render: ({ width, refreshing }) => <PanelToolbar width={width} refreshing={refreshing} />,
   play: async ({ canvasElement }) => {
     const toolbar = within(canvasElement).getByRole('toolbar', { name: 'Cluster controls' })
     const run = within(toolbar).getByRole('button', { name: 'Run' })
@@ -710,9 +760,9 @@ export const Toolbar: StoryObj<{ width: number }> = {
  *  from the end, the right-hand ones first, until the row fits, so it keeps
  *  every label it has room for. A folded button keeps its label as its name and
  *  shows it in a tooltip. */
-export const ToolbarFolded: StoryObj<{ width: number }> = {
+export const ToolbarFolded: StoryObj<{ width: number; refreshing: boolean }> = {
   ...Toolbar,
-  args: { width: 640 },
+  args: { width: 640, refreshing: false },
   play: async ({ canvasElement }) => {
     const toolbar = within(canvasElement).getByRole('toolbar', { name: 'Cluster controls' })
     await expect(toolbar.scrollWidth).toBeLessThanOrEqual(toolbar.clientWidth)
@@ -729,9 +779,9 @@ export const ToolbarFolded: StoryObj<{ width: number }> = {
  *  end, the right-hand ones first and the primary Run never. The menu keeps a
  *  toggle a checkbox, a link a link, and Delete in the error color with its
  *  reason, and the arrow keys reach its button as one of the toolbar's items. */
-export const ToolbarNarrow: StoryObj<{ width: number }> = {
+export const ToolbarNarrow: StoryObj<{ width: number; refreshing: boolean }> = {
   ...Toolbar,
-  args: { width: 320 },
+  args: { width: 320, refreshing: false },
   play: async ({ canvasElement }) => {
     const toolbar = within(canvasElement).getByRole('toolbar', { name: 'Cluster controls' })
     await expect(toolbar.scrollWidth).toBeLessThanOrEqual(toolbar.clientWidth)
@@ -748,5 +798,19 @@ export const ToolbarNarrow: StoryObj<{ width: number }> = {
       }),
     ).toHaveAttribute('aria-disabled', 'true')
     await userEvent.keyboard('{Escape}')
+  },
+}
+
+/** A loading action, here Refresh while it fetches: a spinner takes its icon, it keeps its
+ *  focus and says it is busy, and a second press starts nothing. */
+export const ToolbarBusyAction: StoryObj<{ width: number; refreshing: boolean }> = {
+  ...Toolbar,
+  args: { width: 1000, refreshing: true },
+  play: async ({ canvasElement }) => {
+    const toolbar = within(canvasElement).getByRole('toolbar', { name: 'Cluster controls' })
+    await expect(within(toolbar).getByRole('button', { name: 'Refresh' })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    )
   },
 }

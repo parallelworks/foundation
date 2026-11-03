@@ -1,16 +1,29 @@
 import { DateTime, Duration } from 'luxon'
-import { useRef, useState, useSyncExternalStore } from 'react'
-import { formatDateTime, formatDuration, type TimeValue, toDateTime } from '../format'
+import {
+  type ComponentPropsWithRef,
+  type ReactNode,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react'
+import {
+  type DateTimeStyle,
+  formatDateTime,
+  formatDuration,
+  type TimeValue,
+  toDateTime,
+} from '../format'
 
 export type { TimeValue }
 
-import { type UIStrings, useStrings } from './Provider'
+import { type UIStrings, useLocale, useStrings } from './Provider'
 import { Tooltip } from './Tooltip'
 
 const SECOND = 1000
 const MINUTE = 60 * SECOND
 const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
+const WEEK = 7 * DAY
 
 // One clock for every live time on screen, rather than a timer per component.
 const listeners = new Set<() => void>()
@@ -52,24 +65,51 @@ export function useClock<T>(select: (now: number) => T, running = true): T {
   return useSyncExternalStore(running ? subscribe : stopped, snapshot, snapshot)
 }
 
-/** `long` reads "5 minutes ago" in the host's locale; `compact` reads "5m",
- *  for a row with little room. */
+/** `long` reads "5 minutes ago" or "yesterday" in the host's locale (UIProvider's `locale`);
+ *  `compact` reads "5m", "in 3h", then a date such as "Sep 4" once a week away, for a row with
+ *  little room. */
 export type RelativeTimeFormat = 'long' | 'compact'
 
-function compactLabel(age: number, t: UIStrings['time']): string {
-  const minutes = Math.floor(Math.abs(age) / MINUTE)
+function compactLabel(at: number, age: number, t: UIStrings['time'], locale?: string): string {
+  const size = Math.abs(age)
+  if (size >= WEEK) {
+    return t.date(new Date(at), locale)
+  }
+  const minutes = Math.floor(size / MINUTE)
   if (minutes < 1) {
     return t.now
   }
-  if (minutes < 60) {
-    return t.minutes(minutes)
-  }
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) {
-    return t.hours(hours)
+  const label =
+    minutes < 60 ? t.minutes(minutes) : hours < 24 ? t.hours(hours) : t.days(Math.floor(hours / 24))
+  return age < 0 ? t.inFuture(label) : label
+}
+
+// The largest unit that fits counts the label, as luxon's relative times do, though words such
+// as "yesterday" and "next week" read in place of a count of one.
+const LONG_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
+  ['year', 365 * DAY],
+  ['month', 30 * DAY],
+  ['week', WEEK],
+  ['day', DAY],
+  ['hour', HOUR],
+  ['minute', MINUTE],
+  ['second', SECOND],
+]
+
+// Built once per locale.
+const relativeFormats = new Map<string, Intl.RelativeTimeFormat>()
+function longLabel(age: number, locale: string | undefined): string {
+  // Without the host's locale, luxon's default, which a host may have set, else the browser's.
+  const tag = locale ?? DateTime.now().locale ?? 'en-US'
+  let format = relativeFormats.get(tag)
+  if (!format) {
+    format = new Intl.RelativeTimeFormat(tag, { numeric: 'auto' })
+    relativeFormats.set(tag, format)
   }
-  const days = Math.floor(hours / 24)
-  return days < 365 ? t.days(days) : t.years(Math.floor(days / 365))
+  const size = Math.abs(age)
+  const [unit, length] = LONG_UNITS.find(([, length]) => size >= length) ?? ['second', SECOND]
+  return format.format(-Math.trunc(age / length), unit)
 }
 
 // Both formats count whole units of the largest one that fits, so a label can
@@ -83,6 +123,7 @@ function unitOf(age: number) {
  *  a missing or invalid time. */
 export function useRelativeTime(value: TimeValue, format: RelativeTimeFormat = 'long'): string {
   const t = useStrings().time
+  const locale = useLocale()
   const time = toDateTime(value)
   const at = time?.toMillis() ?? null
   const last = useRef<{ key: string; label: string } | null>(null)
@@ -92,42 +133,63 @@ export function useRelativeTime(value: TimeValue, format: RelativeTimeFormat = '
     }
     const age = current - at
     const unit = unitOf(age)
-    const key = `${format}:${at}:${unit}:${Math.trunc(age / unit)}`
+    const key = `${format}:${locale}:${at}:${unit}:${Math.trunc(age / unit)}`
     if (last.current?.key !== key) {
+      // The shared clock ticks once a second, so a time just recorded can sit a moment ahead of it.
       const label =
         format === 'compact'
-          ? compactLabel(age, t)
-          : (DateTime.fromMillis(at).toRelative({ base: DateTime.fromMillis(current) }) ?? '')
+          ? compactLabel(at, age, t, locale)
+          : Math.abs(age) < SECOND
+            ? t.now
+            : longLabel(age, locale)
       last.current = { key, label }
     }
     return last.current.label
   }, at !== null)
 }
 
+/** Any other attribute and the ref reach the `<time>`, so it can be a popover's direct child. */
+export interface RelativeTimeProps
+  extends Omit<ComponentPropsWithRef<'time'>, 'children' | 'className' | 'dateTime'> {
+  value: TimeValue
+  format?: RelativeTimeFormat | undefined
+  /** Shown in place of a missing or invalid time, such as "Never" or "—". Default nothing. */
+  fallback?: ReactNode
+  /** How the exact time reads: in the tooltip, or in the text with `show="absolute"`. Default
+   *  `seconds`; `full` adds the time zone. False leaves out the tooltip. */
+  exact?: DateTimeStyle | false | undefined
+  /** `absolute` shows the exact time, with the relative one on hover, for a record read for
+   *  its moment rather than its age. Default `relative`. */
+  show?: 'relative' | 'absolute' | undefined
+  className?: string | undefined
+}
+
 /** A time shown relative to now ("5 minutes ago", or "5m" compact), counting
- *  on while it stays on screen, with the exact time on hover. Renders nothing
- *  for a missing time. */
+ *  on while it stays on screen, with the exact time on hover. Renders the
+ *  `fallback`, or nothing, for a missing time. */
 export function RelativeTime({
   value,
   format = 'long',
+  fallback = null,
+  exact = 'seconds',
+  show = 'relative',
   className,
-}: {
-  value: TimeValue
-  format?: RelativeTimeFormat
-  className?: string
-}) {
+  ...rest
+}: RelativeTimeProps) {
   const label = useRelativeTime(value, format)
+  const locale = useLocale()
   const time = toDateTime(value)
   if (!label || !time) {
-    return null
+    return fallback
   }
-  return (
-    <Tooltip content={formatDateTime(time, 'seconds')}>
-      <time dateTime={time.toISO() ?? undefined} className={className}>
-        {label}
-      </time>
-    </Tooltip>
+  const absolute = formatDateTime(time, exact || 'seconds', locale)
+  const [text, tip] = show === 'absolute' ? [absolute, label] : [label, exact ? absolute : null]
+  const element = (
+    <time {...rest} dateTime={time.toISO() ?? undefined} className={className}>
+      {text}
+    </time>
   )
+  return tip ? <Tooltip content={tip}>{element}</Tooltip> : element
 }
 
 /** Milliseconds from `start` to `end`, or to now while `running`, in whole
@@ -154,26 +216,30 @@ export function useElapsed(
   )
 }
 
-/** How long something took, or has taken so far while it runs: 45s, 2m 13s.
- *  Renders nothing without a start. */
-export function Elapsed({
-  start,
-  end,
-  running,
-  className,
-}: {
+/** Any other attribute and the ref reach the `<time>`, so it can be a Tooltip's direct child. */
+export interface ElapsedProps
+  extends Omit<ComponentPropsWithRef<'time'>, 'children' | 'className' | 'dateTime'> {
   start: TimeValue
   end?: TimeValue
-  running?: boolean
-  className?: string
-}) {
+  running?: boolean | undefined
+  className?: string | undefined
+}
+
+/** How long something took, or has taken so far while it runs: 45s, 2m 13s.
+ *  Renders nothing without a start. */
+export function Elapsed({ start, end, running, className, ...rest }: ElapsedProps) {
   const elapsed = useElapsed(start, end, running)
+  const locale = useLocale()
   if (elapsed === null) {
     return null
   }
   return (
-    <time dateTime={Duration.fromMillis(elapsed).toISO() ?? undefined} className={className}>
-      {formatDuration(elapsed)}
+    <time
+      {...rest}
+      dateTime={Duration.fromMillis(elapsed).toISO() ?? undefined}
+      className={className}
+    >
+      {formatDuration(elapsed, locale)}
     </time>
   )
 }

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import { createRef, type ReactNode } from 'react'
 import { openTooltip } from '../test/tooltip'
 import { formatInfoTipContent, InfoTip } from './InfoTip'
 import { Tooltip, TooltipProvider } from './Tooltip'
@@ -16,6 +16,49 @@ function focus(element: HTMLElement) {
 }
 
 describe('Tooltip', () => {
+  it.each([
+    ['inside the provider', withProvider],
+    ['on its own', render],
+  ])('can also describe its anchor, closed or open, %s', (_, mount) => {
+    mount(
+      <Tooltip content="New repositories start on this team" describesAnchor>
+        <button type="button" aria-describedby="other">
+          Make default
+        </button>
+      </Tooltip>,
+    )
+    const other = document.createElement('span')
+    other.id = 'other'
+    other.textContent = 'Owners only.'
+    document.body.append(other)
+    expect(screen.getByRole('button', { name: 'Make default' })).toHaveAccessibleDescription(
+      'Owners only. New repositories start on this team',
+    )
+    other.remove()
+  })
+
+  it.each([
+    ['inside the provider', withProvider],
+    ['on its own', render],
+  ])('hands a ref it is given to its anchor, as a popup trigger gives one, %s', (_, mount) => {
+    const ref = createRef<HTMLButtonElement>()
+    mount(
+      <Tooltip content="Apps" ref={ref}>
+        <button type="button">Apps</button>
+      </Tooltip>,
+    )
+    expect(ref.current).toBe(screen.getByRole('button', { name: 'Apps' }))
+  })
+
+  it('leaves the anchor undescribed by default', () => {
+    withProvider(
+      <Tooltip content="Save changes">
+        <button type="button">Save</button>
+      </Tooltip>,
+    )
+    expect(screen.getByRole('button', { name: 'Save' })).not.toHaveAttribute('aria-describedby')
+  })
+
   it.each([
     ['inside the provider', withProvider],
     ['on its own', render],
@@ -84,7 +127,11 @@ describe('Tooltip', () => {
     )
     focus(screen.getByRole('button'))
     await waitFor(() => expect(openTooltip()).not.toBeNull())
-    expect([...document.body.querySelectorAll('kbd')].map((k) => k.textContent)).toEqual(['⌘', 'F'])
+    // One <kbd> for the combination, with one inside it for each key.
+    expect([...document.body.querySelectorAll('kbd kbd')].map((k) => k.textContent)).toEqual([
+      '⌘',
+      'F',
+    ])
   })
 
   it('opens an overflowOnly tooltip only while the text is clipped', async () => {
@@ -159,5 +206,36 @@ describe('formatInfoTipContent', () => {
     const { container } = render(<p>{formatInfoTipContent('hi <img src=x> there')}</p>)
     expect(container).toHaveTextContent('hi <img src=x> there')
     expect(container.querySelector('img')).toBeNull()
+  })
+})
+
+describe('a tooltip on a popup trigger', () => {
+  // A trigger whose popup the test opens and closes, as a menu's does.
+  function Trigger({ expanded }: { expanded: boolean }) {
+    return (
+      <Tooltip content="Team">
+        <button type="button" aria-haspopup="menu" aria-expanded={expanded}>
+          Web
+        </button>
+      </Tooltip>
+    )
+  }
+
+  it('stays shut when its popup closes and hands focus back, until focus or the pointer leaves', async () => {
+    const { rerender } = withProvider(<Trigger expanded />)
+    const button = screen.getByRole('button', { name: 'Web' })
+    rerender(
+      <TooltipProvider>
+        <Trigger expanded={false} />
+      </TooltipProvider>,
+    )
+    // The observer reports the change a microtask on.
+    await act(async () => {})
+    focus(button)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(openTooltip()).toBeNull()
+    act(() => button.blur())
+    focus(button)
+    await waitFor(() => expect(openTooltip()).toHaveTextContent('Team'))
   })
 })

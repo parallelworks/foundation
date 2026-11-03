@@ -1,11 +1,13 @@
 import type { ReactNode } from 'react'
 import { useNavigation, useSlots, useStrings, useWorkflowEngine } from '../components/Provider'
-import { RunStatusIcon } from '../components/RunStatusIcon'
+import { RunStatusIcon, runStatusTone } from '../components/RunStatusIcon'
 import { Tooltip } from '../components/Tooltip'
 import { cx } from '../cx'
 import { FileTextIcon, OpenInNewGraphIcon, SummaryIcon } from '../icons'
 import { AddStepButton, EditableJobRow, EditableStepRow } from './editorRows'
 import { Reveal } from './Reveal'
+import { WarningMark } from './RunWarningsList'
+import { rowKey, useWarningMarks } from './runWarnings'
 import type { WorkflowJob, WorkflowSubworkflow } from './types'
 import { jobLabel } from './util'
 
@@ -43,6 +45,8 @@ function UsesIcon({
 
 /** What a job list does when its jobs and steps are clicked, at one graph level. */
 export interface JobHandlers {
+  /** The level's `subworkflows/<job>/step_<n>/` chain, empty at the run's own jobs. */
+  pathPrefix: string
   isStepsOpen: (jobName: string) => boolean
   onJobClick: (jobName: string) => void
   onStepClick: (jobName: string, stepIndex: number) => void
@@ -69,11 +73,15 @@ export function Joblist(
 ) {
   const { dag, jobActions } = useStrings()
   const engine = useWorkflowEngine()
+  const marks = useWarningMarks()
+  const prefix = inputs.pathPrefix
+  let rows = 0
   return inputs.jobNames.map((jobName) => {
     // Skip synthetic matrix group nodes — rendered by the caller, not Joblist
     if (inputs.jobs[jobName]?._matrixGroup) {
       return null
     }
+    const first = rows++ === 0
     const job = inputs.jobs[jobName]
     const jobStatus = job?.status
     const label = jobLabel(jobName, job)
@@ -81,6 +89,7 @@ export function Joblist(
       <button
         type="button"
         aria-expanded={inputs.isStepsOpen(jobName)}
+        data-run-row={rowKey(prefix, jobName)}
         onClick={() => inputs.onJobClick(jobName)}
         className={cx(
           'flex items-center gap-x-1.5 w-full text-left',
@@ -91,10 +100,20 @@ export function Joblist(
       >
         {!inputs.preview && <RunStatusIcon status={jobStatus} />}
         <div className="font-medium">{label}</div>
+        <WarningMark warnings={marks.under(rowKey(prefix, jobName))} />
       </button>
     )
     return (
-      <div key={`job-${jobName}`} className="py-1 select-none">
+      <div
+        key={`job-${jobName}`}
+        data-tone={runStatusTone(jobStatus)}
+        // Jobs that share a box are ruled apart, so two read as two rather than as one name on two
+        // lines.
+        className={cx(
+          '-mx-8 px-8 py-1 select-none',
+          !first && 'border-t-2 border-solid border-(--theme-border)',
+        )}
+      >
         {inputs.editable ? (
           <EditableJobRow job={jobName} label={label}>
             {toggle}
@@ -113,6 +132,7 @@ export function Joblist(
               const stepButton = (
                 <button
                   type="button"
+                  data-run-row={rowKey(prefix, jobName, i)}
                   onClick={() => inputs.onStepClick(jobName, i)}
                   className={cx(
                     inputs.preview ? 'ml-1.5' : 'ml-4',
@@ -122,6 +142,7 @@ export function Joblist(
                 >
                   {inputs.preview ? '↳' : <RunStatusIcon status={step.status} />}
                   <div>{stepLabel}</div>
+                  <WarningMark warnings={marks.under(rowKey(prefix, jobName, i))} />
                 </button>
               )
               return (

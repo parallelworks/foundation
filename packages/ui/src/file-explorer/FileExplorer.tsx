@@ -18,14 +18,22 @@ import { ConfirmModal } from '../components/ConfirmModal'
 import { useContextMenu } from '../components/ContextMenu'
 import { CopyButton, CopyCodeBlock } from '../components/CopyButton'
 import { CreateModal } from '../components/CreateModal'
+import { Drawer } from '../components/Drawer'
 import { InfoTip } from '../components/InfoTip'
 import { keyedByContent } from '../components/keys'
 import { Loader } from '../components/Loader'
 import { MenuItem, MenuPopup, MenuSeparator } from '../components/Menu'
 import type { MenuEntry } from '../components/MenuEntries'
-import { useNavigation, usePersistedState, useSlots, useStrings } from '../components/Provider'
+import {
+  useLocale,
+  useNavigation,
+  usePersistedState,
+  useSlots,
+  useStrings,
+} from '../components/Provider'
 import { RefreshButton } from '../components/RefreshButton'
 import { RelativeTime } from '../components/relativeTime'
+import { SegmentedControl } from '../components/SegmentedControl'
 import { StatusBadge } from '../components/StatusBadge'
 import { useSplitter } from '../components/splitter'
 import { Table } from '../components/Table'
@@ -33,6 +41,7 @@ import { Tabs } from '../components/Tabs'
 import { toast } from '../components/Toast'
 import { Tooltip } from '../components/Tooltip'
 import { useCopy } from '../components/useCopy'
+import { useWidth } from '../components/useWidth'
 import { cx } from '../cx'
 import { formatBytes, formatDateTime } from '../format'
 import {
@@ -70,6 +79,7 @@ import { FileTable } from './FileTable'
 import { FileTableHeaders } from './FileTableHeaders'
 import {
   DragDropZone,
+  GROUP_BY_STORAGE_KEY,
   getNodeIcon,
   NoDataAvailablePreview,
   NoFileSelectedPreview,
@@ -98,15 +108,18 @@ import {
   retainListings,
   type TListings,
 } from './lib/paging'
-import type { ExplorerObject, TreeNode, TStorage, UploadNode } from './lib/types'
+import type { ExplorerObject, TreeNode, TStorage, TStorageGroup, UploadNode } from './lib/types'
 import {
   calculateUploadNodesTotalSize,
   createTreeBuilder,
+  ensureTrailingSlash,
+  exceededTransferLimit,
   getDirectoryNameError,
   getDirectoryObjectPath,
   getNodeChildren,
   getObjectKeyFromNode,
   getParentPath,
+  getStorageRoots,
   getUploadNodesFromDataTransferItems,
   getUriScheme,
   pruneNodesInsideSelectedDirectories,
@@ -166,6 +179,8 @@ type IFileExplorerProps = ExplorerNavigation & {
    * return false to fall through to the built-in preview. */
   onOpenFile?: ((node: TreeNode, storage: TStorage | undefined) => boolean) | undefined
   showUserHierarchy?: boolean
+  storageGroups?: readonly TStorageGroup[] | undefined
+  viewer?: string | undefined
   groups?: { name: string; id?: string | undefined }[] | undefined
   groupsLoading?: boolean
   selectedPath: string
@@ -275,6 +290,8 @@ export default function FileExplorer({
   refreshKey,
   onOpenFile,
   showUserHierarchy = false,
+  storageGroups,
+  viewer,
   groups = [],
   groupsLoading = false,
   selectedPath,
@@ -289,9 +306,19 @@ export default function FileExplorer({
   extraRowActions,
   headerAccessory,
 }: IFileExplorerProps) {
+  const [frame, setFrame] = useState<HTMLDivElement | null>(null)
+  const frameWidth = useWidth(frame)
+  const narrow = !treeOnly && frameWidth !== null && frameWidth < 640
+  const [foldersPath, setFoldersPath] = useState<string | null>(null)
+  useEffect(() => {
+    if (!narrow || foldersPath !== selectedPath) {
+      setFoldersPath(null)
+    }
+  }, [selectedPath, narrow, foldersPath])
   const copySubmenu = useCopySubmenu()
   const t = useStrings().fileExplorer
   const { common } = useStrings()
+  const locale = useLocale()
   const { copy } = useCopy()
   const slots = useSlots()
   const { goTo } = useNavigation()
@@ -317,15 +344,21 @@ export default function FileExplorer({
     return next
   }, [listings])
 
+  const [storedGroupBy, setGroupBy] = usePersistedState(GROUP_BY_STORAGE_KEY, 'user')
+  const groupBy = storedGroupBy === 'type' ? 'type' : 'user'
+  const canGroupByType = showUserHierarchy && !!storageGroups?.length
+  const typeGroups = canGroupByType && groupBy === 'type' ? storageGroups : undefined
   const [buildTree] = useState(createTreeBuilder)
   const { treeMap, parentToChildrenMap, rootNodes } = useMemo(
     () =>
       buildTree(storages, {
         listings,
         forceUserHierarchy: showUserHierarchy,
+        storageGroups: typeGroups,
+        viewer,
         unsortedParents: incompleteDirs,
       }),
-    [buildTree, storages, listings, showUserHierarchy, incompleteDirs],
+    [buildTree, storages, listings, showUserHierarchy, typeGroups, viewer, incompleteDirs],
   )
 
   const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set())
@@ -347,6 +380,23 @@ export default function FileExplorer({
   }, [selectedPath, treeMap])
   const setSelectedPath = (path: string) =>
     onPathChange ? onPathChange(path) : pathHref && goTo(pathHref(path))
+  const linkedGroupBy = !canGroupByType
+    ? undefined
+    : storageGroups?.some((group) => normalizedSelectedPath.startsWith(`${group.id}/`))
+      ? 'type'
+      : storages.some((storage) => ensureTrailingSlash(storage.user) === normalizedSelectedPath)
+        ? 'user'
+        : undefined
+  const adoptGroupBy = useEffectEvent((next: 'user' | 'type') => {
+    if (next !== groupBy) {
+      setGroupBy(next)
+    }
+  })
+  useEffect(() => {
+    if (linkedGroupBy) {
+      adoptGroupBy(linkedGroupBy)
+    }
+  }, [linkedGroupBy])
 
   // A Set, not an array: membership is tested once per tree row, so an array scan
   // made expansion O(rows x expanded).
@@ -409,12 +459,9 @@ export default function FileExplorer({
 
   const storageRoots = useMemo(() => {
     const roots = new Map<string, string>()
-    for (const node of rootNodes) {
-      const candidates = node.root ? [node] : (parentToChildrenMap[node.path] ?? [])
-      for (const root of candidates) {
-        if (root.root && root.storageId) {
-          roots.set(root.storageId, root.path)
-        }
+    for (const root of getStorageRoots(parentToChildrenMap, rootNodes)) {
+      if (root.storageId) {
+        roots.set(root.storageId, root.path)
       }
     }
     return roots
@@ -490,6 +537,8 @@ export default function FileExplorer({
     targetPath: string
     uploadNodes: UploadNode[]
     totalSize: number
+    skipped: UploadNode[]
+    transferLimit?: number | undefined
   } | null>(null)
   const [waitForUpload, setWaitForUpload] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -669,11 +718,17 @@ export default function FileExplorer({
     }
   }
 
+  const selectedGroupPath = getAncestorDirPaths(normalizedSelectedPath)
+    .map((path) => treeMap[path]?.groupPath)
+    .find(Boolean)
   useEffect(() => {
     if (!normalizedSelectedPath) {
       return
     }
     const ancestors = getAncestorDirPaths(normalizedSelectedPath)
+    if (selectedGroupPath) {
+      ancestors.unshift(selectedGroupPath)
+    }
     if (ancestors.length === 0) {
       return
     }
@@ -687,7 +742,7 @@ export default function FileExplorer({
       }
       return next
     })
-  }, [normalizedSelectedPath])
+  }, [normalizedSelectedPath, selectedGroupPath])
 
   // One request per run, each settling into an update that re-triggers this effect
   // until the chain resolves or reports itself stuck. useLayoutEffect so
@@ -834,7 +889,6 @@ export default function FileExplorer({
     }
 
     let uploadNodes: UploadNode[] = []
-    let totalSize = 0
 
     if (waitForUpload) {
       toast.warning(t.messages.waitForCurrentUpload)
@@ -852,23 +906,31 @@ export default function FileExplorer({
     if (isDirectoryUploadSupported) {
       const prepareData = await getUploadNodesFromDataTransferItems(files as DataTransferItemList)
       uploadNodes = prepareData.uploadNodes
-      totalSize = prepareData.totalSize
     } else {
       uploadNodes = Array.from(files as FileList).map((file) => ({
         name: file.name,
         file,
         relativePath: file.name,
       }))
-      totalSize = calculateUploadNodesTotalSize(uploadNodes)
     }
 
+    queueUpload(targetPath, targetStorageId, uploadNodes)
+    setWaitForUpload(false)
+  }
+
+  const queueUpload = (targetPath: string, storageId: string | undefined, nodes: UploadNode[]) => {
+    const transferLimit = findStorage(storageId)?.transferLimitBytes
+    const fits = (node: UploadNode) =>
+      transferLimit === undefined || node.file.size <= transferLimit
+    const uploadNodes = nodes.filter(fits)
     setPendingUpload({
       targetPath,
       uploadNodes,
-      totalSize,
+      totalSize: calculateUploadNodesTotalSize(uploadNodes),
+      skipped: nodes.filter((node) => !fits(node)),
+      transferLimit,
     })
     setUploadModalOpen(true)
-    setWaitForUpload(false)
   }
 
   const hasFolderSelected = (): boolean => {
@@ -956,6 +1018,14 @@ export default function FileExplorer({
   const triggerBrowserDownload = (url: string, filename: string) => {
     const href = safeUrl(url)
     if (!href) {
+      return
+    }
+    if (new URL(href, window.location.href).origin !== window.location.origin) {
+      const frame = document.createElement('iframe')
+      frame.hidden = true
+      frame.src = href
+      document.body.appendChild(frame)
+      setTimeout(() => frame.remove(), 60_000)
       return
     }
     const a = document.createElement('a')
@@ -1106,10 +1176,16 @@ export default function FileExplorer({
       })
     }
     if (isFile) {
+      const transferLimit = exceededTransferLimit(node, storage)
       actions.push({
         key: 'download',
         label: common.download,
         icon: <DownloadIcon />,
+        disabled: transferLimit !== undefined,
+        disabledReason:
+          transferLimit === undefined
+            ? undefined
+            : t.messages.transferLimitExceeded(formatBytes(transferLimit)),
         onClick: () => downloadNode(node),
       })
       if (nodeCanShare) {
@@ -1374,13 +1450,7 @@ export default function FileExplorer({
       file,
       relativePath: file.webkitRelativePath || file.name,
     }))
-    const totalSize = calculateUploadNodesTotalSize(uploadNodes)
-    setPendingUpload({
-      targetPath: selectedNode.path,
-      uploadNodes,
-      totalSize,
-    })
-    setUploadModalOpen(true)
+    queueUpload(selectedNode.path, selectedNode.storageId, uploadNodes)
 
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
@@ -1536,54 +1606,136 @@ export default function FileExplorer({
   }
 
   const downloadCommandText = generateDownloadCommand()
+  const downloadBlockedLimit = getFilesToDownload()
+    .map((node) => exceededTransferLimit(node, findStorage(node.storageId)))
+    .find((limit) => limit !== undefined)
+  const downloadBlockedReason =
+    downloadBlockedLimit === undefined
+      ? undefined
+      : t.messages.transferLimitExceeded(formatBytes(downloadBlockedLimit))
+  const downloadTrigger = (
+    <Menu.Trigger
+      aria-label={common.download}
+      className={buttonClasses({
+        variant: selectedNode?.type === 'file' ? 'primary' : 'outline',
+        size: 'sm',
+      })}
+      disabled={
+        (checkedItems.size === 0 && selectedNode?.type !== 'file') ||
+        hasFolderSelected() ||
+        !selectedNode?.storageId ||
+        downloadBlockedReason !== undefined
+      }
+    >
+      <DownloadIcon />
+      <span className="hidden @4xl:inline">{common.download}</span>
+      <ChevronDownIcon />
+    </Menu.Trigger>
+  )
+
+  const tree = (
+    <TreeFrame
+      treeOnly={treeOnly || narrow}
+      sidebarWidth={sidebarWidth}
+      onWidthChange={setSidebarWidth}
+    >
+      {/* File Tree - Left sidebar */}
+      <div className="h-full flex flex-col border-r theme-border bg-(--theme-panel-bg)/60">
+        <div
+          className={cx(
+            'flex items-center h-10 px-3 shrink-0 border-b theme-border',
+            canGroupByType ? 'justify-between gap-2' : 'justify-end',
+          )}
+        >
+          {canGroupByType && (
+            <SegmentedControl
+              size="sm"
+              label={t.chrome.groupBy}
+              value={groupBy}
+              onValueChange={(next) => {
+                setGroupBy(next)
+                if (selectedNode && !selectedNode.storageId) {
+                  setSelectedPath('')
+                }
+              }}
+              options={[
+                { value: 'user', label: t.chrome.groupByUser },
+                { value: 'type', label: t.chrome.groupByType },
+              ]}
+            />
+          )}
+          <div className="flex gap-x-0.5">
+            <RefreshButton iconOnly onRefresh={() => handleRefresh()} />
+
+            <Tooltip content={common.collapse}>
+              <button
+                type="button"
+                aria-label={common.collapse}
+                className="inline-flex items-center justify-center h-7 w-7 rounded-md cursor-pointer theme-muted-text hover:theme-text hover:theme-hover transition-colors duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-(--theme-focus)"
+                onClick={collapseAll}
+              >
+                <CollapseIcon className="h-3.5 w-3.5" />
+              </button>
+            </Tooltip>
+          </div>
+        </div>
+
+        {/* Tree Contents Section */}
+        <TreeView
+          rootNodes={rootNodes}
+          parentToChildrenMap={parentToChildrenMap}
+          expandedPaths={expandedPaths}
+          selectedPath={normalizedSelectedPath}
+          loadingPaths={loadingPaths}
+          onToggleExpand={handleToggleExpand}
+          onSelect={(path, node) => {
+            void handleSelectTreeItem(path, node)
+            openFromTree(node)
+          }}
+          pathHref={pathHref}
+          onFollowLink={openFromTree}
+          onDropToFolder={onDropFiles}
+          onContextMenu={openNodeContextMenu}
+          onPreviewFile={openPreview}
+          paging={treePaging}
+        />
+      </div>
+    </TreeFrame>
+  )
 
   return (
-    <div className="w-full h-full flex relative">
-      <div className="w-full h-full flex">
-        <TreeFrame treeOnly={treeOnly} sidebarWidth={sidebarWidth} onWidthChange={setSidebarWidth}>
-          {/* File Tree - Left sidebar */}
-          <div className="h-full flex flex-col border-r theme-border bg-(--theme-panel-bg)/60">
-            <div className="flex items-center justify-end h-10 px-3 shrink-0 border-b theme-border">
-              <div className="flex gap-x-0.5">
-                <RefreshButton iconOnly onRefresh={() => handleRefresh()} />
-
-                <Tooltip content={common.collapse}>
-                  <button
-                    type="button"
-                    aria-label={common.collapse}
-                    className="inline-flex items-center justify-center h-7 w-7 rounded-md cursor-pointer theme-muted-text hover:theme-text hover:theme-hover transition-colors duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-(--theme-link)"
-                    onClick={collapseAll}
-                  >
-                    <CollapseIcon className="h-3.5 w-3.5" />
-                  </button>
-                </Tooltip>
-              </div>
-            </div>
-
-            {/* Tree Contents Section */}
-            <TreeView
-              rootNodes={rootNodes}
-              parentToChildrenMap={parentToChildrenMap}
-              expandedPaths={expandedPaths}
-              selectedPath={normalizedSelectedPath}
-              loadingPaths={loadingPaths}
-              onToggleExpand={handleToggleExpand}
-              onSelect={(path, node) => {
-                void handleSelectTreeItem(path, node)
-                openFromTree(node)
-              }}
-              pathHref={pathHref}
-              onFollowLink={openFromTree}
-              onDropToFolder={onDropFiles}
-              onContextMenu={openNodeContextMenu}
-              onPreviewFile={openPreview}
-              paging={treePaging}
-            />
-          </div>
-        </TreeFrame>
+    <div ref={setFrame} className="@container/files w-full h-full min-w-0 flex relative">
+      <div className="w-full h-full min-w-0 flex">
+        {narrow ? (
+          <Drawer
+            open={foldersPath === selectedPath}
+            onClose={() => setFoldersPath(null)}
+            title={t.chrome.folders}
+            side="left"
+            width={320}
+            padded={false}
+          >
+            {tree}
+          </Drawer>
+        ) : (
+          tree
+        )}
         {/* Details Panel - Right side table */}
         {!treeOnly && (
-          <div className="h-full flex flex-col flex-1 min-w-0">
+          <div className="h-full min-h-0 flex flex-col flex-1 min-w-0">
+            {narrow && (
+              <div className="flex h-10 shrink-0 items-center justify-between border-b theme-border px-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={<FolderTreeIcon />}
+                  onClick={() => setFoldersPath(selectedPath)}
+                >
+                  {t.chrome.folders}
+                </Button>
+                <RefreshButton iconOnly onRefresh={() => handleRefresh()} />
+              </div>
+            )}
             {!selectedNode && normalizedSelectedPath ? (
               hydrationStuck ? (
                 <NotFoundPreview
@@ -1612,7 +1764,10 @@ export default function FileExplorer({
                   <Table.Header caps={false} className="py-2" style={{ minWidth: 200 }}>
                     {t.chrome.name}
                   </Table.Header>
-                  <Table.Header caps={false} className="w-[22%] py-2">
+                  <Table.Header
+                    caps={false}
+                    className="hidden w-[22%] py-2 @min-[40rem]/files:table-cell"
+                  >
                     {t.chrome.type}
                   </Table.Header>
                   <Table.Header caps={false} className="w-[22%] py-2">
@@ -1628,12 +1783,21 @@ export default function FileExplorer({
                         node={rootNode}
                         icon={getNodeIcon(rootNode)}
                         href={href}
-                        storageCount={getNodeChildren(parentToChildrenMap, rootNode.path).length}
-                        getItems={() => [
-                          href
-                            ? { ...open, href }
-                            : { ...open, onClick: () => openUserNode(rootNode) },
-                        ]}
+                        type={rootNode.root ? rootNode.storageType : undefined}
+                        storageCount={
+                          rootNode.root
+                            ? undefined
+                            : getStorageRoots(parentToChildrenMap, [rootNode]).length
+                        }
+                        getItems={() =>
+                          rootNode.root
+                            ? buildRowMenu(rootNode)
+                            : [
+                                href
+                                  ? { ...open, href }
+                                  : { ...open, onClick: () => openUserNode(rootNode) },
+                              ]
+                        }
                         openMenu={openMenu}
                         onOpen={openUserNode}
                       />
@@ -1739,24 +1903,15 @@ export default function FileExplorer({
                     )}
 
                     <Menu.Root>
-                      <Tooltip content={common.download} side="bottom">
-                        <Menu.Trigger
-                          aria-label={common.download}
-                          className={buttonClasses({
-                            variant: selectedNode.type === 'file' ? 'primary' : 'outline',
-                            size: 'sm',
-                          })}
-                          disabled={
-                            (checkedItems.size === 0 && selectedNode.type !== 'file') ||
-                            hasFolderSelected() ||
-                            !selectedNode.storageId
-                          }
-                        >
-                          <DownloadIcon />
-                          <span className="hidden @4xl:inline">{common.download}</span>
-                          <ChevronDownIcon />
-                        </Menu.Trigger>
-                      </Tooltip>
+                      {downloadBlockedReason === undefined ? (
+                        <Tooltip content={common.download} side="bottom">
+                          {downloadTrigger}
+                        </Tooltip>
+                      ) : (
+                        <Tooltip key="blocked" content={downloadBlockedReason} side="bottom">
+                          <span className="inline-flex">{downloadTrigger}</span>
+                        </Tooltip>
+                      )}
                       <MenuPopup align="end" className="w-72">
                         <MenuItem onClick={handleDownload}>{t.chrome.downloadFromBrowser}</MenuItem>
                         {downloadCommand && downloadCommandText && (
@@ -2010,7 +2165,7 @@ export default function FileExplorer({
                                   <>
                                     <dt className="theme-muted-text">{t.chrome.created}</dt>
                                     <dd>
-                                      {formatDateTime(createdDt)}{' '}
+                                      {formatDateTime(createdDt, 'medium', locale)}{' '}
                                       <span className="theme-muted-text">
                                         · <RelativeTime value={createdDt} />
                                       </span>
@@ -2021,7 +2176,7 @@ export default function FileExplorer({
                                   <>
                                     <dt className="theme-muted-text">{t.chrome.lastModified}</dt>
                                     <dd>
-                                      {formatDateTime(modifiedDt)}{' '}
+                                      {formatDateTime(modifiedDt, 'medium', locale)}{' '}
                                       <span className="theme-muted-text">
                                         · <RelativeTime value={modifiedDt} />
                                       </span>
@@ -2096,17 +2251,33 @@ export default function FileExplorer({
           setPendingUpload(null)
         }}
         align="center"
+        size="lg"
         title={t.confirmUpload.title}
         description={t.confirmUpload.text(pendingUpload?.targetPath || t.confirmUpload.defaultPath)}
         confirmLabel={t.confirmUpload.confirm}
         onConfirm={handleUpload}
-        confirmDisabled={pendingUpload ? isUploadSizeExceeded(pendingUpload.totalSize) : false}
+        confirmDisabled={
+          pendingUpload
+            ? pendingUpload.uploadNodes.length === 0 ||
+              isUploadSizeExceeded(pendingUpload.totalSize)
+            : false
+        }
       >
         <div className="text-sm flex flex-col gap-2 mt-2 text-left">
           {/* An indented tree of folders and files, not a flat list. */}
           <div className="max-h-40 overflow-auto theme-muted-panel py-1 pl-3">
             {pendingUpload?.uploadNodes && renderUploadNodes(pendingUpload.uploadNodes)}
           </div>
+          {pendingUpload?.transferLimit !== undefined && pendingUpload.skipped.length > 0 && (
+            <Callout
+              tone="warning"
+              title={t.confirmUpload.skippedOverLimit(formatBytes(pendingUpload.transferLimit))}
+            >
+              <div className="max-h-24 overflow-auto">
+                {renderUploadNodes(pendingUpload.skipped)}
+              </div>
+            </Callout>
+          )}
           <div>
             <span className="font-semibold">{t.confirmUpload.target}</span>{' '}
             {pendingUpload?.targetPath || t.confirmUpload.noPath}

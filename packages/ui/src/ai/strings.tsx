@@ -19,6 +19,8 @@ export interface ChatStrings {
     addGroups: string
     info: ReactNode
     shareButton: string
+    /** Beside the share button in a shared conversation that can use tools. */
+    toolResultsShared: string
   }
   blockedGroup: {
     title: (group: string) => string
@@ -69,12 +71,20 @@ export interface ChatStrings {
     noToolsMatch: string
     turnAllOn: string
     turnAllOff: string
+    allTools: string
+    lookups: string
+    turnShownOn: string
+    turnShownOff: string
+    toolsEnabled: (enabled: number, total: number) => string
     /** Closes the tools modal; each switch takes effect as it is flipped. */
     done: string
+    /** Marks a tool whose calls wait for the reader's approval. */
+    asksFirst: string
   }
   allocationPicker: {
     choose: string
     placeholder: string
+    search: string
     usage: (used: string, total: string) => string
   }
   queue: {
@@ -91,6 +101,8 @@ export interface ChatStrings {
     stop: string
     /** The status words an agent's working line picks from, one per turn. */
     words: readonly string[]
+    /** The working line while a call waits for the reader to allow it. */
+    waitingForAnswer: string
   }
   emptyState: {
     // null renders the built-in time-of-day greeting.
@@ -126,6 +138,9 @@ export interface ChatStrings {
     activity: string
     /** A finished turn's label when it ran tools without reasoning. */
     ranToolCalls: (count: number) => string
+    /** The same, in a shared conversation, for a turn someone else started:
+     *  its tools ran with that person's access. */
+    ranToolCallsAs: (count: number, name: string) => string
   }
   thread: {
     viewOnly: string
@@ -223,6 +238,12 @@ export interface ChatStrings {
     running: string
     done: string
     failed: string
+    /** A failed call's row, with the first line of its error. */
+    failedWith: (reason: string) => string
+    /** Consecutive calls to one tool, folded into one row. */
+    callGroup: (tool: string, count: number) => string
+    /** Beside a folded row: how many of its calls failed. */
+    failedCount: (count: number) => string
     interrupted: string
     noOutput: string
     diffTruncated: string
@@ -240,6 +261,20 @@ export interface ChatStrings {
     denyWithFeedback: string
     feedbackPlaceholder: string
     answered: string
+    /** Under a call someone answered: who allowed or denied it. */
+    allowedBy: (name: string) => string
+    /** Allowed after the reader changed the call's arguments. */
+    allowedWithChangesBy: (name: string) => string
+    deniedBy: (name: string) => string
+    allowed: string
+    allowedWithChanges: string
+    denied: string
+    allowedByReviewer: string
+    deniedByReviewer: string
+    approvalExpired: string
+    approvalTimedOut: string
+    reviewTimedOut: string
+    reviewFailed: string
     writeOwnAnswer: string
     subagent: string
     tasks: string
@@ -248,10 +283,39 @@ export interface ChatStrings {
     approvalOptions: string
     /** Names a question the agent waits on that has no heading of its own. */
     approvalLabel: string
+    /** A call the reader approved or declined. */
+    approvalAllowed: string
+    approvalDenied: string
+    /** A call nobody answered in time. */
+    approvalRequestExpired: string
+    /** A call only the person who asked for it may answer. */
+    approvalWaitingOn: (name: string) => string
     /** Names the field for the reason a request is denied. */
     feedbackLabel: string
     /** Names the field for an answer of the reader's own. */
     ownAnswerLabel: string
+    /** The field of a question that takes typed text alone. */
+    typeYourAnswer: string
+    /** Names the tabs of an ask's questions. */
+    questionsLabel: string
+    /** A question's tab when it has no header of its own. */
+    questionTab: (n: number) => string
+    /** Above an ask's buttons: how many of its questions have an answer. */
+    answeredCount: (answered: number, total: number) => string
+    submitAnswers: string
+    /** Answers an ask by asking to talk its questions through instead. */
+    chatAboutThis: string
+    /** A question sent without an answer. */
+    noAnswer: string
+    /** In the preview pane, for an option that has no preview of its own. */
+    noPreview: string
+    /** Names the pane showing an option's preview. */
+    previewOf: (label: string) => string
+    /** Names the notes on a question with previews, in their field and under an answer. */
+    notesLabel: string
+    notesPlaceholder: string
+    /** An answer that is notes alone, which an answered ask shows over the notes. */
+    notesOnly: string
     /** Read out in place of a task's checkbox glyph. */
     todoPending: string
     todoInProgress: string
@@ -325,6 +389,7 @@ export const defaultChatStrings: ChatStrings = {
       </>
     ),
     shareButton: 'Share conversation',
+    toolResultsShared: "Tool results here are visible to the people it's shared with",
   },
   blockedGroup: {
     title: (group) => `Billing group \u201c${group}\u201d is over its allocation`,
@@ -366,22 +431,31 @@ export const defaultChatStrings: ChatStrings = {
     tools: 'Tools',
     someToolsOff: 'Some tools are off',
     toolsOn: (enabled, total) => `${enabled.toLocaleString()}/${total.toLocaleString()}`,
-    toolsDescription: 'What the assistant may look up for you.',
+    toolsDescription: 'What the assistant may look up or do for you.',
     searchTools: 'Search tools',
     noToolsMatch: 'No tools match',
     turnAllOn: 'Turn all on',
     turnAllOff: 'Turn all off',
+    allTools: 'All',
+    lookups: 'Lookups',
+    turnShownOn: 'Enable results',
+    turnShownOff: 'Disable results',
+    toolsEnabled: (enabled, total) =>
+      `${enabled.toLocaleString()} of ${total.toLocaleString()} enabled`,
     done: 'Done',
+    asksFirst: 'Asks first',
   },
   allocationPicker: {
     choose: 'Allocation',
     placeholder: 'Select allocation',
+    search: 'Search allocations\u2026',
     usage: (used, total) => `${used} / ${total}`,
   },
   activity: {
     tokens: (input, output) => `↑${input} ↓${output} tokens`,
     stop: 'Stop',
     words: activityWords,
+    waitingForAnswer: 'Waiting for your answer',
   },
   emptyState: {
     greeting: null,
@@ -415,6 +489,7 @@ export const defaultChatStrings: ChatStrings = {
     thoughtProcess: 'Thought process',
     activity: 'Activity',
     ranToolCalls: (count) => `Ran ${countOf(count, 'tool call', 'tool calls')}`,
+    ranToolCallsAs: (count, name) => `Ran ${countOf(count, 'tool call', 'tool calls')} as ${name}`,
   },
   thread: {
     viewOnly: 'You have view only access',
@@ -505,6 +580,9 @@ export const defaultChatStrings: ChatStrings = {
     running: 'Running…',
     done: 'Done',
     failed: 'Failed',
+    failedWith: (reason) => `Failed: ${reason}`,
+    callGroup: (tool, count) => `Ran ${tool} ${countOf(count, 'time', 'times')}`,
+    failedCount: (count) => `${count} failed`,
     interrupted: 'Interrupted',
     noOutput: '(no output)',
     diffTruncated: 'Diff truncated',
@@ -521,6 +599,18 @@ export const defaultChatStrings: ChatStrings = {
     denyWithFeedback: 'No, and provide feedback to the agent',
     feedbackPlaceholder: 'Tell the agent what to do instead…',
     answered: 'Answered',
+    allowedBy: (name) => `Allowed by ${name}`,
+    allowedWithChangesBy: (name) => `Allowed with changes by ${name}`,
+    deniedBy: (name) => `Denied by ${name}`,
+    allowed: 'Allowed',
+    allowedWithChanges: 'Allowed with changes',
+    denied: 'Denied',
+    allowedByReviewer: 'Allowed by the auto-reviewer',
+    deniedByReviewer: 'Denied by the auto-reviewer',
+    approvalExpired: 'Expired without an answer',
+    approvalTimedOut: 'Denied: no answer in time',
+    reviewTimedOut: 'Denied: the auto-reviewer timed out',
+    reviewFailed: 'Denied: the auto-reviewer failed',
     writeOwnAnswer: 'Write my own answer…',
     subagent: 'Task',
     tasks: 'Tasks',
@@ -528,8 +618,24 @@ export const defaultChatStrings: ChatStrings = {
     approvalPending: 'Waiting for an answer in the terminal',
     approvalOptions: 'Offered choices',
     approvalLabel: 'Waiting for your answer',
+    approvalAllowed: 'Allowed',
+    approvalDenied: 'Declined',
+    approvalRequestExpired: 'This request expired. Ask again to run it.',
+    approvalWaitingOn: (name) => `Waiting for ${name} to answer`,
     feedbackLabel: 'Feedback for the agent',
     ownAnswerLabel: 'Your answer',
+    typeYourAnswer: 'Type your answer…',
+    questionsLabel: 'Questions',
+    questionTab: (n) => `Q${n}`,
+    answeredCount: (answered, total) => `${answered} of ${total} answered`,
+    submitAnswers: 'Submit answers',
+    chatAboutThis: 'Chat about this',
+    noAnswer: 'No answer',
+    noPreview: 'No preview for this option',
+    previewOf: (label) => `Preview: ${label}`,
+    notesLabel: 'Notes',
+    notesPlaceholder: 'Add notes on this design…',
+    notesOnly: '(notes only)',
     todoPending: 'To do',
     todoInProgress: 'In progress',
     todoCompleted: 'Done',

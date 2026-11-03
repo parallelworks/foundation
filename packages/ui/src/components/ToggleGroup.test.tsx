@@ -55,6 +55,24 @@ describe('ToggleGroup', () => {
     expect(screen.getByRole('status')).toHaveTextContent(/^$/)
   })
 
+  it('keeps a toggle still on hover and rings it inside, so nothing clips it', () => {
+    render(<Filter initial={['running']} />)
+    const running = button(/Running/)
+    expect(running).toHaveAttribute('aria-pressed')
+    // Every lift class skips an element with aria-pressed, which each toggle has.
+    const lifts = running.className.split(' ').filter((c) => c.includes('translate-y-px'))
+    expect(lifts.length).toBeGreaterThan(0)
+    for (const lift of lifts) {
+      expect(lift).toContain('not-[[aria-pressed]]')
+    }
+    expect(running).toHaveClass('focus-visible:-outline-offset-2', 'border')
+  })
+
+  it('names its All option as the host says, such as what it covers', () => {
+    render(<Filter all allLabel="All states" initial={[]} />)
+    expect(button(/^All states$/)).toHaveAttribute('aria-pressed', 'true')
+  })
+
   it('presses All while nothing else is, and clears the others when it is pressed', () => {
     render(<Filter all={{ count: 42 }} initial={['running', 'failed']} />)
     const all = button(/^All/)
@@ -109,5 +127,21 @@ describe('ToggleGroup', () => {
     expect(button(/A/)).toBeDisabled()
     fireEvent.click(button(/A/))
     expect(onValueChange).not.toHaveBeenCalled()
+  })
+})
+
+describe('ToggleGroup chrome', () => {
+  it('passes its description through and sets All apart from the options', () => {
+    render(
+      <>
+        <p id="summary">2 of 3 states</p>
+        <Filter all aria-describedby="summary" />
+      </>,
+    )
+    expect(screen.getByRole('group', { name: 'State' })).toHaveAccessibleDescription(
+      '2 of 3 states',
+    )
+    const all = screen.getByRole('button', { name: /All/ })
+    expect(all.nextElementSibling).toHaveAttribute('aria-hidden', 'true')
   })
 })

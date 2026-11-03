@@ -4,12 +4,21 @@ import { Checkbox } from '../components/Checkbox'
 import { positionKeys } from '../components/keys'
 import { useStrings } from '../components/Provider'
 import { LoadingRegion, Skeleton } from '../components/Skeleton'
-import { Table } from '../components/Table'
+import { CellPlacementContext, Table } from '../components/Table'
+import { Tooltip } from '../components/Tooltip'
 import { cx } from '../cx'
 import { ErrorIcon } from '../icons'
 
 const NAME_TEXT = 'font-medium text-[13px] leading-tight text-(--theme-app) truncate'
 const SUBTITLE_TEXT = 'text-xs leading-tight text-(--theme-muted-text-color) truncate'
+// A longer note under the name, such as why a run failed: it wraps inside the name's column, as
+// the cell otherwise keeps to one line, for two lines at most, and shows whole in a tooltip.
+const DESCRIPTION_TEXT =
+  'mt-0.5 line-clamp-2 whitespace-normal text-xs leading-tight [overflow-wrap:anywhere]'
+const DESCRIPTION_TONE = {
+  muted: 'text-(--theme-muted-text-color)',
+  error: 'text-(--theme-error-text)',
+} as const
 
 /** Marks a header cell of a list whose column headers are off; see `listTableProps`. */
 export const HEADERS_OFF = 'list-headers-off'
@@ -44,12 +53,14 @@ export const listTableFixedProps = {
  *  clicks: it navigates, and no selection claims plain clicks. */
 export const StretchRowLinkContext = createContext(false)
 
-// The link's box covers the row (the `ListRow`'s `<tr>` is its containing
-// block), so the whole row is the link: it opens in a new tab, shows its URL
-// and reads as a link, where a row click handler could do none of these. Its
-// focus ring follows, drawn around the row. Mark the link `data-row-link`.
+/** Makes a link cover its `ListRow` (the row's `<tr>` is its containing block),
+ *  so the whole row is the link: it opens in a new tab, shows its URL and
+ *  reads as a link, where a row click handler could do none of these. Its
+ *  focus ring follows, drawn around the row. A `NameCell` with an `href` does
+ *  this itself; a row whose link is elsewhere, such as a run's number before
+ *  its workflow's name, gives its own link this class and `data-row-link`. */
 export const STRETCHED_LINK =
-  "after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-(--theme-link)"
+  "after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-(--theme-focus)"
 
 /** The row a `STRETCHED_LINK` covers: its box, with the row's other controls
  *  raised above the link so they keep their own clicks. A checkbox is a
@@ -59,16 +70,35 @@ export const STRETCHED_LINK_ROW =
 
 export function NameCell({
   icon,
+  iconTile = false,
   name,
   subtitle,
+  description,
+  descriptionTone = 'muted',
   href,
   badge,
   title,
   children,
 }: {
   icon: ReactNode
-  name: string
-  subtitle?: string | undefined
+  /** Sets the icon in a small bordered tile, so rows whose icons differ in
+   *  weight, such as kinds of token or runner, still line up. The 28px tile
+   *  sits beside a name and its subtitle; a row with no subtitle keeps its
+   *  icon bare, centered where the tile would be, so a one-line row stays
+   *  as short as its text and its name still lines up with tiled rows. */
+  iconTile?: boolean | undefined
+  /** The name, or the host's own element for it, such as a link that opens the row's item in
+   *  a new tab: it is cut off with an ellipsis where it is wider than its column. */
+  name: ReactNode
+  /** A second line under the name, cut off with an ellipsis. One that holds links of its own
+   *  needs `href={null}`, as a link can't hold another. */
+  subtitle?: ReactNode
+  /** A longer note under the subtitle, such as why a session failed. It wraps inside the name's
+   *  column for two lines at most, then ends in an ellipsis and shows whole in a tooltip, so it
+   *  never runs past the row on a phone. It sits outside the name's link. */
+  description?: string | undefined
+  /** `error` for a note that says what went wrong. */
+  descriptionTone?: 'muted' | 'error' | undefined
   /** The name's link. Inside a `ListRow` with an `href`, the whole row is
    *  this link, so give both the same URL. */
   href: string | null
@@ -79,9 +109,27 @@ export function NameCell({
   children?: ReactNode
 }) {
   const stretch = useContext(StretchRowLinkContext)
+  // What a row stacks under its first cell goes under the name, past the icon, with `children`.
+  const placed = useContext(CellPlacementContext)
+  const under = placed?.after
+  const hasIcon = icon !== null && icon !== undefined && icon !== false
+  // The cell is a grid of the icon's column and the name's, so what stacks
+  // under the name lines up with it past an icon of any width.
+  const columns = hasIcon ? 'col-span-2 grid grid-cols-subgrid items-center' : 'flex items-center'
   const inner = (
     <>
-      {icon}
+      {hasIcon &&
+        (iconTile && subtitle ? (
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-md border border-(--theme-border) text-(--theme-muted-text-color) [&>svg]:size-3.5">
+            {icon}
+          </span>
+        ) : iconTile ? (
+          <span className="flex w-7 shrink-0 items-center justify-center text-(--theme-muted-text-color) [&>svg]:size-3.5">
+            {icon}
+          </span>
+        ) : (
+          icon
+        ))}
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-1.5">
           <div
@@ -92,71 +140,118 @@ export function NameCell({
           </div>
           {badge}
         </div>
-        {subtitle && <div className={SUBTITLE_TEXT}>{subtitle}</div>}
+        {subtitle && (
+          // Marks a two-line name, which a row's selection checkbox centers on (see ListRow).
+          <div className={SUBTITLE_TEXT} data-name-subtitle>
+            {subtitle}
+          </div>
+        )}
       </div>
     </>
   )
-  return (
+  const cell = (
     <Table.Item className="py-2.5">
-      {href ? (
-        <AppLink
-          href={href}
-          data-row-link={stretch || undefined}
-          className={cx(
-            'group/namecell flex items-center gap-2.5 min-w-0 cursor-pointer',
-            stretch && STRETCHED_LINK,
-          )}
-        >
-          {inner}
-        </AppLink>
-      ) : (
-        <div className="flex items-center gap-2.5 min-w-0">{inner}</div>
-      )}
-      {/* Lined up with the name, past the icon (h-5 w-5 and the gap-2.5 beside it). */}
-      {children && <div className="pl-[1.875rem]">{children}</div>}
+      <div
+        className={cx(
+          'grid min-w-0',
+          hasIcon ? 'grid-cols-[auto_minmax(0,1fr)] gap-x-2.5' : 'grid-cols-[minmax(0,1fr)]',
+        )}
+      >
+        {href ? (
+          <AppLink
+            href={href}
+            data-row-link={stretch || undefined}
+            className={cx(
+              'group/namecell min-w-0 cursor-pointer',
+              columns,
+              stretch && STRETCHED_LINK,
+            )}
+          >
+            {inner}
+          </AppLink>
+        ) : (
+          <div className={cx('min-w-0', columns)}>{inner}</div>
+        )}
+        {(!!description || !!children || !!under) && (
+          <div className={hasIcon ? 'col-start-2 min-w-0' : 'min-w-0'}>
+            {description && (
+              <Tooltip content={description} overflowOnly>
+                <p className={cx(DESCRIPTION_TEXT, DESCRIPTION_TONE[descriptionTone])}>
+                  {description}
+                </p>
+              </Tooltip>
+            )}
+            {children}
+            {under}
+          </div>
+        )}
+      </div>
     </Table.Item>
   )
-}
-
-export function GroupRow({
-  label,
-  count,
-  colSpan,
-}: {
-  label: string
-  count: number
-  colSpan: number
-}) {
-  return (
-    <tr>
-      <td colSpan={colSpan} className="bg-(--theme-muted-panel-bg) py-1.5 text-xs font-medium">
-        <span className="text-(--theme-app)">{label}</span>
-        <span className="mx-1.5 opacity-50">·</span>
-        <span className="text-(--theme-muted-text-color)">{count}</span>
-      </td>
-    </tr>
+  // The cell keeps the column's classes; what follows its own is shown here instead.
+  return placed?.after ? (
+    <CellPlacementContext value={{ ...placed, after: undefined }}>{cell}</CellPlacementContext>
+  ) : (
+    cell
   )
 }
 
-export function ListError({
-  error,
-  noun,
+/** A row's column text: muted 13px, or monospace for an ID, a path or a
+ *  hash. The style sits on the text rather than the cell, so it carries over
+ *  when a narrow list stacks the column under the name. Text wider than its
+ *  column is cut off with an ellipsis, and shows whole in a tooltip. */
+export function ListCellText({
+  mono = false,
+  className,
+  children,
 }: {
-  error: unknown
+  mono?: boolean | undefined
+  className?: string | undefined
+  children: ReactNode
+}) {
+  const text = (
+    <span
+      className={cx(
+        'block min-w-0 truncate text-(--theme-muted-text-color)',
+        mono ? 'font-mono text-xs' : 'text-[13px]',
+        className,
+      )}
+    >
+      {children}
+    </span>
+  )
+  return typeof children === 'string' || typeof children === 'number' ? (
+    <Tooltip content={children} overflowOnly>
+      {text}
+    </Tooltip>
+  ) : (
+    text
+  )
+}
+
+/** Says a list couldn't load. It never shows the error's own text, which is
+ *  the server's words, in its language and not written for the reader. */
+export function ListError({
+  noun,
+  message,
+}: {
+  /** What failed. It is not shown: pass `message` to say what went wrong. */
+  error?: unknown
   /** What failed to load, as the heading names it: "Couldn't load clusters". */
   noun?: string | undefined
+  /** What went wrong, in the reader's words, such as the host's own text for the error.
+   *  Defaults to a generic line from the strings. */
+  message?: ReactNode
 }) {
   const { list: t } = useStrings()
-  const message =
-    error && typeof error === 'object' && 'message' in error
-      ? String((error as { message?: unknown }).message)
-      : undefined
   return (
     <div role="alert" className="flex flex-col items-center justify-center gap-3 py-20 text-center">
       <ErrorIcon aria-hidden="true" className="h-10 w-10 text-(--theme-error)" />
       <div className="space-y-1">
         <p className="text-sm font-medium text-(--theme-app)">{t.couldNotLoad(noun ?? t.data)}</p>
-        {message && <p className="max-w-md text-xs text-(--theme-muted-text-color)">{message}</p>}
+        <p className="max-w-md text-xs text-(--theme-muted-text-color)">
+          {message ?? t.couldNotLoadHint}
+        </p>
       </div>
     </div>
   )
@@ -179,7 +274,8 @@ export function ListSkeleton({ rows = 6 }: { rows?: number }) {
   )
 }
 
-/** Prevents the name column from being crushed under table-auto layout during horizontal overflow. */
+/** Prevents the name column from being crushed under table-auto layout during horizontal
+ *  overflow. In a list under 400px wide, the floor is half the list instead. */
 export const NAME_MIN_WIDTH_PX = 200
 
 /** Trailing cell geometry: icon-button size + gap + padding, sized to fit exactly its pinned buttons. */
@@ -189,6 +285,14 @@ const ACTIONS_CELL_PAD_PX = 28
 
 /** Width the trailing actions column reserves for `count` always-visible
  * buttons plus the hover `⋯` trigger. */
+/** The lane of a row whose only action is a `⋯` shown on hover. With a mouse
+ *  it is just wide enough for the `⋯` and the edge's 16px, so the last column
+ *  ends where the lane begins and long text there is cut off before the
+ *  button rather than running under it. On a touch screen, where the `⋯`
+ *  always shows, the lane keeps its full width. */
+export const FLOATING_ACTIONS_LANE =
+  'pointer-fine:w-10! pointer-fine:min-w-10! pointer-fine:pl-0! pointer-fine:pr-1!'
+
 export function actionsColumnWidth(count: number): number {
   const buttons = count + 1
   return buttons * ACTION_BUTTON_PX + (buttons - 1) * ACTION_GAP_PX + ACTIONS_CELL_PAD_PX
@@ -210,6 +314,7 @@ export function RowSelectCheckbox({
     <Checkbox
       aria-label={label}
       checked={checked}
+      data-row-select
       onCheckedChange={(_, details) => onToggle(details.event)}
       // The row opens on a click; ticking its box mustn't.
       onClick={(e) => e.stopPropagation()}
@@ -238,7 +343,12 @@ export function ListSelectAllHeader({
   const t = useStrings().list
   const all = total > 0 && selected >= total
   return (
-    <Table.Header caps={false} className="w-10">
+    // On a narrow list, as in a row's selection cell, the box keeps only the name's own 10px from
+    // what follows it, so the sort line under the header starts where the rows' names do.
+    <Table.Header
+      caps={false}
+      className="w-10 @max-[36rem]:w-px @max-[36rem]:pr-0 @max-[36rem]:[&+th]:pl-2.5"
+    >
       <Checkbox
         aria-label={t.selectAll}
         checked={all}
@@ -259,7 +369,13 @@ export function ListActionsHeader({
   actionCount = 0,
   className,
 }: {
-  view?: { showActions: boolean; actionsWidth: number }
+  view?: {
+    showActions: boolean
+    actionsWidth: number
+    alwaysShowActions?: boolean
+    lastColumnLocked?: boolean | undefined
+    reservesActionLane?: boolean | undefined
+  }
   actionCount?: number
   className?: string
 }) {
@@ -269,6 +385,11 @@ export function ListActionsHeader({
     return null
   }
   const width = view ? view.actionsWidth : actionsColumnWidth(actionCount)
+  const floating =
+    !!view &&
+    !view.alwaysShowActions &&
+    !(view.reservesActionLane ?? view.lastColumnLocked) &&
+    view.actionsWidth === actionsColumnWidth(0)
   return (
     <Table.Header
       caps={false}
@@ -276,6 +397,7 @@ export function ListActionsHeader({
       className={cx(
         // Below 44rem, where ListRow folds pinned buttons into ⋯, only ⋯ needs room.
         'relative py-2 text-right @max-[44rem]:w-[52px]! @max-[44rem]:min-w-[52px]!',
+        floating && FLOATING_ACTIONS_LANE,
         className,
       )}
     >

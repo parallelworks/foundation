@@ -7,8 +7,13 @@ export const positionerClassName = 'z-(--layer-popover) outline-none data-anchor
 const enterExit =
   'origin-(--transform-origin) transition-[transform,opacity] duration-100 data-starting-style:scale-95 data-starting-style:opacity-0 data-ending-style:scale-95 data-ending-style:opacity-0 motion-reduce:data-starting-style:scale-100 motion-reduce:data-ending-style:scale-100'
 
+/** The opaque surface a popover stands on, and its shadow: what is under it never shows
+ *  through, such as a chart's marks under its tooltip. */
+export const surfaceClassName =
+  'rounded-lg border border-(--theme-border) bg-(--theme-app-bg) text-(--theme-app) shadow-(--theme-shadow-lg)'
+
 /** A panel of choices: a menu, a select's list, a combobox's list. */
-export const panelClassName = `rounded-lg border border-(--theme-border) bg-(--theme-app-bg) text-sm text-(--theme-app) shadow-(--theme-shadow-lg) outline-none ${enterExit}`
+export const panelClassName = `${surfaceClassName} text-sm outline-none ${enterExit}`
 
 /** A panel's rows inset by the same gutter on every side, so a highlighted first or last row
  *  keeps the margin it has at its sides rather than leaving a strip against the border. */
@@ -18,14 +23,12 @@ export const panelListClassName = 'p-1'
 export const panelItemClassName =
   'flex w-full cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-left outline-none data-highlighted:bg-(--theme-hover) data-highlighted:text-(--theme-app) data-disabled:cursor-not-allowed data-disabled:opacity-50'
 
-/** A tooltip's or infotip's small inverted surface. */
-export const tipClassName = `rounded-md bg-(--theme-app) px-2 py-1 text-xs text-(--theme-app-bg) shadow-(--theme-shadow) whitespace-pre-line break-words data-instant:transition-none ${enterExit}`
-
-export const tipArrowClassName =
-  'size-2 rotate-45 bg-(--theme-app) data-[side=top]:-bottom-1 data-[side=bottom]:-top-1 data-[side=left]:-right-1 data-[side=right]:-left-1'
+/** A tooltip's, infotip's or popover tip's surface: a small panel in the page's colors, so a
+ *  hint reads as part of the page rather than a dark patch over it. */
+export const tipClassName = `max-w-64 rounded-lg border border-(--theme-border) bg-(--theme-panel-bg) px-2.5 py-1.5 text-xs text-(--theme-app) shadow-(--theme-shadow-lg) whitespace-pre-line break-words data-instant:transition-none ${enterExit}`
 
 /** A hover card's surface; the card sets its own width and padding. */
-export const cardClassName = `overflow-hidden rounded-xl border border-(--theme-border) bg-(--theme-panel-bg) text-(--theme-app) shadow-(--theme-shadow-lg) outline-none ${enterExit}`
+export const cardClassName = `overflow-hidden rounded-lg border border-(--theme-border) bg-(--theme-panel-bg) text-(--theme-app) shadow-(--theme-shadow-lg) outline-none ${enterExit}`
 
 /** Where a popup opens: under an element, such as the button that opened it, or
  *  at a pointer event's point, which then moves with the element it landed on. */

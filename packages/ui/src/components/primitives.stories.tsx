@@ -1,8 +1,18 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { type ReactNode, useLayoutEffect, useRef, useState } from 'react'
+import { type CSSProperties, type ReactNode, useLayoutEffect, useRef, useState } from 'react'
 import { expect, screen, userEvent, waitFor, within } from 'storybook/test'
-import type { RunStatus } from '../engine'
 import { formatBytes } from '../format'
+import {
+  CalendarIcon,
+  CancelIcon,
+  ClusterIcon,
+  FilterIcon,
+  MoreIcon,
+  RetryIcon,
+  TagIcon,
+  UploadIcon,
+  UserIcon,
+} from '../icons'
 import {
   applyTheme,
   DEFAULT_PRESET,
@@ -11,31 +21,38 @@ import {
   schemeFor,
   THEME_PRESETS,
 } from '../theme/index'
-import { Avatar, type AvatarSize } from './Avatar'
+import { ActionMenu } from './ActionMenu'
+import { Avatar, AvatarGroup, type AvatarSize } from './Avatar'
 import { Button } from './Button'
 import { buttonClasses } from './buttonClasses'
 import { Checkbox } from './Checkbox'
 import { Autocomplete, Combobox } from './Combobox'
-import { ConfirmModal } from './ConfirmModal'
-import { CreateModal, CreateModalSwitch } from './CreateModal'
+import { ConfirmModal, useConfirm } from './ConfirmModal'
+import { CreateModal, CreateModalSelect, CreateModalSwitch } from './CreateModal'
 import { DatePicker } from './DatePicker'
-import { EmptyState } from './EmptyState'
+import { EmptyState, type EmptyStateVariant } from './EmptyState'
 import { ExternalLink } from './ExternalLink'
+import { Field } from './Field'
 import { type FieldBoxSize, fieldBox } from './fieldBox'
 import { InfoTip } from './InfoTip'
 import { Input } from './Input'
+import { Kbd } from './Kbd'
 import { positionKeys } from './keys'
-import { type BarTone, Meter, ProgressBar } from './Meter'
-import { Modal, type ModalProps } from './Modal'
+import { type BarTone, type BarValuePlacement, Meter, ProgressBar } from './Meter'
+import { Modal, type ModalProps, type ModalSize } from './Modal'
 import { NumberInput } from './NumberInput'
-import { Overview } from './Overview'
-import { RunStatusIcon, runStatusTone } from './RunStatusIcon'
+import { Pagination } from './Pagination'
+import { type AvatarColoring, UIProvider } from './Provider'
+import { RunStatusIcon, type RunStatusIconStatus } from './RunStatusIcon'
 import { Elapsed, RelativeTime } from './relativeTime'
 import { SegmentedControl } from './SegmentedControl'
 import { Select } from './Select'
-import { StatusBadge, StatusDot } from './StatusBadge'
+import { type BadgeSize, CountBadge, StatusBadge, StatusDot } from './StatusBadge'
+import { RunStatusLabel, StatusLabel } from './StatusLabel'
 import { Switch } from './Switch'
 import { type SortDirection, Table, type TableDensity } from './Table'
+import { Tag } from './Tag'
+import { ToggleGroup } from './ToggleGroup'
 import { Tooltip } from './Tooltip'
 
 const meta: Meta = {
@@ -43,7 +60,8 @@ const meta: Meta = {
 }
 export default meta
 
-const RUN_STATUSES: RunStatus[] = [
+const RUN_STATUSES: RunStatusIconStatus[] = [
+  'pending',
   'running',
   'completed',
   'error',
@@ -52,10 +70,13 @@ const RUN_STATUSES: RunStatus[] = [
   'skipped',
   'skipped-failed',
   'faulted',
+  'warning',
   '',
 ]
 
-/** A run status as an icon beside what ran, and in words as a badge in the same tone. */
+/** A run status as an icon beside what ran, and as a status (`RunStatusLabel`): the icon and
+ *  the status's name in muted text. Under way spins in info blue; `pending` and `warning` are
+ *  looks a host maps its own statuses onto. See [Which one](?path=/story/ui-badges--which-one). */
 export const RunStatuses: StoryObj = {
   render: () => (
     <div className="flex flex-col gap-2 text-sm">
@@ -65,7 +86,7 @@ export const RunStatuses: StoryObj = {
             <RunStatusIcon status={status} />
             build
           </span>
-          <StatusBadge variant={runStatusTone(status)}>{status || 'not run'}</StatusBadge>
+          <RunStatusLabel status={status} />
         </div>
       ))}
     </div>
@@ -74,24 +95,115 @@ export const RunStatuses: StoryObj = {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('img', { name: 'error' })).toBeVisible()
     await expect(canvas.getByRole('img', { name: 'completed' })).toBeVisible()
+    await expect(canvas.getAllByText('Failed')).toHaveLength(2)
   },
 }
 
-export const Badges: StoryObj = {
-  render: () => (
-    <div className="flex items-center gap-3">
-      <StatusBadge variant="success">Running</StatusBadge>
-      <StatusBadge variant="warning" pulse>
-        Degraded
-      </StatusBadge>
-      <StatusBadge variant="error">Stopped</StatusBadge>
-      <StatusBadge variant="info" size="sm">
-        Preview
-      </StatusBadge>
-      <StatusBadge variant="muted">Archived</StatusBadge>
-      <StatusDot variant="success" />
+/** A host's own status in a run's look, with its own name, shown on hover with `tooltip`. */
+export const RunStatusLabels: StoryObj<{ tooltip: boolean }> = {
+  args: { tooltip: true },
+  argTypes: { tooltip: { description: 'Shows the name on hover too.' } },
+  render: ({ tooltip }) => (
+    <div className="flex items-center gap-4 p-8 text-sm">
+      <RunStatusIcon status="running" label="Provisioning" tooltip={tooltip} />
+      <RunStatusIcon status="running" label="Deleting" tooltip={tooltip} />
+      <RunStatusIcon status="pending" label="Queued" tooltip={tooltip} />
+      <RunStatusIcon status="warning" label="Degraded" tooltip={tooltip} />
+      <RunStatusIcon status="completed" label="Deployed" tooltip={tooltip} />
     </div>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('img', { name: 'Provisioning' })).toHaveAttribute(
+      'data-status',
+      'running',
+    )
+  },
+}
+
+/** A status, a flag, a count, a tag, a key and a status icon as a tooltip's direct child, each taking the
+ *  trigger's props and ref itself, with no wrapper. A focusable one, given `tabIndex`, shows its
+ *  tooltip on focus too. */
+export const BadgesWithTooltips: StoryObj = {
+  render: () => (
+    <div className="flex flex-wrap items-center gap-3 p-8 text-sm">
+      <Tooltip content="2 of 3 nodes answering; jobs may queue longer than usual">
+        <StatusLabel variant="warning" tabIndex={0}>
+          Degraded
+        </StatusLabel>
+      </Tooltip>
+      <Tooltip content="Only its owner can change it">
+        <StatusBadge variant="muted" tabIndex={0}>
+          Read only
+        </StatusBadge>
+      </Tooltip>
+      <Tooltip content="4 decisions waiting for your review">
+        <CountBadge count={4} label="waiting" tabIndex={0} />
+      </Tooltip>
+      <Tooltip content="Runs only on machines with a GPU">
+        <Tag color="var(--theme-category-3)" tabIndex={0}>
+          gpu
+        </Tag>
+      </Tooltip>
+      <Tooltip content="Search everything">
+        <Kbd keys="Mod+K" tabIndex={0} />
+      </Tooltip>
+      <Tooltip content="Failed after 2m 13s">
+        <RunStatusIcon status="failed" tabIndex={0} />
+      </Tooltip>
+      <Tooltip content="Ada Lovelace, owner">
+        <Avatar name="Ada Lovelace" size="sm" tabIndex={0} />
+      </Tooltip>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.hover(canvas.getByText('Degraded'))
+    await expect(
+      await screen.findByText('2 of 3 nodes answering; jobs may queue longer than usual'),
+    ).toBeInTheDocument()
+  },
+}
+
+const HOST_COUNT_CSS =
+  '.story-host-count { background: light-dark(#b45309, #f59e0b); color: light-dark(#fff, #111) }'
+
+/** Counts beside a link or tab, capped at 99+; a host passes its own color in `className`. */
+export const CountBadges: StoryObj<{ count: number; max: number; size: BadgeSize }> = {
+  args: { count: 140, max: 99, size: 'md' },
+  argTypes: {
+    count: { control: { type: 'number', min: 0 } },
+    max: { control: { type: 'number', min: 1 } },
+    size: { control: 'inline-radio', options: ['sm', 'md'] },
+  },
+  render: ({ count, max, size }) => (
+    <div className="flex w-56 flex-col gap-1 text-sm">
+      {/* A host's own color, as a host's stylesheet would set it. */}
+      <style>{HOST_COUNT_CSS}</style>
+      <span className="flex items-center justify-between rounded-md px-2 py-1">
+        Inbox
+        <CountBadge count={count} max={max} size={size} label="unread" />
+      </span>
+      <span className="flex items-center justify-between rounded-md px-2 py-1">
+        Decisions
+        <CountBadge count={4} size={size} label="waiting" className="story-host-count" />
+      </span>
+      <span className="flex items-center justify-between rounded-md px-2 py-1">
+        Orphaned
+        <CountBadge count={7} size={size} emphasis="soft" variant="warning" />
+      </span>
+      <span className="flex items-center justify-between rounded-md px-2 py-1">
+        Archived
+        <CountBadge count={0} size={size} emphasis="soft" variant="muted" showZero />
+      </span>
+    </div>
+  ),
+  play: async ({ canvasElement, args }) => {
+    if (args.count <= args.max) {
+      return
+    }
+    await expect(within(canvasElement).getByText(`${args.max}+`)).toBeVisible()
+  },
 }
 
 /** A picture, or initials until it loads and when it fails; one image to assistive
@@ -116,6 +228,49 @@ export const Avatars: StoryObj = {
       expect(canvas.getByRole('img', { name: 'Katherine Johnson, offline' })).toHaveTextContent(
         'KJ',
       ),
+    )
+  },
+}
+
+/** A ring passed in `className` traces the shape, circle or square, so overlapping avatars read
+ *  as separate faces. Beside a printed name the avatar is `decorative`, so a screen reader says
+ *  the name once. */
+export const AvatarRings: StoryObj<{ decorative: boolean }> = {
+  args: { decorative: true },
+  render: ({ decorative }) => (
+    <div className="flex flex-col gap-4 p-8">
+      <div className="flex">
+        {['Ada Lovelace', 'Grace Hopper', 'Alan Turing', 'Radia Perlman'].map((name, index) => (
+          // Overlapping, so each ring cuts its circle out of the one before.
+          <span key={name} style={{ marginLeft: index === 0 ? 0 : -8 }} className="flex">
+            <Avatar name={name} size="md" className="ring-2 ring-(--theme-app-bg)" />
+          </span>
+        ))}
+        <span style={{ marginLeft: -8 }} className="flex">
+          <Avatar
+            name="Triage bot"
+            kind="agent"
+            size="md"
+            className="ring-2 ring-(--theme-app-bg)"
+          />
+        </span>
+      </div>
+      <div className="flex items-center gap-2 text-sm">
+        <Avatar
+          name="Grace Hopper"
+          size="sm"
+          decorative={decorative}
+          className="ring-2 ring-(--theme-accent)"
+        />
+        Grace Hopper
+      </div>
+    </div>
+  ),
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('img', { name: 'Ada Lovelace' })).toHaveClass('rounded-full')
+    await expect(canvas.queryAllByRole('img', { name: 'Grace Hopper' })).toHaveLength(
+      args.decorative ? 1 : 2,
     )
   },
 }
@@ -242,16 +397,200 @@ export const AvatarColors: StoryObj<AvatarColorArgs> = {
   },
 }
 
-/** Where there is nothing yet: a panel stands in for a whole list, and bare sits
- *  inside something that already frames it. */
-export const EmptyStates: StoryObj<{ variant: 'panel' | 'bare' }> = {
-  args: { variant: 'panel' },
-  argTypes: { variant: { control: 'inline-radio', options: ['panel', 'bare'] } },
-  render: ({ variant }) => (
+interface AvatarKindArgs {
+  avatarColoring: AvatarColoring
+  size: AvatarSize
+  tooltip: boolean
+}
+
+const KIND_ROWS = [
+  { name: 'maya', kind: 'person' },
+  { name: 'Grace Hopper', kind: 'person' },
+  { name: 'alan.turing@example.com', kind: 'person' },
+  { name: 'Triage', kind: 'agent' },
+  { name: 'Release notes writer', kind: 'agent' },
+] as const
+
+/** Who is a person and who is an agent. An agent is always a rounded square, so its shape and not
+ *  only its color tells it apart. Under UIProvider's `avatarColoring="kind"` every person shares
+ *  one tint and every agent another, with two initials even for a one-word name; a host sets
+ *  `--avatar-person`, `--avatar-agent` and their `-text` colors to its own. `colorClassName`
+ *  fills one that is neither, such as a connector, and `tooltip` names it on hover. */
+export const AvatarKinds: StoryObj<AvatarKindArgs> = {
+  args: { avatarColoring: 'kind', size: 'md', tooltip: true },
+  argTypes: {
+    avatarColoring: { control: 'inline-radio', options: ['name', 'kind'] },
+    size: { control: 'select', options: ['xs', 'sm', 'md', 'lg', 'xl', '2xl'] },
+    tooltip: { control: 'boolean' },
+  },
+  render: ({ avatarColoring, size, tooltip }) => (
+    <UIProvider avatarColoring={avatarColoring}>
+      <ul className="m-0 flex list-none flex-col gap-3 p-8">
+        {KIND_ROWS.map(({ name, kind }) => (
+          <li key={name} className="flex items-center gap-2 text-sm">
+            <Avatar name={name} kind={kind} size={size} tooltip={tooltip} />
+            <span>{name}</span>
+          </li>
+        ))}
+        <li className="flex items-center gap-2 text-sm">
+          <Avatar
+            name="Webhook"
+            size={size}
+            tooltip={tooltip}
+            colorClassName="bg-(--theme-muted-panel-bg) text-(--theme-muted-text-color)"
+          />
+          <span>Webhook</span>
+        </li>
+        <li className="flex items-center gap-2 text-sm">
+          <Avatar name="Release notes writer" kind="agent" src="/missing-avatar.png" size={size} />
+          <span>An agent whose picture failed</span>
+        </li>
+      </ul>
+    </UIProvider>
+  ),
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('img', { name: 'Triage' })).toHaveAttribute(
+      'data-shape',
+      'square',
+    )
+    await expect(canvas.getByRole('img', { name: 'maya' })).toHaveTextContent(
+      args.avatarColoring === 'kind' ? 'MA' : 'M',
+    )
+  },
+}
+
+interface AvatarGroupArgs {
+  count: number
+  max: number
+  total: number
+  showOverflow: boolean
+  size: AvatarSize
+  ring: boolean
+  ringColor: string
+}
+
+const GROUP_PEOPLE = [
+  'Ada Lovelace',
+  'Grace Hopper',
+  'Alan Turing',
+  'Radia Perlman',
+  'Ken Thompson',
+  'Barbara Liskov',
+  'Donald Knuth',
+  'Frances Allen',
+]
+
+/** Overlapping faces with a "+N" chip for the rest. `max` caps how many show; `total` counts
+ *  the rest when the children are already a slice. Each avatar takes a ring in the color behind
+ *  the stack, `ringColor`, which follows its shape, and one can set its own as a highlight. */
+export const AvatarGroups: StoryObj<AvatarGroupArgs> = {
+  args: {
+    count: 6,
+    max: 4,
+    total: 0,
+    showOverflow: true,
+    size: 'sm',
+    ring: true,
+    ringColor: '',
+  },
+  argTypes: {
+    count: { control: { type: 'range', min: 0, max: 8 }, description: 'Story only' },
+    max: { control: { type: 'number', min: 0 } },
+    total: { control: { type: 'number', min: 0 }, description: '0 leaves it unset' },
+    showOverflow: { control: 'boolean' },
+    size: { control: 'select', options: ['xs', 'sm', 'md', 'lg', 'xl', '2xl'] },
+    ring: { control: 'boolean' },
+    ringColor: { control: 'color', description: 'Empty is the panel color' },
+  },
+  render: ({ count, max, total, showOverflow, size, ring, ringColor }) => (
+    <div className="flex flex-col gap-6 p-8 text-sm">
+      <div className="rounded-xl border border-(--theme-border) bg-(--theme-panel-bg) p-4">
+        <AvatarGroup
+          max={max}
+          total={total || undefined}
+          showOverflow={showOverflow}
+          size={size}
+          ring={ring}
+          ringColor={ringColor || undefined}
+          label={`${total || count} people`}
+        >
+          {GROUP_PEOPLE.slice(0, count).map((name) => (
+            <Avatar key={name} name={name} tooltip />
+          ))}
+        </AvatarGroup>
+      </div>
+      <UIProvider avatarColoring="kind">
+        <div className="flex items-center gap-3 rounded-xl border border-(--theme-border) bg-(--theme-panel-bg) p-4">
+          <AvatarGroup size={size} label="Assigned to Ada Lovelace, Triage and Grace Hopper">
+            <Avatar name="Ada Lovelace" tooltip />
+            <Avatar name="Triage" kind="agent" tooltip />
+            {/* A host would pass className="[--avatar-ring:…]"; stories build no styles. */}
+            <span
+              className="flex"
+              style={{ '--avatar-ring': 'var(--theme-info)' } as CSSProperties}
+            >
+              <Avatar name="Grace Hopper" tooltip="Grace is editing the title" />
+            </span>
+          </AvatarGroup>
+          <span className="text-(--theme-muted-text-color)">By kind, one highlighted</span>
+        </div>
+      </UIProvider>
+      <div className="flex items-center gap-3 p-4">
+        {/* The whole stack is the tooltip's trigger: the group takes its props and ref. */}
+        <Tooltip content="Ada Lovelace, Grace Hopper, Alan Turing and 6 others">
+          <AvatarGroup
+            size={size}
+            max={3}
+            total={9}
+            ringColor="var(--theme-app-bg)"
+            showOverflow={false}
+            label="9 online"
+          >
+            {GROUP_PEOPLE.slice(0, 3).map((name) => (
+              <Avatar key={name} name={name} />
+            ))}
+          </AvatarGroup>
+        </Tooltip>
+        <span className="text-(--theme-muted-text-color)">9 online, one tooltip for the stack</span>
+      </div>
+    </div>
+  ),
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    const group = canvas.getByRole('group', { name: `${args.total || args.count} people` })
+    const shown = Math.min(args.count, args.max)
+    await expect(within(group).queryAllByRole('img')).toHaveLength(shown)
+    const rest = (args.total || args.count) - shown
+    if (args.showOverflow && rest > 0) {
+      await expect(within(group).getByText(`${rest} more`)).toBeInTheDocument()
+    }
+  },
+}
+
+/** Where there is nothing yet: a panel stands in for a whole list, plain gives
+ *  a list or page body the same room with no frame, dashed marks a place to add
+ *  the first item, and bare sits inside something that already frames it. The
+ *  icon is a bare, faded glyph. */
+export const EmptyStates: StoryObj<{
+  variant: EmptyStateVariant
+  headingLevel: 2 | 3 | 4 | undefined
+}> = {
+  args: { variant: 'panel', headingLevel: undefined },
+  argTypes: {
+    variant: { control: 'inline-radio', options: ['panel', 'plain', 'dashed', 'bare'] },
+    headingLevel: {
+      control: 'inline-radio',
+      options: [undefined, 2, 3, 4],
+      description: 'Makes the title a heading, for an empty state that stands in for a section.',
+    },
+  },
+  render: ({ variant, headingLevel }) => (
     <div className="max-w-xl">
       <EmptyState
         variant={variant}
-        icon={<span aria-hidden="true">∅</span>}
+        headingLevel={headingLevel}
+        icon={<ClusterIcon />}
         title="No clusters yet"
         description="Connect machines you run, or start new ones in the cloud."
         action={
@@ -264,9 +603,99 @@ export const EmptyStates: StoryObj<{ variant: 'panel' | 'bare' }> = {
   ),
 }
 
-type ModalArgs = Pick<ModalProps, 'align' | 'dismissible' | 'size'> & { paragraphs: number }
+/** Every look side by side: a page body, an upload target and a sidebar. */
+export const EmptyStateVariants: StoryObj = {
+  render: () => (
+    <div className="flex max-w-xl flex-col gap-6">
+      <EmptyState
+        variant="plain"
+        icon={<ClusterIcon />}
+        title="No clusters yet"
+        description="Clusters you connect or start show here."
+      />
+      <EmptyState
+        variant="dashed"
+        headingLevel={3}
+        icon={<UploadIcon />}
+        title="No thumbnails"
+        description="Upload an image to show on the workflow’s card."
+        action={
+          <Button variant="secondary" size="sm" icon={<UploadIcon />}>
+            Upload image
+          </Button>
+        }
+      />
+      <div className="panel w-64">
+        <EmptyState variant="bare" title="No recent files" />
+      </div>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole('heading', { level: 3, name: 'No thumbnails' }),
+    ).toBeVisible()
+  },
+}
 
-function ModalDemo({ align, dismissible, size = 'md', paragraphs = 1 }: Partial<ModalArgs>) {
+// A relative time reads as one phrase, so a line never breaks inside it.
+const lastListed = (when: string) => <span className="whitespace-nowrap">{when}</span>
+
+// A list's jobs that couldn't be fetched, as the list says it.
+function JobsUnavailable({ lang }: { lang: 'en' | 'ja' }) {
+  return lang === 'en' ? (
+    <EmptyState
+      variant="plain"
+      title="Job list unavailable"
+      description={
+        <>The scheduler's jobs couldn't be listed. Last listed {lastListed('4 minutes ago')}.</>
+      }
+    />
+  ) : (
+    <EmptyState
+      variant="plain"
+      title="ジョブ一覧を取得できません"
+      description={
+        <>スケジューラーのジョブ一覧を取得できませんでした。最終取得: {lastListed('4 分前')}。</>
+      }
+    />
+  )
+}
+
+/** A list's jobs that couldn't be fetched, in English and Japanese, across a page and in a
+ *  narrow card: the description wraps to lines of even length, so its last line never
+ *  strands a word or two, such as when the jobs were last listed. */
+export const EmptyStateWrapping: StoryObj = {
+  render: () => (
+    <div className="flex flex-col gap-6">
+      {(['en', 'ja'] as const).map((lang) => (
+        <div key={lang} lang={lang} className="flex flex-col gap-6">
+          <JobsUnavailable lang={lang} />
+          {/* A card on a dashboard, where even the English wraps. */}
+          <div className="panel w-72 max-w-full self-center">
+            <JobsUnavailable lang={lang} />
+          </div>
+        </div>
+      ))}
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const description = within(canvasElement).getAllByText(/最終取得/)[0] as HTMLElement
+    await expect(getComputedStyle(description).textWrapStyle).toBe('balance')
+  },
+}
+
+type ModalArgs = Pick<ModalProps, 'align' | 'dismissible' | 'size' | 'closeButton'> & {
+  paragraphs: number
+}
+
+function ModalDemo({
+  align,
+  dismissible,
+  closeButton,
+  size = 'md',
+  paragraphs = 1,
+  description = 'Focus stays inside until the modal closes, then returns to the button that opened it.',
+}: Partial<ModalArgs> & { description?: string }) {
   const [open, setOpen] = useState(false)
   return (
     <>
@@ -278,9 +707,10 @@ function ModalDemo({ align, dismissible, size = 'md', paragraphs = 1 }: Partial<
         onClose={() => setOpen(false)}
         align={align}
         dismissible={dismissible}
+        closeButton={closeButton}
         size={size}
         title="Release notes"
-        description="Focus stays inside until the modal closes, then returns to the button that opened it."
+        description={description}
         footer={
           <Button variant="primary" size="sm" onClick={() => setOpen(false)}>
             Done
@@ -306,10 +736,11 @@ const openModal = async (canvasElement: HTMLElement, name = 'Open modal') => {
  *  and the backdrop close it. */
 export const ModalStory: StoryObj<ModalArgs> = {
   name: 'Modal',
-  args: { align: 'top', dismissible: true, size: 'md', paragraphs: 1 },
+  args: { align: 'top', dismissible: true, closeButton: false, size: 'md', paragraphs: 1 },
   argTypes: {
     align: { control: 'inline-radio', options: ['top', 'center'] },
     dismissible: { control: 'boolean', description: 'False ignores Escape and the backdrop.' },
+    closeButton: { control: 'boolean', description: 'A close button at the header’s end.' },
     size: { control: 'inline-radio', options: ['sm', 'md', 'lg', 'xl'] },
     paragraphs: {
       control: { type: 'range', min: 1, max: 30 },
@@ -325,6 +756,21 @@ export const ModalStory: StoryObj<ModalArgs> = {
   },
 }
 
+export const ModalCentered: StoryObj<ModalArgs> = {
+  ...ModalStory,
+  name: 'Modal, centered',
+  args: { ...ModalStory.args, align: 'center' },
+  play: async ({ canvasElement }) => {
+    await openModal(canvasElement)
+    const dialog = await screen.findByRole('dialog', { name: 'Release notes' })
+    await waitFor(() => {
+      const rect = dialog.getBoundingClientRect()
+      expect(Math.abs(rect.x + rect.width / 2 - window.innerWidth / 2)).toBeLessThan(1)
+      expect(Math.abs(rect.y + rect.height / 2 - window.innerHeight / 2)).toBeLessThan(1)
+    })
+  },
+}
+
 /** A body taller than the window scrolls on its own, keeping the title and the footer in view. */
 export const ModalLongBody: StoryObj = {
   name: 'Modal, long body',
@@ -336,6 +782,34 @@ export const ModalLongBody: StoryObj = {
     const done = within(dialog).getByRole('button', { name: 'Done' })
     const bottom = done.getBoundingClientRect().bottom
     await expect(bottom).toBeLessThanOrEqual(window.innerHeight)
+  },
+}
+
+/** At 400% zoom (a 1280 × 1024 window is 320 × 256) the header and the footer alone fill the
+ *  window, so the whole panel scrolls rather than its body, and nothing in it is out of reach. */
+export const ModalShortWindow: StoryObj = {
+  name: 'Modal, short window',
+  parameters: {
+    viewport: {
+      options: {
+        zoomed: { name: '400% zoom', styles: { width: '320px', height: '256px' }, type: 'mobile' },
+      },
+    },
+  },
+  globals: { viewport: { value: 'zoomed', isRotated: false } },
+  render: () => (
+    <ModalDemo
+      paragraphs={3}
+      description="Focus stays inside until the modal closes, then returns to the button that opened it. Escape closes it."
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    await openModal(canvasElement)
+    const dialog = await screen.findByRole('dialog', { name: 'Release notes' })
+    await waitFor(() => expect(dialog).toBeVisible())
+    const done = within(dialog).getByRole('button', { name: 'Done' })
+    done.scrollIntoView()
+    await expect(done.getBoundingClientRect().bottom).toBeLessThanOrEqual(window.innerHeight)
   },
 }
 
@@ -390,7 +864,102 @@ export const ModalNotDismissible: StoryObj = {
   },
 }
 
-function ConfirmDemo({ destructive = false }: { destructive?: boolean }) {
+function ContentModalDemo() {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Button variant="primary" onClick={() => setOpen(true)}>
+        Open modal
+      </Button>
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        size="lg"
+        title="Connect from your terminal"
+        description="Run this once on the machine you connect from."
+        closeButton
+      >
+        <pre className="m-0 overflow-x-auto rounded-md bg-(--theme-muted-panel-bg) p-3 font-mono text-xs">
+          pw ssh login-1.gpu-cluster-east
+        </pre>
+      </Modal>
+    </>
+  )
+}
+
+/** A modal that only shows something, with no footer to close it: the close button in its
+ *  header does, as Escape and the backdrop do. It opens and closes with a short fade and
+ *  scale, a fade alone under reduced motion. */
+export const ModalCloseButton: StoryObj = {
+  name: 'Modal, close button',
+  render: () => <ContentModalDemo />,
+  play: async ({ canvasElement }) => {
+    await openModal(canvasElement)
+    const dialog = await screen.findByRole('dialog', { name: 'Connect from your terminal' })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Close' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  },
+}
+
+function FormModalDemo() {
+  const [open, setOpen] = useState(false)
+  const [saved, setSaved] = useState('')
+  return (
+    <>
+      <Button variant="primary" onClick={() => setOpen(true)}>
+        Open modal
+      </Button>
+      {saved && <p className="mt-2 text-sm">Saved {saved}</p>}
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        size="lg"
+        title="New knowledge entry"
+        onSubmit={(event) => {
+          setSaved(String(new FormData(event.currentTarget).get('title') ?? ''))
+          setOpen(false)
+        }}
+        footer={
+          <>
+            <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" size="sm" type="submit">
+              Save
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <Input label="Title" name="title" defaultValue="Deploying to staging" />
+          <Input label="Tags" name="tags" placeholder="ops, release" />
+        </div>
+      </Modal>
+    </>
+  )
+}
+
+/** One form across the body and the footer: Enter in a field, or the footer's submit button,
+ *  saves. */
+export const ModalForm: StoryObj = {
+  name: 'Modal, form',
+  render: () => <FormModalDemo />,
+  play: async ({ canvasElement }) => {
+    await openModal(canvasElement)
+    const dialog = await screen.findByRole('dialog', { name: 'New knowledge entry' })
+    await userEvent.type(within(dialog).getByRole('textbox', { name: 'Tags' }), 'ops{Enter}')
+    await expect(await within(canvasElement).findByText('Saved Deploying to staging')).toBeVisible()
+  },
+}
+
+interface ConfirmArgs {
+  destructive?: boolean
+  pending?: boolean
+  error?: string
+  initialFocus?: 'cancel' | 'confirm' | undefined
+}
+
+function ConfirmDemo({ destructive = false, pending, error, initialFocus }: ConfirmArgs) {
   const [open, setOpen] = useState(false)
   const [snapshots, setSnapshots] = useState(false)
   return (
@@ -408,6 +977,9 @@ function ConfirmDemo({ destructive = false }: { destructive?: boolean }) {
         }
         confirmLabel={destructive ? 'Delete' : 'Confirm'}
         onConfirm={() => setOpen(false)}
+        pending={pending}
+        error={error || undefined}
+        initialFocus={initialFocus}
       >
         {destructive && (
           <label className="flex items-center gap-2 text-sm">
@@ -420,9 +992,20 @@ function ConfirmDemo({ destructive = false }: { destructive?: boolean }) {
   )
 }
 
-export const ConfirmModalStory: StoryObj = {
+/** Left-aligned question, a ruled footer, Cancel beside the action. Focus starts on the action,
+ *  and on Cancel when the action can't be undone. */
+export const ConfirmModalStory: StoryObj<ConfirmArgs> = {
   name: 'Confirm modal',
-  render: () => <ConfirmDemo />,
+  args: { pending: false, error: '', initialFocus: undefined },
+  argTypes: {
+    pending: { description: 'Work the host runs: the buttons wait.' },
+    error: { control: 'text', description: 'Why the last confirm failed.' },
+    initialFocus: {
+      control: 'inline-radio',
+      options: [undefined, 'cancel', 'confirm', 'first-control'],
+    },
+  },
+  render: (args) => <ConfirmDemo {...args} />,
   play: async ({ canvasElement }) => {
     await openModal(canvasElement)
     // The dialog portals outside the story canvas.
@@ -440,6 +1023,173 @@ export const DestructiveConfirmModal: StoryObj = {
     const dialog = await screen.findByRole('alertdialog', { name: 'Delete cluster?' })
     await waitFor(() => expect(dialog).toBeVisible())
     await expect(dialog).toHaveAccessibleDescription('Its jobs stop and its disks are erased.')
+  },
+}
+
+function RenameDemo() {
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState('gpu-cluster-east')
+  return (
+    <>
+      <Button variant="primary" onClick={() => setOpen(true)}>
+        Open modal
+      </Button>
+      <ConfirmModal
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Rename cluster"
+        description="Jobs that name it by its old name stop finding it."
+        confirmLabel="Rename"
+        confirmDisabled={!name.trim()}
+        onConfirm={() => setOpen(false)}
+      >
+        <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} />
+      </ConfirmModal>
+    </>
+  )
+}
+
+/** With a field in the body, focus starts in it rather than on a button, so the reader types
+ *  at once. */
+export const ConfirmModalWithField: StoryObj = {
+  name: 'Confirm modal, with a field',
+  render: () => <RenameDemo />,
+  play: async ({ canvasElement }) => {
+    await openModal(canvasElement)
+    const dialog = await screen.findByRole('dialog', { name: 'Rename cluster' })
+    await waitFor(() => expect(within(dialog).getByRole('textbox', { name: 'Name' })).toHaveFocus())
+  },
+}
+
+function AddMountDemo() {
+  const [open, setOpen] = useState(false)
+  const [resource, setResource] = useState<string | null>(null)
+  return (
+    <>
+      <Button variant="primary" onClick={() => setOpen(true)}>
+        Open modal
+      </Button>
+      <ConfirmModal
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Add mount"
+        description="A directory on a resource, mounted into your workspace."
+        confirmLabel="Add mount"
+        onConfirm={() => setOpen(false)}
+      >
+        {/* The body is padded already: its fields go straight in, at the title's edge. */}
+        <div className="flex flex-col gap-4">
+          <Field label="Resource" required>
+            <Select
+              items={[
+                { value: 'gpu', label: 'gpu-cluster-east' },
+                { value: 'cpu', label: 'cpu-batch-west' },
+              ]}
+              value={resource}
+              onValueChange={setResource}
+              placeholder="Pick a resource"
+            />
+          </Field>
+          <Input
+            label="Workspace path"
+            mono
+            defaultValue="/home/__USER__/pw/clusters/__CLUSTER__/"
+          />
+          <Input label="Resource path" mono placeholder="/shared/data" />
+        </div>
+      </ConfirmModal>
+    </>
+  )
+}
+
+/** A confirm that asks for several fields. At phone width the panel takes the screen's width
+ *  less a small gutter, its fields line up with the title, and its actions share the footer's
+ *  width at a thumb's height. */
+export const ConfirmModalWithForm: StoryObj = {
+  name: 'Confirm modal, with a form',
+  render: () => <AddMountDemo />,
+  play: async ({ canvasElement }) => {
+    await openModal(canvasElement)
+    const dialog = await screen.findByRole('dialog', { name: 'Add mount' })
+    await waitFor(() => expect(dialog).toBeVisible())
+  },
+}
+
+/** A failed confirm keeps the dialog open and says why, so the reader can try again. */
+export const ConfirmModalError: StoryObj = {
+  name: 'Confirm modal, failed',
+  render: () => (
+    <ConfirmDemo destructive error="The cluster has running jobs. Stop them, then try again." />
+  ),
+  play: async ({ canvasElement }) => {
+    await openModal(canvasElement)
+    const dialog = await screen.findByRole('alertdialog', { name: 'Delete cluster?' })
+    await expect(within(dialog).getByRole('alert')).toBeVisible()
+  },
+}
+
+function UseConfirmDemo() {
+  const { confirm, dialog } = useConfirm()
+  const [members, setMembers] = useState(['Ada Okafor', 'Lin Zhou'])
+  // Counted outside render, so a retry from the same dialog sees the first try.
+  const tries = useRef(0)
+  return (
+    <>
+      <ul className="w-72 space-y-1 text-sm">
+        {members.map((name) => (
+          <li key={name} className="flex items-center justify-between gap-2">
+            {name}
+            <ActionMenu
+              label={`More actions for ${name}`}
+              items={[
+                {
+                  label: 'Remove from workspace',
+                  destructive: true,
+                  onClick: () =>
+                    void confirm({
+                      title: `Remove ${name}?`,
+                      description: 'They lose access to every team in the workspace.',
+                      confirmLabel: 'Remove',
+                      destructive: true,
+                      // The first try fails, to show the error in place.
+                      onConfirm: async () => {
+                        await new Promise((resolve) => setTimeout(resolve, 400))
+                        tries.current += 1
+                        if (tries.current === 1) {
+                          throw new Error(`${name} owns a team. Hand it over first.`)
+                        }
+                        setMembers((all) => all.filter((m) => m !== name))
+                      },
+                      errorMessage: (failure) =>
+                        failure instanceof Error ? failure.message : 'Something went wrong.',
+                    }),
+                },
+              ]}
+            >
+              <MoreIcon />
+            </ActionMenu>
+          </li>
+        ))}
+      </ul>
+      {dialog}
+    </>
+  )
+}
+
+/** `useConfirm` asks from a menu row without dialog state by hand. A failure shows in the
+ *  dialog, which stays open for another try. */
+export const UseConfirm: StoryObj = {
+  name: 'Confirm modal, from a menu',
+  render: () => <UseConfirmDemo />,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole('button', { name: 'More actions for Ada Okafor' }),
+    )
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Remove from workspace' }))
+    const dialog = await screen.findByRole('alertdialog', { name: 'Remove Ada Okafor?' })
+    await waitFor(() =>
+      expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveFocus(),
+    )
   },
 }
 
@@ -483,6 +1233,198 @@ export const CreateModalStory: StoryObj = {
   },
 }
 
+function NewIssueDemo({ failing, size }: { failing: boolean; size?: ModalSize | undefined }) {
+  const [open, setOpen] = useState(false)
+  const [team, setTeam] = useState('Web')
+  const [error, setError] = useState<string>()
+  const [made, setMade] = useState('')
+  const teams = ['Web', 'Platform', 'Research', 'Design', 'Data', 'Mobile', 'Support', 'Infra']
+  return (
+    <>
+      <Button variant="primary" onClick={() => setOpen(true)}>
+        New issue
+      </Button>
+      {made && <p className="mt-2 text-sm">{made}</p>}
+      <CreateModal
+        open={open}
+        onClose={() => {
+          setOpen(false)
+          setError(undefined)
+        }}
+        typeLabel={team}
+        typeMenu={teams.map((name) => ({
+          label: name,
+          checked: name === team,
+          onClick: () => setTeam(name),
+        }))}
+        typeMenuSearch={{ placeholder: 'Search teams', empty: 'No team matches' }}
+        namePlaceholder="Issue title"
+        footerHint={
+          <>
+            <Kbd keys="Enter" size="xs" /> creates · <Kbd keys="Mod+Enter" size="xs" /> creates and
+            opens
+          </>
+        }
+        error={error}
+        size={size}
+        onSubmit={async (name, _description, _favorite, { modifier }) => {
+          if (failing) {
+            setError(`The ${team} team is archived. Pick another team.`)
+            return false
+          }
+          setMade(modifier ? `Created and opened “${name}”` : `Created “${name}”`)
+          return true
+        }}
+      />
+    </>
+  )
+}
+
+/** A hint at the footer's start, which a failed submit's error replaces; a search atop a long
+ *  type menu; and ⌘/Ctrl+Enter, which tells the host to open what it made. */
+export const CreateModalHints: StoryObj<{ failing: boolean; size: ModalSize }> = {
+  name: 'Create modal, hint and error',
+  args: { failing: false, size: 'lg' },
+  argTypes: {
+    failing: { description: 'Story only: the submit fails with an error.' },
+    size: { control: 'inline-radio', options: ['sm', 'md', 'lg', 'xl'] },
+  },
+  render: ({ failing, size }) => <NewIssueDemo failing={failing} size={size} />,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole('button', { name: 'New issue' }))
+    await expect(await screen.findByText(/creates and opens/)).toBeVisible()
+  },
+}
+
+/** Opening the dialog's own team menu before typing a title leaves the empty title unmarked:
+ *  that is still filling the form in. Escape closes the menu and hands focus back to its chip,
+ *  with no tooltip there to take the next Escape, which closes the dialog. The title is marked
+ *  once a create is tried, or when focus leaves the dialog with it empty. */
+export const CreateModalTitleUnmarked: StoryObj = {
+  name: 'Create modal, title unmarked while choosing a team',
+  render: () => <NewIssueDemo failing={false} />,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole('button', { name: 'New issue' }))
+    const title = await screen.findByPlaceholderText('Issue title')
+    await waitFor(() => expect(title).toHaveFocus())
+    const chip = () => screen.getByRole('button', { name: /^(Web|Platform)/ })
+    // Escape closes the searched menu, back on its chip, and leaves the dialog open.
+    await userEvent.click(chip())
+    await expect(await screen.findByRole('searchbox', { name: 'Search teams' })).toHaveFocus()
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+    await expect(chip()).toHaveFocus()
+    await expect(screen.getByRole('dialog')).toBeVisible()
+    await expect(title).not.toHaveAttribute('aria-invalid', 'true')
+    // Choosing a team leaves it unmarked too.
+    await userEvent.click(chip())
+    await userEvent.click(await screen.findByRole('menuitemcheckbox', { name: 'Platform' }))
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+    await expect(chip()).toHaveTextContent('Platform')
+    await expect(title).not.toHaveAttribute('aria-invalid', 'true')
+  },
+}
+
+/** `xl`, for a long body such as an issue's description in a rich text editor. */
+export const CreateModalWide: StoryObj = {
+  name: 'Create modal, wide',
+  render: () => <NewIssueDemo failing={false} size="xl" />,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole('button', { name: 'New issue' }))
+    const dialog = await screen.findByRole('dialog')
+    await waitFor(() => expect(dialog).toBeVisible())
+  },
+}
+
+function FullIssueDemo() {
+  const [open, setOpen] = useState(false)
+  const [status, setStatus] = useState<string | undefined>('todo')
+  const [priority, setPriority] = useState<string>()
+  const [assignee, setAssignee] = useState<string>()
+  const [labels, setLabels] = useState<string>()
+  const [due, setDue] = useState<string>()
+  return (
+    <>
+      <Button variant="primary" onClick={() => setOpen(true)}>
+        New issue
+      </Button>
+      <CreateModal
+        open={open}
+        onClose={() => setOpen(false)}
+        typeLabel="Core Platform"
+        size="xl"
+        initialName="Export fails for invoices over 10,000 lines when the customer has a custom tax region"
+        namePlaceholder="Issue title"
+        descriptionPlaceholder="Add a description…"
+        footerHint={
+          <>
+            <Kbd keys="Enter" size="xs" /> creates · <Kbd keys="Mod+Enter" size="xs" /> creates and
+            opens
+          </>
+        }
+        submitLabel="Create issue"
+        properties={
+          <>
+            <CreateModalSelect
+              label="Status"
+              value={status}
+              onValueChange={setStatus}
+              items={[
+                { value: 'todo', label: 'Todo' },
+                { value: 'doing', label: 'In progress' },
+              ]}
+            />
+            <CreateModalSelect
+              label="Priority"
+              value={priority}
+              onValueChange={setPriority}
+              items={[
+                { value: 'high', label: 'High' },
+                { value: 'low', label: 'Low' },
+              ]}
+            />
+            <CreateModalSelect
+              label="Assignee"
+              icon={<UserIcon />}
+              value={assignee}
+              onValueChange={setAssignee}
+              items={['Ada Okafor', 'Lin Zhou']}
+            />
+            <CreateModalSelect
+              label="Labels"
+              icon={<TagIcon />}
+              value={labels}
+              onValueChange={setLabels}
+              items={['bug', 'performance']}
+            />
+            <CreateModalSelect
+              label="Due date"
+              icon={<CalendarIcon />}
+              value={due}
+              onValueChange={setDue}
+              items={['Today', 'Next week']}
+            />
+          </>
+        }
+        onSubmit={async () => true}
+      />
+    </>
+  )
+}
+
+/** A long title wraps rather than scrolling out of view, and the properties wrap under it. At
+ *  phone width the dialog sits near the top, clear of the on-screen keyboard, the actions take
+ *  the footer's width, and the key hint is left out on a touch screen. */
+export const CreateModalFull: StoryObj = {
+  name: 'Create modal, new issue',
+  render: () => <FullIssueDemo />,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole('button', { name: 'New issue' }))
+    const title = await screen.findByRole('textbox', { name: 'Issue title' })
+    await waitFor(() => expect(title).toBeVisible())
+  },
+}
+
 const clusters = [
   { name: 'alpha', status: 'ready', region: 'us-east-1', nodes: 4 },
   { name: 'gamma', status: 'ready', region: 'eu-west-2', nodes: 12 },
@@ -520,7 +1462,7 @@ function TablesDemo({ density }: { density: TableDensity }) {
           <tr key={cluster.name}>
             <Table.Item>{cluster.name}</Table.Item>
             <Table.Item>
-              <StatusBadge variant="success">{cluster.status}</StatusBadge>
+              <StatusLabel variant="success">{cluster.status}</StatusLabel>
             </Table.Item>
             <Table.Item>{cluster.region}</Table.Item>
             <Table.Item className="text-right tabular-nums">{cluster.nodes}</Table.Item>
@@ -576,7 +1518,9 @@ export const StickyTableHeader: StoryObj<{ stickyHeader: boolean }> = {
  *  `compact` fits a short list of keys and values. */
 export const Tables: StoryObj<{ density: TableDensity }> = {
   args: { density: 'comfortable' },
-  argTypes: { density: { control: 'inline-radio', options: ['comfortable', 'compact'] } },
+  argTypes: {
+    density: { control: 'inline-radio', options: ['comfortable', 'compact', 'dense'] },
+  },
   render: (args) => <TablesDemo {...args} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -592,6 +1536,222 @@ export const Tables: StoryObj<{ density: TableDensity }> = {
     await userEvent.click(within(name).getByRole('button'))
     await expect(name).toHaveAttribute('aria-sort', 'descending')
     await expect(canvas.getAllByRole('row')[1]).toHaveTextContent('gamma')
+  },
+}
+
+interface TableOptionsArgs {
+  density: TableDensity
+  caps: boolean
+  flush: boolean
+  columnDividers: boolean
+}
+
+/** A small table inside a card: `dense` type, sentence-case headers for the
+ *  whole table, `flush` edges against the card's own padding, fixed column
+ *  widths, and column dividers for a grid of figures. */
+export const TableOptions: StoryObj<TableOptionsArgs> = {
+  args: { density: 'dense', caps: false, flush: true, columnDividers: false },
+  argTypes: {
+    density: { control: 'inline-radio', options: ['comfortable', 'compact', 'dense'] },
+    caps: { description: 'Sets every header in small capitals.' },
+    flush: {
+      description:
+        'Drops the outer side padding of the first and last columns and the header fill, for a table in a padded card.',
+    },
+    columnDividers: { description: 'Rules a line between columns as well as rows.' },
+  },
+  render: (args) => (
+    <div className="panel max-w-xl p-4">
+      <Table
+        {...args}
+        borderless
+        panel={false}
+        columns={['40%', '20%', undefined]}
+        className="table-fixed"
+      >
+        <Table.Header>Partition</Table.Header>
+        <Table.Header className="text-right">Nodes</Table.Header>
+        <Table.Header>State</Table.Header>
+        {clusters.map((cluster) => (
+          <tr key={cluster.name}>
+            <Table.Item>{cluster.name}</Table.Item>
+            <Table.Item className="text-right tabular-nums">{cluster.nodes}</Table.Item>
+            <Table.Item>{cluster.status}</Table.Item>
+          </tr>
+        ))}
+      </Table>
+    </div>
+  ),
+  play: async ({ canvasElement, args }) => {
+    const header = within(canvasElement).getByRole('columnheader', { name: 'Partition' })
+    await expect(header.classList.contains('uppercase')).toBe(args.caps)
+  },
+}
+
+type DashboardStatus = 'running' | 'completed' | 'error' | 'canceling' | 'canceled'
+
+const DASHBOARD_STATUSES: DashboardStatus[] = [
+  'running',
+  'completed',
+  'error',
+  'canceling',
+  'canceled',
+]
+
+const DASHBOARD_STATUS_LABELS: Record<DashboardStatus, string> = {
+  running: 'Running',
+  completed: 'Completed',
+  error: 'Error',
+  canceling: 'Canceling',
+  canceled: 'Canceled',
+}
+
+// Solid fills a status cell takes, as a dashboard's run table paints them.
+const DASHBOARD_STATUS_FILL: Record<DashboardStatus, string> = {
+  running: 'var(--theme-info-solid)',
+  completed: 'var(--theme-success-solid)',
+  error: 'var(--theme-error-solid)',
+  canceling: 'var(--theme-info-solid)',
+  canceled: 'var(--theme-info-solid)',
+}
+
+const DASHBOARD_WORKFLOWS = [
+  'Hello world',
+  'Train a model on the cluster',
+  'Nightly genome alignment',
+  'Render frames',
+  'Weather ensemble',
+]
+
+const DASHBOARD_RUNS = Array.from({ length: 40 }, (_, i) => ({
+  id: `run-${i}`,
+  workflow: DASHBOARD_WORKFLOWS[i % DASHBOARD_WORKFLOWS.length] ?? 'Hello world',
+  number: String(4120 - i),
+  status: DASHBOARD_STATUSES[[0, 1, 1, 2, 1, 4, 1, 3][i % 8] ?? 1] ?? 'completed',
+  submitted: `${i * 7 + 2} minutes ago`,
+  runtime: `${(i % 6) + 1}m ${(i * 13) % 60}s`,
+}))
+
+/** A run table on a dashboard, as a home page card lays one out: status
+ *  toggles over a `compact` table whose rows hold a workflow's logo, and a
+ *  pager under it. The card fits as many rows as its height allows, so how
+ *  tall a row, the header, the toggles and the pager are is how many runs a
+ *  reader sees at once. */
+export const TableInDashboardCard: StoryObj<{ height: number }> = {
+  args: { height: 340 },
+  argTypes: { height: { control: { type: 'range', min: 240, max: 640, step: 20 } } },
+  render: function Render({ height }) {
+    const [statuses, setStatuses] = useState<DashboardStatus[]>(['completed', 'error'])
+    const [page, setPage] = useState(0)
+    const [rows, setRows] = useState<number>()
+    const box = useRef<HTMLDivElement>(null)
+    const pageSize = rows ?? 10
+    const shown = DASHBOARD_RUNS.filter(
+      (run) => statuses.length === 0 || statuses.includes(run.status),
+    )
+    const runs = shown.slice(page * pageSize, (page + 1) * pageSize)
+    // Fits as many rows as the box holds below the header row.
+    useLayoutEffect(() => {
+      const rowsInBox = box.current?.querySelectorAll('tr')
+      const header = rowsInBox?.[0]?.offsetHeight
+      const row = rowsInBox?.[1]?.offsetHeight
+      if (!box.current || !header || !row) {
+        return
+      }
+      const fit = Math.floor((box.current.offsetHeight - header) / row)
+      if (fit > 0 && fit !== rows) {
+        setRows(fit)
+      }
+    })
+    return (
+      // Sizes are inline: the package's stylesheet doesn't scan stories.
+      <div className="panel flex flex-col overflow-hidden" style={{ height, maxWidth: 760 }}>
+        <div className="flex shrink-0 items-center gap-2 px-3 py-2 text-sm font-semibold">
+          <ClusterIcon aria-hidden="true" />
+          Workflow runs
+        </div>
+        {/* The body clips, as a dashboard card's does: the toggles sit at its top
+            edge, so a hover or focus that spilled out of them would be cut. */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          {/* The funnel keeps to the toggles' first line when they wrap. */}
+          <div className="flex shrink-0 items-start gap-1.5 px-3 pb-1">
+            <span className="flex h-7 shrink-0 items-center">
+              <FilterIcon aria-hidden="true" />
+            </span>
+            <ToggleGroup
+              label="Status"
+              options={DASHBOARD_STATUSES.map((value) => ({
+                value,
+                label: DASHBOARD_STATUS_LABELS[value],
+              }))}
+              value={statuses}
+              onValueChange={(next) => {
+                setStatuses(next)
+                setPage(0)
+              }}
+            />
+          </div>
+          <div ref={box} className="min-h-0 flex-1 overflow-hidden" data-testid="dashboard-rows">
+            <Table density="compact">
+              <Table.Header>Workflow</Table.Header>
+              <Table.Header>Run</Table.Header>
+              <Table.Header>Status</Table.Header>
+              <Table.Header>Submitted</Table.Header>
+              <Table.Header>Runtime</Table.Header>
+              <Table.Header colSpan={2}>
+                <span className="sr-only">Actions</span>
+              </Table.Header>
+              {runs.map((run) => (
+                <tr key={run.id} className="hover:theme-hover">
+                  <Table.Item>
+                    <span className="flex items-center gap-2">
+                      {/* A workflow's 23px logo with 4px above and below it. */}
+                      <span style={{ padding: '4px 0', display: 'flex' }}>
+                        <span
+                          aria-hidden="true"
+                          className="rounded-md"
+                          style={{
+                            width: 23,
+                            height: 23,
+                            background: 'var(--theme-link)',
+                            opacity: 0.35,
+                          }}
+                        />
+                      </span>
+                      <span className="link truncate">{run.workflow}</span>
+                    </span>
+                  </Table.Item>
+                  <Table.Item>
+                    <span className="link">{run.number}</span>
+                  </Table.Item>
+                  <Table.Item
+                    className="text-center text-xs font-semibold text-white"
+                    style={{ background: DASHBOARD_STATUS_FILL[run.status] }}
+                  >
+                    {DASHBOARD_STATUS_LABELS[run.status]}
+                  </Table.Item>
+                  <Table.Item>{run.submitted}</Table.Item>
+                  <Table.Item>{run.runtime}</Table.Item>
+                  <Table.Item>
+                    <CancelIcon aria-label="Cancel run" />
+                  </Table.Item>
+                  <Table.Item>
+                    <RetryIcon aria-label="Run again" />
+                  </Table.Item>
+                </tr>
+              ))}
+            </Table>
+          </div>
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={shown.length}
+            onPageChange={setPage}
+            pageNumbers
+          />
+        </div>
+      </div>
+    )
   },
 }
 
@@ -700,6 +1860,28 @@ export const Tooltips: StoryObj<{ side: 'top' | 'bottom' | 'left' | 'right' }> =
   },
 }
 
+/** A hint that adds to its anchor's name, such as what a button changes, is also the anchor's
+ *  description, so assistive technology reads it whether or not the tooltip is open. */
+export const TooltipDescribingItsAnchor: StoryObj = {
+  render: () => (
+    <div className="flex items-center gap-3 p-8 pt-20 text-sm">
+      <span>platform-api</span>
+      <Tooltip content="New repositories in this team start from this one." describesAnchor>
+        <Button variant="ghost" size="sm">
+          Make default
+        </Button>
+      </Tooltip>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const button = canvas.getByRole('button', { name: 'Make default' })
+    await expect(button).toHaveAccessibleDescription(
+      'New repositories in this team start from this one.',
+    )
+  },
+}
+
 export const InfoTips: StoryObj = {
   render: () => (
     <div className="flex items-center gap-6 p-8 text-sm">
@@ -741,32 +1923,6 @@ export const InfoTipDescribingAControl: StoryObj = {
     )
     await expect(canvas.queryByRole('button', { name: 'More information' })).toBeNull()
   },
-}
-
-/** A thing's summary: its mark, name and kind, a row of badges, and its actions. */
-export const OverviewStory: StoryObj<{ loading: boolean }> = {
-  name: 'Overview',
-  args: { loading: false },
-  render: ({ loading }) => (
-    <Overview
-      className="max-w-xl"
-      loading={loading}
-      iconSize={48}
-      icon={<Avatar name="Grace Hopper" size="2xl" />}
-      name="gpu-trainer-01"
-      type="Cluster"
-      actions={<Button size="sm">Restart</Button>}
-    >
-      <StatusBadge variant="success" dot>
-        Running
-      </StatusBadge>
-    </Overview>
-  ),
-}
-
-export const OverviewLoading: StoryObj = {
-  name: 'Overview loading',
-  render: () => <Overview icon={null} name="Resource" loading className="max-w-sm" />,
 }
 
 export const Switches: StoryObj<{
@@ -887,6 +2043,43 @@ export const Selects: StoryObj<{ disabled: boolean; invalid: boolean; size: Fiel
     await userEvent.click(await screen.findByRole('option', { name: 'Medium' }))
     await expect(canvas.getByRole('combobox', { name: 'Instance size' })).toHaveTextContent(
       'Medium',
+    )
+  },
+}
+
+function SelectInRowDemo() {
+  const [group, setGroup] = useState<string | null>('allocation')
+  return (
+    // A narrow toolbar whose title takes what room is left: the select keeps its own width.
+    <div
+      className="flex items-center gap-2 rounded-md border theme-border p-2 text-sm"
+      style={{ width: 340 }}
+    >
+      <span className="min-w-0 flex-1 truncate font-medium">
+        Usage for the research allocation this month
+      </span>
+      <Select
+        aria-label="Group by"
+        width="content"
+        size="sm"
+        items={[
+          { value: 'allocation', label: 'By allocation' },
+          { value: 'user', label: 'By user' },
+        ]}
+        value={group}
+        onValueChange={setGroup}
+      />
+    </div>
+  )
+}
+
+/** In a row beside text that truncates, a `content` select keeps its width instead of cutting
+ *  off its own choice. */
+export const SelectInARow: StoryObj = {
+  render: () => <SelectInRowDemo />,
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByRole('combobox', { name: /^Group by/ })).toHaveClass(
+      'shrink-0',
     )
   },
 }
@@ -1107,18 +2300,29 @@ export const DatePickers: StoryObj<{
 
 const GB = 1024 ** 3
 
-/** Readings against levels: amber past `warnAt`, red past `errorAt`. */
-export const Meters: StoryObj<{ value: number; showValue: 'beside' | 'tooltip' }> = {
-  args: { value: 62, showValue: 'beside' },
+/** Readings against levels: info blue below `warnAt` (or `okTone`), amber past it, red past
+ *  `errorAt`. */
+export const Meters: StoryObj<{
+  value: number
+  showValue: BarValuePlacement
+  okTone: BarTone
+}> = {
+  args: { value: 62, showValue: 'beside', okTone: 'info' },
   argTypes: {
     value: { control: { type: 'range', min: 0, max: 100 } },
-    showValue: { control: 'inline-radio', options: ['beside', 'tooltip'] },
+    showValue: { control: 'inline-radio', options: ['beside', 'tooltip', 'end', 'none'] },
+    okTone: {
+      control: 'inline-radio',
+      options: ['info', 'accent', 'success', 'muted'],
+      description: 'The tone below the warning level.',
+    },
   },
-  render: ({ value, showValue }) => (
+  render: ({ value, showValue, okTone }) => (
     <div className="flex w-72 flex-col gap-6 p-8">
       <Meter
         value={value}
         showValue={showValue}
+        okTone={okTone}
         label="Storage"
         detail={`${formatBytes((value / 100) * 50 * GB)} of ${formatBytes(50 * GB)}`}
       />
@@ -1135,6 +2339,56 @@ export const Meters: StoryObj<{ value: number; showValue: 'beside' | 'tooltip' }
   },
 }
 
+const USAGE = [
+  ['scratch', 12.4],
+  ['home', 78.25],
+  ['projects', 91],
+  ['archive', 0.3],
+] as const
+
+/** A column of readings with the value after each bar: a fixed track lines the bars up,
+ *  the level is spoken with the value, and a small reading still shows a sliver. */
+export const MeterColumn: StoryObj = {
+  render: () => (
+    <div className="flex w-80 flex-col gap-2 p-8 text-sm">
+      {USAGE.map(([name, used]) => (
+        <div key={name} className="flex items-center justify-between gap-4">
+          <span>{name}</span>
+          <Meter
+            value={used}
+            warnAt={75}
+            aria-label={`${name} used`}
+            showValue="end"
+            trackClassName="w-24"
+            minFill={2}
+            format={{
+              style: 'unit',
+              unit: 'percent',
+              minimumFractionDigits: 1,
+              maximumFractionDigits: 1,
+            }}
+            getAriaValueText={(formatted, v) =>
+              v >= 90
+                ? `${formatted}, over limit`
+                : v >= 75
+                  ? `${formatted}, near limit`
+                  : formatted
+            }
+            className="w-40"
+          />
+        </div>
+      ))}
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('meter', { name: 'home used' })).toHaveAttribute(
+      'aria-valuetext',
+      '78.3%, near limit',
+    )
+  },
+}
+
 const PROGRESS: { label: string; value: number | null; tone: BarTone; status?: string }[] = [
   { label: 'results.csv', value: 42, tone: 'accent' },
   { label: 'model.bin', value: 100, tone: 'success', status: 'Completed' },
@@ -1142,6 +2396,57 @@ const PROGRESS: { label: string; value: number | null; tone: BarTone; status?: s
   { label: 'notes.txt', value: 18, tone: 'muted', status: 'Canceled' },
   { label: 'Preparing', value: null, tone: 'accent' },
 ]
+
+const ADOPTION = [
+  { name: 'Workflow editor', users: 42, of: 120 },
+  { name: 'Session sharing', users: 87, of: 120 },
+  { name: 'Usage reports', users: 3, of: 120 },
+]
+
+/** With `animate`, a meter's fill grows in from empty when it first shows and eases to each new
+ *  value, after a short delay; it stays still for anyone who asks for less motion. A console's
+ *  adoption of preview features: "Show again" mounts the bars afresh, and "More users" eases each
+ *  to a new value. */
+export const MeterGrowIn: StoryObj = {
+  render: function MeterGrowIn() {
+    const [round, setRound] = useState(0)
+    const [extra, setExtra] = useState(0)
+    return (
+      <div className="flex w-80 flex-col gap-5 p-8">
+        <div key={round} className="flex flex-col gap-4">
+          {ADOPTION.map(({ name, users, of }) => (
+            <Meter
+              key={name}
+              animate
+              tone="accent"
+              minFill={2}
+              value={Math.min(users + extra, of)}
+              max={of}
+              label={name}
+              detail={`${Math.min(users + extra, of)} of ${of} users`}
+            />
+          ))}
+        </div>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={() => setRound((r) => r + 1)}>
+            Show again
+          </Button>
+          <Button variant="secondary" onClick={() => setExtra((n) => n + 18)}>
+            More users
+          </Button>
+        </div>
+      </div>
+    )
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const meter = canvas.getByRole('meter', { name: 'Workflow editor' })
+    const fill = () => meter.querySelector<HTMLElement>('[style*="width"]')
+    await waitFor(() => expect(fill()?.style.width).toBe('35%'))
+    await userEvent.click(canvas.getByRole('button', { name: 'More users' }))
+    await expect(fill()?.style.width).toBe('50%')
+  },
+}
 
 /** Tasks under way, settled ones with a status in place of the percentage. */
 export const ProgressBars: StoryObj<{ size: 'sm' | 'md' | 'lg' }> = {
@@ -1171,28 +2476,124 @@ export const ProgressBars: StoryObj<{ size: 'sm' | 'md' | 'lg' }> = {
   },
 }
 
+/** One bar in stretches, such as done work then started work, with the value after it in
+ *  the host's words; compact rows fix the track's width. */
+export const ProgressSegments: StoryObj<{ done: number; started: number; total: number }> = {
+  args: { done: 3, started: 2, total: 8 },
+  argTypes: {
+    done: { control: { type: 'number', min: 0 } },
+    started: { control: { type: 'number', min: 0 } },
+    total: { control: { type: 'number', min: 1 } },
+  },
+  render: ({ done, started, total }) => (
+    <div className="flex w-80 flex-col gap-6 p-8 text-sm">
+      <ProgressBar
+        value={done}
+        max={total}
+        tone="success"
+        segments={[{ value: started, tone: 'info', subtle: true }]}
+        showValue="end"
+        aria-label="Cycle progress"
+        valueText={(formatted) => `${done} of ${total} done, ${formatted}`}
+      />
+      <div className="flex items-center justify-between">
+        <span>Sprint 12</span>
+        <ProgressBar
+          value={done}
+          max={total}
+          tone="success"
+          segments={[{ value: started, tone: 'info', subtle: true }]}
+          showValue="end"
+          trackClassName="w-20"
+          aria-label="Sprint 12 progress"
+        />
+      </div>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('progressbar', { name: 'Cycle progress' })).toHaveAttribute(
+      'aria-valuenow',
+      '3',
+    )
+  },
+}
+
 const MINUTE = 60_000
 
+interface RelativeTimeArgs {
+  format: 'long' | 'compact'
+  locale: string
+  show: 'relative' | 'absolute'
+  exact: 'date' | 'short' | 'medium' | 'seconds' | 'full' | 'none'
+  fallback: string
+}
+
+const DAY_MINUTES = 60 * 24
+
 /** Times that keep counting while on screen, long or compact, with the exact
- *  time on hover. */
-export const RelativeTimes: StoryObj<{ format: 'long' | 'compact' }> = {
-  args: { format: 'long' },
-  argTypes: { format: { control: 'inline-radio', options: ['long', 'compact'] } },
-  render: ({ format }) => {
+ *  time on hover, in UIProvider's `locale` when the host gives one. Compact reads
+ *  a date once a week away, with the year only when it isn't this one; `show="absolute"`
+ *  turns it round, and a missing time shows the `fallback`. */
+export const RelativeTimes: StoryObj<RelativeTimeArgs> = {
+  args: { format: 'long', locale: '', show: 'relative', exact: 'seconds', fallback: 'Never' },
+  argTypes: {
+    format: { control: 'inline-radio', options: ['long', 'compact'] },
+    locale: { control: 'select', options: ['', 'de-DE', 'fr-FR', 'ja-JP'] },
+    show: { control: 'inline-radio', options: ['relative', 'absolute'] },
+    exact: {
+      control: 'select',
+      options: ['date', 'short', 'medium', 'seconds', 'full', 'none'],
+      description: '"none" passes false: no tooltip',
+    },
+    fallback: { control: 'text' },
+  },
+  render: ({ format, locale, show, exact, fallback }) => {
     const now = Date.now()
-    return (
-      <div className="flex flex-col gap-2 p-8 text-sm">
-        {[0.2, 5, 90, 60 * 30, 60 * 24 * 400].map((minutes) => (
-          <RelativeTime key={minutes} value={now - minutes * MINUTE} format={format} />
+    const rows: [string, number | null][] = [
+      ['Seconds', 0.2],
+      ['Minutes', 5],
+      ['Hours', 90],
+      ['Yesterday', 30 * 60],
+      ['Days', 3 * DAY_MINUTES],
+      ['Over a week', 12 * DAY_MINUTES],
+      ['Last year', 400 * DAY_MINUTES],
+      ['In the future', -45.5],
+      ['Missing', null],
+    ]
+    const times = (
+      <dl
+        className="m-0 grid gap-x-6 gap-y-2 p-8 text-sm"
+        style={{ gridTemplateColumns: 'max-content 1fr' }}
+      >
+        {rows.map(([label, minutes]) => (
+          <div key={label} className="contents">
+            <dt className="text-(--theme-muted-text-color)">{label}</dt>
+            <dd className="m-0">
+              <RelativeTime
+                value={minutes === null ? null : now - minutes * MINUTE}
+                format={format}
+                show={show}
+                exact={exact === 'none' ? false : exact}
+                fallback={fallback}
+              />
+            </dd>
+          </div>
         ))}
-      </div>
+      </dl>
     )
+    return locale ? <UIProvider locale={locale}>{times}</UIProvider> : times
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
-    await expect(
-      canvas.getByText(args.format === 'compact' ? '5m' : '5 minutes ago'),
-    ).toBeInTheDocument()
+    if (args.show === 'relative' && !args.locale) {
+      await expect(
+        canvas.getByText(args.format === 'compact' ? '5m' : '5 minutes ago'),
+      ).toBeInTheDocument()
+    }
+    if (args.fallback) {
+      await expect(canvas.getByText(args.fallback)).toBeInTheDocument()
+    }
   },
 }
 
@@ -1215,21 +2616,37 @@ export const ElapsedTimes: StoryObj<{ running: boolean }> = {
   },
 }
 
-/** Links that leave the page open a new tab and say so to screen readers. */
-export const ExternalLinks: StoryObj = {
-  render: () => (
-    <div className="flex items-center gap-6 p-8 text-sm">
+/** Links that leave the page open a new tab and say so to screen readers, unless their own
+ *  words already do (`announce={false}`). */
+export const ExternalLinks: StoryObj<{ icon: boolean; announce: boolean }> = {
+  args: { icon: false, announce: false },
+  argTypes: {
+    icon: { control: 'boolean', description: 'An arrow after the text.' },
+    announce: {
+      control: 'boolean',
+      description: '"(opens in a new tab)" for screen readers; off where the text says so.',
+    },
+  },
+  render: ({ icon, announce }) => (
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 p-8 text-sm">
       <ExternalLink href="https://example.com" className="link">
         Documentation
       </ExternalLink>
       <ExternalLink href="https://example.com" className="link" icon>
         Status page
       </ExternalLink>
+      <ExternalLink href="https://example.com" className="link" icon={icon} announce={announce}>
+        Open the terminal in a new tab
+      </ExternalLink>
     </div>
   ),
   play: async ({ canvasElement }) => {
-    const link = within(canvasElement).getByRole('link', { name: /^Status page/ })
+    const canvas = within(canvasElement)
+    const link = canvas.getByRole('link', { name: /^Status page/ })
     await expect(link).toHaveAttribute('target', '_blank')
     await expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+    await expect(canvas.getByRole('link', { name: /terminal/ })).toHaveAccessibleName(
+      'Open the terminal in a new tab',
+    )
   },
 }
