@@ -21,6 +21,9 @@ export const IMAGE_UPLOAD_SIZE = 512
 
 const accept = 'image/png,image/jpeg,image/gif,image/webp,image/svg+xml'
 const maxZoom = 5
+const THIRDS = ['33.333%', '66.667%']
+// The shadow keeps the line visible on a light picture as well as a dark one.
+const GRID_LINE = 'absolute bg-white/70 shadow-[0_0_1px_rgb(0_0_0/0.6)]'
 /** The crop square in the dialog, in CSS pixels. */
 const frame = 320
 
@@ -276,6 +279,24 @@ function CropDialog({
               }}
               className="pointer-events-none absolute max-w-none"
             />
+          )}
+          {img && (
+            <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+              {THIRDS.map((at) => (
+                <div
+                  key={`x${at}`}
+                  style={{ left: at }}
+                  className={cx(GRID_LINE, 'inset-y-0 w-px')}
+                />
+              ))}
+              {THIRDS.map((at) => (
+                <div
+                  key={`y${at}`}
+                  style={{ top: at }}
+                  className={cx(GRID_LINE, 'inset-x-0 h-px')}
+                />
+              ))}
+            </div>
           )}
         </div>
         <Slider
