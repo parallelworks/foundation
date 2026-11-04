@@ -226,8 +226,6 @@ export function CopyCodeBlock({
       >
         {shown}
       </pre>
-      {/* Centers the 28px buttons on the first line, 27px down past the border, p-4 and half
-          of text-sm's 20px line, so a one-line command has them level with its text. */}
       <div className="absolute top-3.25 right-2 flex items-center gap-1">
         {revealButton}
         <CopyButton
