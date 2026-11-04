@@ -69,6 +69,7 @@ import {
   useCopySubmenu,
 } from '../list/index'
 import { safeUrl } from '../safeUrl'
+import { ShownError, useErrorText } from './errorText'
 import { useFileExplorer } from './FileExplorerContext'
 import { FilePreview } from './FilePreview'
 import { FilePreviewInline } from './FilePreview/Inline'
@@ -230,10 +231,6 @@ function isStorageDirectory(
   return node?.type === 'directory' && !!node.storageId
 }
 
-function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
-
 function isWithinRoots(roots: [string, string][]) {
   return (path: string) => roots.some(([, root]) => path.startsWith(root))
 }
@@ -324,6 +321,7 @@ export default function FileExplorer({
   const { goTo } = useNavigation()
 
   const fileExplorerContext = useFileExplorer()
+  const errorText = useErrorText()
 
   // A path with a record was tried; `isListed` says whether a page landed.
   const [listings, setListings] = useState<TListings>(() => new Map())
@@ -636,7 +634,7 @@ export default function FileExplorer({
         if (!factory) {
           // Thrown, not returned: loadingMore is already set and only the catch below
           // clears it, so returning wedged the folder on a spinning sentinel.
-          throw new Error(t.messages.connectFailed)
+          throw new ShownError(t.messages.connectFailed)
         }
         const { storage, provider, client } = factory
 
@@ -669,7 +667,7 @@ export default function FileExplorer({
         return { corsError: false }
       } catch (error) {
         const isCorsError = error instanceof CorsError
-        const errorMessage = (error instanceof Error && error.message) || t.messages.unknownError
+        const errorMessage = errorText(error, t.messages.unknownError)
         // Every owned failure, not just a page: the storage-level banner only
         // renders on an empty folder, and this is what re-runs the hydration walk.
         // A failed re-list drops the old rows so the banner has that empty folder.
@@ -979,7 +977,9 @@ export default function FileExplorer({
       const [presignedUrl, error] = await client.getFile(input)
 
       if (error || !presignedUrl) {
-        toast.error(error?.message ?? t.messages.downloadLinkFailed)
+        toast.error(
+          error ? errorText(error, t.messages.downloadLinkFailed) : t.messages.downloadLinkFailed,
+        )
         continue
       }
 
@@ -1008,7 +1008,7 @@ export default function FileExplorer({
     const [presignedUrl, error] = await client.getFile(input)
 
     if (error || !presignedUrl) {
-      toast.error(error?.message ?? t.messages.fileLinkFailed)
+      toast.error(error ? errorText(error, t.messages.fileLinkFailed) : t.messages.fileLinkFailed)
       return
     }
 
@@ -1044,11 +1044,11 @@ export default function FileExplorer({
   ): Promise<[string | null, Error | null]> => {
     const factory = await getStorageProviderAndClient(node.storageId)
     if (!factory) {
-      return [null, new Error(t.messages.connectFailed)]
+      return [null, new ShownError(t.messages.connectFailed)]
     }
     const { provider, client } = factory
     if (!provider.getFileInput) {
-      return [null, new Error(t.messages.previewUnsupported)]
+      return [null, new ShownError(t.messages.previewUnsupported)]
     }
     const input = provider.getFileInput(
       node.storageName ?? '',
@@ -1119,7 +1119,9 @@ export default function FileExplorer({
   const downloadNode = async (node: TreeNode) => {
     const [presignedUrl, error] = await getPresignedUrl(node, node.name)
     if (error || !presignedUrl) {
-      toast.error(error?.message ?? t.messages.downloadLinkFailed)
+      toast.error(
+        error ? errorText(error, t.messages.downloadLinkFailed) : t.messages.downloadLinkFailed,
+      )
       return
     }
     triggerBrowserDownload(presignedUrl, node.name)
@@ -1423,7 +1425,7 @@ export default function FileExplorer({
     } catch (err) {
       toast.update(deleting, {
         tone: 'error',
-        message: t.messages.deleteFailed(err instanceof Error ? err.message : String(err)),
+        message: t.messages.deleteFailed(errorText(err, t.messages.unknownError)),
       })
     }
   }
@@ -1572,7 +1574,7 @@ export default function FileExplorer({
       toast.success(t.createFolder.success(name))
       return true
     } catch (error) {
-      toast.error(t.createFolder.error(getErrorMessage(error)))
+      toast.error(t.createFolder.error(errorText(error, t.messages.unknownError)))
       return false
     }
   }

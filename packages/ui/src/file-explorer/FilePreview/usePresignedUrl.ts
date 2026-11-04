@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useErrorText } from '../errorText'
 import type { TreeNode } from '../lib/types'
 import { loadPreviewUrl, peekPreviewUrl } from './previewCache'
 
@@ -8,15 +9,18 @@ interface PresignedUrlState {
   error: string | null
 }
 
+type ErrorText = (error: unknown, fallback: string) => string
+
 function toState(
   [url, error]: [string | null, Error | null],
   linkErrorMessage: string,
+  errorText: ErrorText,
 ): PresignedUrlState {
   if (error || !url) {
     return {
       url: null,
       loading: false,
-      error: error?.message ?? linkErrorMessage,
+      error: error ? errorText(error, linkErrorMessage) : linkErrorMessage,
     }
   }
   return { url, loading: false, error: null }
@@ -47,6 +51,9 @@ export function usePresignedUrl(
   getUrlRef.current = getPresignedUrl
   const linkErrorRef = useRef(linkErrorMessage)
   linkErrorRef.current = linkErrorMessage
+  const errorText = useErrorText()
+  const errorTextRef = useRef(errorText)
+  errorTextRef.current = errorText
   // Keyed on path, not node identity: a background tree rebuild yields a fresh
   // node object for the same file, and refetching then would re-download the
   // already-open preview. The node is read from a ref to keep it out of the deps.
@@ -63,13 +70,13 @@ export function usePresignedUrl(
     const record = loadPreviewUrl(path, () => getUrlRef.current(node))
     setState(
       record.value
-        ? toState(record.value, linkErrorRef.current)
+        ? toState(record.value, linkErrorRef.current, errorTextRef.current)
         : { url: null, loading: true, error: null },
     )
     record.promise
       .then((result) => {
         if (!canceled) {
-          setState(toState(result, linkErrorRef.current))
+          setState(toState(result, linkErrorRef.current, errorTextRef.current))
         }
       })
       .catch((err: unknown) => {
@@ -77,7 +84,7 @@ export function usePresignedUrl(
           setState({
             url: null,
             loading: false,
-            error: err instanceof Error ? err.message : linkErrorRef.current,
+            error: errorTextRef.current(err, linkErrorRef.current),
           })
         }
       })
@@ -87,5 +94,5 @@ export function usePresignedUrl(
   }, [path])
 
   const cached = path ? peekPreviewUrl(path) : undefined
-  return cached ? toState(cached, linkErrorRef.current) : state
+  return cached ? toState(cached, linkErrorRef.current, errorTextRef.current) : state
 }

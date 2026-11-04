@@ -204,17 +204,21 @@ function ExplorerDemo({
   viewer,
   initialPath = '',
   width,
+  client = createMockClient,
+  errorMessage,
 }: {
   storages?: TStorage[]
   storageGroups?: TStorageGroup[]
   viewer?: string
   initialPath?: string
   width?: number
+  client?: () => IFileExplorerClient
+  errorMessage?: ((error: unknown) => string | undefined) | undefined
 }) {
   const [path, setPath] = useState(initialPath)
   return (
     <div style={{ height: 560, width }}>
-      <FileExplorerProvider>
+      <FileExplorerProvider errorMessage={errorMessage}>
         <FileExplorer
           storages={storages}
           showUserHierarchy
@@ -222,7 +226,7 @@ function ExplorerDemo({
           viewer={viewer}
           getProviderAndClient={async () => ({
             provider: mockProvider,
-            client: createMockClient(),
+            client: client(),
           })}
           selectedPath={path}
           onPathChange={setPath}
@@ -234,6 +238,63 @@ function ExplorerDemo({
 
 export const Default: StoryObj = {
   render: () => <ExplorerDemo />,
+}
+
+// What a server sends when the reader may not list a folder: a code to look up, and its
+// own English detail, which is for logs.
+class ForbiddenError extends Error {
+  readonly code = 'forbidden'
+}
+
+function createForbiddenClient(): IFileExplorerClient {
+  return {
+    ...createMockClient(),
+    async listDirectory(input: unknown) {
+      await sleep(LATENCY_MS)
+      if ((input as MockListInput).directoryPath.replace(/\/+$/, '') === 'data') {
+        throw new ForbiddenError('AccessDenied: s3:ListBucket on arn:aws:s3:::demo-bucket/data')
+      }
+      return input as MockListInput
+    },
+  }
+}
+
+/** A folder the reader may not list. The host's `errorMessage` says why in the reader's words,
+ *  such as a localized message for the error's code; without it, a generic sentence shows.
+ *  The error's own message, a server's English detail, never does. */
+export const FolderFails: StoryObj<{ hostWords: boolean }> = {
+  args: { hostWords: true },
+  argTypes: {
+    hostWords: {
+      name: 'errorMessage',
+      description: "The host's words for an error, here for the code `forbidden`",
+      control: 'boolean',
+    },
+  },
+  render: ({ hostWords }) => (
+    <ExplorerDemo
+      key={String(hostWords)}
+      initialPath="storybook/demo-bucket/data"
+      client={createForbiddenClient}
+      errorMessage={
+        hostWords
+          ? (error) =>
+              error instanceof ForbiddenError ? 'You don’t have access to this folder.' : undefined
+          : undefined
+      }
+    />
+  ),
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      await canvas.findByText(
+        args.hostWords
+          ? 'Failed to load contents for data: You don’t have access to this folder.'
+          : 'Failed to load contents for data: Unknown error',
+      ),
+    ).toBeVisible()
+    await expect(canvas.queryByText(/AccessDenied/)).toBeNull()
+  },
 }
 
 const STORAGE_GROUPS: TStorageGroup[] = [
