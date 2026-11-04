@@ -191,7 +191,7 @@ export function FailureLine({
 export function FailureDetail({ detail }: { detail: string }) {
   const t = useStrings().fileExplorer.messages
   return (
-    <span className="flex min-w-0 items-start gap-1">
+    <span className="flex min-w-0 items-start gap-1 text-left">
       <span className="min-w-0 flex-1 whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed theme-muted-text">
         {detail}
       </span>
