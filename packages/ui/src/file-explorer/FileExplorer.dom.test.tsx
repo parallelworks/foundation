@@ -453,7 +453,10 @@ describe('FileExplorer listing failures', () => {
     await renderExplorer(FOLDER_A, script)
 
     expect(await screen.findByText('Connection issue')).toBeInTheDocument()
-    expect(screen.getByText('Failed to load contents for a: Unknown error')).toBeInTheDocument()
+    expect(
+      screen.getByText('Failed to load contents for a: The storage service returned an error'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('boom')).toBeInTheDocument()
     await act(async () => {})
     expect(script.callsFor('a/')).toHaveLength(1)
 
@@ -464,12 +467,9 @@ describe('FileExplorer listing failures', () => {
     expect(script.callsFor('a/')).toHaveLength(2)
   })
 
-  it("says why a folder failed in the host's words, and never in the error's own", async () => {
+  it("says why a folder failed in the host's words for an error it knows", async () => {
     const script = scriptedStorage()
-    const denied = Object.assign(new Error('AccessDenied: arn:aws:iam::123:role/x'), {
-      code: 'forbidden',
-    })
-    script.failWith('a/', denied)
+    script.failWith('a/', Object.assign(new Error('forbidden'), { code: 'forbidden' }))
     await renderExplorer(FOLDER_A, script, (error) =>
       (error as { code?: string }).code === 'forbidden' ? 'You can’t open this folder.' : undefined,
     )
@@ -477,7 +477,24 @@ describe('FileExplorer listing failures', () => {
     expect(
       await screen.findByText('Failed to load contents for a: You can’t open this folder.'),
     ).toBeInTheDocument()
-    expect(screen.queryByText(/AccessDenied/)).not.toBeInTheDocument()
+  })
+
+  it("names a storage refusal by its code and keeps the error's own text as detail", async () => {
+    const script = scriptedStorage()
+    const denied = Object.assign(new Error('User: arn:aws:iam::123:user/x is not authorized'), {
+      name: 'AccessDenied',
+      $metadata: { httpStatusCode: 403 },
+    })
+    script.failWith('a/', denied)
+    await renderExplorer(FOLDER_A, script, () => 'Something went wrong')
+
+    expect(
+      await screen.findByText(
+        'Failed to load contents for a: You don’t have access to this storage',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByText('User: arn:aws:iam::123:user/x is not authorized')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Copy error' })).toBeInTheDocument()
   })
 
   it('re-lists the deepest folder it has on Try again, then walks down to the target', async () => {

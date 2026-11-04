@@ -69,7 +69,7 @@ import {
   useCopySubmenu,
 } from '../list/index'
 import { safeUrl } from '../safeUrl'
-import { ShownError, useErrorText } from './errorText'
+import { type Failure, FailureLine, FailureText, ShownError, useErrorText } from './errorText'
 import { useFileExplorer } from './FileExplorerContext'
 import { FilePreview } from './FilePreview'
 import { FilePreviewInline } from './FilePreview/Inline'
@@ -103,6 +103,7 @@ import {
   isListed,
   isLoadingMore,
   loadMoreError,
+  loadMoreErrorDetail,
   nextHydrationStep,
   recordListingError,
   replaceListing,
@@ -448,7 +449,7 @@ export default function FileExplorer({
   const selectedNodeCanManageAccess = selectedStorage?.canManageAccess !== false
   const [accessDrawerOpen, setAccessDrawerOpen] = useState(false)
   const [connectionIssuesMessage, updateConnectionIssuesMessage] = useState<
-    Map<string, string | null>
+    Map<string, Failure | null>
   >(new Map())
   const [hasCorsIssue, setHasCorsIssue] = useState<Map<string, boolean>>(new Map())
 
@@ -579,7 +580,7 @@ export default function FileExplorer({
     }))
     if (!provider || !client) {
       const message = t.messages.connectFailed
-      updateConnectionIssuesMessage((prev) => new Map(prev).set(storage.id, message))
+      updateConnectionIssuesMessage((prev) => new Map(prev).set(storage.id, { reason: message }))
       return null
     }
 
@@ -667,7 +668,8 @@ export default function FileExplorer({
         return { corsError: false }
       } catch (error) {
         const isCorsError = error instanceof CorsError
-        const errorMessage = errorText(error, t.messages.unknownError)
+        const failure = errorText(error)
+        const reason = failure.reason ?? t.messages.cloudErrors.other
         // Every owned failure, not just a page: the storage-level banner only
         // renders on an empty folder, and this is what re-runs the hydration walk.
         // A failed re-list drops the old rows so the banner has that empty folder.
@@ -676,14 +678,15 @@ export default function FileExplorer({
             recordListingError(
               options?.replace ? clearListingsUnder(prev, node.path) : prev,
               node.path,
-              errorMessage,
+              reason,
+              failure.detail,
             ),
           )
           updateConnectionIssuesMessage((prev) =>
-            new Map(prev).set(
-              nodeStorageId,
-              t.messages.loadFailed(node.displayName || node.name, errorMessage),
-            ),
+            new Map(prev).set(nodeStorageId, {
+              reason: t.messages.loadFailed(node.displayName || node.name, reason),
+              detail: failure.detail,
+            }),
           )
           if (isCorsError) {
             setHasCorsIssue((prev) => new Map(prev).set(nodeStorageId, true))
@@ -859,6 +862,7 @@ export default function FileExplorer({
       ? {
           loading: isLoadingMore(listings, selectedNode.path),
           error: loadMoreError(listings, selectedNode.path),
+          errorDetail: loadMoreErrorDetail(listings, selectedNode.path),
           auto: canAutoLoadMore(listings, selectedNode.path),
           onLoadMore: () => {
             fetchNodeChildren(selectedNode, { more: true })
@@ -978,7 +982,10 @@ export default function FileExplorer({
 
       if (error || !presignedUrl) {
         toast.error(
-          error ? errorText(error, t.messages.downloadLinkFailed) : t.messages.downloadLinkFailed,
+          <FailureText
+            summary={t.messages.downloadLinkFailed}
+            failure={error ? errorText(error) : {}}
+          />,
         )
         continue
       }
@@ -1008,7 +1015,9 @@ export default function FileExplorer({
     const [presignedUrl, error] = await client.getFile(input)
 
     if (error || !presignedUrl) {
-      toast.error(error ? errorText(error, t.messages.fileLinkFailed) : t.messages.fileLinkFailed)
+      toast.error(
+        <FailureText summary={t.messages.fileLinkFailed} failure={error ? errorText(error) : {}} />,
+      )
       return
     }
 
@@ -1120,7 +1129,10 @@ export default function FileExplorer({
     const [presignedUrl, error] = await getPresignedUrl(node, node.name)
     if (error || !presignedUrl) {
       toast.error(
-        error ? errorText(error, t.messages.downloadLinkFailed) : t.messages.downloadLinkFailed,
+        <FailureText
+          summary={t.messages.downloadLinkFailed}
+          failure={error ? errorText(error) : {}}
+        />,
       )
       return
     }
@@ -1425,7 +1437,7 @@ export default function FileExplorer({
     } catch (err) {
       toast.update(deleting, {
         tone: 'error',
-        message: t.messages.deleteFailed(errorText(err, t.messages.unknownError)),
+        message: <FailureLine failure={errorText(err)} sentence={t.messages.deleteFailed} />,
       })
     }
   }
@@ -1574,7 +1586,7 @@ export default function FileExplorer({
       toast.success(t.createFolder.success(name))
       return true
     } catch (error) {
-      toast.error(t.createFolder.error(errorText(error, t.messages.unknownError)))
+      toast.error(<FailureLine failure={errorText(error)} sentence={t.createFolder.error} />)
       return false
     }
   }
@@ -2026,14 +2038,20 @@ export default function FileExplorer({
                             error={
                               hasCorsIssue.get(selectedNode.storageId ?? '')
                                 ? new CorsError(
-                                    connectionIssuesMessage.get(selectedNode.storageId ?? '') || '',
+                                    connectionIssuesMessage.get(selectedNode.storageId ?? '')
+                                      ?.reason || '',
                                   )
                                 : null
                             }
                             connectionIssueMessage={
                               selectedNode.storageId
-                                ? connectionIssuesMessage.get(selectedNode.storageId)
+                                ? connectionIssuesMessage.get(selectedNode.storageId)?.reason
                                 : null
+                            }
+                            connectionIssueDetail={
+                              selectedNode.storageId
+                                ? connectionIssuesMessage.get(selectedNode.storageId)?.detail
+                                : undefined
                             }
                           />
                         </div>

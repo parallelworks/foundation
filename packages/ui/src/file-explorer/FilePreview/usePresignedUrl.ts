@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useErrorText } from '../errorText'
+import { type Failure, useErrorText } from '../errorText'
 import type { TreeNode } from '../lib/types'
 import { loadPreviewUrl, peekPreviewUrl } from './previewCache'
 
@@ -7,9 +7,21 @@ interface PresignedUrlState {
   url: string | null
   loading: boolean
   error: string | null
+  /** The error's own text, shown under `error` as technical detail. */
+  errorDetail?: string | undefined
 }
 
-type ErrorText = (error: unknown, fallback: string) => string
+type ErrorText = (error: unknown) => Failure
+
+function failed(error: unknown, linkErrorMessage: string, errorText: ErrorText) {
+  const failure = errorText(error)
+  return {
+    url: null,
+    loading: false,
+    error: failure.reason ?? linkErrorMessage,
+    errorDetail: failure.detail,
+  }
+}
 
 function toState(
   [url, error]: [string | null, Error | null],
@@ -17,11 +29,9 @@ function toState(
   errorText: ErrorText,
 ): PresignedUrlState {
   if (error || !url) {
-    return {
-      url: null,
-      loading: false,
-      error: error ? errorText(error, linkErrorMessage) : linkErrorMessage,
-    }
+    return error
+      ? failed(error, linkErrorMessage, errorText)
+      : { url: null, loading: false, error: linkErrorMessage }
   }
   return { url, loading: false, error: null }
 }
@@ -81,11 +91,7 @@ export function usePresignedUrl(
       })
       .catch((err: unknown) => {
         if (!canceled) {
-          setState({
-            url: null,
-            loading: false,
-            error: errorTextRef.current(err, linkErrorRef.current),
-          })
+          setState(failed(err, linkErrorRef.current, errorTextRef.current))
         }
       })
     return () => {
