@@ -1,4 +1,4 @@
-import type { KeyboardEvent, MouseEvent } from 'react'
+import { type KeyboardEvent, type MouseEvent, useLayoutEffect, useRef } from 'react'
 import { cx } from '../cx'
 import { ZoomInIcon, ZoomOutIcon } from '../icons'
 import { IconButton } from './IconButton'
@@ -56,10 +56,38 @@ export function ImageStage({
   onClick?: ((event: MouseEvent<HTMLDivElement>) => void) | undefined
 }) {
   const fit = zoom === ZOOM_FIT
+  const stage = useRef<HTMLDivElement | null>(null)
+  // The point of the picture at the middle of the view, as shares of its scroll size, so
+  // a zoom keeps looking at the same spot instead of jumping to the corner.
+  const center = useRef({ x: 0.5, y: 0.5 })
+  const keepCenter = () => {
+    const el = stage.current
+    if (el && el.scrollWidth > 0 && el.scrollHeight > 0) {
+      center.current = {
+        x: (el.scrollLeft + el.clientWidth / 2) / el.scrollWidth,
+        y: (el.scrollTop + el.clientHeight / 2) / el.scrollHeight,
+      }
+    }
+  }
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once per zoom change
+  useLayoutEffect(() => {
+    const el = stage.current
+    if (!el) {
+      return
+    }
+    if (fit) {
+      center.current = { x: 0.5, y: 0.5 }
+      return
+    }
+    el.scrollLeft = center.current.x * el.scrollWidth - el.clientWidth / 2
+    el.scrollTop = center.current.y * el.scrollHeight - el.clientHeight / 2
+  }, [zoom])
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: a click beside the picture is a backdrop's, which Escape stands in for
     // biome-ignore lint/a11y/noStaticElementInteractions: the stage only forwards a backdrop click
     <div
+      ref={stage}
+      onScroll={keepCenter}
       // Safe centering: plain center would put a zoomed picture's start edges out of the
       // scroll's reach.
       className={cx(
