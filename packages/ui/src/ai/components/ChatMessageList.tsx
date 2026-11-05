@@ -193,6 +193,8 @@ export default function ChatMessageList({
   // flip the flag back.
   const isNearBottomRef = useRef(true)
   const lastScrollTopRef = useRef(0)
+  const lastScrollHeightRef = useRef(0)
+  const readerHoldingRef = useRef(false)
   // Mirrors the ref for the jump control; the ref stays the source of truth
   // for the scroll effects so a re-render never races them.
   const [pinned, setPinned] = useState(true)
@@ -201,13 +203,23 @@ export default function ChatMessageList({
     if (!containerRef.current) {
       return
     }
-    const { scrollTop, scrollHeight, clientHeight } = containerRef.current
+    const el = containerRef.current
+    const { scrollTop, scrollHeight, clientHeight } = el
     const scrolledDown = scrollTop >= lastScrollTopRef.current
+    const resized = scrollHeight !== lastScrollHeightRef.current
     lastScrollTopRef.current = scrollTop
+    lastScrollHeightRef.current = scrollHeight
     if (scrollHeight - scrollTop - clientHeight < 24) {
       if (scrolledDown) {
         isNearBottomRef.current = true
       }
+    } else if (resized && isNearBottomRef.current && !readerHoldingRef.current) {
+      // The list changed height under this event, so layout moved the
+      // position, not the reader. A finished reply swapping in collapses the
+      // list and clamps scrollTop, and WebKit, which has no scroll anchoring,
+      // delivers that scroll after the reply has grown back.
+      el.scrollTop = scrollHeight
+      lastScrollTopRef.current = el.scrollTop
     } else {
       isNearBottomRef.current = false
     }
@@ -253,11 +265,35 @@ export default function ChatMessageList({
     }
     container.addEventListener('scroll', handleScroll)
     container.addEventListener('wheel', releaseOnWheelUp, { passive: true })
+    // The other two ways a reader scrolls, for handleScroll to tell them from
+    // layout: the scrollbar's drag and the keyboard. The composer sits in
+    // this container, and its arrow keys move the caret.
+    const hold = () => {
+      readerHoldingRef.current = true
+    }
+    const letGo = () => {
+      readerHoldingRef.current = false
+    }
+    const releaseOnKey = (e: KeyboardEvent) => {
+      const typing = (e.target as HTMLElement).closest?.('input, textarea, [contenteditable]')
+      if (!typing && ['ArrowUp', 'PageUp', 'Home'].includes(e.key)) {
+        isNearBottomRef.current = false
+        setPinned(false)
+      }
+    }
     container.addEventListener('touchmove', releaseOnTouch, { passive: true })
+    container.addEventListener('pointerdown', hold)
+    container.addEventListener('keydown', releaseOnKey)
+    window.addEventListener('pointerup', letGo)
+    window.addEventListener('pointercancel', letGo)
     return () => {
       container.removeEventListener('scroll', handleScroll)
       container.removeEventListener('wheel', releaseOnWheelUp)
       container.removeEventListener('touchmove', releaseOnTouch)
+      container.removeEventListener('pointerdown', hold)
+      container.removeEventListener('keydown', releaseOnKey)
+      window.removeEventListener('pointerup', letGo)
+      window.removeEventListener('pointercancel', letGo)
     }
   }, [handleScroll, hasContent])
 

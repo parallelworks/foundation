@@ -153,6 +153,54 @@ describe('ChatMessageList stick-to-bottom', () => {
     expect(container.scrollTop).toBe(400)
   })
 
+  it('stays at the bottom when a finished reply changes the height under a scroll', () => {
+    const { container, rerenderStreaming } = renderStreaming('a')
+    armAtBottom(container)
+
+    // The reply swaps in: the list collapsed, clamping the position, and the
+    // scroll event arrives once it has grown past where it was.
+    setDimensions(container, { scrollHeight: 3000, clientHeight: 400 })
+    container.scrollTop = 100
+    fireEvent.scroll(container)
+    expect(container.scrollTop).toBe(3000)
+
+    setDimensions(container, { scrollHeight: 3200, clientHeight: 400 })
+    rerenderStreaming('ab')
+    expect(container.scrollTop).toBe(3200)
+  })
+
+  it('releases on a scrollbar drag while the reply is growing', () => {
+    const { container, rerenderStreaming } = renderStreaming('a')
+    armAtBottom(container)
+
+    fireEvent.pointerDown(container)
+    setDimensions(container, { scrollHeight: 1200, clientHeight: 400 })
+    container.scrollTop = 300
+    fireEvent.scroll(container)
+    fireEvent.pointerUp(window)
+
+    setDimensions(container, { scrollHeight: 1400, clientHeight: 400 })
+    rerenderStreaming('ab')
+    expect(container.scrollTop).toBe(300)
+  })
+
+  it('releases on a key that scrolls up, and leaves the composer its arrows', () => {
+    const { container, rerenderStreaming } = renderStreaming('a')
+    armAtBottom(container)
+    const box = document.createElement('textarea')
+    container.append(box)
+
+    fireEvent.keyDown(box, { key: 'ArrowUp' })
+    setDimensions(container, { scrollHeight: 1200, clientHeight: 400 })
+    rerenderStreaming('ab')
+    expect(container.scrollTop).toBe(1200)
+
+    fireEvent.keyDown(container, { key: 'PageUp' })
+    setDimensions(container, { scrollHeight: 1400, clientHeight: 400 })
+    rerenderStreaming('abc')
+    expect(container.scrollTop).toBe(1200)
+  })
+
   it('re-arms when the user scrolls back down to the bottom', () => {
     const { container, rerenderStreaming } = renderStreaming('a')
     armAtBottom(container)
