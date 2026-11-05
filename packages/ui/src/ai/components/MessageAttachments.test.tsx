@@ -195,19 +195,24 @@ describe('message image viewer', () => {
   })
 })
 
-describe('message image viewer letterbox', () => {
-  it('closes on a click beside the contained picture, not on the picture', async () => {
+describe('message image viewer stage', () => {
+  it('closes on a click around the picture, not on the picture', async () => {
     render(<MessageAttachments attachments={[image('a')]} downloadUrl={download} />)
     fireEvent.click(screen.getByRole('link', { name: 'a.png' }))
     await screen.findByRole('dialog')
     const picture = viewerImage('a.png') as HTMLImageElement
-    // A 100×100 picture drawn in a 300×100 box: the middle third is the picture.
-    Object.defineProperty(picture, 'naturalWidth', { value: 100 })
-    Object.defineProperty(picture, 'naturalHeight', { value: 100 })
-    picture.getBoundingClientRect = () => new DOMRect(0, 0, 300, 100)
-    fireEvent.click(picture, { clientX: 150, clientY: 50 })
+    fireEvent.click(picture)
     expect(screen.getByRole('dialog')).toBeInTheDocument()
-    fireEvent.click(picture, { clientX: 20, clientY: 50 })
+    fireEvent.click(picture.parentElement as HTMLElement)
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  })
+
+  it('never scales a picture past its own size', async () => {
+    render(<MessageAttachments attachments={[image('a')]} downloadUrl={download} />)
+    fireEvent.click(screen.getByRole('link', { name: 'a.png' }))
+    await screen.findByRole('dialog')
+    const picture = viewerImage('a.png') as HTMLImageElement
+    expect(picture).toHaveClass('max-w-full', 'max-h-full')
+    expect(picture).not.toHaveClass('w-full')
   })
 })

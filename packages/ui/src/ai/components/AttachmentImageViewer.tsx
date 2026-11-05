@@ -1,4 +1,4 @@
-import { type KeyboardEvent, type MouseEvent, useEffect, useState } from 'react'
+import { type KeyboardEvent, useEffect, useState } from 'react'
 import { IconButton } from '../../components/IconButton'
 import { Modal } from '../../components/Modal'
 import { useStrings } from '../../components/Provider'
@@ -43,21 +43,7 @@ function useLoadedImage(preview: string, full: string | undefined): string {
   return full && loaded === full ? full : preview
 }
 
-/** True for a click on the bars a contained image leaves beside the picture, which
- *  read as the backdrop. */
-function besidePicture(event: MouseEvent<HTMLImageElement>): boolean {
-  const image = event.currentTarget
-  const box = image.getBoundingClientRect()
-  if (!image.naturalWidth || !image.naturalHeight) {
-    return false
-  }
-  const scale = Math.min(box.width / image.naturalWidth, box.height / image.naturalHeight)
-  const x = Math.abs(event.clientX - (box.left + box.width / 2))
-  const y = Math.abs(event.clientY - (box.top + box.height / 2))
-  return x > (image.naturalWidth * scale) / 2 || y > (image.naturalHeight * scale) / 2
-}
-
-/** A message's images, one at a time and as large as the window allows. */
+/** A message's images, one at a time, at their own size or smaller to fit the window. */
 export default function AttachmentImageViewer({
   images,
   index,
@@ -98,6 +84,7 @@ export default function AttachmentImageViewer({
       align="center"
       panel={false}
       aria-label={image?.name}
+      backdropClassName="bg-[rgba(1,4,9,.94)]"
       finalFocus={() => (shown === undefined ? true : (returnFocusTo(shown) ?? true))}
       onKeyDown={onKeyDown}
       className="flex h-full w-full min-w-0 flex-col gap-2"
@@ -135,18 +122,23 @@ export default function AttachmentImageViewer({
             <IconButton icon={<CloseIcon />} label={common.close} onClick={onClose} />
           </div>
           {/* Keyed by image, so stepping never shows the last one's picture under the next one's name. */}
-          {/* biome-ignore lint/a11y/useKeyWithClickEvents: a click beside the picture is the backdrop's, which Escape stands in for */}
-          <img
-            key={shown}
-            src={src}
-            alt={image.name}
+          {/* biome-ignore lint/a11y/useKeyWithClickEvents: a click around the picture is the backdrop's, which Escape stands in for */}
+          {/* biome-ignore lint/a11y/noStaticElementInteractions: the stage only forwards a backdrop click */}
+          <div
+            className="flex min-h-0 w-full flex-1 items-center justify-center"
             onClick={(event) => {
-              if (besidePicture(event)) {
+              if (event.target === event.currentTarget) {
                 onClose()
               }
             }}
-            className="min-h-0 w-full flex-1 object-contain"
-          />
+          >
+            <img
+              key={shown}
+              src={src}
+              alt={image.name}
+              className="max-h-full max-w-full object-contain"
+            />
+          </div>
         </>
       )}
     </Modal>
