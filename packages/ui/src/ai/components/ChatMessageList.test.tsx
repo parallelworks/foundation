@@ -153,91 +153,6 @@ describe('ChatMessageList stick-to-bottom', () => {
     expect(container.scrollTop).toBe(400)
   })
 
-  it('stays at the bottom when a finished reply changes the height under a scroll', () => {
-    const { container, rerenderStreaming } = renderStreaming('a')
-    armAtBottom(container)
-
-    // The reply swaps in: the list collapsed, clamping the position, and the
-    // scroll event arrives once it has grown past where it was.
-    setDimensions(container, { scrollHeight: 3000, clientHeight: 400 })
-    container.scrollTop = 100
-    fireEvent.scroll(container)
-    expect(container.scrollTop).toBe(3000)
-
-    setDimensions(container, { scrollHeight: 3200, clientHeight: 400 })
-    rerenderStreaming('ab')
-    expect(container.scrollTop).toBe(3200)
-  })
-
-  it('releases on a scrollbar drag while the reply is growing', () => {
-    const { container, rerenderStreaming } = renderStreaming('a')
-    armAtBottom(container)
-
-    fireEvent.pointerDown(container)
-    setDimensions(container, { scrollHeight: 1200, clientHeight: 400 })
-    container.scrollTop = 300
-    fireEvent.scroll(container)
-    fireEvent.pointerUp(window)
-
-    setDimensions(container, { scrollHeight: 1400, clientHeight: 400 })
-    rerenderStreaming('ab')
-    expect(container.scrollTop).toBe(300)
-  })
-
-  it('releases on a key that scrolls up, and leaves the composer its arrows', () => {
-    const { container, rerenderStreaming } = renderStreaming('a')
-    armAtBottom(container)
-    const box = document.createElement('textarea')
-    container.append(box)
-
-    fireEvent.keyDown(box, { key: 'ArrowUp' })
-    setDimensions(container, { scrollHeight: 1200, clientHeight: 400 })
-    rerenderStreaming('ab')
-    expect(container.scrollTop).toBe(1200)
-
-    fireEvent.keyDown(container, { key: 'PageUp' })
-    setDimensions(container, { scrollHeight: 1400, clientHeight: 400 })
-    rerenderStreaming('abc')
-    expect(container.scrollTop).toBe(1200)
-  })
-
-  it('stays pinned on a scroll-up key in a list with nothing above', () => {
-    const { container, rerenderStreaming } = renderStreaming('a')
-    setDimensions(container, { scrollHeight: 400, clientHeight: 400 })
-
-    fireEvent.keyDown(container, { key: 'Home' })
-    setDimensions(container, { scrollHeight: 1200, clientHeight: 400 })
-    rerenderStreaming('ab')
-    expect(container.scrollTop).toBe(1200)
-  })
-
-  it('still keeps the bottom after a right-click, whose release a context menu swallows', () => {
-    const { container } = renderStreaming('a')
-    armAtBottom(container)
-
-    fireEvent.pointerDown(container, { button: 2 })
-    setDimensions(container, { scrollHeight: 3000, clientHeight: 400 })
-    container.scrollTop = 100
-    fireEvent.scroll(container)
-    expect(container.scrollTop).toBe(3000)
-  })
-
-  it('lets the reader scroll down through growth that was not followed', () => {
-    const { container, rerenderStreaming } = renderStreaming('a')
-    armAtBottom(container)
-
-    // A row the reader opened grew the list without a scroll of its own.
-    setDimensions(container, { scrollHeight: 1500, clientHeight: 400 })
-    fireEvent.wheel(container, { deltaY: 40 })
-    container.scrollTop = 700
-    fireEvent.scroll(container)
-    expect(container.scrollTop).toBe(700)
-
-    setDimensions(container, { scrollHeight: 1700, clientHeight: 400 })
-    rerenderStreaming('ab')
-    expect(container.scrollTop).toBe(700)
-  })
-
   it('re-arms when the user scrolls back down to the bottom', () => {
     const { container, rerenderStreaming } = renderStreaming('a')
     armAtBottom(container)
@@ -284,6 +199,20 @@ describe('ChatMessageList stick-to-bottom', () => {
     rerenderStreaming('ab')
 
     expect(container.scrollTop).toBe(590)
+  })
+
+  // An anchoring adjustment at the bottom would read as the reader scrolling
+  // up; a reader who did scroll up keeps their place through changes above.
+  it('turns scroll anchoring off only while it sits at the bottom', () => {
+    const { container } = renderStreaming('a')
+    armAtBottom(container)
+    expect(container).toHaveClass('[overflow-anchor:none]')
+
+    fireEvent.wheel(container, { deltaY: -40 })
+    container.scrollTop = 200
+    fireEvent.scroll(container)
+
+    expect(container).not.toHaveClass('[overflow-anchor:none]')
   })
 })
 
@@ -371,6 +300,39 @@ describe('ChatMessageList after a reply', () => {
     expect(scrollTo).not.toHaveBeenCalled()
   })
 
+  // WebKit lays the list out partway through inserting the finished reply,
+  // before it counts toward the list's height. The floor keeps that layout
+  // from clamping the position of a reader at the bottom.
+  it('holds the height it last observed through the commit that swaps the finished reply in', () => {
+    const user = createMockMessage({ id: 'm1' })
+    const result = render(
+      <ChatMessageList
+        messages={[user]}
+        allMessages={[]}
+        isStreaming
+        streamingMessage={createMockMessage({ id: 'stream', role: 'assistant', content: 'Done.' })}
+      />,
+    )
+    const floor = result.container.firstElementChild?.firstElementChild as HTMLElement
+    const content = floor.firstElementChild as HTMLElement
+    Object.defineProperty(content, 'offsetHeight', { configurable: true, value: 900 })
+    resized?.()
+
+    result.rerender(
+      <ChatMessageList
+        messages={[user, createMockMessage({ id: 'm2', role: 'assistant', content: 'Done.' })]}
+        allMessages={[]}
+        isStreaming={false}
+        streamingMessage={null}
+      />,
+    )
+    expect(floor).toHaveStyle({ minHeight: '900px' })
+
+    Object.defineProperty(content, 'offsetHeight', { configurable: true, value: 860 })
+    resized?.()
+    expect(floor).toHaveStyle({ minHeight: '860px' })
+  })
+
   it('still lets a new question enter', () => {
     const { container, addMessage } = renderDone()
     armAtBottom(container)
@@ -399,32 +361,6 @@ describe('ChatMessageList after a reply', () => {
     resized?.()
 
     expect(container.scrollTop).toBe(before)
-  })
-
-  it('leaves the reader at a message that took focus above, such as one being edited', () => {
-    const { container } = renderDone()
-    armAtBottom(container)
-
-    fireEvent.focusIn(container.querySelector('[data-testid="chat-message"]')!)
-    setDimensions(container, { scrollHeight: 1100, clientHeight: 400 })
-    container.scrollTop = 100
-    fireEvent.scroll(container)
-
-    expect(container.scrollTop).toBe(100)
-  })
-
-  it('keeps the bottom when a reply collapses and grows back to its old height', () => {
-    const { container } = renderDone()
-    armAtBottom(container)
-
-    // The collapse clamps the position; jsdom does not clamp, so the test does.
-    setDimensions(container, { scrollHeight: 500, clientHeight: 400 })
-    resized?.()
-    container.scrollTop = 100
-    setDimensions(container, { scrollHeight: 1000, clientHeight: 400 })
-    fireEvent.scroll(container)
-
-    expect(container.scrollTop).toBe(1000)
   })
 
   it('leaves the reader where they are once they scrolled up', () => {
