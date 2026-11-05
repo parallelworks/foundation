@@ -1,4 +1,4 @@
-import { type KeyboardEvent, useEffect, useState } from 'react'
+import { type KeyboardEvent, type MouseEvent, useEffect, useRef, useState } from 'react'
 import { IconButton } from '../../components/IconButton'
 import { Modal } from '../../components/Modal'
 import { useStrings } from '../../components/Provider'
@@ -64,39 +64,53 @@ export default function AttachmentImageViewer({
   const t = useChatConfig().strings.attachmentManager
   const { common } = useStrings()
   const src = useLoadedImage(image?.src ?? '', image?.fullUrl)
+  const popup = useRef<HTMLDivElement | null>(null)
   const several = images.length > 1
+  // From the open index, not the closing one, so a key pressed while it fades out can't reopen it.
   const step = (by: number) => {
-    if (shown !== undefined && several) {
-      onIndexChange((shown + by + images.length) % images.length)
+    if (index !== null && several) {
+      onIndexChange((index + by + images.length) % images.length)
     }
   }
   const onKeyDown = (event: KeyboardEvent) => {
-    if (event.key === 'ArrowLeft') {
-      step(-1)
-    } else if (event.key === 'ArrowRight') {
-      step(1)
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
+      return
+    }
+    const rtl = getComputedStyle(event.currentTarget).direction === 'rtl'
+    step((event.key === 'ArrowRight') !== rtl ? 1 : -1)
+  }
+  // The stage fills the window, so the empty room around the picture and the bar is the backdrop's.
+  const closeOnSelf = (event: MouseEvent) => {
+    if (event.target === event.currentTarget) {
+      onClose()
     }
   }
   return (
     <Modal
+      ref={popup}
       open={index !== null}
       onClose={onClose}
       align="center"
       panel={false}
       aria-label={image?.name}
       backdropClassName="bg-[rgba(1,4,9,.94)]"
+      // Focus starts on the dialog, not its first button, where Enter would step away from the picture.
+      initialFocus={popup}
       finalFocus={() => (shown === undefined ? true : (returnFocusTo(shown) ?? true))}
       onKeyDown={onKeyDown}
+      onClick={closeOnSelf}
       className="flex h-full w-full min-w-0 flex-col gap-2"
     >
       {image && (
         <>
           <div className="mx-auto flex w-full max-w-xl min-w-0 shrink-0 items-center gap-1 rounded-lg border border-(--theme-border) bg-(--theme-panel-bg) p-1 text-(--theme-app) shadow-lg">
-            <span className="min-w-0 flex-1 truncate px-2 text-sm">{image.name}</span>
+            <span aria-live="polite" className="min-w-0 flex-1 truncate px-2 text-sm">
+              {image.name}
+            </span>
             {several && (
               <>
                 <IconButton
-                  icon={<ChevronLeftIcon />}
+                  icon={<ChevronLeftIcon className="rtl:rotate-180" />}
                   label={t.previousImage}
                   onClick={() => step(-1)}
                 />
@@ -104,7 +118,7 @@ export default function AttachmentImageViewer({
                   {t.imagePosition((shown ?? 0) + 1, images.length)}
                 </span>
                 <IconButton
-                  icon={<ChevronRightIcon />}
+                  icon={<ChevronRightIcon className="rtl:rotate-180" />}
                   label={t.nextImage}
                   onClick={() => step(1)}
                 />
@@ -126,11 +140,7 @@ export default function AttachmentImageViewer({
           {/* biome-ignore lint/a11y/noStaticElementInteractions: the stage only forwards a backdrop click */}
           <div
             className="flex min-h-0 w-full flex-1 items-center justify-center"
-            onClick={(event) => {
-              if (event.target === event.currentTarget) {
-                onClose()
-              }
-            }}
+            onClick={closeOnSelf}
           >
             <img
               key={shown}

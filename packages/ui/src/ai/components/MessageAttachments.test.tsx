@@ -207,6 +207,40 @@ describe('message image viewer stage', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   })
 
+  it('closes on a click in the room beside the bar, not on the bar', async () => {
+    render(<MessageAttachments attachments={[image('a')]} downloadUrl={download} />)
+    fireEvent.click(screen.getByRole('link', { name: 'a.png' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByText('a.png'))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    fireEvent.click(dialog)
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  })
+
+  it('opens with focus on the dialog, not its first button', async () => {
+    render(<MessageAttachments attachments={[image('a'), image('b')]} downloadUrl={download} />)
+    fireEvent.click(screen.getByRole('link', { name: 'a.png' }))
+    const dialog = await screen.findByRole('dialog', { name: 'a.png' })
+    await waitFor(() => expect(dialog).toHaveFocus())
+  })
+
+  it('steps with the arrow keys the other way round right to left', async () => {
+    render(
+      <MessageAttachments
+        attachments={[image('a'), image('b'), image('c')]}
+        downloadUrl={download}
+      />,
+    )
+    fireEvent.click(screen.getByRole('link', { name: 'a.png' }))
+    const dialog = await screen.findByRole('dialog', { name: 'a.png' })
+    // jsdom maps no dir attribute to a computed direction, so the dialog states its own.
+    dialog.style.direction = 'rtl'
+    fireEvent.keyDown(dialog, { key: 'ArrowLeft' })
+    expect(screen.getByRole('dialog', { name: 'b.png' })).toBeInTheDocument()
+    fireEvent.keyDown(dialog, { key: 'ArrowRight' })
+    expect(screen.getByRole('dialog', { name: 'a.png' })).toBeInTheDocument()
+  })
+
   it('never scales a picture past its own size', async () => {
     render(<MessageAttachments attachments={[image('a')]} downloadUrl={download} />)
     fireEvent.click(screen.getByRole('link', { name: 'a.png' }))
