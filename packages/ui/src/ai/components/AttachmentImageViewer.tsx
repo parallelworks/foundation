@@ -1,5 +1,6 @@
 import { type KeyboardEvent, type MouseEvent, useEffect, useRef, useState } from 'react'
 import { IconButton } from '../../components/IconButton'
+import { ImageStage, ZOOM_FIT, ZoomControls, zoomForKey } from '../../components/ImageStage'
 import { Modal } from '../../components/Modal'
 import { useStrings } from '../../components/Provider'
 import { useClosingValue } from '../../components/useClosingValue'
@@ -66,6 +67,22 @@ export default function AttachmentImageViewer({
   const src = useLoadedImage(image?.src ?? '', image?.fullUrl)
   const popup = useRef<HTMLDivElement | null>(null)
   const several = images.length > 1
+  // Held against the image it was set for, so stepping starts at fit and closing keeps it
+  // while the viewer fades; opening again starts at fit.
+  const [zoomed, setZoomed] = useState<{ index: number; zoom: number } | null>(null)
+  const [wasOpen, setWasOpen] = useState(index !== null)
+  if (wasOpen !== (index !== null)) {
+    setWasOpen(index !== null)
+    if (index !== null) {
+      setZoomed(null)
+    }
+  }
+  const zoom = zoomed && zoomed.index === shown ? zoomed.zoom : ZOOM_FIT
+  const setZoom = (next: number) => {
+    if (index !== null) {
+      setZoomed({ index, zoom: next })
+    }
+  }
   // From the open index, not the closing one, so a key pressed while it fades out can't reopen it.
   const step = (by: number) => {
     if (index !== null && several) {
@@ -73,13 +90,19 @@ export default function AttachmentImageViewer({
     }
   }
   const onKeyDown = (event: KeyboardEvent) => {
+    const nextZoom = zoomForKey(event, zoom)
+    if (nextZoom !== undefined) {
+      event.preventDefault()
+      setZoom(nextZoom)
+      return
+    }
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
       return
     }
     const rtl = getComputedStyle(event.currentTarget).direction === 'rtl'
     step((event.key === 'ArrowRight') !== rtl ? 1 : -1)
   }
-  // The stage fills the window, so the empty room around the picture and the bar is the backdrop's.
+  // The popup fills the window, so the empty room beside the bar is the backdrop's.
   const closeOnSelf = (event: MouseEvent) => {
     if (event.target === event.currentTarget) {
       onClose()
@@ -124,6 +147,7 @@ export default function AttachmentImageViewer({
                 />
               </>
             )}
+            <ZoomControls zoom={zoom} onZoomChange={setZoom} />
             {image.href && (
               <IconButton
                 href={image.href}
@@ -136,19 +160,14 @@ export default function AttachmentImageViewer({
             <IconButton icon={<CloseIcon />} label={common.close} onClick={onClose} />
           </div>
           {/* Keyed by image, so stepping never shows the last one's picture under the next one's name. */}
-          {/* biome-ignore lint/a11y/useKeyWithClickEvents: a click around the picture is the backdrop's, which Escape stands in for */}
-          {/* biome-ignore lint/a11y/noStaticElementInteractions: the stage only forwards a backdrop click */}
-          <div
-            className="flex min-h-0 w-full flex-1 items-center justify-center"
-            onClick={closeOnSelf}
-          >
-            <img
-              key={shown}
-              src={src}
-              alt={image.name}
-              className="max-h-full max-w-full object-contain"
-            />
-          </div>
+          <ImageStage
+            key={shown}
+            src={src}
+            alt={image.name}
+            zoom={zoom}
+            className="min-h-0 flex-1"
+            onClick={onClose}
+          />
         </>
       )}
     </Modal>

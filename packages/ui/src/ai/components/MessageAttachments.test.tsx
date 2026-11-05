@@ -246,7 +246,59 @@ describe('message image viewer stage', () => {
     fireEvent.click(screen.getByRole('link', { name: 'a.png' }))
     await screen.findByRole('dialog')
     const picture = viewerImage('a.png') as HTMLImageElement
-    expect(picture).toHaveClass('max-w-full', 'max-h-full')
-    expect(picture).not.toHaveClass('w-full')
+    expect(picture).toHaveStyle({ maxWidth: '100%', maxHeight: '100%' })
+    expect(picture.style.width).toBe('')
+  })
+})
+
+describe('message image viewer zoom', () => {
+  async function openViewer(attachments: AttachmentRef[]) {
+    render(<MessageAttachments attachments={attachments} downloadUrl={download} />)
+    fireEvent.click(screen.getByRole('link', { name: attachments[0]?.filename ?? '' }))
+    return screen.findByRole('dialog')
+  }
+
+  it('zooms with its buttons, showing the zoom', async () => {
+    const dialog = await openViewer([image('a')])
+    expect(within(dialog).getByText('100%')).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Zoom in' }))
+    expect(within(dialog).getByText('125%')).toBeInTheDocument()
+    expect(viewerImage('a.png')).toHaveStyle({ width: '125%' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Zoom out' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Zoom out' }))
+    expect(within(dialog).getByText('75%')).toBeInTheDocument()
+  })
+
+  it('zooms with + or =, out with -, and fits again with 0', async () => {
+    const dialog = await openViewer([image('a')])
+    fireEvent.keyDown(dialog, { key: '+' })
+    fireEvent.keyDown(dialog, { key: '=' })
+    expect(within(dialog).getByText('150%')).toBeInTheDocument()
+    fireEvent.keyDown(dialog, { key: '-' })
+    expect(within(dialog).getByText('125%')).toBeInTheDocument()
+    fireEvent.keyDown(dialog, { key: '0' })
+    expect(within(dialog).getByText('100%')).toBeInTheDocument()
+    expect(viewerImage('a.png')).toHaveStyle({ maxWidth: '100%', maxHeight: '100%' })
+  })
+
+  it('leaves a modified + to the browser’s own page zoom', async () => {
+    const dialog = await openViewer([image('a')])
+    fireEvent.keyDown(dialog, { key: '=', metaKey: true })
+    fireEvent.keyDown(dialog, { key: '+', ctrlKey: true })
+    expect(within(dialog).getByText('100%')).toBeInTheDocument()
+  })
+
+  it('fits the next image when it steps, and fits again when it reopens', async () => {
+    const dialog = await openViewer([image('a'), image('b')])
+    fireEvent.keyDown(dialog, { key: '+' })
+    fireEvent.keyDown(dialog, { key: 'ArrowRight' })
+    expect(screen.getByRole('dialog', { name: 'b.png' })).toBeInTheDocument()
+    expect(within(dialog).getByText('100%')).toBeInTheDocument()
+    fireEvent.keyDown(dialog, { key: '+' })
+    fireEvent.keyDown(dialog, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    fireEvent.click(screen.getByRole('link', { name: 'b.png' }))
+    const reopened = await screen.findByRole('dialog', { name: 'b.png' })
+    expect(within(reopened).getByText('100%')).toBeInTheDocument()
   })
 })
