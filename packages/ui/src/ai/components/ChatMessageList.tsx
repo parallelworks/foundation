@@ -26,6 +26,9 @@ import { Reasoning, ReasoningBody } from './Reasoning'
 // the reader's own.
 const READER_GROWTH_MS = 600
 
+// Keys that scroll the thread up when focus is not in a field.
+const SCROLL_UP_KEYS = new Set(['ArrowUp', 'PageUp', 'Home'])
+
 const jumpClasses =
   'chat-composer chat-jump rounded-full px-3 py-1.5 text-xs font-medium theme-text transition-colors'
 
@@ -187,14 +190,17 @@ export default function ChatMessageList({
   // Stick-to-bottom: follow new content only while the user sits at the
   // bottom. Scrolling up releases it; scrolling back down to the bottom
   // re-arms it. Release must win over the autoscroll that grows the content
-  // under the user, so wheel/touch release immediately (before any scroll
-  // event is interpreted) and the scroll handler only re-arms on downward
-  // movement — an upward scroll that stays within the threshold can never
-  // flip the flag back.
+  // under the user, so wheel, touch and scroll keys release immediately
+  // (before any scroll event is interpreted) and the scroll handler only
+  // re-arms on downward movement — an upward scroll that stays within the
+  // threshold can never flip the flag back.
   const isNearBottomRef = useRef(true)
   const lastScrollTopRef = useRef(0)
   const lastScrollHeightRef = useRef(0)
   const readerHoldingRef = useRef(false)
+  // When the reader last clicked, pressed a key or moved focus inside the
+  // thread: what moves in the next READER_GROWTH_MS is their doing.
+  const readerTouchedAtRef = useRef(Number.NEGATIVE_INFINITY)
   // Mirrors the ref for the jump control; the ref stays the source of truth
   // for the scroll effects so a re-render never races them.
   const [pinned, setPinned] = useState(true)
@@ -205,19 +211,27 @@ export default function ChatMessageList({
     }
     const el = containerRef.current
     const { scrollTop, scrollHeight, clientHeight } = el
-    const scrolledDown = scrollTop >= lastScrollTopRef.current
+    const previousTop = lastScrollTopRef.current
     const resized = scrollHeight !== lastScrollHeightRef.current
     lastScrollTopRef.current = scrollTop
     lastScrollHeightRef.current = scrollHeight
     if (scrollHeight - scrollTop - clientHeight < 24) {
-      if (scrolledDown) {
+      if (scrollTop >= previousTop) {
         isNearBottomRef.current = true
       }
-    } else if (resized && isNearBottomRef.current && !readerHoldingRef.current) {
+    } else if (
+      resized &&
+      scrollTop <= previousTop &&
+      isNearBottomRef.current &&
+      !readerHoldingRef.current &&
+      performance.now() - readerTouchedAtRef.current > READER_GROWTH_MS
+    ) {
       // The list changed height under this event, so layout moved the
       // position, not the reader. A finished reply swapping in collapses the
       // list and clamps scrollTop, and WebKit, which has no scroll anchoring,
-      // delivers that scroll after the reply has grown back.
+      // delivers that scroll after the reply has grown back. A clamp never
+      // moves the position down, and focus moving into a message being edited
+      // scrolls on the reader's behalf.
       el.scrollTop = scrollHeight
       lastScrollTopRef.current = el.scrollTop
     } else {
@@ -253,35 +267,40 @@ export default function ChatMessageList({
     if (!container) {
       return
     }
-    const releaseOnWheelUp = (e: WheelEvent) => {
-      if (e.deltaY < 0) {
-        isNearBottomRef.current = false
-        setPinned(false)
-      }
-    }
-    const releaseOnTouch = () => {
+    const release = () => {
       isNearBottomRef.current = false
       setPinned(false)
+    }
+    const releaseOnWheelUp = (e: WheelEvent) => {
+      if (e.deltaY < 0) {
+        release()
+      }
     }
     container.addEventListener('scroll', handleScroll)
     container.addEventListener('wheel', releaseOnWheelUp, { passive: true })
     // The other two ways a reader scrolls, for handleScroll to tell them from
-    // layout: the scrollbar's drag and the keyboard. The composer sits in
-    // this container, and its arrow keys move the caret.
-    const hold = () => {
-      readerHoldingRef.current = true
+    // layout: the scrollbar's drag and the keyboard. Only the primary button
+    // drags: a macOS context menu swallows the right button's release.
+    const hold = (e: PointerEvent) => {
+      if (e.button === 0) {
+        readerHoldingRef.current = true
+      }
     }
     const letGo = () => {
       readerHoldingRef.current = false
     }
+    // The composer sits in this container, and its arrow keys move the caret.
+    // A list with nothing above has nowhere to go, so the key leaves it pinned.
     const releaseOnKey = (e: KeyboardEvent) => {
-      const typing = (e.target as HTMLElement).closest?.('input, textarea, [contenteditable]')
-      if (!typing && ['ArrowUp', 'PageUp', 'Home'].includes(e.key)) {
-        isNearBottomRef.current = false
-        setPinned(false)
+      if (!SCROLL_UP_KEYS.has(e.key) || container.scrollTop <= 0) {
+        return
+      }
+      const target = e.target as HTMLElement
+      if (!target.isContentEditable && !target.closest('input, textarea, select')) {
+        release()
       }
     }
-    container.addEventListener('touchmove', releaseOnTouch, { passive: true })
+    container.addEventListener('touchmove', release, { passive: true })
     container.addEventListener('pointerdown', hold)
     container.addEventListener('keydown', releaseOnKey)
     window.addEventListener('pointerup', letGo)
@@ -289,11 +308,12 @@ export default function ChatMessageList({
     return () => {
       container.removeEventListener('scroll', handleScroll)
       container.removeEventListener('wheel', releaseOnWheelUp)
-      container.removeEventListener('touchmove', releaseOnTouch)
+      container.removeEventListener('touchmove', release)
       container.removeEventListener('pointerdown', hold)
       container.removeEventListener('keydown', releaseOnKey)
       window.removeEventListener('pointerup', letGo)
       window.removeEventListener('pointercancel', letGo)
+      readerHoldingRef.current = false
     }
   }, [handleScroll, hasContent])
 
@@ -368,22 +388,25 @@ export default function ChatMessageList({
     }
     // Growth the reader caused, such as opening a tool's row, stays put: the
     // row they clicked must not jump out from under the pointer.
-    let touchedAt = Number.NEGATIVE_INFINITY
     const touched = () => {
-      touchedAt = performance.now()
+      readerTouchedAtRef.current = performance.now()
     }
     content.addEventListener('click', touched, true)
     content.addEventListener('keydown', touched, true)
+    content.addEventListener('focusin', touched)
     const observer = new ResizeObserver(() => {
       const el = containerRef.current
       if (
         el &&
         isNearBottomRef.current &&
         !hasQueuedMessages &&
-        performance.now() - touchedAt > READER_GROWTH_MS
+        performance.now() - readerTouchedAtRef.current > READER_GROWTH_MS
       ) {
         el.scrollTop = el.scrollHeight
+        // Records the collapsed height too, so a reply that grows back to its
+        // old height still reads as layout in handleScroll.
         lastScrollTopRef.current = el.scrollTop
+        lastScrollHeightRef.current = el.scrollHeight
       }
     })
     observer.observe(content)
@@ -391,6 +414,7 @@ export default function ChatMessageList({
       observer.disconnect()
       content.removeEventListener('click', touched, true)
       content.removeEventListener('keydown', touched, true)
+      content.removeEventListener('focusin', touched)
     }
   }, [hasContent, hasQueuedMessages])
 

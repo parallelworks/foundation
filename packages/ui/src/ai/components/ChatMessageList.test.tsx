@@ -201,6 +201,43 @@ describe('ChatMessageList stick-to-bottom', () => {
     expect(container.scrollTop).toBe(1200)
   })
 
+  it('stays pinned on a scroll-up key in a list with nothing above', () => {
+    const { container, rerenderStreaming } = renderStreaming('a')
+    setDimensions(container, { scrollHeight: 400, clientHeight: 400 })
+
+    fireEvent.keyDown(container, { key: 'Home' })
+    setDimensions(container, { scrollHeight: 1200, clientHeight: 400 })
+    rerenderStreaming('ab')
+    expect(container.scrollTop).toBe(1200)
+  })
+
+  it('still keeps the bottom after a right-click, whose release a context menu swallows', () => {
+    const { container } = renderStreaming('a')
+    armAtBottom(container)
+
+    fireEvent.pointerDown(container, { button: 2 })
+    setDimensions(container, { scrollHeight: 3000, clientHeight: 400 })
+    container.scrollTop = 100
+    fireEvent.scroll(container)
+    expect(container.scrollTop).toBe(3000)
+  })
+
+  it('lets the reader scroll down through growth that was not followed', () => {
+    const { container, rerenderStreaming } = renderStreaming('a')
+    armAtBottom(container)
+
+    // A row the reader opened grew the list without a scroll of its own.
+    setDimensions(container, { scrollHeight: 1500, clientHeight: 400 })
+    fireEvent.wheel(container, { deltaY: 40 })
+    container.scrollTop = 700
+    fireEvent.scroll(container)
+    expect(container.scrollTop).toBe(700)
+
+    setDimensions(container, { scrollHeight: 1700, clientHeight: 400 })
+    rerenderStreaming('ab')
+    expect(container.scrollTop).toBe(700)
+  })
+
   it('re-arms when the user scrolls back down to the bottom', () => {
     const { container, rerenderStreaming } = renderStreaming('a')
     armAtBottom(container)
@@ -362,6 +399,32 @@ describe('ChatMessageList after a reply', () => {
     resized?.()
 
     expect(container.scrollTop).toBe(before)
+  })
+
+  it('leaves the reader at a message that took focus above, such as one being edited', () => {
+    const { container } = renderDone()
+    armAtBottom(container)
+
+    fireEvent.focusIn(container.querySelector('[data-testid="chat-message"]')!)
+    setDimensions(container, { scrollHeight: 1100, clientHeight: 400 })
+    container.scrollTop = 100
+    fireEvent.scroll(container)
+
+    expect(container.scrollTop).toBe(100)
+  })
+
+  it('keeps the bottom when a reply collapses and grows back to its old height', () => {
+    const { container } = renderDone()
+    armAtBottom(container)
+
+    // The collapse clamps the position; jsdom does not clamp, so the test does.
+    setDimensions(container, { scrollHeight: 500, clientHeight: 400 })
+    resized?.()
+    container.scrollTop = 100
+    setDimensions(container, { scrollHeight: 1000, clientHeight: 400 })
+    fireEvent.scroll(container)
+
+    expect(container.scrollTop).toBe(1000)
   })
 
   it('leaves the reader where they are once they scrolled up', () => {
