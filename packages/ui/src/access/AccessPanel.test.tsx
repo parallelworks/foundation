@@ -115,6 +115,32 @@ describe('AccessPanel', () => {
     )
   })
 
+  it('says nothing when the host made no change, such as a declined confirmation', async () => {
+    const onChange = vi.fn().mockResolvedValue(false)
+    render(
+      <UIProvider>
+        <AccessPanel
+          resourceName={WORKSPACE}
+          roles={WORKSPACE_ROLES}
+          principals={WORKSPACE_PRINCIPALS}
+          grants={WORKSPACE_GRANTS}
+          singleRole
+          visibility={{ restricted: false, openLabel: 'Everyone in the workspace', onChange }}
+          onChange={async () => {}}
+        />
+      </UIProvider>,
+    )
+    const switcher = screen.getByRole('group', { name: 'Who can see it' })
+    fireEvent.click(within(switcher).getByRole('button', { name: 'Only people with access' }))
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith(true))
+    await act(async () => {})
+    expect(screen.queryByText('Changed to Only people with access')).not.toBeInTheDocument()
+    expect(screen.queryByText('Couldn’t change to Only people with access')).not.toBeInTheDocument()
+    expect(
+      within(switcher).getByRole('button', { name: 'Everyone in the workspace' }),
+    ).toHaveAttribute('aria-pressed', 'true')
+  })
+
   it('shows a fixed rule ahead of the grants, locked, with who it covers', () => {
     render(<Panel />)
     const rule = screen.getByText('Workspace admins always have access')
