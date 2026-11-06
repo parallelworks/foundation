@@ -45,6 +45,26 @@ export interface ListboxNavigationOptions<T> {
 /** How long after the menu key the browser's own contextmenu event can follow it. */
 const contextMenuEchoMs = 1000
 
+/** Cancels the contextmenu event the browser follows a menu key with, here or on the key's
+ *  release, wherever focus is by then: often in the menu the key opened, whose own menu stands
+ *  in for the browser's. A right-click starts with a press, so a press lets it through. */
+function cancelContextMenuEcho(view: Window): () => void {
+  const cancel = (event: Event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    disarm()
+  }
+  const disarm = () => {
+    clearTimeout(timer)
+    view.removeEventListener('contextmenu', cancel, true)
+    view.removeEventListener('pointerdown', disarm, true)
+  }
+  const timer = setTimeout(disarm, contextMenuEchoMs)
+  view.addEventListener('contextmenu', cancel, true)
+  view.addEventListener('pointerdown', disarm, true)
+  return disarm
+}
+
 /** Keys are DOM or React keyboard events alike, as an editor plugin and an input pass them. */
 type AnyKeyboardEvent = KeyboardEvent | ReactKeyboardEvent
 
@@ -66,7 +86,8 @@ export function useListboxNavigation<T>({
 }: ListboxNavigationOptions<T>) {
   const listId = useId()
   const [active, setActive] = useState(0)
-  const keyMenuAt = useRef(0)
+  const disarmEcho = useRef<(() => void) | undefined>(undefined)
+  useEffect(() => () => disarmEcho.current?.(), [])
   const count = items.length
   // A shorter list can leave the index past its end until the next key.
   const shown = count === 0 ? -1 : Math.min(Math.max(active, 0), count - 1)
@@ -139,18 +160,17 @@ export function useListboxNavigation<T>({
         setActive(step(count, -1))
         break
       case onContextMenu !== undefined &&
-        (event.key === 'ContextMenu' ||
-          (event.key === 'F10' &&
-            event.shiftKey &&
-            !event.ctrlKey &&
-            !event.metaKey &&
-            !event.altKey)): {
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey &&
+        (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)): {
         const item = items[shown]
         const anchor = document.getElementById(optionId(shown))
         if (item === undefined || !anchor || !onContextMenu?.(item, shown, anchor)) {
           return false
         }
-        keyMenuAt.current = Date.now()
+        disarmEcho.current?.()
+        disarmEcho.current = cancelContextMenuEcho(anchor.ownerDocument.defaultView ?? window)
         break
       }
       case event.key === 'Enter' || chooseKeys.includes(event.key): {
@@ -178,17 +198,6 @@ export function useListboxNavigation<T>({
       'aria-autocomplete': 'list' as const,
       'aria-controls': shownOpen ? listId : undefined,
       'aria-activedescendant': shownOpen && shown >= 0 ? optionId(shown) : undefined,
-      // The browser follows the menu key with its own contextmenu event, here or on the key's
-      // release; the menu the key opened stands in for the browser's. A right-click stays the
-      // host's.
-      ...(onContextMenu && {
-        onContextMenu: (event: { preventDefault: () => void }) => {
-          if (Date.now() - keyMenuAt.current < contextMenuEchoMs) {
-            keyMenuAt.current = 0
-            event.preventDefault()
-          }
-        },
-      }),
     },
     listProps: { id: listId, role: 'listbox' as const },
     optionProps: (index: number) => {
