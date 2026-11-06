@@ -235,12 +235,11 @@ export const Avatars: StoryObj = {
   },
 }
 
-/** A badge in the corner for what the person did, such as being assigned or commenting, at every
- *  size, over initials and over a picture. */
+/** A badge in the corner for what the person did, such as being assigned or commenting, from `sm`
+ *  up (an `xs` avatar shows none), over initials and over a picture. */
 export const AvatarBadges: StoryObj = {
   render: () => (
     <div className="flex items-end gap-4 p-2">
-      <Avatar name="Ada Lovelace" size="xs" badge={<UserIcon />} />
       <Avatar name="Ada Lovelace" size="sm" badge={<CommentIcon />} />
       <Avatar name="Grace Hopper" size="md" badge={<ArrowRightIcon />} />
       <Avatar
@@ -256,7 +255,7 @@ export const AvatarBadges: StoryObj = {
     const canvas = within(canvasElement)
     // Decoration only: the avatar is still one image named for the person.
     await expect(canvas.getByRole('img', { name: 'Grace Hopper' })).toBeVisible()
-    await expect(canvas.getAllByTestId('avatar-badge')).toHaveLength(6)
+    await expect(canvas.getAllByTestId('avatar-badge')).toHaveLength(5)
   },
 }
 

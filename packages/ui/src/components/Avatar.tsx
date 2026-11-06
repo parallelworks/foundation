@@ -44,7 +44,8 @@ export interface AvatarProps extends Omit<ComponentPropsWithRef<'span'>, 'childr
   status?: AvatarStatus | undefined
   /** A small icon on a disc at the bottom corner, for what the person did, such as being
    *  assigned or commenting. It is decoration: say what it means in the text beside the avatar.
-   *  The status dot holds the same corner, so an avatar with a `status` doesn't show it. */
+   *  The status dot holds the same corner, so an avatar with a `status` doesn't show it, and an
+   *  `xs` avatar is too small for one to read, so it doesn't either. */
   badge?: ReactNode
   /** Hides it from assistive technology, for an avatar beside the name it shows, which a
    *  screen reader would otherwise read twice. */
@@ -95,9 +96,8 @@ const KIND_CLASSES: Record<AvatarKind, string> = {
 const AGENT_EDGE =
   "after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:content-[''] after:inset-ring after:inset-ring-(--avatar-agent-ring,color-mix(in_oklab,var(--avatar-agent-text,var(--theme-category-2-text))_40%,transparent))"
 
-// A disc that stays legible on the avatar's smallest sizes, its icon inset from the edge.
-const BADGE_CLASSES: Record<AvatarSize, string> = {
-  xs: 'size-2.5 [&_svg]:size-1.5',
+// A disc that stays legible at each size, its icon inset from the edge; xs has none.
+const BADGE_CLASSES: Record<Exclude<AvatarSize, 'xs'>, string> = {
   sm: 'size-3.5 [&_svg]:size-2.5',
   md: 'size-3.5 [&_svg]:size-2.5',
   lg: 'size-4 [&_svg]:size-3',
@@ -262,7 +262,7 @@ export function Avatar({
           </span>
         </BaseAvatar.Fallback>
       </BaseAvatar.Root>
-      {badge !== undefined && badge !== null && !status && (
+      {badge !== undefined && badge !== null && !status && size !== 'xs' && (
         // Over the shape's corner, a third of it outside, so it never covers the initials; ringed so
         // it reads over a picture.
         <span

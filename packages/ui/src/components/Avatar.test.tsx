@@ -46,6 +46,11 @@ describe('Avatar', () => {
     expect(screen.getByRole('img', { name: 'Ada Lovelace' })).toContainElement(badge)
   })
 
+  it('shows no badge on an xs avatar, too small for one to read', () => {
+    render(<Avatar name="Ada Lovelace" size="xs" badge={<svg />} />)
+    expect(screen.queryByTestId('avatar-badge')).not.toBeInTheDocument()
+  })
+
   it('leaves the corner to the status dot when both are set', () => {
     render(<Avatar name="Ada Lovelace" status="online" badge={<svg />} />)
     expect(screen.queryByTestId('avatar-badge')).not.toBeInTheDocument()
