@@ -4,7 +4,6 @@ import {
   type ReactNode,
   useEffect,
   useId,
-  useRef,
   useState,
 } from 'react'
 import { cx } from '../cx'
@@ -42,27 +41,51 @@ export interface ListboxNavigationOptions<T> {
   onContextMenu?: ((item: T, index: number, anchor: HTMLElement) => boolean) | undefined
 }
 
-/** How long after the menu key the browser's own contextmenu event can follow it. */
-const contextMenuEchoMs = 1000
+/** How long after the menu key's release the browser's own contextmenu event can follow it. */
+const contextMenuEchoMs = 100
+
+let disarmEcho: (() => void) | undefined
 
 /** Cancels the contextmenu event the browser follows a menu key with, here or on the key's
  *  release, wherever focus is by then: often in the menu the key opened, whose own menu stands
- *  in for the browser's. A right-click starts with a press, so a press lets it through. */
-function cancelContextMenuEcho(view: Window): () => void {
+ *  in for the browser's. It lasts until just after the key is released, and a press or another
+ *  key, such as a right-click or a later menu key left to the host, ends it at once. */
+function cancelContextMenuEcho(view: Window, key: string) {
+  disarmEcho?.()
+  let timer: ReturnType<typeof setTimeout> | undefined
   const cancel = (event: Event) => {
     event.preventDefault()
     event.stopPropagation()
     disarm()
   }
+  const keydown = (event: KeyboardEvent) => {
+    if (!event.repeat) {
+      disarm()
+    }
+  }
+  const keyup = (event: KeyboardEvent) => {
+    if (event.key === key) {
+      clearTimeout(timer)
+      timer = setTimeout(disarm, contextMenuEchoMs)
+    }
+  }
   const disarm = () => {
     clearTimeout(timer)
     view.removeEventListener('contextmenu', cancel, true)
     view.removeEventListener('pointerdown', disarm, true)
+    view.removeEventListener('keydown', keydown, true)
+    view.removeEventListener('keyup', keyup, true)
+    view.removeEventListener('blur', disarm)
+    if (disarmEcho === disarm) {
+      disarmEcho = undefined
+    }
   }
-  const timer = setTimeout(disarm, contextMenuEchoMs)
   view.addEventListener('contextmenu', cancel, true)
   view.addEventListener('pointerdown', disarm, true)
-  return disarm
+  view.addEventListener('keydown', keydown, true)
+  view.addEventListener('keyup', keyup, true)
+  view.addEventListener('blur', disarm)
+  disarmEcho = disarm
 }
 
 /** Keys are DOM or React keyboard events alike, as an editor plugin and an input pass them. */
@@ -86,8 +109,6 @@ export function useListboxNavigation<T>({
 }: ListboxNavigationOptions<T>) {
   const listId = useId()
   const [active, setActive] = useState(0)
-  const disarmEcho = useRef<(() => void) | undefined>(undefined)
-  useEffect(() => () => disarmEcho.current?.(), [])
   const count = items.length
   // A shorter list can leave the index past its end until the next key.
   const shown = count === 0 ? -1 : Math.min(Math.max(active, 0), count - 1)
@@ -163,14 +184,13 @@ export function useListboxNavigation<T>({
         !event.ctrlKey &&
         !event.metaKey &&
         !event.altKey &&
-        (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)): {
+        (event.shiftKey ? event.key === 'F10' : event.key === 'ContextMenu'): {
         const item = items[shown]
         const anchor = document.getElementById(optionId(shown))
         if (item === undefined || !anchor || !onContextMenu?.(item, shown, anchor)) {
           return false
         }
-        disarmEcho.current?.()
-        disarmEcho.current = cancelContextMenuEcho(anchor.ownerDocument.defaultView ?? window)
+        cancelContextMenuEcho(window, event.key)
         break
       }
       case event.key === 'Enter' || chooseKeys.includes(event.key): {
