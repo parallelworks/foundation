@@ -213,7 +213,9 @@ export default function ChatMessageList({
       if (scrolledDown) {
         isNearBottomRef.current = true
       }
-    } else {
+    } else if (!scrolledDown) {
+      // Only moving up leaves the bottom. Content that grows before a scroll to
+      // it reports, such as a picture loading, opens a gap on the way down.
       isNearBottomRef.current = false
     }
     setPinned(isNearBottomRef.current)
@@ -231,7 +233,8 @@ export default function ChatMessageList({
   }, [])
 
   // Attach listeners once the container exists (it is absent in the empty state)
-  const hasContent = messages.length > 0 || !!streamingMessage
+  const queuedCount = queuedMessages?.length ?? 0
+  const hasContent = messages.length > 0 || !!streamingMessage || queuedCount > 0
   const awaitingApproval = streamingParts.some((part) => part.kind === 'approval' && !part.resolved)
   const showWorkingIndicator =
     workingIndicator &&
@@ -286,23 +289,16 @@ export default function ChatMessageList({
     }
   }, [messageCount])
 
-  // Auto-scroll during streaming — runs before paint so there's no visible jump
-  // Disabled when queued messages are present so they stay fixed on screen
-  const hasQueuedMessages = queuedMessages && queuedMessages.length > 0
+  // Auto-scroll during streaming — runs before paint so there's no visible jump.
+  // Queued messages render below the reply, so following it is what keeps them
+  // on screen: a reply left to grow pushes them out of view.
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll on content/message changes
   useLayoutEffect(() => {
-    if (!containerRef.current || !isNearBottomRef.current || !isStreaming || hasQueuedMessages) {
+    if (!containerRef.current || !isNearBottomRef.current || !isStreaming) {
       return
     }
     containerRef.current.scrollTop = containerRef.current.scrollHeight
-  }, [
-    streamingText,
-    streamingParts,
-    streamingMessageParts,
-    messageCount,
-    isStreaming,
-    hasQueuedMessages,
-  ])
+  }, [streamingText, streamingParts, streamingMessageParts, messageCount, isStreaming, queuedCount])
 
   // Auto-scroll on new messages (non-streaming) — smooth scroll after paint.
   // A reply that just finished streaming is already in view and followed by
@@ -355,12 +351,7 @@ export default function ChatMessageList({
     const observer = new ResizeObserver(() => {
       floor.style.minHeight = `${content.offsetHeight}px`
       const el = containerRef.current
-      if (
-        el &&
-        isNearBottomRef.current &&
-        !hasQueuedMessages &&
-        performance.now() - touchedAt > READER_GROWTH_MS
-      ) {
+      if (el && isNearBottomRef.current && performance.now() - touchedAt > READER_GROWTH_MS) {
         el.scrollTop = el.scrollHeight
         lastScrollTopRef.current = el.scrollTop
       }
@@ -371,12 +362,12 @@ export default function ChatMessageList({
       content.removeEventListener('click', touched, true)
       content.removeEventListener('keydown', touched, true)
     }
-  }, [hasContent, hasQueuedMessages])
+  }, [hasContent])
 
   // If no messages and no streaming, just return empty scrollable container
   // The parent page handles the welcome/empty state UI. Queued messages still
   // render — a canceled first turn must keep them visible.
-  if (messages.length === 0 && !streamingMessage && !hasQueuedMessages) {
+  if (!hasContent) {
     return (
       <div className="chat-thread flex-1 overflow-y-auto flex flex-col bg-(--theme-panel-bg)">
         <div className="flex-1" />
