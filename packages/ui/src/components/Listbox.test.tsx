@@ -145,16 +145,23 @@ describe('useListboxNavigation keyboard menus', () => {
     expect(fireEvent.keyDown(box, { key: 'ContextMenu' })).toBe(false)
     expect(onContextMenu).toHaveBeenCalledTimes(2)
     expect(fireEvent.keyDown(box, { key: 'F10', shiftKey: true, ctrlKey: true })).toBe(true)
+    expect(fireEvent.keyDown(box, { key: 'ContextMenu', ctrlKey: true })).toBe(true)
     expect(onContextMenu).toHaveBeenCalledTimes(2)
   })
 
-  it("stands in for the browser's menu after the key, but leaves a right-click to the host", () => {
-    render(<Editor onContextMenu={() => true} />)
+  it("stands in for the browser's menu after the key wherever focus is, but leaves a right-click be", () => {
+    const { unmount } = render(<Editor onContextMenu={() => true} />)
     const box = screen.getByRole('textbox', { name: 'Body' })
     expect(fireEvent.contextMenu(box)).toBe(true)
     fireEvent.keyDown(box, { key: 'ContextMenu' })
-    expect(fireEvent.contextMenu(box)).toBe(false)
+    expect(fireEvent.contextMenu(document.body)).toBe(false)
     expect(fireEvent.contextMenu(box)).toBe(true)
+    fireEvent.keyDown(box, { key: 'F10', shiftKey: true })
+    fireEvent.pointerDown(box)
+    expect(fireEvent.contextMenu(box)).toBe(true)
+    fireEvent.keyDown(box, { key: 'ContextMenu' })
+    unmount()
+    expect(fireEvent.contextMenu(document.body)).toBe(true)
   })
 
   it('leaves the keys to the host when no menu opens, or the list has no menus', () => {
