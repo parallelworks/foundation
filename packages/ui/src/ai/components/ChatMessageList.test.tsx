@@ -218,6 +218,67 @@ describe('ChatMessageList stick-to-bottom', () => {
   })
 })
 
+describe('ChatMessageList reading the position before it follows', () => {
+  it('keeps a jump up that a chunk beats to its scroll event', () => {
+    const { container, rerenderStreaming } = renderStreaming('Hello')
+    armAtBottom(container)
+
+    container.scrollTop = 300
+    setDimensions(container, { scrollHeight: 1300, clientHeight: 400 })
+    rerenderStreaming('Hello there')
+    fireEvent.scroll(container)
+    rerenderStreaming('Hello there again')
+
+    expect(container.scrollTop).toBe(300)
+  })
+
+  it('keeps a jump up that growth beats to its scroll event', () => {
+    const resizedBy: (() => void)[] = []
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: () => void) {
+          resizedBy.push(callback)
+        }
+        observe() {}
+        disconnect() {}
+      },
+    )
+    const { container } = renderStreaming('Hello')
+    armAtBottom(container)
+
+    container.scrollTop = 300
+    setDimensions(container, { scrollHeight: 1300, clientHeight: 400 })
+    resizedBy.at(-1)?.()
+    vi.unstubAllGlobals()
+
+    expect(container.scrollTop).toBe(300)
+  })
+
+  it('follows a long reply rejoined after a conversation that had scrolled far', () => {
+    const props = { allMessages: [] as Message[] }
+    const reply = createMockMessage({ id: 'stream', role: 'assistant', content: 'Hello' })
+    const { container, rerender } = render(
+      <ChatMessageList
+        {...props}
+        messages={[createMockMessage({ id: 'm1' })]}
+        streamingMessage={reply}
+      />,
+    )
+    // The list keeps its element through the empty state, and has no listeners
+    // there to report the position falling back to the top.
+    const list = container.firstElementChild as HTMLElement
+    armAtBottom(list)
+    rerender(<ChatMessageList {...props} messages={[]} />)
+    list.scrollTop = 0
+
+    setDimensions(list, { scrollHeight: 900, clientHeight: 400 })
+    rerender(<ChatMessageList {...props} messages={[]} streamingMessage={reply} />)
+
+    expect(list.scrollTop).toBe(900)
+  })
+})
+
 describe('ChatMessageList with a message queued behind a reply', () => {
   const first = createMockMessage({ id: 'q1' })
   const second = createMockMessage({ id: 'q2' })

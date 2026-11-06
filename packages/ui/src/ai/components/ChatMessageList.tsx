@@ -221,6 +221,20 @@ export default function ChatMessageList({
     setPinned(isNearBottomRef.current)
   }, [])
 
+  // Reads the position first: a jump up that its scroll event has not reported
+  // yet has to count, or following would undo it before it was ever seen.
+  const followBottom = useCallback(() => {
+    const el = containerRef.current
+    if (!el || !isNearBottomRef.current) {
+      return
+    }
+    handleScroll()
+    if (isNearBottomRef.current) {
+      el.scrollTop = el.scrollHeight
+      lastScrollTopRef.current = el.scrollTop
+    }
+  }, [handleScroll])
+
   // Assigned, not animated: smooth scroll is throttled to nothing in a hidden tab.
   const jumpToLatest = useCallback(() => {
     const el = containerRef.current
@@ -286,6 +300,7 @@ export default function ChatMessageList({
   useEffect(() => {
     if (messageCount === 0) {
       hadMessagesRef.current = false
+      lastScrollTopRef.current = 0
     }
   }, [messageCount])
 
@@ -294,10 +309,9 @@ export default function ChatMessageList({
   // on screen: a reply left to grow pushes them out of view.
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll on content/message changes
   useLayoutEffect(() => {
-    if (!containerRef.current || !isNearBottomRef.current || !isStreaming) {
-      return
+    if (isStreaming) {
+      followBottom()
     }
-    containerRef.current.scrollTop = containerRef.current.scrollHeight
   }, [streamingText, streamingParts, streamingMessageParts, messageCount, isStreaming, queuedCount])
 
   // Auto-scroll on new messages (non-streaming) — smooth scroll after paint.
@@ -350,10 +364,8 @@ export default function ChatMessageList({
     content.addEventListener('keydown', touched, true)
     const observer = new ResizeObserver(() => {
       floor.style.minHeight = `${content.offsetHeight}px`
-      const el = containerRef.current
-      if (el && isNearBottomRef.current && performance.now() - touchedAt > READER_GROWTH_MS) {
-        el.scrollTop = el.scrollHeight
-        lastScrollTopRef.current = el.scrollTop
+      if (performance.now() - touchedAt > READER_GROWTH_MS) {
+        followBottom()
       }
     })
     observer.observe(content)
