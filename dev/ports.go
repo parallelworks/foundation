@@ -89,8 +89,8 @@ func (c Config) allocate(ctx context.Context, logger *slog.Logger) (Config, erro
 
 // claimedPorts is every port another running dev has allocated, whether or
 // not anything listens on it: a service that is stopped, restarting or still
-// building holds its port without binding it. Not finding out leaves a port
-// unprotected, as it was before asking, so it never stops this dev starting.
+// building holds its port without binding it. Not finding out only leaves a
+// port unprotected, so it never stops this dev starting.
 func (c Config) claimedPorts(ctx context.Context, logger *slog.Logger) map[int]bool {
 	ctx, cancel := context.WithTimeout(ctx, claimsWait)
 	defer cancel()

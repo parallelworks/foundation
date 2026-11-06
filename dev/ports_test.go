@@ -213,13 +213,13 @@ func TestAllocateCarriesOnWhenListingFails(t *testing.T) {
 	free, claimed := freePort(t), freePort(t)
 	listing(t, []Instance{{Dir: "/other/.devstack", Ports: map[string]int{"web": claimed}}}, errors.New("no socket directory"))
 	var logged syncBuffer
-	cfg := allocated(t, Config{Root: t.TempDir(), Ports: map[string]int{"web": free, "api": claimed}}, &logged)
+	cfg := allocated(t, Config{Root: t.TempDir(), Ports: map[string]int{"api": free, "web": claimed}}, &logged)
 
-	if cfg.ports["web"] != free {
-		t.Errorf("web = %d, want its free preferred port %d", cfg.ports["web"], free)
+	if cfg.ports["api"] != free {
+		t.Errorf("api = %d, want its free preferred port %d", cfg.ports["api"], free)
 	}
-	if cfg.ports["api"] == claimed {
-		t.Errorf("api = %d, claimed by a dev the listing did find", claimed)
+	if cfg.ports["web"] == claimed {
+		t.Errorf("web = %d, claimed by a dev the listing did find", claimed)
 	}
 	if !strings.Contains(logged.String(), "level=WARN") || !strings.Contains(logged.String(), "no socket directory") {
 		t.Errorf("the failed listing was not logged: %s", logged.String())
