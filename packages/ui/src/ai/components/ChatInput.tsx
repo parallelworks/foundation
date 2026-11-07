@@ -210,6 +210,13 @@ export default function ChatInput({
   ref,
 }: ChatInputProps) {
   const [input, setInput] = useState(() => readDraft(conversationId))
+  const saveDraft = (value: string) => {
+    if (history?.skip?.(value.trim())) {
+      clearDraft(conversationId)
+    } else {
+      storeDraft(conversationId, value)
+    }
+  }
   useEffect(() => {
     if (!draftsSwept) {
       draftsSwept = true
@@ -225,7 +232,7 @@ export default function ChatInput({
     blocking: pastesBlocking,
   } = usePasteCards(pastes, input, (value) => {
     setInput(value)
-    storeDraft(conversationId, value)
+    saveDraft(value)
   })
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [showAttachments, setShowAttachments] = useState(false)
@@ -301,7 +308,7 @@ export default function ChatInput({
 
   const setInputAndPersist = (value: string) => {
     setInput(value)
-    storeDraft(conversationId, value)
+    saveDraft(value)
   }
 
   const composerHistory = useComposerHistory(history, input, setInput)
@@ -319,19 +326,20 @@ export default function ChatInput({
   }, [])
 
   const putBack = (sent: SentInput) => {
+    if (history?.skip?.(sent.input.trim())) {
+      return
+    }
     const { typed, conversationId: showing } = box.current
-    const secret = history?.skip?.(sent.input.trim())
     if (!mounted.current || showing !== sent.conversationId) {
-      if (!secret && !readDraft(sent.conversationId)) {
+      if (!readDraft(sent.conversationId)) {
         storeDraft(sent.conversationId, sent.input)
       }
       return
     }
     const value = [sent.input, typed].filter((text) => text.trim()).join('\n\n')
     setInput(value)
-    if (!secret) {
-      storeDraft(sent.conversationId, value)
-    }
+    box.current.typed = value
+    saveDraft(value)
     returnCards(sent.cards)
     if (sent.attachments.length > 0) {
       setAttachments((current) => [...sent.attachments, ...current])

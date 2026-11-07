@@ -1,10 +1,10 @@
-import { type KeyboardEvent, useRef } from 'react'
+import { type KeyboardEvent, useEffect, useRef } from 'react'
 import { appendHistory, readHistory } from './chatHistory'
 
 export interface ComposerHistory {
   /** Composers with the same name in a tab share one history, which ends with the tab. */
   name: string
-  /** Text that must not be remembered, in the history or as a draft, such as a command carrying a secret. */
+  /** Text to forget, such as a command carrying a secret: no history, no draft, no return from a failed send. */
   skip?: ((text: string) => boolean) | undefined
 }
 
@@ -24,6 +24,13 @@ export function useComposerHistory(
 ) {
   const walk = useRef<Walk | null>(null)
   const recalled = walk.current?.entries[walk.current.index] === input
+
+  // An edit ends the walk, or retyping an entry's text would read as recalling it.
+  useEffect(() => {
+    if (!recalled) {
+      walk.current = null
+    }
+  }, [recalled])
 
   const show = (entries: string[], index: number) => {
     walk.current = { entries, index }

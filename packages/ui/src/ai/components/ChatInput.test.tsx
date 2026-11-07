@@ -651,13 +651,39 @@ describe('ChatInput failed sends', () => {
     expect(JSON.parse(storage.get('aiChatDraft:c1') ?? '').text).toBe('newer draft')
   })
 
-  it('shows text that must not be remembered without keeping it as a draft', async () => {
+  it('does not bring back text that must not be remembered', async () => {
     const history = { name: 'agents', skip: (text: string) => text.startsWith('/auth') }
     render(<ChatInput onSend={() => false} conversationId="c1" history={history} />)
     typeInBox('/auth secret-token')
     pressEnter()
-    await vi.waitFor(() => expect(textarea().value).toBe('/auth secret-token'))
+    await act(async () => {})
+    expect(textarea().value).toBe('')
     expect(storage.has('aiChatDraft:c1')).toBe(false)
+  })
+
+  it('drops the draft as it starts to hold what must not be remembered', () => {
+    const history = { name: 'agents', skip: (text: string) => text.startsWith('/auth') }
+    render(<ChatInput onSend={vi.fn()} conversationId="c1" history={history} />)
+    typeInBox('/aut')
+    expect(storage.has('aiChatDraft:c1')).toBe(true)
+    typeInBox('/auth secret-token')
+    expect(storage.has('aiChatDraft:c1')).toBe(false)
+  })
+
+  it('keeps both when two sends fail before the box renders', async () => {
+    const fails: ((ok: boolean) => void)[] = []
+    const onSend = () => new Promise<boolean>((resolve) => fails.push(resolve))
+    render(<ChatInput onSend={onSend} conversationId="c1" />)
+    typeInBox('first')
+    pressEnter()
+    typeInBox('second')
+    pressEnter()
+    await act(async () => {
+      for (const fail of fails) {
+        fail(false)
+      }
+    })
+    expect(textarea().value).toBe('second\n\nfirst')
   })
 
   it('puts paste cards back so the same paste can be sent again', async () => {
@@ -830,6 +856,17 @@ describe('ChatInput history', () => {
     typeInBox('newer, edited')
     pressUp()
     expect(textarea().value).toBe('newer, edited')
+  })
+
+  it('reads an entry retyped after an edit as typing, not a recall', () => {
+    const slash = { commands: [{ name: 'review' }], label: 'Commands' }
+    render(<ChatInput onSend={vi.fn()} history={history} slash={slash} />)
+    sendAll('/review')
+    pressUp()
+    expect(screen.queryByTestId('slash-menu')).toBeNull()
+    typeInBox('/revie')
+    typeInBox('/review')
+    expect(screen.getByTestId('slash-menu')).toBeInTheDocument()
   })
 
   it('does not save a recalled entry as the draft', () => {
