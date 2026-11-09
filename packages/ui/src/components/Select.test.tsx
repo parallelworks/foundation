@@ -227,6 +227,8 @@ describe('Select sizing, reasons and keys', () => {
       />,
     )
     fireEvent.click(screen.getByRole('combobox', { name: 'Team' }))
-    expect(await screen.findByRole('option', { name: 'Design DES' })).toBeInTheDocument()
+    const row = await screen.findByRole('option', { name: 'Design DES' })
+    // Its text reads the same, so the name holds all of it.
+    expect(row.textContent).toBe('Design DES')
   })
 })

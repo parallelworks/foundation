@@ -658,6 +658,14 @@ describe('Combobox as a picker', () => {
     expect(await screen.findByRole('option', { name: 'Design DES' })).toBeInTheDocument()
   })
 
+  it('shows a row the way it names it, so its name holds all its text', async () => {
+    render(<Picker />)
+    fireEvent.click(screen.getByRole('combobox', { name: 'Team' }))
+    expect((await screen.findByRole('option', { name: 'Design DES' })).textContent).toBe(
+      'Design DES',
+    )
+  })
+
   it('opens on a row, so Enter picks at once', async () => {
     const onValueChange = vi.fn()
     render(<Picker onValueChange={onValueChange} />)

@@ -5,7 +5,10 @@ import { panelItemClassName } from './floating'
 /** The end of an option's row: its hint, then the check while it is chosen, on the label's
  *  line rather than the middle of a row with a description under it. */
 export const pickerEndClassName = 'ml-auto flex h-[1lh] shrink-0 items-center gap-2 self-start pl-2'
-export const pickerHintClassName = 'text-xs tabular-nums text-(--theme-muted-text-color)'
+// On the highlighted row the hint takes the row's color: a host's muted text needn't read on its
+// hover color.
+export const pickerHintClassName =
+  'text-xs tabular-nums text-(--theme-muted-text-color) in-data-highlighted:text-inherit'
 
 /** An option's row in a Select's or a Combobox's list, so both lists look alike: the icon, the
  *  label over its description, and the check at the end. */
