@@ -290,7 +290,8 @@ export function shownResult(
     return t.unattended
   }
   if (isUserInterruptedTool(result)) {
-    return t.userInterrupted(toolHeaderFor(name).label)
+    // By the tool's own name, as the agent recorded it.
+    return t.userInterrupted(name)
   }
   return result
 }

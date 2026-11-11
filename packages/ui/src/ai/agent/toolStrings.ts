@@ -31,7 +31,7 @@ export interface ToolStrings {
   rejectedWrite: (path: string, feedback: string) => string
   /** A call that needed approval where nobody could give it. */
   unattended: string
-  /** A call the person's stop cut off; `tool` is its header label. */
+  /** A call the person's stop cut off; `tool` is its name as the agent knows it. */
   userInterrupted: (tool: string) => string
   /** One clause per kind of call in a run of quick calls, joined into a sentence. */
   rollup: {

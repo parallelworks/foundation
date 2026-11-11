@@ -51,12 +51,12 @@ describe('calls that did not run', () => {
     expect(resultFailed('Bash', REJECTED)).toBe(false)
   })
 
-  it('says a stop cut a call off, by the name the transcript shows it under', () => {
+  it('says a stop cut a call off, by the tool’s own name as the terminal does', () => {
     const stopped = 'The user interrupted ReadFile before it finished.'
     expect(isUserInterruptedTool(stopped)).toBe(true)
     expect(isUserInterruptedTool('Tool execution was interrupted by the user.')).toBe(true)
     expect(toolSummary('ReadFile', '{"path":"a"}', stopped, false)).toBe(
-      'The user interrupted Read before it finished.',
+      'The user interrupted ReadFile before it finished.',
     )
     expect(resultFailed('ReadFile', stopped)).toBe(false)
   })
