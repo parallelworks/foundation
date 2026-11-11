@@ -447,7 +447,9 @@ describe('edits', () => {
 
   it('shows what was declined in place of a change never written, and dims its diff', () => {
     const { container } = renderParts([edit('ok', REJECTED)])
-    expect(screen.getByTestId('edit-outcome')).toHaveTextContent('User rejected update to a.go: use b')
+    expect(screen.getByTestId('edit-outcome')).toHaveTextContent(
+      'User rejected update to a.go: use b',
+    )
     expect(screen.queryByText(/Added/)).toBeNull()
     expect(container.querySelector('[data-dimmed]')).not.toBeNull()
     expect(screen.getByText('Declined')).toBeInTheDocument()

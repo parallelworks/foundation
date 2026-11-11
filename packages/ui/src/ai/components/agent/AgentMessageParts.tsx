@@ -381,9 +381,7 @@ function FailedOutput({ part }: { part: ToolCallPart }) {
         </pre>
       )}
       {hidden > 0 && (
-        <div className="text-xs theme-muted-text">
-          {strings.agentTranscript.moreLines(hidden)}
-        </div>
+        <div className="text-xs theme-muted-text">{strings.agentTranscript.moreLines(hidden)}</div>
       )}
     </div>
   )
@@ -453,9 +451,7 @@ function ToolCallBlock({
               <span className="font-mono text-[13px] leading-5 min-w-0 truncate">
                 <span className="font-semibold">{header.label}</span>
                 {argSummary && <span className="theme-muted-text">({argSummary})</span>}
-                {part.argsRewritten && (
-                  <span className="theme-muted-text"> {t.argsRewritten}</span>
-                )}
+                {part.argsRewritten && <span className="theme-muted-text"> {t.argsRewritten}</span>}
               </span>
             )}
           </>

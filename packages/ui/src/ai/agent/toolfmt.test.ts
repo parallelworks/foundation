@@ -37,7 +37,9 @@ describe('calls that did not run', () => {
     expect(shownResult('EditFile', edit, REJECTED_WITH_FEEDBACK)).toBe(
       'User rejected update to a.go: use b.go',
     )
-    expect(shownResult('WriteFile', '{"path":"a.go"}', REJECTED)).toBe('User rejected write to a.go')
+    expect(shownResult('WriteFile', '{"path":"a.go"}', REJECTED)).toBe(
+      'User rejected write to a.go',
+    )
     expect(toolSummary('ReadFile', '{"path":"a"}', REJECTED, false)).toBe('Tool use rejected')
   })
 
@@ -65,9 +67,9 @@ describe('fullToolArgs', () => {
     expect(fullToolArgs('command', '{"command":"cat <<EOF\\na\\nEOF\\n"}')).toBe(
       'cat <<EOF\na\nEOF',
     )
-    expect(
-      fullToolArgs('command', '{"command":"cat <<EOF\\na\\nEOF","timeout":5}'),
-    ).toBe('cat <<EOF\na\nEOF\ntimeout: 5')
+    expect(fullToolArgs('command', '{"command":"cat <<EOF\\na\\nEOF","timeout":5}')).toBe(
+      'cat <<EOF\na\nEOF\ntimeout: 5',
+    )
     expect(summarizeToolArgs('command', '{"command":"a\\nb"}')).toBe('a b')
   })
 })
