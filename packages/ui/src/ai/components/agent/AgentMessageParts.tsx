@@ -397,12 +397,14 @@ function FailedOutput({ part }: { part: ToolCallPart }) {
       </div>
     )
   }
-  // Color can't be the only sign of a failure, so the first line says it in words.
+  // Color can't be the only sign of a failure, so the first line says it in words; a verdict already does.
   const [first = '', ...rest] = text.split('\n')
   const hidden = rest.length + 1 - COLLAPSED_RESULT_LINES
   return (
     <div className="ml-5 mt-0.5 min-w-0 text-(--theme-error-text)" data-testid="failed-output">
-      <div className="text-[13px] break-words">{strings.agentTranscript.failedWith(first)}</div>
+      <div className="text-[13px] break-words">
+        {resultNotRun(part.result ?? '') ? first : strings.agentTranscript.failedWith(first)}
+      </div>
       {rest.length > 0 && (
         <pre className="overflow-x-auto font-mono text-xs leading-5 whitespace-pre-wrap break-words">
           {rest.slice(0, COLLAPSED_RESULT_LINES - 1).join('\n')}

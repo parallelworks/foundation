@@ -717,42 +717,46 @@ export const CallsThatDidNotRun: StoryObj<{ feedback: string; failedLines: numbe
   argTypes: { failedLines: { control: { type: 'range', min: 1, max: 40 } } },
   render: ({ feedback, failedLines }) => {
     const edit = makeEditDiffPart()
+    const editArgs = (path: string, oldText: string, newText: string) =>
+      JSON.stringify({ path, old_string: oldText, new_string: newText })
+    const blocks: MessagePart[] = [
+      {
+        ...edit,
+        args: editArgs('internal/server/server.go', 'idle = 60\n', 'idle = 90\n'),
+        result: REJECTED(feedback),
+      },
+      { ...makeToolCallPart({ name: 'ReadFile' }), result: REJECTED('') },
+      { ...makeToolCallPart({ command: 'rm -rf build' }), status: 'error', result: UNATTENDED },
+      {
+        ...makeToolCallPart({ command: 'sleep 600' }),
+        result: 'The user interrupted Bash before it finished.',
+      },
+      {
+        ...makeToolCallPart({ command: 'make test' }),
+        status: 'error',
+        result: `${Array.from({ length: failedLines }, (_, i) => `FAIL case_${i + 1}`).join('\n')}\nExit code: 2`,
+      },
+      {
+        ...edit,
+        args: editArgs('plans/rollout.md', '- [ ] ship\n', '- [x] ship\n'),
+        result: 'Edited plans/rollout.md',
+        foldDiff: true,
+      },
+      {
+        ...edit,
+        args: editArgs('internal/server/server.go', 'retries = 1\n', 'retries = 3\n'),
+        result: 'Edited internal/server/server.go',
+        argsRewritten: true,
+      },
+    ]
+    // One message each, so no block folds into its neighbors.
     return (
-      <AgentMessageParts
-        message={makeMessage({
-          content: null,
-          parts: [
-            { ...edit, id: 'declined-edit', result: REJECTED(feedback) },
-            { ...makeToolCallPart({ name: 'ReadFile' }), result: REJECTED('') },
-            {
-              ...makeToolCallPart({ command: 'rm -rf build' }),
-              status: 'error',
-              result: UNATTENDED,
-            },
-            {
-              ...makeToolCallPart({ command: 'sleep 600' }),
-              result: 'The user interrupted Bash before it finished.',
-            },
-            {
-              ...makeToolCallPart({ command: 'make test' }),
-              status: 'error',
-              result: `${Array.from({ length: failedLines }, (_, i) => `FAIL case_${i + 1}`).join('\n')}\nExit code: 2`,
-            },
-            {
-              ...edit,
-              id: 'plan',
-              args: JSON.stringify({
-                path: 'plans/rollout.md',
-                old_string: '- [ ] ship\n',
-                new_string: '- [x] ship\n',
-              }),
-              result: 'Edited plans/rollout.md',
-              foldDiff: true,
-            },
-            { ...edit, id: 'hooked', result: 'Edited', argsRewritten: true },
-          ],
-        })}
-      />
+      <div>
+        {blocks.map((part, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: a fixed list
+          <AgentMessageParts key={i} message={makeMessage({ content: null, parts: [part] })} />
+        ))}
+      </div>
     )
   },
 }

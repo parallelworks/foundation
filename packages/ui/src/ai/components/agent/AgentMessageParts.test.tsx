@@ -621,6 +621,18 @@ describe('failed and declined calls', () => {
     expect(screen.getByTestId('logviewer')).toHaveTextContent('Exit code: 2')
   })
 
+  it('says nobody could approve a call once, without calling the verdict a failure too', () => {
+    renderParts([
+      bash(
+        'error',
+        'Permission for this tool use was denied. It requires approval, and this session has no approval surface — nobody can answer a permission prompt here — so it was denied automatically. What required approval: make',
+      ),
+    ])
+    expect(screen.getByTestId('failed-output')).toHaveTextContent(
+      /^Denied: nobody could approve it here$/,
+    )
+  })
+
   it('reads a call a stop cut off as neither failed nor done', () => {
     renderParts([bash('ok', 'The user interrupted Bash before it finished.')])
     expect(screen.getByText('Interrupted')).toBeInTheDocument()
