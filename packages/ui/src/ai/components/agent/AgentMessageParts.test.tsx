@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ChatConfigProvider, resolveChatConfig } from '../../core/config'
 import type { ChatMessage, MessagePart, ToolCallPart, ToolDecision } from '../../types'
-import AgentMessageParts, { buildRenderItems } from './AgentMessageParts'
+import AgentMessageParts, { buildRenderItems, ExpandAllProvider } from './AgentMessageParts'
 
 vi.mock('../../ui/Markdown', () => ({
   __esModule: true,
@@ -432,6 +432,86 @@ function tc(id: string, name: string, status: 'ok' | 'running' | 'error' = 'ok')
     result: 'out',
   }
 }
+
+describe('transcript features', () => {
+  it('shows the pictures a call returned', () => {
+    renderParts([
+      {
+        kind: 'image',
+        images: [
+          {
+            id: 'i1',
+            previewUrl: 'data:image/png;base64,AAAA',
+            filename: 'shot.png',
+            contentType: 'image/png',
+            size: 3,
+            uploadedAt: '',
+          },
+        ],
+      },
+    ])
+    expect(screen.getByRole('img', { name: 'shot.png' })).toBeInTheDocument()
+  })
+
+  it('shows a command’s output under its line without a toggle', () => {
+    renderParts([{ kind: 'notice', text: '! ls', detail: '```\na.go\n```', open: true }])
+    expect(screen.queryByRole('button')).toBeNull()
+    expect(screen.getByTestId('markdown')).toHaveTextContent('a.go')
+  })
+
+  it('keeps an answered plan in view', () => {
+    renderParts([
+      {
+        kind: 'approval',
+        id: 'p1',
+        approvalKind: 'plan',
+        plan: '1. Ship it',
+        resolved: true,
+        answer: 'Approved',
+        canAllowDirectory: false,
+      },
+    ])
+    expect(screen.getByText('1. Ship it')).toBeInTheDocument()
+    expect(screen.getByText('Answered: Approved')).toBeInTheDocument()
+  })
+
+  it('opens and closes every block at once, and each still toggles on its own', () => {
+    const parts = [tc('t1', 'ReadFile'), tc('t2', 'GrepSearch')]
+    const view = (all: boolean) => (
+      <ChatConfigProvider value={resolveChatConfig()}>
+        <ExpandAllProvider value={all}>
+          <AgentMessageParts message={msg(parts)} foldEveryRun />
+        </ExpandAllProvider>
+      </ChatConfigProvider>
+    )
+    const { rerender } = render(view(true))
+    const run = screen.getByRole('button', { name: /Searched for 1 pattern, read 1 file/ })
+    expect(run).toHaveAttribute('aria-expanded', 'true')
+    const calls = screen.getAllByRole('button', { name: /Read|Grep/ }).filter((b) => b !== run)
+    for (const call of calls) {
+      expect(call).toHaveAttribute('aria-expanded', 'true')
+    }
+    fireEvent.click(run)
+    expect(run).toHaveAttribute('aria-expanded', 'false')
+    rerender(view(false))
+    expect(run).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('shows all of a thought while it streams, only where the transcript draws as a terminal does', () => {
+    const text = Array.from({ length: 30 }, (_, i) => `step ${i}`).join('\n\n')
+    const { rerender } = renderParts([{ kind: 'reasoning', text }], {
+      isStreaming: true,
+      foldEveryRun: true,
+    })
+    expect(screen.getByTestId('reasoning-body')).not.toHaveClass('max-h-20')
+    rerender(
+      <ChatConfigProvider value={resolveChatConfig()}>
+        <AgentMessageParts message={msg([{ kind: 'reasoning', text }])} isStreaming />
+      </ChatConfigProvider>,
+    )
+    expect(screen.getByTestId('reasoning-body')).toHaveClass('max-h-20')
+  })
+})
 
 describe('subagents', () => {
   it('says a stop cut a child off, in place of its tally', () => {

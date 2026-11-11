@@ -1,5 +1,14 @@
 import { DateTime } from 'luxon'
-import { memo, type ReactNode, useEffect, useId, useMemo, useState } from 'react'
+import {
+  createContext,
+  memo,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useId,
+  useMemo,
+  useState,
+} from 'react'
 import { Disclosure } from '../../../components/Disclosure'
 import { fieldBox } from '../../../components/fieldBox'
 import { focusOnMount } from '../../../components/focus'
@@ -50,10 +59,29 @@ import type {
 } from '../../types'
 import Markdown from '../../ui/Markdown'
 import { chatProseClasses } from '../../ui/prose'
+import MessageAttachments from '../MessageAttachments'
 import { Reasoning, ReasoningBody } from '../Reasoning'
 import { AskAnswered, AskApproval } from './AskApproval'
 
 const COLLAPSED_RESULT_LINES = 12
+
+const ExpandAllContext = createContext<boolean | undefined>(undefined)
+
+/** Opens, or closes, every block of the transcripts under it at once; each
+ *  still opens and closes on its own afterwards, and a block that appears
+ *  later starts the same way. */
+export const ExpandAllProvider = ExpandAllContext.Provider
+
+function useExpandable(): [boolean, (open: boolean) => void] {
+  const all = useContext(ExpandAllContext)
+  const [open, setOpen] = useState(all ?? false)
+  useEffect(() => {
+    if (all !== undefined) {
+      setOpen(all)
+    }
+  }, [all])
+  return [open, setOpen]
+}
 
 // Splits one line's syntax tokens (or the plain text) at the emphasis
 // boundaries so changed words get the brighter band without breaking colors.
@@ -411,7 +439,7 @@ function ToolCallBlock({
 }) {
   const { strings, slots } = useChatConfig()
   const t = strings.agentTranscript
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useExpandable()
   const presentation = slots.toolPresentation?.(part, message)
   // A named call keeps its drawing behind the row unless the host keeps it
   // open; a call waiting on an answer always shows what it asks.
@@ -563,7 +591,7 @@ function DecisionLine({ decision }: { decision: ToolDecision }) {
 function SubagentCard({ part }: { part: SubagentPart }) {
   const { strings } = useChatConfig()
   const t = strings.agentTranscript
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useExpandable()
   const color = agentColorHex(part.color)
   const label = part.agentType && part.agentType !== 'default' ? part.agentType : t.subagent
   const actions = part.actions ?? []
@@ -784,6 +812,23 @@ export function ApprovalBlock({
   // A lone question is named by its header; several are named by their tabs.
   const lone = part.questions?.length === 1 ? part.questions[0] : undefined
   const heading = part.header ?? (part.approvalKind === 'ask' ? lone?.header : part.toolName)
+  if (part.resolved && part.approvalKind === 'plan' && part.plan) {
+    // An answered plan is still the plan the work follows, so it stays in view.
+    return (
+      <div className="my-1.5 space-y-1.5" data-testid="approval-part">
+        <div className={chatProseClasses}>
+          <Markdown isStreaming={false}>{part.plan}</Markdown>
+        </div>
+        <div className="flex items-center gap-2 text-xs theme-muted-text">
+          <CheckIcon className="w-3.5 h-3.5" />
+          <span>
+            {t.answered}
+            {part.answer ? `: ${part.answer}` : ''}
+          </span>
+        </div>
+      </div>
+    )
+  }
   if (part.resolved) {
     return (
       <div
@@ -882,7 +927,18 @@ function TodoSnapshotBlock({ part }: { part: TodoSnapshotPart }) {
 }
 
 function NoticeBlock({ part }: { part: NoticePart }) {
+  const [open, setOpen] = useExpandable()
   if (part.kind === 'notice') {
+    if (part.detail && part.open) {
+      return (
+        <div className="my-1.5" data-testid="notice-part">
+          <div className="whitespace-pre-wrap text-[13px] theme-muted-text">{part.text}</div>
+          <div className="ml-4 mt-1 text-sm theme-muted-text">
+            <Markdown>{part.detail}</Markdown>
+          </div>
+        </div>
+      )
+    }
     if (!part.detail) {
       return (
         <div
@@ -896,6 +952,8 @@ function NoticeBlock({ part }: { part: NoticePart }) {
     return (
       <div className="my-1.5" data-testid="notice-part">
         <Disclosure
+          open={open}
+          onOpenChange={setOpen}
           summary={<span className="min-w-0 flex-1 whitespace-pre-wrap">{part.text}</span>}
           summaryClassName="w-full text-[13px] theme-muted-text hover:theme-text"
           panelClassName="ml-4 mt-1 border-l-2 theme-border pl-3 text-sm theme-muted-text"
@@ -924,13 +982,16 @@ function NoticeBlock({ part }: { part: NoticePart }) {
 const ReasoningBlock = memo(function ReasoningBlock({
   part,
   isStreaming,
+  whole = false,
 }: {
   part: ReasoningPart
   isStreaming?: boolean
+  /** Shows all of a thought while it streams, not only its latest lines. */
+  whole?: boolean
 }) {
   const { strings } = useChatConfig()
   const t = strings.thinking
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useExpandable()
   const label =
     thinkingHeading(part.text) ||
     (part.durationMs ? t.thoughtFor(formatDuration(part.durationMs)) : t.label)
@@ -941,9 +1002,9 @@ const ReasoningBlock = memo(function ReasoningBlock({
       <div className="py-1.5" data-testid="reasoning-part">
         <div className="animate-shimmer text-shimmer text-sm">{label}</div>
         {hasBody && (
-          <ReasoningBody className="chat-reasoning-tail">
+          <ReasoningBody className={cx(!whole && 'chat-reasoning-tail')}>
             <div
-              className="flex max-h-20 flex-col justify-end overflow-hidden"
+              className={cx(!whole && 'flex max-h-20 flex-col justify-end overflow-hidden')}
               data-testid="reasoning-body"
             >
               {markdown}
@@ -1040,6 +1101,8 @@ const BuiltinPart = memo(function BuiltinPart({
       return <NoticeBlock part={part} />
     case 'todo_snapshot':
       return <TodoSnapshotBlock part={part} />
+    case 'image':
+      return <MessageAttachments attachments={part.images} className="mt-1.5 sm:ml-5" />
     default:
       return null
   }
@@ -1282,7 +1345,7 @@ function RollupGroup({
   foldEveryRun: boolean
 }) {
   const { strings, slots } = useChatConfig()
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useExpandable()
   const live = members.filter(isRunningCall)
   const settled = members.filter((m) => !isRunningCall(m))
   const running = live.length > 0
@@ -1411,7 +1474,7 @@ function CallGroup({
 }) {
   const { strings, slots } = useChatConfig()
   const t = strings.agentTranscript
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useExpandable()
   const name = members[0]?.part.name ?? ''
   const Tool = slots.toolRenderers?.[name]
   const header = toolHeaderFor(name)
@@ -1497,8 +1560,9 @@ export default function AgentMessageParts({
   message: PartRendererProps['message']
   isStreaming?: boolean
   onApprovalAnswer?: PartRendererProps['onApprovalAnswer']
-  /** Folds tool calls as a terminal transcript does: every run from its first
-   *  call, failures and running calls included. */
+  /** Draws the transcript as a terminal does: every run of tool calls folds
+   *  from its first call, failures and running calls included, and a thought
+   *  shows whole while it streams. */
   foldEveryRun?: boolean | undefined
 }) {
   const parts = message.parts ?? []
@@ -1538,6 +1602,7 @@ export default function AgentMessageParts({
             key={item.index}
             part={mergeReasoning(item.parts)}
             isStreaming={(isStreaming ?? false) && item.index + item.parts.length - 1 === lastIndex}
+            whole={foldEveryRun}
           />
         ) : (
           <PartDispatch

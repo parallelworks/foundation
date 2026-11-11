@@ -243,6 +243,14 @@ export interface NoticePart {
   text: string
   // A longer body behind the line, shown on request.
   detail?: string
+  /** Shows the detail under the line rather than behind it, as for a command's output. */
+  open?: boolean
+}
+
+/** Pictures a tool call returned, such as a screenshot it read. */
+export interface ImagePart {
+  kind: 'image'
+  images: AttachmentRef[]
 }
 
 export type TodoStatus = 'pending' | 'in_progress' | 'completed'
@@ -266,6 +274,7 @@ export type MessagePart =
   | ApprovalPart
   | NoticePart
   | TodoSnapshotPart
+  | ImagePart
 
 export type MessagePartKind = MessagePart['kind']
 
