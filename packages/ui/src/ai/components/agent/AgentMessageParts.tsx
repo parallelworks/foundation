@@ -522,24 +522,37 @@ function decisionLabel(d: ToolDecision, t: ChatStrings['agentTranscript']): stri
 
 function DecisionLine({ decision }: { decision: ToolDecision }) {
   const { strings } = useChatConfig()
+  const approved = decision.status === 'approved'
+  // An approval needs no reason to read; a reviewer's no, or its failure to answer, does.
+  const showReason = !!decision.reason && decision.by === 'auto-reviewer' && !approved
   return (
     <div className="ml-5 mt-0.5 text-xs theme-muted-text" data-testid="tool-decision">
       <div className="flex min-w-0 flex-wrap items-baseline gap-x-1">
+        <span
+          aria-hidden="true"
+          className={cx('leading-none', approved && 'text-(--theme-success)')}
+        >
+          {approved ? '✓' : '✗'}
+        </span>
         <span>{decisionLabel(decision, strings.agentTranscript)}</span>
+        {decision.note && <span className="min-w-0 max-w-full truncate">({decision.note})</span>}
         {decision.at && (
           <>
             <span aria-hidden="true">·</span>
             <RelativeTime value={decision.at} className="shrink-0" />
           </>
         )}
-        {decision.note && (
-          <>
-            <span aria-hidden="true">·</span>
-            <span className="min-w-0 max-w-full truncate">{decision.note}</span>
-          </>
-        )}
       </div>
-      {decision.reason && <p className="mt-0.5 line-clamp-2">{decision.reason}</p>}
+      {decision.action && (
+        <div className="flex min-w-0 gap-1.5 pl-3">
+          {/* biome-ignore lint/style/noJsxLiterals: a gutter glyph, not words */}
+          <span aria-hidden="true">⎿</span>
+          <span className="min-w-0 truncate font-mono" data-testid="decision-action">
+            {decision.action}
+          </span>
+        </div>
+      )}
+      {showReason && <p className="mt-0.5 whitespace-pre-wrap pl-5">{decision.reason}</p>}
     </div>
   )
 }
@@ -556,10 +569,14 @@ function SubagentCard({ part }: { part: SubagentPart }) {
   const actions = part.actions ?? []
   const latest = actions[actions.length - 1]
   const canExpand = actions.length > 0 || !!part.report
+  const reviewing = part.status === 'running' && (part.reviewing ?? 0) > 0
+  const detail = part.interrupted ? t.interruptedReason : part.summary
   const outcome =
     part.status === 'running'
-      ? latest || t.running
-      : `${part.status === 'done' ? t.done : t.failed}${part.summary ? ` (${part.summary})` : ''}`
+      ? reviewing
+        ? t.reviewing(part.reviewing ?? 0)
+        : latest || t.running
+      : `${part.status === 'done' ? t.done : t.failed}${detail ? ` (${detail})` : ''}`
   return (
     <div className="py-1.5 text-sm" data-testid="subagent-part">
       <Disclosure
@@ -601,13 +618,15 @@ function SubagentCard({ part }: { part: SubagentPart }) {
           part.status === 'failed' ? 'text-(--theme-error-text)' : 'theme-muted-text',
         )}
       >
-        {actions.length > 0 && (
+        {(actions.length > 0 || part.status !== 'running' || reviewing) && (
           <ul className="space-y-0.5">
             {actions.map((a, i) => (
               // biome-ignore lint/suspicious/noArrayIndexKey: feed is append-only
               <li key={i}>{a}</li>
             ))}
-            {part.status !== 'running' && <li>{outcome}</li>}
+            {(part.status !== 'running' || reviewing) && (
+              <li data-testid="subagent-outcome">{outcome}</li>
+            )}
           </ul>
         )}
         {part.report && (
@@ -1030,6 +1049,8 @@ type RunMember = { part: ToolCallPart | ReasoningPart; index: number }
 
 type RenderItem =
   | { kind: 'single'; part: MessagePart; index: number }
+  // Subagents started in the background one after another, drawn as one launch with their names.
+  | { kind: 'launch'; parts: SubagentPart[]; index: number }
   // Adjacent thoughts drawn as one line, labeled by the first.
   | { kind: 'reasoning'; parts: ReasoningPart[]; index: number }
   | { kind: 'rollup'; members: RunMember[] }
@@ -1142,10 +1163,54 @@ export function buildRenderItems(
       return
     }
     flush()
+    const last = items[items.length - 1]
+    if (part.kind === 'subagent' && part.background) {
+      if (last?.kind === 'launch') {
+        last.parts.push(part)
+      } else {
+        items.push({ kind: 'launch', parts: [part], index })
+      }
+      return
+    }
     items.push({ kind: 'single', part, index })
   })
   flush()
   return foldEveryRun ? items : groupRepeatedCalls(items)
+}
+
+/** Background subagents as they were launched: their names, with no state, as each reports back on its own line. */
+function LaunchGroup({ parts }: { parts: SubagentPart[] }) {
+  const t = useChatConfig().strings.agentTranscript
+  return (
+    <div className="py-1.5 text-sm" data-testid="subagent-launch">
+      <div className="flex min-h-6 items-start gap-2">
+        <span aria-hidden="true" className="leading-5 theme-muted-text">
+          ●
+        </span>
+        <span className="text-[13px] leading-5 font-semibold">
+          {t.backgroundLaunched(parts.length)}
+        </span>
+      </div>
+      <ul className="ml-5 font-mono text-[13px] leading-5">
+        {parts.map((p, i) => {
+          const color = agentColorHex(p.color)
+          return (
+            <li key={p.id} className="flex min-w-0 gap-1.5">
+              <span aria-hidden="true" className="theme-muted-text">
+                {i === parts.length - 1 ? '└' : '├'}
+              </span>
+              <span
+                className="min-w-0 truncate font-semibold"
+                style={color ? { color } : undefined}
+              >
+                {p.description || p.id}
+              </span>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
 }
 
 /** An allowed call with nothing more to say, which reads fine once its run is opened. */
@@ -1466,6 +1531,8 @@ export default function AgentMessageParts({
           />
         ) : item.kind === 'calls' ? (
           <CallGroup key={item.members[0]?.index ?? 0} members={item.members} message={message} />
+        ) : item.kind === 'launch' ? (
+          <LaunchGroup key={item.index} parts={item.parts} />
         ) : item.kind === 'reasoning' ? (
           <ReasoningBlock
             key={item.index}

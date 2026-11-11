@@ -99,6 +99,8 @@ export interface ToolDecision {
   reason?: string
   /** The reader changed the call's arguments before allowing it. */
   edited?: boolean
+  /** What was decided on, such as the command, in the decider's words. */
+  action?: string
 }
 
 /** How a host names one of its own tool calls in a transcript, in place of
@@ -147,6 +149,12 @@ export interface SubagentPart {
   summary?: string
   // The report the child delivered, in full; summary is its first line.
   report?: string
+  /** A stop cut it off rather than it failing on its own. */
+  interrupted?: boolean
+  /** Moved to the background after it started, so it outlives the turn that started it. */
+  detached?: boolean
+  /** How many of its calls a reviewer is deciding on. */
+  reviewing?: number
 }
 
 export interface ApprovalOption {

@@ -394,7 +394,7 @@ describe('approval parts', () => {
       },
       { kind: 'approval', id: 'c1', approvalKind: 'confirm', resolved: true, answer: 'Allowed' },
     ])
-    expect(screen.getByTestId('tool-decision')).toHaveTextContent('Allowed by Bob')
+    expect(screen.getByTestId('tool-decision')).toHaveTextContent('Bob approved')
     expect(screen.queryByText('Answered: Allowed')).not.toBeInTheDocument()
   })
 
@@ -432,6 +432,41 @@ function tc(id: string, name: string, status: 'ok' | 'running' | 'error' = 'ok')
     result: 'out',
   }
 }
+
+describe('subagents', () => {
+  it('says a stop cut a child off, in place of its tally', () => {
+    renderParts([
+      { kind: 'subagent', id: 's1', status: 'failed', interrupted: true, summary: '3 tool uses' },
+    ])
+    expect(screen.getByText('Failed (interrupted)')).toBeInTheDocument()
+  })
+
+  it('shows how a child ended when opened to its report', () => {
+    renderParts([
+      { kind: 'subagent', id: 's1', status: 'done', summary: 'ok', report: 'All good.' },
+    ])
+    fireEvent.click(screen.getByRole('button', { name: /Task/ }))
+    expect(screen.getByTestId('subagent-outcome')).toHaveTextContent('Done (ok)')
+  })
+
+  it('says a reviewer is deciding on a child’s calls, in place of its latest action', () => {
+    renderParts([
+      { kind: 'subagent', id: 's1', status: 'running', actions: ['Read a.go'], reviewing: 2 },
+    ])
+    expect(screen.getByText('Reviewing 2 approval requests')).toBeInTheDocument()
+  })
+
+  it('draws children started in the background as one launch, with no state', () => {
+    renderParts([
+      { kind: 'subagent', id: 's1', status: 'running', background: true, description: 'Audit' },
+      { kind: 'subagent', id: 's2', status: 'done', background: true, description: 'Lint' },
+    ])
+    expect(screen.getByTestId('subagent-launch')).toHaveTextContent(
+      '2 background agents launched├Audit└Lint',
+    )
+    expect(screen.queryByText(/^Done/)).toBeNull()
+  })
+})
 
 describe('edits', () => {
   const REJECTED =
@@ -525,14 +560,14 @@ describe('tool decisions', () => {
   })
 
   it.each<[ToolDecision, string]>([
-    [{ status: 'approved', by: 'user', name: 'ana' }, 'Allowed by ana'],
-    [{ status: 'denied', by: 'user', name: 'bob' }, 'Denied by bob'],
-    [{ status: 'approved', by: 'user' }, 'Allowed'],
-    [{ status: 'approved', by: 'auto-reviewer' }, 'Allowed by the auto-reviewer'],
-    [{ status: 'expired', by: 'user' }, 'Expired without an answer'],
-    [{ status: 'timed_out', by: 'user' }, 'Denied: no answer in time'],
-    [{ status: 'timed_out', by: 'auto-reviewer' }, 'Denied: the auto-reviewer timed out'],
-    [{ status: 'failed', by: 'auto-reviewer' }, 'Denied: the auto-reviewer failed'],
+    [{ status: 'approved', by: 'user', name: 'ana' }, '✓ana approved'],
+    [{ status: 'denied', by: 'user', name: 'bob' }, '✗bob denied'],
+    [{ status: 'approved', by: 'user' }, '✓Approved'],
+    [{ status: 'approved', by: 'auto-reviewer' }, '✓Auto-reviewer approved'],
+    [{ status: 'expired', by: 'user' }, '✗Expired without an answer'],
+    [{ status: 'timed_out', by: 'user' }, '✗Denied: no answer in time'],
+    [{ status: 'timed_out', by: 'auto-reviewer' }, '✗Auto-review timed out'],
+    [{ status: 'failed', by: 'auto-reviewer' }, '✗Auto-review failed'],
   ])('says who settled the call: %o', (decision, label) => {
     renderParts([call(decision)])
     expect(screen.getByTestId('tool-decision')).toHaveTextContent(label)
@@ -549,7 +584,7 @@ describe('tool decisions', () => {
         decision: { status: 'approved', by: 'user', name: 'Bob', edited: true },
       },
     ])
-    expect(screen.getByTestId('tool-decision')).toHaveTextContent('Allowed with changes by Bob')
+    expect(screen.getByTestId('tool-decision')).toHaveTextContent('Bob approved with changes')
   })
 
   it('shows when and the note', () => {
@@ -575,9 +610,25 @@ describe('tool decisions', () => {
         reason: 'Deleting shared scratch was not asked for.',
       }),
     ])
+    expect(screen.getByTestId('tool-decision')).toHaveTextContent('Auto-reviewer denied')
+    expect(screen.getByText('Deleting shared scratch was not asked for.')).toBeInTheDocument()
+  })
+
+  it('keeps an approval to who approved it and what, without the reviewer’s reason', () => {
+    renderParts([
+      call({
+        status: 'approved',
+        by: 'auto-reviewer',
+        reason: 'Lists files in the workspace.',
+        action: 'sbatch run.sh',
+        note: 'rules saved',
+      }),
+    ])
     expect(screen.getByTestId('tool-decision')).toHaveTextContent(
-      'Denied by the auto-reviewerDeleting shared scratch was not asked for.',
+      'Auto-reviewer approved(rules saved)',
     )
+    expect(screen.getByTestId('decision-action')).toHaveTextContent('sbatch run.sh')
+    expect(screen.queryByText('Lists files in the workspace.')).toBeNull()
   })
 
   it('folds a plain approval into its run and keeps any other decision in view', () => {
@@ -603,9 +654,7 @@ describe('tool decisions', () => {
       }),
     )
     expect(screen.getByTestId('tool-decision')).toBeVisible()
-    expect(screen.getByTestId('tool-decision')).toHaveTextContent(
-      'Allowed by the auto-reviewerLists files in the workspace.',
-    )
+    expect(screen.getByTestId('tool-decision')).toHaveTextContent('Auto-reviewer approved')
   })
 })
 
