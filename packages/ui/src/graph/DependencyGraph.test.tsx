@@ -10,7 +10,7 @@ import {
   waitFor,
   within,
 } from '@testing-library/react'
-import { type ReactNode, type Ref, useState } from 'react'
+import { type ReactNode, type Ref, Suspense, startTransition, use, useState } from 'react'
 import { afterEach, beforeAll, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { testEngine } from '../test/engine'
 
@@ -1430,7 +1430,7 @@ describe('a run’s view', () => {
   })
 
   // The panel and its nodes get a size and the transform moves, so a fit and a kept view differ.
-  async function zoomedIn() {
+  async function zoomedIn(ui: ReactNode = <DependencyGraph run={update('')} />) {
     vi.stubGlobal('requestAnimationFrame', (frame: FrameRequestCallback) =>
       window.setTimeout(() => frame(performance.now()), 0),
     )
@@ -1452,7 +1452,7 @@ describe('a run’s view', () => {
       panZoom.setTransform.mockReset()
       Object.assign(panZoom.state, { positionX: 0, positionY: 0, scale: 0.6 })
     })
-    const view = render(<DependencyGraph run={update('')} />)
+    const view = render(ui)
     await waitFor(() => expect(panZoom.state.scale).toBe(FIT_MAX_SCALE))
     fireEvent.wheel(screen.getByTestId('pan-zoom'), { deltaY: -100 })
     const kept = { ...panZoom.state }
@@ -1480,6 +1480,41 @@ describe('a run’s view', () => {
     const { rerender } = await zoomedIn()
     rerender(<DependencyGraph run={update('', { ...run, id: 'run-2', slug: 'wf-2' })} />)
     await waitFor(() => expect(panZoom.state.scale).toBe(FIT_MAX_SCALE))
+  })
+
+  it('keeps the view while another run waits to show', async () => {
+    type Shown = { run: ReturnType<typeof update>; suspend: boolean }
+    const never = new Promise<never>(() => {})
+    const Suspends = () => use(never)
+    const host = { show: (_: Shown) => {} }
+    function Host() {
+      const [shown, setShown] = useState<Shown>({ run: update(''), suspend: false })
+      host.show = setShown
+      return (
+        <Suspense fallback={null}>
+          <DependencyGraph run={shown.run} />
+          {shown.suspend ? <Suspends /> : null}
+        </Suspense>
+      )
+    }
+    const { kept } = await zoomedIn(<Host />)
+    // The other run renders, then a sibling suspends, so React keeps showing this run.
+    act(() =>
+      startTransition(() =>
+        host.show({ run: update('', { ...run, id: 'run-2', slug: 'wf-2' }), suspend: true }),
+      ),
+    )
+    act(() => host.show({ run: update('running'), suspend: false }))
+    await waitFor(() =>
+      expect(panZoom.setTransform).toHaveBeenCalledWith(
+        kept.positionX,
+        kept.positionY,
+        kept.scale,
+        0,
+      ),
+    )
+    await act(() => new Promise((resolve) => window.setTimeout(resolve, 20)))
+    expect(panZoom.state).toEqual(kept)
   })
 
   it('fits a subworkflow opened in a new graph in its place', async () => {

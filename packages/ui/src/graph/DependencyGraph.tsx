@@ -9,6 +9,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -1423,12 +1424,16 @@ export default function DependencyGraph({
   // Once the user pans or zooms, a run's updates and the editor's edits keep that view until a
   // reset refits it or another graph takes the panel.
   const viewed = useRef(false)
-  // A host can show another run in the same panel, as a run's page does going to the next run.
-  const viewedRun = useRef(run.id ?? runSlug)
-  if (viewedRun.current !== (run.id ?? runSlug)) {
-    viewedRun.current = run.id ?? runSlug
-    viewed.current = false
-  }
+  // A host can show another run in the same panel. Cleared on commit, before the new jobs' fit, so a
+  // render React throws away leaves the shown run's view alone.
+  const runKey = run.id ?? runSlug
+  const viewedRun = useRef(runKey)
+  useLayoutEffect(() => {
+    if (viewedRun.current !== runKey) {
+      viewedRun.current = runKey
+      viewed.current = false
+    }
+  }, [runKey])
   useEffect(() => {
     const container = containerEl
     // A new panel (back from the tree view) gets a new initial view.
