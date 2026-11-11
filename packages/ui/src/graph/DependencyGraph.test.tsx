@@ -1419,6 +1419,40 @@ describe('the editor’s view', () => {
   })
 })
 
+describe('a run’s view', () => {
+  it('keeps a view the user zoomed through the run’s updates, and fits a graph opened in its place', async () => {
+    vi.stubGlobal('requestAnimationFrame', (frame: FrameRequestCallback) =>
+      window.setTimeout(() => frame(performance.now()), 0),
+    )
+    onTestFinished(() => {
+      vi.unstubAllGlobals()
+    })
+    const update = (status: string) => ({
+      ...run,
+      status: 'running',
+      executedJobs: {
+        ...run.executedJobs,
+        notify: { ...run.executedJobs.notify, status },
+      },
+    })
+    const { rerender } = render(<DependencyGraph run={update('')} />)
+    const graph = screen.getByTestId('pan-zoom')
+    await waitFor(() => expect(document.getElementById('node_build')).not.toBeNull())
+    fireEvent.wheel(graph, { deltaY: -100 })
+    panZoom.setTransform.mockClear()
+    rerender(<DependencyGraph run={update('running')} />)
+    // Kept where the wheel left it; a fit of jsdom's empty panel would set nothing.
+    await waitFor(() => expect(panZoom.setTransform).toHaveBeenCalledWith(0, 0, 0.6, 0))
+
+    panZoom.setTransform.mockClear()
+    fireEvent.click(within(graph).getByText('Build'))
+    fireEvent.click(within(graph).getByRole('button', { name: 'Open in new graph' }))
+    expect(within(graph).getByText('Prep')).toBeInTheDocument()
+    await act(() => new Promise((resolve) => window.setTimeout(resolve, 20)))
+    expect(panZoom.setTransform).not.toHaveBeenCalledWith(0, 0, 0.6, 0)
+  })
+})
+
 describe('DependencyGraphPreview', () => {
   it('places each job where its position in the YAML says', () => {
     const placed = {

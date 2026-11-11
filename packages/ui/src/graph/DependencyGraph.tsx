@@ -1420,11 +1420,15 @@ export default function DependencyGraph({
   fitLimits.current = { cap: fitCap, floor: fitFloor }
   const fitViewRef = useRef<FitView | null>(null)
   const fitted = useRef(false)
+  // Once the user pans or zooms, a run's updates and the editor's edits keep that view until a
+  // reset refits it or another graph takes the panel.
+  const viewed = useRef(false)
   useEffect(() => {
     const container = containerEl
     // A new panel (back from the tree view) gets a new initial view.
     fitViewRef.current = null
     fitted.current = false
+    viewed.current = false
     if (!container || fixedHeight || still) {
       return
     }
@@ -1501,6 +1505,7 @@ export default function DependencyGraph({
     setStepsOpen(new Set())
     setExpandedSubworkflows(new Set())
     setMatrixOpen(new Set())
+    viewed.current = false
   }, [])
 
   const openInNewGraph = useCallback(
@@ -1633,8 +1638,6 @@ export default function DependencyGraph({
   // fits as what it opened settles keep in view.
   const shown = useRef<{ keys: string[]; at: number } | null>(null)
   const viewBarRef = useRef<HTMLDivElement>(null)
-  // Once the user pans or zooms the editor's view, its edits keep that view until Fit refits it.
-  const viewed = useRef(false)
   // A job's row on the graph, or none while it isn't drawn.
   const rowOf = useCallback(
     (job: string) =>
@@ -1723,7 +1726,7 @@ export default function DependencyGraph({
       held.current = null
       const kept = pending && performance.now() - pending.at < HOLD_MS
       const node = kept ? nodeOf(pending.job) : null
-      const viewing = editor && viewed.current && animationMs === 0
+      const viewing = viewed.current && animationMs === 0
       if ((pending && node) || viewing) {
         const { positionX, positionY, scale } = transform.instance.state
         const pos = pending && node ? offsetWithin(node, content) : null
