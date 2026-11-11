@@ -22,11 +22,14 @@ import {
 import { type DiffToken, languageForPath, tokenizeDiffLines } from '../../agent/diffHighlight'
 import {
   agentColorHex,
-  bashExitCode,
   fullToolArgs,
   isGroupableTool,
+  isUserInterruptedTool,
+  parseRejection,
+  resultNotRun,
   rollupClauses,
   runClauses,
+  shownResult,
   summarizeToolArgs,
   toolHeaderFor,
   toolSummary,
@@ -105,19 +108,29 @@ function LineSpans({
   return <>{out}</>
 }
 
-function DiffRows({ rows, lang }: { rows: DiffRow[]; lang: string | null }) {
+function DiffRows({
+  rows,
+  lang,
+  dimmed = false,
+}: {
+  rows: DiffRow[]
+  lang: string | null
+  /** Drawn without color, for a change that was never written. */
+  dimmed?: boolean
+}) {
   const [tokens, setTokens] = useState<DiffToken[][] | null>(null)
   const lineKey = useMemo(
     () => rows.map((r) => (r.kind === 'gap' ? '' : r.text)).join('\n'),
     [rows],
   )
+  const highlight = dimmed ? null : lang
   useEffect(() => {
-    if (!lang) {
+    if (!highlight) {
       setTokens(null)
       return
     }
     let live = true
-    tokenizeDiffLines(lineKey.split('\n'), lang).then((t) => {
+    tokenizeDiffLines(lineKey.split('\n'), highlight).then((t) => {
       if (live) {
         setTokens(t)
       }
@@ -125,18 +138,24 @@ function DiffRows({ rows, lang }: { rows: DiffRow[]; lang: string | null }) {
     return () => {
       live = false
     }
-  }, [lang, lineKey])
+  }, [highlight, lineKey])
   const numbered = rows.some((r) => r.oldNo !== undefined || r.newNo !== undefined)
   return (
-    <div className="overflow-x-auto rounded-md border theme-border font-mono text-xs leading-5">
+    <div
+      className={cx(
+        'overflow-x-auto rounded-md border theme-border font-mono text-xs leading-5',
+        dimmed && 'theme-muted-text',
+      )}
+      data-dimmed={dimmed || undefined}
+    >
       {rows.map((row, i) => (
         <div
           // biome-ignore lint/suspicious/noArrayIndexKey: rows are positional
           key={i}
           className={cx(
             'flex whitespace-pre',
-            row.kind === 'add' && 'bg-(--theme-success)/15',
-            row.kind === 'del' && 'bg-(--theme-error)/15',
+            !dimmed && row.kind === 'add' && 'bg-(--theme-success)/15',
+            !dimmed && row.kind === 'del' && 'bg-(--theme-error)/15',
             row.kind === 'gap' && 'theme-muted-text',
           )}
         >
@@ -155,7 +174,7 @@ function DiffRows({ rows, lang }: { rows: DiffRow[]; lang: string | null }) {
               <LineSpans
                 text={row.text}
                 tokens={tokens?.[i]}
-                emphasis={row.kind === 'add' ? row.emphasis : undefined}
+                emphasis={!dimmed && row.kind === 'add' ? row.emphasis : undefined}
               />
             )}
           </span>
@@ -165,7 +184,7 @@ function DiffRows({ rows, lang }: { rows: DiffRow[]; lang: string | null }) {
   )
 }
 
-function EditDiffBlock({ part }: { part: ToolCallPart }) {
+function EditDiffBlock({ part, showDiff = true }: { part: ToolCallPart; showDiff?: boolean }) {
   const { strings } = useChatConfig()
   const t = strings.agentTranscript
   // A streaming transcript re-renders this block on every token; the diff is
@@ -189,12 +208,35 @@ function EditDiffBlock({ part }: { part: ToolCallPart }) {
   if (!diff) {
     return null
   }
-  const { a, model, outcome } = diff
+  const { a, model } = diff
+  const result = part.result ?? ''
+  const done = part.status === 'ok' || part.status === 'error'
+  const notRun = done && resultNotRun(result)
+  // The outcome waits for the result, and a failure, or a change that was never written, reads in its place.
+  const outcome = !done
+    ? ''
+    : notRun || part.status === 'error'
+      ? toolSummary(part.name, part.args, result, part.status === 'error', {
+          strings: strings.tools,
+        })
+      : diff.outcome
   return (
     <div className="mt-1.5 space-y-1">
-      {outcome && <div className="text-xs theme-muted-text">{outcome}</div>}
-      <DiffRows rows={model.rows} lang={languageForPath(a.path)} />
-      {model.truncated && <div className="text-xs theme-muted-text">{t.diffTruncated}</div>}
+      {outcome && (
+        <div
+          className={cx(
+            'text-xs',
+            part.status === 'error' ? 'text-(--theme-error-text)' : 'theme-muted-text',
+          )}
+          data-testid="edit-outcome"
+        >
+          {outcome}
+        </div>
+      )}
+      {showDiff && <DiffRows rows={model.rows} lang={languageForPath(a.path)} dimmed={notRun} />}
+      {showDiff && model.truncated && (
+        <div className="text-xs theme-muted-text">{t.diffTruncated}</div>
+      )}
     </div>
   )
 }
@@ -204,16 +246,17 @@ function ResultBody({ part }: { part: ToolCallPart }) {
   const { common } = useStrings()
   const t = strings.agentTranscript
   const [showAll, setShowAll] = useState(false)
-  const result = part.result ?? ''
+  const raw = part.result ?? ''
+  const result = shownResult(part.name, part.args, raw, strings.tools)
   if (result.trim() === '') {
     return <div className="text-xs theme-muted-text">{t.noOutput}</div>
   }
-  if (part.name === 'Bash') {
-    const [out] = bashExitCode(result.replace(/\n+$/, ''))
+  // The exit code line stays: it is how a command that printed something says it failed.
+  if (part.name === 'Bash' && result === raw) {
     return (
       <div className="rounded-md overflow-hidden border theme-border">
         <LogViewer
-          log={out || result}
+          log={result.replace(/\n+$/, '')}
           width="100%"
           height="unset"
           inline
@@ -289,10 +332,60 @@ function ToolStatusDot({ part }: { part: ToolCallPart }) {
       </StatusMark>
     )
   }
+  // A call a person declined or stopped didn't fail, and didn't succeed either.
+  const result = part.result ?? ''
+  if (isUserInterruptedTool(result)) {
+    return <NeutralDot status={t.interrupted} />
+  }
+  if (parseRejection(result)) {
+    return <NeutralDot status={t.approvalDenied} />
+  }
   return (
     <StatusMark status={t.done}>
       <span className="leading-none text-(--theme-success)">●</span>
     </StatusMark>
+  )
+}
+
+function NeutralDot({ status }: { status: string }) {
+  return (
+    <StatusMark status={status}>
+      <span className="leading-none theme-muted-text">●</span>
+    </StatusMark>
+  )
+}
+
+/** A failed call's output under its row, as much as a folded block shows. */
+function FailedOutput({ part }: { part: ToolCallPart }) {
+  const { strings } = useChatConfig()
+  const text = shownResult(part.name, part.args, part.result ?? '', strings.tools).replace(
+    /\n+$/,
+    '',
+  )
+  if (text.trim() === '') {
+    return (
+      <div className="ml-5 mt-0.5 text-[13px] text-(--theme-error-text)">
+        {strings.agentTranscript.failedWith(strings.agentTranscript.noOutput)}
+      </div>
+    )
+  }
+  // Color can't be the only sign of a failure, so the first line says it in words.
+  const [first = '', ...rest] = text.split('\n')
+  const hidden = rest.length + 1 - COLLAPSED_RESULT_LINES
+  return (
+    <div className="ml-5 mt-0.5 min-w-0 text-(--theme-error-text)" data-testid="failed-output">
+      <div className="text-[13px] break-words">{strings.agentTranscript.failedWith(first)}</div>
+      {rest.length > 0 && (
+        <pre className="overflow-x-auto font-mono text-xs leading-5 whitespace-pre-wrap break-words">
+          {rest.slice(0, COLLAPSED_RESULT_LINES - 1).join('\n')}
+        </pre>
+      )}
+      {hidden > 0 && (
+        <div className="text-xs theme-muted-text">
+          {strings.agentTranscript.moreLines(hidden)}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -346,7 +439,8 @@ function ToolCallBlock({
       <Disclosure
         open={expanded}
         onOpenChange={setExpanded}
-        disabled={isDiff}
+        // An edit shows its whole diff, so only one whose diff is folded has anything to open.
+        disabled={isDiff && !part.foldDiff}
         summaryClassName={rowSummaryClasses}
         summary={
           <>
@@ -359,25 +453,28 @@ function ToolCallBlock({
               <span className="font-mono text-[13px] leading-5 min-w-0 truncate">
                 <span className="font-semibold">{header.label}</span>
                 {argSummary && <span className="theme-muted-text">({argSummary})</span>}
+                {part.argsRewritten && (
+                  <span className="theme-muted-text"> {t.argsRewritten}</span>
+                )}
               </span>
             )}
           </>
         }
         panelClassName="ml-5 mt-1 space-y-1.5"
       >
-        {fullToolArgs(header.arg, part.args) && (
+        {!isDiff && fullToolArgs(header.arg, part.args) && (
           <pre className="overflow-x-auto rounded-md bg-(--theme-muted-panel-bg) p-2 font-mono text-xs whitespace-pre-wrap">
             {presentation && <span className="font-semibold">{header.label} </span>}
             {fullToolArgs(header.arg, part.args)}
           </pre>
         )}
-        {drawingInPanel ? <div className="min-w-0">{children}</div> : <ResultBody part={part} />}
+        {isDiff ? null : drawingInPanel ? (
+          <div className="min-w-0">{children}</div>
+        ) : (
+          <ResultBody part={part} />
+        )}
       </Disclosure>
-      {part.status === 'error' && !expanded && (
-        <div className="ml-5 mt-0.5 truncate text-[13px] text-(--theme-error-text)">
-          {t.failedWith(summary)}
-        </div>
-      )}
+      {part.status === 'error' && !expanded && !isDiff && <FailedOutput part={part} />}
       {children && !drawingInPanel && <div className="mt-1.5 min-w-0 sm:ml-5">{children}</div>}
       {!isDiff &&
         !expanded &&
@@ -395,7 +492,7 @@ function ToolCallBlock({
         )}
       {isDiff && (
         <div className="ml-5">
-          <EditDiffBlock part={part} />
+          <EditDiffBlock part={part} showDiff={!part.foldDiff || expanded} />
         </div>
       )}
       {part.decision && <DecisionLine decision={part.decision} />}

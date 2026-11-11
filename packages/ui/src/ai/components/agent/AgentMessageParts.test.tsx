@@ -433,6 +433,84 @@ function tc(id: string, name: string, status: 'ok' | 'running' | 'error' = 'ok')
   }
 }
 
+describe('edits', () => {
+  const REJECTED =
+    "The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). To tell you how to proceed, the user said:\nuse b"
+  const edit = (status: ToolCallPart['status'], result?: string): ToolCallPart => ({
+    kind: 'tool_call',
+    id: 'e1',
+    name: 'EditFile',
+    args: JSON.stringify({ path: 'a.go', old_string: 'x\n', new_string: 'y\n' }),
+    status,
+    ...(result !== undefined ? { result } : {}),
+  })
+
+  it('shows what was declined in place of a change never written, and dims its diff', () => {
+    const { container } = renderParts([edit('ok', REJECTED)])
+    expect(screen.getByTestId('edit-outcome')).toHaveTextContent('User rejected update to a.go: use b')
+    expect(screen.queryByText(/Added/)).toBeNull()
+    expect(container.querySelector('[data-dimmed]')).not.toBeNull()
+    expect(screen.getByText('Declined')).toBeInTheDocument()
+  })
+
+  it('waits for the result before saying what an edit changed', () => {
+    renderParts([edit('running')])
+    expect(screen.queryByTestId('edit-outcome')).toBeNull()
+  })
+
+  it('says a failed edit failed once, in place of what it would have changed', () => {
+    renderParts([edit('error', 'Error: old_string not found in a.go')])
+    expect(screen.getAllByText(/old_string not found/)).toHaveLength(1)
+    expect(screen.queryByText(/Added/)).toBeNull()
+  })
+
+  it('keeps an edit whose diff is shown elsewhere behind its row', () => {
+    renderParts([{ ...edit('ok', 'Edited a.go'), foldDiff: true }])
+    expect(screen.getByTestId('edit-outcome')).toHaveTextContent('Added 1 line, removed 1 line')
+    expect(screen.queryByText('y')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Update/ }))
+    expect(screen.getByText('y')).toBeInTheDocument()
+  })
+
+  it('says when a hook rewrote the arguments', () => {
+    renderParts([{ ...edit('ok', 'Edited a.go'), argsRewritten: true }])
+    expect(screen.getByText('(args rewritten by hook)')).toBeInTheDocument()
+  })
+})
+
+describe('failed and declined calls', () => {
+  const bash = (status: ToolCallPart['status'], result: string): ToolCallPart => ({
+    kind: 'tool_call',
+    id: 'b1',
+    name: 'Bash',
+    args: '{"command":"make"}',
+    status,
+    result,
+  })
+
+  it('shows a failed call’s output up to twelve lines without opening it', () => {
+    const out = Array.from({ length: 20 }, (_, i) => `line ${i + 1}`).join('\n')
+    renderParts([bash('error', `${out}\nExit code: 2`)])
+    expect(screen.getByText('Failed: line 1')).toBeVisible()
+    expect(screen.getByTestId('failed-output')).toHaveTextContent('line 12')
+    expect(screen.getByTestId('failed-output')).not.toHaveTextContent('line 13')
+    // Twenty lines and the exit code line: twelve shown.
+    expect(screen.getByText('+9 more lines')).toBeInTheDocument()
+  })
+
+  it('keeps the exit code when an opened command printed something', () => {
+    renderParts([bash('ok', 'boom\nExit code: 2')])
+    fireEvent.click(screen.getByRole('button', { name: /Bash/ }))
+    expect(screen.getByTestId('logviewer')).toHaveTextContent('Exit code: 2')
+  })
+
+  it('reads a call a stop cut off as neither failed nor done', () => {
+    renderParts([bash('ok', 'The user interrupted Bash before it finished.')])
+    expect(screen.getByText('Interrupted')).toBeInTheDocument()
+    expect(screen.getByText('The user interrupted Bash before it finished.')).toBeInTheDocument()
+  })
+})
+
 describe('tool decisions', () => {
   const call = (decision: ToolDecision): ToolCallPart => ({
     kind: 'tool_call',

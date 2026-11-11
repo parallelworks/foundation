@@ -277,6 +277,8 @@ export interface ChatStrings {
     /** Beside a folded row: how many of its calls failed. */
     failedCount: (count: number) => string
     interrupted: string
+    /** After a call's arguments when a hook changed them before it ran. */
+    argsRewritten: string
     noOutput: string
     diffTruncated: string
     /** Under a long tool result, how many of its lines are folded away. */
@@ -634,6 +636,7 @@ export const defaultChatStrings: ChatStrings = {
     failedGroup: (tool, count) => `${tool} failed ${countOf(count, 'time', 'times')}`,
     failedCount: (count) => `${count} failed`,
     interrupted: 'Interrupted',
+    argsRewritten: '(args rewritten by hook)',
     noOutput: '(no output)',
     diffTruncated: 'Diff truncated',
     moreLines: (count) => `+${countOf(count, 'more line', 'more lines')}`,

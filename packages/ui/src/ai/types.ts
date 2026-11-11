@@ -127,6 +127,10 @@ export interface ToolCallPart {
   // First line of an EditFile diff, when the producer resolved it.
   startLine?: number
   decision?: ToolDecision
+  /** An edit whose diff repeats what the transcript shows elsewhere, such as a plan; it stays behind the row. */
+  foldDiff?: boolean
+  /** A hook changed the arguments the model sent before the call ran. */
+  argsRewritten?: boolean
 }
 
 export type SubagentStatus = 'running' | 'done' | 'failed'
