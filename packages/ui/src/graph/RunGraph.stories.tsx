@@ -146,7 +146,34 @@ export const SubworkflowStep: Story = {
 const at = (minutes: number) => new Date(Date.UTC(2026, 0, 1, 9, minutes)).toISOString()
 const CASE_STEPS = ['mesh', 'decompose', 'solve', 'reconstruct', 'sample']
 
-/** The run after `tick` updates: its subworkflow's steps finish one at a time, then start over. */
+/** A level of the run: `job` under way, running the subworkflow `inner` in its one step `step`, or
+ *  running `inner`'s steps, and `next` waiting on it. */
+function level(
+  job: string,
+  step: string,
+  inner: Record<string, WorkflowJob> | WorkflowStep[],
+  next: string,
+  needs: string[] = [],
+): Record<string, WorkflowJob> {
+  const steps: WorkflowStep[] = Array.isArray(inner)
+    ? inner
+    : [
+        {
+          name: step,
+          uses: `workflow/${job}`,
+          status: 'running',
+          startedAt: at(4),
+          subworkflow: { jobs: inner },
+        },
+      ]
+  return {
+    [job]: { status: 'running', needs, startedAt: at(4), steps },
+    [next]: { status: '', needs: [job], steps: [{ name: next, status: '' }] },
+  }
+}
+
+/** The run after `tick` updates: four subworkflows deep, its innermost steps finish one at a time,
+ *  then start over. */
 function updatingJobs(tick: number): Record<string, WorkflowJob> {
   const done = tick % CASE_STEPS.length
   const steps: WorkflowStep[] = CASE_STEPS.map((name, i) => ({
@@ -155,6 +182,10 @@ function updatingJobs(tick: number): Record<string, WorkflowJob> {
     ...(i <= done ? { startedAt: at(4 + i) } : {}),
     ...(i < done ? { completedAt: at(5 + i) } : {}),
   }))
+  const solve = level('solver', '', steps, 'report')
+  const submit = level('submit', 'run on the cluster', solve, 'collect')
+  const runCase = level('case', 'run case', submit, 'results')
+  const iterate = level('workers', 'evaluate the design', runCase, 'decide')
   return {
     prepare: {
       status: 'completed',
@@ -162,26 +193,7 @@ function updatingJobs(tick: number): Record<string, WorkflowJob> {
       completedAt: at(3),
       steps: [{ name: 'stage inputs', status: 'completed', startedAt: at(0), completedAt: at(3) }],
     },
-    sweep: {
-      status: 'running',
-      needs: ['prepare'],
-      startedAt: at(3),
-      steps: [
-        {
-          name: 'run case',
-          uses: 'workflow/case',
-          status: 'running',
-          startedAt: at(4),
-          subworkflow: {
-            jobs: {
-              simulate: { status: 'running', startedAt: at(4), steps },
-              report: { status: '', needs: ['simulate'], steps: [{ name: 'plot', status: '' }] },
-            },
-          },
-        },
-      ],
-    },
-    publish: { status: '', needs: ['sweep'], steps: [{ name: 'upload', status: '' }] },
+    ...level('optimize', 'iterate', iterate, 'publish', ['prepare']),
   }
 }
 

@@ -87,7 +87,7 @@ import { computeGraphLayout } from './graphLayout'
 import { COLUMN_PITCH, SLOT_PITCH } from './gridSpacing'
 import type { RunWarning } from './runWarnings'
 import type { WorkflowJob } from './types'
-import { intoView, MAX_SCALE, MIN_SCALE, wheelFactor } from './viewport'
+import { FIT_MAX_SCALE, intoView, MAX_SCALE, MIN_SCALE, wheelFactor } from './viewport'
 
 const run = {
   id: 'run-1',
@@ -1420,36 +1420,75 @@ describe('the editor’s view', () => {
 })
 
 describe('a run’s view', () => {
-  it('keeps a view the user zoomed through the run’s updates, and fits a graph opened in its place', async () => {
+  const update = (status: string, other = run) => ({
+    ...other,
+    status: 'running',
+    executedJobs: {
+      ...other.executedJobs,
+      notify: { ...other.executedJobs.notify, status },
+    },
+  })
+
+  // The panel and its nodes get a size and the transform moves, so a fit and a kept view differ.
+  async function zoomedIn() {
     vi.stubGlobal('requestAnimationFrame', (frame: FrameRequestCallback) =>
       window.setTimeout(() => frame(performance.now()), 0),
     )
+    const sizes = { clientWidth: 1000, clientHeight: 600, offsetWidth: 200, offsetHeight: 100 }
+    const spies = Object.entries(sizes).map(([prop, px]) =>
+      vi.spyOn(HTMLElement.prototype, prop as keyof typeof sizes, 'get').mockReturnValue(px),
+    )
+    panZoom.setTransform.mockImplementation(
+      (positionX: number, positionY: number, scale: number) => {
+        Object.assign(panZoom.state, { positionX, positionY, scale })
+      },
+    )
+    Object.assign(panZoom.state, { positionX: 0, positionY: 0, scale: 1 })
     onTestFinished(() => {
       vi.unstubAllGlobals()
+      for (const spy of spies) {
+        spy.mockRestore()
+      }
+      panZoom.setTransform.mockReset()
+      Object.assign(panZoom.state, { positionX: 0, positionY: 0, scale: 0.6 })
     })
-    const update = (status: string) => ({
-      ...run,
-      status: 'running',
-      executedJobs: {
-        ...run.executedJobs,
-        notify: { ...run.executedJobs.notify, status },
-      },
-    })
-    const { rerender } = render(<DependencyGraph run={update('')} />)
-    const graph = screen.getByTestId('pan-zoom')
-    await waitFor(() => expect(document.getElementById('node_build')).not.toBeNull())
-    fireEvent.wheel(graph, { deltaY: -100 })
+    const view = render(<DependencyGraph run={update('')} />)
+    await waitFor(() => expect(panZoom.state.scale).toBe(FIT_MAX_SCALE))
+    fireEvent.wheel(screen.getByTestId('pan-zoom'), { deltaY: -100 })
+    const kept = { ...panZoom.state }
+    expect(kept.scale).toBeGreaterThan(FIT_MAX_SCALE)
     panZoom.setTransform.mockClear()
-    rerender(<DependencyGraph run={update('running')} />)
-    // Kept where the wheel left it; a fit of jsdom's empty panel would set nothing.
-    await waitFor(() => expect(panZoom.setTransform).toHaveBeenCalledWith(0, 0, 0.6, 0))
+    return { ...view, kept }
+  }
 
-    panZoom.setTransform.mockClear()
+  it('keeps a view the user zoomed through the run’s updates', async () => {
+    const { rerender, kept } = await zoomedIn()
+    rerender(<DependencyGraph run={update('running')} />)
+    await waitFor(() =>
+      expect(panZoom.setTransform).toHaveBeenCalledWith(
+        kept.positionX,
+        kept.positionY,
+        kept.scale,
+        0,
+      ),
+    )
+    await act(() => new Promise((resolve) => window.setTimeout(resolve, 20)))
+    expect(panZoom.state).toEqual(kept)
+  })
+
+  it('fits another run shown in the same panel', async () => {
+    const { rerender } = await zoomedIn()
+    rerender(<DependencyGraph run={update('', { ...run, id: 'run-2', slug: 'wf-2' })} />)
+    await waitFor(() => expect(panZoom.state.scale).toBe(FIT_MAX_SCALE))
+  })
+
+  it('fits a subworkflow opened in a new graph in its place', async () => {
+    await zoomedIn()
+    const graph = screen.getByTestId('pan-zoom')
     fireEvent.click(within(graph).getByText('Build'))
     fireEvent.click(within(graph).getByRole('button', { name: 'Open in new graph' }))
     expect(within(graph).getByText('Prep')).toBeInTheDocument()
-    await act(() => new Promise((resolve) => window.setTimeout(resolve, 20)))
-    expect(panZoom.setTransform).not.toHaveBeenCalledWith(0, 0, 0.6, 0)
+    await waitFor(() => expect(panZoom.state.scale).toBe(FIT_MAX_SCALE))
   })
 })
 
