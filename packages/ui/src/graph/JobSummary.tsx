@@ -144,7 +144,7 @@ export function Joblist(
                   onClick={() => inputs.onStepClick(jobName, i)}
                   // The sidebar's narrower indent leaves room for names five subworkflows deep.
                   className={cx(
-                    inputs.preview ? 'ml-1.5' : oneLine ? 'ml-2.5' : 'ml-4',
+                    inputs.preview || oneLine ? 'ml-1.5' : 'ml-4',
                     'gap-x-1.5 flex items-center text-left',
                     oneLine && 'min-w-0',
                   )}
