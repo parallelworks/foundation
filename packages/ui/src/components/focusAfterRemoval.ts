@@ -108,7 +108,7 @@ export function removalTarget(plan: RemovalPlan): HTMLElement | null {
     if (level.element.isConnected) {
       const holder = level.element as HTMLElement
       // What it holds now came after the dialog opened, as when the list was drawn again.
-      const inside = rowControls(plan, holder)[0]
+      const inside = controls(holder)[0]
       if (inside) {
         return inside
       }
