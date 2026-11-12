@@ -172,7 +172,7 @@ function level(
   }
 }
 
-/** The run after `tick` updates: four subworkflows deep, its innermost steps finish one at a time,
+/** The run after `tick` updates: five subworkflows deep, its innermost steps finish one at a time,
  *  then start over. */
 function updatingJobs(tick: number): Record<string, WorkflowJob> {
   const done = tick % CASE_STEPS.length
@@ -183,7 +183,8 @@ function updatingJobs(tick: number): Record<string, WorkflowJob> {
     ...(i < done ? { completedAt: at(5 + i) } : {}),
   }))
   const solve = level('solver', '', steps, 'report')
-  const submit = level('submit', 'run on the cluster', solve, 'collect')
+  const allocate = level('allocation', 'run the solver', solve, 'release')
+  const submit = level('submit', 'run on the cluster', allocate, 'collect')
   const runCase = level('case', 'run case', submit, 'results')
   const iterate = level('workers', 'evaluate the design', runCase, 'decide')
   return {

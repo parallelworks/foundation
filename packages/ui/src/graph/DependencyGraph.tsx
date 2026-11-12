@@ -1,6 +1,5 @@
 import { DateTime } from 'luxon'
 import {
-  type CSSProperties,
   createContext,
   Fragment,
   lazy,
@@ -1014,47 +1013,6 @@ function EditorEdges({
   )
 }
 
-/** How many subworkflows deep the sidebar's deepest shown step is. */
-function openDepth(
-  engine: WorkflowEngine,
-  jobs: Record<string, WorkflowJob>,
-  pathPrefix: string,
-  open: { steps: Set<string>; subworkflows: Set<string>; matrices: Set<string> },
-): number {
-  const displayJobs = displayJobsOf(engine, jobs, engine.matrixGroups(jobs))
-  let deepest = 0
-  for (const [j, job] of Object.entries(jobs)) {
-    const originaljob = job._matrix?.originaljob
-    const inClosedMatrix =
-      !!originaljob &&
-      !!displayJobs[originaljob]?._matrixGroup &&
-      !open.matrices.has(pathPrefix + originaljob)
-    if (inClosedMatrix || !open.steps.has(pathPrefix + j)) {
-      continue
-    }
-    for (const [s, step] of (job.steps ?? []).entries()) {
-      const subJobs = step.subworkflow?.jobs
-      if (
-        subJobs &&
-        Object.keys(subJobs).length > 0 &&
-        open.subworkflows.has(`${pathPrefix}${j}:${s}`)
-      ) {
-        const prefix = `${pathPrefix}subworkflows/${j}/step_${s}/`
-        deepest = Math.max(deepest, 1 + openDepth(engine, subJobs, prefix, open))
-      }
-    }
-  }
-  return deepest
-}
-
-// Each open subworkflow indents its jobs 2u + 9px: a step's indent u, the rule under the step's
-// icon, then u again. u is 16px until the deepest open level would sit more than 120px in, then
-// shrinks to keep it there, down to 8px.
-function sidebarIndent(depth: number): CSSProperties {
-  const px = Math.max(8, Math.min(16, Math.floor((120 / depth - 9) / 2)))
-  return { '--sidebar-indent': `${px}px` } as CSSProperties
-}
-
 // Recursive summary-sidebar list: renders each job (or matrix group) and, for an
 // expanded subworkflow step, an indented title + nested SidebarJobs. Mirrors the
 // graph's Subgraph but as a plain list; shares the same namespaced expand state,
@@ -1104,7 +1062,7 @@ function SidebarJobs({
     // No graph or connectors here, just the nested job list, indented.
     renderWell: (subJobs, subPrefix, expanded) => (
       <DisclosurePanel open={expanded}>
-        <div className="ml-[calc(var(--sidebar-indent)+8px)] mt-0.5 border-l border-(--theme-border) pl-(--sidebar-indent) motion-safe:transition-[margin,padding]">
+        <div className="ml-[18px] mt-0.5 border-l border-(--theme-border) pl-2.5">
           <SidebarJobs
             jobs={subJobs}
             pathPrefix={subPrefix}
@@ -2245,32 +2203,21 @@ export default function DependencyGraph({
   // animations; it only needs to re-render when its own inputs change.
   const summarySidebar = useMemo(
     () => (
-      <div
-        style={sidebarIndent(
-          openDepth(engine, jobs, pathAppend, {
-            steps: stepsOpen,
-            subworkflows: expandedSubworkflows,
-            matrices: matrixOpen,
-          }),
-        )}
-      >
-        <SidebarJobs
-          jobs={jobs}
-          pathPrefix={pathAppend}
-          preview={preview}
-          stepsOpen={stepsOpen}
-          toggleSteps={toggleSteps}
-          expandedSubworkflows={expandedSubworkflows}
-          toggleSubworkflow={toggleSubworkflow}
-          matrixOpen={matrixOpen}
-          toggleMatrix={toggleMatrix}
-          openInNewGraph={openInNewGraph}
-          setSublogOpen={setSublogOpen}
-        />
-      </div>
+      <SidebarJobs
+        jobs={jobs}
+        pathPrefix={pathAppend}
+        preview={preview}
+        stepsOpen={stepsOpen}
+        toggleSteps={toggleSteps}
+        expandedSubworkflows={expandedSubworkflows}
+        toggleSubworkflow={toggleSubworkflow}
+        matrixOpen={matrixOpen}
+        toggleMatrix={toggleMatrix}
+        openInNewGraph={openInNewGraph}
+        setSublogOpen={setSublogOpen}
+      />
     ),
     [
-      engine,
       jobs,
       pathAppend,
       preview,

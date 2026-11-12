@@ -142,11 +142,10 @@ export function Joblist(
                   type="button"
                   data-run-row={rowKey(prefix, jobName, i)}
                   onClick={() => inputs.onStepClick(jobName, i)}
-                  // The sidebar narrows a step's indent as it opens deeper; the graph has no such
-                  // variable and keeps 1rem.
+                  // The sidebar's narrower indent leaves room for names five subworkflows deep.
                   className={cx(
-                    inputs.preview ? 'ml-1.5' : 'ml-[var(--sidebar-indent,1rem)]',
-                    'gap-x-1.5 flex items-center text-left motion-safe:transition-[margin]',
+                    inputs.preview ? 'ml-1.5' : oneLine ? 'ml-2.5' : 'ml-4',
+                    'gap-x-1.5 flex items-center text-left',
                     oneLine && 'min-w-0',
                   )}
                   data-testid={stepLabel}
