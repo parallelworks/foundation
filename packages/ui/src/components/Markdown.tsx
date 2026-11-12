@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import type { Components, ControlsConfig } from 'streamdown'
 import { cx } from '../cx'
 
@@ -39,6 +39,31 @@ export function preloadMarkdown(): Promise<Impl> {
 }
 
 const LazyMarkdownImpl = lazy(preloadMarkdown)
+
+/** True once the renderer has loaded or failed, or `waitMs` has passed, so a
+ *  host can hold markdown back rather than show it as plain text that then
+ *  reflows. Starts the load. */
+export function useMarkdownReady(waitMs: number): boolean {
+  const [ready, setReady] = useState(() => loaded !== undefined)
+  useEffect(() => {
+    if (ready) {
+      return
+    }
+    let live = true
+    const done = () => {
+      if (live) {
+        setReady(true)
+      }
+    }
+    const timer = setTimeout(done, waitMs)
+    preloadMarkdown().then(done, done)
+    return () => {
+      live = false
+      clearTimeout(timer)
+    }
+  }, [ready, waitMs])
+  return ready
+}
 
 /** Markdown, with highlighted code, math and mermaid diagrams. Links leave in a
  *  new tab, and inline code breaks after path separators. */

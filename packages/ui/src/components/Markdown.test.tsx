@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, renderHook, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import Markdown from './Markdown'
 import { withoutUnfinishedTable } from './MarkdownImpl'
@@ -46,12 +46,62 @@ describe('Markdown mermaid', () => {
   })
 })
 
+// Fresh modules: this file has already loaded the renderer into the shared one.
+async function freshMarkdown() {
+  vi.resetModules()
+  return await import('./Markdown')
+}
+
+describe('useMarkdownReady', () => {
+  afterEach(() => {
+    vi.doUnmock('./MarkdownImpl')
+  })
+
+  it('is ready on its first render once the renderer has loaded', async () => {
+    const fresh = await freshMarkdown()
+    await fresh.preloadMarkdown()
+
+    const { result } = renderHook(() => fresh.useMarkdownReady(60_000))
+
+    expect(result.current).toBe(true)
+  })
+
+  it('starts the load and waits for it', async () => {
+    const fresh = await freshMarkdown()
+
+    const { result } = renderHook(() => fresh.useMarkdownReady(60_000))
+
+    expect(result.current).toBe(false)
+    await waitFor(() => expect(result.current).toBe(true), { timeout: 30_000 })
+  })
+
+  it('stops waiting once waitMs passes on a load that stalls', async () => {
+    vi.doMock('./MarkdownImpl', () => new Promise(() => {}))
+    const fresh = await freshMarkdown()
+
+    const { result } = renderHook(() => fresh.useMarkdownReady(50))
+
+    expect(result.current).toBe(false)
+    await waitFor(() => expect(result.current).toBe(true))
+  })
+
+  it('stops waiting as soon as the load fails', async () => {
+    vi.doMock('./MarkdownImpl', () => {
+      throw new Error('offline')
+    })
+    const fresh = await freshMarkdown()
+
+    const { result } = renderHook(() => fresh.useMarkdownReady(60_000))
+
+    await waitFor(() => expect(result.current).toBe(true))
+  })
+})
+
 describe('Markdown once its renderer has loaded', () => {
   // A fresh module: one this file has already rendered resolves its lazy
   // renderer on its own, which would pass without the preload.
   it('renders as markdown from its first frame, not as plain text', async () => {
-    vi.resetModules()
-    const fresh = await import('./Markdown')
+    const fresh = await freshMarkdown()
     await fresh.preloadMarkdown()
 
     const { container } = render(<fresh.default>{'**ready**'}</fresh.default>)

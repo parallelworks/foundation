@@ -199,6 +199,15 @@ export const OpeningSession: StoryObj<OpeningSessionArgs> = {
   render: (args) => <OpeningSessionExample {...args} />,
 }
 
+/** The first session opened on a page that hasn't loaded the markdown renderer,
+ *  with a transcript that answers at once. The view holds the transcript back
+ *  until the renderer is ready, up to a second, so its replies never show as
+ *  raw text first. */
+export const OpeningSessionBeforeRenderer: StoryObj<OpeningSessionArgs> = {
+  ...OpeningSession,
+  args: { fetchMs: 0 },
+}
+
 type PickerCommandArgs = { pickerCommand: string }
 
 const PICKER_SESSION = makeLongConversation(30, 'picker-command').messages

@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { preloadMarkdown } from '../../components/Markdown'
+import { useMarkdownReady } from '../../components/Markdown'
 import { useChat } from '../core/ChatProvider'
 import useDragDrop from '../core/useDragDrop'
 import { escapeClosesLayer } from '../core/useKeyboardShortcuts'
@@ -23,6 +23,8 @@ type ComposerProps = Omit<
 >
 
 type ListProps = ComponentProps<typeof ChatMessageList>
+
+const MARKDOWN_WAIT_MS = 1000
 
 export interface SessionViewProps {
   /** Keys the composer's draft, so each conversation or session keeps its own. */
@@ -123,12 +125,22 @@ export default function SessionView({
   const running = turn ? turn.running : providerStreaming
   const stop = turn ? turn.onStop : stopStreaming
 
-  // While the host still fetches the transcript, so its replies render as
-  // markdown from their first frame rather than reflowing once it loads. A
-  // failed load is left to the first reply that renders.
-  useEffect(() => {
-    preloadMarkdown().catch(() => {})
-  }, [])
+  // A transcript that arrives before the renderer would show its replies as
+  // raw text, then reflow, so it waits; never longer than this, since raw text
+  // beats a blank transcript when the load stalls. The list's empty state keeps
+  // the composer mounted meanwhile.
+  const markdownReady = useMarkdownReady(MARKDOWN_WAIT_MS)
+  const transcript: Pick<
+    ListProps,
+    'messages' | 'allMessages' | 'streamingMessage' | 'queuedMessages'
+  > = markdownReady
+    ? {
+        messages,
+        allMessages: allMessages ?? messages,
+        ...(streamingMessage !== undefined ? { streamingMessage } : {}),
+        ...(queuedMessages ? { queuedMessages } : {}),
+      }
+    : { messages: [], allMessages: [], streamingMessage: null, queuedMessages: [] }
 
   // Escape stops the turn, wherever the turn runs.
   useEffect(() => {
@@ -215,10 +227,7 @@ export default function SessionView({
         {error ?? (
           <ChatMessageList
             ref={listRef}
-            messages={messages}
-            allMessages={allMessages ?? messages}
-            {...(streamingMessage !== undefined ? { streamingMessage } : {})}
-            {...(queuedMessages ? { queuedMessages } : {})}
+            {...transcript}
             {...(onRemoveQueued ? { onRemoveQueued } : {})}
             {...(canRemoveQueued ? { canRemoveQueued } : {})}
             {...(queueDelivery ? { queueDelivery } : {})}

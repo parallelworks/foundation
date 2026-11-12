@@ -31,6 +31,10 @@ vi.mock('../ui/Markdown', () => ({
   __esModule: true,
   default: ({ children }: { children: string }) => <div>{children}</div>,
 }))
+vi.mock('../../components/Markdown', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  useMarkdownReady: () => true,
+}))
 
 const read: MessagePart = {
   kind: 'tool_call',

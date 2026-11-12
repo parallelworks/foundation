@@ -34,6 +34,10 @@ vi.mock('../ui/Markdown', () => ({
   __esModule: true,
   default: ({ children }: { children: string }) => <p>{children}</p>,
 }))
+vi.mock('../../components/Markdown', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  useMarkdownReady: () => true,
+}))
 
 class FakeHighlight {
   ranges: Range[]

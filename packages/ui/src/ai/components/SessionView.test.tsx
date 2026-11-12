@@ -8,6 +8,7 @@ import type ChatMessageList from './ChatMessageList'
 import SessionView from './SessionView'
 
 const chat = { isStreaming: false, stopStreaming: vi.fn() }
+const markdown = { ready: true }
 const jumpToLatest = vi.fn()
 let listProps: ComponentProps<typeof ChatMessageList> | undefined
 let composerProps: ComponentProps<typeof ChatInput> | undefined
@@ -46,6 +47,11 @@ vi.mock('./ChatInput', () => ({
   },
 }))
 
+vi.mock('../../components/Markdown', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  useMarkdownReady: () => markdown.ready,
+}))
+
 vi.mock('./ChatActivity', () => ({
   __esModule: true,
   default: () => <span data-testid="chat-activity" />,
@@ -55,6 +61,7 @@ const ask: Message = { id: 'u1', role: 'user', content: 'stop it', parentId: 'ro
 const reply: Message = { id: 'a1', role: 'assistant', content: 'done', parentId: 'u1' }
 
 beforeEach(() => {
+  markdown.ready = true
   chat.isStreaming = false
   chat.stopStreaming.mockReset()
   jumpToLatest.mockReset()
@@ -67,6 +74,39 @@ function pressEscape(target: Element | Window = window) {
 }
 
 describe('SessionView', () => {
+  // Shown before the renderer loads, the replies would read as raw text, then reflow.
+  it('holds the transcript back until the markdown renderer is ready, with the composer usable', () => {
+    markdown.ready = false
+    const queued: Message = { id: 'q1', role: 'user', content: 'and then', parentId: 'a1' }
+    const view = () => (
+      <SessionView
+        sessionKey="s1"
+        messages={[ask, reply]}
+        streamingMessage={null}
+        queuedMessages={[queued]}
+        onSend={vi.fn()}
+      />
+    )
+    const { rerender } = render(view())
+
+    expect(listProps).toMatchObject({
+      messages: [],
+      allMessages: [],
+      streamingMessage: null,
+      queuedMessages: [],
+    })
+    expect(screen.getByTestId('composer')).toHaveAttribute('data-disabled', 'false')
+
+    markdown.ready = true
+    rerender(view())
+
+    expect(listProps).toMatchObject({
+      messages: [ask, reply],
+      allMessages: [ask, reply],
+      queuedMessages: [queued],
+    })
+  })
+
   it("shows the working line above the composer for the chat provider's reply, in place of the list's indicator", () => {
     chat.isStreaming = true
     render(<SessionView sessionKey="s1" messages={[ask]} onSend={vi.fn()} />)
