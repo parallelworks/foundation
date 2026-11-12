@@ -883,8 +883,58 @@ describe('foldEveryRun', () => {
     const parts = [tc('t1', 'ReadFile'), tc('t2', 'Bash', 'error')]
     expect(kinds(parts)).toEqual(['rollup'])
     render(folded(parts))
-    const toggle = screen.getByRole('button', { name: /Read 1 file, ran 1 shell command/ })
+    const toggle = screen.getByRole('button', { name: /Read 1 file ?· 1 failed/ })
     expect(toggle.querySelector('.invisible')).not.toBeNull()
+  })
+
+  it('counts only the calls that went through, and the failures beside them', () => {
+    render(
+      folded([
+        tc('t1', 'ReadFile'),
+        tc('t2', 'ReadFile', 'error'),
+        tc('t3', 'ReadFile'),
+        tc('t4', 'Bash', 'error'),
+      ]),
+    )
+    expect(screen.getByText('Read 2 files')).toHaveTextContent('Read 2 files · 2 failed')
+  })
+
+  it('names the tools that failed when nothing went through, without counting twice', () => {
+    render(
+      folded([tc('t1', 'Bash', 'error'), tc('t2', 'Bash', 'error'), tc('t3', 'ReadFile', 'error')]),
+    )
+    expect(screen.getByText(/failed 2 times/)).toHaveTextContent(
+      /^Bash failed 2 times, Read failed 1 time$/,
+    )
+  })
+
+  it('counts a running call as under way, not failed', () => {
+    vi.useFakeTimers()
+    render(folded([tc('t1', 'Bash', 'error'), tc('t2', 'ReadFile', 'running')]))
+    expect(screen.getByText(/Reading 1 file…/)).toHaveTextContent(/^Reading 1 file… · 1 failed$/)
+  })
+
+  it('leaves a host’s own words counting every call, with its failures beside them', () => {
+    render(
+      <ChatConfigProvider
+        value={resolveChatConfig({
+          slots: {
+            toolPresentation: (part) =>
+              part.name === 'cost_summary'
+                ? { label: 'Checked costs', rollup: (n) => `checked costs ${n} times` }
+                : undefined,
+          },
+        })}
+      >
+        <AgentMessageParts
+          message={msg([tc('t1', 'cost_summary', 'error'), tc('t2', 'cost_summary')])}
+          foldEveryRun
+        />
+      </ChatConfigProvider>,
+    )
+    expect(screen.getByText(/checked costs 2 times/i)).toHaveTextContent(
+      /^Checked costs 2 times · 1 failed$/,
+    )
   })
 
   it('holds a running call to the line for a moment, then shows its block below', () => {

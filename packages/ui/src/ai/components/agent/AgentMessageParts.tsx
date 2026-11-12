@@ -1351,34 +1351,53 @@ function RollupGroup({
   const live = members.filter(isRunningCall)
   const settled = members.filter((m) => !isRunningCall(m))
   const running = live.length > 0
-  const { sentence, allNamed } = useMemo(() => {
+  const { sentence, failed, allNamed } = useMemo(() => {
     const builtin: string[] = []
+    const failedBuiltin = new Map<string, number>()
     const named = new Map<string, { count: number; rollup: (count: number) => string }>()
+    let failed = 0
     for (const m of members) {
       if (m.part.kind !== 'tool_call') {
         continue
       }
+      const isFailed = m.part.status === 'error'
+      if (isFailed) {
+        failed++
+      }
       const rollup = slots.toolPresentation?.(m.part, message)?.rollup
       if (!rollup) {
-        builtin.push(m.part.name)
+        // Built-in words claim the work was done, so they count only what went through.
+        if (isFailed) {
+          failedBuiltin.set(m.part.name, (failedBuiltin.get(m.part.name) ?? 0) + 1)
+        } else {
+          builtin.push(m.part.name)
+        }
         continue
       }
       const entry = named.get(m.part.name) ?? { count: 0, rollup }
       named.set(m.part.name, { ...entry, count: entry.count + 1 })
     }
-    const clauses = [
+    let clauses = [
       ...[...named.values()].map((n) => n.rollup(n.count)),
       ...(foldEveryRun
         ? runClauses(builtin, running, strings.tools)
         : rollupClauses(builtin, strings.tools)),
     ]
+    // Nothing went through, so the row names what failed and needs no count beside it.
+    const nothingDone = clauses.length === 0
+    if (nothingDone) {
+      clauses = [...failedBuiltin].map(([name, n]) =>
+        strings.agentTranscript.failedGroup(toolHeaderFor(name).label, n),
+      )
+    }
     return {
       sentence: clauses.length
         ? `${strings.tools.rollup.sentence(clauses)}${running ? '…' : ''}`
         : '',
-      allNamed: named.size > 0 && builtin.length === 0,
+      failed: nothingDone ? 0 : failed,
+      allNamed: named.size > 0 && builtin.length === 0 && failedBuiltin.size === 0,
     }
-  }, [members, message, slots.toolPresentation, strings.tools, foldEveryRun, running])
+  }, [members, message, slots.toolPresentation, strings, foldEveryRun, running])
   return (
     <div className="py-1.5 text-sm" data-testid="tool-rollup">
       <Disclosure
@@ -1406,6 +1425,12 @@ function RollupGroup({
               )}
             >
               {sentence}
+              {failed > 0 && (
+                <span className="text-(--theme-error-text)">
+                  {' · '}
+                  {strings.agentTranscript.failedCount(failed)}
+                </span>
+              )}
             </span>
           </>
         }

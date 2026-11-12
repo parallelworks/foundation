@@ -363,28 +363,42 @@ export const ReviewedRun: StoryObj = {
   },
 }
 
-export const EveryRunFolded: StoryObj<{ failed: boolean; running: boolean }> = {
+export const EveryRunFolded: StoryObj<{ failed: boolean; allFailed: boolean; running: boolean }> = {
   name: 'Every run folded',
-  args: { failed: true, running: false },
+  args: { failed: true, allFailed: false, running: false },
   argTypes: {
-    failed: { description: 'A failed call folds with the rest, with no success mark on the row' },
+    failed: {
+      description:
+        'A failed call folds with the rest. The row counts only what went through, with the failures beside it, and has no success mark',
+    },
+    allFailed: {
+      description: 'Every settled call fails, so the row names each tool that failed instead',
+    },
     running: { description: 'The row reads as under way and the call shows below it' },
   },
-  render: ({ failed, running }) => (
+  render: ({ failed, allFailed, running }) => (
     <AgentMessageParts
       foldEveryRun
       message={makeMessage({
         content: null,
         parts: [
           {
-            ...makeToolCallPart({ name: 'ReadFile', status: 'ok', resultLines: 4 }),
+            ...makeToolCallPart({
+              name: 'ReadFile',
+              status: allFailed ? 'error' : 'ok',
+              resultLines: 4,
+            }),
             args: JSON.stringify({ path: 'internal/server/server.go' }),
           },
-          makeToolCallPart({ name: 'Bash', status: failed ? 'error' : 'ok', resultLines: 3 }),
+          makeToolCallPart({
+            name: 'Bash',
+            status: failed || allFailed ? 'error' : 'ok',
+            resultLines: 3,
+          }),
           {
             ...makeToolCallPart({
               name: 'GrepSearch',
-              status: running ? 'running' : 'ok',
+              status: running ? 'running' : allFailed ? 'error' : 'ok',
               resultLines: 2,
             }),
             args: JSON.stringify({ pattern: 'partition' }),
