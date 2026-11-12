@@ -207,9 +207,13 @@
     /* An auto column grows to the longest label, pushing each row's action out of the sidebar. */
     grid-template-columns: minmax(0, 1fr);
   }
-  /* Nested items start under their group's label. */
+  /* Nested items hang on a guide line under their group's icon (8px padding plus half the
+     18px icon), and start just past it, so a child's highlight covers only its own row. */
   .pw-frame-nav-group-nested {
-    margin-inline-start: var(--pw-frame-nav-indent, 26px);
+    margin-inline-start: var(--pw-frame-nav-indent, 16px);
+    padding-inline-start: 4px;
+    border-inline-start: 1px solid
+      var(--theme-sidebar-guide, color-mix(in oklab, var(--theme-sidebar-text, var(--theme-app)) 15%, transparent));
   }
   .pw-frame-nav-group {
     padding-block: 4px;
