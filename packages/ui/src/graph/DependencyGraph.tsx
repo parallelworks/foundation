@@ -1014,23 +1014,33 @@ function EditorEdges({
   )
 }
 
-/** How many subworkflows deep the sidebar's deepest open step is. */
+/** How many subworkflows deep the sidebar's deepest shown step is. */
 function openDepth(
+  engine: WorkflowEngine,
   jobs: Record<string, WorkflowJob>,
   pathPrefix: string,
-  stepsOpen: Set<string>,
-  expandedSubworkflows: Set<string>,
+  open: { steps: Set<string>; subworkflows: Set<string>; matrices: Set<string> },
 ): number {
+  const displayJobs = displayJobsOf(engine, jobs, engine.matrixGroups(jobs))
   let deepest = 0
   for (const [j, job] of Object.entries(jobs)) {
-    if (!stepsOpen.has(pathPrefix + j)) {
+    const originaljob = job._matrix?.originaljob
+    const inClosedMatrix =
+      !!originaljob &&
+      !!displayJobs[originaljob]?._matrixGroup &&
+      !open.matrices.has(pathPrefix + originaljob)
+    if (inClosedMatrix || !open.steps.has(pathPrefix + j)) {
       continue
     }
     for (const [s, step] of (job.steps ?? []).entries()) {
       const subJobs = step.subworkflow?.jobs
-      if (subJobs && expandedSubworkflows.has(`${pathPrefix}${j}:${s}`)) {
+      if (
+        subJobs &&
+        Object.keys(subJobs).length > 0 &&
+        open.subworkflows.has(`${pathPrefix}${j}:${s}`)
+      ) {
         const prefix = `${pathPrefix}subworkflows/${j}/step_${s}/`
-        deepest = Math.max(deepest, 1 + openDepth(subJobs, prefix, stepsOpen, expandedSubworkflows))
+        deepest = Math.max(deepest, 1 + openDepth(engine, subJobs, prefix, open))
       }
     }
   }
@@ -2235,7 +2245,15 @@ export default function DependencyGraph({
   // animations; it only needs to re-render when its own inputs change.
   const summarySidebar = useMemo(
     () => (
-      <div style={sidebarIndent(openDepth(jobs, pathAppend, stepsOpen, expandedSubworkflows))}>
+      <div
+        style={sidebarIndent(
+          openDepth(engine, jobs, pathAppend, {
+            steps: stepsOpen,
+            subworkflows: expandedSubworkflows,
+            matrices: matrixOpen,
+          }),
+        )}
+      >
         <SidebarJobs
           jobs={jobs}
           pathPrefix={pathAppend}
@@ -2252,6 +2270,7 @@ export default function DependencyGraph({
       </div>
     ),
     [
+      engine,
       jobs,
       pathAppend,
       preview,
