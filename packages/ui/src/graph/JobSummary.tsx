@@ -62,8 +62,8 @@ export function Joblist(
   inputs: JobHandlers & {
     jobs: Record<string, WorkflowJob>
     jobNames: string[]
-    // Graph only: animate box width as steps reveal; off in the sidebar so long
-    // names and icons wrap instead.
+    // Graph only: animate box width as steps reveal. Off in the sidebar, whose width is fixed, so a
+    // long name stays on one line, cut short, with the full name on hover.
     growWidth?: boolean
     preview?: boolean
     editable?: boolean
@@ -75,6 +75,7 @@ export function Joblist(
   const engine = useWorkflowEngine()
   const marks = useWarningMarks()
   const prefix = inputs.pathPrefix
+  const oneLine = !inputs.growWidth
   let rows = 0
   return inputs.jobNames.map((jobName) => {
     // Skip synthetic matrix group nodes — rendered by the caller, not Joblist
@@ -99,7 +100,12 @@ export function Joblist(
         )}
       >
         {!inputs.preview && <RunStatusIcon status={jobStatus} />}
-        <div className="font-medium">{label}</div>
+        <div
+          className={cx('font-medium', oneLine && 'truncate')}
+          title={oneLine ? label : undefined}
+        >
+          {label}
+        </div>
         <WarningMark warnings={marks.under(rowKey(prefix, jobName))} />
       </button>
     )
@@ -137,11 +143,17 @@ export function Joblist(
                   className={cx(
                     inputs.preview ? 'ml-1.5' : 'ml-4',
                     'gap-x-1.5 flex items-center text-left',
+                    oneLine && 'min-w-0',
                   )}
                   data-testid={stepLabel}
                 >
                   {inputs.preview ? '↳' : <RunStatusIcon status={step.status} />}
-                  <div>{stepLabel}</div>
+                  <div
+                    className={cx(oneLine && 'truncate')}
+                    title={oneLine ? stepLabel : undefined}
+                  >
+                    {stepLabel}
+                  </div>
                   <WarningMark warnings={marks.under(rowKey(prefix, jobName, i))} />
                 </button>
               )

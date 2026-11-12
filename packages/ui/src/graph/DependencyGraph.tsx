@@ -1062,7 +1062,7 @@ function SidebarJobs({
     // No graph or connectors here, just the nested job list, indented.
     renderWell: (subJobs, subPrefix, expanded) => (
       <DisclosurePanel open={expanded}>
-        <div className="ml-6 mt-0.5 border-l border-(--theme-border) pl-4">
+        <div className="ml-4 mt-0.5 border-l border-(--theme-border) pl-2">
           <SidebarJobs
             jobs={subJobs}
             pathPrefix={subPrefix}
