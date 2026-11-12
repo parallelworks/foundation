@@ -213,7 +213,10 @@
     margin-inline-start: var(--pw-frame-nav-indent, 16px);
     padding-inline-start: 4px;
     border-inline-start: 1px solid
-      var(--theme-sidebar-guide, color-mix(in oklab, var(--theme-sidebar-text, var(--theme-app)) 15%, transparent));
+      var(
+        --theme-sidebar-guide,
+        color-mix(in oklab, var(--theme-sidebar-text, var(--theme-app)) 15%, transparent)
+      );
   }
   .pw-frame-nav-group {
     padding-block: 4px;
