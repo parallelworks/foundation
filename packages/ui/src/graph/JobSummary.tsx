@@ -114,9 +114,11 @@ export function Joblist(
         key={`job-${jobName}`}
         data-tone={runStatusTone(jobStatus)}
         // Jobs that share a box are ruled apart, so two read as two rather than as one name on two
-        // lines.
+        // lines. The rule runs to the box's edges; in the sidebar that bleed would make the list
+        // wider than the sidebar, so it could scroll sideways.
         className={cx(
-          '-mx-8 px-8 py-1 select-none',
+          'py-1 select-none',
+          !oneLine && '-mx-8 px-8',
           !first && 'border-t-2 border-solid border-(--theme-border)',
         )}
       >
@@ -140,9 +142,11 @@ export function Joblist(
                   type="button"
                   data-run-row={rowKey(prefix, jobName, i)}
                   onClick={() => inputs.onStepClick(jobName, i)}
+                  // The sidebar narrows a step's indent as it opens deeper; the graph has no such
+                  // variable and keeps 1rem.
                   className={cx(
-                    inputs.preview ? 'ml-1.5' : 'ml-4',
-                    'gap-x-1.5 flex items-center text-left',
+                    inputs.preview ? 'ml-1.5' : 'ml-[var(--sidebar-indent,1rem)]',
+                    'gap-x-1.5 flex items-center text-left motion-safe:transition-[margin]',
                     oneLine && 'min-w-0',
                   )}
                   data-testid={stepLabel}

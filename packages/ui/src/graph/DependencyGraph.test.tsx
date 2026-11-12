@@ -419,6 +419,32 @@ describe('DependencyGraph sidebar', () => {
     expect(screen.getAllByText('Notify').length).toBeGreaterThan(0)
   })
 
+  it('narrows its indents only once it opens deeper than two subworkflows', () => {
+    // Four subworkflows deep: each level's one job runs the next level in its one step.
+    const nest = (depth: number): Record<string, WorkflowJob> => ({
+      [`level${depth}`]: {
+        status: 'completed',
+        steps: [
+          depth === 4
+            ? { name: 'work', status: 'completed' }
+            : { name: `open${depth}`, status: 'completed', subworkflow: { jobs: nest(depth + 1) } },
+        ],
+      },
+    })
+    const { container } = render(<DependencyGraph run={{ ...subRun, executedJobs: nest(0) }} />)
+    const indent = () => container.querySelector('[style*="--sidebar-indent"]')
+    expect(indent()).toHaveStyle({ '--sidebar-indent': '16px' })
+    fireEvent.click(screen.getAllByText(/^level0$/i)[0]!)
+    fireEvent.click(screen.getAllByText('open0')[0]!)
+    fireEvent.click(screen.getAllByText(/^level1$/i)[0]!)
+    fireEvent.click(screen.getAllByText('open1')[0]!)
+    expect(screen.getAllByText(/^level2$/i).length).toBeGreaterThan(0)
+    expect(indent()).toHaveStyle({ '--sidebar-indent': '16px' })
+    fireEvent.click(screen.getByRole('button', { name: 'Expand all' }))
+    expect(screen.getAllByText('work').length).toBeGreaterThan(0)
+    expect(indent()).toHaveStyle({ '--sidebar-indent': '10px' })
+  })
+
   it('collapses matrix members into one group instead of listing each', () => {
     const matrixRun = {
       id: 'm',
