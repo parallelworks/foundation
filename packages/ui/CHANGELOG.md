@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.131.0](https://github.com/parallelworks/foundation/compare/ui-v0.130.0...ui-v0.131.0) (2026-11-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* **ui:** the effort picker has five levels, the same for every model, and its chip keeps one width as the level changes ([#737](https://github.com/parallelworks/foundation/issues/737))
+
+### Features
+
+* **ui:** the effort picker has five levels, the same for every model, and its chip keeps one width as the level changes ([#737](https://github.com/parallelworks/foundation/issues/737)) ([177c5b1](https://github.com/parallelworks/foundation/commit/177c5b138d145a7ba403a269946e6d0d01888f78))
+
 ## [0.130.0](https://github.com/parallelworks/foundation/compare/ui-v0.129.0...ui-v0.130.0) (2026-11-13)
 
 
