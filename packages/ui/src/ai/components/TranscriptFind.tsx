@@ -12,6 +12,7 @@ import { cx } from '../../cx'
 import { ChevronDownIcon, ChevronUpIcon, CloseIcon, SearchIcon } from '../../icons'
 import { useChatConfig } from '../core/config'
 import { FIND_IN_TRANSCRIPT_EVENT } from '../core/events'
+import { listenWhileShown, onScreen } from '../core/onScreen'
 import {
   findRanges,
   firstInView,
@@ -84,10 +85,9 @@ export function useTranscriptFind(root: RefObject<HTMLElement | null>, enabled: 
     if (!enabled) {
       return
     }
+    const findKey = (e: KeyboardEvent) =>
+      (isMac() ? e.metaKey : e.ctrlKey) && !e.altKey && ['f', 'g'].includes(e.key.toLowerCase())
     const onKeyDown = (e: KeyboardEvent) => {
-      if (!(isMac() ? e.metaKey : e.ctrlKey) || e.altKey) {
-        return
-      }
       const key = e.key.toLowerCase()
       // ⇧⌘F is the conversation shortcuts' search, and a dialog keeps its own keys.
       if (
@@ -103,13 +103,18 @@ export function useTranscriptFind(root: RefObject<HTMLElement | null>, enabled: 
         step(e.shiftKey ? -1 : 1)
       }
     }
-    document.addEventListener('keydown', onKeyDown)
-    document.addEventListener(FIND_IN_TRANSCRIPT_EVENT, show)
-    return () => {
-      document.removeEventListener('keydown', onKeyDown)
-      document.removeEventListener(FIND_IN_TRANSCRIPT_EVENT, show)
+    const onFind = () => {
+      if (onScreen(root.current)) {
+        show()
+      }
     }
-  }, [enabled, show, step])
+    const stopKeys = listenWhileShown(document, () => root.current, findKey, onKeyDown)
+    document.addEventListener(FIND_IN_TRANSCRIPT_EVENT, onFind)
+    return () => {
+      stopKeys()
+      document.removeEventListener(FIND_IN_TRANSCRIPT_EVENT, onFind)
+    }
+  }, [enabled, show, step, root])
 
   useEffect(() => {
     if (open && focusTick > 0) {

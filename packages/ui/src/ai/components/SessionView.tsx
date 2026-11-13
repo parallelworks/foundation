@@ -8,6 +8,7 @@ import {
 } from 'react'
 import { useMarkdownReady } from '../../components/Markdown'
 import { useChat } from '../core/ChatProvider'
+import { listenWhileShown } from '../core/onScreen'
 import useDragDrop from '../core/useDragDrop'
 import { escapeClosesLayer } from '../core/useKeyboardShortcuts'
 import type { ApprovalAnswerValue, ChatMessage as Message } from '../types'
@@ -25,21 +26,6 @@ type ComposerProps = Omit<
 type ListProps = ComponentProps<typeof ChatMessageList>
 
 const MARKDOWN_WAIT_MS = 1000
-
-/** Whether the view is on screen. A host that keeps a session mounted while
- *  another page shows hides it with `display: none` or `visibility: hidden`;
- *  Escape pressed on that page belongs to the page. */
-function onScreen(el: HTMLElement | null): boolean {
-  if (!el?.isConnected || getComputedStyle(el).visibility === 'hidden') {
-    return false
-  }
-  for (let n: HTMLElement | null = el; n; n = n.parentElement) {
-    if (getComputedStyle(n).display === 'none') {
-      return false
-    }
-  }
-  return true
-}
 
 export interface SessionViewProps {
   /** Keys the composer's draft, so each conversation or session keeps its own. */
@@ -162,18 +148,16 @@ export default function SessionView({
     if (!running) {
       return
     }
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.key === 'Escape' &&
-        !e.defaultPrevented &&
-        !escapeClosesLayer(e.target) &&
-        onScreen(viewRef.current)
-      ) {
-        stop()
-      }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
+    return listenWhileShown(
+      window,
+      () => viewRef.current,
+      (e) => e.key === 'Escape',
+      (e) => {
+        if (!e.defaultPrevented && !escapeClosesLayer(e.target)) {
+          stop()
+        }
+      },
+    )
   }, [running, stop])
 
   const editable = (id: string) => messages.find((m) => m.id === id && m.role === 'user')
@@ -226,7 +210,7 @@ export default function SessionView({
 
   if (loading && !error) {
     return (
-      <div className="flex h-full flex-col bg-(--theme-panel-bg)">
+      <div ref={viewRef} className="flex h-full flex-col bg-(--theme-panel-bg)">
         {banners}
         <div className="flex-1" />
         {input}

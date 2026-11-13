@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ComponentProps } from 'react'
+import type { ComponentProps, CSSProperties } from 'react'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { mockCheckVisibility } from '../../test/visibility'
 import { FIND_IN_TRANSCRIPT_EVENT } from '../core/events'
 import type { ChatMessage as Message } from '../types'
 import SessionView from './SessionView'
@@ -48,11 +49,16 @@ class FakeHighlight {
 }
 const highlights = new Map<string, FakeHighlight>()
 
+let restoreVisibility: () => void
 beforeAll(() => {
   vi.stubGlobal('Highlight', FakeHighlight)
   vi.stubGlobal('CSS', { highlights })
+  restoreVisibility = mockCheckVisibility()
 })
-afterAll(() => vi.unstubAllGlobals())
+afterAll(() => {
+  vi.unstubAllGlobals()
+  restoreVisibility()
+})
 beforeEach(() => {
   highlights.clear()
   chat.stopStreaming.mockReset()
@@ -100,6 +106,28 @@ describe('SessionView find', () => {
     fireEvent.keyDown(document, { key: 'f', ctrlKey: true })
     fireEvent.keyDown(document, { key: 'F', ctrlKey: true, shiftKey: true })
     document.removeEventListener('keydown', takeIt, { capture: true })
+    expect(screen.queryByTestId('transcript-find')).not.toBeInTheDocument()
+  })
+
+  it('leaves Ctrl+F, Ctrl+G and the host event to the page while the host keeps the view mounted and hidden', () => {
+    const view = (style: CSSProperties) => (
+      <div style={style}>
+        <Session />
+      </div>
+    )
+    const { rerender } = render(view({}))
+    fireEvent.change(openFind(), { target: { value: 'timeout' } })
+    rerender(view({ visibility: 'hidden' }))
+    expect(fireEvent.keyDown(document.body, { key: 'g', ctrlKey: true })).toBe(true)
+    expect(count()).toHaveTextContent('1 of 2')
+
+    rerender(view({}))
+    fireEvent.click(screen.getByRole('button', { name: 'Close find' }))
+    rerender(view({ display: 'none' }))
+    expect(fireEvent.keyDown(document, { key: 'f', ctrlKey: true })).toBe(true)
+    act(() => {
+      document.dispatchEvent(new Event(FIND_IN_TRANSCRIPT_EVENT))
+    })
     expect(screen.queryByTestId('transcript-find')).not.toBeInTheDocument()
   })
 
