@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.130.0](https://github.com/parallelworks/foundation/compare/ui-v0.129.0...ui-v0.130.0) (2026-11-13)
+
+
+### Features
+
+* **ui:** the chat's types and logic import without its components ([#740](https://github.com/parallelworks/foundation/issues/740)) ([be1a545](https://github.com/parallelworks/foundation/commit/be1a545e55a8d40b4abfab39a88a77dad702deb9))
+
+
+### Bug Fixes
+
+* **ui:** Escape stops a session's turn only while the session view is on screen ([#741](https://github.com/parallelworks/foundation/issues/741)) ([598fcda](https://github.com/parallelworks/foundation/commit/598fcda7862e70c415f41af6bbb87249027cf050))
+
 ## [0.129.0](https://github.com/parallelworks/foundation/compare/ui-v0.128.0...ui-v0.129.0) (2026-11-13)
 
 
