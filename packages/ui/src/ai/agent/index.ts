@@ -14,11 +14,6 @@ export {
   type WriteModel,
   wordEmphasisRanges,
 } from './diff'
-export {
-  type DiffToken,
-  languageForPath,
-  tokenizeDiffLines,
-} from './diffHighlight'
 export { EFFORT_LEVELS, type EffortLevel, isEffortLevel } from './effort'
 export {
   clampPermissionMode,

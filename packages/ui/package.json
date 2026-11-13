@@ -32,6 +32,7 @@
     "./file-explorer": "./src/file-explorer/index.ts",
     "./access": "./src/access/index.ts",
     "./ai": "./src/ai/index.ts",
+    "./ai/headless": "./src/ai/headless.ts",
     "./ai/openai": "./src/ai/adapter/openai/index.ts",
     "./ai/mock": "./src/ai/adapter/mock/index.ts",
     "./ai.css": "./src/ai/ai.css",
@@ -97,6 +98,10 @@
       "./ai": {
         "types": "./dist/ai/index.d.ts",
         "import": "./dist/ai/index.js"
+      },
+      "./ai/headless": {
+        "types": "./dist/ai/headless.d.ts",
+        "import": "./dist/ai/headless.js"
       },
       "./ai/openai": {
         "types": "./dist/ai/adapter/openai/index.d.ts",

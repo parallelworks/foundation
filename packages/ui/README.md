@@ -17,6 +17,7 @@ so an application ships only what it imports:
 | `./file-explorer`                                                                                            | object storage explorer over a host-supplied provider                                                                                                                 |
 | `./access`                                                                                                   | `AccessDrawer`: who has access to a resource, and granting roles to people and groups                                                                                 |
 | `./ai`, `./ai/openai`, `./ai/mock`                                                                           | chat interface and adapters                                                                                                                                           |
+| `./ai/headless`                                                                                              | the chat's types and logic with nothing to draw them: no React or stylesheet comes with it                                                                            |
 | `./theme.css`, `./base.css`, `./fonts.css`, `./styles.css`, `./logviewer.css`, `./ai.css`, `./app-frame.css` | stylesheets                                                                                                                                                           |
 
 Hosts bind strings, navigation, data hooks and the workflow engine through
@@ -1068,6 +1069,24 @@ overrides:
 
 Inline math takes `$$` within a sentence; a single `$` stays text, so prices
 are never read as math.
+
+### Without the components
+
+`@parallelworks/ui/ai/headless` is the part of the chat that draws nothing:
+the message and part types, the reducers that build a message from a stream
+(`applyPartDelta`, `finalizeParts`, `chatReducer`), and how an agent's tool
+calls read (`toolHeaderFor`, `toolSummary`, `computeEditDiff` and the other
+agent helpers). Nothing it reaches imports React, a stylesheet or another
+package, so a host that draws the chat itself, such as a native app, or reads
+a transcript where there is no DOM, imports it without the components coming
+along:
+
+```ts
+import { applyPartDelta, type MessagePart, toolHeaderFor } from '@parallelworks/ui/ai/headless'
+```
+
+`@parallelworks/ui/ai` exports all of it too, so a host that uses the
+components keeps importing from there.
 
 ## Form state
 

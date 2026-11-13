@@ -1,5 +1,8 @@
-export * from './adapter/types'
-export * from './agent/index'
+export {
+  type DiffToken,
+  languageForPath,
+  tokenizeDiffLines,
+} from './agent/diffHighlight'
 export { default as AllocationSelector } from './components/AllocationSelector'
 export { default as AttachmentManager } from './components/AttachmentManager'
 export {
@@ -83,12 +86,6 @@ export {
   useChat,
   useChatStream,
 } from './core/ChatProvider'
-export {
-  type ChatAction,
-  type ChatState,
-  chatReducer,
-  initialState,
-} from './core/chatReducer'
 export type { PartRendererProps, ToolRendererProps } from './core/config'
 export {
   type ChatLinkProps,
@@ -99,7 +96,6 @@ export {
 export { FIND_IN_TRANSCRIPT_EVENT, FOCUS_SIDEBAR_SEARCH_EVENT } from './core/events'
 export { getGreeting } from './core/greeting'
 export { KeyboardShortcutsProvider } from './core/KeyboardShortcutsProvider'
-export { applyPartDelta, finalizeParts } from './core/parts'
 export { pasteInlineMaxBytes } from './core/pastes'
 export { providerIssueFor } from './core/providerIssues'
 export type { SidebarPresentation, SidebarState } from './core/sidebarState'
@@ -109,8 +105,8 @@ export {
   useConversationShortcuts,
   useKeyboardShortcuts,
 } from './core/useKeyboardShortcuts'
+export * from './headless'
 export { type ChatStrings, defaultChatStrings } from './strings'
-export * from './types'
 export {
   ConversationSidebar,
   type ConversationSidebarGroup,

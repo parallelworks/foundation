@@ -77,6 +77,7 @@ export default defineConfig({
         'list/index': 'src/list/index.ts',
         'form/index': 'src/form/index.ts',
         'ai/index': 'src/ai/index.ts',
+        'ai/headless': 'src/ai/headless.ts',
         'ai/adapter/openai/index': 'src/ai/adapter/openai/index.ts',
         'ai/adapter/mock/index': 'src/ai/adapter/mock/index.ts',
       },
