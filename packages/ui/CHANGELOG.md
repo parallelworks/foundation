@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.129.0](https://github.com/parallelworks/foundation/compare/ui-v0.128.0...ui-v0.129.0) (2026-11-13)
+
+
+### Features
+
+* **ui:** a page's list in the app frame's navigation can show more items under the new one ([#738](https://github.com/parallelworks/foundation/issues/738)) ([a606975](https://github.com/parallelworks/foundation/commit/a606975c5f906f3aceaade4a22dcd0bb76a52df0))
+
 ## [0.128.0](https://github.com/parallelworks/foundation/compare/ui-v0.127.0...ui-v0.128.0) (2026-11-13)
 
 
