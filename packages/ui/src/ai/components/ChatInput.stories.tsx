@@ -130,7 +130,7 @@ export const AgentComposer: StoryObj<{
     effort: {
       control: 'select',
       options: ['', ...EFFORT_LEVELS],
-      description: "The session's effort; empty leaves it to the model's default",
+      description: "The session's effort; empty is the default level",
     },
   },
   render: (args) => (

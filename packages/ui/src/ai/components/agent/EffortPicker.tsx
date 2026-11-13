@@ -3,14 +3,11 @@ import { type CSSProperties, useState } from 'react'
 import { Popover } from '../../../components/Popover'
 import { cx } from '../../../cx'
 import { ChevronDownIcon } from '../../../icons'
-import { EFFORT_LEVELS, type EffortLevel, isEffortLevel } from '../../agent/effort'
+import { DEFAULT_EFFORT, EFFORT_LEVELS, type EffortLevel, isEffortLevel } from '../../agent/effort'
 import { useChatConfig } from '../../core/config'
 import { chipClassName } from '../../ui/chip'
 
-type EffortStop = EffortLevel | ''
-
-// The model's own default sits before the lowest level, so leaving it to the model is the first stop.
-const STOPS: readonly EffortStop[] = ['', ...EFFORT_LEVELS]
+const STOPS = EFFORT_LEVELS
 const LAST = STOPS.length - 1
 
 const percentAt = (index: number) => (index / LAST) * 100
@@ -19,15 +16,10 @@ const percentAt = (index: number) => (index / LAST) * 100
 // the fill stops under the thumb's center, measured along the stops rather than the groove.
 const GROOVE_OVERHANG = '0.25rem'
 const fillEnd = (index: number) =>
-  index === 0
-    ? '0px'
-    : `calc(${GROOVE_OVERHANG} + (100% - 2 * ${GROOVE_OVERHANG}) * ${index / LAST})`
+  `calc(${GROOVE_OVERHANG} + (100% - 2 * ${GROOVE_OVERHANG}) * ${index / LAST})`
 
-// The ring takes the scale's color under it. The model's default isn't a level, so it stays neutral.
+// The ring takes the scale's color under it.
 function ringColor(index: number): string {
-  if (index === 0) {
-    return 'var(--theme-border-strong)'
-  }
   const at = percentAt(index)
   return at <= 50
     ? `color-mix(in oklch, var(--effort-fast) ${100 - at * 2}%, var(--effort-mid))`
@@ -41,8 +33,8 @@ const onlyValue = (value: number | readonly number[]) =>
 const glide =
   'transition-[inset-inline-start] duration-150 ease-out group-data-dragging:transition-none motion-reduce:transition-none'
 
-/** How hard the model thinks, as a toolbar chip: it opens a slider from the
- *  model's own default through every level, faster to smarter. A level it
+/** How hard the model thinks, as a toolbar chip: it opens a slider through
+ *  every level, faster to smarter, the same for every model. A level it
  *  doesn't know shows as it was given. */
 export default function EffortPicker({
   effort,
@@ -50,22 +42,22 @@ export default function EffortPicker({
   disabled = false,
   className,
 }: {
-  /** The level set; empty or unset leaves it to the model. */
+  /** The level set; empty or unset is the default level. */
   effort: string | null | undefined
-  /** With the level picked, or an empty string for the model's default: once when a drag ends
-   *  and once per key press, never while the slider is still moving. */
-  onPick: (effort: EffortStop) => void
+  /** With the level picked: once when a drag ends and once per key press, never while the
+   *  slider is still moving. */
+  onPick: (effort: EffortLevel) => void
   disabled?: boolean | undefined
   /** The chip's classes, for a toolbar whose chips are drawn differently. */
   className?: string | undefined
 }) {
   const t = useChatConfig().strings.effort
   const [moving, setMoving] = useState<number | null>(null)
-  const set: EffortStop = isEffortLevel(effort) ? effort : ''
+  const set = isEffortLevel(effort) ? effort : DEFAULT_EFFORT
   const index = moving ?? STOPS.indexOf(set)
-  const label = (stop: EffortStop) => (stop === '' ? t.default : t[stop])
+  const label = (stop: EffortLevel) => t[stop]
   const shown = effort && !isEffortLevel(effort) ? effort : label(set)
-  const heading = moving === null ? shown : label(STOPS[index] ?? '')
+  const heading = moving === null ? shown : label(STOPS[index] ?? set)
 
   return (
     <Popover
@@ -79,7 +71,18 @@ export default function EffortPicker({
       }}
       trigger={
         <button type="button" className={className ?? chipClassName} disabled={disabled}>
-          <span className="truncate">{shown}</span>
+          {/* Every label shares one cell, so the chip keeps its widest label's width and what sits beside it holds still. */}
+          <span className="grid min-w-0">
+            {[...new Set([shown, ...STOPS.map(label)])].map((text) => (
+              <span
+                key={text}
+                aria-hidden={text === shown ? undefined : true}
+                className={cx('col-start-1 row-start-1 truncate', text !== shown && 'invisible')}
+              >
+                {text}
+              </span>
+            ))}
+          </span>
           <ChevronDownIcon className="h-3 w-3 shrink-0" aria-hidden="true" />
         </button>
       }
@@ -94,7 +97,7 @@ export default function EffortPicker({
         onValueChange={(value) => setMoving(onlyValue(value))}
         onValueCommitted={(value) => {
           setMoving(null)
-          onPick(STOPS[onlyValue(value)] ?? '')
+          onPick(STOPS[onlyValue(value)] ?? set)
         }}
         className="effort-scale group mt-2 w-full"
         style={{ '--effort-ring': ringColor(index) } as CSSProperties}
@@ -112,7 +115,7 @@ export default function EffortPicker({
             </span>
             {STOPS.map((stop, at) => (
               <span
-                key={stop || 'default'}
+                key={stop}
                 aria-hidden="true"
                 className={cx(
                   'absolute top-1/2 size-1 -translate-1/2 rounded-full',
@@ -123,7 +126,7 @@ export default function EffortPicker({
             ))}
             <BaseSlider.Thumb
               aria-label={t.choose}
-              getAriaValueText={(_, value) => label(STOPS[value] ?? '')}
+              getAriaValueText={(_, value) => label(STOPS[value] ?? set)}
               // The thumb holds the range input, so focus shows on it when the input has it.
               className={cx(
                 'size-5 rounded-full border-2 border-(--effort-ring) bg-(--effort-thumb) shadow-sm has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-(--theme-focus)',

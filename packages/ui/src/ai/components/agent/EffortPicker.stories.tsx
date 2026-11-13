@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useState } from 'react'
+import { ChevronDownIcon } from '../../../icons'
 import { EFFORT_LEVELS, type EffortLevel } from '../../agent/effort'
+import { chipClassName } from '../../ui/chip'
 import EffortPicker from './EffortPicker'
 
 const meta: Meta = {
@@ -54,7 +56,7 @@ export const Chip: StoryObj<PickerArgs> = {
     effort: {
       control: 'select',
       options: ['', ...EFFORT_LEVELS],
-      description: "The level set; empty leaves it to the model's default",
+      description: 'The level set; empty is the default level',
     },
     open: { control: 'boolean', description: 'Opens the slider' },
     className: {
@@ -77,10 +79,15 @@ export const Open: StoryObj<PickerArgs> = {
   args: { ...Chip.args, open: true },
 }
 
-// No level set: the thumb sits on the model's default, off the colored scale.
-export const ModelDefault: StoryObj<PickerArgs> = {
+// No level set, as before a session starts: the default level.
+export const Unset: StoryObj<PickerArgs> = {
   ...Chip,
   args: { ...Chip.args, effort: '', open: true },
+}
+
+export const Low: StoryObj<PickerArgs> = {
+  ...Chip,
+  args: { ...Chip.args, effort: 'low', open: true },
 }
 
 export const Max: StoryObj<PickerArgs> = {
@@ -91,4 +98,19 @@ export const Max: StoryObj<PickerArgs> = {
 export const Disabled: StoryObj<PickerArgs> = {
   ...Chip,
   args: { ...Chip.args, disabled: true },
+}
+
+// Right-aligned beside another chip, as a composer's toolbar sets it: stepping the level leaves the other chip where it is.
+export const InToolbar: StoryObj<PickerArgs> = {
+  ...Chip,
+  args: { ...Chip.args, effort: 'low', open: true },
+  render: (args) => (
+    <div className="flex w-[420px] items-center justify-end gap-1">
+      <button type="button" className={chipClassName}>
+        <span className="truncate">Model</span>
+        <ChevronDownIcon className="h-3 w-3 shrink-0" aria-hidden="true" />
+      </button>
+      <Picker key={args.effort} {...args} />
+    </div>
+  ),
 }

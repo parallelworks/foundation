@@ -14,7 +14,7 @@ export {
   type WriteModel,
   wordEmphasisRanges,
 } from './diff'
-export { EFFORT_LEVELS, type EffortLevel, isEffortLevel } from './effort'
+export { DEFAULT_EFFORT, EFFORT_LEVELS, type EffortLevel, isEffortLevel } from './effort'
 export {
   clampPermissionMode,
   DEFAULT_PERMISSION_MODE,

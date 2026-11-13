@@ -265,10 +265,7 @@ export interface ChatStrings {
   effort: {
     /** Names the picker, its panel and its slider for assistive technology. */
     choose: string
-    /** The chip and the panel's heading at each stop; `default` leaves the level to the model. */
-    default: string
-    none: string
-    minimal: string
+    /** The chip and the panel's heading at each stop. */
     low: string
     medium: string
     high: string
@@ -652,14 +649,11 @@ export const defaultChatStrings: ChatStrings = {
   },
   effort: {
     choose: 'Effort',
-    default: 'Default effort',
-    none: 'No reasoning',
-    minimal: 'Minimal effort',
-    low: 'Low effort',
-    medium: 'Medium effort',
-    high: 'High effort',
-    xhigh: 'Extra high effort',
-    max: 'Max effort',
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    xhigh: 'xhigh',
+    max: 'max',
     faster: 'Faster',
     smarter: 'Smarter',
   },
