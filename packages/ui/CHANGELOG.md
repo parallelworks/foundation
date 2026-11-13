@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.128.0](https://github.com/parallelworks/foundation/compare/ui-v0.127.0...ui-v0.128.0) (2026-11-13)
+
+
+### Features
+
+* **ui:** a page's list can take the app frame's navigation on a narrow screen ([#735](https://github.com/parallelworks/foundation/issues/735)) ([4e006ed](https://github.com/parallelworks/foundation/commit/4e006edae9b207c05396e40da4f11b11a0cfb04f))
+
+
+### Bug Fixes
+
+* **ui:** a transcript that loads before the markdown renderer shows its replies as raw text, then reflows ([#734](https://github.com/parallelworks/foundation/issues/734)) ([9fdb303](https://github.com/parallelworks/foundation/commit/9fdb303bfe0badb890a367a0e33e3e25b0706af1))
+
 ## [0.127.0](https://github.com/parallelworks/foundation/compare/ui-v0.126.0...ui-v0.127.0) (2026-11-12)
 
 
