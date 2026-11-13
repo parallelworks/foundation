@@ -2,6 +2,8 @@ import type { Meta, StoryObj } from '@storybook/react-vite'
 import { type ReactNode, useState } from 'react'
 import { expect, userEvent, within } from 'storybook/test'
 import { ContextMenuProvider, useOpenMenu } from '../components/ContextMenu'
+import { Modal } from '../components/Modal'
+import { SearchInput } from '../components/SearchInput'
 import {
   AddIcon,
   FileTextIcon,
@@ -12,6 +14,7 @@ import {
   MoreIcon,
   PinFilledIcon,
   ProjectIcon,
+  SearchIcon,
   SettingsIcon,
 } from '../icons'
 import {
@@ -270,13 +273,25 @@ const takeoverGroups = [
     ],
   },
 ]
-function SessionsPage({ empty }: { empty: boolean }) {
+function SessionsPage({ empty, top }: { empty: boolean; top: boolean }) {
   const [open, setOpen] = useState<string | null>('flaky')
+  const [searching, setSearching] = useState(false)
+  const [query, setQuery] = useState('')
   const openMenu = useOpenMenu()
   return (
     <>
       <AppFrameListTakeover
         newItem={{ label: 'New session', selected: open === null, onClick: () => setOpen(null) }}
+        top={
+          top && (
+            <AppFrameNavItem
+              label="Search sessions"
+              icon={<SearchIcon />}
+              aria-haspopup="dialog"
+              onClick={() => setSearching(true)}
+            />
+          )
+        }
         groups={
           empty
             ? []
@@ -292,12 +307,23 @@ function SessionsPage({ empty }: { empty: boolean }) {
         }
         empty={<p style={{ padding: '8px 12px', fontSize: 13 }}>No sessions yet</p>}
         openMenu={openMenu}
-      />
+      >
+        <Modal
+          open={searching}
+          onClose={() => setSearching(false)}
+          title="Search sessions"
+          size="sm"
+          closeButton
+        >
+          <SearchInput label="Search sessions" value={query} onValueChange={setQuery} />
+        </Modal>
+      </AppFrameListTakeover>
       <div style={{ padding: 24 }}>{open ?? 'New session'}</div>
     </>
   )
 }
-function TakeoverDemo({ empty = false, ...args }: AppFrameProps & { empty?: boolean }) {
+type TakeoverArgs = AppFrameProps & { empty?: boolean; top?: boolean }
+function TakeoverDemo({ empty = false, top = false, ...args }: TakeoverArgs) {
   // The story's page always has a list; a host also asks for a narrow viewport.
   const takeover = useAppFrameTakeover(true)
   return (
@@ -325,22 +351,27 @@ function TakeoverDemo({ empty = false, ...args }: AppFrameProps & { empty?: bool
           }
           header={<Header />}
         >
-          <SessionsPage empty={empty} />
+          <SessionsPage empty={empty} top={top} />
         </AppFrame>
       </AppFrameTakeover>
     </ContextMenuProvider>
   )
 }
 /** A page's own list takes the place of the app's navigation, with a way back to it, rather than open a second drawer. Each row keeps its menu behind a button that is always shown. */
-export const ListTakeover: StoryObj<AppFrameProps & { empty?: boolean }> = {
+export const ListTakeover: StoryObj<TakeoverArgs> = {
   render: TakeoverDemo,
-  args: { empty: false },
-  argTypes: { empty: { control: 'boolean' } },
+  args: { empty: false, top: false },
+  argTypes: { empty: { control: 'boolean' }, top: { control: 'boolean' } },
 }
 /** With nothing to list, the page says so under the item that starts one. */
-export const ListTakeoverEmpty: StoryObj<AppFrameProps & { empty?: boolean }> = {
+export const ListTakeoverEmpty: StoryObj<TakeoverArgs> = {
   render: TakeoverDemo,
   args: { empty: true },
+}
+/** The page can put more items under the one that starts a new one, such as one that opens its search. */
+export const ListTakeoverMoreItems: StoryObj<TakeoverArgs> = {
+  render: TakeoverDemo,
+  args: { empty: false, top: true },
 }
 
 /** Items can carry a second line, and need no icon: a row with none starts at its label, and the rail shows its first letter. */

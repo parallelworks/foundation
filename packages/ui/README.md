@@ -1402,7 +1402,9 @@ The page renders `AppFrameListTakeover` with its groups of rows, which appear
 in the frame's navigation while the takeover is active. A row is a link
 (`href`) or, in an app with no addresses, a button (`onClick`), and carries
 its menu behind a button that is always shown, since a touch screen has no
-hover to reveal it. Closing the drawer on the app's navigation returns it to
+hover to reveal it. `newItem` starts a new one above the list, and `top` takes
+more `AppFrameNavItem`s to show under it, such as a button that opens a
+search. Closing the drawer on the app's navigation returns it to
 the list for next time. Pass `label` to `AppFrameTakeoverBack` and `moreLabel`
 to the list in the app's language.
 

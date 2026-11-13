@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   AppFrame,
@@ -28,8 +29,18 @@ afterEach(() => {
 const openMenu = vi.fn()
 const onOpen = vi.fn()
 const onNew = vi.fn()
+const onSearch = vi.fn()
+const search = <AppFrameNavItem label="Search sessions" aria-haspopup="dialog" onClick={onSearch} />
 
-function Host({ enabled = true, rows = true }: { enabled?: boolean; rows?: boolean }) {
+function Host({
+  enabled = true,
+  rows = true,
+  top,
+}: {
+  enabled?: boolean
+  rows?: boolean
+  top?: ReactNode
+}) {
   const takeover = useAppFrameTakeover(enabled)
   return (
     <AppFrameTakeover value={takeover.takeover}>
@@ -44,6 +55,7 @@ function Host({ enabled = true, rows = true }: { enabled?: boolean; rows?: boole
       >
         <AppFrameListTakeover
           newItem={{ label: 'New session', selected: false, onClick: onNew }}
+          top={top}
           groups={
             rows
               ? [
@@ -134,6 +146,43 @@ describe('AppFrame list takeover', () => {
     const drawer = openDrawer()
     expect(drawer.getByText('No sessions yet')).toBeInTheDocument()
     expect(drawer.getByText('New session')).toBeInTheDocument()
+  })
+
+  it('shows more items under the new one, above the list', () => {
+    render(<Host top={search} />)
+    const drawer = openDrawer()
+    const newItem = drawer.getByRole('button', { name: 'New session' })
+    const item = drawer.getByRole('button', { name: 'Search sessions' })
+    expect(Array.from(newItem.parentElement?.children ?? [])).toEqual([newItem, item])
+    expect(
+      item.compareDocumentPosition(drawer.getByText('Recent')) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it('keeps them above what stands in for an empty list', () => {
+    render(<Host rows={false} top={search} />)
+    const drawer = openDrawer()
+    expect(
+      drawer
+        .getByRole('button', { name: 'Search sessions' })
+        .compareDocumentPosition(drawer.getByText('No sessions yet')) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it('takes one that is a button, such as one that opens a dialog', () => {
+    render(<Host top={search} />)
+    const item = openDrawer().getByRole('button', { name: 'Search sessions' })
+    expect(item).toHaveAttribute('aria-haspopup', 'dialog')
+    fireEvent.click(item)
+    expect(onSearch).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves the new item alone in its block when the host gives no more', () => {
+    render(<Host />)
+    const newItem = openDrawer().getByRole('button', { name: 'New session' })
+    expect(newItem.parentElement).toHaveClass('space-y-1')
+    expect(Array.from(newItem.parentElement?.children ?? [])).toEqual([newItem])
   })
 
   it("leaves the app's navigation alone when the host has not asked for the takeover", () => {

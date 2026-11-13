@@ -111,6 +111,7 @@ export interface AppFrameTakeoverGroup {
  *  screen has no hover to reveal it. */
 export function AppFrameListTakeover({
   newItem,
+  top,
   groups,
   empty,
   openMenu,
@@ -123,6 +124,9 @@ export function AppFrameListTakeover({
     selected: boolean
     onClick?: ((event: MouseEvent<HTMLElement>) => void) | undefined
   }
+  /** Under the new item, above the list: more `AppFrameNavItem`s, such as one that opens a
+   *  search. */
+  top?: ReactNode
   groups: AppFrameTakeoverGroup[]
   /** In place of the groups when there are none. */
   empty?: ReactNode
@@ -156,6 +160,7 @@ export function AppFrameListTakeover({
                 label={newLabel}
                 selected={newSelected}
               />
+              {top}
             </div>
             {groups.length === 0 && empty}
             {groups.map((group) => (
