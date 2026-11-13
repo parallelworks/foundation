@@ -265,6 +265,8 @@ export interface ChatStrings {
   effort: {
     /** Names the picker, its panel and its slider for assistive technology. */
     choose: string
+    /** Names the chip for assistive technology, since it shows the level alone. */
+    named: (level: string) => string
     /** The chip and the panel's heading at each stop. */
     low: string
     medium: string
@@ -649,6 +651,7 @@ export const defaultChatStrings: ChatStrings = {
   },
   effort: {
     choose: 'Effort',
+    named: (level) => `Effort: ${level}`,
     low: 'low',
     medium: 'medium',
     high: 'high',
