@@ -26,6 +26,21 @@ type ListProps = ComponentProps<typeof ChatMessageList>
 
 const MARKDOWN_WAIT_MS = 1000
 
+/** Whether the view is on screen. A host that keeps a session mounted while
+ *  another page shows hides it with `display: none` or `visibility: hidden`;
+ *  Escape pressed on that page belongs to the page. */
+function onScreen(el: HTMLElement | null): boolean {
+  if (!el?.isConnected || getComputedStyle(el).visibility === 'hidden') {
+    return false
+  }
+  for (let n: HTMLElement | null = el; n; n = n.parentElement) {
+    if (getComputedStyle(n).display === 'none') {
+      return false
+    }
+  }
+  return true
+}
+
 export interface SessionViewProps {
   /** Keys the composer's draft, so each conversation or session keeps its own. */
   sessionKey: string
@@ -142,13 +157,18 @@ export default function SessionView({
       }
     : { messages: [], allMessages: [], streamingMessage: null, queuedMessages: [] }
 
-  // Escape stops the turn, wherever the turn runs.
+  // Escape stops the turn, wherever the turn runs, while the view is on screen.
   useEffect(() => {
     if (!running) {
       return
     }
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !e.defaultPrevented && !escapeClosesLayer(e.target)) {
+      if (
+        e.key === 'Escape' &&
+        !e.defaultPrevented &&
+        !escapeClosesLayer(e.target) &&
+        onScreen(viewRef.current)
+      ) {
         stop()
       }
     }

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import { type ComponentProps, useImperativeHandle } from 'react'
+import { type ComponentProps, type CSSProperties, useImperativeHandle } from 'react'
 import type { ChatMessage as Message } from '../types'
 import type ChatInput from './ChatInput'
 import type ChatMessageList from './ChatMessageList'
@@ -160,6 +160,29 @@ describe('SessionView', () => {
     render(<SessionView sessionKey="s1" messages={[ask]} onSend={vi.fn()} />)
     pressEscape()
     expect(chat.stopStreaming).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves Escape to the page that shows while the host keeps the view mounted and hidden', () => {
+    const onStop = vi.fn()
+    const view = (style: CSSProperties) => (
+      <div style={style}>
+        <SessionView
+          sessionKey="s1"
+          messages={[ask]}
+          onSend={vi.fn()}
+          turn={{ running: true, onStop }}
+        />
+      </div>
+    )
+    const { rerender } = render(view({ display: 'none' }))
+    pressEscape()
+    rerender(view({ visibility: 'hidden' }))
+    pressEscape()
+    expect(onStop).not.toHaveBeenCalled()
+
+    rerender(view({}))
+    pressEscape()
+    expect(onStop).toHaveBeenCalledTimes(1)
   })
 
   it('leaves Escape to an open dialog', () => {
