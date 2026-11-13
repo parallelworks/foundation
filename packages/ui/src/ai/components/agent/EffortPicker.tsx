@@ -70,7 +70,12 @@ export default function EffortPicker({
         }
       }}
       trigger={
-        <button type="button" className={className ?? chipClassName} disabled={disabled}>
+        <button
+          type="button"
+          aria-label={t.named(shown)}
+          className={className ?? chipClassName}
+          disabled={disabled}
+        >
           {/* Every label shares one cell, so the chip keeps its widest label's width and what sits beside it holds still. */}
           <span className="grid min-w-0">
             {[...new Set([shown, ...STOPS.map(label)])].map((text) => (

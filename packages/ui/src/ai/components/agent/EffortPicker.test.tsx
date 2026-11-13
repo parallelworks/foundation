@@ -11,9 +11,19 @@ const open = async () => {
 describe('EffortPicker', () => {
   it('names the level set, and the default level when there is none', () => {
     const { rerender } = render(<EffortPicker effort="" onPick={vi.fn()} />)
-    expect(screen.getByRole('button', { name: 'high' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Effort: high' })).toBeInTheDocument()
     rerender(<EffortPicker effort="xhigh" onPick={vi.fn()} />)
-    expect(screen.getByRole('button', { name: 'xhigh' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Effort: xhigh' })).toBeInTheDocument()
+  })
+
+  it('shows the level alone, and says what it is a level of only in its name', () => {
+    render(<EffortPicker effort="max" onPick={vi.fn()} />)
+    const chip = screen.getByRole('button', { name: 'Effort: max' })
+    const shown = Array.from(
+      chip.querySelectorAll('.grid > span:not([aria-hidden])'),
+      (span) => span.textContent,
+    )
+    expect(shown).toEqual(['max'])
   })
 
   it('holds every label, so its width does not change with the level', () => {
@@ -31,7 +41,7 @@ describe('EffortPicker', () => {
 
   it('shows a level it does not know as it was given', () => {
     render(<EffortPicker effort="turbo" onPick={vi.fn()} />)
-    expect(screen.getByRole('button', { name: 'turbo' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Effort: turbo' })).toBeInTheDocument()
   })
 
   it('opens at the default level when none is set', async () => {
