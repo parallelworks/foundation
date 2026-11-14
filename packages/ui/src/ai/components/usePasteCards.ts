@@ -37,6 +37,7 @@ export function usePasteCards(
     removeCard: paste.removeCard,
     takeCards: paste.takeCards,
     returnCards: paste.returnCards,
+    savedCards: paste.savedCards,
     blocking: cards.some((c) => !c.paste),
   }
 }

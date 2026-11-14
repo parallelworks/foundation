@@ -74,19 +74,23 @@ export const Pastes: StoryObj = {
 // Messages queued behind a running turn. The host has already handed the
 // oldest handedOver of them to the running turn, so those say so and cannot be
 // removed. delivery says when the rest reach the model: after the reply (the
-// chat provider) or between the agent's steps (a steering host).
+// chat provider) or between the agent's steps (a steering host). edit is a host
+// that takes them back into the composer: each run says its status once, and
+// Edit on the last line replaces Remove on each.
 export const QueuedMessages: StoryObj<{
   queued: number
   handedOver: number
   delivery: 'afterReply' | 'nextStep'
+  edit: boolean
 }> = {
-  args: { queued: 2, handedOver: 1, delivery: 'nextStep' },
+  args: { queued: 2, handedOver: 1, delivery: 'nextStep', edit: false },
   argTypes: {
     queued: { control: { type: 'range', min: 0, max: QUEUED.length } },
     handedOver: { control: { type: 'range', min: 0, max: QUEUED.length } },
     delivery: { control: 'inline-radio', options: ['afterReply', 'nextStep'] },
+    edit: { control: 'boolean', description: 'The host sets onEditQueued' },
   },
-  render: ({ queued, handedOver, delivery }) => {
+  render: ({ queued, handedOver, delivery, edit }) => {
     const messages = QUEUED.slice(0, queued).map((content, i) =>
       makeMessage({ id: `queued-${i + 1}`, role: 'user', content }),
     )
@@ -98,6 +102,7 @@ export const QueuedMessages: StoryObj<{
         onRemoveQueued={(id) => console.info('[remove queued]', id)}
         canRemoveQueued={(id) => !taken.has(id)}
         queueDelivery={delivery}
+        onEditQueued={edit ? () => console.info('[edit queued]') : undefined}
       />
     )
   },

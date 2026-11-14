@@ -451,6 +451,18 @@ describe('ChatMessage', () => {
       expect(status.compareDocumentPosition(copy) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     })
 
+    it('offers no actions of its own when it has none, as in a queue that offers Edit', () => {
+      render(
+        <ChatMessage
+          {...defaultProps}
+          actions={false}
+          status={<button type="button">Edit</button>}
+        />,
+      )
+      expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Copy message' })).not.toBeInTheDocument()
+    })
+
     it('offers no copy for a failed reply with nothing to copy', () => {
       const message = createMockMessage({ role: 'assistant', content: '', error: 'Rate limited' })
       render(<ChatMessage {...defaultProps} message={message} />)

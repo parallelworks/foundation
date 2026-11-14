@@ -22,7 +22,8 @@ export interface ComposerPastes {
 /** A paste waiting in the composer as a file card; paste is set once saved. */
 export interface PasteCard {
   key: string
-  text: string
+  /** Unknown for a paste taken back from the target, which keeps its text. */
+  text?: string | undefined
   lines: number
   bytes: number
   paste?: MessagePaste
@@ -47,6 +48,8 @@ export interface PasteCards {
   takeCards: () => MessagePaste[]
   /** Puts back cards taken for a send that failed. */
   returnCards: (taken: PasteCard[]) => void
+  /** Cards for pastes the target already saved, such as a message's taken back before it was read. */
+  savedCards: (pastes: MessagePaste[]) => PasteCard[]
 }
 
 function appendText(box: string, text: string): string {
@@ -154,8 +157,9 @@ export function createPasteCards(host: PasteCardsHost): PasteCards {
         boxBytes -= utf8Bytes(text)
       }
     }
-    const fitting = cards.filter((c) => {
-      if (c.bytes > inlineMax || boxBytes + c.bytes > PASTE_INLINE_CAP) {
+    const fitting = cards.filter((c): c is PasteCard & { text: string } => {
+      // Without its text, a card can't become text in the box.
+      if (c.text === undefined || c.bytes > inlineMax || boxBytes + c.bytes > PASTE_INLINE_CAP) {
         return false
       }
       boxBytes += c.bytes
@@ -196,12 +200,18 @@ export function createPasteCards(host: PasteCardsHost): PasteCards {
 
   const returnCards = (taken: PasteCard[]) => {
     for (const card of taken) {
-      if (card.paste) {
+      if (card.paste && card.text !== undefined) {
         saved.set(card.text, card.paste)
       }
     }
     setCards((current) => [...taken, ...current])
   }
 
-  return { handleTextPaste, applyInlineLimit, removeCard, takeCards, returnCards }
+  const savedCards = (pastes: MessagePaste[]): PasteCard[] =>
+    pastes.map((paste) => {
+      seq += 1
+      return { key: `paste-${seq}`, lines: paste.lines, bytes: paste.bytes, paste }
+    })
+
+  return { handleTextPaste, applyInlineLimit, removeCard, takeCards, returnCards, savedCards }
 }

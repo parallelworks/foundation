@@ -11,6 +11,7 @@ import SessionView from './SessionView'
 const chat = { isStreaming: false, stopStreaming: vi.fn() }
 const markdown = { ready: true }
 const jumpToLatest = vi.fn()
+const recallComposer = vi.fn()
 let listProps: ComponentProps<typeof ChatMessageList> | undefined
 let composerProps: ComponentProps<typeof ChatInput> | undefined
 
@@ -36,6 +37,11 @@ vi.mock('./ChatInput', () => ({
   __esModule: true,
   default: (props: ComponentProps<typeof ChatInput>) => {
     composerProps = props
+    useImperativeHandle(
+      props.ref,
+      () => ({ addFiles: vi.fn(), focus: vi.fn(), recall: recallComposer }),
+      [],
+    )
     return (
       <div
         data-testid="composer"
@@ -72,6 +78,7 @@ beforeEach(() => {
   chat.isStreaming = false
   chat.stopStreaming.mockReset()
   jumpToLatest.mockReset()
+  recallComposer.mockReset()
   listProps = undefined
   composerProps = undefined
 })
@@ -292,6 +299,18 @@ describe('SessionView', () => {
     render(<SessionView sessionKey="s1" messages={[ask]} onSend={vi.fn()} />)
     expect(listProps?.onEditMessage).toBeUndefined()
     expect(screen.getByTestId('composer')).toHaveAttribute('data-edits-last', 'false')
+  })
+
+  it("edits the queue through the composer's take-back when the composer has one", () => {
+    const recall = { available: true, take: vi.fn() }
+    const { rerender } = render(
+      <SessionView sessionKey="s1" messages={[ask]} onSend={vi.fn()} composer={{ recall }} />,
+    )
+    act(() => listProps?.onEditQueued?.())
+    expect(recallComposer).toHaveBeenCalledTimes(1)
+
+    rerender(<SessionView sessionKey="s1" messages={[ask]} onSend={vi.fn()} />)
+    expect(listProps?.onEditQueued).toBeUndefined()
   })
 
   it('shows an error in place of the transcript and keeps the composer', () => {
