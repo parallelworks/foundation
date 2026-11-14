@@ -11,7 +11,6 @@ import {
 import {
   makeComposerPastes,
   makeManyTools,
-  makePaste,
   makePasteText,
   makeStaticAdapter,
   makeTools,
@@ -22,7 +21,7 @@ import type { MessagePaste } from '../types'
 import { NoticeCard } from '../ui/Notice'
 import EffortPicker from './agent/EffortPicker'
 import PermissionPicker from './agent/PermissionPicker'
-import ChatInput, { type RecalledMessage } from './ChatInput'
+import ChatInput from './ChatInput'
 import { ComposerControls, ComposerUsage, ConnectToolsLink } from './ComposerChrome'
 
 const meta: Meta = {
@@ -610,73 +609,5 @@ export const History: StoryObj<HistoryStoryArgs> = {
       await userEvent.type(box, `${message}{Enter}`)
     }
     await userEvent.keyboard('{ArrowUp}'.repeat(args.steps))
-  },
-}
-
-type TakeBackStoryArgs = { withPaste: boolean; takeMs: number }
-
-function TakeBackExample({ withPaste, takeMs }: TakeBackStoryArgs) {
-  const [held, setHeld] = useState((): RecalledMessage[] => {
-    const paste = makePaste(4, makePasteText(240))
-    return [
-      { text: 'Also check the reservations endpoint answers 409 when stock runs out.' },
-      withPaste
-        ? { text: `Compare with this run:\n\n${paste.placeholder}`, pastes: [paste] }
-        : { text: 'Compare with the last run.' },
-    ]
-  })
-  const recall = {
-    available: held.length > 0,
-    take: async () => {
-      await new Promise((resolve) => setTimeout(resolve, takeMs))
-      setHeld([])
-      return held
-    },
-  }
-  return (
-    <StoryChat>
-      <div>
-        <ChatInput
-          onSend={send}
-          attachments={false}
-          requireModel={false}
-          conversationId="conv-take-back"
-          recall={recall}
-          activity={
-            held.length > 0 && (
-              <span className="text-xs theme-muted-text">
-                {held.length} messages waiting for the agent
-              </span>
-            )
-          }
-        />
-      </div>
-    </StoryChat>
-  )
-}
-
-// ↑ in the empty box takes back what was sent but not read yet, ahead of the
-// history, and puts it back in the box; a saved paste comes back as its card.
-// The play presses ↑.
-export const TakeBack: StoryObj<TakeBackStoryArgs> = {
-  args: { withPaste: true, takeMs: 300 },
-  argTypes: {
-    withPaste: { control: 'boolean', description: 'The second message carries a saved paste' },
-    takeMs: {
-      control: { type: 'range', min: 0, max: 3_000, step: 100 },
-      description: 'How long the host takes to take them back',
-    },
-  },
-  render: (args) => <TakeBackExample key={String(args.withPaste)} {...args} />,
-  play: async ({ canvasElement, args }) => {
-    const box = within(canvasElement).getByPlaceholderText('Ask anything')
-    await userEvent.click(box)
-    await userEvent.keyboard('{ArrowUp}')
-    const second = args.withPaste ? 'Compare with this run:' : 'Compare with the last run.'
-    await waitFor(() =>
-      expect(box).toHaveValue(
-        `Also check the reservations endpoint answers 409 when stock runs out.\n${second}`,
-      ),
-    )
   },
 }

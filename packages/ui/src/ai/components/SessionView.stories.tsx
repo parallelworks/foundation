@@ -5,12 +5,15 @@ import {
   makeAgentTurn,
   makeLongConversation,
   makeMessage,
+  makePaste,
+  makePasteText,
   makeToolCallPart,
   StoryChat,
   StoryViewport,
 } from '../stories/harness'
 import type { ChatMessage } from '../types'
 import { NoticeCard } from '../ui/Notice'
+import type { RecalledMessage } from './ChatInput'
 import SessionView from './SessionView'
 
 const meta: Meta = {
@@ -272,4 +275,98 @@ export const PinnedPromptEarlierTurn: StoryObj<PinnedPromptArgs> = {
         second.getBoundingClientRect().top - log.getBoundingClientRect().top - log.clientHeight / 2
     }
   },
+}
+
+type TakeBackArgs = { withPaste: boolean; takeMs: number }
+
+const RUNNING_TURN: ChatMessage[] = [
+  makeMessage({
+    id: 'take-back-prompt',
+    role: 'user',
+    content: 'Run the integration tests and fix anything that fails.',
+  }),
+  makeMessage({
+    role: 'assistant',
+    content: null,
+    parts: [
+      {
+        kind: 'text',
+        text: "I'll run the integration suite first, then look at anything that fails.",
+      },
+      makeToolCallPart({ command: './scripts/integration-tests.sh', status: 'running' }),
+    ],
+  }),
+]
+
+function heldMessages(withPaste: boolean): ChatMessage[] {
+  const paste = makePaste(4, makePasteText(240))
+  return [
+    makeMessage({
+      id: 'held-1',
+      role: 'user',
+      content: 'Also check the reservations endpoint answers 409 when stock runs out.',
+    }),
+    withPaste
+      ? makeMessage({
+          id: 'held-2',
+          role: 'user',
+          content: `Compare with this run:\n\n${paste.placeholder}`,
+          pastes: [paste],
+        })
+      : makeMessage({ id: 'held-2', role: 'user', content: 'Compare with the last run.' }),
+  ]
+}
+
+function TakeBackExample({ withPaste, takeMs }: TakeBackArgs) {
+  const [held, setHeld] = useState(() => heldMessages(withPaste))
+  const recall = {
+    available: held.length > 0,
+    take: async (): Promise<RecalledMessage[]> => {
+      await new Promise((resolve) => setTimeout(resolve, takeMs))
+      setHeld([])
+      return held.map((m) => ({ text: m.content ?? '', pastes: m.pastes ?? undefined }))
+    },
+  }
+  return (
+    <StoryChat>
+      <StoryViewport>
+        <SessionView
+          sessionKey="story-take-back"
+          messages={RUNNING_TURN}
+          queuedMessages={held}
+          queueDelivery="nextStep"
+          onRemoveQueued={(id) => setHeld((current) => current.filter((m) => m.id !== id))}
+          turn={{ running: true, onStop: () => console.info('[stop]') }}
+          onSend={(content, _ids, _meta, pastes) => {
+            setHeld((current) => [
+              ...current,
+              makeMessage({ role: 'user', content, ...(pastes ? { pastes } : {}) }),
+            ])
+            return true
+          }}
+          flush
+          foldEveryRun
+          workingIndicator={false}
+          composer={{ attachments: false, requireModel: false, recall }}
+        />
+      </StoryViewport>
+    </StoryChat>
+  )
+}
+
+/** Messages sent while the agent works wait as dashed bubbles until it reads
+ *  them at its next step. ↑ in the empty composer takes back every one still
+ *  waiting, ahead of the history, as a terminal does: they leave the
+ *  transcript and come back to the box to edit, oldest first, a saved paste
+ *  as its card. Sent again, they wait again. Press ↑ in the composer. */
+export const TakeBack: StoryObj<TakeBackArgs> = {
+  args: { withPaste: true, takeMs: 300 },
+  argTypes: {
+    withPaste: { control: 'boolean', description: 'The second message carries a saved paste' },
+    takeMs: {
+      control: { type: 'range', min: 0, max: 3_000, step: 100 },
+      description: 'How long the host takes to take them back',
+    },
+  },
+  render: (args) => <TakeBackExample key={String(args.withPaste)} {...args} />,
 }
