@@ -56,6 +56,10 @@ export interface ConversationSidebarGroup<T> {
 // Lists that name no key of their own share one, as they share a width.
 const SHARED_COLLAPSED_GROUPS_STORAGE_KEY = 'aiChatSidebarCollapsedGroups'
 
+// A skeleton's own color is this panel's, so its rows take a tint of the ink, as a row's
+// highlight does.
+const SKELETON_TINT = 'bg-[color-mix(in_oklab,var(--theme-app)_10%,transparent)]'
+
 /** The keys of the groups the reader folded. A key stays while its group is gone, emptied or
  *  filtered out, so the group comes back folded. */
 function useCollapsedGroups(storageKey: string) {
@@ -262,7 +266,12 @@ export function ConversationSidebar<T>({
           {loading ? (
             <LoadingRegion className="space-y-3 px-2 pt-2">
               {positionKeys(5, 'skeleton').map((key, i) => (
-                <Skeleton key={key} width={`${70 - i * 10}%`} height={16} />
+                <Skeleton
+                  key={key}
+                  width={`${70 - i * 10}%`}
+                  height={16}
+                  className={SKELETON_TINT}
+                />
               ))}
             </LoadingRegion>
           ) : groups.length === 0 ? (
