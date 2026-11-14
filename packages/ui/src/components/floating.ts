@@ -5,7 +5,7 @@ export const positionerClassName = 'z-(--layer-popover) outline-none data-anchor
 
 // With reduced motion a popup only fades: the scale is the movement.
 const enterExit =
-  'origin-(--transform-origin) transition-[transform,opacity] duration-100 data-starting-style:scale-95 data-starting-style:opacity-0 data-ending-style:scale-95 data-ending-style:opacity-0 motion-reduce:data-starting-style:scale-100 motion-reduce:data-ending-style:scale-100'
+  'origin-(--transform-origin) transition-[scale,opacity] duration-100 data-starting-style:scale-95 data-starting-style:opacity-0 data-ending-style:scale-95 data-ending-style:opacity-0 motion-reduce:data-starting-style:scale-100 motion-reduce:data-ending-style:scale-100'
 
 /** The opaque surface a popover stands on, and its shadow: what is under it never shows
  *  through, such as a chart's marks under its tooltip. */

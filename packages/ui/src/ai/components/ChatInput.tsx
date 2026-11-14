@@ -177,7 +177,7 @@ function SendButton({
       disabled={!enabled}
       data-testid={testId}
       className={cx(
-        'flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition-[background-color,color,transform] duration-150 active:scale-95',
+        'flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition-[background-color,color,scale] duration-150 active:scale-95',
         emphasized ? 'theme-accent hover:opacity-90' : 'chat-send-idle',
         !enabled && 'cursor-not-allowed active:scale-100',
       )}

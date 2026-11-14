@@ -168,7 +168,7 @@ export function SidebarGroupHeading({
             row's menu button, and a touch screen shows it always. */}
         <ChevronRightIcon
           className={cx(
-            'h-3 w-3 shrink-0 transition-[transform,opacity] motion-reduce:transition-none',
+            'h-3 w-3 shrink-0 transition-[rotate,opacity] motion-reduce:transition-none',
             !toggle.collapsed &&
               'rotate-90 opacity-0 group-hover/heading:opacity-100 group-focus-visible/heading:opacity-100 pointer-coarse:opacity-100',
           )}
