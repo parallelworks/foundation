@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.138.0](https://github.com/parallelworks/foundation/compare/ui-v0.137.0...ui-v0.138.0) (2026-11-14)
+
+
+### Features
+
+* **ui:** a message's picture holds its place before its preview has loaded ([#769](https://github.com/parallelworks/foundation/issues/769)) ([ec1558b](https://github.com/parallelworks/foundation/commit/ec1558b41b8f4c32edfc645825a5dbbfe39bf8d8))
+
+
+### Performance Improvements
+
+* **ui:** a reply streaming at the end of a long turn redraws only itself ([#771](https://github.com/parallelworks/foundation/issues/771)) ([37f4b53](https://github.com/parallelworks/foundation/commit/37f4b53f091664fb56e731bccd1cf4e082e215e7))
+
 ## [0.137.0](https://github.com/parallelworks/foundation/compare/ui-v0.136.0...ui-v0.137.0) (2026-11-14)
 
 
