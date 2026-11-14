@@ -1010,7 +1010,11 @@ Escape stops the running turn either way. `queueDelivery` says when a queued
 message reaches the model, per message when it takes a function. `composer`
 passes `ChatInput`'s props; `ComposerControls` takes `model` and `allocation`
 as a `BoundSetting` for a session that owns its own, and `tools={false}` keeps
-the chat's tools out of a composer they don't apply to.
+the chat's tools out of a composer they don't apply to. A composer's `recall`
+lets ↑ in an empty box take back messages sent but not read yet, ahead of the
+history, as a terminal does: `available` says whether any wait, and `take`
+answers with those it took back, oldest first, which return to the box with
+their saved pastes as cards.
 
 A host's own list of conversations or sessions builds on `ConversationSidebar`
 with the same pieces the chat's list uses: `SidebarRow` with `SidebarRowBody`

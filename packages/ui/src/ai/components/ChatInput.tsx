@@ -40,6 +40,9 @@ interface ChatInputProps {
   /** ↑ and ↓ in an empty box step through what was sent in this tab, failed
    *  sends included. Takes ↑ over from onEditLastMessage. */
   history?: ComposerHistory | undefined
+  /** ↑ in an empty box takes back what was sent but not read yet, ahead of
+   *  the history, and puts it back in the box with its pastes. */
+  recall?: ComposerRecall | undefined
   disabled?: boolean
   placeholder?: string | undefined
   conversationId?: string
@@ -84,6 +87,32 @@ interface ChatInputProps {
 export interface ChatInputHandle {
   addFiles: (files: FileList | File[]) => void
   focus: () => void
+}
+
+/** A message taken back before it was read. */
+export interface RecalledMessage {
+  text: string
+  /** Pastes the target saved, which the text names by placeholder. */
+  pastes?: MessagePaste[] | undefined
+}
+
+/** Messages sent but not read yet, as a terminal holds what is typed while it works. */
+export interface ComposerRecall {
+  /** Something waiting can still be taken back. */
+  available: boolean
+  /** Takes back what waits, oldest first. One read meanwhile stays sent, so
+   *  this can answer with fewer, or none. */
+  take: () => Promise<RecalledMessage[]>
+}
+
+/** Its pastes come back as cards, so the placeholders the send added go. */
+function recalledText(messages: RecalledMessage[]): string {
+  return messages
+    .map((m) =>
+      (m.pastes ?? []).reduce((text, p) => text.replace(p.placeholder, () => ''), m.text).trim(),
+    )
+    .filter(Boolean)
+    .join('\n')
 }
 
 /** An optional box that is still empty should not wear the filled look of
@@ -188,6 +217,7 @@ let draftsSwept = false
 export default function ChatInput({
   onSend,
   history,
+  recall,
   disabled = false,
   placeholder,
   conversationId,
@@ -231,6 +261,7 @@ export default function ChatInput({
     removeCard,
     takeCards,
     returnCards,
+    savedCards,
     blocking: pastesBlocking,
   } = usePasteCards(pastes, input, (value) => {
     setInput(value)
@@ -360,13 +391,16 @@ export default function ChatInput({
     }
   }, [])
 
-  const putBack = (sent: SentInput) => {
-    if (history?.skip?.(sent.input.trim())) {
+  // A message taken back returns to the box even when it must not be
+  // remembered, since nothing else holds it now; it still never becomes a draft.
+  const putBack = (sent: SentInput, takenBack = false) => {
+    const forget = !!history?.skip?.(sent.input.trim())
+    if (forget && !takenBack) {
       return
     }
     const { typed, conversationId: showing } = box.current
     if (!mounted.current || showing !== sent.conversationId) {
-      if (!readDraft(sent.conversationId)) {
+      if (!forget && !readDraft(sent.conversationId)) {
         storeDraft(sent.conversationId, sent.input)
       }
       return
@@ -382,6 +416,39 @@ export default function ChatInput({
     }
     setRefocus(true)
   }
+
+  // Held while a take is out, so another ↑ neither takes again nor walks the history.
+  const recalling = useRef(false)
+  const takeBack = async () => {
+    if (!recall || recalling.current) {
+      return
+    }
+    recalling.current = true
+    const from = conversationId
+    try {
+      const taken = await recall.take()
+      if (taken.length > 0) {
+        const input = recalledText(taken)
+        const cards = savedCards(taken.flatMap((m) => m.pastes ?? []))
+        putBack({ conversationId: from, input, cards, attachments: [] }, true)
+      }
+    } catch (error) {
+      console.error('Failed to take back messages:', error)
+    } finally {
+      recalling.current = false
+    }
+  }
+
+  const recallKey = (e: KeyboardEvent<HTMLTextAreaElement>) =>
+    !!recall &&
+    (recall.available || recalling.current) &&
+    e.key === 'ArrowUp' &&
+    !e.shiftKey &&
+    !e.altKey &&
+    !e.metaKey &&
+    !e.ctrlKey &&
+    !e.nativeEvent.isComposing &&
+    input.trim() === ''
 
   // Waits on disabled because a host may hold the box while it sends, and a
   // disabled box can't take focus. Focus moved elsewhere meanwhile stays there.
@@ -470,6 +537,11 @@ export default function ChatInput({
   )
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (recallKey(e)) {
+      e.preventDefault()
+      void takeBack()
+      return
+    }
     if (composerHistory.handleKey(e)) {
       e.preventDefault()
       return

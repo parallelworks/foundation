@@ -23,7 +23,8 @@ export interface ComposerPastes {
 /** A paste waiting in the composer as a file card; paste is set once saved. */
 export interface PasteCard {
   key: string
-  text: string
+  /** Unknown for a paste taken back from the target, which keeps its text. */
+  text?: string | undefined
   lines: number
   bytes: number
   paste?: MessagePaste
@@ -141,8 +142,9 @@ export function usePasteCards(
         boxBytes -= utf8Bytes(text)
       }
     }
-    const fitting = current.filter((c) => {
-      if (c.bytes > inlineMax || boxBytes + c.bytes > PASTE_INLINE_CAP) {
+    const fitting = current.filter((c): c is PasteCard & { text: string } => {
+      // Without its text, a card can't become text in the box.
+      if (c.text === undefined || c.bytes > inlineMax || boxBytes + c.bytes > PASTE_INLINE_CAP) {
         return false
       }
       boxBytes += c.bytes
@@ -188,12 +190,22 @@ export function usePasteCards(
   /** Puts back cards taken for a send that failed. */
   const returnCards = useCallback((taken: PasteCard[]) => {
     for (const card of taken) {
-      if (card.paste) {
+      if (card.paste && card.text !== undefined) {
         saved.current.set(card.text, card.paste)
       }
     }
     setCards((current) => [...taken, ...current])
   }, [])
+
+  /** Cards for pastes the target already saved, such as a message's taken back before it was read. */
+  const savedCards = useCallback(
+    (pastes: MessagePaste[]): PasteCard[] =>
+      pastes.map((paste) => {
+        seq.current += 1
+        return { key: `paste-${seq.current}`, lines: paste.lines, bytes: paste.bytes, paste }
+      }),
+    [],
+  )
 
   return {
     cards,
@@ -201,6 +213,7 @@ export function usePasteCards(
     removeCard,
     takeCards,
     returnCards,
+    savedCards,
     blocking: cards.some((c) => !c.paste),
   }
 }
