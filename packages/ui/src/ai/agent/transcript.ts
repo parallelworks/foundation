@@ -1,7 +1,7 @@
 // The transcript-shaping rules of a terminal coding agent, so a replayed
 // history renders the same blocks the terminal draws.
 import type { ApprovalOption, ApprovalQuestion } from '../types'
-import { clip, sanitizeLabel } from './toolfmt'
+import { clip, sanitizeLabel, sanitizePanelText, stripTerminalEscapes } from './toolfmt'
 
 // TodoWrite's plan pins above the composer instead; a block too would repeat
 // it on every update. ExitPlanMode's whole argument is the plan, rendered as
@@ -134,11 +134,24 @@ export interface SubagentNotice {
   shell?: boolean
   exitCode?: number
   failed?: boolean
-  /** How long the subagent ran; 0 when the notice doesn't say. */
+  /** How long the subagent ran, or a monitor's time limit; 0 when the notice doesn't say. */
   elapsedMs?: number
+  /** A monitor's: a script whose output lines arrive as events. An event's
+   *  `body` is the lines it printed, and `preview` the first of them. */
+  monitor?: boolean
+  /** How a monitor ended; unset on an event. `exitCode` says how its script
+   *  exited, and `elapsedMs` how long one that expired or flooded was given. */
+  ended?: MonitorEnd
+  /** The events a monitor sent before it expired. */
+  events?: number
 }
 
-/** The words of the line a background task's notice draws. */
+/** A monitor ends when its script exits, when its time runs out, or when it is
+ *  stopped for printing too much. */
+export type MonitorEnd = 'exited' | 'expired' | 'flooded'
+
+/** The words of the line a background task's notice draws. A host that leaves
+ *  out a monitor's lines gets the English ones. */
 export interface SubagentNoticeStrings {
   messageFrom: (name: string) => string
   commandCompleted: (name: string) => string
@@ -146,16 +159,31 @@ export interface SubagentNoticeStrings {
   /** `elapsed` is empty when the notice doesn't say how long it ran. */
   agentFinished: (name: string, elapsed: string) => string
   agentFailed: (name: string, elapsed: string) => string
+  /** `line` is the first line the script printed. */
+  monitorEvent?: (name: string, line: string) => string
+  monitorEnded?: (name: string) => string
+  monitorFailed?: (name: string, exitCode: number) => string
+  monitorExpired?: (name: string, elapsed: string, events: number) => string
+  monitorFlooded?: (name: string, elapsed: string) => string
 }
 
 const withElapsed = (line: string, elapsed: string) => (elapsed ? `${line} · ${elapsed}` : line)
 
-export const defaultSubagentNoticeStrings: SubagentNoticeStrings = {
+const eventCount = (n: number) => (n === 0 ? 'no events' : n === 1 ? '1 event' : `${n} events`)
+
+export const defaultSubagentNoticeStrings: Required<SubagentNoticeStrings> = {
   messageFrom: (name) => `Message from ${name}`,
   commandCompleted: (name) => `Background command "${name}" completed (exit code 0)`,
   commandFailed: (name, code) => `Background command "${name}" failed with exit code ${code}`,
   agentFinished: (name, elapsed) => withElapsed(`Agent "${name}" finished`, elapsed),
   agentFailed: (name, elapsed) => withElapsed(`Agent "${name}" failed`, elapsed),
+  monitorEvent: (name, line) => `Monitor event: ${line} · ${name}`,
+  monitorEnded: (name) => `Monitor "${name}" stream ended`,
+  monitorFailed: (name, code) => `Monitor "${name}" script failed (exit ${code})`,
+  monitorExpired: (name, elapsed, events) =>
+    `Monitor "${name}" expired after ${elapsed} with ${eventCount(events)} delivered`,
+  monitorFlooded: (name, elapsed) =>
+    `Monitor "${name}" stopped after ${elapsed} of too much output`,
 }
 
 // A Go duration as the notice writes it, such as "2m59.5s" or "850ms".
@@ -202,6 +230,9 @@ export function parseSubagentNotice(text: string): SubagentNotice | null {
     return null
   }
   head = head.slice(1, -1)
+  if (head.startsWith('Monitor ')) {
+    return parseMonitorNotice(head.slice('Monitor '.length), body)
+  }
   let shell = false
   let kind: string
   let rest: string
@@ -267,13 +298,84 @@ export function parseSubagentNotice(text: string): SubagentNotice | null {
   return notice
 }
 
-/** The line that marks a child's report or a background command's end entering
- *  the main conversation; what the child reported opens under it. */
+// A "[Monitor <id> (<desc>) event]" header over the lines a script printed, or
+// one that says how the monitor ended; null for an ending this doesn't know,
+// which keeps its full text.
+function parseMonitorNotice(head: string, body: string): SubagentNotice | null {
+  const open = head.indexOf(' (')
+  if (open === -1) {
+    return null
+  }
+  const rest = head.slice(open + 2)
+  const end = rest.lastIndexOf(')')
+  if (end === -1) {
+    return null
+  }
+  const notice: SubagentNotice = {
+    id: head.slice(0, open),
+    description: rest.slice(0, end).replaceAll('\\[', '[').replaceAll('\\]', ']'),
+    interim: false,
+    silent: false,
+    preview: '',
+    body: '',
+    monitor: true,
+  }
+  const tail = rest.slice(end + 1).trim()
+  if (tail === 'event') {
+    notice.body = sanitizePanelText(stripTerminalEscapes(body)).trim()
+    notice.preview = firstNonEmptyLine(notice.body, 100)
+    return notice
+  }
+  const exited = /^exited with code (-?\d+)$/.exec(tail)
+  if (exited) {
+    notice.ended = 'exited'
+    notice.exitCode = Number(exited[1])
+    return notice
+  }
+  const expired = /^expired after (\S+) with (no|\d+) events? delivered$/.exec(tail)
+  if (expired) {
+    notice.ended = 'expired'
+    notice.elapsedMs = parseGoDuration(expired[1] ?? '')
+    notice.events = expired[2] === 'no' ? 0 : Number(expired[2])
+    return notice
+  }
+  const flooded = /^stopped after (\S+) of too much output$/.exec(tail)
+  if (flooded) {
+    notice.ended = 'flooded'
+    notice.elapsedMs = parseGoDuration(flooded[1] ?? '')
+    return notice
+  }
+  return null
+}
+
+function monitorLine(n: SubagentNotice, name: string, t: SubagentNoticeStrings): string {
+  const english = defaultSubagentNoticeStrings
+  const elapsed = formatAgentDuration(n.elapsedMs ?? 0)
+  switch (n.ended) {
+    case 'exited':
+      return n.exitCode
+        ? (t.monitorFailed ?? english.monitorFailed)(name, n.exitCode)
+        : (t.monitorEnded ?? english.monitorEnded)(name)
+    case 'expired':
+      return (t.monitorExpired ?? english.monitorExpired)(name, elapsed, n.events ?? 0)
+    case 'flooded':
+      return (t.monitorFlooded ?? english.monitorFlooded)(name, elapsed)
+    default:
+      return (t.monitorEvent ?? english.monitorEvent)(name, n.preview)
+  }
+}
+
+/** The line that marks a child's report, a background command's end or a
+ *  monitor's event entering the main conversation; what was reported opens
+ *  under it. */
 export function subagentDeliveryLine(
   n: SubagentNotice,
   t: SubagentNoticeStrings = defaultSubagentNoticeStrings,
 ): string {
   const name = sanitizeLabel(n.description) || n.id
+  if (n.monitor) {
+    return monitorLine(n, name, t)
+  }
   if (n.interim) {
     return t.messageFrom(name)
   }

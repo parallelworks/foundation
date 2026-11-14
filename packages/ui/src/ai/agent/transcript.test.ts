@@ -1,9 +1,11 @@
 import {
   askQuestionsFromArgs,
+  defaultSubagentNoticeStrings,
   hiddenTranscriptTool,
   INTERRUPTED_NOTICE,
   interruptionNotice,
   parseSubagentNotice,
+  type SubagentNoticeStrings,
   subagentDeliveryLine,
   taskCallFromArgs,
 } from './transcript'
@@ -104,6 +106,72 @@ describe('parseSubagentNotice', () => {
       parseSubagentNotice('[Background command bash-4 (sleep 9) was stopped by the user]')?.silent,
     ).toBe(true)
     expect(parseSubagentNotice('Goal set: ship it')).toBeNull()
+  })
+
+  it("reads a monitor's event as the lines its script printed", () => {
+    const n = parseSubagentNotice(
+      '[Monitor monitor-3 (CI \\[checks\\]) event]\n\u001b[31mbuild: fail\u001b[0m\u0007\nlint: pass\n\u001b]0;title\u0007done',
+    )
+    expect(n).toEqual({
+      id: 'monitor-3',
+      description: 'CI [checks]',
+      preview: 'build: fail',
+      body: 'build: fail\nlint: pass\ndone',
+      interim: false,
+      silent: false,
+      monitor: true,
+    })
+    expect(subagentDeliveryLine(n!)).toBe('Monitor event: build: fail · CI [checks]')
+  })
+
+  it('says how a monitor ended', () => {
+    const line = (tail: string) =>
+      subagentDeliveryLine(
+        parseSubagentNotice(`[Monitor monitor-1 (deploy log) ${tail}]\n(a hint for the model)`)!,
+      )
+    expect(line('exited with code 0')).toBe('Monitor "deploy log" stream ended')
+    expect(line('exited with code 2')).toBe('Monitor "deploy log" script failed (exit 2)')
+    expect(line('exited with code -1')).toBe('Monitor "deploy log" script failed (exit -1)')
+    expect(line('expired after 5m0s with 3 events delivered')).toBe(
+      'Monitor "deploy log" expired after 5m 0s with 3 events delivered',
+    )
+    expect(line('expired after 1s with 1 event delivered')).toBe(
+      'Monitor "deploy log" expired after 1s with 1 event delivered',
+    )
+    expect(line('expired after 30m0s with no events delivered')).toBe(
+      'Monitor "deploy log" expired after 30m 0s with no events delivered',
+    )
+    expect(line('stopped after 30s of too much output')).toBe(
+      'Monitor "deploy log" stopped after 30s of too much output',
+    )
+    expect(
+      parseSubagentNotice(
+        '[Monitor monitor-1 (deploy log) expired after 5m0s with 3 events delivered]',
+      ),
+    ).toMatchObject({ ended: 'expired', elapsedMs: 300_000, events: 3, body: '' })
+  })
+
+  it("takes a host's words for a monitor and falls back to English for the rest", () => {
+    const n = parseSubagentNotice('[Monitor monitor-2 (tail) exited with code 0]')!
+    const { messageFrom, commandCompleted, commandFailed, agentFinished, agentFailed } =
+      defaultSubagentNoticeStrings
+    const words: SubagentNoticeStrings = {
+      messageFrom,
+      commandCompleted,
+      commandFailed,
+      agentFinished,
+      agentFailed,
+      monitorEnded: (name) => `${name}: fin`,
+    }
+    expect(subagentDeliveryLine(n, words)).toBe('tail: fin')
+    expect(subagentDeliveryLine({ ...n, exitCode: 1 }, words)).toBe(
+      'Monitor "tail" script failed (exit 1)',
+    )
+  })
+
+  it('keeps the full text of a monitor notice it cannot read', () => {
+    expect(parseSubagentNotice('[Monitor monitor-4 (tail) paused for now]')).toBeNull()
+    expect(parseSubagentNotice('[Monitor monitor-4 event]\nline')).toBeNull()
   })
 })
 

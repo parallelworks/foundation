@@ -902,9 +902,12 @@ export const SubagentOutcomes: StoryObj<{ reviewing: number; launched: number }>
 
 const notice = (raw: string): MessagePart => {
   const n = parseSubagentNotice(raw)
-  return n
-    ? { kind: 'notice', text: subagentDeliveryLine(n), ...(n.body ? { detail: n.body } : {}) }
-    : { kind: 'notice', text: raw }
+  if (!n) {
+    return { kind: 'notice', text: raw }
+  }
+  // A monitor's lines are a script's output, which Markdown would reflow.
+  const detail = n.monitor && n.body ? `\`\`\`\n${n.body}\n\`\`\`` : n.body
+  return { kind: 'notice', text: subagentDeliveryLine(n), ...(detail ? { detail } : {}) }
 }
 
 export const TranscriptExtras: StoryObj = {
@@ -947,6 +950,9 @@ function TranscriptExtrasExample() {
               '[Message from subagent task-4 (Map routes) — it is still working]\nHalf way through.',
             ),
             notice('[Background command bash-1 (npm test) exited with code 1]'),
+            notice('[Monitor monitor-2 (CI checks) event]\nbuild: fail\nlint: pass'),
+            notice('[Monitor monitor-2 (CI checks) expired after 5m0s with 2 events delivered]'),
+            notice('[Monitor monitor-3 (errors in deploy.log) exited with code 0]'),
           ],
         })}
       />
