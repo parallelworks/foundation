@@ -1,6 +1,7 @@
 package dev
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -91,6 +92,9 @@ func NewRootCmd(cfg Config, opts ...Option) *cobra.Command {
 			abs, err := filepath.Abs(dir)
 			if err != nil {
 				return err
+			}
+			if cfg.configDir == "" {
+				cfg.configDir = cmp.Or(cfg.Dir, defaultDir)
 			}
 			cfg.Dir = abs
 		}

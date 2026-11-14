@@ -13,15 +13,19 @@ import (
 	"maps"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 )
 
 // ConfigFile is the name the dev command looks for, from the working
 // directory up, so that `go -C tools tool dev` still finds the repository's.
 const ConfigFile = "dev.json"
+
+const defaultDir = ".devstack"
 
 // Config describes an app's local stack.
 type Config struct {
@@ -39,6 +43,9 @@ type Config struct {
 	// Dir keeps Postgres data, S3 objects and service logs between runs;
 	// defaults to .devstack.
 	Dir string `json:"dir,omitempty"`
+	// configDir is Dir as dev.json gives it, before --dir: where each
+	// checkout of the repository keeps its stack.
+	configDir string
 	// Env is set for every command. Values may name the stack:
 	// {postgres} and {postgres_test} are database URLs, {s3} the S3 endpoint.
 	Env map[string]string `json:"env,omitempty"`
@@ -65,7 +72,8 @@ type Config struct {
 	// profiles, and enable the services that name it.
 	Profiles map[string]Profile `json:"profiles,omitempty"`
 	// DefaultProfiles are active until a checkout chooses others with
-	// --profile.
+	// --profile; a git worktree that has not chosen uses its main checkout's
+	// choice instead.
 	DefaultProfiles []string `json:"defaultProfiles,omitempty"`
 	// Active names the profiles to use, overriding the checkout's choice;
 	// --profile sets it.
@@ -218,7 +226,10 @@ func (c Config) withDefaults() (Config, error) {
 	}
 	c.Root = root
 	if c.Dir == "" {
-		c.Dir = ".devstack"
+		c.Dir = defaultDir
+	}
+	if c.configDir == "" {
+		c.configDir = c.Dir
 	}
 	c.Dir = c.path(c.Dir)
 	if c.EnvFile == "" {
@@ -423,10 +434,11 @@ func (c Config) activate() (Config, error) {
 
 	chosen := c.Active
 	if chosen == nil {
+		chosen = c.DefaultProfiles
 		if data, err := os.ReadFile(c.profilesFile()); err == nil {
 			chosen = strings.Fields(string(data))
-		} else {
-			chosen = c.DefaultProfiles
+		} else if names, ok := c.mainCheckoutProfiles(); ok {
+			chosen = names
 		}
 	}
 	var active []string
@@ -481,6 +493,78 @@ func (c Config) activate() (Config, error) {
 	}
 	c.Services = services
 	return c, nil
+}
+
+// mainCheckoutProfiles returns the profiles the repository's main checkout
+// chose, read each time so that a git worktree that has not chosen follows
+// it. A name this dev.json lacks, as on another branch, voids the choice.
+func (c Config) mainCheckoutProfiles() ([]string, bool) {
+	if filepath.IsAbs(c.configDir) {
+		return nil, false // one stack dir, and one choice, for every checkout
+	}
+	main := mainCheckoutRoot(c.Root)
+	if main == "" {
+		return nil, false
+	}
+	data, err := os.ReadFile(filepath.Join(main, c.configDir, "profiles")) //nolint:gosec // the developer's own checkout
+	if err != nil {
+		return nil, false
+	}
+	names := strings.Fields(string(data))
+	for _, name := range names {
+		if _, ok := c.Profiles[name]; !ok {
+			return nil, false
+		}
+	}
+	return names, true
+}
+
+// mainCheckoutRoots caches mainCheckoutRoot by root: activate runs on every
+// control request and several times a second in the view.
+var mainCheckoutRoots sync.Map
+
+// mainCheckoutRoot returns root's directory in the main checkout of the git
+// repository root is in, or "" when root is not in a linked worktree.
+func mainCheckoutRoot(root string) string {
+	if main, ok := mainCheckoutRoots.Load(root); ok {
+		s, _ := main.(string)
+		return s
+	}
+	main := findMainCheckoutRoot(root)
+	mainCheckoutRoots.Store(root, main)
+	return main
+}
+
+func findMainCheckoutRoot(root string) string {
+	git := func(args ...string) (string, error) {
+		out, err := exec.Command("git", append([]string{"-C", root}, args...)...).Output() //nolint:gosec,noctx // activate, which asks, has no context: DatabaseURL calls it
+		return strings.TrimSpace(string(out)), err
+	}
+	top, err := git("rev-parse", "--show-toplevel")
+	if err != nil {
+		return ""
+	}
+	list, err := git("worktree", "list", "--porcelain")
+	if err != nil {
+		return ""
+	}
+	// A bare repository's first entry is no checkout to follow.
+	trees := parseWorktrees(list)
+	if len(trees) == 0 || trees[0].bare {
+		return ""
+	}
+	// Git reports resolved paths: /private/var on macOS, not /var.
+	top, err1 := filepath.EvalSymlinks(top)
+	main, err2 := filepath.EvalSymlinks(trees[0].path)
+	dir, err3 := filepath.EvalSymlinks(root)
+	if err := errors.Join(err1, err2, err3); err != nil || top == main {
+		return ""
+	}
+	rel, err := filepath.Rel(top, dir)
+	if err != nil || !filepath.IsLocal(rel) {
+		return ""
+	}
+	return filepath.Join(main, rel)
 }
 
 // chooseProfiles records the profiles a checkout uses from now on.
