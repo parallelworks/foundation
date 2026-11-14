@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.133.0](https://github.com/parallelworks/foundation/compare/ui-v0.132.0...ui-v0.133.0) (2026-11-14)
+
+
+### Features
+
+* **ui:** a host can open the images in its own composer in the chat's image viewer ([#749](https://github.com/parallelworks/foundation/issues/749)) ([bde6542](https://github.com/parallelworks/foundation/commit/bde65428c186ff9e2eaf7962e14755b83c44c152))
+
+
+### Bug Fixes
+
+* **ui:** an answered question's card doesn't make clear which answer the reader gave ([#747](https://github.com/parallelworks/foundation/issues/747)) ([edefac4](https://github.com/parallelworks/foundation/commit/edefac49a85993333a7e9cd8289057b28280dc55))
+
 ## [0.132.0](https://github.com/parallelworks/foundation/compare/ui-v0.131.0...ui-v0.132.0) (2026-11-14)
 
 
