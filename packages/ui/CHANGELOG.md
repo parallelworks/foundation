@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.136.0](https://github.com/parallelworks/foundation/compare/ui-v0.135.1...ui-v0.136.0) (2026-11-14)
+
+
+### Features
+
+* **ui:** paste cards and the default model and allocation import without a DOM ([#764](https://github.com/parallelworks/foundation/issues/764)) ([d05aacb](https://github.com/parallelworks/foundation/commit/d05aacb469a9adf6b5f8cc4eef01b027907dd547))
+
+
+### Performance Improvements
+
+* **ui:** a session view redraws only the reply its host streams, not every message before it ([#765](https://github.com/parallelworks/foundation/issues/765)) ([9201fe2](https://github.com/parallelworks/foundation/commit/9201fe2afe61a3caa6c4eae09cf6fff3cc5365b0))
+
 ## [0.135.1](https://github.com/parallelworks/foundation/compare/ui-v0.135.0...ui-v0.135.1) (2026-11-14)
 
 
