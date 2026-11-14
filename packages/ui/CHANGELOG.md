@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.135.0](https://github.com/parallelworks/foundation/compare/ui-v0.134.2...ui-v0.135.0) (2026-11-14)
+
+
+### Features
+
+* **ui:** an agent transcript draws a monitor's events and how it ended ([#759](https://github.com/parallelworks/foundation/issues/759)) ([0030556](https://github.com/parallelworks/foundation/commit/0030556baa69de3efee0a2aec15b0ddec3c3e595))
+
 ## [0.134.2](https://github.com/parallelworks/foundation/compare/ui-v0.134.1...ui-v0.134.2) (2026-11-14)
 
 
