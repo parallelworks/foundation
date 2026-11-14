@@ -351,6 +351,7 @@ function heldMessages(withPaste: boolean): ChatMessage[] {
 
 function TakeBackExample({ withPaste, takeMs }: TakeBackArgs) {
   const [held, setHeld] = useState(() => heldMessages(withPaste))
+  const [running, setRunning] = useState(true)
   const recall = {
     available: held.length > 0,
     take: async (): Promise<RecalledMessage[]> => {
@@ -367,8 +368,9 @@ function TakeBackExample({ withPaste, takeMs }: TakeBackArgs) {
           messages={RUNNING_TURN}
           queuedMessages={held}
           queueDelivery="nextStep"
-          turn={{ running: true, onStop: () => console.info('[stop]') }}
+          turn={{ running, onStop: () => setRunning(false) }}
           onSend={(content, _ids, _meta, pastes) => {
+            setRunning(true)
             setHeld((current) => [
               ...current,
               makeMessage({ role: 'user', content, ...(pastes ? { pastes } : {}) }),
@@ -390,8 +392,8 @@ function TakeBackExample({ withPaste, takeMs }: TakeBackArgs) {
  *  there, or ↑ in the empty composer (its placeholder says so where there is
  *  a keyboard), takes back every one still waiting, as a terminal does: they
  *  leave the transcript and come back to the box to edit, oldest first and
- *  ahead of anything typed there, a saved paste as its card. Sent again, they
- *  wait again. */
+ *  ahead of anything typed there, a saved paste as its card. Escape or Stop
+ *  takes them back too before the turn stops. Sent again, they wait again. */
 export const TakeBack: StoryObj<TakeBackArgs> = {
   args: { withPaste: true, takeMs: 300 },
   argTypes: {

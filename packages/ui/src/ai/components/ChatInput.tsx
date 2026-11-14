@@ -90,8 +90,9 @@ interface ChatInputProps {
 export interface ChatInputHandle {
   addFiles: (files: FileList | File[]) => void
   focus: () => void
-  /** Takes back what waits into the box, ahead of anything typed there. */
-  recall: () => void
+  /** Takes back what waits into the box, ahead of anything typed there;
+   *  resolves once it is there, or once the host had nothing to give back. */
+  recall: () => Promise<void>
 }
 
 /** A message taken back before it was read. */
@@ -309,7 +310,7 @@ export default function ChatInput({
       },
       recall: () => {
         textareaRef.current?.focus()
-        void latestTakeBack.current()
+        return latestTakeBack.current()
       },
     }),
     [],

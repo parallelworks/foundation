@@ -169,6 +169,48 @@ describe('SessionView', () => {
     expect(onStop).toHaveBeenCalledTimes(1)
   })
 
+  it.each([
+    ['Escape', () => pressEscape()],
+    ['the composer’s Stop', () => composerProps?.turn?.onStop()],
+  ])(
+    'hands what waits back to the composer before %s stops the turn, as a terminal does',
+    async (_how, stopIt) => {
+      let taken = () => {}
+      recallComposer.mockImplementation(() => new Promise<void>((resolve) => (taken = resolve)))
+      const onStop = vi.fn()
+      render(
+        <SessionView
+          sessionKey="s1"
+          messages={[ask]}
+          onSend={vi.fn()}
+          turn={{ running: true, onStop }}
+          composer={{ recall: { available: true, take: vi.fn() } }}
+        />,
+      )
+      act(() => stopIt())
+      expect(recallComposer).toHaveBeenCalledTimes(1)
+      expect(onStop).not.toHaveBeenCalled()
+      await act(async () => taken())
+      expect(onStop).toHaveBeenCalledTimes(1)
+    },
+  )
+
+  it('stops at once when nothing waits to be taken back', () => {
+    const onStop = vi.fn()
+    render(
+      <SessionView
+        sessionKey="s1"
+        messages={[ask]}
+        onSend={vi.fn()}
+        turn={{ running: true, onStop }}
+        composer={{ recall: { available: false, take: vi.fn() } }}
+      />,
+    )
+    pressEscape()
+    expect(recallComposer).not.toHaveBeenCalled()
+    expect(onStop).toHaveBeenCalledTimes(1)
+  })
+
   it("stops the chat provider's reply with Escape when the host runs no turn", () => {
     chat.isStreaming = true
     render(<SessionView sessionKey="s1" messages={[ask]} onSend={vi.fn()} />)

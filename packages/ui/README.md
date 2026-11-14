@@ -1019,6 +1019,9 @@ the box's placeholder says ↑ edits them where there is a fine pointer. With a
 `recall`, `SessionView` shows the queue's status once under the last message
 of each run that reads alike, and Edit on the last line takes them back as ↑
 does; `ChatMessageList` does this for any host that sets `onEditQueued`.
+Stopping the turn, with Escape or Stop, takes back what waits first and only
+then calls `turn.onStop`, so nothing waiting runs unasked after a stop or is
+lost to it.
 
 A host's own list of conversations or sessions builds on `ConversationSidebar`
 with the same pieces the chat's list uses: `SidebarRow` with `SidebarRowBody`
