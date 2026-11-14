@@ -1107,8 +1107,46 @@ along:
 import { applyPartDelta, type MessagePart, toolHeaderFor } from '@parallelworks/ui/ai/headless'
 ```
 
+It has the composer's paste cards too, so a host's own composer treats a
+large paste as `ChatInput` does. `createPasteCards` holds the cards and reads
+and writes the host's box through getters, so they answer with what the box
+holds now:
+
+```ts
+const cards = createPasteCards({
+  pastes: () => ({ inlineMaxBytes: pasteInlineMaxBytes(model.context_window), upload }),
+  input: () => text,
+  setInput: (value) => setText(value),
+  onCardsChange: (next) => setCards(next),
+})
+```
+
+`handleTextPaste(text)` answers true when the paste became a card, so the box
+leaves the text out; on false the box takes it as usual, its line endings
+made `\n` as `normalizeNewlines` makes them, so a later limit finds it there.
+Call `applyInlineLimit(inlineMaxBytes)` when the limit changes, as with another
+model, to move pastes between the box and cards. A card without `paste` is
+still saving and holds the send back; one with `error` failed. On send,
+`joinPastes(text, cards.takeCards())` is the message, sent with those pastes,
+and `returnCards` puts them back after a send that failed. `splitPastes` reads
+a sent message back into its text and pastes, `PASTE_CARD_MIN_BYTES` is the
+size below which a paste stays text whatever the model, and `PASTE_INLINE_CAP`
+is the most text one message sends inline.
+
+`defaultModel` is the model the chat starts on once the models load: the
+current one, else the one last chosen, while the list still offers it; else
+the first whose provider has no issue (`providerIssueFor`), else the first.
+`defaultAllocation` is the allocation an organization model (`isOrgModel`)
+bills: the current one, else the first that is not disabled; any other model
+bills none.
+
 `@parallelworks/ui/ai` exports all of it too, so a host that uses the
 components keeps importing from there.
+
+Loading either headless entry constructs nothing from `Intl`, so it imports on
+a JS engine without `Intl.PluralRules`, such as Hermes. The English tool
+summaries in `defaultToolStrings` still choose a plural with it when they
+format, so such a host polyfills it or passes its own strings.
 
 ## Form state
 

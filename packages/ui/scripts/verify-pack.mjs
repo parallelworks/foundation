@@ -254,34 +254,40 @@ try {
   console.log('• asserting the headless entries reach no DOM-only package or stylesheet')
   // A host with no DOM imports them, and a bundler that keeps everything an entry
   // reaches would hand that host the components and their dependencies with it.
-  // Each entry names the packages it may reach, none of which needs a DOM.
+  // Each entry names the packages it may reach, none of which needs a DOM. The
+  // declarations are walked too, so a type-only import of a component's module
+  // can't bring a package's types to a host that has none of it installed.
   for (const [entry, packages] of Object.entries({
     'ai/headless': [],
     headless: ['react', 'luxon', 'dequal'],
   })) {
-    const start = path.join(fixture, `node_modules/@parallelworks/ui/dist/${entry}.js`)
-    const reachedFrom = new Map([[start, null]])
-    for (const file of reachedFrom.keys()) {
-      const source = readFileSync(file, 'utf8')
-      const specifiers = [
-        /^\s*import\s*(?:[^'"]*?\bfrom\s*)?["']([^"']+)["']/gm,
-        /^\s*export\s*(?:\*|\{[^}]*\})\s*from\s*["']([^"']+)["']/gm,
-        /\bimport\(\s*["']([^"']+)["']\s*\)/g,
-      ].flatMap((statement) => [...source.matchAll(statement)].map(([, spec]) => spec))
-      for (const spec of specifiers) {
-        if (packages.some((name) => spec === name || spec.startsWith(`${name}/`))) {
-          continue
-        }
-        if (!spec.startsWith('.') || !spec.endsWith('.js')) {
-          const chain = [spec]
-          for (let at = file; at; at = reachedFrom.get(at)) {
-            chain.unshift(path.relative(path.dirname(start), at))
+    for (const extension of ['.js', '.d.ts']) {
+      const start = path.join(fixture, `node_modules/@parallelworks/ui/dist/${entry}${extension}`)
+      const reachedFrom = new Map([[start, null]])
+      for (const file of reachedFrom.keys()) {
+        const source = readFileSync(file, 'utf8')
+        const specifiers = [
+          /^\s*import\s*(?:[^'"]*?\bfrom\s*)?["']([^"']+)["']/gm,
+          /^\s*export\s*(?:type\s+)?(?:\*(?:\s*as\s+\w+)?|\{[^}]*\})\s*from\s*["']([^"']+)["']/gm,
+          /\bimport\(\s*["']([^"']+)["']\s*\)/g,
+          /^\/\/\/\s*<reference\s+types\s*=\s*["']([^"']+)["']/gm,
+        ].flatMap((statement) => [...source.matchAll(statement)].map(([, spec]) => spec))
+        for (const spec of specifiers) {
+          if (packages.some((name) => spec === name || spec.startsWith(`${name}/`))) {
+            continue
           }
-          throw new Error(`${entry} reaches ${spec}: ${chain.join(' → ')}`)
-        }
-        const next = path.resolve(path.dirname(file), spec)
-        if (!reachedFrom.has(next)) {
-          reachedFrom.set(next, file)
+          if (!spec.startsWith('.') || !spec.endsWith('.js')) {
+            const chain = [spec]
+            for (let at = file; at; at = reachedFrom.get(at)) {
+              chain.unshift(path.relative(path.dirname(start), at))
+            }
+            throw new Error(`${entry}${extension} reaches ${spec}: ${chain.join(' → ')}`)
+          }
+          // A declaration names the module it describes, as ./parts.js for ./parts.d.ts.
+          const next = path.resolve(path.dirname(file), spec.replace(/\.js$/, extension))
+          if (!reachedFrom.has(next)) {
+            reachedFrom.set(next, file)
+          }
         }
       }
     }
@@ -379,8 +385,11 @@ try {
       "need(ai, 'ai', 'chatReducer')",
       "need(headless, 'ai/headless', 'applyPartDelta')",
       "need(headless, 'ai/headless', 'toolHeaderFor')",
-      'if (headless.chatReducer !== ai.chatReducer) {',
-      "  throw new Error('ai and ai/headless export different copies')",
+      "for (const name of ['chatReducer', 'createPasteCards', 'splitPastes', 'defaultModel', 'defaultAllocation']) {",
+      "  need(headless, 'ai/headless', name)",
+      '  if (headless[name] !== ai[name]) {',
+      "    throw new Error('ai and ai/headless export different copies of ' + name)",
+      '  }',
       '}',
       "need(openai, 'ai/openai', 'createOpenAICompatibleStream')",
       "need(mock, 'ai/mock', 'createMockChatAdapter')",
@@ -430,8 +439,17 @@ try {
       'export const ids = (c: Conversation): string[] =>',
       '  c.messages.map((m: ChatMessage) => m.id)',
       'export const models = () => adapter.models.list()',
-      "import { finalizeParts, type MessagePart } from '@parallelworks/ui/ai/headless'",
+      "import { createPasteCards, defaultModel, finalizeParts, joinPastes, type MessagePart, type PasteCard } from '@parallelworks/ui/ai/headless'",
       'export const settled = (parts: MessagePart[]): MessagePart[] => finalizeParts(parts)',
+      "let box = ''",
+      'export const pasteCards = createPasteCards({',
+      '  pastes: () => ({ inlineMaxBytes: 1000, upload: async () => ({ unsupported: true }) }),',
+      '  input: () => box,',
+      '  setInput: (value: string) => { box = value },',
+      '  onCardsChange: (cards: PasteCard[]) => cards,',
+      '})',
+      'export const message = joinPastes(box, pasteCards.takeCards())',
+      'export const model: string | null = defaultModel({ models: [], providerIssues: [], current: null, stored: null })',
       "import { formatDuration, type UIStrings, UIStringsProvider, useClock, useStrings } from '@parallelworks/ui/headless'",
       'export const useAge = (at: number): string => {',
       '  const t = useStrings().time',

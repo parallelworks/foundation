@@ -41,8 +41,8 @@ import type {
 } from '../types'
 import { chatReducer, initialState } from './chatReducer'
 import { ChatConfigProvider, type ChatUIConfig, resolveChatConfig } from './config'
+import { defaultModel } from './models'
 import { applyPartDelta, finalizeParts, splitAnswer, toolTurnMessages } from './parts'
-import { providerIssueFor } from './providerIssues'
 import {
   ReportSidebarPresentationContext,
   type SidebarPresentation,
@@ -712,17 +712,12 @@ export function ChatProvider({
       })
       hasLoadedModelsRef.current = true
       const current = selectedProviderRef.current
-      const stored = storedModelRef.current
-      const offers = (id: string | null) => !!id && models.some((m) => m.id === id)
-      // A remembered choice survives even when its provider is broken (the
-      // banner explains); only the fresh default skips broken providers.
-      const firstUsable =
-        models.find((model) => !providerIssueFor(providerIssues, model)) ?? models[0]
-      const resolved = offers(current)
-        ? current
-        : offers(stored)
-          ? stored
-          : (firstUsable?.id ?? null)
+      const resolved = defaultModel({
+        models,
+        providerIssues,
+        current,
+        stored: storedModelRef.current,
+      })
       if (resolved !== current) {
         dispatch({
           type: 'SET_SELECTED_PROVIDER',

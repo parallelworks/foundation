@@ -15,6 +15,8 @@ import { cx } from '../../cx'
 import { ArrowUpIcon, StopIcon } from '../../icons'
 import { useChat } from '../core/ChatProvider'
 import { useChatConfig } from '../core/config'
+import type { ComposerPastes, PasteCard } from '../core/pasteCards'
+import { joinPastes } from '../core/pastes'
 import useDragDrop from '../core/useDragDrop'
 import type { AttachmentMeta, MessagePaste } from '../types'
 import AttachmentUpload, { type Attachment, type AttachmentUploadHandle } from './AttachmentUpload'
@@ -26,7 +28,7 @@ import { closeShortcode } from './emojiShortcode'
 import { PasteFileCard } from './PastedText'
 import { SlashMenu, type SlashMenuConfig, useSlashMenu } from './SlashMenu'
 import { type ComposerHistory, useComposerHistory } from './useComposerHistory'
-import { type ComposerPastes, type PasteCard, usePasteCards } from './usePasteCards'
+import { usePasteCards } from './usePasteCards'
 
 interface ChatInputProps {
   /** The box empties at once. Answering false, or with a promise of false or
@@ -433,9 +435,7 @@ export default function ChatInput({
     }
     const sent: SentInput = { conversationId, input, cards, attachments }
     const sentPastes = takeCards()
-    const content = [input.trim(), ...sentPastes.map((p) => p.placeholder)]
-      .filter(Boolean)
-      .join('\n\n')
+    const content = joinPastes(input, sentPastes)
     const ids = attachmentIds.length > 0 ? attachmentIds : undefined
     const attachmentMeta = attachmentIds.length > 0 ? meta : undefined
     composerHistory.record(input.trim())

@@ -79,10 +79,6 @@ export {
   slashMatches,
 } from './components/SlashMenu'
 export type { ComposerHistory } from './components/useComposerHistory'
-export type {
-  ComposerPastes,
-  PasteUploadResult,
-} from './components/usePasteCards'
 export {
   ChatProvider,
   type ChatProviderProps,
@@ -100,8 +96,6 @@ export {
 export { FIND_IN_TRANSCRIPT_EVENT, FOCUS_SIDEBAR_SEARCH_EVENT } from './core/events'
 export { getGreeting } from './core/greeting'
 export { KeyboardShortcutsProvider } from './core/KeyboardShortcutsProvider'
-export { pasteInlineMaxBytes } from './core/pastes'
-export { providerIssueFor } from './core/providerIssues'
 export type { SidebarPresentation, SidebarState } from './core/sidebarState'
 export { default as useDragDrop } from './core/useDragDrop'
 export {
@@ -134,4 +128,4 @@ export {
   useRowDialogs,
   useSessionMenu,
 } from './ui/sidebar'
-export { isMac, isOrgModel } from './utils'
+export { isMac } from './utils'
