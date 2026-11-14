@@ -44,6 +44,11 @@ interface ChatMessageListProps {
   /** Which queued messages can still be taken back; all of them when unset.
    *  One that cannot has been handed to the running turn. */
   canRemoveQueued?: (id: string) => boolean
+  /** Puts every queued message that can still be taken back into the
+   *  composer, as ↑ there does. Set, the queue shows its status once under
+   *  the last message of each run that reads alike, and Edit on the last
+   *  line, in place of a line and Remove under each message. */
+  onEditQueued?: (() => void) | undefined
   /** When a queued message reaches the model: once the running reply
    *  finishes (the chat provider's queue), or between the agent's steps for a
    *  host that steers the turn in progress. A host with both kinds says which
@@ -96,6 +101,7 @@ export default function ChatMessageList({
   queuedMessages,
   onRemoveQueued,
   canRemoveQueued,
+  onEditQueued,
   queueDelivery = 'afterReply',
   editingMessageId,
   showAuthor,
@@ -265,6 +271,17 @@ export default function ChatMessageList({
 
   // Attach listeners once the container exists (it is absent in the empty state)
   const queuedCount = queuedMessages?.length ?? 0
+  const queued = (queuedMessages ?? []).map((msg) => {
+    const removable = canRemoveQueued?.(msg.id) ?? true
+    const delivery = typeof queueDelivery === 'function' ? queueDelivery(msg.id) : queueDelivery
+    const status = !removable
+      ? strings.queue.handedOver
+      : delivery === 'nextStep'
+        ? strings.queue.waitingNextStep
+        : strings.queue.waiting
+    return { msg, removable, status }
+  })
+  const editable = queued.some((q) => q.removable)
   const hasContent = messages.length > 0 || !!streamingMessage || queuedCount > 0
   const awaitingApproval = streamingParts.some((part) => part.kind === 'approval' && !part.resolved)
   const showWorkingIndicator =
@@ -579,19 +596,18 @@ export default function ChatMessageList({
               />
             </div>
           )}
-          {queuedMessages?.map((msg) => {
-            const removable = canRemoveQueued?.(msg.id) ?? true
-            const status = !removable
-              ? strings.queue.handedOver
-              : (typeof queueDelivery === 'function' ? queueDelivery(msg.id) : queueDelivery) ===
-                  'nextStep'
-                ? strings.queue.waitingNextStep
-                : strings.queue.waiting
+          {queued.map(({ msg, removable, status }, i) => {
+            // Grouped, a run of messages that read alike says so once, under its last.
+            const showStatus = !onEditQueued || queued[i + 1]?.status !== status
+            const last = i === queued.length - 1
             return (
               // Waiting, not faded: full-contrast text in an outline rather than
               // a filled bubble, with a line saying when it reaches the model.
               // One already handed to the running turn is sent, so it is filled.
-              <div key={msg.id} className={cx('animate-chat-enter', removable && 'chat-queued')}>
+              <div
+                key={msg.id}
+                className={cx('chat-pending animate-chat-enter', removable && 'chat-queued')}
+              >
                 <ChatMessage
                   message={msg}
                   allMessages={allMessages}
@@ -599,33 +615,38 @@ export default function ChatMessageList({
                   attachmentDownloadUrl={attachmentDownloadUrl}
                   onOpenAttachment={onOpenAttachment}
                 />
-                <div
-                  data-testid="queued-status"
-                  className={cx(
-                    '-mt-4 mb-2 flex items-center justify-end gap-2 text-xs theme-muted-text',
-                    !flush && 'sm:px-4',
-                  )}
-                >
-                  {removable ? (
-                    <ClockIcon className="h-3 w-3" />
-                  ) : (
-                    <CheckIcon className="h-3 w-3" />
-                  )}
-                  <span>{status}</span>
-                  {onRemoveQueued && removable && (
-                    <>
-                      <span aria-hidden="true">·</span>
-                      <button
-                        type="button"
-                        aria-label={strings.queue.remove}
-                        onClick={() => onRemoveQueued(msg.id)}
-                        className="rounded font-medium underline-offset-2 hover:theme-text hover:underline"
-                      >
-                        {common.remove}
-                      </button>
-                    </>
-                  )}
-                </div>
+                {showStatus && (
+                  <div
+                    data-testid="queued-status"
+                    className={cx(
+                      '-mt-4 mb-2 flex items-center justify-end gap-2 text-xs theme-muted-text',
+                      !flush && 'sm:px-4',
+                    )}
+                  >
+                    {removable ? (
+                      <ClockIcon className="h-3 w-3" />
+                    ) : (
+                      <CheckIcon className="h-3 w-3" />
+                    )}
+                    <span>{status}</span>
+                    {onEditQueued
+                      ? last &&
+                        editable && (
+                          <QueueAction label={strings.queue.editLabel} onClick={onEditQueued}>
+                            {strings.queue.edit}
+                          </QueueAction>
+                        )
+                      : onRemoveQueued &&
+                        removable && (
+                          <QueueAction
+                            label={strings.queue.remove}
+                            onClick={() => onRemoveQueued(msg.id)}
+                          >
+                            {common.remove}
+                          </QueueAction>
+                        )}
+                  </div>
+                )}
               </div>
             )
           })}
@@ -732,6 +753,30 @@ function PinnedPrompt({
 
 function prefersReducedMotion(): boolean {
   return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+function QueueAction({
+  label,
+  onClick,
+  children,
+}: {
+  label: string
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <>
+      <span aria-hidden="true">·</span>
+      <button
+        type="button"
+        aria-label={label}
+        onClick={onClick}
+        className="rounded font-medium underline-offset-2 hover:theme-text hover:underline"
+      >
+        {children}
+      </button>
+    </>
+  )
 }
 
 /** "Thinking (12s)" while it thinks, then how long it took. Its own component,

@@ -1014,7 +1014,11 @@ the chat's tools out of a composer they don't apply to. A composer's `recall`
 lets ↑ in an empty box take back messages sent but not read yet, ahead of the
 history, as a terminal does: `available` says whether any wait, and `take`
 answers with those it took back, oldest first, which return to the box with
-their saved pastes as cards.
+their saved pastes as cards, ahead of anything typed there. While any wait,
+the box's placeholder says ↑ edits them where there is a fine pointer. With a
+`recall`, `SessionView` shows the queue's status once under the last message
+of each run that reads alike, and Edit on the last line takes them back as ↑
+does; `ChatMessageList` does this for any host that sets `onEditQueued`.
 
 A host's own list of conversations or sessions builds on `ConversationSidebar`
 with the same pieces the chat's list uses: `SidebarRow` with `SidebarRowBody`

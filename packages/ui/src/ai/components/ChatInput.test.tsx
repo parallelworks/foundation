@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import { forwardRef, useImperativeHandle } from 'react'
+import { createRef, forwardRef, useImperativeHandle } from 'react'
 import type { Attachment } from './AttachmentUpload'
-import ChatInput, { type RecalledMessage } from './ChatInput'
+import ChatInput, { type ChatInputHandle, type RecalledMessage } from './ChatInput'
 import { DRAFT_MAX_LENGTH, DRAFT_TTL_MS, readDraft, sweepDrafts } from './chatDraft'
 import { appendHistory, HISTORY_MAX_CHARS, HISTORY_MAX_ENTRIES, readHistory } from './chatHistory'
 import type { PasteUploadResult } from './usePasteCards'
@@ -1150,6 +1150,53 @@ describe('ChatInput taking back what waits', () => {
     await act(async () => answer([{ text: 'also the docs' }]))
     expect(readDraft('c1')).toBe('also the docs\n\ntyped meanwhile')
     expect(textarea().value).toBe('')
+  })
+
+  it('puts what Edit takes back ahead of a draft, which ↑ in a draft leaves alone', async () => {
+    const ref = createRef<ChatInputHandle>()
+    const recall = waiting([{ text: 'also the docs' }, { text: 'and the tests' }])
+    render(<ChatInput ref={ref} onSend={vi.fn()} recall={recall} />)
+    typeInBox('my draft')
+    expect(pressUp()).toBe(true)
+    expect(recall.take).not.toHaveBeenCalled()
+    await act(async () => ref.current?.recall())
+    expect(textarea().value).toBe('also the docs\nand the tests\n\nmy draft')
+    expect(textarea()).toHaveFocus()
+  })
+
+  describe('with a fine pointer', () => {
+    const original = window.matchMedia
+    beforeEach(() => {
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: (query: string) => ({
+          matches: query === '(any-pointer: fine)',
+          addEventListener: () => {},
+          removeEventListener: () => {},
+        }),
+      })
+    })
+    afterEach(() => {
+      Object.defineProperty(window, 'matchMedia', { configurable: true, value: original })
+    })
+
+    it('says ↑ edits what waits while something does, and keeps its own name for it', () => {
+      const recall = { available: true, take: vi.fn() }
+      const { rerender } = render(
+        <ChatInput onSend={vi.fn()} placeholder="Message the session" recall={recall} />,
+      )
+      const box = screen.getByRole('textbox')
+      expect(box).toHaveAttribute('placeholder', 'Press ↑ to edit queued messages')
+      expect(box).toHaveAccessibleName('Message the session')
+      rerender(
+        <ChatInput
+          onSend={vi.fn()}
+          placeholder="Message the session"
+          recall={{ ...recall, available: false }}
+        />,
+      )
+      expect(box).toHaveAttribute('placeholder', 'Message the session')
+    })
   })
 })
 

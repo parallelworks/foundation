@@ -533,6 +533,12 @@
   outline-offset: -1px;
 }
 
+/* A message still waiting has no actions yet: its status line takes their place,
+ * where a touch screen would otherwise put them over its Remove or Edit. */
+.chat-pending .chat-actions {
+  display: none;
+}
+
 /* Find in the transcript, painted with the CSS Custom Highlight API: every
  * match washed in the accent, and the one the reader is on filled with it. */
 ::highlight(transcript-find) {

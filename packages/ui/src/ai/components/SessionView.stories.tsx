@@ -335,7 +335,6 @@ function TakeBackExample({ withPaste, takeMs }: TakeBackArgs) {
           messages={RUNNING_TURN}
           queuedMessages={held}
           queueDelivery="nextStep"
-          onRemoveQueued={(id) => setHeld((current) => current.filter((m) => m.id !== id))}
           turn={{ running: true, onStop: () => console.info('[stop]') }}
           onSend={(content, _ids, _meta, pastes) => {
             setHeld((current) => [
@@ -355,10 +354,12 @@ function TakeBackExample({ withPaste, takeMs }: TakeBackArgs) {
 }
 
 /** Messages sent while the agent works wait as dashed bubbles until it reads
- *  them at its next step. ↑ in the empty composer takes back every one still
- *  waiting, ahead of the history, as a terminal does: they leave the
- *  transcript and come back to the box to edit, oldest first, a saved paste
- *  as its card. Sent again, they wait again. Press ↑ in the composer. */
+ *  them at its next step, with their status said once under the last. Edit
+ *  there, or ↑ in the empty composer (its placeholder says so where there is
+ *  a keyboard), takes back every one still waiting, as a terminal does: they
+ *  leave the transcript and come back to the box to edit, oldest first and
+ *  ahead of anything typed there, a saved paste as its card. Sent again, they
+ *  wait again. */
 export const TakeBack: StoryObj<TakeBackArgs> = {
   args: { withPaste: true, takeMs: 300 },
   argTypes: {

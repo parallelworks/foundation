@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { useMediaQuery } from '../../components/useNarrow'
 import { cx } from '../../cx'
 import { ArrowUpIcon, StopIcon } from '../../icons'
 import { useChat } from '../core/ChatProvider'
@@ -87,6 +88,8 @@ interface ChatInputProps {
 export interface ChatInputHandle {
   addFiles: (files: FileList | File[]) => void
   focus: () => void
+  /** Takes back what waits into the box, ahead of anything typed there. */
+  recall: () => void
 }
 
 /** A message taken back before it was read. */
@@ -279,9 +282,15 @@ export default function ChatInput({
   const chat = useChat()
   const { adapter, flushQueuedMessages, isSelectedModelAvailable, tools, consumeInputFocus } = chat
   const { isStreaming, stopStreaming, queuedCount } = streamControls(chat, turn)
-  const t = useChatConfig().strings.input
+  const chatStrings = useChatConfig().strings
+  const t = chatStrings.input
   const effectivePlaceholder = placeholder ?? t.placeholder
+  // A phone has no ↑ to press, so only a box with a fine pointer offers it.
+  const finePointer = useMediaQuery('(any-pointer: fine)')
+  const shownPlaceholder =
+    recall?.available && finePointer ? chatStrings.queue.editHint : effectivePlaceholder
   const attachmentsAvailable = attachmentsWanted && !!adapter.attachments
+  const latestTakeBack = useRef(async () => {})
 
   // Expose addFiles and focus methods to parent
   useImperativeHandle(
@@ -295,6 +304,10 @@ export default function ChatInput({
       },
       focus: () => {
         textareaRef.current?.focus()
+      },
+      recall: () => {
+        textareaRef.current?.focus()
+        void latestTakeBack.current()
       },
     }),
     [],
@@ -447,6 +460,7 @@ export default function ChatInput({
       recalling.current = false
     }
   }
+  latestTakeBack.current = takeBack
 
   const recallKey = (e: KeyboardEvent<HTMLTextAreaElement>) =>
     !!recall &&
@@ -685,7 +699,7 @@ export default function ChatInput({
                     onKeyDown={handleKeyDown}
                     onPaste={handlePaste}
                     {...slashMenu.inputProps}
-                    placeholder={effectivePlaceholder}
+                    placeholder={shownPlaceholder}
                     aria-label={inputLabel ?? effectivePlaceholder}
                     disabled={disabled}
                     autoComplete="off"
