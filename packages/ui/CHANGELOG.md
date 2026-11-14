@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.132.0](https://github.com/parallelworks/foundation/compare/ui-v0.131.0...ui-v0.132.0) (2026-11-14)
+
+
+### Features
+
+* **ui:** the formatters, strings and clock import without a DOM ([#746](https://github.com/parallelworks/foundation/issues/746)) ([5440ad8](https://github.com/parallelworks/foundation/commit/5440ad8e4c6414d5507ae38e0e79c9d259adc793))
+
+
+### Bug Fixes
+
+* **ui:** a screen reader announces the effort picker's chip as only its level, such as "high" ([#744](https://github.com/parallelworks/foundation/issues/744)) ([d77d349](https://github.com/parallelworks/foundation/commit/d77d349398fcc6e4de07792b44c34ab79a4c46fb))
+
 ## [0.131.0](https://github.com/parallelworks/foundation/compare/ui-v0.130.0...ui-v0.131.0) (2026-11-13)
 
 
