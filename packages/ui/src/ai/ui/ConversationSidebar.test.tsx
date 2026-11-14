@@ -77,6 +77,19 @@ describe('ConversationSidebar', () => {
   it('shows skeleton rows instead of the list while loading', () => {
     render(<Sidebar loading />)
     expect(screen.queryByText('Item a')).not.toBeInTheDocument()
+    expect(screen.getByRole('status').querySelectorAll('[aria-hidden="true"]')).toHaveLength(5)
+  })
+
+  // jsdom resolves no colors, so this compares the classes that set them.
+  it('draws its skeleton rows in a color other than the panel under them', () => {
+    render(<Sidebar loading />)
+    const background = (el: Element) => el.className.split(' ').filter((c) => c.startsWith('bg-'))
+    const surface = background(panel())
+    expect(surface).toHaveLength(1)
+    for (const row of screen.getByRole('status').querySelectorAll('[aria-hidden="true"]')) {
+      expect(background(row)).toHaveLength(1)
+      expect(background(row)).not.toEqual(surface)
+    }
   })
 
   it('swaps the list for the rail while collapsed', () => {
