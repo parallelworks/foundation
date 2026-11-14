@@ -1,8 +1,10 @@
 import {
   type ComponentProps,
   type ReactNode,
+  type Ref,
   useCallback,
   useEffect,
+  useImperativeHandle,
   useRef,
   useState,
 } from 'react'
@@ -82,6 +84,13 @@ export interface SessionViewProps {
   /** Finds text in the transcript: ⌘F, or FIND_IN_TRANSCRIPT_EVENT from the
    *  host's own control, opens a bar above it. */
   find?: boolean
+  ref?: Ref<SessionViewHandle> | undefined
+}
+
+export interface SessionViewHandle {
+  /** Stops the turn as Escape does, for the host's own Stop outside the
+   *  composer: what waits comes back to the composer first. */
+  stop: () => Promise<void>
 }
 
 /** One conversation or agent session: its transcript, with the composer at
@@ -118,6 +127,7 @@ export default function SessionView({
   pinPrompt,
   composer,
   find = false,
+  ref,
 }: SessionViewProps) {
   const inputRef = useRef<ChatInputHandle>(null)
   const listRef = useRef<ChatMessageListHandle>(null)
@@ -141,6 +151,7 @@ export default function SessionView({
     }
     hostStop()
   }, [hostStop, takesBack, stopStreaming])
+  useImperativeHandle(ref, () => ({ stop }), [stop])
 
   // A transcript that arrives before the renderer would show its replies as
   // raw text, then reflow, so it waits; never longer than this, since raw text
