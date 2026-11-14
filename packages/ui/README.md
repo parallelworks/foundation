@@ -1122,8 +1122,9 @@ const cards = createPasteCards({
 ```
 
 `handleTextPaste(text)` answers true when the paste became a card, so the box
-leaves the text out; on false the box takes it as usual. Call
-`applyInlineLimit(inlineMaxBytes)` when the limit changes, as with another
+leaves the text out; on false the box takes it as usual, its line endings
+made `\n` as `normalizeNewlines` makes them, so a later limit finds it there.
+Call `applyInlineLimit(inlineMaxBytes)` when the limit changes, as with another
 model, to move pastes between the box and cards. A card without `paste` is
 still saving and holds the send back; one with `error` failed. On send,
 `joinPastes(text, cards.takeCards())` is the message, sent with those pastes,
@@ -1134,9 +1135,10 @@ is the most text one message sends inline.
 
 `defaultModel` is the model the chat starts on once the models load: the
 current one, else the one last chosen, while the list still offers it; else
-the first whose provider has no issue (`providerIssueFor`). `defaultAllocation`
-is the allocation an organization model (`isOrgModel`) bills: the current
-one, else the first that is not disabled; any other model bills none.
+the first whose provider has no issue (`providerIssueFor`), else the first.
+`defaultAllocation` is the allocation an organization model (`isOrgModel`)
+bills: the current one, else the first that is not disabled; any other model
+bills none.
 
 `@parallelworks/ui/ai` exports all of it too, so a host that uses the
 components keeps importing from there.
