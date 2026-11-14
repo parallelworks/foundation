@@ -651,6 +651,28 @@ describe('transcript features', () => {
     )
     expect(screen.getByTestId('reasoning-body')).toHaveClass('max-h-20')
   })
+
+  it('shows a streaming thought without a label, as the activity line already says it is working', () => {
+    renderParts([{ kind: 'reasoning', text: 'weighing the options' }], { isStreaming: true })
+    expect(screen.getByTestId('reasoning-part')).toHaveTextContent(/^weighing the options$/)
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  it('labels a finished thought by how long it took', () => {
+    renderParts([{ kind: 'reasoning', text: 'weighing the options', durationMs: 12_000 }])
+    expect(screen.getByRole('button', { name: /^Thought for/ })).toBeInTheDocument()
+  })
+
+  it('draws nothing for a thought with no text, streaming or not', () => {
+    const { rerender } = renderParts([{ kind: 'reasoning', text: ' ' }], { isStreaming: true })
+    expect(screen.queryByTestId('reasoning-part')).toBeNull()
+    rerender(
+      <ChatConfigProvider value={resolveChatConfig()}>
+        <AgentMessageParts message={msg([{ kind: 'reasoning', text: '', durationMs: 3_000 }])} />
+      </ChatConfigProvider>,
+    )
+    expect(screen.queryByTestId('reasoning-part')).toBeNull()
+  })
 })
 
 describe('subagents', () => {
@@ -1190,7 +1212,7 @@ describe('approvals without an answer handler', () => {
 describe('disclosure accessibility', () => {
   it('names the icon-only thinking toggle and reports its expanded state', () => {
     renderParts([{ kind: 'reasoning', text: 'weighing the options' }])
-    const toggle = screen.getByRole('button', { name: 'Thinking' })
+    const toggle = screen.getByRole('button', { name: 'Thought process' })
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
     fireEvent.click(toggle)
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
