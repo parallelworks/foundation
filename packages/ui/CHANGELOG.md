@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.134.1](https://github.com/parallelworks/foundation/compare/ui-v0.134.0...ui-v0.134.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* **ui:** an agent author's avatar shows initials that read as a person's ([#755](https://github.com/parallelworks/foundation/issues/755)) ([cedde62](https://github.com/parallelworks/foundation/commit/cedde6221e75c6dff030d311f94d707185f3d1da))
+
 ## [0.134.0](https://github.com/parallelworks/foundation/compare/ui-v0.133.0...ui-v0.134.0) (2026-11-14)
 
 
