@@ -398,6 +398,57 @@ describe('ChatInput slash commands', () => {
     expect(onSend).toHaveBeenCalledWith('/model', undefined, undefined)
   })
 
+  describe('arguments', () => {
+    const withHints = {
+      commands: [
+        { name: 'goal', description: 'Set a goal', argumentHint: '[condition|pause|resume]' },
+        { name: 'goals', description: 'List goals' },
+      ],
+      label: 'Commands',
+    }
+    const hint = () => screen.queryByTestId('slash-argument-hint')
+
+    it('shows what a command takes beside its name', () => {
+      render(<ChatInput onSend={vi.fn()} slash={withHints} />)
+      fireEvent.change(textarea(), { target: { value: '/go' } })
+      expect(options().map((o) => o.textContent)).toEqual([
+        '/goal [condition|pause|resume]Set a goal',
+        '/goalsList goals',
+      ])
+    })
+
+    it('says what a command takes while its arguments are typed on the first line', () => {
+      render(<ChatInput onSend={vi.fn()} slash={withHints} />)
+      fireEvent.change(textarea(), { target: { value: '/goal' } })
+      fireEvent.keyDown(textarea(), { key: 'Tab' })
+      expect(screen.queryByRole('listbox')).toBeNull()
+      expect(hint()).toHaveTextContent('/goal [condition|pause|resume]Set a goal')
+      expect(textarea()).toHaveAttribute('aria-describedby', hint()?.id)
+
+      fireEvent.change(textarea(), { target: { value: '/goal pa' } })
+      expect(hint()).not.toBeNull()
+      fireEvent.change(textarea(), { target: { value: '/goal ship it\nthen' } })
+      expect(hint()).toBeNull()
+      expect(textarea()).not.toHaveAttribute('aria-describedby')
+    })
+
+    it('says nothing for a command that takes nothing, an unknown one, or prose', () => {
+      render(<ChatInput onSend={vi.fn()} slash={withHints} />)
+      for (const value of ['/goals ', '/goalie ', 'about /goal ', '/goal']) {
+        fireEvent.change(textarea(), { target: { value } })
+        expect(hint()).toBeNull()
+      }
+    })
+
+    it('leaves Enter to the box, which sends the command', () => {
+      const onSend = vi.fn()
+      render(<ChatInput onSend={onSend} slash={withHints} />)
+      fireEvent.change(textarea(), { target: { value: '/goal pause' } })
+      fireEvent.keyDown(textarea(), { key: 'Enter' })
+      expect(onSend).toHaveBeenCalledWith('/goal pause', undefined, undefined)
+    })
+  })
+
   it('says more commands are coming while the host loads them', () => {
     const { rerender } = render(
       <ChatInput

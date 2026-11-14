@@ -172,16 +172,21 @@ export const AgentComposer: StoryObj<{
 }
 
 const slashCommands = [
-  { name: 'model', description: 'Show or change the current model' },
+  { name: 'model', description: 'Show or change the current model', argumentHint: '[model-name]' },
   { name: 'recap', description: 'Recap the session in a sentence or two' },
-  { name: 'review', description: 'Review the current changes' },
+  {
+    name: 'review',
+    description: 'Review the current changes',
+    argumentHint: '[low|medium|high] [focus]',
+  },
 ]
 
 type SlashStoryArgs = { typed: string; loading: boolean }
 
-// The menu lists what matches the text and stays up once a whole name is typed,
-// so its description can still be read. Enter then sends the command, and Tab
-// adds a space for its arguments. The play types `typed`.
+// The menu lists what matches the text, with what each command takes, and stays
+// up once a whole name is typed, so its description can still be read. Enter
+// then sends the command, and Tab adds a space for its arguments. The play
+// types `typed`.
 export const SlashCommands: StoryObj<SlashStoryArgs> = {
   args: { typed: '/re', loading: false },
   argTypes: {
@@ -214,6 +219,13 @@ export const SlashCommands: StoryObj<SlashStoryArgs> = {
 export const SlashCommandTyped: StoryObj<SlashStoryArgs> = {
   ...SlashCommands,
   args: { typed: '/recap', loading: false },
+}
+
+// Past the name, the menu gives way to what the command takes, which stays up
+// while its arguments are typed on the first line.
+export const SlashCommandArguments: StoryObj<SlashStoryArgs> = {
+  ...SlashCommands,
+  args: { typed: '/review high ', loading: false },
 }
 
 // Until the host's list arrives, the menu shows what it has and says more are coming.

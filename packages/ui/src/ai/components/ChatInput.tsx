@@ -27,7 +27,7 @@ import { clearDraft, readDraft, storeDraft, sweepDrafts } from './chatDraft'
 import DragOverlay from './DragOverlay'
 import { closeShortcode } from './emojiShortcode'
 import { PasteFileCard } from './PastedText'
-import { SlashMenu, type SlashMenuConfig, useSlashMenu } from './SlashMenu'
+import { SlashArgumentHint, SlashMenu, type SlashMenuConfig, useSlashMenu } from './SlashMenu'
 import { type ComposerHistory, useComposerHistory } from './useComposerHistory'
 import { usePasteCards } from './usePasteCards'
 
@@ -672,6 +672,7 @@ export default function ChatInput({
                 }}
               />
             )}
+            {slashMenu.argumentHint && <SlashArgumentHint hint={slashMenu.argumentHint} />}
             {/* One box holds the text and everything that acts on it: what is
               attached above, the attach and send controls in a toolbar
               under the text, and the model on that toolbar's right, so the
