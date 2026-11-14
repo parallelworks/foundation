@@ -333,13 +333,17 @@ function useAccessEditor(
     }
     setVisibilitySaving(true)
     setVisibilityFailure(undefined)
+    let saved: unknown
     try {
-      await save(restricted)
+      saved = await save(restricted)
     } catch (error) {
       setVisibilityFailure({ restricted, message: messageOf(error) })
       return
     } finally {
       setVisibilitySaving(false)
+    }
+    if (saved === false) {
+      return
     }
     toast.success(t.visibilityChanged(choiceLabel(restricted)), {
       action: {
