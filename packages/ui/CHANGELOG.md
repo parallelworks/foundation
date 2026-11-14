@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.137.0](https://github.com/parallelworks/foundation/compare/ui-v0.136.0...ui-v0.137.0) (2026-11-14)
+
+
+### Features
+
+* **ui:** an approval shows its answer as on its way while a host is still sending it ([#767](https://github.com/parallelworks/foundation/issues/767)) ([ed2f8ec](https://github.com/parallelworks/foundation/commit/ed2f8ec771b8c047e38e02cc55d723e863ebac31))
+
 ## [0.136.0](https://github.com/parallelworks/foundation/compare/ui-v0.135.1...ui-v0.136.0) (2026-11-14)
 
 
