@@ -251,29 +251,38 @@ try {
     }
   }
 
-  console.log('• asserting the headless chat entry reaches no package or stylesheet')
-  // A host with no DOM imports it, and a bundler that keeps everything an entry
-  // reaches would hand that host React and the chat's components with it.
-  const headless = path.join(fixture, 'node_modules/@parallelworks/ui/dist/ai/headless.js')
-  const reachedFrom = new Map([[headless, null]])
-  for (const file of reachedFrom.keys()) {
-    const source = readFileSync(file, 'utf8')
-    const specifiers = [
-      /^\s*import\s*(?:[^'"]*?\bfrom\s*)?["']([^"']+)["']/gm,
-      /^\s*export\s*(?:\*|\{[^}]*\})\s*from\s*["']([^"']+)["']/gm,
-      /\bimport\(\s*["']([^"']+)["']\s*\)/g,
-    ].flatMap((statement) => [...source.matchAll(statement)].map(([, spec]) => spec))
-    for (const spec of specifiers) {
-      if (!spec.startsWith('.') || !spec.endsWith('.js')) {
-        const chain = [spec]
-        for (let at = file; at; at = reachedFrom.get(at)) {
-          chain.unshift(path.relative(path.dirname(headless), at))
+  console.log('• asserting the headless entries reach no DOM-only package or stylesheet')
+  // A host with no DOM imports them, and a bundler that keeps everything an entry
+  // reaches would hand that host the components and their dependencies with it.
+  // Each entry names the packages it may reach, none of which needs a DOM.
+  for (const [entry, packages] of Object.entries({
+    'ai/headless': [],
+    headless: ['react', 'luxon', 'dequal'],
+  })) {
+    const start = path.join(fixture, `node_modules/@parallelworks/ui/dist/${entry}.js`)
+    const reachedFrom = new Map([[start, null]])
+    for (const file of reachedFrom.keys()) {
+      const source = readFileSync(file, 'utf8')
+      const specifiers = [
+        /^\s*import\s*(?:[^'"]*?\bfrom\s*)?["']([^"']+)["']/gm,
+        /^\s*export\s*(?:\*|\{[^}]*\})\s*from\s*["']([^"']+)["']/gm,
+        /\bimport\(\s*["']([^"']+)["']\s*\)/g,
+      ].flatMap((statement) => [...source.matchAll(statement)].map(([, spec]) => spec))
+      for (const spec of specifiers) {
+        if (packages.some((name) => spec === name || spec.startsWith(`${name}/`))) {
+          continue
         }
-        throw new Error(`ai/headless reaches ${spec}: ${chain.join(' → ')}`)
-      }
-      const next = path.resolve(path.dirname(file), spec)
-      if (!reachedFrom.has(next)) {
-        reachedFrom.set(next, file)
+        if (!spec.startsWith('.') || !spec.endsWith('.js')) {
+          const chain = [spec]
+          for (let at = file; at; at = reachedFrom.get(at)) {
+            chain.unshift(path.relative(path.dirname(start), at))
+          }
+          throw new Error(`${entry} reaches ${spec}: ${chain.join(' → ')}`)
+        }
+        const next = path.resolve(path.dirname(file), spec)
+        if (!reachedFrom.has(next)) {
+          reachedFrom.set(next, file)
+        }
       }
     }
   }
@@ -283,6 +292,7 @@ try {
     path.join(fixture, 'smoke.mjs'),
     [
       "import * as root from '@parallelworks/ui'",
+      "import * as rootHeadless from '@parallelworks/ui/headless'",
       "import * as icons from '@parallelworks/ui/icons'",
       "import * as brandIcons from '@parallelworks/ui/brand-icons'",
       "import * as appFrame from '@parallelworks/ui/app-frame'",
@@ -340,6 +350,13 @@ try {
       "need(root, 'root', 'RunStatusIcon')",
       "need(root, 'root', 'UIProvider')",
       "need(root, 'root', 'useRunFile')",
+      "need(rootHeadless, 'headless', 'UIStringsProvider')",
+      "for (const name of ['formatDuration', 'formatDateTime', 'useClock', 'useStrings']) {",
+      "  need(rootHeadless, 'headless', name)",
+      '  if (rootHeadless[name] !== root[name]) {',
+      "    throw new Error('. and headless export different copies of ' + name)",
+      '  }',
+      '}',
       "need(logviewer, 'logviewer', 'LogViewer')",
       "need(graph, 'graph', 'DependencyGraph')",
       "need(fileExplorer, 'fileExplorer', 'FileExplorer')",
@@ -415,6 +432,13 @@ try {
       'export const models = () => adapter.models.list()',
       "import { finalizeParts, type MessagePart } from '@parallelworks/ui/ai/headless'",
       'export const settled = (parts: MessagePart[]): MessagePart[] => finalizeParts(parts)',
+      "import { formatDuration, type UIStrings, UIStringsProvider, useClock, useStrings } from '@parallelworks/ui/headless'",
+      'export const useAge = (at: number): string => {',
+      '  const t = useStrings().time',
+      '  return useClock((now) => (now - at < 60_000 ? t.now : formatDuration(now - at)))',
+      '}',
+      "export const minutes: UIStrings['time']['minutes'] = (n) => String(n)",
+      'export const stringsProvider = UIStringsProvider',
     ].join('\n'),
   )
   writeFileSync(

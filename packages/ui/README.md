@@ -6,6 +6,7 @@ so an application ships only what it imports:
 | Subpath                                                                                                      | Contents                                                                                                                                                              |
 | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `.`                                                                                                          | theme contract, primitives (buttons, inputs, tables, tooltips, modals, dropdowns, settings layouts, page header), `UIProvider`                                        |
+| `./headless`                                                                                                 | the formatters, `useStrings`, `UIStringsProvider` and `useClock` with nothing to draw them: no component, stylesheet or DOM-only package comes with it                |
 | `./theme`                                                                                                    | theme seeds and presets, `generateTheme`, `applyTheme`, `fitSeed`                                                                                                     |
 | `./icons`                                                                                                    | the icon barrel                                                                                                                                                       |
 | `./app-frame`                                                                                                | inset application frame, resizable navigation, icon rail, and mobile drawer                                                                                           |
@@ -83,6 +84,27 @@ or over the fullscreen element while there is one. Opened inside a `<dialog>`
 shown with `showModal()`, they open inside that dialog instead: the browser
 draws a modal dialog above everything else and leaves the page behind it inert,
 so a popup over the page would open under it, out of reach.
+
+## Without a DOM
+
+`@parallelworks/ui/headless` is what the root entry has that draws nothing: the
+formatters (`formatDuration`, `formatDateTime`, `formatTimeLeft`, `formatCount`,
+`formatBytes`), `useStrings` and `useClock`. It reaches React, luxon and dequal,
+none of which needs a DOM, and no component or stylesheet, so a host that draws
+with something else, such as a native app, imports them without the components
+coming along:
+
+```ts
+import { formatDuration, useClock, useStrings } from '@parallelworks/ui/headless'
+```
+
+They are the root entry's own functions, not copies, so a hook built on them
+reads `UIProvider`'s strings under it. A host that can't render `UIProvider`
+passes the same `strings` to `UIStringsProvider`, which this entry adds:
+
+```tsx
+;<UIStringsProvider strings={{ time: { now: 'jetzt' } }}>{app}</UIStringsProvider>
+```
 
 ## Which component?
 
