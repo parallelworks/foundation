@@ -383,13 +383,17 @@ export const Attachments: StoryObj<AttachmentsStoryArgs> = {
   render: ({ preview }) => <AttachmentsExample preview={preview} key={String(preview)} />,
 }
 
-function ImagesExample() {
+function ImagesExample({ previewSize }: { previewSize: boolean }) {
   const adapter = useMemo(() => makeStaticAdapter({ attachments: true }), [])
   const messages = [
     makeMessage({
       role: 'user',
       content: 'These are from this morning. Why is the queue so deep?',
-      attachments: makeImageAttachments(),
+      attachments: makeImageAttachments().map(({ previewWidth, previewHeight, ...attachment }) =>
+        previewSize && previewWidth && previewHeight
+          ? { ...attachment, previewWidth, previewHeight }
+          : attachment,
+      ),
     }),
   ]
   return (
@@ -405,7 +409,18 @@ function ImagesExample() {
 
 // Pictures sent with a message, the first with an inline preview its thumbnail
 // shows. A plain click opens one larger in the page, where the arrow keys step
-// through the rest; a modified click still opens the link.
-export const Images: StoryObj = {
-  render: () => <ImagesExample />,
+// through the rest; a modified click still opens the link. With `previewSize`
+// the host says how large the preview is, and its thumbnail holds that room
+// before the preview has loaded.
+export const Images: StoryObj<{ previewSize: boolean }> = {
+  args: { previewSize: true },
+  argTypes: {
+    previewSize: {
+      control: 'boolean',
+      description: "The host gives the preview's size (previewWidth, previewHeight)",
+    },
+  },
+  render: ({ previewSize }) => (
+    <ImagesExample previewSize={previewSize} key={String(previewSize)} />
+  ),
 }
