@@ -132,7 +132,7 @@ and `{instance}`; values in `env` may also use `${NAME}` (see
 | `env`, `envFile` | Every command's environment, and a dotenv file over it (default `.env`) ([Environment](#environment)) |
 | `before` | Commands run in order before anything starts |
 | `services` | The services, below |
-| `profiles`, `defaultProfiles` | Setups to choose between per checkout, and those used until one is chosen ([Profiles](#profiles)) |
+| `profiles`, `defaultProfiles` | Setups to choose between per checkout, and those used until one is chosen, here or, for a git worktree, in its main checkout ([Profiles](#profiles)) |
 | `command` | The command a global `dev` runs here instead of itself, for an app with its own ([Your own command](#your-own-command)) |
 
 | Service field | |
@@ -362,7 +362,9 @@ machine or a shared remote one. Each can set `env`, include other profiles
 
 `dev --profile remote` (or `remote-db,local-cache` to mix) chooses, and the
 checkout keeps the choice until it chooses again; `dev profiles` lists them,
-marking the ones in use. `dev use remote` switches a dev that is running: it
+marking the ones in use. A git worktree that has not chosen uses its main
+checkout's choice, when its own `dev.json` defines those profiles.
+`dev use remote` switches a dev that is running: it
 stops its services and starts again with the new profiles, keeping its ports
 where they are free (with nothing running, it records the choice). In the
 view, `p` picks a profile the same way. Chosen profiles set their env over the base, in the

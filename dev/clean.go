@@ -31,7 +31,34 @@ type cleanOptions struct {
 // worktree is one entry of `git worktree list --porcelain`.
 type worktree struct {
 	path, head, branch string
-	locked             bool
+	locked, bare       bool
+}
+
+// parseWorktrees reads `git worktree list --porcelain`, which lists the main
+// worktree first.
+func parseWorktrees(list string) []worktree {
+	var trees []worktree
+	for block := range strings.SplitSeq(list, "\n\n") {
+		var w worktree
+		for line := range strings.SplitSeq(block, "\n") {
+			switch {
+			case strings.HasPrefix(line, "worktree "):
+				w.path = strings.TrimPrefix(line, "worktree ")
+			case strings.HasPrefix(line, "HEAD "):
+				w.head = strings.TrimPrefix(line, "HEAD ")
+			case strings.HasPrefix(line, "branch refs/heads/"):
+				w.branch = strings.TrimPrefix(line, "branch refs/heads/")
+			case line == "locked" || strings.HasPrefix(line, "locked "):
+				w.locked = true
+			case line == "bare":
+				w.bare = true
+			}
+		}
+		if w.path != "" {
+			trees = append(trees, w)
+		}
+	}
+	return trees
 }
 
 // staleWork is keep's answer for unmerged work untouched for the stale
@@ -84,28 +111,7 @@ func cleanWorktrees(ctx context.Context, repo string, opts cleanOptions, running
 	if err != nil {
 		return err
 	}
-	var trees []worktree
-	for block := range strings.SplitSeq(list, "\n\n") {
-		var w worktree
-		bare := false
-		for line := range strings.SplitSeq(block, "\n") {
-			switch {
-			case strings.HasPrefix(line, "worktree "):
-				w.path = strings.TrimPrefix(line, "worktree ")
-			case strings.HasPrefix(line, "HEAD "):
-				w.head = strings.TrimPrefix(line, "HEAD ")
-			case strings.HasPrefix(line, "branch refs/heads/"):
-				w.branch = strings.TrimPrefix(line, "branch refs/heads/")
-			case line == "locked" || strings.HasPrefix(line, "locked "):
-				w.locked = true
-			case line == "bare":
-				bare = true
-			}
-		}
-		if w.path != "" && !bare {
-			trees = append(trees, w)
-		}
-	}
+	trees := slices.DeleteFunc(parseWorktrees(list), func(w worktree) bool { return w.bare })
 	if len(trees) < 2 {
 		return nil
 	}
