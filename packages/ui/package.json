@@ -16,6 +16,7 @@
   ],
   "exports": {
     ".": "./src/index.ts",
+    "./headless": "./src/headless.ts",
     "./icons": "./src/icons.tsx",
     "./brand-icons": "./src/brandIcons.tsx",
     "./theme": "./src/theme/index.ts",
@@ -49,6 +50,10 @@
       ".": {
         "types": "./dist/index.d.ts",
         "import": "./dist/index.js"
+      },
+      "./headless": {
+        "types": "./dist/headless.d.ts",
+        "import": "./dist/headless.js"
       },
       "./icons": {
         "types": "./dist/icons.d.ts",

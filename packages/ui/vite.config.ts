@@ -65,6 +65,7 @@ export default defineConfig({
       formats: ['es'],
       entry: {
         index: 'src/index.ts',
+        headless: 'src/headless.ts',
         icons: 'src/icons.tsx',
         brandIcons: 'src/brandIcons.tsx',
         'app-frame/index': 'src/app-frame/index.tsx',

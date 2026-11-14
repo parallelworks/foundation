@@ -4,7 +4,7 @@ import { act, render, screen } from '@testing-library/react'
 import { DateTime } from 'luxon'
 import { hoverTooltip } from '../test/tooltip'
 import { UIProvider } from './Provider'
-import { Elapsed, RelativeTime, useClock, useRelativeTime } from './relativeTime'
+import { Elapsed, RelativeTime, useRelativeTime } from './relativeTime'
 import { TooltipProvider } from './Tooltip'
 
 const START = new Date('2026-01-01T12:00:00Z')
@@ -146,33 +146,6 @@ describe('useRelativeTime', () => {
     advance(31 * 60 * 1000)
     expect(screen.getByText('3h')).toBeInTheDocument()
     expect(renders).toBe(first + 1)
-  })
-})
-
-describe('useClock', () => {
-  it('shares one clock, and stops it when nothing reads it', () => {
-    function Seconds() {
-      return <span>{useClock((now) => Math.floor((now - START.getTime()) / 1000))}s</span>
-    }
-    const { unmount } = render(
-      <>
-        <Seconds />
-        <Seconds />
-      </>,
-    )
-    expect(vi.getTimerCount()).toBe(1)
-    advance(2000)
-    expect(screen.getAllByText('2s')).toHaveLength(2)
-    unmount()
-    expect(vi.getTimerCount()).toBe(0)
-  })
-
-  it('leaves the clock while not running', () => {
-    function Stopped() {
-      return <span>{useClock((now) => now, false)}</span>
-    }
-    render(<Stopped />)
-    expect(vi.getTimerCount()).toBe(0)
   })
 })
 
