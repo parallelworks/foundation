@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.4](https://github.com/parallelworks/foundation/compare/dev/v0.18.3...dev/v0.18.4) (2026-11-14)
+
+
+### Bug Fixes
+
+* **dev:** a new git worktree runs dev.json's default profiles instead of the ones its main checkout chose ([#773](https://github.com/parallelworks/foundation/issues/773)) ([d3603dc](https://github.com/parallelworks/foundation/commit/d3603dc016185311d1bdc53747c422a8d2f41755))
+
 ## [0.18.3](https://github.com/parallelworks/foundation/compare/dev/v0.18.2...dev/v0.18.3) (2026-11-11)
 
 
