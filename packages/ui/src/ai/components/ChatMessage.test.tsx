@@ -438,6 +438,15 @@ describe('ChatMessage', () => {
       })
     })
 
+    it('opens the actions below a status line rather than over it', () => {
+      render(<ChatMessage {...defaultProps} status={<button type="button">Remove</button>} />)
+      const status = screen.getByRole('button', { name: 'Remove' })
+      const copy = screen.getByRole('button', { name: 'Copy message' })
+      // The actions hang from the bottom of the column the status sits in.
+      expect(copy.closest('.chat-actions')?.parentElement).toContainElement(status)
+      expect(status.compareDocumentPosition(copy) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    })
+
     it('offers no copy for a failed reply with nothing to copy', () => {
       const message = createMockMessage({ role: 'assistant', content: '', error: 'Rate limited' })
       render(<ChatMessage {...defaultProps} message={message} />)
