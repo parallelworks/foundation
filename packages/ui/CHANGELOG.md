@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.139.1](https://github.com/parallelworks/foundation/compare/ui-v0.139.0...ui-v0.139.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* **ui:** stopping an agent's turn strands the messages waiting on it instead of putting them back in the composer ([#775](https://github.com/parallelworks/foundation/issues/775)) ([dcd3636](https://github.com/parallelworks/foundation/commit/dcd3636da022677055ec1096ed0b11c27813de46))
+
 ## [0.139.0](https://github.com/parallelworks/foundation/compare/ui-v0.138.0...ui-v0.139.0) (2026-11-14)
 
 
