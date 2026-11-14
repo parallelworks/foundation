@@ -1125,6 +1125,32 @@ describe('ChatInput taking back what waits', () => {
     expect(textarea().value).toBe('/auth secret-token')
     expect(storage.has('aiChatDraft:c1')).toBe(false)
   })
+
+  it('never drafts a box holding what must not be remembered behind another message', async () => {
+    const history = { name: 'agents', skip: (text: string) => text.startsWith('/auth') }
+    const recall = waiting([{ text: 'also the docs' }, { text: '/auth secret-token' }])
+    render(<ChatInput onSend={vi.fn()} conversationId="c1" history={history} recall={recall} />)
+    pressUp()
+    await act(async () => {})
+    expect(textarea().value).toBe('also the docs\n/auth secret-token')
+    typeInBox('also the docs\n/auth secret-token now')
+    expect(storage.has('aiChatDraft:c1')).toBe(false)
+  })
+
+  it('keeps what comes back after the box moved on, with the draft typed there meanwhile', async () => {
+    let answer = (_taken: RecalledMessage[]) => {}
+    const recall = {
+      available: true,
+      take: vi.fn(() => new Promise<RecalledMessage[]>((resolve) => (answer = resolve))),
+    }
+    const { rerender } = render(<ChatInput onSend={vi.fn()} conversationId="c1" recall={recall} />)
+    pressUp()
+    typeInBox('typed meanwhile')
+    rerender(<ChatInput onSend={vi.fn()} conversationId="c2" recall={recall} />)
+    await act(async () => answer([{ text: 'also the docs' }]))
+    expect(readDraft('c1')).toBe('also the docs\n\ntyped meanwhile')
+    expect(textarea().value).toBe('')
+  })
 })
 
 describe('chatHistory', () => {

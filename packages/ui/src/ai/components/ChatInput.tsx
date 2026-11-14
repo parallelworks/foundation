@@ -242,8 +242,13 @@ export default function ChatInput({
   ref,
 }: ChatInputProps) {
   const [input, setInput] = useState(() => readDraft(conversationId))
+  // Messages taken back together share the box, so one to forget can be on any line.
+  const forgets = (value: string) => {
+    const skip = history?.skip
+    return !!skip && [value, ...value.split('\n')].some((text) => skip(text.trim()))
+  }
   const saveDraft = (value: string) => {
-    if (history?.skip?.(value.trim())) {
+    if (forgets(value)) {
       clearDraft(conversationId)
     } else {
       storeDraft(conversationId, value)
@@ -394,14 +399,18 @@ export default function ChatInput({
   // A message taken back returns to the box even when it must not be
   // remembered, since nothing else holds it now; it still never becomes a draft.
   const putBack = (sent: SentInput, takenBack = false) => {
-    const forget = !!history?.skip?.(sent.input.trim())
-    if (forget && !takenBack) {
+    if (!takenBack && history?.skip?.(sent.input.trim())) {
       return
     }
     const { typed, conversationId: showing } = box.current
     if (!mounted.current || showing !== sent.conversationId) {
-      if (!forget && !readDraft(sent.conversationId)) {
-        storeDraft(sent.conversationId, sent.input)
+      // Nothing else holds what was taken back, so it joins a draft there rather than give way to it.
+      const draft = readDraft(sent.conversationId)
+      if (!forgets(sent.input) && (takenBack || !draft)) {
+        storeDraft(
+          sent.conversationId,
+          [sent.input, draft].filter((text) => text.trim()).join('\n\n'),
+        )
       }
       return
     }
