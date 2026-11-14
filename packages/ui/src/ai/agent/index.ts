@@ -57,6 +57,7 @@ export {
   hiddenTranscriptTool,
   INTERRUPTED_NOTICE,
   interruptionNotice,
+  type MonitorEnd,
   parseSubagentNotice,
   planFromArgs,
   type SubagentNotice,

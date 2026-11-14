@@ -81,6 +81,41 @@ export function sanitizePanelText(s: string): string {
   return out
 }
 
+const ESC = '\u001b'
+const BEL = '\u0007'
+
+// Drops a terminal's escape sequences (colors, cursor moves, titles), which
+// sanitizePanelText alone would leave as stray "[31m" text.
+export function stripTerminalEscapes(s: string): string {
+  let out = ''
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] !== ESC) {
+      out += s[i]
+      continue
+    }
+    const kind = s[i + 1]
+    if (kind === '[') {
+      // A control sequence ends at its first byte from @ to ~.
+      i += 2
+      while (i < s.length && !(s.charCodeAt(i) >= 0x40 && s.charCodeAt(i) <= 0x7e)) {
+        i++
+      }
+    } else if (kind === ']') {
+      // An operating system command ends at BEL or at ESC \.
+      i += 2
+      while (i < s.length && s[i] !== BEL && !(s[i] === ESC && s[i + 1] === '\\')) {
+        i++
+      }
+      if (s[i] === ESC) {
+        i++
+      }
+    } else {
+      i++
+    }
+  }
+  return out
+}
+
 interface ArgStyle {
   valueClip: number
   totalClip: number

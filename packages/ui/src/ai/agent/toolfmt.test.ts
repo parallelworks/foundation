@@ -14,6 +14,7 @@ import {
   sanitizeLabel,
   sanitizePanelText,
   shownResult,
+  stripTerminalEscapes,
   summarizeToolArgs,
   toolHeaderFor,
   toolSummary,
@@ -263,5 +264,20 @@ describe('isGroupableTool', () => {
     ['Task', false],
   ])('%s -> %s', (name, expected) => {
     expect(isGroupableTool(name)).toBe(expected)
+  })
+})
+
+describe('stripTerminalEscapes', () => {
+  it('drops colors, cursor moves and titles and keeps the text', () => {
+    expect(stripTerminalEscapes('\u001b[1;31mERROR\u001b[0m boom')).toBe('ERROR boom')
+    expect(stripTerminalEscapes('\u001b[2K\u001b[1Gnext')).toBe('next')
+    expect(stripTerminalEscapes('\u001b]0;build\u0007done')).toBe('done')
+    expect(stripTerminalEscapes('\u001b]8;;https://example.com\u001b\\link')).toBe('link')
+    expect(stripTerminalEscapes('a\u001bMb')).toBe('ab')
+  })
+
+  it('leaves text without escapes alone, brackets included', () => {
+    expect(stripTerminalEscapes('[31m is not an escape')).toBe('[31m is not an escape')
+    expect(stripTerminalEscapes('ends on an escape\u001b')).toBe('ends on an escape')
   })
 })
