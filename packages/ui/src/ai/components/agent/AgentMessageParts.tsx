@@ -64,6 +64,7 @@ import { chatProseClasses } from '../../ui/prose'
 import MessageAttachments from '../MessageAttachments'
 import { Reasoning, ReasoningBody } from '../Reasoning'
 import { AskAnswered, AskApproval } from './AskApproval'
+import { SendingMark, useAnswerSending } from './answerSending'
 
 const COLLAPSED_RESULT_LINES = 12
 
@@ -712,6 +713,11 @@ function useExpired(expiresAt: string | undefined): boolean {
   return expired
 }
 
+// An answer's button. One that is off waits on an entry, or on an answer being sent.
+const answerButton =
+  'inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full disabled:opacity-50'
+const outlinedAnswer = 'border theme-border hover:not-disabled:theme-hover'
+
 function ConfirmApproval({
   part,
   onAnswer,
@@ -724,7 +730,11 @@ function ConfirmApproval({
   const t = strings.agentTranscript
   const [feedback, setFeedback] = useState<string | null>(null)
   const expired = useExpired(part.expiresAt)
-  const answer = (a: Parameters<NonNullable<typeof onAnswer>>[1]) => onAnswer?.(part.id, a)
+  const { sending, answer } = useAnswerSending<'allow' | 'allowDir' | 'deny' | 'feedback'>(
+    part.id,
+    onAnswer,
+  )
+  const busy = sending !== null
   const [allowLabel, denyLabel] = {
     command: [t.allowOnce, t.deny],
     code: [t.allowCode, t.denyCode],
@@ -746,34 +756,41 @@ function ConfirmApproval({
           {part.waitingOn ? t.approvalWaitingOn(part.waitingOn) : t.approvalPending}
         </div>
       ) : feedback === null ? (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2" aria-busy={busy || undefined}>
           <button
             type="button"
-            onClick={() => answer({ kind: 'confirm', allowed: true })}
-            className="px-3 py-1 text-xs font-medium rounded-full bg-(--theme-accent) text-(--theme-accent-text)"
+            disabled={busy}
+            onClick={() => answer('allow', { kind: 'confirm', allowed: true })}
+            className={cx(answerButton, 'bg-(--theme-accent) text-(--theme-accent-text)')}
           >
+            {sending === 'allow' && <SendingMark />}
             {allowLabel}
           </button>
           {part.canAllowDirectory !== false && (
             <button
               type="button"
-              onClick={() => answer({ kind: 'confirm', allowed: true, allowDir: true })}
-              className="px-3 py-1 text-xs font-medium rounded-full border theme-border hover:theme-hover"
+              disabled={busy}
+              onClick={() => answer('allowDir', { kind: 'confirm', allowed: true, allowDir: true })}
+              className={cx(answerButton, outlinedAnswer)}
             >
+              {sending === 'allowDir' && <SendingMark />}
               {part.allowDirectoryLabel || t.allowDirectory}
             </button>
           )}
           <button
             type="button"
-            onClick={() => answer({ kind: 'confirm', allowed: false })}
-            className="px-3 py-1 text-xs font-medium rounded-full border theme-border hover:theme-hover text-(--theme-error-text)"
+            disabled={busy}
+            onClick={() => answer('deny', { kind: 'confirm', allowed: false })}
+            className={cx(answerButton, outlinedAnswer, 'text-(--theme-error-text)')}
           >
+            {sending === 'deny' && <SendingMark />}
             {denyLabel}
           </button>
           <button
             type="button"
+            disabled={busy}
             onClick={() => setFeedback('')}
-            className="px-3 py-1 text-xs font-medium rounded-full border theme-border hover:theme-hover"
+            className={cx(answerButton, outlinedAnswer)}
           >
             {t.denyWithFeedback}
           </button>
@@ -781,16 +798,22 @@ function ConfirmApproval({
       ) : (
         <form
           className="flex gap-2"
+          aria-busy={busy || undefined}
           onSubmit={(e) => {
             e.preventDefault()
             if (feedback.trim()) {
-              answer({ kind: 'confirm', allowed: false, denyMessage: feedback.trim() })
+              answer('feedback', {
+                kind: 'confirm',
+                allowed: false,
+                denyMessage: feedback.trim(),
+              })
             }
           }}
         >
           <input
             ref={focusOnMount}
             value={feedback}
+            readOnly={busy}
             onChange={(e) => setFeedback(e.target.value)}
             aria-label={t.feedbackLabel}
             placeholder={t.feedbackPlaceholder}
@@ -798,9 +821,10 @@ function ConfirmApproval({
           />
           <button
             type="submit"
-            disabled={!feedback.trim()}
-            className="px-3 py-1 text-xs font-medium rounded-full bg-(--theme-accent) text-(--theme-accent-text) disabled:opacity-50"
+            disabled={busy || !feedback.trim()}
+            className={cx(answerButton, 'bg-(--theme-accent) text-(--theme-accent-text)')}
           >
+            {sending === 'feedback' && <SendingMark />}
             {common.send}
           </button>
         </form>

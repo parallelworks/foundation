@@ -8,6 +8,7 @@ import { ChatIcon, CheckIcon } from '../../../icons'
 import { type PartRendererProps, useChatConfig } from '../../core/config'
 import type { ApprovalPart, ApprovalQuestion, ApprovalQuestionAnswer } from '../../types'
 import Markdown from '../../ui/Markdown'
+import { SendingMark, useAnswerSending } from './answerSending'
 
 /** What the reader has given one question so far. */
 interface Given {
@@ -36,6 +37,8 @@ const primaryButton =
 const outlineButton =
   'px-3 py-1 text-xs font-medium rounded-full border theme-border hover:theme-hover'
 const quietButton = 'px-3 py-1 text-xs rounded-full theme-muted-text hover:theme-hover'
+// Room for the mark of an answer on its way, and off while one is.
+const sendable = 'inline-flex items-center gap-1.5 disabled:opacity-50'
 
 function hasPreview(preview: string | undefined): preview is string {
   return !!preview?.trim()
@@ -143,8 +146,14 @@ function AskForm({
   const several = questions.length > 1
   const answers = questions.map((q, i) => answerOf(q, given[i]))
 
+  const { sending, answer } = useAnswerSending<'chat' | 'submit'>(id, onAnswer)
+  const busy = sending !== null
   const send = (all: ApprovalQuestionAnswer[], chat: boolean) =>
-    onAnswer(id, { kind: 'ask', answers: all, ...(chat ? { chat: true } : {}) })
+    answer(chat ? 'chat' : 'submit', {
+      kind: 'ask',
+      answers: all,
+      ...(chat ? { chat: true } : {}),
+    })
 
   const moveTo = (i: number) => {
     focusNext.current = i
@@ -221,12 +230,14 @@ function AskForm({
           {t.answeredCount(answers.filter(hasAnswer).length, questions.length)}
         </div>
       )}
-      <div className="flex flex-wrap justify-end gap-2">
+      <div className="flex flex-wrap justify-end gap-2" aria-busy={busy || undefined}>
         <button
           type="button"
+          disabled={busy}
           onClick={() => send(answers, true)}
-          className={several ? outlineButton : quietButton}
+          className={cx(several ? outlineButton : quietButton, sendable)}
         >
+          {sending === 'chat' && <SendingMark />}
           {t.chatAboutThis}
         </button>
         <button
@@ -234,9 +245,10 @@ function AskForm({
           type="button"
           onClick={() => (onLast ? send(answers, false) : moveTo(active + 1))}
           // Ticking none is an answer to a multi-select question.
-          disabled={!several && loneKind !== 'multi' && !hasAnswer(answers[0])}
-          className={primaryButton}
+          disabled={busy || (!several && loneKind !== 'multi' && !hasAnswer(answers[0]))}
+          className={cx(primaryButton, sendable)}
         >
+          {sending === 'submit' && <SendingMark />}
           {several ? (onLast ? t.submitAnswers : common.next) : common.send}
         </button>
       </div>
