@@ -489,6 +489,8 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
           </span>
         )}
       </ItemContent>
+      {/* The name joins label and hint with a space, so the row's text does too; unseen in a flex row. */}
+      {entry.hint && ' '}
       <span className={pickerEndClassName}>
         {entry.hint && (
           <span id={`${uid}${rowProps.props.index}hint`} className={pickerHintClassName}>
