@@ -54,6 +54,12 @@ interface ChatMessageProps {
   /** A line under the message that stays in view, such as where a queued one
    *  stands; the hover actions open below it rather than over it. */
   status?: ReactNode
+  /** Off for a message that offers no actions of its own, such as one in a
+   *  queue that offers Edit for all of it; no room is kept below for them. */
+  actions?: boolean | undefined
+  /** Sits just under the message before it, as one of a stack of queued
+   *  messages, instead of opening a new turn. */
+  stacked?: boolean | undefined
 }
 
 /** A message action: the chat's square, tinted from the ink on hover. */
@@ -116,6 +122,8 @@ function ChatMessage({
   flush,
   foldEveryRun,
   status,
+  actions = true,
+  stacked = false,
 }: ChatMessageProps) {
   const isUser = message.role === 'user'
   const isTool = message.role === 'tool'
@@ -330,7 +338,11 @@ function ChatMessage({
       role="none"
       // A question opens a new turn, so it takes the larger space above it;
       // the room below it holds its hover actions clear of the reply.
-      className={cx('group w-full', isUser ? 'pt-8 pb-5' : 'py-3', !flush && 'sm:px-4')}
+      className={cx(
+        'group w-full',
+        isUser ? cx(stacked ? 'pt-2' : 'pt-8', actions && 'pb-5') : 'py-3',
+        !flush && 'sm:px-4',
+      )}
     >
       {/* Editing mode - full width container */}
       {isEditing ? (
@@ -523,7 +535,7 @@ function ChatMessage({
             {isStreaming && !isUser && <div aria-hidden className="mt-2 h-7" />}
 
             {/* Actions */}
-            {!isStreaming && !isEditing && (
+            {actions && !isStreaming && !isEditing && (
               <div
                 className={cx(
                   'chat-actions flex items-center gap-0.5 transition-opacity duration-150',

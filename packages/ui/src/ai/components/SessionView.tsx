@@ -119,6 +119,7 @@ export default function SessionView({
 }: SessionViewProps) {
   const inputRef = useRef<ChatInputHandle>(null)
   const listRef = useRef<ChatMessageListHandle>(null)
+  const editQueued = useCallback(() => inputRef.current?.recall(), [])
   const viewRef = useRef<HTMLDivElement>(null)
   const finder = useTranscriptFind(viewRef, find)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -234,6 +235,7 @@ export default function SessionView({
             {...transcript}
             {...(onRemoveQueued ? { onRemoveQueued } : {})}
             {...(canRemoveQueued ? { canRemoveQueued } : {})}
+            {...(composer?.recall ? { onEditQueued: editQueued } : {})}
             {...(queueDelivery ? { queueDelivery } : {})}
             {...(turn ? { isStreaming: turn.running } : {})}
             editingMessageId={editingId}

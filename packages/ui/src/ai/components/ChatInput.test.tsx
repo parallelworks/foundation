@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import { forwardRef, useImperativeHandle } from 'react'
+import { createRef, forwardRef, useImperativeHandle } from 'react'
 import type { Attachment } from './AttachmentUpload'
-import ChatInput from './ChatInput'
+import ChatInput, { type ChatInputHandle, type RecalledMessage } from './ChatInput'
 import { DRAFT_MAX_LENGTH, DRAFT_TTL_MS, readDraft, sweepDrafts } from './chatDraft'
 import { appendHistory, HISTORY_MAX_CHARS, HISTORY_MAX_ENTRIES, readHistory } from './chatHistory'
 import type { PasteUploadResult } from './usePasteCards'
@@ -1024,6 +1024,179 @@ describe('ChatInput history', () => {
     expect(screen.getByTestId('slash-menu')).toBeInTheDocument()
     pressUp()
     expect(textarea().value).toBe('/')
+  })
+})
+
+describe('ChatInput taking back what waits', () => {
+  const waiting = (taken: RecalledMessage[] | Promise<RecalledMessage[]>) => ({
+    available: true,
+    take: vi.fn(() => Promise.resolve(taken)),
+  })
+
+  it('takes back what waits on ↑ in an empty box, ahead of the history', async () => {
+    appendHistory('agents', 'older prompt')
+    const recall = waiting([{ text: 'also the docs' }, { text: 'and the tests' }])
+    render(<ChatInput onSend={vi.fn()} history={{ name: 'agents' }} recall={recall} />)
+    expect(pressUp()).toBe(false)
+    await act(async () => {})
+    expect(textarea().value).toBe('also the docs\nand the tests')
+    expect(recall.take).toHaveBeenCalledTimes(1)
+  })
+
+  it("brings a message's pastes back as cards, and sends them again by placeholder", async () => {
+    const saved = { id: 3, placeholder: '[Pasted text #3 +200 lines]', lines: 200, bytes: 2400 }
+    const upload = vi.fn()
+    const onSend = vi.fn()
+    const recall = waiting([{ text: `summarize\n\n${saved.placeholder}`, pastes: [saved] }])
+    render(<ChatInput onSend={onSend} pastes={{ inlineMaxBytes: 1000, upload }} recall={recall} />)
+    pressUp()
+    await screen.findByText('paste-3.txt')
+    expect(textarea().value).toBe('summarize')
+    pressEnter()
+    expect(onSend).toHaveBeenCalledWith(`summarize\n\n${saved.placeholder}`, undefined, undefined, [
+      saved,
+    ])
+    expect(upload).not.toHaveBeenCalled()
+  })
+
+  it('keeps a paste taken back a card once it would fit inline, since the box never had its text', async () => {
+    const saved = { id: 3, placeholder: '[Pasted text #3]', lines: 2, bytes: 40 }
+    const pastes = { inlineMaxBytes: 10, upload: vi.fn() }
+    const recall = waiting([{ text: saved.placeholder, pastes: [saved] }])
+    const { rerender } = render(<ChatInput onSend={vi.fn()} pastes={pastes} recall={recall} />)
+    pressUp()
+    await screen.findByText('paste-3.txt')
+    rerender(
+      <ChatInput onSend={vi.fn()} pastes={{ ...pastes, inlineMaxBytes: 10_000 }} recall={recall} />,
+    )
+    expect(screen.getByText('paste-3.txt')).toBeInTheDocument()
+    expect(textarea().value).toBe('')
+  })
+
+  it('leaves ↑ to the history when nothing waits', () => {
+    appendHistory('agents', 'older prompt')
+    const recall = { available: false, take: vi.fn() }
+    render(<ChatInput onSend={vi.fn()} history={{ name: 'agents' }} recall={recall} />)
+    pressUp()
+    expect(textarea().value).toBe('older prompt')
+    expect(recall.take).not.toHaveBeenCalled()
+  })
+
+  it('leaves the arrows to the caret in a draft', () => {
+    const recall = waiting([{ text: 'also the docs' }])
+    render(<ChatInput onSend={vi.fn()} recall={recall} />)
+    typeInBox('a draft')
+    expect(pressUp()).toBe(true)
+    expect(recall.take).not.toHaveBeenCalled()
+  })
+
+  it('takes once while a take is out, and keeps what was typed meanwhile under what it brings back', async () => {
+    appendHistory('agents', 'older prompt')
+    let answer = (_taken: RecalledMessage[]) => {}
+    const recall = {
+      available: true,
+      take: vi.fn(() => new Promise<RecalledMessage[]>((resolve) => (answer = resolve))),
+    }
+    render(<ChatInput onSend={vi.fn()} history={{ name: 'agents' }} recall={recall} />)
+    pressUp()
+    pressUp()
+    expect(recall.take).toHaveBeenCalledTimes(1)
+    expect(textarea().value).toBe('')
+    typeInBox('typed meanwhile')
+    await act(async () => answer([{ text: 'also the docs' }]))
+    expect(textarea().value).toBe('also the docs\n\ntyped meanwhile')
+  })
+
+  it('leaves the box as it was when everything was read first', async () => {
+    const recall = waiting([])
+    render(<ChatInput onSend={vi.fn()} conversationId="c1" recall={recall} />)
+    pressUp()
+    await act(async () => {})
+    expect(textarea().value).toBe('')
+    expect(storage.has('aiChatDraft:c1')).toBe(false)
+  })
+
+  it('brings back what must not be remembered, without saving it as a draft', async () => {
+    const history = { name: 'agents', skip: (text: string) => text.startsWith('/auth') }
+    const recall = waiting([{ text: '/auth secret-token' }])
+    render(<ChatInput onSend={vi.fn()} conversationId="c1" history={history} recall={recall} />)
+    pressUp()
+    await act(async () => {})
+    expect(textarea().value).toBe('/auth secret-token')
+    expect(storage.has('aiChatDraft:c1')).toBe(false)
+  })
+
+  it('never drafts a box holding what must not be remembered behind another message', async () => {
+    const history = { name: 'agents', skip: (text: string) => text.startsWith('/auth') }
+    const recall = waiting([{ text: 'also the docs' }, { text: '/auth secret-token' }])
+    render(<ChatInput onSend={vi.fn()} conversationId="c1" history={history} recall={recall} />)
+    pressUp()
+    await act(async () => {})
+    expect(textarea().value).toBe('also the docs\n/auth secret-token')
+    typeInBox('also the docs\n/auth secret-token now')
+    expect(storage.has('aiChatDraft:c1')).toBe(false)
+  })
+
+  it('keeps what comes back after the box moved on, with the draft typed there meanwhile', async () => {
+    let answer = (_taken: RecalledMessage[]) => {}
+    const recall = {
+      available: true,
+      take: vi.fn(() => new Promise<RecalledMessage[]>((resolve) => (answer = resolve))),
+    }
+    const { rerender } = render(<ChatInput onSend={vi.fn()} conversationId="c1" recall={recall} />)
+    pressUp()
+    typeInBox('typed meanwhile')
+    rerender(<ChatInput onSend={vi.fn()} conversationId="c2" recall={recall} />)
+    await act(async () => answer([{ text: 'also the docs' }]))
+    expect(readDraft('c1')).toBe('also the docs\n\ntyped meanwhile')
+    expect(textarea().value).toBe('')
+  })
+
+  it('puts what Edit takes back ahead of a draft, which ↑ in a draft leaves alone', async () => {
+    const ref = createRef<ChatInputHandle>()
+    const recall = waiting([{ text: 'also the docs' }, { text: 'and the tests' }])
+    render(<ChatInput ref={ref} onSend={vi.fn()} recall={recall} />)
+    typeInBox('my draft')
+    expect(pressUp()).toBe(true)
+    expect(recall.take).not.toHaveBeenCalled()
+    await act(async () => ref.current?.recall())
+    expect(textarea().value).toBe('also the docs\nand the tests\n\nmy draft')
+    expect(textarea()).toHaveFocus()
+  })
+
+  describe('with a fine pointer', () => {
+    const original = window.matchMedia
+    beforeEach(() => {
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: (query: string) => ({
+          matches: query === '(any-pointer: fine)',
+          addEventListener: () => {},
+          removeEventListener: () => {},
+        }),
+      })
+    })
+    afterEach(() => {
+      Object.defineProperty(window, 'matchMedia', { configurable: true, value: original })
+    })
+
+    it('says ↑ edits what waits while something does, and keeps its own name for it', () => {
+      const recall = { available: true, take: vi.fn() }
+      const { rerender } = render(
+        <ChatInput onSend={vi.fn()} placeholder="Message the session" recall={recall} />,
+      )
+      const box = screen.getByRole('textbox')
+      expect(box).toHaveAttribute('placeholder', 'Press ↑ to edit queued messages')
+      expect(box).toHaveAccessibleName('Message the session')
+      rerender(
+        <ChatInput
+          onSend={vi.fn()}
+          placeholder="Message the session"
+          recall={{ ...recall, available: false }}
+        />,
+      )
+      expect(box).toHaveAttribute('placeholder', 'Message the session')
+    })
   })
 })
 

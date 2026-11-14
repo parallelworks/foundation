@@ -44,6 +44,11 @@ interface ChatMessageListProps {
   /** Which queued messages can still be taken back; all of them when unset.
    *  One that cannot has been handed to the running turn. */
   canRemoveQueued?: (id: string) => boolean
+  /** Puts every queued message that can still be taken back into the
+   *  composer, as ↑ there does. Set, the queue shows its status once under
+   *  the last message of each run that reads alike, and Edit on the last
+   *  line, in place of a line and Remove under each message. */
+  onEditQueued?: (() => void) | undefined
   /** When a queued message reaches the model: once the running reply
    *  finishes (the chat provider's queue), or between the agent's steps for a
    *  host that steers the turn in progress. A host with both kinds says which
@@ -96,6 +101,7 @@ export default function ChatMessageList({
   queuedMessages,
   onRemoveQueued,
   canRemoveQueued,
+  onEditQueued,
   queueDelivery = 'afterReply',
   editingMessageId,
   showAuthor,
@@ -264,6 +270,13 @@ export default function ChatMessageList({
 
   // Attach listeners once the container exists (it is absent in the empty state)
   const queuedCount = queuedMessages?.length ?? 0
+  const grouped = !!onEditQueued
+  const queued = (queuedMessages ?? []).map((msg) => {
+    const handedOver = !(canRemoveQueued?.(msg.id) ?? true)
+    const delivery = typeof queueDelivery === 'function' ? queueDelivery(msg.id) : queueDelivery
+    return { msg, handedOver, delivery, reads: handedOver ? 'handedOver' : delivery }
+  })
+  const editable = queued.some((q) => !q.handedOver)
   const hasContent = messages.length > 0 || !!streamingMessage || queuedCount > 0
   const awaitingApproval = streamingParts.some((part) => part.kind === 'approval' && !part.resolved)
   const showWorkingIndicator =
@@ -578,24 +591,24 @@ export default function ChatMessageList({
               />
             </div>
           )}
-          {queuedMessages?.map((msg) => {
-            const removable = canRemoveQueued?.(msg.id) ?? true
-            return (
-              <QueuedMessage
-                key={msg.id}
-                message={msg}
-                allMessages={allMessages}
-                flush={flush}
-                attachmentDownloadUrl={attachmentDownloadUrl}
-                onOpenAttachment={onOpenAttachment}
-                handedOver={!removable}
-                delivery={
-                  typeof queueDelivery === 'function' ? queueDelivery(msg.id) : queueDelivery
-                }
-                onRemove={removable ? onRemoveQueued : undefined}
-              />
-            )
-          })}
+          {queued.map(({ msg, handedOver, delivery, reads }, i) => (
+            <QueuedMessage
+              key={msg.id}
+              message={msg}
+              allMessages={allMessages}
+              flush={flush}
+              attachmentDownloadUrl={attachmentDownloadUrl}
+              onOpenAttachment={onOpenAttachment}
+              handedOver={handedOver}
+              delivery={delivery}
+              // Grouped, a run of messages that read alike says so once, under its last.
+              showStatus={!grouped || queued[i + 1]?.reads !== reads}
+              grouped={grouped}
+              stacked={grouped && i > 0}
+              onRemove={!grouped && !handedOver ? onRemoveQueued : undefined}
+              onEdit={grouped && editable && i === queued.length - 1 ? onEditQueued : undefined}
+            />
+          ))}
           {footer}
           <div className="h-8" />
         </div>
@@ -701,6 +714,30 @@ function prefersReducedMotion(): boolean {
   return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
+function QueueAction({
+  label,
+  onClick,
+  children,
+}: {
+  label: string
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <>
+      <span aria-hidden="true">·</span>
+      <button
+        type="button"
+        aria-label={label}
+        onClick={onClick}
+        className="rounded font-medium underline-offset-2 hover:theme-text hover:underline"
+      >
+        {children}
+      </button>
+    </>
+  )
+}
+
 /** "Thinking (12s)" while it thinks, then how long it took. Its own component,
  *  so the clock re-renders only this label, not the list. */
 function ThinkingLabel({
@@ -730,7 +767,11 @@ const QueuedMessage = memo(function QueuedMessage({
   onOpenAttachment,
   handedOver,
   delivery,
+  showStatus,
+  grouped,
+  stacked,
   onRemove,
+  onEdit,
 }: {
   message: Message
   allMessages: Message[]
@@ -740,7 +781,14 @@ const QueuedMessage = memo(function QueuedMessage({
   /** Already given to the running turn, so sent and no longer removable. */
   handedOver: boolean
   delivery: QueueDelivery
+  showStatus: boolean
+  /** In a queue that says its status once and offers Edit for all of it, so
+   *  the message keeps no actions of its own. */
+  grouped: boolean
+  /** Sits just under the queued message before it. */
+  stacked: boolean
   onRemove: ((id: string) => void) | undefined
+  onEdit: (() => void) | undefined
 }) {
   const { queue } = useChatConfig().strings
   const { common } = useStrings()
@@ -755,33 +803,34 @@ const QueuedMessage = memo(function QueuedMessage({
         flush={flush}
         attachmentDownloadUrl={attachmentDownloadUrl}
         onOpenAttachment={onOpenAttachment}
+        actions={!grouped}
+        stacked={stacked}
         status={
-          <div
-            data-testid="queued-status"
-            className="flex items-center justify-end gap-2 text-xs theme-muted-text"
-          >
-            {handedOver ? <CheckIcon className="h-3 w-3" /> : <ClockIcon className="h-3 w-3" />}
-            <span>
-              {handedOver
-                ? queue.handedOver
-                : delivery === 'nextStep'
-                  ? queue.waitingNextStep
-                  : queue.waiting}
-            </span>
-            {onRemove && (
-              <>
-                <span aria-hidden="true">·</span>
-                <button
-                  type="button"
-                  aria-label={queue.remove}
-                  onClick={() => onRemove(message.id)}
-                  className="rounded font-medium underline-offset-2 hover:theme-text hover:underline"
-                >
+          showStatus && (
+            <div
+              data-testid="queued-status"
+              className="flex items-center justify-end gap-2 text-xs theme-muted-text"
+            >
+              {handedOver ? <CheckIcon className="h-3 w-3" /> : <ClockIcon className="h-3 w-3" />}
+              <span>
+                {handedOver
+                  ? queue.handedOver
+                  : delivery === 'nextStep'
+                    ? queue.waitingNextStep
+                    : queue.waiting}
+              </span>
+              {onEdit && (
+                <QueueAction label={queue.editLabel} onClick={onEdit}>
+                  {queue.edit}
+                </QueueAction>
+              )}
+              {onRemove && (
+                <QueueAction label={queue.remove} onClick={() => onRemove(message.id)}>
                   {common.remove}
-                </button>
-              </>
-            )}
-          </div>
+                </QueueAction>
+              )}
+            </div>
+          )
         }
       />
     </div>

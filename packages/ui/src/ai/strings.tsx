@@ -95,6 +95,13 @@ export interface ChatStrings {
     waitingNextStep: string
     /** Under a message the host has already handed to the running turn. */
     handedOver: string
+    /** Under the last queued message of a host that can take them back: puts
+     *  every one still waiting back in the composer to edit. */
+    edit: string
+    /** Names that button for assistive technology. */
+    editLabel: string
+    /** The composer's placeholder while messages wait, where ↑ takes them back. */
+    editHint: string
   }
   activity: {
     tokens: (input: string, output: string) => string
@@ -458,6 +465,9 @@ export const defaultChatStrings: ChatStrings = {
     waiting: 'Queued \u00b7 sends when this reply finishes',
     waitingNextStep: 'Queued \u00b7 reaches the agent after its current step',
     handedOver: 'Sent to the running turn',
+    edit: 'Edit',
+    editLabel: 'Edit queued messages',
+    editHint: 'Press ↑ to edit queued messages',
   },
   providerIssue: {
     keyRejected: 'API key rejected',

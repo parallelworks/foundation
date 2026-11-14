@@ -729,6 +729,51 @@ describe('ChatMessageList queued messages', () => {
       'Queued · sends when this reply finishes',
     ])
   })
+
+  it('with Edit, says each run once under its last message and offers Edit only on the last line', () => {
+    const onEditQueued = vi.fn()
+    const onRemoveQueued = vi.fn()
+    const queued = ['read', 'steered-1', 'steered-2', 'plan'].map((id) => createMockMessage({ id }))
+    const { getAllByTestId, getAllByRole, queryAllByRole } = render(
+      <ChatMessageList
+        messages={[]}
+        allMessages={[]}
+        queuedMessages={queued}
+        canRemoveQueued={(id) => id !== 'read'}
+        queueDelivery={(id) => (id === 'plan' ? 'afterReply' : 'nextStep')}
+        onRemoveQueued={onRemoveQueued}
+        onEditQueued={onEditQueued}
+      />,
+    )
+    expect(getAllByTestId('queued-status').map((el) => el.textContent)).toEqual([
+      'Sent to the running turn',
+      'Queued · reaches the agent after its current step',
+      'Queued · sends when this reply finishes·Edit',
+    ])
+    expect(queryAllByRole('button', { name: 'Remove queued message' })).toHaveLength(0)
+    const edit = getAllByRole('button', { name: 'Edit queued messages' })
+    expect(edit).toHaveLength(1)
+    fireEvent.click(edit[0]!)
+    expect(onEditQueued).toHaveBeenCalledTimes(1)
+    expect(onRemoveQueued).not.toHaveBeenCalled()
+  })
+
+  it('offers no Edit once everything queued has been handed to the turn', () => {
+    const queued = [createMockMessage({ id: 'read-1' }), createMockMessage({ id: 'read-2' })]
+    const { getAllByTestId, queryByRole } = render(
+      <ChatMessageList
+        messages={[]}
+        allMessages={[]}
+        queuedMessages={queued}
+        canRemoveQueued={() => false}
+        onEditQueued={vi.fn()}
+      />,
+    )
+    expect(getAllByTestId('queued-status').map((el) => el.textContent)).toEqual([
+      'Sent to the running turn',
+    ])
+    expect(queryByRole('button', { name: 'Edit queued messages' })).toBeNull()
+  })
 })
 
 describe('ChatMessageList composer', () => {
