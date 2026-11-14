@@ -32,8 +32,8 @@ vi.mock('./BranchNavigator', () => ({
 
 // Mock Avatar
 vi.mock('../../components/Avatar', () => ({
-  Avatar: ({ name, kind, tooltip }: { name?: string; kind?: string; tooltip?: boolean }) => (
-    <div data-testid="avatar" data-kind={kind ?? 'person'} data-tooltip={String(!!tooltip)}>
+  Avatar: ({ name, tooltip }: { name?: string; tooltip?: boolean }) => (
+    <div data-testid="avatar" data-tooltip={String(!!tooltip)}>
       {name}
     </div>
   ),
@@ -551,14 +551,14 @@ describe('ChatMessage', () => {
       expect(authorLabels.length).toBeGreaterThanOrEqual(1)
     })
 
-    it('names the author on hover, and draws an agent author as an agent', () => {
+    it("names a person's avatar on hover, and shows an agent author's name without one", () => {
       const person = createMockMessage({
         role: 'user',
         author: { id: 'user-1', username: 'jdoe', name: 'Jane Doe' },
       })
       const agent = createMockMessage({
         role: 'user',
-        author: { id: 'main', username: 'main', name: 'Main session', kind: 'agent' },
+        author: { id: 'main', username: 'main', name: 'Main conversation', kind: 'agent' },
       })
 
       render(
@@ -568,12 +568,11 @@ describe('ChatMessage', () => {
         </>,
       )
 
-      const [personAvatar, agentAvatar] = screen.getAllByTestId('avatar')
-      expect(personAvatar).toHaveAttribute('data-kind', 'person')
-      expect(personAvatar).toHaveAttribute('data-tooltip', 'true')
-      expect(agentAvatar).toHaveTextContent('Main session')
-      expect(agentAvatar).toHaveAttribute('data-kind', 'agent')
-      expect(agentAvatar).toHaveAttribute('data-tooltip', 'true')
+      const avatars = screen.getAllByTestId('avatar')
+      expect(avatars).toHaveLength(1)
+      expect(avatars[0]).toHaveTextContent('Jane Doe')
+      expect(avatars[0]).toHaveAttribute('data-tooltip', 'true')
+      expect(screen.getByText('Main conversation')).toBeInTheDocument()
     })
 
     it('does not render author for current user messages', () => {

@@ -430,14 +430,16 @@ function ChatMessage({
             {message.content ? (
               otherAuthor ? (
                 <div className="flex items-end gap-2">
-                  <Avatar
-                    src={otherAuthor.avatarUrl}
-                    name={otherAuthor.name || otherAuthor.username}
-                    kind={otherAuthor.kind}
-                    size="sm"
-                    tooltip
-                    className="mb-0.5"
-                  />
+                  {/* An agent's initials would read as a person's; its name above says who it is. */}
+                  {otherAuthor.kind !== 'agent' && (
+                    <Avatar
+                      src={otherAuthor.avatarUrl}
+                      name={otherAuthor.name || otherAuthor.username}
+                      size="sm"
+                      tooltip
+                      className="mb-0.5"
+                    />
+                  )}
                   <div
                     className={cx(
                       'px-4 py-2.5 chat-ink rounded-[1.25rem] max-w-[80%] inline-block whitespace-pre-wrap wrap-break-word text-[1rem] leading-6 chat-tint',

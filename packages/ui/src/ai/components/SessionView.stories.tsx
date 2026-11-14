@@ -109,13 +109,13 @@ const delegated: ChatMessage[] = [
     role: 'user',
     content:
       'Find every test that waits on the sign-in form and list the ones that use a fixed timeout.',
-    author: { id: 'main', username: 'main', name: 'Main session', kind: 'agent' },
+    author: { id: 'main', username: 'main', name: 'Main conversation', kind: 'agent' },
   }),
   makeAgentTurn(),
 ]
 
-/** A subagent's conversation, whose prompt the session that started it wrote: its avatar
- *  is an agent's, and a hover names it. */
+/** A subagent's conversation, whose prompt the conversation that started it wrote: its name
+ *  heads the prompt, with no avatar whose initials would read as a person's. */
 export const AgentWrittenPrompt: StoryObj = {
   render: () => (
     <StoryChat>

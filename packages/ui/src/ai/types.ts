@@ -14,8 +14,8 @@ export interface ChatUser {
   username: string
   name?: string
   avatarUrl?: string
-  /** An agent, such as the session that wrote a subagent's prompt, draws as one so its
-   *  initials don't read as a person's. Defaults to a person. */
+  /** An agent, such as the session that wrote a subagent's prompt, shows its name without an
+   *  avatar, whose initials would read as a person's. Defaults to a person. */
   kind?: 'person' | 'agent' | undefined
 }
 
