@@ -8,12 +8,12 @@ import { useClosingValue } from '../../components/useClosingValue'
 import { cx } from '../../cx'
 import { ChevronLeftIcon, ChevronRightIcon, CloseIcon, DownloadIcon } from '../../icons'
 import { useChatConfig } from '../core/config'
-import type { AttachmentRef } from '../types'
 
-/** An image a message carries, as the viewer shows it. */
+/** An image sent or about to be sent, as the viewer shows it. */
 export interface ViewableImage {
-  attachment: AttachmentRef
   name: string
+  /** The name a download saves it under. */
+  filename?: string | undefined
   /** What the thumbnail shows: the preview, or the file itself. */
   src: string
   /** The file itself, loaded in place of the preview once it arrives. */
@@ -63,7 +63,7 @@ function useLoadedImage(
   return { src: status === 'loaded' ? wanted : preview, status }
 }
 
-/** A message's images, one at a time, at their own size or smaller to fit the window. */
+/** A message's or composer's images, one at a time, at their own size or smaller to fit the window. */
 export default function AttachmentImageViewer({
   images,
   index,
@@ -172,7 +172,7 @@ export default function AttachmentImageViewer({
               <IconButton
                 href={image.href}
                 reloadDocument
-                download={image.attachment.filename || true}
+                download={image.filename || true}
                 icon={<DownloadIcon />}
                 label={t.download(image.name)}
               />

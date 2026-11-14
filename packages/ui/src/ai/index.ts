@@ -4,6 +4,10 @@ export {
   tokenizeDiffLines,
 } from './agent/diffHighlight'
 export { default as AllocationSelector } from './components/AllocationSelector'
+export {
+  default as AttachmentImageViewer,
+  type ViewableImage,
+} from './components/AttachmentImageViewer'
 export { default as AttachmentManager } from './components/AttachmentManager'
 export {
   type Attachment,
