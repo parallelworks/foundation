@@ -32,7 +32,11 @@ vi.mock('./BranchNavigator', () => ({
 
 // Mock Avatar
 vi.mock('../../components/Avatar', () => ({
-  Avatar: ({ name }: { name?: string }) => <div data-testid="avatar">{name}</div>,
+  Avatar: ({ name, kind, tooltip }: { name?: string; kind?: string; tooltip?: boolean }) => (
+    <div data-testid="avatar" data-kind={kind ?? 'person'} data-tooltip={String(!!tooltip)}>
+      {name}
+    </div>
+  ),
 }))
 
 // ==========================================
@@ -536,6 +540,31 @@ describe('ChatMessage', () => {
 
       const authorLabels = screen.getAllByText('jdoe')
       expect(authorLabels.length).toBeGreaterThanOrEqual(1)
+    })
+
+    it('names the author on hover, and draws an agent author as an agent', () => {
+      const person = createMockMessage({
+        role: 'user',
+        author: { id: 'user-1', username: 'jdoe', name: 'Jane Doe' },
+      })
+      const agent = createMockMessage({
+        role: 'user',
+        author: { id: 'main', username: 'main', name: 'Main session', kind: 'agent' },
+      })
+
+      render(
+        <>
+          <ChatMessage {...defaultProps} message={person} showAuthor currentUsername="me" />
+          <ChatMessage {...defaultProps} message={agent} showAuthor currentUsername="me" />
+        </>,
+      )
+
+      const [personAvatar, agentAvatar] = screen.getAllByTestId('avatar')
+      expect(personAvatar).toHaveAttribute('data-kind', 'person')
+      expect(personAvatar).toHaveAttribute('data-tooltip', 'true')
+      expect(agentAvatar).toHaveTextContent('Main session')
+      expect(agentAvatar).toHaveAttribute('data-kind', 'agent')
+      expect(agentAvatar).toHaveAttribute('data-tooltip', 'true')
     })
 
     it('does not render author for current user messages', () => {

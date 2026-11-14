@@ -429,7 +429,9 @@ function ChatMessage({
                   <Avatar
                     src={otherAuthor.avatarUrl}
                     name={otherAuthor.name || otherAuthor.username}
+                    kind={otherAuthor.kind}
                     size="sm"
+                    tooltip
                     className="mb-0.5"
                   />
                   <div
