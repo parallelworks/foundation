@@ -28,6 +28,8 @@ import { Reasoning, ReasoningBody } from './Reasoning'
 // the reader's own.
 const READER_GROWTH_MS = 600
 
+const NO_MESSAGES: Message[] = []
+
 const jumpClasses =
   'chat-composer chat-jump rounded-full px-3 py-1.5 text-xs font-medium theme-text transition-colors'
 
@@ -159,6 +161,11 @@ export default function ChatMessageList({
     const open = adapter.attachments?.onOpen
     return open ? open.bind(adapter.attachments) : undefined
   }, [adapter])
+  // A row looks through every message only to attribute its turn or to move between branches. A
+  // host that streams its own reply rebuilds the array for every frame of it, which would
+  // re-render every finished row that reads neither.
+  const readsEveryMessage = (!!showAuthor && !!currentUsername) || !!onNavigateBranch
+  const rowMessages = readsEveryMessage ? allMessages : NO_MESSAGES
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const floorRef = useRef<HTMLDivElement>(null)
@@ -492,7 +499,7 @@ export default function ChatMessageList({
         >
           <MessageRows
             messages={messages}
-            allMessages={allMessages}
+            allMessages={rowMessages}
             streaming={!!streamingMessage}
             prompts={!!pinPrompt}
             flush={flush}
@@ -568,7 +575,7 @@ export default function ChatMessageList({
             <div key="streaming" className="animate-chat-enter">
               <ChatMessage
                 message={streamingMessage}
-                allMessages={allMessages}
+                allMessages={rowMessages}
                 flush={flush}
                 foldEveryRun={foldEveryRun}
                 isStreaming={isStreaming}
@@ -584,7 +591,7 @@ export default function ChatMessageList({
               <QueuedMessage
                 key={msg.id}
                 message={msg}
-                allMessages={allMessages}
+                allMessages={rowMessages}
                 flush={flush}
                 attachmentDownloadUrl={attachmentDownloadUrl}
                 onOpenAttachment={onOpenAttachment}

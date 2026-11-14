@@ -160,7 +160,19 @@ export default function SessionView({
     )
   }, [running, stop])
 
-  const editable = (id: string) => messages.find((m) => m.id === id && m.role === 'user')
+  // Stable, like the list's other handlers: a host that streams its own reply re-renders this view
+  // for every frame of it, and a new handler would re-render every finished message with it.
+  const saveEdit = useCallback(
+    (id: string, content: string) => {
+      const message = messages.find((m) => m.id === id && m.role === 'user')
+      if (message && onEdit) {
+        onEdit(message, content)
+      }
+      setEditingId(null)
+    },
+    [messages, onEdit],
+  )
+  const cancelEdit = useCallback(() => setEditingId(null), [])
   const startEdit = useCallback(
     (id: string) => {
       if (messages.some((m) => m.id === id && m.role === 'user')) {
@@ -241,14 +253,8 @@ export default function SessionView({
             {...(currentUsername ? { currentUsername } : {})}
             {...(onNavigateBranch ? { onNavigateBranch } : {})}
             onEditMessage={onEdit ? startEdit : undefined}
-            onSaveEdit={(id, content) => {
-              const message = editable(id)
-              if (message && onEdit) {
-                onEdit(message, content)
-              }
-              setEditingId(null)
-            }}
-            onCancelEdit={() => setEditingId(null)}
+            onSaveEdit={saveEdit}
+            onCancelEdit={cancelEdit}
             onRegenerateMessage={onRegenerate}
             onRetryMessage={onRetry}
             {...(onApprovalAnswer ? { onApprovalAnswer } : {})}
