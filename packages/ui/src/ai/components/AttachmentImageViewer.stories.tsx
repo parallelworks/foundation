@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useMemo, useState } from 'react'
-import { makeImageAttachments, makeStaticAdapter, StoryChat } from '../stories/harness'
+import { makeStaticAdapter, StoryChat } from '../stories/harness'
 import AttachmentImageViewer from './AttachmentImageViewer'
 
 const meta: Meta = {
@@ -45,17 +45,13 @@ function holdImages(delay?: number) {
 function Viewer({ fullUrl }: { fullUrl: string }) {
   const adapter = useMemo(() => makeStaticAdapter({ attachments: true }), [])
   const [index, setIndex] = useState<number | null>(0)
-  const [attachment] = makeImageAttachments()
-  if (!attachment) {
-    return null
-  }
   return (
     <StoryChat adapter={adapter}>
       <button type="button" className="m-4" onClick={() => setIndex(0)}>
         Open the image
       </button>
       <AttachmentImageViewer
-        images={[{ attachment, name: 'queue-depth.png', src: chart(640, 320), fullUrl }]}
+        images={[{ name: 'queue-depth.png', src: chart(640, 320), fullUrl }]}
         index={index}
         onIndexChange={setIndex}
         onClose={() => setIndex(null)}

@@ -48,7 +48,7 @@ export default function MessageAttachments({
     const src = isImage ? att.previewUrl || url : undefined
     const fullUrl = isOwnPreview(att) ? undefined : url
     const viewer =
-      src && !onOpen ? images.push({ attachment: att, name, src, fullUrl, href }) - 1 : -1
+      src && !onOpen ? images.push({ name, filename: att.filename, src, fullUrl, href }) - 1 : -1
     return { att, name, href, src, viewer }
   })
   return (
