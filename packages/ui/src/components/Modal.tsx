@@ -33,7 +33,7 @@ export type ModalSize = keyof typeof sizeClasses
 
 // A fade with a slight scale, as every popup has; with reduced motion it only fades.
 const popupMotion =
-  'transition-[transform,opacity] duration-150 ease-out data-starting-style:scale-95 data-starting-style:opacity-0 data-ending-style:scale-95 data-ending-style:opacity-0 motion-reduce:data-starting-style:scale-100 motion-reduce:data-ending-style:scale-100'
+  'transition-[scale,opacity] duration-150 ease-out data-starting-style:scale-95 data-starting-style:opacity-0 data-ending-style:scale-95 data-ending-style:opacity-0 motion-reduce:data-starting-style:scale-100 motion-reduce:data-ending-style:scale-100'
 const backdropMotion =
   'transition-opacity duration-150 ease-out data-starting-style:opacity-0 data-ending-style:opacity-0'
 
