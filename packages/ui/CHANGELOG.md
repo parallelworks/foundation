@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.139.0](https://github.com/parallelworks/foundation/compare/ui-v0.138.0...ui-v0.139.0) (2026-11-14)
+
+
+### Features
+
+* **ui:** messages sent but not read yet can be taken back to edit, with ↑ in an empty composer or Edit under the queue ([#753](https://github.com/parallelworks/foundation/issues/753)) ([1fea5b8](https://github.com/parallelworks/foundation/commit/1fea5b8a6200159ff0f34681807836391a438d56))
+
 ## [0.138.0](https://github.com/parallelworks/foundation/compare/ui-v0.137.0...ui-v0.138.0) (2026-11-14)
 
 
