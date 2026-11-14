@@ -6,6 +6,8 @@ import { defaultToolStrings, type ToolStrings } from './toolStrings'
 export interface ToolHeader {
   label: string
   arg?: string
+  /** A collapsed header shows `arg` alone: a monitor names what it watches, and its script opens with the block. */
+  argOnly?: boolean
 }
 
 // Mirrors the CLI tool registry's headers; unmapped tools (MCP) fall back to
@@ -23,6 +25,7 @@ const TOOL_HEADERS: Record<string, ToolHeader> = {
   SendMessage: { label: 'SendMessage', arg: 'message' },
   BashOutput: { label: 'BashOutput', arg: 'bash_id' },
   KillShell: { label: 'KillShell', arg: 'shell_id' },
+  Monitor: { label: 'Monitor', arg: 'description', argOnly: true },
   NotebookRead: { label: 'Read notebook', arg: 'notebook_path' },
   NotebookEdit: { label: 'Update notebook', arg: 'notebook_path' },
   NotebookRun: { label: 'Run in kernel', arg: 'code' },
@@ -157,7 +160,12 @@ function displayArg(v: unknown, style: ArgStyle): string {
   return sanitizeArg(clipArg(s ?? '', style), style)
 }
 
-function formatToolArgs(primary: string | undefined, argsJSON: string, style: ArgStyle): string {
+function formatToolArgs(
+  primary: string | undefined,
+  argsJSON: string,
+  style: ArgStyle,
+  onlyPrimary = false,
+): string {
   let m: Record<string, unknown>
   try {
     m = JSON.parse(argsJSON)
@@ -186,6 +194,9 @@ function formatToolArgs(primary: string | undefined, argsJSON: string, style: Ar
   if (primary && primary in m) {
     seen.add(primary)
     parts.push(displayArg(m[primary], style))
+    if (onlyPrimary) {
+      return style.totalClip <= 0 ? (parts[0] ?? '') : clip(parts[0] ?? '', style.totalClip)
+    }
   }
   for (const k of SALIENT_ARG_ORDER) {
     add(k)
@@ -209,9 +220,18 @@ function formatToolArgs(primary: string | undefined, argsJSON: string, style: Ar
 // only keeps a huge argument out of the DOM; it is past any row's width.
 const SUMMARY_MAX_CHARS = 300
 
-// One-line argument summary for a collapsed tool header.
-export function summarizeToolArgs(primary: string | undefined, argsJSON: string): string {
-  return formatToolArgs(primary, argsJSON, { valueClip: 0, totalClip: SUMMARY_MAX_CHARS })
+// One-line argument summary for a collapsed tool header; `onlyPrimary` is a header's `argOnly`.
+export function summarizeToolArgs(
+  primary: string | undefined,
+  argsJSON: string,
+  onlyPrimary = false,
+): string {
+  return formatToolArgs(
+    primary,
+    argsJSON,
+    { valueClip: 0, totalClip: SUMMARY_MAX_CHARS },
+    onlyPrimary,
+  )
 }
 
 // Unclipped form for an expanded block, line breaks kept.
@@ -570,6 +590,10 @@ export function toolSummary(
     case 'WebFetch':
       s = webFetchSummary(body, t)
       break
+    // The first line says which monitor started and when it expires; the rest is addressed to the model.
+    case 'Monitor':
+      s = body.split('\n', 1)[0] ?? ''
+      break
     default:
       return summarizeToolResult(result, t)
   }
@@ -591,7 +615,7 @@ const ROLLUP_CATEGORIES: [(name: string) => boolean, RollupClause][] = [
 
 // Tools whose calls carry standalone weight in a transcript; they end a
 // rollup run instead of folding into it (mirrors fs_transcript.go).
-const NON_GROUPABLE_TOOLS = new Set(['EditFile', 'WriteFile', 'TodoWrite', 'Task'])
+const NON_GROUPABLE_TOOLS = new Set(['EditFile', 'WriteFile', 'TodoWrite', 'Task', 'Monitor'])
 
 export function isGroupableTool(name: string): boolean {
   return !NON_GROUPABLE_TOOLS.has(name)
