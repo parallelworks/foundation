@@ -404,6 +404,30 @@ describe('approval parts', () => {
     expect(screen.getByTestId('ask-reply')).toHaveTextContent('Answered: Postgres')
   })
 
+  it('shows the answers to questions it could not read', () => {
+    renderParts([
+      {
+        kind: 'approval',
+        id: 'a9',
+        approvalKind: 'ask',
+        questions: [],
+        resolved: true,
+        answers: [{ picked: ['Postgres'] }, {}, { text: 'Redis' }],
+      },
+    ])
+    const replies = screen.getAllByTestId('ask-reply')
+    expect(replies.map((r) => r.textContent)).toEqual(['Answered: Postgres', 'Answered: Redis'])
+    expect(screen.getByText('Answered')).toBeInTheDocument()
+  })
+
+  it('still says an ask was answered when it can show nothing of it', () => {
+    renderParts([
+      { kind: 'approval', id: 'a10', approvalKind: 'ask', questions: [], resolved: true },
+    ])
+    expect(screen.getByTestId('approval-part')).toHaveTextContent('Answered')
+    expect(screen.queryByTestId('ask-reply')).not.toBeInTheDocument()
+  })
+
   it('renders a resolved approval inert with its answer', () => {
     const onAnswer = vi.fn()
     renderParts(

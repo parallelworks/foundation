@@ -610,6 +610,25 @@ export const AskReadOnly: StoryObj<{ questions: number; waitingOn: string }> = {
   ),
 }
 
+// Each answer sits under its question as the reader's reply; with no question the card can read, the answers stand alone.
+export const AskAnswered: StoryObj<{
+  questions: number
+  chat: boolean
+  notes: boolean
+  longAnswer: boolean
+}> = {
+  args: { questions: 2, chat: false, notes: true, longAnswer: false },
+  argTypes: { questions: { control: { type: 'range', min: 0, max: 4 } } },
+  render: (args) => (
+    <AgentMessageParts
+      message={makeMessage({
+        content: null,
+        parts: [makeApprovalPart({ kind: 'ask', resolved: true, ...args })],
+      })}
+    />
+  ),
+}
+
 export const TodoChecklist: StoryObj<{ pending: number; completed: number }> = {
   args: { pending: 2, completed: 2 },
   argTypes: {

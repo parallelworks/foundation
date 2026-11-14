@@ -1,4 +1,4 @@
-import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react'
+import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { Checkbox } from '../../../components/Checkbox'
 import { fieldBox, focusOutline } from '../../../components/fieldBox'
 import { useStrings } from '../../../components/Provider'
@@ -486,16 +486,26 @@ function OptionText({ label, description }: { label: string; description?: strin
 }
 
 /** What the reader gave, set like their own message so it reads as their reply to the question above it. */
-function AskReply({ children }: { children: ReactNode }) {
+function AskReply({ answer }: { answer: ApprovalQuestionAnswer }) {
   const { strings } = useChatConfig()
   const t = strings.agentTranscript
+  const given = joinAnswer(answer)
   return (
     <div
-      className="ml-auto w-fit max-w-[85%] rounded-2xl px-3 py-1.5 text-sm chat-ink chat-bubble-user whitespace-pre-wrap wrap-break-word"
+      className="ms-auto w-fit max-w-[85%] rounded-2xl px-3 py-1.5 text-sm chat-ink chat-bubble-user whitespace-pre-wrap wrap-break-word"
       data-testid="ask-reply"
     >
       <span className="sr-only">{t.answered}: </span>
-      {children}
+      {given ? (
+        <span className="block">{given}</span>
+      ) : (
+        <span className="block italic">{t.notesOnly}</span>
+      )}
+      {answer.notes && (
+        <span className="mt-0.5 block text-xs">
+          <span className="font-medium">{t.notesLabel}</span> {answer.notes}
+        </span>
+      )}
     </div>
   )
 }
@@ -504,40 +514,40 @@ function AskReply({ children }: { children: ReactNode }) {
 export function AskAnswered({ part }: { part: ApprovalPart }) {
   const { strings } = useChatConfig()
   const t = strings.agentTranscript
+  const questions = part.questions ?? []
   const answers = part.answers
+  const unpaired = questions.length === 0 ? (answers ?? []).filter(hasAnswer) : []
+  const legacy = !answers && part.answer ? part.answer : undefined
   return (
     <>
-      {(part.questions ?? []).map((q, i) => {
+      {questions.map((q, i) => {
         const answer = answers?.[i]
-        const given = joinAnswer(answer)
         return (
           <div key={q.question} className="space-y-1.5">
             <div className="text-sm theme-text">{q.question}</div>
             {answers &&
-              (hasAnswer(answer) ? (
-                <AskReply>
-                  {given ? (
-                    <span className="block">{given}</span>
-                  ) : (
-                    <span className="block italic">{t.notesOnly}</span>
-                  )}
-                  {answer?.notes && (
-                    <span className="mt-0.5 block text-xs">
-                      <span className="font-medium">{t.notesLabel}</span> {answer.notes}
-                    </span>
-                  )}
-                </AskReply>
+              (answer && hasAnswer(answer) ? (
+                <AskReply answer={answer} />
               ) : (
-                <div className="text-right italic">{t.noAnswer}</div>
+                <div className="text-end italic">{t.noAnswer}</div>
               ))}
           </div>
         )
       })}
-      {!answers && part.answer && <AskReply>{part.answer}</AskReply>}
-      {part.chat && (
+      {unpaired.map((answer, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: a record's answers never reorder
+        <AskReply key={i} answer={answer} />
+      ))}
+      {legacy && <AskReply answer={{ text: legacy }} />}
+      {/* With no question to reply to, a reply alone doesn't say the ask was answered. */}
+      {(part.chat || questions.length === 0) && (
         <div className="flex items-center gap-2">
-          <ChatIcon aria-hidden="true" className="size-3.5" />
-          <span>{t.chatAboutThis}</span>
+          {part.chat ? (
+            <ChatIcon aria-hidden="true" className="size-3.5" />
+          ) : (
+            <CheckIcon aria-hidden="true" className="size-3.5" />
+          )}
+          <span>{part.chat ? t.chatAboutThis : t.answered}</span>
         </div>
       )}
     </>
