@@ -4,9 +4,9 @@ import { Combobox } from '../../components/Combobox'
 import { ChevronDownIcon } from '../../icons'
 import { useChat } from '../core/ChatProvider'
 import { useChatConfig } from '../core/config'
+import { defaultAllocation, isOrgModel } from '../core/models'
 import type { BoundSetting } from '../types'
 import { chipClassName } from '../ui/chip'
-import { isOrgModel } from '../utils'
 
 // Allocations are billed in US dollars; the amount reads in the reader's locale.
 const dollars = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' })
@@ -39,20 +39,17 @@ export default function AllocationSelector({
     () => allocationsAdapter?.list(),
   )
 
-  const first = allocations?.find((a) => !a.disabled)
+  const resolved = defaultAllocation({
+    model: selectedProvider,
+    allocations,
+    current: selectedAllocation,
+  })
   // A session keeps the allocation it has; only the chat's own selection follows the model.
   useEffect(() => {
-    if (bound) {
-      return
+    if (!bound && resolved !== selectedAllocation) {
+      chat.setSelectedAllocation(resolved)
     }
-    if (!isOrgProvider) {
-      if (selectedAllocation) {
-        chat.setSelectedAllocation(null)
-      }
-    } else if (first && !selectedAllocation) {
-      chat.setSelectedAllocation(first.name)
-    }
-  }, [bound, isOrgProvider, first, selectedAllocation, chat.setSelectedAllocation])
+  }, [bound, resolved, selectedAllocation, chat.setSelectedAllocation])
 
   if (!isOrgProvider || !allocations?.length) {
     return null

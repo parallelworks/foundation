@@ -87,6 +87,11 @@ describe('tool headers', () => {
 describe('toolHeaderFor', () => {
   it('maps known tools and falls back to the wire name', () => {
     expect(toolHeaderFor('EditFile')).toEqual({ label: 'Update', arg: 'path' })
+    expect(toolHeaderFor('Monitor')).toEqual({
+      label: 'Monitor',
+      arg: 'description',
+      argOnly: true,
+    })
     expect(toolHeaderFor('mcp__linear__create_issue')).toEqual({
       label: 'mcp__linear__create_issue',
     })
@@ -262,6 +267,7 @@ describe('isGroupableTool', () => {
     ['WriteFile', false],
     ['TodoWrite', false],
     ['Task', false],
+    ['Monitor', false],
   ])('%s -> %s', (name, expected) => {
     expect(isGroupableTool(name)).toBe(expected)
   })
@@ -279,5 +285,32 @@ describe('stripTerminalEscapes', () => {
   it('leaves text without escapes alone, brackets included', () => {
     expect(stripTerminalEscapes('[31m is not an escape')).toBe('[31m is not an escape')
     expect(stripTerminalEscapes('ends on an escape\u001b')).toBe('ends on an escape')
+  })
+})
+
+describe('a monitor', () => {
+  const args = JSON.stringify({
+    command: 'tail -f deploy.log | grep --line-buffered ERROR',
+    description: 'errors in deploy.log',
+    timeout_ms: 1_800_000,
+  })
+
+  it('names what it watches in a collapsed header, and keeps its script for the open block', () => {
+    expect(summarizeToolArgs('description', args, true)).toBe('errors in deploy.log')
+    expect(summarizeToolArgs('description', args)).toContain('command: "tail -f deploy.log')
+    expect(fullToolArgs('description', args)).toContain(
+      'tail -f deploy.log | grep --line-buffered ERROR',
+    )
+  })
+
+  it('sums up its start with the first line of its result', () => {
+    expect(
+      toolSummary(
+        'Monitor',
+        args,
+        'Monitor started · monitor-1 · timeout 30m0s\nYou will be notified on each event.',
+        false,
+      ),
+    ).toBe('Monitor started · monitor-1 · timeout 30m0s')
   })
 })

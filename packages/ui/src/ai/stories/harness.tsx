@@ -5,9 +5,9 @@
 import type { ReactNode } from 'react'
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { ChatAdapter, ChatToolOption, StreamHandlers } from '../adapter/types'
-import type { ComposerPastes, PasteUploadResult } from '../components/usePasteCards'
 import { ChatProvider, type ChatProviderProps } from '../core/ChatProvider'
 import type { ChatLinkProps, ChatUIConfig } from '../core/config'
+import type { ComposerPastes, PasteUploadResult } from '../core/pasteCards'
 import { countLines, utf8Bytes } from '../core/pastes'
 import type {
   Allocation,
@@ -464,6 +464,8 @@ const PICTURE = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200
 <rect width="320" height="200" fill="#5b7fa6"/><circle cx="250" cy="55" r="28" fill="#f2d16b"/>
 <path d="M0 200 L110 80 L190 160 L240 110 L320 200 Z" fill="#2f4a68"/></svg>`
 
+const PICTURE_SIZE = { previewWidth: 320, previewHeight: 200 }
+
 const pictureUrls = new Map<string, string>()
 
 /** A workshop download URL: a picture for an image, a page anchor otherwise.
@@ -540,6 +542,7 @@ export function makeImageAttachments(): AttachmentRef[] {
       size: 412_880,
       uploadedAt: '2026-08-16T10:12:00Z',
       previewUrl: `data:image/svg+xml,${encodeURIComponent(PICTURE)}`,
+      ...PICTURE_SIZE,
     },
     {
       id: 'img-3',

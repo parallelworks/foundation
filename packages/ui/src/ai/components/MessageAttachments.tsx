@@ -17,6 +17,21 @@ function isOwnPreview({ previewUrl, size }: AttachmentRef): boolean {
   return base64 !== undefined && Math.floor((base64.length * 3) / 4) === size
 }
 
+// The longest side a thumbnail draws at: the `max-h` and `max-w` of its image.
+const THUMBNAIL_MAX = 200
+
+/** The size a thumbnail draws at, for a preview whose size is known: its own, scaled down to
+ *  fit. An image holds no room until it loads, so without it a message's pictures all sit in
+ *  or near the view at first, where a browser loads every one of them at once, and the
+ *  conversation moves as each arrives. */
+function thumbnailSize({ previewWidth: width, previewHeight: height }: AttachmentRef) {
+  if (!width || !height || width < 0 || height < 0) {
+    return undefined
+  }
+  const scale = Math.min(1, THUMBNAIL_MAX / width, THUMBNAIL_MAX / height)
+  return { width: width * scale, height: height * scale }
+}
+
 /** The files sent with a message. One the reader can download is a link to
  *  it, so it can be saved or opened in a new tab like any other; a host that
  *  previews attachments takes the plain click, and without one a picture opens
@@ -72,6 +87,7 @@ export default function MessageAttachments({
             src={src}
             alt={name}
             className="max-h-[200px] max-w-[200px] object-cover"
+            style={src === att.previewUrl ? thumbnailSize(att) : undefined}
             loading="lazy"
           />
         ) : (

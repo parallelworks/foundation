@@ -59,3 +59,8 @@ export function splitPastes(content: string, pastes: MessagePaste[]): (string | 
   }
   return out
 }
+
+/** The message a composer sends: its text, then a placeholder for each saved paste. */
+export function joinPastes(input: string, pastes: MessagePaste[]): string {
+  return [input.trim(), ...pastes.map((p) => p.placeholder)].filter(Boolean).join('\n\n')
+}

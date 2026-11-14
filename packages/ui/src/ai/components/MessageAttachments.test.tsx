@@ -94,6 +94,42 @@ describe('message image viewer', () => {
     }
   })
 
+  // An image holds no room until it loads, so a browser would load every picture of a long
+  // conversation at once, and the conversation would move as each arrived.
+  it.each([
+    ['wider than it is tall', 640, 400, '200px', '125px'],
+    ['taller than it is wide', 400, 640, '125px', '200px'],
+    ['smaller than a thumbnail', 120, 80, '120px', '80px'],
+  ])('holds the place of a preview %s at the size it will draw', (_, width, height, w, h) => {
+    render(
+      <MessageAttachments
+        attachments={[
+          image('a', { previewUrl: '/previews/a', previewWidth: width, previewHeight: height }),
+        ]}
+        downloadUrl={download}
+      />,
+    )
+    const thumbnail = screen.getByRole('img', { name: 'a.png' })
+    expect(thumbnail).toHaveStyle({ width: w, height: h })
+    expect(thumbnail).toHaveAttribute('loading', 'lazy')
+  })
+
+  it("leaves a thumbnail to its picture when the preview's size is unknown, or it shows the file itself", () => {
+    render(
+      <MessageAttachments
+        attachments={[
+          image('unsized', { previewUrl: PREVIEW }),
+          image('half', { previewUrl: PREVIEW, previewWidth: 640 }),
+          image('file', { previewWidth: 640, previewHeight: 400 }),
+        ]}
+        downloadUrl={download}
+      />,
+    )
+    for (const name of ['unsized.png', 'half.png', 'file.png']) {
+      expect(screen.getByRole('img', { name }).getAttribute('style')).toBeNull()
+    }
+  })
+
   it('swaps the preview for the full image once it loads', async () => {
     render(
       <MessageAttachments

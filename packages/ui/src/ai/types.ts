@@ -28,6 +28,10 @@ export interface AttachmentRef {
   /** A small picture an image's thumbnail shows instead of loading the file, such as a
    *  `data:image/...` URL. Only ever an image's source, never a link. */
   previewUrl?: string
+  /** The preview's size in pixels. With both, an image's thumbnail holds its place at the size
+   *  it will draw, before a preview that loads from a URL has arrived. */
+  previewWidth?: number
+  previewHeight?: number
   conversationId?: string
   messageId?: string
 }

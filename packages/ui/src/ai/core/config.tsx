@@ -22,11 +22,16 @@ import type {
 
 // What a part renderer receives; host overrides via slots.partRenderers get
 // the same props as the built-ins.
+/** Takes the reader's answer to an approval. Where it returns a promise, the approval shows the
+ *  answer as on its way, with its controls off, until the promise settles; anything else it
+ *  returns is ignored. */
+export type ApprovalAnswerHandler = (id: string, answer: ApprovalAnswerValue) => unknown
+
 export interface PartRendererProps {
   part: MessagePart
   message: ChatMessage
   isStreaming?: boolean
-  onApprovalAnswer?: (id: string, answer: ApprovalAnswerValue) => void
+  onApprovalAnswer?: ApprovalAnswerHandler
 }
 
 // What a host's renderer for one tool receives. It draws under the call's
@@ -38,7 +43,7 @@ export interface ToolRendererProps {
   message: ChatMessage
   isStreaming?: boolean
   /** Absent when the reader may not answer, such as a call someone else asked for. */
-  onApprovalAnswer?: (id: string, answer: ApprovalAnswerValue) => void
+  onApprovalAnswer?: ApprovalAnswerHandler
 }
 
 // What a host's footer for one tool receives. It draws under everything the

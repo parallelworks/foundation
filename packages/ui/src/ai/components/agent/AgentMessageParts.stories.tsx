@@ -516,6 +516,34 @@ export const Approvals: StoryObj<{
   ),
 }
 
+// A host that sends the answer somewhere slow returns a promise: the answer chosen is marked
+// and the rest turn off until it settles, so a second press sends nothing. Here it never does.
+export const ApprovalBeingSent: StoryObj<{ kind: 'confirm' | 'ask' }> = {
+  args: { kind: 'confirm' },
+  argTypes: { kind: { control: 'inline-radio', options: ['confirm', 'ask'] } },
+  render: (args) => (
+    <AgentMessageParts
+      message={makeMessage({ content: null, parts: [makeApprovalPart(args)] })}
+      onApprovalAnswer={(id, answer) => {
+        logAnswer(id, answer)
+        return new Promise(() => {})
+      }}
+    />
+  ),
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    if (args.kind === 'ask') {
+      await userEvent.click(canvas.getAllByRole('button', { pressed: false })[0] as HTMLElement)
+    }
+    const chosen = canvas.getByRole('button', {
+      name: args.kind === 'confirm' ? /^Yes, allow/ : 'Send',
+    })
+    await userEvent.click(chosen)
+    await expect(chosen).toBeDisabled()
+    await expect(chosen.parentElement).toHaveAttribute('aria-busy', 'true')
+  },
+}
+
 // A path confirm whose directory option says which directory it opens.
 export const ApprovalNamingItsDirectory: typeof Approvals = {
   ...Approvals,
@@ -950,6 +978,19 @@ function TranscriptExtrasExample() {
               '[Message from subagent task-4 (Map routes) — it is still working]\nHalf way through.',
             ),
             notice('[Background command bash-1 (npm test) exited with code 1]'),
+            {
+              kind: 'tool_call',
+              id: 'monitor-call',
+              name: 'Monitor',
+              args: JSON.stringify({
+                command: 'gh pr checks 123 --watch --json name,bucket',
+                description: 'CI checks',
+                timeout_ms: 300_000,
+              }),
+              status: 'ok',
+              result:
+                'Monitor started · monitor-2 · timeout 5m0s\nYou will be notified on each event, and once more when it ends.',
+            },
             notice('[Monitor monitor-2 (CI checks) event]\nbuild: fail\nlint: pass'),
             notice('[Monitor monitor-2 (CI checks) expired after 5m0s with 2 events delivered]'),
             notice('[Monitor monitor-3 (errors in deploy.log) exited with code 0]'),

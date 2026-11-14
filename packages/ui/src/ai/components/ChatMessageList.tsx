@@ -17,8 +17,8 @@ import { cx } from '../../cx'
 import { formatDuration } from '../../format'
 import { CheckIcon, ClockIcon } from '../../icons'
 import { useChat, useChatStream } from '../core/ChatProvider'
-import { useChatConfig } from '../core/config'
-import type { ApprovalAnswerValue, ChatMessage as Message } from '../types'
+import { type ApprovalAnswerHandler, useChatConfig } from '../core/config'
+import type { ChatMessage as Message } from '../types'
 import Markdown from '../ui/Markdown'
 import AgentMessageParts from './agent/AgentMessageParts'
 import ChatMessage from './ChatMessage'
@@ -27,6 +27,8 @@ import { Reasoning, ReasoningBody } from './Reasoning'
 // How long after a click or key press inside the thread its growth counts as
 // the reader's own.
 const READER_GROWTH_MS = 600
+
+const NO_MESSAGES: Message[] = []
 
 const jumpClasses =
   'chat-composer chat-jump rounded-full px-3 py-1.5 text-xs font-medium theme-text transition-colors'
@@ -64,7 +66,7 @@ interface ChatMessageListProps {
   onRegenerateMessage?: ((messageId: string) => void) | undefined
   onRetryMessage?: ((messageId: string) => void) | undefined
   onOpenReasoning?: (reasoning: string, duration: number | null) => void
-  onApprovalAnswer?: (id: string, answer: ApprovalAnswerValue) => void
+  onApprovalAnswer?: ApprovalAnswerHandler
   inputElement?: ReactNode
   /** Whether a turn is in flight, when the host tracks that itself rather
    *  than streaming through the provider. */
@@ -165,6 +167,11 @@ export default function ChatMessageList({
     const open = adapter.attachments?.onOpen
     return open ? open.bind(adapter.attachments) : undefined
   }, [adapter])
+  // A row looks through every message only to attribute its turn or to move between branches. A
+  // host that streams its own reply rebuilds the array for every frame of it, which would
+  // re-render every finished row that reads neither.
+  const readsEveryMessage = (!!showAuthor && !!currentUsername) || !!onNavigateBranch
+  const rowMessages = readsEveryMessage ? allMessages : NO_MESSAGES
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const floorRef = useRef<HTMLDivElement>(null)
@@ -505,7 +512,7 @@ export default function ChatMessageList({
         >
           <MessageRows
             messages={messages}
-            allMessages={allMessages}
+            allMessages={rowMessages}
             streaming={!!streamingMessage}
             prompts={!!pinPrompt}
             flush={flush}
@@ -581,7 +588,7 @@ export default function ChatMessageList({
             <div key="streaming" className="animate-chat-enter">
               <ChatMessage
                 message={streamingMessage}
-                allMessages={allMessages}
+                allMessages={rowMessages}
                 flush={flush}
                 foldEveryRun={foldEveryRun}
                 isStreaming={isStreaming}
@@ -595,7 +602,7 @@ export default function ChatMessageList({
             <QueuedMessage
               key={msg.id}
               message={msg}
-              allMessages={allMessages}
+              allMessages={rowMessages}
               flush={flush}
               attachmentDownloadUrl={attachmentDownloadUrl}
               onOpenAttachment={onOpenAttachment}
