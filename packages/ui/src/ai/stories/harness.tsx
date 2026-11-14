@@ -5,9 +5,9 @@
 import type { ReactNode } from 'react'
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { ChatAdapter, ChatToolOption, StreamHandlers } from '../adapter/types'
-import type { ComposerPastes, PasteUploadResult } from '../components/usePasteCards'
 import { ChatProvider, type ChatProviderProps } from '../core/ChatProvider'
 import type { ChatLinkProps, ChatUIConfig } from '../core/config'
+import type { ComposerPastes, PasteUploadResult } from '../core/pasteCards'
 import { countLines, utf8Bytes } from '../core/pastes'
 import type {
   Allocation,

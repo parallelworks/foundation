@@ -64,12 +64,17 @@ export interface ToolStrings {
 }
 
 // English has two forms, chosen by the rules a translation would use, with
-// the number in the reader's own digits.
-const englishPlural = new Intl.PluralRules('en')
+// the number in the reader's own digits. Made on first use, so the module
+// loads on a JS engine without Intl.PluralRules, such as Hermes.
+let englishPluralRules: Intl.PluralRules | undefined
+function englishPlural(): Intl.PluralRules {
+  englishPluralRules ??= new Intl.PluralRules('en')
+  return englishPluralRules
+}
 
 /** A count and its noun in English: "1 file", "1,024 files". */
 export const countOf = (n: number, one: string, other: string) =>
-  `${n.toLocaleString()} ${englishPlural.select(n) === 'one' ? one : other}`
+  `${n.toLocaleString()} ${englishPlural().select(n) === 'one' ? one : other}`
 
 export const defaultToolStrings: ToolStrings = {
   noOutput: '(no output)',

@@ -1,17 +1,22 @@
 import { DateTime, Duration, type DurationObjectUnits } from 'luxon'
 
 // Numbers read in the reader's own locale; the units stay the symbols everyone reads.
-const sizeNumber = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 })
+// Made on first use, so loading the module constructs nothing from Intl.
+let sizeNumberFormat: Intl.NumberFormat | undefined
+function sizeNumber(): Intl.NumberFormat {
+  sizeNumberFormat ??= new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 })
+  return sizeNumberFormat
+}
 const BYTE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'] as const
 
 /** A size in bytes the way a file list shows it: 512 B, 1.5 KB, 2.25 GB,
  *  counting in 1024s. */
 export function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes < 1) {
-    return `${sizeNumber.format(0)} B`
+    return `${sizeNumber().format(0)} B`
   }
   const unit = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), BYTE_UNITS.length - 1)
-  return `${sizeNumber.format(bytes / 1024 ** unit)} ${BYTE_UNITS[unit]}`
+  return `${sizeNumber().format(bytes / 1024 ** unit)} ${BYTE_UNITS[unit]}`
 }
 
 const countNumbers = new Map<string | undefined, Intl.NumberFormat>()

@@ -2,11 +2,11 @@
 import '@testing-library/jest-dom/vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { forwardRef, useImperativeHandle } from 'react'
+import type { PasteUploadResult } from '../core/pasteCards'
 import type { Attachment } from './AttachmentUpload'
 import ChatInput from './ChatInput'
 import { DRAFT_MAX_LENGTH, DRAFT_TTL_MS, readDraft, sweepDrafts } from './chatDraft'
 import { appendHistory, HISTORY_MAX_CHARS, HISTORY_MAX_ENTRIES, readHistory } from './chatHistory'
-import type { PasteUploadResult } from './usePasteCards'
 
 const addFilesMock = vi.fn()
 const uploadProps: {

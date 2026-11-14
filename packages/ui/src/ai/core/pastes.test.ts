@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   countLines,
+  joinPastes,
   normalizeNewlines,
   pasteInlineMaxBytes,
   splitPastes,
@@ -43,5 +44,12 @@ describe('pastes', () => {
         [inline, file],
       ),
     ).toEqual(['see ', inline, ' and ', file, ', not [Pasted text #3 4 chars]'])
+  })
+
+  it('joins a message from its text and the placeholders of its saved pastes', () => {
+    const file = { placeholder: '[Pasted text #2 +900 lines]', id: 2, lines: 900, bytes: 90_000 }
+    expect(joinPastes('  summarize\n', [file])).toBe(`summarize\n\n${file.placeholder}`)
+    expect(joinPastes(' ', [file])).toBe(file.placeholder)
+    expect(joinPastes('only text', [])).toBe('only text')
   })
 })

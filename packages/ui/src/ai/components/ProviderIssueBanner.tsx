@@ -3,7 +3,8 @@ import { Callout } from '../../components/Callout'
 import { SettingsIcon } from '../../icons'
 import { useChat } from '../core/ChatProvider'
 import { useChatConfig } from '../core/config'
-import { issueDetail, providerIssueFor } from '../core/providerIssues'
+import { providerIssueFor } from '../core/models'
+import { issueDetail } from '../core/providerIssues'
 import { getProviderKeyFromModelId } from './ModelSelector'
 
 /** Why the selected model can't answer, with a way to fix it for the
