@@ -1,11 +1,16 @@
-import { type KeyboardEvent, useEffect, useState } from 'react'
+import { type KeyboardEvent, useEffect, useId, useState } from 'react'
+import { panelClassName } from '../../components/floating'
 import { ListboxOption, ListboxPanel, useListboxNavigation } from '../../components/Listbox'
 import { Loader } from '../../components/Loader'
+import { cx } from '../../cx'
 import { useChatConfig } from '../core/config'
 
 export interface SlashCommandOption {
   name: string
   description?: string | undefined
+  /** What the command takes after its name, such as `[condition|pause|resume]`: shown beside
+   *  the name in the menu, and above the box while its arguments are typed. */
+  argumentHint?: string | undefined
 }
 
 export interface SlashMenuConfig {
@@ -30,6 +35,18 @@ export function slashMatches(input: string, commands: SlashCommandOption[]): Sla
   }
   const query = (typed[1] ?? '').toLowerCase()
   return commands.filter((c) => c.name.toLowerCase().startsWith(query)).slice(0, MAX_SHOWN)
+}
+
+// A whole name, then its arguments on the same line.
+const TYPING_ARGUMENTS = /^\/([\w:-]+)[ \t][^\n]*$/
+
+/** The command whose arguments are being typed, when it says what it takes. */
+function slashArgumentsFor(
+  input: string,
+  commands: SlashCommandOption[],
+): SlashCommandOption | undefined {
+  const name = TYPING_ARGUMENTS.exec(input)?.[1]
+  return commands.find((c) => c.name === name && c.argumentHint)
 }
 
 /** The palette's open state and keys; the caller owns the input.
@@ -77,6 +94,9 @@ export function useSlashMenu(
   const handleKey = (e: KeyboardEvent<HTMLTextAreaElement>) =>
     !(exact && e.key === 'Enter') && list.handleKey(e)
 
+  const typing = config ? slashArgumentsFor(input, config.commands) : undefined
+  const hintId = useId()
+
   return {
     open,
     matches,
@@ -85,9 +105,22 @@ export function useSlashMenu(
     choose,
     handleKey,
     listId: list.listId,
-    inputProps: list.hostProps,
+    inputProps: { ...list.hostProps, 'aria-describedby': typing ? hintId : undefined },
     list,
+    /** The command whose arguments are being typed, and the id of its hint. */
+    argumentHint: typing ? { command: typing, id: hintId } : undefined,
   }
+}
+
+function CommandLabel({ command }: { command: SlashCommandOption }) {
+  return (
+    <span className="font-mono">
+      /{command.name}
+      {command.argumentHint && (
+        <span className="text-(--theme-muted-text-color)"> {command.argumentHint}</span>
+      )}
+    </span>
+  )
 }
 
 export function SlashMenu({
@@ -121,12 +154,41 @@ export function SlashMenu({
               key={c.name}
               option={{ ...option, onClick: () => onChoose(c.name) }}
               inline
-              label={<span className="font-mono">/{c.name}</span>}
+              label={<CommandLabel command={c} />}
               description={c.description}
             />
           )
         })}
       </ListboxPanel>
+    </div>
+  )
+}
+
+/** What the command being typed takes, where its menu stood; the box keeps every key. */
+export function SlashArgumentHint({ hint }: { hint: { command: SlashCommandOption; id: string } }) {
+  return (
+    <div
+      data-testid="slash-argument-hint"
+      id={hint.id}
+      className="absolute bottom-full left-0 right-0 z-20 mb-2"
+    >
+      {/* A menu row's inset, so the hint takes the place of the row it follows. Unlike a row it
+        wraps, since what the command takes is the point, and the description gives way first. */}
+      <div
+        className={cx(
+          'flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-3 py-2.5',
+          panelClassName,
+        )}
+      >
+        <span className="min-w-0 break-words">
+          <CommandLabel command={hint.command} />
+        </span>
+        {hint.command.description && (
+          <span className="min-w-0 truncate text-xs text-(--theme-muted-text-color)">
+            {hint.command.description}
+          </span>
+        )}
+      </div>
     </div>
   )
 }
