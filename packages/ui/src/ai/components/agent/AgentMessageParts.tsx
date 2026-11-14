@@ -58,6 +58,7 @@ import type {
   TodoSnapshotPart,
   ToolCallPart,
   ToolDecision,
+  ToolPresentation,
 } from '../../types'
 import Markdown from '../../ui/Markdown'
 import { chatProseClasses } from '../../ui/prose'
@@ -442,11 +443,40 @@ function ToolCallBlock({
   message: PartRendererProps['message']
   children?: ReactNode
 }) {
-  const { strings, slots } = useChatConfig()
-  const t = strings.agentTranscript
-  const [expanded, setExpanded] = useExpandable()
+  const { slots } = useChatConfig()
   const presentation = slots.toolPresentation?.(part, message)
   const Footer = slots.toolFooters?.[part.name]
+  return (
+    <div className="py-1.5 text-sm" data-testid="tool-call-part">
+      <ToolCallBody part={part} presentation={presentation}>
+        {children}
+      </ToolCallBody>
+      {Footer && (
+        <div className="ml-5 min-w-0">
+          <Footer part={part} message={message} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** All of a call but a host's footer. Memoized on the call, which keeps its
+ *  identity until a delta changes it: a reply streaming after it re-renders its
+ *  message for every token, and a long turn holds hundreds of calls. One a host
+ *  words or draws is handed new words or a new drawing each time, and draws
+ *  again. */
+const ToolCallBody = memo(function ToolCallBody({
+  part,
+  presentation,
+  children,
+}: {
+  part: ToolCallPart
+  presentation: ToolPresentation | undefined
+  children?: ReactNode
+}) {
+  const { strings } = useChatConfig()
+  const t = strings.agentTranscript
+  const [expanded, setExpanded] = useExpandable()
   // A named call keeps its drawing behind the row unless the host keeps it
   // open; a call waiting on an answer always shows what it asks.
   const drawingInPanel =
@@ -467,7 +497,7 @@ function ToolCallBlock({
     [part.status, part.name, part.args, part.result, t.running, strings.tools],
   )
   return (
-    <div className="py-1.5 text-sm" data-testid="tool-call-part">
+    <>
       <Disclosure
         open={expanded}
         onOpenChange={setExpanded}
@@ -526,14 +556,9 @@ function ToolCallBlock({
         </div>
       )}
       {part.decision && <DecisionLine decision={part.decision} />}
-      {Footer && (
-        <div className="ml-5 min-w-0">
-          <Footer part={part} message={message} />
-        </div>
-      )}
-    </div>
+    </>
   )
-}
+})
 
 function decisionLabel(d: ToolDecision, t: ChatStrings['agentTranscript']): string {
   switch (d.status) {
@@ -1391,34 +1416,36 @@ function RollupGroup({
   const live = members.filter(isRunningCall)
   const settled = members.filter((m) => !isRunningCall(m))
   const running = live.length > 0
-  const { sentence, allNamed } = useMemo(() => {
-    const builtin: string[] = []
-    const named = new Map<string, { count: number; rollup: (count: number) => string }>()
-    for (const m of members) {
-      if (m.part.kind !== 'tool_call') {
-        continue
-      }
-      const rollup = slots.toolPresentation?.(m.part, message)?.rollup
-      if (!rollup) {
-        builtin.push(m.part.name)
-        continue
-      }
-      const entry = named.get(m.part.name) ?? { count: 0, rollup }
-      named.set(m.part.name, { ...entry, count: entry.count + 1 })
+  const builtin: string[] = []
+  const named = new Map<string, { count: number; rollup: (count: number) => string }>()
+  for (const m of members) {
+    if (m.part.kind !== 'tool_call') {
+      continue
     }
+    const rollup = slots.toolPresentation?.(m.part, message)?.rollup
+    if (!rollup) {
+      builtin.push(m.part.name)
+      continue
+    }
+    const entry = named.get(m.part.name) ?? { count: 0, rollup }
+    named.set(m.part.name, { ...entry, count: entry.count + 1 })
+  }
+  const namedClauses = [...named.values()].map((n) => n.rollup(n.count))
+  const allNamed = named.size > 0 && builtin.length === 0
+  // The run and its message are new for every token of a reply streaming after it, while what
+  // the sentence says only moves with the run's calls: wording it counts each kind in the
+  // reader's language, for every run of a long turn.
+  const said = JSON.stringify([namedClauses, builtin])
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `said` is the clauses and the tools, by value
+  const sentence = useMemo(() => {
     const clauses = [
-      ...[...named.values()].map((n) => n.rollup(n.count)),
+      ...namedClauses,
       ...(foldEveryRun
         ? runClauses(builtin, running, strings.tools)
         : rollupClauses(builtin, strings.tools)),
     ]
-    return {
-      sentence: clauses.length
-        ? `${strings.tools.rollup.sentence(clauses)}${running ? '…' : ''}`
-        : '',
-      allNamed: named.size > 0 && builtin.length === 0,
-    }
-  }, [members, message, slots.toolPresentation, strings.tools, foldEveryRun, running])
+    return clauses.length ? `${strings.tools.rollup.sentence(clauses)}${running ? '…' : ''}` : ''
+  }, [said, strings.tools, foldEveryRun, running])
   return (
     <div className="py-1.5 text-sm" data-testid="tool-rollup">
       <Disclosure
