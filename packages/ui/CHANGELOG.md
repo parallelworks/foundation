@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.135.1](https://github.com/parallelworks/foundation/compare/ui-v0.135.0...ui-v0.135.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* **ui:** a conversation sidebar shows nothing while its list loads ([#761](https://github.com/parallelworks/foundation/issues/761)) ([4cdd8cd](https://github.com/parallelworks/foundation/commit/4cdd8cd779981374264841b14becb0cb88749208))
+* **ui:** an agent's monitor call folds into a run and its header shows the whole script ([#763](https://github.com/parallelworks/foundation/issues/763)) ([acb7b49](https://github.com/parallelworks/foundation/commit/acb7b49599739441d9a5b347ce2164129fb0760e))
+
 ## [0.135.0](https://github.com/parallelworks/foundation/compare/ui-v0.134.2...ui-v0.135.0) (2026-11-14)
 
 
