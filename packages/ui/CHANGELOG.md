@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.134.2](https://github.com/parallelworks/foundation/compare/ui-v0.134.1...ui-v0.134.2) (2026-11-14)
+
+
+### Bug Fixes
+
+* **ui:** an agent transcript says "Thinking" beside the activity line, and on a finished thought whose time was not recorded ([#757](https://github.com/parallelworks/foundation/issues/757)) ([42d001d](https://github.com/parallelworks/foundation/commit/42d001d22108521e8129f9f5b3ca5ba4f2ac5233))
+
 ## [0.134.1](https://github.com/parallelworks/foundation/compare/ui-v0.134.0...ui-v0.134.1) (2026-11-14)
 
 
