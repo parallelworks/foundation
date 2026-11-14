@@ -106,6 +106,38 @@ export const PinnedPrompt: StoryObj<PinnedPromptArgs> = {
   render: (args) => <PinnedPromptExample {...args} />,
 }
 
+const delegated: ChatMessage[] = [
+  makeMessage({
+    id: 'delegated-prompt',
+    role: 'user',
+    content:
+      'Find every test that waits on the sign-in form and list the ones that use a fixed timeout.',
+    author: { id: 'main', username: 'main', name: 'Main conversation', kind: 'agent' },
+  }),
+  makeAgentTurn(),
+]
+
+/** A subagent's conversation, whose prompt the conversation that started it wrote: its name
+ *  heads the prompt, with no avatar whose initials would read as a person's. */
+export const AgentWrittenPrompt: StoryObj = {
+  render: () => (
+    <StoryChat>
+      <StoryViewport>
+        <SessionView
+          sessionKey="story-agent-written-prompt"
+          messages={delegated}
+          onSend={async () => true}
+          showAuthor
+          currentUsername="alice"
+          flush
+          foldEveryRun
+          workingIndicator={false}
+        />
+      </StoryViewport>
+    </StoryChat>
+  ),
+}
+
 const OPENABLE = [
   {
     id: 'opening-sign-in',

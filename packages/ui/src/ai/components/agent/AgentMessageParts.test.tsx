@@ -212,6 +212,45 @@ describe('host tool renderers', () => {
   })
 })
 
+describe('host tool footers', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const toolFooters = {
+    Bash: ({ part }: { part: ToolCallPart }) =>
+      part.status === 'running' ? <button type="button">Move {part.id}</button> : null,
+  }
+
+  it('draws a footer under the built-in drawing of its tool’s calls only', () => {
+    renderParts(
+      [tc('t1', 'Bash', 'running'), tc('t2', 'GrepSearch', 'running')],
+      {},
+      {
+        slots: { toolFooters },
+      },
+    )
+    const [bash, grep] = screen.getAllByTestId('tool-call-part')
+    expect(bash).toHaveTextContent('Running…')
+    expect(bash).toContainElement(screen.getByRole('button', { name: 'Move t1' }))
+    expect(grep).not.toHaveTextContent('Move')
+  })
+
+  it('leaves its calls in a folded run, drawing it under the running call', () => {
+    vi.useFakeTimers()
+    renderParts(
+      [tc('t1', 'ReadFile'), tc('t2', 'Bash', 'running')],
+      { foldEveryRun: true },
+      { slots: { toolFooters } },
+    )
+    expect(screen.getByTestId('tool-rollup')).toHaveTextContent('running 1 shell command')
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+    expect(screen.getByRole('button', { name: 'Move t2' })).toBeInTheDocument()
+  })
+})
+
 describe('approval parts', () => {
   it('answers a confirm approval through the callback', () => {
     const onAnswer = vi.fn()
@@ -611,6 +650,28 @@ describe('transcript features', () => {
       </ChatConfigProvider>,
     )
     expect(screen.getByTestId('reasoning-body')).toHaveClass('max-h-20')
+  })
+
+  it('shows a streaming thought without a label, as the activity line already says it is working', () => {
+    renderParts([{ kind: 'reasoning', text: 'weighing the options' }], { isStreaming: true })
+    expect(screen.getByTestId('reasoning-part')).toHaveTextContent(/^weighing the options$/)
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  it('labels a finished thought by how long it took', () => {
+    renderParts([{ kind: 'reasoning', text: 'weighing the options', durationMs: 12_000 }])
+    expect(screen.getByRole('button', { name: /^Thought for/ })).toBeInTheDocument()
+  })
+
+  it('draws nothing for a thought with no text, streaming or not', () => {
+    const { rerender } = renderParts([{ kind: 'reasoning', text: ' ' }], { isStreaming: true })
+    expect(screen.queryByTestId('reasoning-part')).toBeNull()
+    rerender(
+      <ChatConfigProvider value={resolveChatConfig()}>
+        <AgentMessageParts message={msg([{ kind: 'reasoning', text: '', durationMs: 3_000 }])} />
+      </ChatConfigProvider>,
+    )
+    expect(screen.queryByTestId('reasoning-part')).toBeNull()
   })
 })
 
@@ -1151,7 +1212,7 @@ describe('approvals without an answer handler', () => {
 describe('disclosure accessibility', () => {
   it('names the icon-only thinking toggle and reports its expanded state', () => {
     renderParts([{ kind: 'reasoning', text: 'weighing the options' }])
-    const toggle = screen.getByRole('button', { name: 'Thinking' })
+    const toggle = screen.getByRole('button', { name: 'Thought process' })
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
     fireEvent.click(toggle)
     expect(toggle).toHaveAttribute('aria-expanded', 'true')

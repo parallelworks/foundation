@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { act, fireEvent, render } from '@testing-library/react'
-import { createRef, type Ref } from 'react'
+import { createRef, type ReactNode, type Ref } from 'react'
 import type { useChat, useChatStream } from '../core/ChatProvider'
 import type { ApprovalPart, ChatMessage as Message, ToolCallPart } from '../types'
 import ChatMessageList, { type ChatMessageListHandle } from './ChatMessageList'
@@ -27,9 +27,9 @@ vi.mock('../core/ChatProvider', () => ({
 
 vi.mock('./ChatMessage', () => ({
   __esModule: true,
-  default: (props: { message: Message }) => {
+  default: (props: { message: Message; status?: ReactNode }) => {
     messageRenders.push(props.message.id)
-    return <div data-testid="chat-message" />
+    return <div data-testid="chat-message">{props.status}</div>
   },
 }))
 
@@ -845,6 +845,26 @@ describe('ChatMessageList while a reply streams', () => {
     expect(messageRenders).not.toContain('streaming')
     mockChat.streamingContent = ''
     mockChat.streamingParts = []
+  })
+
+  it('leaves queued messages alone while the reply above them streams', () => {
+    const messages = [createMockMessage({ id: 'q', role: 'user' })]
+    const queued = [createMockMessage({ id: 'queued' })]
+    const onRemoveQueued = vi.fn()
+    const list = () => (
+      <ChatMessageList
+        messages={messages}
+        allMessages={messages}
+        queuedMessages={queued}
+        onRemoveQueued={onRemoveQueued}
+      />
+    )
+    mockChat.streamingContent = 'One'
+    const { rerender } = render(list())
+    messageRenders.length = 0
+    mockChat.streamingContent = 'One two'
+    rerender(list())
+    expect(messageRenders).toEqual(['streaming'])
   })
 
   it("takes the host's reply over the provider's, null included", () => {

@@ -445,6 +445,7 @@ function ToolCallBlock({
   const t = strings.agentTranscript
   const [expanded, setExpanded] = useExpandable()
   const presentation = slots.toolPresentation?.(part, message)
+  const Footer = slots.toolFooters?.[part.name]
   // A named call keeps its drawing behind the row unless the host keeps it
   // open; a call waiting on an answer always shows what it asks.
   const drawingInPanel =
@@ -524,6 +525,11 @@ function ToolCallBlock({
         </div>
       )}
       {part.decision && <DecisionLine decision={part.decision} />}
+      {Footer && (
+        <div className="ml-5 min-w-0">
+          <Footer part={part} message={message} />
+        </div>
+      )}
     </div>
   )
 }
@@ -983,9 +989,9 @@ function NoticeBlock({ part }: { part: NoticePart }) {
   )
 }
 
-/** The TUI's thought, drawn like a chat reply's: while it streams its label
- *  shimmers over the latest lines, then it folds to the label and opens in
- *  place on request. */
+/** The TUI's thought: while it streams only its latest lines show, as the
+ *  activity line already says the agent is working; then it folds to a label
+ *  and opens in place on request. A thought with no text draws nothing. */
 const ReasoningBlock = memo(function ReasoningBlock({
   part,
   isStreaming,
@@ -999,35 +1005,27 @@ const ReasoningBlock = memo(function ReasoningBlock({
   const { strings } = useChatConfig()
   const t = strings.thinking
   const [expanded, setExpanded] = useExpandable()
-  const label =
-    thinkingHeading(part.text) ||
-    (part.durationMs ? t.thoughtFor(formatDuration(part.durationMs)) : t.label)
-  const hasBody = part.text.trim() !== ''
+  if (part.text.trim() === '') {
+    return null
+  }
   const markdown = <Markdown isStreaming={isStreaming ?? false}>{part.text}</Markdown>
   if (isStreaming) {
     return (
       <div className="py-1.5" data-testid="reasoning-part">
-        <div className="animate-shimmer text-shimmer text-sm">{label}</div>
-        {hasBody && (
-          <ReasoningBody className={cx(!whole && 'chat-reasoning-tail')}>
-            <div
-              className={cx(!whole && 'flex max-h-20 flex-col justify-end overflow-hidden')}
-              data-testid="reasoning-body"
-            >
-              {markdown}
-            </div>
-          </ReasoningBody>
-        )}
+        <ReasoningBody className={cx(!whole && 'chat-reasoning-tail')}>
+          <div
+            className={cx(!whole && 'flex max-h-20 flex-col justify-end overflow-hidden')}
+            data-testid="reasoning-body"
+          >
+            {markdown}
+          </div>
+        </ReasoningBody>
       </div>
     )
   }
-  if (!hasBody) {
-    return (
-      <div className="py-1.5 text-sm theme-muted-text" data-testid="reasoning-part">
-        {label}
-      </div>
-    )
-  }
+  const label =
+    thinkingHeading(part.text) ||
+    (part.durationMs ? t.thoughtFor(formatDuration(part.durationMs)) : t.thoughtProcess)
   return (
     <div className="py-1.5" data-testid="reasoning-part">
       <Reasoning label={label} open={expanded} onOpenChange={setExpanded}>

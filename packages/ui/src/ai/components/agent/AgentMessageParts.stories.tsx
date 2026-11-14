@@ -140,6 +140,46 @@ export const ContextualResultBeforeApproval: typeof ContextualResult = {
   args: { awaitingApproval: true },
 }
 
+function BackgroundOffer({ part }: { part: ToolCallPart }) {
+  return part.status === 'running' ? (
+    <button
+      type="button"
+      className="text-[13px] theme-muted-text hover:theme-text"
+      onClick={() => console.info('[move to background]', part.id)}
+    >
+      (ctrl+b to run in background)
+    </button>
+  ) : null
+}
+
+export const ToolFooter: StoryObj<{ status: ToolCallStatus; foldEveryRun: boolean }> = {
+  name: 'Host footer under a call',
+  args: { status: 'running', foldEveryRun: true },
+  argTypes: {
+    status: { control: 'inline-radio', options: ['running', 'ok', 'error'] },
+    foldEveryRun: {
+      description: 'A call with a footer still folds into its run; a running one shows below it',
+    },
+  },
+  render: ({ status, foldEveryRun }) => (
+    <StoryChat config={{ slots: { toolFooters: { Bash: BackgroundOffer } } }}>
+      <AgentMessageParts
+        foldEveryRun={foldEveryRun}
+        message={makeMessage({
+          content: null,
+          parts: [
+            {
+              ...makeToolCallPart({ name: 'ReadFile', resultLines: 4 }),
+              args: JSON.stringify({ path: 'internal/server/server.go' }),
+            },
+            makeToolCallPart({ command: 'go test ./...', status, resultLines: 3 }),
+          ],
+        })}
+      />
+    </StoryChat>
+  ),
+}
+
 const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString()
 
 export const Decisions: StoryObj = {
@@ -673,11 +713,13 @@ function LiveReasoning({
   text,
   live,
   streamMs,
+  timed,
   foldEveryRun,
 }: {
   text: string
   live: boolean
   streamMs: number
+  timed: boolean
   foldEveryRun: boolean
 }) {
   const streamed = useStreamedText(text, live ? streamMs : 1)
@@ -692,7 +734,7 @@ function LiveReasoning({
           {
             kind: 'reasoning',
             text: live ? streamed.text : text,
-            ...(streaming ? {} : { durationMs: streamMs }),
+            ...(streaming || !timed ? {} : { durationMs: streamMs }),
           },
           ...(streaming
             ? []
@@ -704,27 +746,33 @@ function LiveReasoning({
   )
 }
 
-// The thought streams in under a shimmering label, showing its latest lines,
-// then folds to the label once the answer starts. Remount to replay.
+// The thought streams in as its latest lines, with no label of its own beside
+// the activity line, then folds to a label once the answer starts. Remount to
+// replay.
 export const Reasoning: StoryObj<{
   live: boolean
   headings: boolean
   streamMs: number
+  timed: boolean
   foldEveryRun: boolean
 }> = {
-  args: { live: true, headings: true, streamMs: 6000, foldEveryRun: false },
+  args: { live: true, headings: true, streamMs: 6000, timed: true, foldEveryRun: false },
   argTypes: {
     streamMs: { control: { type: 'range', min: 1000, max: 20000, step: 500 } },
+    timed: {
+      description: 'Off for a thought resumed from a session that did not record how long it took',
+    },
     foldEveryRun: {
       description: 'Drawn as a terminal does: the whole thought shows while it streams',
     },
   },
-  render: ({ live, headings, streamMs, foldEveryRun }) => (
+  render: ({ live, headings, streamMs, timed, foldEveryRun }) => (
     <LiveReasoning
       // Remounts on any change so the stream starts over.
-      key={`${live}-${headings}-${streamMs}-${foldEveryRun}`}
+      key={`${live}-${headings}-${streamMs}-${timed}-${foldEveryRun}`}
       live={live}
       streamMs={streamMs}
+      timed={timed}
       foldEveryRun={foldEveryRun}
       text={
         headings
@@ -854,9 +902,12 @@ export const SubagentOutcomes: StoryObj<{ reviewing: number; launched: number }>
 
 const notice = (raw: string): MessagePart => {
   const n = parseSubagentNotice(raw)
-  return n
-    ? { kind: 'notice', text: subagentDeliveryLine(n), ...(n.body ? { detail: n.body } : {}) }
-    : { kind: 'notice', text: raw }
+  if (!n) {
+    return { kind: 'notice', text: raw }
+  }
+  // A monitor's lines are a script's output, which Markdown would reflow.
+  const detail = n.monitor && n.body ? `\`\`\`\n${n.body}\n\`\`\`` : n.body
+  return { kind: 'notice', text: subagentDeliveryLine(n), ...(detail ? { detail } : {}) }
 }
 
 export const TranscriptExtras: StoryObj = {
@@ -899,6 +950,9 @@ function TranscriptExtrasExample() {
               '[Message from subagent task-4 (Map routes) — it is still working]\nHalf way through.',
             ),
             notice('[Background command bash-1 (npm test) exited with code 1]'),
+            notice('[Monitor monitor-2 (CI checks) event]\nbuild: fail\nlint: pass'),
+            notice('[Monitor monitor-2 (CI checks) expired after 5m0s with 2 events delivered]'),
+            notice('[Monitor monitor-3 (errors in deploy.log) exited with code 0]'),
           ],
         })}
       />

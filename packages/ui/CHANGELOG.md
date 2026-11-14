@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.135.0](https://github.com/parallelworks/foundation/compare/ui-v0.134.2...ui-v0.135.0) (2026-11-14)
+
+
+### Features
+
+* **ui:** an agent transcript draws a monitor's events and how it ended ([#759](https://github.com/parallelworks/foundation/issues/759)) ([0030556](https://github.com/parallelworks/foundation/commit/0030556baa69de3efee0a2aec15b0ddec3c3e595))
+
+## [0.134.2](https://github.com/parallelworks/foundation/compare/ui-v0.134.1...ui-v0.134.2) (2026-11-14)
+
+
+### Bug Fixes
+
+* **ui:** an agent transcript says "Thinking" beside the activity line, and on a finished thought whose time was not recorded ([#757](https://github.com/parallelworks/foundation/issues/757)) ([42d001d](https://github.com/parallelworks/foundation/commit/42d001d22108521e8129f9f5b3ca5ba4f2ac5233))
+
+## [0.134.1](https://github.com/parallelworks/foundation/compare/ui-v0.134.0...ui-v0.134.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* **ui:** an agent author's avatar shows initials that read as a person's ([#755](https://github.com/parallelworks/foundation/issues/755)) ([cedde62](https://github.com/parallelworks/foundation/commit/cedde6221e75c6dff030d311f94d707185f3d1da))
+
+## [0.134.0](https://github.com/parallelworks/foundation/compare/ui-v0.133.0...ui-v0.134.0) (2026-11-14)
+
+
+### Features
+
+* **ui:** a host can draw a line under a tool call and keep the call's own drawing ([#751](https://github.com/parallelworks/foundation/issues/751)) ([42a8276](https://github.com/parallelworks/foundation/commit/42a82769c4fe5006ded23f477dff76a369fc4134))
+* **ui:** a message's author avatar names them on hover, and an agent author draws as an agent ([#750](https://github.com/parallelworks/foundation/issues/750)) ([bb3a44d](https://github.com/parallelworks/foundation/commit/bb3a44d30dd4fdc68d9fb80cd4214a192ad79fea))
+
+
+### Bug Fixes
+
+* **ui:** hovering a queued message covers its Remove link with the copy button ([#752](https://github.com/parallelworks/foundation/issues/752)) ([9002be0](https://github.com/parallelworks/foundation/commit/9002be02f4131dbeb81a8cc6e3258d3ece8644f8))
+
 ## [0.133.0](https://github.com/parallelworks/foundation/compare/ui-v0.132.0...ui-v0.133.0) (2026-11-14)
 
 

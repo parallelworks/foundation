@@ -154,7 +154,6 @@ export default function ChatMessageList({
     [streamingParts],
   )
   const { strings } = useChatConfig()
-  const { common } = useStrings()
   const tThinking = strings.thinking
   // Stable across renders so memoized ChatMessage rows don't re-render on
   // every streamed token.
@@ -271,17 +270,13 @@ export default function ChatMessageList({
 
   // Attach listeners once the container exists (it is absent in the empty state)
   const queuedCount = queuedMessages?.length ?? 0
+  const grouped = !!onEditQueued
   const queued = (queuedMessages ?? []).map((msg) => {
-    const removable = canRemoveQueued?.(msg.id) ?? true
+    const handedOver = !(canRemoveQueued?.(msg.id) ?? true)
     const delivery = typeof queueDelivery === 'function' ? queueDelivery(msg.id) : queueDelivery
-    const status = !removable
-      ? strings.queue.handedOver
-      : delivery === 'nextStep'
-        ? strings.queue.waitingNextStep
-        : strings.queue.waiting
-    return { msg, removable, status }
+    return { msg, handedOver, delivery, reads: handedOver ? 'handedOver' : delivery }
   })
-  const editable = queued.some((q) => q.removable)
+  const editable = queued.some((q) => !q.handedOver)
   const hasContent = messages.length > 0 || !!streamingMessage || queuedCount > 0
   const awaitingApproval = streamingParts.some((part) => part.kind === 'approval' && !part.resolved)
   const showWorkingIndicator =
@@ -596,60 +591,24 @@ export default function ChatMessageList({
               />
             </div>
           )}
-          {queued.map(({ msg, removable, status }, i) => {
-            // Grouped, a run of messages that read alike says so once, under its last.
-            const showStatus = !onEditQueued || queued[i + 1]?.status !== status
-            const last = i === queued.length - 1
-            return (
-              // Waiting, not faded: full-contrast text in an outline rather than
-              // a filled bubble, with a line saying when it reaches the model.
-              // One already handed to the running turn is sent, so it is filled.
-              <div
-                key={msg.id}
-                className={cx('chat-pending animate-chat-enter', removable && 'chat-queued')}
-              >
-                <ChatMessage
-                  message={msg}
-                  allMessages={allMessages}
-                  flush={flush}
-                  attachmentDownloadUrl={attachmentDownloadUrl}
-                  onOpenAttachment={onOpenAttachment}
-                />
-                {showStatus && (
-                  <div
-                    data-testid="queued-status"
-                    className={cx(
-                      '-mt-4 mb-2 flex items-center justify-end gap-2 text-xs theme-muted-text',
-                      !flush && 'sm:px-4',
-                    )}
-                  >
-                    {removable ? (
-                      <ClockIcon className="h-3 w-3" />
-                    ) : (
-                      <CheckIcon className="h-3 w-3" />
-                    )}
-                    <span>{status}</span>
-                    {onEditQueued
-                      ? last &&
-                        editable && (
-                          <QueueAction label={strings.queue.editLabel} onClick={onEditQueued}>
-                            {strings.queue.edit}
-                          </QueueAction>
-                        )
-                      : onRemoveQueued &&
-                        removable && (
-                          <QueueAction
-                            label={strings.queue.remove}
-                            onClick={() => onRemoveQueued(msg.id)}
-                          >
-                            {common.remove}
-                          </QueueAction>
-                        )}
-                  </div>
-                )}
-              </div>
-            )
-          })}
+          {queued.map(({ msg, handedOver, delivery, reads }, i) => (
+            <QueuedMessage
+              key={msg.id}
+              message={msg}
+              allMessages={allMessages}
+              flush={flush}
+              attachmentDownloadUrl={attachmentDownloadUrl}
+              onOpenAttachment={onOpenAttachment}
+              handedOver={handedOver}
+              delivery={delivery}
+              // Grouped, a run of messages that read alike says so once, under its last.
+              showStatus={!grouped || queued[i + 1]?.reads !== reads}
+              grouped={grouped}
+              stacked={grouped && i > 0}
+              onRemove={!grouped && !handedOver ? onRemoveQueued : undefined}
+              onEdit={grouped && editable && i === queued.length - 1 ? onEditQueued : undefined}
+            />
+          ))}
           {footer}
           <div className="h-8" />
         </div>
@@ -797,6 +756,86 @@ function ThinkingLabel({
   }
   return t.thoughtFor(formatDuration(finalDuration ?? 0))
 }
+
+/** A message waiting on the running turn. Memoized apart from the list, which
+ *  re-renders for every streamed token while the queue waits under the reply. */
+const QueuedMessage = memo(function QueuedMessage({
+  message,
+  allMessages,
+  flush,
+  attachmentDownloadUrl,
+  onOpenAttachment,
+  handedOver,
+  delivery,
+  showStatus,
+  grouped,
+  stacked,
+  onRemove,
+  onEdit,
+}: {
+  message: Message
+  allMessages: Message[]
+  flush: boolean | undefined
+  attachmentDownloadUrl: ((id: string) => string) | undefined
+  onOpenAttachment: ComponentProps<typeof ChatMessage>['onOpenAttachment']
+  /** Already given to the running turn, so sent and no longer removable. */
+  handedOver: boolean
+  delivery: QueueDelivery
+  showStatus: boolean
+  /** In a queue that says its status once and offers Edit for all of it, so
+   *  the message keeps no actions of its own. */
+  grouped: boolean
+  /** Sits just under the queued message before it. */
+  stacked: boolean
+  onRemove: ((id: string) => void) | undefined
+  onEdit: (() => void) | undefined
+}) {
+  const { queue } = useChatConfig().strings
+  const { common } = useStrings()
+  return (
+    // Waiting, not faded: full-contrast text in an outline rather than a
+    // filled bubble, with a line saying when it reaches the model. One already
+    // handed to the running turn is sent, so it is filled.
+    <div className={cx('animate-chat-enter', !handedOver && 'chat-queued')}>
+      <ChatMessage
+        message={message}
+        allMessages={allMessages}
+        flush={flush}
+        attachmentDownloadUrl={attachmentDownloadUrl}
+        onOpenAttachment={onOpenAttachment}
+        actions={!grouped}
+        stacked={stacked}
+        status={
+          showStatus && (
+            <div
+              data-testid="queued-status"
+              className="flex items-center justify-end gap-2 text-xs theme-muted-text"
+            >
+              {handedOver ? <CheckIcon className="h-3 w-3" /> : <ClockIcon className="h-3 w-3" />}
+              <span>
+                {handedOver
+                  ? queue.handedOver
+                  : delivery === 'nextStep'
+                    ? queue.waitingNextStep
+                    : queue.waiting}
+              </span>
+              {onEdit && (
+                <QueueAction label={queue.editLabel} onClick={onEdit}>
+                  {queue.edit}
+                </QueueAction>
+              )}
+              {onRemove && (
+                <QueueAction label={queue.remove} onClick={() => onRemove(message.id)}>
+                  {common.remove}
+                </QueueAction>
+              )}
+            </div>
+          )
+        }
+      />
+    </div>
+  )
+})
 
 // The list's optional props arrive here as possibly undefined.
 type Passed<T> = { [K in keyof T]-?: T[K] | undefined }

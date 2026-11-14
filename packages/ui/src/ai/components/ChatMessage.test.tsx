@@ -32,7 +32,11 @@ vi.mock('./BranchNavigator', () => ({
 
 // Mock Avatar
 vi.mock('../../components/Avatar', () => ({
-  Avatar: ({ name }: { name?: string }) => <div data-testid="avatar">{name}</div>,
+  Avatar: ({ name, tooltip }: { name?: string; tooltip?: boolean }) => (
+    <div data-testid="avatar" data-tooltip={String(!!tooltip)}>
+      {name}
+    </div>
+  ),
 }))
 
 // ==========================================
@@ -438,6 +442,27 @@ describe('ChatMessage', () => {
       })
     })
 
+    it('opens the actions below a status line rather than over it', () => {
+      render(<ChatMessage {...defaultProps} status={<button type="button">Remove</button>} />)
+      const status = screen.getByRole('button', { name: 'Remove' })
+      const copy = screen.getByRole('button', { name: 'Copy message' })
+      // The actions hang from the bottom of the column the status sits in.
+      expect(copy.closest('.chat-actions')?.parentElement).toContainElement(status)
+      expect(status.compareDocumentPosition(copy) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    })
+
+    it('offers no actions of its own when it has none, as in a queue that offers Edit', () => {
+      render(
+        <ChatMessage
+          {...defaultProps}
+          actions={false}
+          status={<button type="button">Edit</button>}
+        />,
+      )
+      expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Copy message' })).not.toBeInTheDocument()
+    })
+
     it('offers no copy for a failed reply with nothing to copy', () => {
       const message = createMockMessage({ role: 'assistant', content: '', error: 'Rate limited' })
       render(<ChatMessage {...defaultProps} message={message} />)
@@ -536,6 +561,30 @@ describe('ChatMessage', () => {
 
       const authorLabels = screen.getAllByText('jdoe')
       expect(authorLabels.length).toBeGreaterThanOrEqual(1)
+    })
+
+    it("names a person's avatar on hover, and shows an agent author's name without one", () => {
+      const person = createMockMessage({
+        role: 'user',
+        author: { id: 'user-1', username: 'jdoe', name: 'Jane Doe' },
+      })
+      const agent = createMockMessage({
+        role: 'user',
+        author: { id: 'main', username: 'main', name: 'Main conversation', kind: 'agent' },
+      })
+
+      render(
+        <>
+          <ChatMessage {...defaultProps} message={person} showAuthor currentUsername="me" />
+          <ChatMessage {...defaultProps} message={agent} showAuthor currentUsername="me" />
+        </>,
+      )
+
+      const avatars = screen.getAllByTestId('avatar')
+      expect(avatars).toHaveLength(1)
+      expect(avatars[0]).toHaveTextContent('Jane Doe')
+      expect(avatars[0]).toHaveAttribute('data-tooltip', 'true')
+      expect(screen.getByText('Main conversation')).toBeInTheDocument()
     })
 
     it('does not render author for current user messages', () => {
