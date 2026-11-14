@@ -12,9 +12,9 @@ import { cx } from '../../cx'
 import { formatDateTime, formatDuration, formatTimeLeft, toDateTime } from '../../format'
 import { EditIcon, RetryIcon } from '../../icons'
 import { useChatModelName } from '../core/ChatProvider'
-import { useChatConfig } from '../core/config'
+import { type ApprovalAnswerHandler, useChatConfig } from '../core/config'
 import { replyText } from '../core/useKeyboardShortcuts'
-import type { ApprovalAnswerValue, AttachmentRef, ChatUser, ChatMessage as Message } from '../types'
+import type { AttachmentRef, ChatUser, ChatMessage as Message } from '../types'
 import Markdown from '../ui/Markdown'
 import { chatProseClasses } from '../ui/prose'
 import AgentMessageParts from './agent/AgentMessageParts'
@@ -44,7 +44,7 @@ interface ChatMessageProps {
   onRegenerate?: ((messageId: string) => void) | undefined
   onRetry?: ((messageId: string) => void) | undefined
   onOpenReasoning?: ((reasoning: string, duration: number | null) => void) | undefined
-  onApprovalAnswer?: ((id: string, answer: ApprovalAnswerValue) => void) | undefined
+  onApprovalAnswer?: ApprovalAnswerHandler | undefined
   /** Drops the row's horizontal padding, for hosts that constrain the column themselves. */
   flush?: boolean | undefined
   /** Draws the transcript as a terminal does: every run of tool calls folds

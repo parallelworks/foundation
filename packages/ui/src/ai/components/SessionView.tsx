@@ -8,10 +8,11 @@ import {
 } from 'react'
 import { useMarkdownReady } from '../../components/Markdown'
 import { useChat } from '../core/ChatProvider'
+import type { ApprovalAnswerHandler } from '../core/config'
 import { listenWhileShown } from '../core/onScreen'
 import useDragDrop from '../core/useDragDrop'
 import { escapeClosesLayer } from '../core/useKeyboardShortcuts'
-import type { ApprovalAnswerValue, ChatMessage as Message } from '../types'
+import type { ChatMessage as Message } from '../types'
 import ChatActivity from './ChatActivity'
 import ChatInput, { type ChatInputHandle } from './ChatInput'
 import ChatMessageList, { type ChatMessageListHandle } from './ChatMessageList'
@@ -53,7 +54,8 @@ export interface SessionViewProps {
   onRegenerate?: (messageId: string) => void
   onRetry?: (messageId: string) => void
   onNavigateBranch?: (messageId: string) => void
-  onApprovalAnswer?: (id: string, answer: ApprovalAnswerValue) => void
+  /** A promise it returns holds the approval as sending its answer until it settles. */
+  onApprovalAnswer?: ApprovalAnswerHandler
   showAuthor?: boolean
   currentUsername?: string
   /** Shown above the transcript, such as a blocked allocation or an

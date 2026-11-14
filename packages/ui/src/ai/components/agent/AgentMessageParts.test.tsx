@@ -344,6 +344,112 @@ describe('approval parts', () => {
     })
   })
 
+  describe('while a host is still sending the answer', () => {
+    const confirm: MessagePart = {
+      kind: 'approval',
+      id: 'a1',
+      approvalKind: 'confirm',
+      toolName: 'Bash',
+      command: 'rm -rf ./build',
+    }
+    const buttons = () => screen.getAllByRole('button')
+    const held = () => {
+      let settle: (refused?: unknown) => void = () => {}
+      const onAnswer = vi.fn(
+        () =>
+          new Promise<void>((resolve, reject) => {
+            settle = (refused) => (refused ? reject(refused) : resolve())
+          }),
+      )
+      return { onAnswer, settle: (refused?: unknown) => act(async () => settle(refused)) }
+    }
+
+    it('turns a confirm approval off and marks the answer chosen, so it is sent once', () => {
+      const { onAnswer } = held()
+      renderParts([confirm], { onApprovalAnswer: onAnswer })
+      const allow = screen.getByRole('button', { name: 'Yes, allow this command' })
+      fireEvent.click(allow)
+
+      expect(buttons().every((b) => b.hasAttribute('disabled'))).toBe(true)
+      expect(allow.parentElement).toHaveAttribute('aria-busy', 'true')
+      expect(allow.querySelector('svg')).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'No, deny this command' }).querySelector('svg'),
+      ).toBeNull()
+
+      fireEvent.click(allow)
+      fireEvent.click(screen.getByRole('button', { name: 'No, deny this command' }))
+      expect(onAnswer).toHaveBeenCalledTimes(1)
+    })
+
+    it.each([
+      ['refuses it', new Error('unreachable')],
+      ['takes it without resolving the approval', undefined],
+    ])('turns the approval back on once the host %s', async (_, refused) => {
+      const { onAnswer, settle } = held()
+      renderParts([confirm], { onApprovalAnswer: onAnswer })
+      fireEvent.click(screen.getByRole('button', { name: 'No, deny this command' }))
+      expect(buttons().every((b) => b.hasAttribute('disabled'))).toBe(true)
+
+      await settle(refused)
+
+      expect(buttons().some((b) => b.hasAttribute('disabled'))).toBe(false)
+      expect(screen.getByTestId('approval-part').querySelector('[aria-busy]')).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: 'Yes, allow this command' }))
+      expect(onAnswer).toHaveBeenCalledTimes(2)
+    })
+
+    it('holds feedback as typed while it is sent', () => {
+      const { onAnswer } = held()
+      renderParts([confirm], { onApprovalAnswer: onAnswer })
+      fireEvent.click(screen.getByRole('button', { name: 'No, and provide feedback to the agent' }))
+      const field = screen.getByRole('textbox')
+      fireEvent.change(field, { target: { value: 'use the scratch dir' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+      expect(field).toHaveAttribute('readonly')
+      expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
+      expect(onAnswer).toHaveBeenCalledWith('a1', {
+        kind: 'confirm',
+        allowed: false,
+        denyMessage: 'use the scratch dir',
+      })
+    })
+
+    it('turns the answers to a question off', () => {
+      const { onAnswer } = held()
+      renderParts(
+        [
+          {
+            kind: 'approval',
+            id: 'a3',
+            approvalKind: 'ask',
+            questions: [
+              { question: 'Which db?', options: [{ label: 'Postgres' }, { label: 'Mongo' }] },
+            ],
+          },
+        ],
+        { onApprovalAnswer: onAnswer },
+      )
+      fireEvent.click(screen.getByText('Mongo'))
+      const send = screen.getByRole('button', { name: 'Send' })
+      fireEvent.click(send)
+
+      expect(send).toBeDisabled()
+      expect(send.querySelector('svg')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Chat about this' })).toBeDisabled()
+      fireEvent.click(send)
+      expect(onAnswer).toHaveBeenCalledTimes(1)
+    })
+
+    it('leaves an approval on for a host that returns nothing', () => {
+      const onAnswer = vi.fn()
+      renderParts([confirm], { onApprovalAnswer: onAnswer })
+      fireEvent.click(screen.getByRole('button', { name: 'Yes, allow this command' }))
+      expect(buttons().some((b) => b.hasAttribute('disabled'))).toBe(false)
+    })
+  })
+
   it('answers an ask approval with an option', () => {
     const onAnswer = vi.fn()
     renderParts(

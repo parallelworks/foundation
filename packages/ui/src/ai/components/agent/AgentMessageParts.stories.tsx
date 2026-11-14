@@ -516,6 +516,34 @@ export const Approvals: StoryObj<{
   ),
 }
 
+// A host that sends the answer somewhere slow returns a promise: the answer chosen is marked
+// and the rest turn off until it settles, so a second press sends nothing. Here it never does.
+export const ApprovalBeingSent: StoryObj<{ kind: 'confirm' | 'ask' }> = {
+  args: { kind: 'confirm' },
+  argTypes: { kind: { control: 'inline-radio', options: ['confirm', 'ask'] } },
+  render: (args) => (
+    <AgentMessageParts
+      message={makeMessage({ content: null, parts: [makeApprovalPart(args)] })}
+      onApprovalAnswer={(id, answer) => {
+        logAnswer(id, answer)
+        return new Promise(() => {})
+      }}
+    />
+  ),
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    if (args.kind === 'ask') {
+      await userEvent.click(canvas.getAllByRole('button', { pressed: false })[0] as HTMLElement)
+    }
+    const chosen = canvas.getByRole('button', {
+      name: args.kind === 'confirm' ? /^Yes, allow/ : 'Send',
+    })
+    await userEvent.click(chosen)
+    await expect(chosen).toBeDisabled()
+    await expect(chosen.parentElement).toHaveAttribute('aria-busy', 'true')
+  },
+}
+
 // A path confirm whose directory option says which directory it opens.
 export const ApprovalNamingItsDirectory: typeof Approvals = {
   ...Approvals,

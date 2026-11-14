@@ -17,8 +17,8 @@ import { cx } from '../../cx'
 import { formatDuration } from '../../format'
 import { CheckIcon, ClockIcon } from '../../icons'
 import { useChat, useChatStream } from '../core/ChatProvider'
-import { useChatConfig } from '../core/config'
-import type { ApprovalAnswerValue, ChatMessage as Message } from '../types'
+import { type ApprovalAnswerHandler, useChatConfig } from '../core/config'
+import type { ChatMessage as Message } from '../types'
 import Markdown from '../ui/Markdown'
 import AgentMessageParts from './agent/AgentMessageParts'
 import ChatMessage from './ChatMessage'
@@ -61,7 +61,7 @@ interface ChatMessageListProps {
   onRegenerateMessage?: ((messageId: string) => void) | undefined
   onRetryMessage?: ((messageId: string) => void) | undefined
   onOpenReasoning?: (reasoning: string, duration: number | null) => void
-  onApprovalAnswer?: (id: string, answer: ApprovalAnswerValue) => void
+  onApprovalAnswer?: ApprovalAnswerHandler
   inputElement?: ReactNode
   /** Whether a turn is in flight, when the host tracks that itself rather
    *  than streaming through the provider. */
