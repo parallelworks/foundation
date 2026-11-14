@@ -212,6 +212,45 @@ describe('host tool renderers', () => {
   })
 })
 
+describe('host tool footers', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const toolFooters = {
+    Bash: ({ part }: { part: ToolCallPart }) =>
+      part.status === 'running' ? <button type="button">Move {part.id}</button> : null,
+  }
+
+  it('draws a footer under the built-in drawing of its tool’s calls only', () => {
+    renderParts(
+      [tc('t1', 'Bash', 'running'), tc('t2', 'GrepSearch', 'running')],
+      {},
+      {
+        slots: { toolFooters },
+      },
+    )
+    const [bash, grep] = screen.getAllByTestId('tool-call-part')
+    expect(bash).toHaveTextContent('Running…')
+    expect(bash).toContainElement(screen.getByRole('button', { name: 'Move t1' }))
+    expect(grep).not.toHaveTextContent('Move')
+  })
+
+  it('leaves its calls in a folded run, drawing it under the running call', () => {
+    vi.useFakeTimers()
+    renderParts(
+      [tc('t1', 'ReadFile'), tc('t2', 'Bash', 'running')],
+      { foldEveryRun: true },
+      { slots: { toolFooters } },
+    )
+    expect(screen.getByTestId('tool-rollup')).toHaveTextContent('running 1 shell command')
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+    expect(screen.getByRole('button', { name: 'Move t2' })).toBeInTheDocument()
+  })
+})
+
 describe('approval parts', () => {
   it('answers a confirm approval through the callback', () => {
     const onAnswer = vi.fn()

@@ -140,6 +140,46 @@ export const ContextualResultBeforeApproval: typeof ContextualResult = {
   args: { awaitingApproval: true },
 }
 
+function BackgroundOffer({ part }: { part: ToolCallPart }) {
+  return part.status === 'running' ? (
+    <button
+      type="button"
+      className="text-[13px] theme-muted-text hover:theme-text"
+      onClick={() => console.info('[move to background]', part.id)}
+    >
+      (ctrl+b to run in background)
+    </button>
+  ) : null
+}
+
+export const ToolFooter: StoryObj<{ status: ToolCallStatus; foldEveryRun: boolean }> = {
+  name: 'Host footer under a call',
+  args: { status: 'running', foldEveryRun: true },
+  argTypes: {
+    status: { control: 'inline-radio', options: ['running', 'ok', 'error'] },
+    foldEveryRun: {
+      description: 'A call with a footer still folds into its run; a running one shows below it',
+    },
+  },
+  render: ({ status, foldEveryRun }) => (
+    <StoryChat config={{ slots: { toolFooters: { Bash: BackgroundOffer } } }}>
+      <AgentMessageParts
+        foldEveryRun={foldEveryRun}
+        message={makeMessage({
+          content: null,
+          parts: [
+            {
+              ...makeToolCallPart({ name: 'ReadFile', resultLines: 4 }),
+              args: JSON.stringify({ path: 'internal/server/server.go' }),
+            },
+            makeToolCallPart({ command: 'go test ./...', status, resultLines: 3 }),
+          ],
+        })}
+      />
+    </StoryChat>
+  ),
+}
+
 const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString()
 
 export const Decisions: StoryObj = {
