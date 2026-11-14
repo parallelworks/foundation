@@ -713,11 +713,13 @@ function LiveReasoning({
   text,
   live,
   streamMs,
+  timed,
   foldEveryRun,
 }: {
   text: string
   live: boolean
   streamMs: number
+  timed: boolean
   foldEveryRun: boolean
 }) {
   const streamed = useStreamedText(text, live ? streamMs : 1)
@@ -732,7 +734,7 @@ function LiveReasoning({
           {
             kind: 'reasoning',
             text: live ? streamed.text : text,
-            ...(streaming ? {} : { durationMs: streamMs }),
+            ...(streaming || !timed ? {} : { durationMs: streamMs }),
           },
           ...(streaming
             ? []
@@ -744,27 +746,33 @@ function LiveReasoning({
   )
 }
 
-// The thought streams in under a shimmering label, showing its latest lines,
-// then folds to the label once the answer starts. Remount to replay.
+// The thought streams in as its latest lines, with no label of its own beside
+// the activity line, then folds to a label once the answer starts. Remount to
+// replay.
 export const Reasoning: StoryObj<{
   live: boolean
   headings: boolean
   streamMs: number
+  timed: boolean
   foldEveryRun: boolean
 }> = {
-  args: { live: true, headings: true, streamMs: 6000, foldEveryRun: false },
+  args: { live: true, headings: true, streamMs: 6000, timed: true, foldEveryRun: false },
   argTypes: {
     streamMs: { control: { type: 'range', min: 1000, max: 20000, step: 500 } },
+    timed: {
+      description: 'Off for a thought resumed from a session that did not record how long it took',
+    },
     foldEveryRun: {
       description: 'Drawn as a terminal does: the whole thought shows while it streams',
     },
   },
-  render: ({ live, headings, streamMs, foldEveryRun }) => (
+  render: ({ live, headings, streamMs, timed, foldEveryRun }) => (
     <LiveReasoning
       // Remounts on any change so the stream starts over.
-      key={`${live}-${headings}-${streamMs}-${foldEveryRun}`}
+      key={`${live}-${headings}-${streamMs}-${timed}-${foldEveryRun}`}
       live={live}
       streamMs={streamMs}
+      timed={timed}
       foldEveryRun={foldEveryRun}
       text={
         headings
