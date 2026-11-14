@@ -347,11 +347,13 @@ describe('approval parts', () => {
         ],
       },
     ])
-    expect(screen.getByText('Postgres')).toBeInTheDocument()
-    expect(screen.getByText('the managed one')).toBeInTheDocument()
-    expect(screen.getByText('Lint, and the e2e suite')).toBeInTheDocument()
+    const replies = screen.getAllByTestId('ask-reply')
+    expect(replies).toHaveLength(2)
+    expect(replies[0]).toHaveTextContent('Answered: Postgres')
+    expect(replies[0]).toHaveTextContent('Notes the managed one')
+    expect(replies[1]).toHaveTextContent('Answered: Lint, and the e2e suite')
     expect(screen.getByText('No answer')).toBeInTheDocument()
-    expect(screen.getByText('Answered')).toBeInTheDocument()
+    expect(screen.queryByText('Chat about this')).not.toBeInTheDocument()
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
@@ -366,8 +368,9 @@ describe('approval parts', () => {
         answers: [{ notes: 'something in between' }],
       },
     ])
-    expect(screen.getByText('(notes only)')).toBeInTheDocument()
-    expect(screen.getByText('something in between')).toBeInTheDocument()
+    expect(screen.getByTestId('ask-reply')).toHaveTextContent(
+      'Answered: (notes only)Notes something in between',
+    )
   })
 
   it('says a resolved ask went to chat, keeping the answers given so far', () => {
@@ -382,9 +385,8 @@ describe('approval parts', () => {
         chat: true,
       },
     ])
-    expect(screen.getByText('Postgres')).toBeInTheDocument()
+    expect(screen.getByTestId('ask-reply')).toHaveTextContent('Postgres')
     expect(screen.getByText('Chat about this')).toBeInTheDocument()
-    expect(screen.queryByText('Answered')).not.toBeInTheDocument()
   })
 
   it('renders an older resolved ask with the one answer its record kept', () => {
@@ -399,7 +401,7 @@ describe('approval parts', () => {
       },
     ])
     expect(screen.getByText('Which db?')).toBeInTheDocument()
-    expect(screen.getByText('Answered: Postgres')).toBeInTheDocument()
+    expect(screen.getByTestId('ask-reply')).toHaveTextContent('Answered: Postgres')
   })
 
   it('renders a resolved approval inert with its answer', () => {
