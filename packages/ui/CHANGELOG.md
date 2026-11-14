@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.140.0](https://github.com/parallelworks/foundation/compare/ui-v0.139.1...ui-v0.140.0) (2026-11-14)
+
+
+### Features
+
+* **ui:** a host's own Stop beside a session view hands back what waits to the composer, as Escape does ([#778](https://github.com/parallelworks/foundation/issues/778)) ([21bc04e](https://github.com/parallelworks/foundation/commit/21bc04e522ffac9952fd40424bb3e868e2bff7f6))
+
 ## [0.139.1](https://github.com/parallelworks/foundation/compare/ui-v0.139.0...ui-v0.139.1) (2026-11-14)
 
 
