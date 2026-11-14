@@ -451,7 +451,7 @@ function ToolCallBlock({
   const drawingInPanel =
     !!children && !!presentation && !presentation.open && part.status !== 'waiting'
   const header = toolHeaderFor(part.name)
-  const argSummary = summarizeToolArgs(header.arg, part.args)
+  const argSummary = summarizeToolArgs(header.arg, part.args, header.argOnly)
   const isDiff = isEditDiffTool(part.name)
   // An edit's summary diffs its strings, so it is worked out once per change to
   // the part rather than on every render of a streaming transcript.
@@ -1554,7 +1554,7 @@ function CallGroup({
       {!open &&
         Tool &&
         drawnFolded.map(({ part, index }) => {
-          const args = summarizeToolArgs(header.arg, part.args)
+          const args = summarizeToolArgs(header.arg, part.args, header.argOnly)
           return (
             // Hidden whole when the host drew nothing for this call.
             <div key={index} className="mt-1.5 min-w-0 sm:ml-5 has-[>[data-drawing]:empty]:hidden">
