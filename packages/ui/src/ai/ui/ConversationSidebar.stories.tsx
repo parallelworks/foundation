@@ -152,11 +152,14 @@ function TaskSidebar({
   links = false,
   fill = false,
   keyboard = false,
+  loading = false,
   groupsStorageKey = 'storyTaskSidebarGroups',
   onToggle,
 }: {
   tasks: Task[]
   startCollapsed: boolean
+  /** The host is still fetching the tasks. */
+  loading?: boolean
   groupsStorageKey?: string
   fill?: boolean
   onToggle?: () => void
@@ -188,6 +191,7 @@ function TaskSidebar({
         groupsStorageKey={groupsStorageKey}
         getKey={(t) => t.id}
         cycle={{ current: open, onSelect: (t) => setOpenId(t.id) }}
+        loading={loading}
         placeholder={<EmptyState variant="bare" title="No tasks yet" />}
         renderRow={(t) => {
           const body = (
@@ -403,4 +407,15 @@ export const Rail: StoryObj = {
 
 export const Empty: StoryObj = {
   render: () => <TaskSidebar tasks={[]} startCollapsed={false} />,
+}
+
+/** While the host is still fetching, the list sketches its rows in a tint that shows on the
+ *  panel, and says once that it is loading. */
+export const Loading: StoryObj<{ loading: boolean }> = {
+  args: { loading: true },
+  argTypes: { loading: { control: 'boolean' } },
+  render: (args) => <TaskSidebar tasks={[]} startCollapsed={false} loading={args.loading} />,
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByRole('status')).toBeVisible()
+  },
 }
