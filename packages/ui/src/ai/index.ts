@@ -86,7 +86,7 @@ export {
   useChat,
   useChatStream,
 } from './core/ChatProvider'
-export type { PartRendererProps, ToolRendererProps } from './core/config'
+export type { PartRendererProps, ToolFooterProps, ToolRendererProps } from './core/config'
 export {
   type ChatLinkProps,
   type ChatUIConfig,

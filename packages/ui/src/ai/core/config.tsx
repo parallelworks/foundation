@@ -41,6 +41,13 @@ export interface ToolRendererProps {
   onApprovalAnswer?: (id: string, answer: ApprovalAnswerValue) => void
 }
 
+// What a host's footer for one tool receives. It draws under everything the
+// call shows, beside the package's own drawing rather than in place of it.
+export interface ToolFooterProps {
+  part: ToolCallPart
+  message: ChatMessage
+}
+
 export interface ChatLinkProps {
   target: ChatLinkTarget
   className?: string
@@ -92,6 +99,10 @@ export interface ChatUIConfig {
     // Per-tool drawings, by tool name, such as a live card for a host's own
     // platform tools.
     toolRenderers?: Record<string, ComponentType<ToolRendererProps>>
+    // Per-tool lines under a call, by tool name, such as an offer to move a
+    // running command to the background. Unlike a renderer, a footer leaves
+    // the call to the built-in drawing, so its calls still fold into runs.
+    toolFooters?: Record<string, ComponentType<ToolFooterProps>>
     // Words for a host's own tool calls in place of the raw call; a call it
     // returns nothing for is shown as the call itself.
     // The transcript supplies its message; an activity label may omit it.

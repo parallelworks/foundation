@@ -445,6 +445,7 @@ function ToolCallBlock({
   const t = strings.agentTranscript
   const [expanded, setExpanded] = useExpandable()
   const presentation = slots.toolPresentation?.(part, message)
+  const Footer = slots.toolFooters?.[part.name]
   // A named call keeps its drawing behind the row unless the host keeps it
   // open; a call waiting on an answer always shows what it asks.
   const drawingInPanel =
@@ -524,6 +525,11 @@ function ToolCallBlock({
         </div>
       )}
       {part.decision && <DecisionLine decision={part.decision} />}
+      {Footer && (
+        <div className="ml-5 min-w-0">
+          <Footer part={part} message={message} />
+        </div>
+      )}
     </div>
   )
 }
