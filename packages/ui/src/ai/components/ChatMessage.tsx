@@ -51,6 +51,9 @@ interface ChatMessageProps {
    *  from its first call, failures and running calls included, and a thought
    *  shows whole while it streams. */
   foldEveryRun?: boolean | undefined
+  /** A line under the message that stays in view, such as where a queued one
+   *  stands; the hover actions open below it rather than over it. */
+  status?: ReactNode
 }
 
 /** A message action: the chat's square, tinted from the ink on hover. */
@@ -112,6 +115,7 @@ function ChatMessage({
   onApprovalAnswer,
   flush,
   foldEveryRun,
+  status,
 }: ChatMessageProps) {
   const isUser = message.role === 'user'
   const isTool = message.role === 'tool'
@@ -508,6 +512,8 @@ function ChatMessage({
                 className={isRightAligned ? 'justify-end' : undefined}
               />
             )}
+
+            {status}
 
             {/* Holds the actions' room while the reply streams, so they appear without moving it */}
             {isStreaming && !isUser && <div aria-hidden className="mt-2 h-7" />}

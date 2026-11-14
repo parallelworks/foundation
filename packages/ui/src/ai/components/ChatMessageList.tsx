@@ -148,7 +148,6 @@ export default function ChatMessageList({
     [streamingParts],
   )
   const { strings } = useChatConfig()
-  const { common } = useStrings()
   const tThinking = strings.thinking
   // Stable across renders so memoized ChatMessage rows don't re-render on
   // every streamed token.
@@ -581,52 +580,20 @@ export default function ChatMessageList({
           )}
           {queuedMessages?.map((msg) => {
             const removable = canRemoveQueued?.(msg.id) ?? true
-            const status = !removable
-              ? strings.queue.handedOver
-              : (typeof queueDelivery === 'function' ? queueDelivery(msg.id) : queueDelivery) ===
-                  'nextStep'
-                ? strings.queue.waitingNextStep
-                : strings.queue.waiting
             return (
-              // Waiting, not faded: full-contrast text in an outline rather than
-              // a filled bubble, with a line saying when it reaches the model.
-              // One already handed to the running turn is sent, so it is filled.
-              <div key={msg.id} className={cx('animate-chat-enter', removable && 'chat-queued')}>
-                <ChatMessage
-                  message={msg}
-                  allMessages={allMessages}
-                  flush={flush}
-                  attachmentDownloadUrl={attachmentDownloadUrl}
-                  onOpenAttachment={onOpenAttachment}
-                />
-                <div
-                  data-testid="queued-status"
-                  className={cx(
-                    '-mt-4 mb-2 flex items-center justify-end gap-2 text-xs theme-muted-text',
-                    !flush && 'sm:px-4',
-                  )}
-                >
-                  {removable ? (
-                    <ClockIcon className="h-3 w-3" />
-                  ) : (
-                    <CheckIcon className="h-3 w-3" />
-                  )}
-                  <span>{status}</span>
-                  {onRemoveQueued && removable && (
-                    <>
-                      <span aria-hidden="true">·</span>
-                      <button
-                        type="button"
-                        aria-label={strings.queue.remove}
-                        onClick={() => onRemoveQueued(msg.id)}
-                        className="rounded font-medium underline-offset-2 hover:theme-text hover:underline"
-                      >
-                        {common.remove}
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
+              <QueuedMessage
+                key={msg.id}
+                message={msg}
+                allMessages={allMessages}
+                flush={flush}
+                attachmentDownloadUrl={attachmentDownloadUrl}
+                onOpenAttachment={onOpenAttachment}
+                handedOver={!removable}
+                delivery={
+                  typeof queueDelivery === 'function' ? queueDelivery(msg.id) : queueDelivery
+                }
+                onRemove={removable ? onRemoveQueued : undefined}
+              />
             )
           })}
           {footer}
@@ -752,6 +719,74 @@ function ThinkingLabel({
   }
   return t.thoughtFor(formatDuration(finalDuration ?? 0))
 }
+
+/** A message waiting on the running turn. Memoized apart from the list, which
+ *  re-renders for every streamed token while the queue waits under the reply. */
+const QueuedMessage = memo(function QueuedMessage({
+  message,
+  allMessages,
+  flush,
+  attachmentDownloadUrl,
+  onOpenAttachment,
+  handedOver,
+  delivery,
+  onRemove,
+}: {
+  message: Message
+  allMessages: Message[]
+  flush: boolean | undefined
+  attachmentDownloadUrl: ((id: string) => string) | undefined
+  onOpenAttachment: ComponentProps<typeof ChatMessage>['onOpenAttachment']
+  /** Already given to the running turn, so sent and no longer removable. */
+  handedOver: boolean
+  delivery: QueueDelivery
+  onRemove: ((id: string) => void) | undefined
+}) {
+  const { queue } = useChatConfig().strings
+  const { common } = useStrings()
+  return (
+    // Waiting, not faded: full-contrast text in an outline rather than a
+    // filled bubble, with a line saying when it reaches the model. One already
+    // handed to the running turn is sent, so it is filled.
+    <div className={cx('animate-chat-enter', !handedOver && 'chat-queued')}>
+      <ChatMessage
+        message={message}
+        allMessages={allMessages}
+        flush={flush}
+        attachmentDownloadUrl={attachmentDownloadUrl}
+        onOpenAttachment={onOpenAttachment}
+        status={
+          <div
+            data-testid="queued-status"
+            className="flex items-center justify-end gap-2 text-xs theme-muted-text"
+          >
+            {handedOver ? <CheckIcon className="h-3 w-3" /> : <ClockIcon className="h-3 w-3" />}
+            <span>
+              {handedOver
+                ? queue.handedOver
+                : delivery === 'nextStep'
+                  ? queue.waitingNextStep
+                  : queue.waiting}
+            </span>
+            {onRemove && (
+              <>
+                <span aria-hidden="true">·</span>
+                <button
+                  type="button"
+                  aria-label={queue.remove}
+                  onClick={() => onRemove(message.id)}
+                  className="rounded font-medium underline-offset-2 hover:theme-text hover:underline"
+                >
+                  {common.remove}
+                </button>
+              </>
+            )}
+          </div>
+        }
+      />
+    </div>
+  )
+})
 
 // The list's optional props arrive here as possibly undefined.
 type Passed<T> = { [K in keyof T]-?: T[K] | undefined }
