@@ -85,7 +85,7 @@
         "**/*.test.tsx",
         "ui/src/ai/stories/**",
         "ui/src/test/**",
-        "ui/src/components/Provider.tsx",
+        "ui/src/components/strings.tsx",
         "ui/src/ai/strings.tsx"
       ],
       "linter": {
