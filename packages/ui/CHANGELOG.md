@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.141.0](https://github.com/parallelworks/foundation/compare/ui-v0.140.0...ui-v0.141.0) (2026-11-14)
+
+
+### Features
+
+* **ui:** the slash command menu says what each command takes, and keeps saying it while its arguments are typed ([#777](https://github.com/parallelworks/foundation/issues/777)) ([ab7e767](https://github.com/parallelworks/foundation/commit/ab7e767bd4c1323fae084f3178578b8112e1d8b4))
+
 ## [0.140.0](https://github.com/parallelworks/foundation/compare/ui-v0.139.1...ui-v0.140.0) (2026-11-14)
 
 
