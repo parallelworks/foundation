@@ -347,11 +347,13 @@ describe('approval parts', () => {
         ],
       },
     ])
-    expect(screen.getByText('Postgres')).toBeInTheDocument()
-    expect(screen.getByText('the managed one')).toBeInTheDocument()
-    expect(screen.getByText('Lint, and the e2e suite')).toBeInTheDocument()
+    const replies = screen.getAllByTestId('ask-reply')
+    expect(replies).toHaveLength(2)
+    expect(replies[0]).toHaveTextContent('Answered: Postgres')
+    expect(replies[0]).toHaveTextContent('Notes the managed one')
+    expect(replies[1]).toHaveTextContent('Answered: Lint, and the e2e suite')
     expect(screen.getByText('No answer')).toBeInTheDocument()
-    expect(screen.getByText('Answered')).toBeInTheDocument()
+    expect(screen.queryByText('Chat about this')).not.toBeInTheDocument()
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
@@ -366,8 +368,9 @@ describe('approval parts', () => {
         answers: [{ notes: 'something in between' }],
       },
     ])
-    expect(screen.getByText('(notes only)')).toBeInTheDocument()
-    expect(screen.getByText('something in between')).toBeInTheDocument()
+    expect(screen.getByTestId('ask-reply')).toHaveTextContent(
+      'Answered: (notes only)Notes something in between',
+    )
   })
 
   it('says a resolved ask went to chat, keeping the answers given so far', () => {
@@ -382,9 +385,8 @@ describe('approval parts', () => {
         chat: true,
       },
     ])
-    expect(screen.getByText('Postgres')).toBeInTheDocument()
+    expect(screen.getByTestId('ask-reply')).toHaveTextContent('Postgres')
     expect(screen.getByText('Chat about this')).toBeInTheDocument()
-    expect(screen.queryByText('Answered')).not.toBeInTheDocument()
   })
 
   it('renders an older resolved ask with the one answer its record kept', () => {
@@ -399,7 +401,31 @@ describe('approval parts', () => {
       },
     ])
     expect(screen.getByText('Which db?')).toBeInTheDocument()
-    expect(screen.getByText('Answered: Postgres')).toBeInTheDocument()
+    expect(screen.getByTestId('ask-reply')).toHaveTextContent('Answered: Postgres')
+  })
+
+  it('shows the answers to questions it could not read', () => {
+    renderParts([
+      {
+        kind: 'approval',
+        id: 'a9',
+        approvalKind: 'ask',
+        questions: [],
+        resolved: true,
+        answers: [{ picked: ['Postgres'] }, {}, { text: 'Redis' }],
+      },
+    ])
+    const replies = screen.getAllByTestId('ask-reply')
+    expect(replies.map((r) => r.textContent)).toEqual(['Answered: Postgres', 'Answered: Redis'])
+    expect(screen.getByText('Answered')).toBeInTheDocument()
+  })
+
+  it('still says an ask was answered when it can show nothing of it', () => {
+    renderParts([
+      { kind: 'approval', id: 'a10', approvalKind: 'ask', questions: [], resolved: true },
+    ])
+    expect(screen.getByTestId('approval-part')).toHaveTextContent('Answered')
+    expect(screen.queryByTestId('ask-reply')).not.toBeInTheDocument()
   })
 
   it('renders a resolved approval inert with its answer', () => {

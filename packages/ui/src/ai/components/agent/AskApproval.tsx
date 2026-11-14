@@ -4,7 +4,7 @@ import { fieldBox, focusOutline } from '../../../components/fieldBox'
 import { useStrings } from '../../../components/Provider'
 import { TabPanel, Tabs } from '../../../components/Tabs'
 import { cx } from '../../../cx'
-import { ArrowRightIcon, ChatIcon, CheckIcon } from '../../../icons'
+import { ChatIcon, CheckIcon } from '../../../icons'
 import { type PartRendererProps, useChatConfig } from '../../core/config'
 import type { ApprovalPart, ApprovalQuestion, ApprovalQuestionAnswer } from '../../types'
 import Markdown from '../../ui/Markdown'
@@ -485,44 +485,71 @@ function OptionText({ label, description }: { label: string; description?: strin
   )
 }
 
+/** What the reader gave, set like their own message so it reads as their reply to the question above it. */
+function AskReply({ answer }: { answer: ApprovalQuestionAnswer }) {
+  const { strings } = useChatConfig()
+  const t = strings.agentTranscript
+  const given = joinAnswer(answer)
+  return (
+    <div
+      className="ms-auto w-fit max-w-[85%] rounded-2xl px-3 py-1.5 text-sm chat-ink chat-bubble-user whitespace-pre-wrap wrap-break-word"
+      data-testid="ask-reply"
+    >
+      <span className="sr-only">{t.answered}: </span>
+      {given ? (
+        <span className="block">{given}</span>
+      ) : (
+        <span className="block italic">{t.notesOnly}</span>
+      )}
+      {answer.notes && (
+        <span className="mt-0.5 block text-xs">
+          <span className="font-medium">{t.notesLabel}</span> {answer.notes}
+        </span>
+      )}
+    </div>
+  )
+}
+
 /** An older record has one `answer` in place of `answers`. */
 export function AskAnswered({ part }: { part: ApprovalPart }) {
   const { strings } = useChatConfig()
   const t = strings.agentTranscript
+  const questions = part.questions ?? []
   const answers = part.answers
+  const unpaired = questions.length === 0 ? (answers ?? []).filter(hasAnswer) : []
+  const legacy = !answers && part.answer ? part.answer : undefined
   return (
     <>
-      {(part.questions ?? []).map((q, i) => {
-        const notes = answers?.[i]?.notes
+      {questions.map((q, i) => {
+        const answer = answers?.[i]
         return (
-          <div key={q.question}>
-            <div className="theme-text">{q.question}</div>
-            {answers && (
-              <div className="flex items-center gap-1.5">
-                <ArrowRightIcon aria-hidden="true" className="size-3 shrink-0" />
-                {hasAnswer(answers[i]) ? (
-                  <span className="theme-text">{joinAnswer(answers[i]) || t.notesOnly}</span>
-                ) : (
-                  <span className="italic">{t.noAnswer}</span>
-                )}
-              </div>
-            )}
-            {notes && (
-              <div className="flex gap-1.5 pl-4.5">
-                <span className="shrink-0">{t.notesLabel}</span>
-                <span className="whitespace-pre-wrap theme-text">{notes}</span>
-              </div>
-            )}
+          <div key={q.question} className="space-y-1.5">
+            <div className="text-sm theme-text">{q.question}</div>
+            {answers &&
+              (answer && hasAnswer(answer) ? (
+                <AskReply answer={answer} />
+              ) : (
+                <div className="text-end italic">{t.noAnswer}</div>
+              ))}
           </div>
         )
       })}
-      <div className="flex items-center gap-2">
-        {part.chat ? <ChatIcon className="w-3.5 h-3.5" /> : <CheckIcon className="w-3.5 h-3.5" />}
-        <span>
-          {part.chat ? t.chatAboutThis : t.answered}
-          {!answers && part.answer ? `: ${part.answer}` : ''}
-        </span>
-      </div>
+      {unpaired.map((answer, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: a record's answers never reorder
+        <AskReply key={i} answer={answer} />
+      ))}
+      {legacy && <AskReply answer={{ text: legacy }} />}
+      {/* With no question to reply to, a reply alone doesn't say the ask was answered. */}
+      {(part.chat || questions.length === 0) && (
+        <div className="flex items-center gap-2">
+          {part.chat ? (
+            <ChatIcon aria-hidden="true" className="size-3.5" />
+          ) : (
+            <CheckIcon aria-hidden="true" className="size-3.5" />
+          )}
+          <span>{part.chat ? t.chatAboutThis : t.answered}</span>
+        </div>
+      )}
     </>
   )
 }

@@ -836,7 +836,10 @@ export function ApprovalBlock({
   if (part.resolved) {
     return (
       <div
-        className="my-1.5 rounded-lg border theme-border p-2.5 text-xs theme-muted-text space-y-1"
+        className={cx(
+          'my-1.5 rounded-lg border theme-border text-xs theme-muted-text',
+          part.approvalKind === 'ask' ? 'p-3 space-y-4' : 'p-2.5 space-y-1',
+        )}
         data-testid="approval-part"
       >
         {part.approvalKind === 'ask' ? (

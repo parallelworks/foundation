@@ -737,6 +737,10 @@ export function makeApprovalPart(options?: {
   previews?: boolean
   /** A path confirm's directory option names the directory it opens. */
   namedDirectory?: boolean
+  /** A resolved ask's first answer carries a note. */
+  notes?: boolean
+  /** A resolved ask's first answer is a long one the reader typed. */
+  longAnswer?: boolean
 }): ApprovalPart {
   const kind = options?.kind ?? 'confirm'
   const count = Math.min(Math.max(options?.questions ?? 1, 0), askSamples.length)
@@ -780,7 +784,20 @@ export function makeApprovalPart(options?: {
     if (kind === 'confirm') {
       base.answer = 'Allowed once'
     } else {
-      base.answers = askAnswerSamples.slice(0, count)
+      // An ask the card can't read still records what was answered.
+      const answers = askAnswerSamples.slice(0, Math.max(count, 1))
+      const [first = {}, ...rest] = answers
+      base.answers = [
+        {
+          ...(options.longAnswer
+            ? {
+                text: 'Shards 4 and 12, but only the jobs that failed on the self-hosted pool after the runner image update this morning',
+              }
+            : first),
+          ...(options.notes ? { notes: 'Skip the ones already marked flaky' } : {}),
+        },
+        ...rest,
+      ]
       if (options.chat) {
         base.chat = true
       }
