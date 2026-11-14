@@ -70,7 +70,11 @@ export {
   getProviderKeyFromModelId,
 } from './components/ModelSelector'
 export { default as ProviderIssueBanner } from './components/ProviderIssueBanner'
-export { default as SessionView, type SessionViewProps } from './components/SessionView'
+export {
+  default as SessionView,
+  type SessionViewHandle,
+  type SessionViewProps,
+} from './components/SessionView'
 export {
   default as ShareDialog,
   ShareButton,

@@ -1,12 +1,18 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import { type ComponentProps, type CSSProperties, useImperativeHandle } from 'react'
+import {
+  type ComponentProps,
+  type CSSProperties,
+  createRef,
+  type RefObject,
+  useImperativeHandle,
+} from 'react'
 import { mockCheckVisibility } from '../../test/visibility'
 import type { ChatMessage as Message } from '../types'
 import type ChatInput from './ChatInput'
 import type ChatMessageList from './ChatMessageList'
-import SessionView from './SessionView'
+import SessionView, { type SessionViewHandle } from './SessionView'
 
 const chat = { isStreaming: false, stopStreaming: vi.fn() }
 const markdown = { ready: true }
@@ -169,17 +175,20 @@ describe('SessionView', () => {
     expect(onStop).toHaveBeenCalledTimes(1)
   })
 
-  it.each([
+  it.each<[string, (view: RefObject<SessionViewHandle | null>) => unknown]>([
     ['Escape', () => pressEscape()],
     ['the composer’s Stop', () => composerProps?.turn?.onStop()],
+    ['the host’s own Stop', (view) => view.current?.stop()],
   ])(
     'hands what waits back to the composer before %s stops the turn, as a terminal does',
     async (_how, stopIt) => {
       let taken = () => {}
       recallComposer.mockImplementation(() => new Promise<void>((resolve) => (taken = resolve)))
       const onStop = vi.fn()
+      const view = createRef<SessionViewHandle>()
       render(
         <SessionView
+          ref={view}
           sessionKey="s1"
           messages={[ask]}
           onSend={vi.fn()}
@@ -187,7 +196,9 @@ describe('SessionView', () => {
           composer={{ recall: { available: true, take: vi.fn() } }}
         />,
       )
-      act(() => stopIt())
+      act(() => {
+        stopIt(view)
+      })
       expect(recallComposer).toHaveBeenCalledTimes(1)
       expect(onStop).not.toHaveBeenCalled()
       await act(async () => taken())
