@@ -127,7 +127,20 @@ export default function SessionView({
   const [editingId, setEditingId] = useState<string | null>(null)
   const { isStreaming: providerStreaming, stopStreaming } = useChat()
   const running = turn ? turn.running : providerStreaming
-  const stop = turn ? turn.onStop : stopStreaming
+  const hostStop = turn?.onStop
+  const takesBack = !!turn && !!composer?.recall?.available
+  // As a terminal does, a stop first hands what waits back to the composer;
+  // stopped first, the host would run it later unasked, or drop it.
+  const stop = useCallback(async () => {
+    if (!hostStop) {
+      stopStreaming()
+      return
+    }
+    if (takesBack) {
+      await inputRef.current?.recall()
+    }
+    hostStop()
+  }, [hostStop, takesBack, stopStreaming])
 
   // A transcript that arrives before the renderer would show its replies as
   // raw text, then reflow, so it waits; never longer than this, since raw text
@@ -157,7 +170,7 @@ export default function SessionView({
       (e) => e.key === 'Escape',
       (e) => {
         if (!e.defaultPrevented && !escapeClosesLayer(e.target)) {
-          stop()
+          void stop()
         }
       },
     )
@@ -218,7 +231,7 @@ export default function SessionView({
       onSend={send}
       conversationId={sessionKey}
       disabled={loading || !!composer?.disabled}
-      {...(turn ? { turn } : {})}
+      {...(turn ? { turn: { ...turn, onStop: () => void stop() } } : {})}
       {...(onEdit ? { onEditLastMessage: editLast } : {})}
     />
   )
