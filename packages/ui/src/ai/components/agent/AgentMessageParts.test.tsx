@@ -1023,8 +1023,8 @@ describe('rollup folding', () => {
     renderParts([tc('t1', 'GrepSearch'), tc('t2', 'GrepSearch'), tc('t3', 'ReadFile')])
     const rollup = screen.getByTestId('tool-rollup')
     expect(rollup).toHaveTextContent('Searched for 2 patterns, read 1 file')
-    // Members render but stay hidden until expanded.
-    expect(screen.getAllByTestId('tool-call-part')).toHaveLength(3)
+    // Members are drawn when the run is first opened.
+    expect(screen.queryAllByTestId('tool-call-part')).toHaveLength(0)
   })
 
   it('expands to reveal the member blocks with their own state', () => {
@@ -1036,6 +1036,8 @@ describe('rollup folding', () => {
     // Expand a member, refold the group, expand again: member stays expanded.
     fireEvent.click(screen.getAllByText('Read')[0]!)
     fireEvent.click(button)
+    // Refolded, the members stay mounted, which is what keeps their state.
+    expect(screen.getAllByTestId('tool-call-part')).toHaveLength(2)
     fireEvent.click(button)
     expect(screen.getAllByText('out').length).toBeGreaterThan(0)
   })
@@ -1161,11 +1163,12 @@ describe('foldEveryRun', () => {
     expect(screen.getByTestId('tool-rollup')).toHaveTextContent(
       'Searching for 1 pattern, reading 1 file…',
     )
-    expect(screen.getAllByTestId('tool-call-part')).toHaveLength(1)
+    // The finished call is in the fold, which draws it when opened.
+    expect(screen.queryAllByTestId('tool-call-part')).toHaveLength(0)
     act(() => {
       vi.advanceTimersByTime(1000)
     })
-    expect(screen.getAllByTestId('tool-call-part')).toHaveLength(2)
+    expect(screen.getAllByTestId('tool-call-part')).toHaveLength(1)
     rerender(folded([tc('t1', 'ReadFile'), tc('t2', 'GrepSearch')]))
     expect(screen.getByTestId('tool-rollup')).toHaveTextContent(
       'Searched for 1 pattern, read 1 file',

@@ -1413,6 +1413,12 @@ function RollupGroup({
 }) {
   const { strings, slots } = useChatConfig()
   const [open, setOpen] = useExpandable()
+  // A long turn folds thousands of calls that are never looked at, so a run's members are
+  // drawn when it is first opened.
+  const [opened, setOpened] = useState(open)
+  if (open && !opened) {
+    setOpened(true)
+  }
   const live = members.filter(isRunningCall)
   const settled = members.filter((m) => !isRunningCall(m))
   const running = live.length > 0
@@ -1452,8 +1458,8 @@ function RollupGroup({
         open={open}
         onOpenChange={setOpen}
         disabled={settled.length === 0}
-        // Members stay mounted so their own expand state survives refolding.
-        keepMounted
+        // Once drawn, members stay mounted so their own expand state survives refolding.
+        keepMounted={opened}
         summaryClassName={rowSummaryClasses}
         summary={
           <>
