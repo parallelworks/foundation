@@ -234,6 +234,30 @@ export const SlashCommandsLoading: StoryObj<SlashStoryArgs> = {
   args: { typed: '/', loading: true },
 }
 
+// Two characters into a `:shortcode`, the emoji that match it are listed above the box,
+// those whose names start with it first. Enter or Tab puts the highlighted one in place of
+// the shortcode, and Escape closes the list until the shortcode changes. The play types
+// `typed`.
+export const EmojiShortcodes: StoryObj<{ typed: string }> = {
+  args: { typed: 'Ship it :ro' },
+  argTypes: { typed: { control: 'text', description: 'Typed into the composer' } },
+  render: () => (
+    <StoryChat>
+      <div>
+        <ChatInput
+          onSend={send}
+          attachments={false}
+          requireModel={false}
+          conversationId="conv-emoji"
+        />
+      </div>
+    </StoryChat>
+  ),
+  play: async ({ canvasElement, args }) => {
+    await userEvent.type(within(canvasElement).getByRole('textbox'), args.typed)
+  },
+}
+
 type SharedProvidersStoryArgs = {
   pickerOpen: boolean
   listProviders: boolean

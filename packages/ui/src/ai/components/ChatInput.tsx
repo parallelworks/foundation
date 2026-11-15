@@ -25,6 +25,7 @@ import ComposerAddMenu from './ComposerAddMenu'
 import { ComposerContext, ComposerControls, ComposerSettings } from './ComposerChrome'
 import { clearDraft, readDraft, storeDraft, sweepDrafts } from './chatDraft'
 import DragOverlay from './DragOverlay'
+import { EmojiMenu, useEmojiMenu } from './EmojiMenu'
 import { closeShortcode } from './emojiShortcode'
 import { PasteFileCard } from './PastedText'
 import { SlashArgumentHint, SlashMenu, type SlashMenuConfig, useSlashMenu } from './SlashMenu'
@@ -248,6 +249,9 @@ export default function ChatInput({
   ref,
 }: ChatInputProps) {
   const [input, setInput] = useState(() => readDraft(conversationId))
+  // For the emoji menu, which offers what is typed just before the caret; null while text is
+  // selected.
+  const [caret, setCaret] = useState<number | null>(null)
   // Messages taken back together share the box, so one to forget can be on any line.
   const forgets = (value: string) => {
     const skip = history?.skip
@@ -375,6 +379,7 @@ export default function ChatInput({
     if (previousConversationRef.current !== conversationId) {
       previousConversationRef.current = conversationId
       setInput(readDraft(conversationId))
+      setCaret(null)
       takeCards()
     }
   }, [conversationId, takeCards])
@@ -384,17 +389,25 @@ export default function ChatInput({
     saveDraft(value)
   }
 
+  const readCaret = (el: HTMLTextAreaElement) =>
+    setCaret(el.selectionStart === el.selectionEnd ? el.selectionStart : null)
+
+  // Written to the box itself so the caret stays beside the emoji instead of jumping to the end
+  // when React applies the new value.
+  const putEmoji = (el: HTMLTextAreaElement, text: string, at: number) => {
+    el.value = text
+    el.setSelectionRange(at, at)
+  }
+
   const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     const el = e.currentTarget
     // An input method still composing owns the text until it commits.
     const composing = 'isComposing' in e.nativeEvent && e.nativeEvent.isComposing === true
     const emoji = composing ? null : closeShortcode(input, el.value, el.selectionStart)
     if (emoji) {
-      // Written to the box itself so the caret stays beside the emoji instead of jumping to the
-      // end when React applies the new value.
-      el.value = emoji.text
-      el.setSelectionRange(emoji.caret, emoji.caret)
+      putEmoji(el, emoji.text, emoji.caret)
     }
+    readCaret(el)
     setInputAndPersist(el.value)
   }
 
@@ -559,6 +572,15 @@ export default function ChatInput({
     composerHistory.recalled ? undefined : slash,
     setInputAndPersist,
   )
+  const emojiMenu = useEmojiMenu(input, caret, !composerHistory.recalled, (text, at) => {
+    const el = textareaRef.current
+    if (el) {
+      putEmoji(el, text, at)
+      el.focus()
+    }
+    setCaret(at)
+    setInputAndPersist(text)
+  })
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (recallKey(e)) {
@@ -570,7 +592,7 @@ export default function ChatInput({
       e.preventDefault()
       return
     }
-    if (slashMenu.handleKey(e)) {
+    if (slashMenu.handleKey(e) || emojiMenu.handleKey(e)) {
       return
     }
     const action = keyAction(e, input.trim() === '', !!onEditLastMessage)
@@ -672,7 +694,11 @@ export default function ChatInput({
                 }}
               />
             )}
-            {slashMenu.argumentHint && <SlashArgumentHint hint={slashMenu.argumentHint} />}
+            {emojiMenu.open ? (
+              <EmojiMenu label={t.emoji} menu={emojiMenu} />
+            ) : (
+              slashMenu.argumentHint && <SlashArgumentHint hint={slashMenu.argumentHint} />
+            )}
             {/* One box holds the text and everything that acts on it: what is
               attached above, the attach and send controls in a toolbar
               under the text, and the model on that toolbar's right, so the
@@ -700,7 +726,9 @@ export default function ChatInput({
                     onChange={handleChange}
                     onKeyDown={handleKeyDown}
                     onPaste={handlePaste}
+                    onSelect={(e) => readCaret(e.currentTarget)}
                     {...slashMenu.inputProps}
+                    {...emojiMenu.inputProps}
                     placeholder={shownPlaceholder}
                     aria-label={inputLabel ?? effectivePlaceholder}
                     disabled={disabled}

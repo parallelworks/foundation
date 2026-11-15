@@ -131,6 +131,8 @@ export interface ChatStrings {
     filesAttached: (count: number) => string
     /** In the slash menu while the host is still loading its commands. */
     loadingCommands: string
+    /** Names the list of emoji offered while a `:shortcode` is typed. */
+    emoji: string
   }
   paste: {
     title: string
@@ -543,6 +545,7 @@ export const defaultChatStrings: ChatStrings = {
     sendMessage: 'Send message (Enter)',
     filesAttached: (count) => `${countOf(count, 'file', 'files')} attached`,
     loadingCommands: 'Loading commands…',
+    emoji: 'Emoji',
   },
   paste: {
     title: 'Pasted text',
