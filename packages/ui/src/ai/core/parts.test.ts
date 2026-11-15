@@ -160,6 +160,19 @@ describe('applyPartDelta', () => {
     expect(parts).toMatchObject([{ status: 'failed', interrupted: true }])
   })
 
+  it("reads a child a turn's end took for cut off as its own end says", () => {
+    const closed = finalizeParts(applyPartDelta([], { type: 'subagent_start', id: 's1' }))
+    expect(closed).toMatchObject([{ status: 'failed', interrupted: true }])
+    const parts = applyPartDelta(closed, {
+      type: 'subagent_end',
+      id: 's1',
+      ok: true,
+      summary: '3 findings',
+    })
+    expect(parts).toMatchObject([{ status: 'done', summary: '3 findings' }])
+    expect(parts[0]).not.toHaveProperty('interrupted')
+  })
+
   it('appends approvals and resolves them in place', () => {
     let parts = applyPartDelta([], {
       type: 'approval_request',
