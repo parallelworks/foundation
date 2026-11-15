@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.143.0](https://github.com/parallelworks/foundation/compare/ui-v0.142.0...ui-v0.143.0) (2026-11-15)
+
+
+### Features
+
+* **ui:** ↑ in the composer also recalls what a reopened conversation sent before this tab ([#784](https://github.com/parallelworks/foundation/issues/784)) ([dce1516](https://github.com/parallelworks/foundation/commit/dce1516313454153533f74ab4ef90245bd912bbf))
+
 ## [0.142.0](https://github.com/parallelworks/foundation/compare/ui-v0.141.0...ui-v0.142.0) (2026-11-15)
 
 
