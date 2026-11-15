@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { summarizeToolArgs } from '../../agent/toolfmt'
 import { ChatConfigProvider, resolveChatConfig } from '../../core/config'
@@ -40,6 +40,13 @@ function view(parts: MessagePart[], foldEveryRun: boolean) {
   )
 }
 
+/** Opens each run, which draws its calls. */
+function openRuns() {
+  for (const run of screen.getAllByTestId('tool-rollup')) {
+    fireEvent.click(within(run).getAllByRole('button')[0] as HTMLElement)
+  }
+}
+
 beforeEach(() => {
   drawn.mockClear()
 })
@@ -53,8 +60,19 @@ describe.each([
   const done = Array.from({ length: 6 }, (_, i) => call(i))
   const reply = (text: string): MessagePart[] => [...done, { kind: 'text', text }]
 
+  // A long turn folds thousands of calls, and most runs are never opened.
+  it('draws none of the calls of a run until it is opened', () => {
+    render(view(reply('Look'), foldEveryRun))
+    expect(drawn).not.toHaveBeenCalled()
+    expect(screen.getByTestId('tool-rollup')).toHaveTextContent('ran 3 shell commands')
+
+    openRuns()
+    expect(drawn).toHaveBeenCalledTimes(done.length)
+  })
+
   it('draws none of its finished calls again for a token of the reply', () => {
     const { rerender } = render(view(reply('Look'), foldEveryRun))
+    openRuns()
     expect(drawn).toHaveBeenCalledTimes(done.length)
 
     drawn.mockClear()
@@ -68,12 +86,12 @@ describe.each([
 
   it('draws again only the call that changed', () => {
     const running = call(6, { status: 'running', result: undefined as never })
-    const { rerender } = render(view([...reply('Looking'), running], foldEveryRun))
+    const text: MessagePart = { kind: 'text', text: 'Looking' }
+    const { rerender } = render(view([...done, running, text], foldEveryRun))
+    openRuns()
 
     drawn.mockClear()
-    rerender(
-      view([...reply('Looking'), { ...running, status: 'ok', result: 'done' }], foldEveryRun),
-    )
+    rerender(view([...done, { ...running, status: 'ok', result: 'done' }, text], foldEveryRun))
 
     expect(drawn.mock.calls.map(([, args]) => args)).toEqual([running.args])
   })
