@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { act, render, screen } from '@testing-library/react'
+import { hydrateRoot, type Root } from 'react-dom/client'
+import { renderToString } from 'react-dom/server'
 import { useClock } from './clock'
 
 const START = new Date('2026-01-01T12:00:00Z')
@@ -44,5 +46,25 @@ describe('useClock', () => {
     }
     render(<Stopped />)
     expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('hydrates from one reading of the time, though the time moves on every read', async () => {
+    let time = START.getTime()
+    vi.spyOn(Date, 'now').mockImplementation(() => time++)
+    function Moment() {
+      return <span>{useClock((now) => now) > 0 ? 'now' : ''}</span>
+    }
+    const container = document.createElement('div')
+    container.innerHTML = renderToString(<Moment />)
+    await new Promise((resolve) => setTimeout(resolve))
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    let root: Root | undefined
+    await act(async () => {
+      root = hydrateRoot(container, <Moment />)
+    })
+    expect(errors).not.toHaveBeenCalled()
+    expect(container.textContent).toBe('now')
+    act(() => root?.unmount())
+    errors.mockRestore()
   })
 })

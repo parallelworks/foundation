@@ -6,7 +6,7 @@ so an application ships only what it imports:
 | Subpath                                                                                                      | Contents                                                                                                                                                              |
 | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `.`                                                                                                          | theme contract, primitives (buttons, inputs, tables, tooltips, modals, dropdowns, settings layouts, page header), `UIProvider`                                        |
-| `./headless`                                                                                                 | the formatters, `useStrings`, `UIStringsProvider` and `useClock` with nothing to draw them: no component, stylesheet or DOM-only package comes with it                |
+| `./headless`                                                                                                 | the formatters, `useStrings`, `UIStringsProvider`, `useLocale` and `useClock` with nothing to draw them: no component, stylesheet or DOM-only package comes with it   |
 | `./theme`                                                                                                    | theme seeds and presets, `generateTheme`, `applyTheme`, `fitSeed`                                                                                                     |
 | `./icons`                                                                                                    | the icon barrel                                                                                                                                                       |
 | `./app-frame`                                                                                                | inset application frame, resizable navigation, icon rail, and mobile drawer                                                                                           |
@@ -89,22 +89,43 @@ so a popup over the page would open under it, out of reach.
 
 `@parallelworks/ui/headless` is what the root entry has that draws nothing: the
 formatters (`formatDuration`, `formatDateTime`, `formatTimeLeft`, `formatCount`,
-`formatBytes`), `useStrings` and `useClock`. It reaches React, luxon and dequal,
-none of which needs a DOM, and no component or stylesheet, so a host that draws
-with something else, such as a native app, imports them without the components
-coming along:
+`formatBytes`), `useStrings`, `useLocale` and `useClock`. It reaches React, luxon
+and dequal, none of which needs a DOM, and no component or stylesheet, so a host
+that draws with something else, such as a native app, imports them without the
+components coming along:
 
 ```ts
-import { formatDuration, useClock, useStrings } from '@parallelworks/ui/headless'
+import { formatDuration, useClock, useLocale, useStrings } from '@parallelworks/ui/headless'
 ```
 
 They are the root entry's own functions, not copies, so a hook built on them
-reads `UIProvider`'s strings under it. A host that can't render `UIProvider`
-passes the same `strings` to `UIStringsProvider`, which this entry adds:
+reads `UIProvider`'s strings and locale under it. A host that can't render
+`UIProvider` passes the same `strings` and `locale` to `UIStringsProvider`, which
+this entry adds:
 
 ```tsx
-;<UIStringsProvider strings={{ time: { now: 'jetzt' } }}>{app}</UIStringsProvider>
+;<UIStringsProvider strings={{ time: { now: 'jetzt' } }} locale="de-DE">
+  {app}
+</UIStringsProvider>
 ```
+
+Neither headless entry constructs anything from `Intl` as it loads, but some
+functions format with `Intl` features an engine may lack, or implement only in
+part:
+
+- `formatDuration` and `formatTimeLeft` join the units with `Intl.ListFormat`,
+  and write each with `Intl.NumberFormat`'s `unit` style.
+- `formatCount` uses `Intl.NumberFormat`'s `compact` notation.
+- `defaultToolStrings` from `@parallelworks/ui/ai/headless` chooses English
+  plurals with `Intl.PluralRules`, and so do `toolSummary`, `editSummary`,
+  `rollupSentence` and `rollupClauses` when they aren't given other strings.
+
+The rest need only `Intl.DateTimeFormat` and a plain `Intl.NumberFormat`. A host
+on an engine without these loads the FormatJS polyfills, with the locale data
+for its languages, before anything imports the package: `@formatjs/intl-locale`,
+`@formatjs/intl-pluralrules`, `@formatjs/intl-numberformat` from its
+`polyfill-force.js`, since an engine's own may ignore `compact` and `unit`, then
+`@formatjs/intl-listformat`.
 
 ## Which component?
 
@@ -1158,7 +1179,8 @@ components keeps importing from there.
 Loading either headless entry constructs nothing from `Intl`, so it imports on
 a JS engine without `Intl.PluralRules`, such as Hermes. The English tool
 summaries in `defaultToolStrings` still choose a plural with it when they
-format, so such a host polyfills it or passes its own strings.
+format, so such a host polyfills it, as [Without a DOM](#without-a-dom) says,
+or passes its own strings.
 
 ## Form state
 

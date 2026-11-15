@@ -4,6 +4,7 @@ const MISSING = [
   'PluralRules',
   'RelativeTimeFormat',
   'ListFormat',
+  'Locale',
   'Segmenter',
   'DisplayNames',
 ] as const
