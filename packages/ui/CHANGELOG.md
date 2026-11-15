@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.144.2](https://github.com/parallelworks/foundation/compare/ui-v0.144.1...ui-v0.144.2) (2026-11-15)
+
+
+### Performance Improvements
+
+* **ui:** a folded run of tool calls draws its calls when it is first opened, not with the transcript ([#791](https://github.com/parallelworks/foundation/issues/791)) ([c71a8b7](https://github.com/parallelworks/foundation/commit/c71a8b7c4c741823ebba0af0d2c171870cf45d72))
+* **ui:** an edit's diff in a transcript is colored when it comes near the screen, not when the transcript is drawn ([#792](https://github.com/parallelworks/foundation/issues/792)) ([2a56795](https://github.com/parallelworks/foundation/commit/2a56795fa40afe77d9b29b81c3c32bc745e7519c))
+
 ## [0.144.1](https://github.com/parallelworks/foundation/compare/ui-v0.144.0...ui-v0.144.1) (2026-11-15)
 
 
