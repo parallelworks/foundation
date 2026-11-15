@@ -568,6 +568,8 @@ export interface AppFrameNavGroupProps
   defaultOpen?: boolean
   /** Keep `open` in `usePersistedState` to remember it. */
   onOpenChange?: (open: boolean) => void
+  /** How many items it holds, shown beside its heading while it is folded. */
+  count?: number
   /** A control at the heading's end, such as a menu or an add button. It shows while the
    *  heading is hovered or focused, and not in the rail. */
   action?: ReactNode
@@ -589,6 +591,7 @@ export function AppFrameNavGroup({
   open,
   defaultOpen = true,
   onOpenChange,
+  count,
   action,
   onClick,
   href,
@@ -599,6 +602,8 @@ export function AppFrameNavGroup({
   ...rest
 }: AppFrameNavGroupProps) {
   const frame = useFrameContext()
+  const [ownOpen, setOwnOpen] = useState(defaultOpen)
+  const isOpen = open ?? ownOpen
   const depth = use(NavDepth)
   const expanded = use(NavExpanded) ?? frame.expanded
   const nested = depth > 0 || href != null
@@ -677,6 +682,12 @@ export function AppFrameNavGroup({
         </span>
       )}
       <span className="pw-frame-nav-label">{label}</span>
+      {/* Out of the heading's name, which would otherwise run the two together. */}
+      {collapsible && !isOpen && count != null && (
+        <span aria-hidden="true" className="pw-frame-nav-group-count">
+          {count}
+        </span>
+      )}
     </>
   )
   const chevron = <ChevronRightIcon aria-hidden="true" className="pw-frame-nav-group-chevron" />
@@ -715,9 +726,11 @@ export function AppFrameNavGroup({
   return (
     <Collapsible.Root
       className={groupClass}
-      open={open}
-      defaultOpen={defaultOpen}
-      onOpenChange={(next) => onOpenChange?.(next)}
+      open={isOpen}
+      onOpenChange={(next) => {
+        setOwnOpen(next)
+        onOpenChange?.(next)
+      }}
     >
       {withAction(
         page ? (

@@ -13,8 +13,20 @@ import {
   useAppFrameTakeover,
 } from './index'
 
+const storage = new Map<string, string>()
+Object.defineProperty(window, 'localStorage', {
+  configurable: true,
+  value: {
+    getItem: (k: string) => storage.get(k) ?? null,
+    setItem: (k: string, v: string) => storage.set(k, String(v)),
+    removeItem: (k: string) => storage.delete(k),
+    clear: () => storage.clear(),
+  },
+})
+
 let mobile = true
 beforeEach(() => {
+  storage.clear()
   mobile = true
   vi.stubGlobal(
     'matchMedia',
@@ -36,10 +48,12 @@ function Host({
   enabled = true,
   rows = true,
   top,
+  groupsStorageKey,
 }: {
   enabled?: boolean
   rows?: boolean
   top?: ReactNode
+  groupsStorageKey?: string
 }) {
   const takeover = useAppFrameTakeover(enabled)
   return (
@@ -84,6 +98,7 @@ function Host({
                 ]
               : []
           }
+          {...(groupsStorageKey ? { groupsStorageKey } : {})}
           empty={<p>No sessions yet</p>}
           openMenu={openMenu}
         >
@@ -139,6 +154,36 @@ describe('AppFrame list takeover', () => {
     expect(drawer.getByText('Projects')).toBeInTheDocument()
     expect(drawer.queryByText('Flaky sign-in test')).not.toBeInTheDocument()
     expect(drawer.queryByRole('button', { name: 'Main menu' })).not.toBeInTheDocument()
+  })
+
+  it('folds a group from its heading, counts its rows, and remembers it under its key', () => {
+    const { unmount } = render(<Host groupsStorageKey="sessionGroups" />)
+    const drawer = openDrawer()
+    const recent = drawer.getByRole('button', { name: 'Recent' })
+    expect(recent).toHaveAttribute('aria-expanded', 'true')
+    expect(recent).toHaveTextContent(/^Recent$/)
+    fireEvent.click(recent)
+    expect(recent).toHaveAttribute('aria-expanded', 'false')
+    expect(recent).toHaveTextContent(/^Recent2$/)
+    expect(drawer.getByRole('button', { name: 'Recent' })).toBe(recent)
+    expect(drawer.queryByText('Flaky sign-in test')).not.toBeInTheDocument()
+    expect(JSON.parse(storage.get('sessionGroups') ?? '')).toEqual(['recent'])
+    unmount()
+
+    render(<Host groupsStorageKey="sessionGroups" />)
+    const again = openDrawer()
+    expect(again.queryByText('Flaky sign-in test')).not.toBeInTheDocument()
+    fireEvent.click(again.getByRole('button', { name: 'Recent' }))
+    expect(again.getByText('Flaky sign-in test')).toBeInTheDocument()
+    expect(JSON.parse(storage.get('sessionGroups') ?? '')).toEqual([])
+  })
+
+  it('folds the groups a conversation list folded under the same key', () => {
+    storage.set('aiChatSidebarCollapsedGroups', JSON.stringify(['recent']))
+    render(<Host />)
+    const drawer = openDrawer()
+    expect(drawer.getByRole('button', { name: 'Recent' })).toHaveAttribute('aria-expanded', 'false')
+    expect(drawer.queryByText('Flaky sign-in test')).not.toBeInTheDocument()
   })
 
   it('says so in place of the groups when there are none', () => {

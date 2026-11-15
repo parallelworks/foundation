@@ -2,12 +2,14 @@ import {
   Fragment,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
-  useCallback,
   useEffect,
   useId,
-  useMemo,
   useRef,
 } from 'react'
+import {
+  SHARED_COLLAPSED_GROUPS_STORAGE_KEY,
+  useCollapsedGroups,
+} from '../../components/collapsedGroups'
 import { Drawer } from '../../components/Drawer'
 import { positionKeys } from '../../components/keys'
 import { usePersistedState } from '../../components/Provider'
@@ -53,33 +55,9 @@ export interface ConversationSidebarGroup<T> {
   items: T[]
 }
 
-// Lists that name no key of their own share one, as they share a width.
-const SHARED_COLLAPSED_GROUPS_STORAGE_KEY = 'aiChatSidebarCollapsedGroups'
-
 // A skeleton's own color is this panel's, so its rows take a tint of the ink, as a row's
 // highlight does.
 const SKELETON_TINT = 'bg-[color-mix(in_oklab,var(--theme-app)_10%,transparent)]'
-
-/** The keys of the groups the reader folded. A key stays while its group is gone, emptied or
- *  filtered out, so the group comes back folded. */
-function useCollapsedGroups(storageKey: string) {
-  const [stored, setStored] = usePersistedState<string[]>(storageKey, [])
-  const collapsed = useMemo(() => new Set(storedKeys(stored)), [stored])
-  const toggle = useCallback(
-    (key: string) =>
-      setStored((prev) => {
-        const keys = storedKeys(prev)
-        return keys.includes(key) ? keys.filter((k) => k !== key) : [...keys, key]
-      }),
-    [setStored],
-  )
-  return { collapsed, toggle }
-}
-
-// What was stored is only trusted as a list of keys.
-function storedKeys(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((k): k is string => typeof k === 'string') : []
-}
 
 /** Steps through the listed items in order and wraps, so moving between
  *  conversations never needs the pointer. */

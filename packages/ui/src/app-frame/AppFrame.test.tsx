@@ -318,6 +318,26 @@ describe('AppFrame', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
     expect(screen.queryByRole('link', { name: 'Clusters' })).not.toBeInTheDocument()
   })
+  it('shows how many items a group holds while it is folded, outside its name', () => {
+    render(
+      <AppFrame
+        {...props}
+        navigation={
+          <AppFrameNavGroup label="Compute" count={2} defaultOpen={false}>
+            <AppFrameNavItem label="Clusters" href="#clusters" />
+            <AppFrameNavItem label="Storage" href="#storage" />
+          </AppFrameNavGroup>
+        }
+      />,
+    )
+    const heading = screen.getByRole('button', { name: 'Compute' })
+    expect(heading).toHaveTextContent(/^Compute2$/)
+    fireEvent.click(heading)
+    expect(heading).toHaveAttribute('aria-expanded', 'true')
+    expect(heading).toHaveTextContent(/^Compute$/)
+    fireEvent.click(heading)
+    expect(heading).toHaveTextContent(/^Compute2$/)
+  })
   it('opens a collapsed group beside the rail with its items labeled', async () => {
     render(
       <AppFrame
