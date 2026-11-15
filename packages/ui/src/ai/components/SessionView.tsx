@@ -291,6 +291,7 @@ export default function SessionView({
             {...(flush ? { flush } : {})}
             {...(foldEveryRun ? { foldEveryRun } : {})}
             {...(pinPrompt ? { pinPrompt } : {})}
+            whole={finder.open}
             workingIndicator={workingIndicator ?? !activity}
             inputElement={input}
           />

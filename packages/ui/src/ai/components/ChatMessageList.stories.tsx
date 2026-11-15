@@ -8,6 +8,7 @@ import {
   makePaste,
   makePasteText,
   makeStaticAdapter,
+  makeToolCallPart,
   StoryChat,
   StoryViewport,
   useStreamedText,
@@ -237,6 +238,33 @@ const longReplies: ChatMessage[] = [
 // thread, scrolled to its end, ends on the answer's last line.
 export const LongReplies: StoryObj = {
   render: () => <MessageList messages={longReplies} allMessages={longReplies} />,
+}
+
+const agentSession: ChatMessage[] = Array.from({ length: 40 }, (_, n) => [
+  makeMessage({
+    id: `ask-${n}`,
+    role: 'user',
+    content: `Run shard ${n + 1} and tell me what failed.`,
+  }),
+  makeMessage({
+    id: `work-${n}`,
+    role: 'assistant',
+    content: null,
+    parts: [
+      ...Array.from({ length: 60 }, () => makeToolCallPart({ resultLines: 2 })),
+      { kind: 'text', text: `Shard ${n + 1} passed once the flaky wait was retried.` },
+    ],
+  }),
+]).flat()
+
+// Forty turns of sixty tool calls each: the list draws the last few turns,
+// and the ones before them as you scroll up. Whole draws every turn, as a
+// search of the conversation does.
+export const LongAgentSession: StoryObj<{ whole: boolean }> = {
+  args: { whole: false },
+  render: ({ whole }) => (
+    <MessageList messages={agentSession} allMessages={agentSession} foldEveryRun whole={whole} />
+  ),
 }
 
 const reasoned: ChatMessage[] = [
