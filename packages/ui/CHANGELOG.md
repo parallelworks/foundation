@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.144.1](https://github.com/parallelworks/foundation/compare/ui-v0.144.0...ui-v0.144.1) (2026-11-15)
+
+
+### Bug Fixes
+
+* **ui:** a subagent card a turn's end marked interrupted still says so after the subagent finishes ([#787](https://github.com/parallelworks/foundation/issues/787)) ([3955fea](https://github.com/parallelworks/foundation/commit/3955fea9a849ed5dfdcd2825dedd70af3fd270fd))
+
 ## [0.144.0](https://github.com/parallelworks/foundation/compare/ui-v0.143.0...ui-v0.144.0) (2026-11-15)
 
 
