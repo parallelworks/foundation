@@ -9,7 +9,9 @@ const MINUTE = 60_000
 const nextRequest = () => new Promise((resolve) => setTimeout(resolve))
 
 beforeEach(() => {
-  vi.useFakeTimers({ toFake: ['Date'] })
+  // queueMicrotask too, as some runners' fake timers do by default, running it only when a test
+  // advances them.
+  vi.useFakeTimers({ toFake: ['Date', 'queueMicrotask'] })
   vi.setSystemTime(START)
 })
 

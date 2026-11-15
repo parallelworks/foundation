@@ -121,11 +121,24 @@ part:
   `rollupSentence` and `rollupClauses` when they aren't given other strings.
 
 The rest need only `Intl.DateTimeFormat` and a plain `Intl.NumberFormat`. A host
-on an engine without these loads the FormatJS polyfills, with the locale data
-for its languages, before anything imports the package: `@formatjs/intl-locale`,
-`@formatjs/intl-pluralrules`, `@formatjs/intl-numberformat` from its
-`polyfill-force.js`, since an engine's own may ignore `compact` and `unit`, then
-`@formatjs/intl-listformat`.
+on an engine without the features above loads the FormatJS polyfills before
+anything imports the package. Each installs itself from its `polyfill.js`, not
+its package name, and they load in this order, since the later ones need
+`Intl.Locale` and the number format needs the plural rules. The number format is
+forced, as an engine's own may ignore `compact` and `unit`. Three of them take
+locale data for the host's languages, `de` here, and the plural rules take
+English too, for the English defaults:
+
+```ts
+import '@formatjs/intl-locale/polyfill.js'
+import '@formatjs/intl-pluralrules/polyfill.js'
+import '@formatjs/intl-pluralrules/locale-data/en.js'
+import '@formatjs/intl-pluralrules/locale-data/de.js'
+import '@formatjs/intl-numberformat/polyfill-force.js'
+import '@formatjs/intl-numberformat/locale-data/de.js'
+import '@formatjs/intl-listformat/polyfill.js'
+import '@formatjs/intl-listformat/locale-data/de.js'
+```
 
 ## Which component?
 

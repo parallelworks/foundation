@@ -35,13 +35,15 @@ let readThisTask = false
 
 // Nothing subscribes on a server, so no timer moves the clock there. While no clock runs, a render
 // reads the time itself, or a long-lived server would show every time as of when it loaded this
-// module. It reads once per task, so every clock in one render agrees, and React, which reads
-// twice in a row while hydrating to check the answer holds, gets the same one.
+// module. It reads once per task, so every clock in one render agrees, and React, which in
+// development reads twice in a row while hydrating to check the answer holds, gets the same one.
+// A promise clears the reading, not queueMicrotask, which a test's fake timers may replace and
+// never run, holding every later render at this time.
 function renderedNow(): number {
   if (!timer && !readThisTask) {
     now = Date.now()
     readThisTask = true
-    queueMicrotask(() => {
+    Promise.resolve().then(() => {
       readThisTask = false
     })
   }
