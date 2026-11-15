@@ -4,6 +4,7 @@ import type { FileExplorerText } from '../file-explorer/strings'
 import type { GraphEditorText, InputsEditorText } from '../graph/editorStrings'
 import type { FilterOperator } from '../list/filterModel'
 import { useMerged } from './byValue'
+import { LocaleContext, useLocale } from './locale'
 
 export interface UIStrings {
   modal: {
@@ -537,8 +538,6 @@ export type ErrorPageKind =
   | 'server'
   | 'network'
 
-/** What a host passes to translate the strings: any group, any string in it, at any depth.
- *  A string it leaves out stays in English. */
 const OPERATOR_WORDS: Record<FilterOperator, (count: number) => string> = {
   is: (n) => (n > 1 ? 'is any of' : 'is'),
   isNot: (n) => (n > 1 ? 'is none of' : 'is not'),
@@ -568,6 +567,8 @@ function dayFormat(locale: string | undefined) {
   return formats
 }
 
+/** What a host passes to translate the strings: any group, any string in it, at any depth.
+ *  A string it leaves out stays in English. */
 export type UIStringOverrides = Overrides<UIStrings>
 
 type Overrides<T> = {
@@ -1046,15 +1047,24 @@ export function useStrings(): UIStrings {
   return useContext(StringsContext)
 }
 
-/** UIProvider's `strings` alone, for a host that can't render UIProvider, such as one without a
- *  DOM. Overrides lay over the English defaults, not over an outer provider's strings. */
+/** UIProvider's `strings` and `locale` alone, for a host that can't render UIProvider, such as one
+ *  without a DOM. Overrides lay over the English defaults, not over an outer provider's strings;
+ *  without a `locale`, an outer provider's stays. */
 export function UIStringsProvider({
   strings,
+  locale,
   children,
 }: {
   strings?: UIStringOverrides | undefined
+  /** The locale `useLocale()` gives, such as `de-DE`, as UIProvider's `locale`. */
+  locale?: string | undefined
   children: ReactNode
 }) {
   const merged = useMerged(() => mergeStrings(DEFAULT_STRINGS, strings), strings)
-  return <StringsContext value={merged}>{children}</StringsContext>
+  const outer = useLocale()
+  return (
+    <LocaleContext value={locale ?? outer}>
+      <StringsContext value={merged}>{children}</StringsContext>
+    </LocaleContext>
+  )
 }

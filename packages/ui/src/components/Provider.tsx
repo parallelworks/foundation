@@ -7,11 +7,13 @@ import type { RunLink } from '../graph/types'
 import { safeUrl } from '../safeUrl'
 import { useByValue, useMerged } from './byValue'
 import { ContextMenuProvider } from './ContextMenu'
+import { LocaleContext } from './locale'
 import { useLocalPersistedState } from './persistedState'
 import { type UIStringOverrides, UIStringsProvider } from './strings'
 import { Toaster } from './Toast'
 import { TooltipProvider } from './Tooltip'
 
+export { useLocale } from './locale'
 export {
   type ErrorPageKind,
   mergeStrings,
@@ -240,7 +242,6 @@ const NavigationContext = createContext<UINavigation>(DEFAULTS.navigation)
 const DataContext = createContext<UIData>(DEFAULTS.data)
 const SlotsContext = createContext<UISlots>(DEFAULTS.slots)
 const EngineContext = createContext<WorkflowEngineSource | undefined>(undefined)
-const LocaleContext = createContext<string | undefined>(undefined)
 
 /** How avatars without a picture are colored. `name` gives each person a color from the theme's
  *  categorical palette, picked by name, and one initial for a one-word name. `kind` gives every
@@ -250,12 +251,6 @@ export type AvatarColoring = 'name' | 'kind'
 
 const AvatarColoringContext = createContext<AvatarColoring>('name')
 const CharacterKeyShortcutsContext = createContext(true)
-
-/** The host's locale for dates and times, such as `de-DE`. Undefined without one, which leaves
- *  each format's own default: the date library's for its times, the browser's for the rest. */
-export function useLocale(): string | undefined {
-  return useContext(LocaleContext)
-}
 
 /** How the host colors avatars, UIProvider's `avatarColoring`. */
 export function useAvatarColoring(): AvatarColoring {

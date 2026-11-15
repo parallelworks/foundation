@@ -31,6 +31,25 @@ function subscribe(listener: () => void) {
 
 const stopped = () => () => {}
 
+let readThisTask = false
+
+// Nothing subscribes on a server, so no timer moves the clock there. While no clock runs, a render
+// reads the time itself, or a long-lived server would show every time as of when it loaded this
+// module. It reads once per task, so every clock in one render agrees, and React, which in
+// development reads twice in a row while hydrating to check the answer holds, gets the same one.
+// A promise clears the reading, not queueMicrotask, which a test's fake timers may replace and
+// never run, holding every later render at this time.
+function renderedNow(): number {
+  if (!timer && !readThisTask) {
+    now = Date.now()
+    readThisTask = true
+    Promise.resolve().then(() => {
+      readThisTask = false
+    })
+  }
+  return now
+}
+
 /** Something worked out from the time, kept current by one clock that ticks
  *  each second for every component reading it. A component re-renders only
  *  when what `select` returns changes, so a label reading "3h" sits still
@@ -38,6 +57,9 @@ const stopped = () => () => {}
  *  `running` is false the component leaves the clock and `select` sees the
  *  last tick's time. */
 export function useClock<T>(select: (now: number) => T, running = true): T {
-  const snapshot = () => select(now)
-  return useSyncExternalStore(running ? subscribe : stopped, snapshot, snapshot)
+  return useSyncExternalStore(
+    running ? subscribe : stopped,
+    () => select(now),
+    () => select(renderedNow()),
+  )
 }
