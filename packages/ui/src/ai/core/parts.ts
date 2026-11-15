@@ -90,18 +90,21 @@ export function applyPartDelta(parts: MessagePart[], delta: PartDelta): MessageP
         p.kind === 'subagent' && p.id === delta.id ? { ...p, reviewing: delta.count } : p,
       )
     case 'subagent_end':
-      return parts.map((p) =>
-        p.kind === 'subagent' && p.id === delta.id
-          ? {
-              ...p,
-              status: delta.ok ? ('done' as const) : ('failed' as const),
-              reviewing: 0,
-              ...(delta.summary !== undefined ? { summary: delta.summary } : {}),
-              ...(delta.report !== undefined ? { report: delta.report } : {}),
-              ...(delta.interrupted ? { interrupted: true } : {}),
-            }
-          : p,
-      )
+      return parts.map((p) => {
+        if (p.kind !== 'subagent' || p.id !== delta.id) {
+          return p
+        }
+        // The child's own end says how it ended, over a turn's end that took it for cut off.
+        const { interrupted: _closedByTurn, ...child } = p
+        return {
+          ...child,
+          status: delta.ok ? ('done' as const) : ('failed' as const),
+          reviewing: 0,
+          ...(delta.summary !== undefined ? { summary: delta.summary } : {}),
+          ...(delta.report !== undefined ? { report: delta.report } : {}),
+          ...(delta.interrupted ? { interrupted: true } : {}),
+        }
+      })
     case 'approval_request':
       return [...parts, delta.approval]
     case 'approval_resolved':
