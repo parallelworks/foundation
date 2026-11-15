@@ -6,7 +6,13 @@ import type { PasteUploadResult } from '../core/pasteCards'
 import type { Attachment } from './AttachmentUpload'
 import ChatInput, { type ChatInputHandle, type RecalledMessage } from './ChatInput'
 import { DRAFT_MAX_LENGTH, DRAFT_TTL_MS, readDraft, sweepDrafts } from './chatDraft'
-import { appendHistory, HISTORY_MAX_CHARS, HISTORY_MAX_ENTRIES, readHistory } from './chatHistory'
+import {
+  appendHistory,
+  HISTORY_MAX_CHARS,
+  HISTORY_MAX_ENTRIES,
+  mergeHistory,
+  readHistory,
+} from './chatHistory'
 
 const addFilesMock = vi.fn()
 const uploadProps: {
@@ -1027,6 +1033,35 @@ describe('ChatInput history', () => {
     expect(storage.has('aiChatDraft:c1')).toBe(false)
   })
 
+  it('walks into the seed past what this tab sent', () => {
+    const seed = ['from before', 'sent here']
+    render(<ChatInput onSend={vi.fn()} history={{ name: 'agents', seed }} />)
+    sendAll('sent here', 'only here')
+    pressUp()
+    expect(textarea().value).toBe('only here')
+    pressUp()
+    expect(textarea().value).toBe('sent here')
+    pressUp()
+    expect(textarea().value).toBe('from before')
+  })
+
+  it('recalls a seed with nothing sent in this tab', () => {
+    render(<ChatInput onSend={vi.fn()} history={{ name: 'agents', seed: ['from before'] }} />)
+    pressUp()
+    expect(textarea().value).toBe('from before')
+  })
+
+  it('keeps out seeded text the host says must not be remembered', () => {
+    const skip = (text: string) => text.startsWith('/auth')
+    const seed = ['kept', '/auth secret-token', 'kept']
+    render(<ChatInput onSend={vi.fn()} history={{ name: 'agents', seed, skip }} />)
+    pressUp()
+    expect(textarea().value).toBe('kept')
+    pressUp()
+    expect(textarea().value).toBe('kept')
+    expect(readHistory('agents')).toEqual([])
+  })
+
   it('moves a sent recalled entry to the newest place', () => {
     render(<ChatInput onSend={vi.fn()} history={history} />)
     sendAll('older', 'newer')
@@ -1248,6 +1283,36 @@ describe('ChatInput taking back what waits', () => {
       )
       expect(box).toHaveAttribute('placeholder', 'Message the session')
     })
+  })
+})
+
+describe('mergeHistory', () => {
+  it.each([
+    ['the seed alone', ['a', 'b'], [], ['a', 'b']],
+    ['what was sent alone', [], ['a', 'b'], ['a', 'b']],
+    ['a send the seed holds once', ['old', 'a'], ['a'], ['old', 'a']],
+    [
+      'a command between two seeded sends',
+      ['old', 'a', 'b'],
+      ['a', '/cmd', 'b'],
+      ['old', 'a', '/cmd', 'b'],
+    ],
+    [
+      'a command sent before older seeded text',
+      ['old1', 'old2', 'a'],
+      ['/cmd', 'a'],
+      ['old1', 'old2', '/cmd', 'a'],
+    ],
+    [
+      'a failed send after the seed',
+      ['a', 'elsewhere'],
+      ['a', 'failed'],
+      ['a', 'elsewhere', 'failed'],
+    ],
+    ['a send repeated in the seed', ['a', 'x', 'a'], ['a'], ['a', 'x', 'a']],
+    ['a repeat where they meet', ['a'], ['/cmd', 'a', 'a'], ['/cmd', 'a']],
+  ])('merges %s', (_what, seed, sent, merged) => {
+    expect(mergeHistory(seed, sent)).toEqual(merged)
   })
 })
 

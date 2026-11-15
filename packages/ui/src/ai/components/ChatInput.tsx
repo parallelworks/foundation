@@ -41,8 +41,9 @@ interface ChatInputProps {
     attachmentMeta?: AttachmentMeta,
     pastes?: MessagePaste[],
   ) => unknown
-  /** ↑ and ↓ in an empty box step through what was sent in this tab, failed
-   *  sends included. Takes ↑ over from onEditLastMessage. */
+  /** ↑ and ↓ in an empty box step through what was sent: the history's seed
+   *  and what this tab sent, failed sends included. Takes ↑ over from
+   *  onEditLastMessage. */
   history?: ComposerHistory | undefined
   /** ↑ in an empty box takes back what was sent but not read yet, ahead of
    *  the history, and puts it back in the box with its pastes. */

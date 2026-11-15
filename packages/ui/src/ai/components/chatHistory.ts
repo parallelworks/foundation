@@ -17,6 +17,27 @@ export function readHistory(name: string): string[] {
   }
 }
 
+/** The seed with what this tab sent woven in, oldest first. Text the seed lacks,
+ *  such as a command or a failed send, stays just before the next entry the
+ *  tab sent that the seed holds, so it keeps its place in the tab's order. */
+export function mergeHistory(seed: readonly string[], sent: readonly string[]): string[] {
+  const merged: string[] = []
+  let pending: string[] = []
+  let next = 0
+  for (const text of sent) {
+    const at = seed.indexOf(text, next)
+    if (at < 0) {
+      pending.push(text)
+      continue
+    }
+    merged.push(...seed.slice(next, at), ...pending, text)
+    pending = []
+    next = at + 1
+  }
+  merged.push(...seed.slice(next), ...pending)
+  return merged.filter((text, i) => text && text !== merged[i - 1])
+}
+
 export function appendHistory(name: string, text: string) {
   if (!text || text.length > HISTORY_MAX_CHARS) {
     return
