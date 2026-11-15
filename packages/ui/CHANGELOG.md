@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.144.0](https://github.com/parallelworks/foundation/compare/ui-v0.143.0...ui-v0.144.0) (2026-11-15)
+
+
+### Features
+
+* **ui:** a host without a DOM sets and reads the locale through the headless entry ([#786](https://github.com/parallelworks/foundation/issues/786)) ([6fe09c6](https://github.com/parallelworks/foundation/commit/6fe09c6fc6c8ca49e0ec99af781659aa426acf80))
+
+
+### Bug Fixes
+
+* **ui:** a live time rendered on a server shows when the server started, not when it rendered ([6fe09c6](https://github.com/parallelworks/foundation/commit/6fe09c6fc6c8ca49e0ec99af781659aa426acf80))
+
 ## [0.143.0](https://github.com/parallelworks/foundation/compare/ui-v0.142.0...ui-v0.143.0) (2026-11-15)
 
 
