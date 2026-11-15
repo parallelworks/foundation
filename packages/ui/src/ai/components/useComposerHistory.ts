@@ -1,9 +1,12 @@
 import { type KeyboardEvent, useEffect, useRef } from 'react'
-import { appendHistory, readHistory } from './chatHistory'
+import { appendHistory, mergeHistory, readHistory } from './chatHistory'
 
 export interface ComposerHistory {
   /** Composers with the same name in a tab share one history, which ends with the tab. */
   name: string
+  /** What was sent before or beyond this tab, oldest first, such as the
+   *  messages of a conversation reopened here. */
+  seed?: readonly string[] | undefined
   /** Text to forget, such as a command carrying a secret: no history, no draft, no return from a failed send. */
   skip?: ((text: string) => boolean) | undefined
 }
@@ -76,7 +79,8 @@ export function useComposerHistory(
       }
       return true
     }
-    const entries = up ? readHistory(history.name) : []
+    const seed = history.seed?.filter((text) => !history.skip?.(text)) ?? []
+    const entries = up ? mergeHistory(seed, readHistory(history.name)) : []
     if (entries.length === 0) {
       return false
     }

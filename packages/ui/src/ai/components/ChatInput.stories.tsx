@@ -588,13 +588,15 @@ export const FailedSend: StoryObj<FailedSendStoryArgs> = {
   },
 }
 
-type HistoryStoryArgs = { steps: number }
+type HistoryStoryArgs = { steps: number; seeded: boolean }
 
-function HistoryExample() {
+const historySeed = ['Open the deploy log', 'Find the failing step']
+
+function HistoryExample({ seeded }: Pick<HistoryStoryArgs, 'seeded'>) {
   const history = useMemo(() => {
     window.sessionStorage.removeItem('aiChatHistory:story-history')
-    return { name: 'story-history' }
-  }, [])
+    return { name: 'story-history', seed: seeded ? historySeed : undefined }
+  }, [seeded])
   return (
     <StoryChat>
       <div>
@@ -605,16 +607,21 @@ function HistoryExample() {
 }
 
 // ↑ in the empty box recalls what was sent, newest first, and ↓ walks back to
-// the empty box. The play sends three messages, then steps back through them.
+// the empty box. The play sends three messages, then steps back through them,
+// and on into the seed of a reopened conversation when there is one.
 export const History: StoryObj<HistoryStoryArgs> = {
-  args: { steps: 2 },
+  args: { steps: 2, seeded: false },
   argTypes: {
     steps: {
-      control: { type: 'range', min: 1, max: 3, step: 1 },
+      control: { type: 'range', min: 1, max: 5, step: 1 },
       description: 'How many times the play presses ↑',
     },
+    seeded: {
+      control: 'boolean',
+      description: 'Seeds the history with what a reopened conversation already holds',
+    },
   },
-  render: () => <HistoryExample />,
+  render: (args) => <HistoryExample seeded={args.seeded} />,
   play: async ({ canvasElement, args }) => {
     const box = within(canvasElement).getByPlaceholderText('Ask anything')
     for (const message of ['Summarize the logs', 'Now the errors only', 'Group them by host']) {
