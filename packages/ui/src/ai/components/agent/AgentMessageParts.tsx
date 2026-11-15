@@ -7,6 +7,7 @@ import {
   useEffect,
   useId,
   useMemo,
+  useRef,
   useState,
 } from 'react'
 import { Disclosure } from '../../../components/Disclosure'
@@ -16,6 +17,7 @@ import { Loader } from '../../../components/Loader'
 import { useStrings } from '../../../components/Provider'
 import { RelativeTime } from '../../../components/relativeTime'
 import { toneSurface } from '../../../components/tone'
+import { useNearViewport } from '../../../components/useNearViewport'
 import { cx } from '../../../cx'
 import { formatDuration } from '../../../format'
 import { CheckIcon } from '../../../icons'
@@ -155,7 +157,11 @@ function DiffRows({
     () => rows.map((r) => (r.kind === 'gap' ? '' : r.text)).join('\n'),
     [rows],
   )
-  const highlight = dimmed ? null : lang
+  // A long turn edits hundreds of files, and coloring every diff as the transcript is drawn holds
+  // the page up for ones that are never scrolled to.
+  const box = useRef<HTMLDivElement>(null)
+  const near = useNearViewport(box)
+  const highlight = dimmed || !near ? null : lang
   useEffect(() => {
     if (!highlight) {
       setTokens(null)
@@ -174,6 +180,7 @@ function DiffRows({
   const numbered = rows.some((r) => r.oldNo !== undefined || r.newNo !== undefined)
   return (
     <div
+      ref={box}
       className={cx(
         'overflow-x-auto rounded-md border theme-border font-mono text-xs leading-5',
         dimmed && 'theme-muted-text',
