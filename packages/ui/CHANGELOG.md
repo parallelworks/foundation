@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.142.0](https://github.com/parallelworks/foundation/compare/ui-v0.141.0...ui-v0.142.0) (2026-11-15)
+
+
+### Features
+
+* **ui:** typing a :shortcode in the composer lists the matching emoji to pick from ([#782](https://github.com/parallelworks/foundation/issues/782)) ([2bb64ba](https://github.com/parallelworks/foundation/commit/2bb64ba1ef31131f6e1b21297d097184abbb1f3e))
+
 ## [0.141.0](https://github.com/parallelworks/foundation/compare/ui-v0.140.0...ui-v0.141.0) (2026-11-14)
 
 
