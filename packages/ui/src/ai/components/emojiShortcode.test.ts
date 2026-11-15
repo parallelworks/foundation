@@ -1,4 +1,74 @@
-import { closeShortcode } from './emojiShortcode'
+import { closeShortcode, emojiMatches, insertEmoji, typingShortcode } from './emojiShortcode'
+
+describe('typingShortcode', () => {
+  it.each([
+    [':ey', 'ey', 0],
+    ['look :ey', 'ey', 5],
+    ['look\n:EY', 'ey', 5],
+    [':+1', '+1', 0],
+  ])('reads %j as typing %j from %i', (text, query, start) => {
+    expect(typingShortcode(text, text.length)).toEqual({ query, start })
+  })
+
+  it('reads the word before the caret, and keeps what follows it', () => {
+    expect(typingShortcode('look :ey later', 'look :ey'.length)).toEqual({ query: 'ey', start: 5 })
+  })
+
+  it.each([
+    [':e'],
+    [':'],
+    ['eyes'],
+    ['10:30'],
+    ['https://example.com/:eyes'],
+    [':eyes:'],
+    ['::eyes'],
+  ])('offers nothing for %j', (text) => {
+    expect(typingShortcode(text, text.length)).toBeNull()
+  })
+
+  it('offers nothing with the caret inside a word', () => {
+    expect(typingShortcode(':eyes', 3)).toBeNull()
+  })
+})
+
+describe('emojiMatches', () => {
+  it('lists names that start with the query first, the shorter first', () => {
+    expect(emojiMatches('ey').map((m) => m.name)).toEqual([
+      'eye',
+      'eyes',
+      'eyeglasses',
+      'eye_speech_bubble',
+      'key',
+      'donkey',
+      'hankey',
+      'jersey',
+    ])
+  })
+
+  it('pairs each name with its emoji', () => {
+    expect(emojiMatches('eyes')[0]).toEqual({ name: 'eyes', emoji: '👀' })
+  })
+
+  it('finds nothing for a name no emoji has', () => {
+    expect(emojiMatches('notanemoji')).toEqual([])
+  })
+})
+
+describe('insertEmoji', () => {
+  it('replaces the shortcode with the emoji and a space', () => {
+    expect(insertEmoji('look :ey', 5, 8, '👀')).toEqual({
+      text: 'look 👀 ',
+      caret: 'look 👀 '.length,
+    })
+  })
+
+  it('keeps what follows the caret, and adds no second space', () => {
+    expect(insertEmoji('look :ey later', 5, 8, '👀')).toEqual({
+      text: 'look 👀 later',
+      caret: 'look 👀'.length,
+    })
+  })
+})
 
 const typeColon = (text: string, caret = text.length) =>
   closeShortcode(text, `${text.slice(0, caret)}:${text.slice(caret)}`, caret + 1)

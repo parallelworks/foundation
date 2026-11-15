@@ -1342,6 +1342,7 @@ describe('ChatInput emoji shortcodes', () => {
   it('completes a shortcode in a recalled prompt', () => {
     render(<ChatInput onSend={vi.fn()} history={{ name: 'agents' }} />)
     typeInBox(':eyes')
+    fireEvent.keyDown(textarea(), { key: 'Escape' })
     pressEnter()
     pressUp()
     typeKeys(':')
@@ -1369,5 +1370,90 @@ describe('ChatInput emoji shortcodes', () => {
     typeInBox('')
     typeKeys(':notanemoji: https://example.com/:eyes:')
     expect(textarea().value).toBe(':notanemoji: https://example.com/:eyes:')
+  })
+
+  describe('menu', () => {
+    const menu = () => screen.queryByTestId('emoji-menu')
+    const options = () => screen.queryAllByRole('option')
+
+    it('lists the emoji for the shortcode being typed once two characters follow the colon', () => {
+      render(<ChatInput onSend={vi.fn()} />)
+      typeKeys('look :e')
+      expect(menu()).toBeNull()
+      typeKeys('y')
+      expect(screen.getByRole('listbox', { name: 'Emoji' })).toBeInTheDocument()
+      expect(options()[0]).toHaveTextContent('👁️:eye:')
+      expect(options()[0]).toHaveAttribute('aria-selected', 'true')
+      expect(textarea()).toHaveAttribute('aria-activedescendant', options()[0]?.id)
+    })
+
+    it.each(['Enter', 'Tab'])(
+      'puts the highlighted emoji in place of the shortcode on %s',
+      (key) => {
+        const onSend = vi.fn()
+        render(<ChatInput onSend={onSend} conversationId="c1" />)
+        typeKeys('look :ey')
+        fireEvent.keyDown(textarea(), { key: 'ArrowDown' })
+        fireEvent.keyDown(textarea(), { key })
+        expect(onSend).not.toHaveBeenCalled()
+        expect(textarea().value).toBe('look 👀 ')
+        expect(textarea().selectionStart).toBe('look 👀 '.length)
+        expect(JSON.parse(storage.get('aiChatDraft:c1') ?? '').text).toBe('look 👀 ')
+        expect(menu()).toBeNull()
+      },
+    )
+
+    it('puts a clicked emoji in place, keeping what follows the caret', () => {
+      render(<ChatInput onSend={vi.fn()} />)
+      typeInBox('see :ey later')
+      textarea().setSelectionRange('see :ey'.length, 'see :ey'.length)
+      fireEvent.select(textarea())
+      fireEvent.click(screen.getByRole('option', { name: ':eyes:' }))
+      expect(textarea().value).toBe('see 👀 later')
+      expect(textarea().selectionStart).toBe('see 👀'.length)
+    })
+
+    it('closes on Escape until the shortcode changes, and Enter then sends', () => {
+      const onSend = vi.fn()
+      render(<ChatInput onSend={onSend} />)
+      typeKeys(':ey')
+      fireEvent.keyDown(textarea(), { key: 'Escape' })
+      expect(menu()).toBeNull()
+      typeKeys('e')
+      expect(menu()).not.toBeNull()
+      fireEvent.keyDown(textarea(), { key: 'Escape' })
+      pressEnter()
+      expect(onSend).toHaveBeenCalledWith(':eye', undefined, undefined)
+    })
+
+    it('closes as the caret leaves the shortcode or text is selected', () => {
+      render(<ChatInput onSend={vi.fn()} />)
+      typeKeys(':eyes')
+      textarea().setSelectionRange(2, 2)
+      fireEvent.select(textarea())
+      expect(menu()).toBeNull()
+      textarea().setSelectionRange(0, 5)
+      fireEvent.select(textarea())
+      expect(menu()).toBeNull()
+      textarea().setSelectionRange(5, 5)
+      fireEvent.select(textarea())
+      expect(menu()).not.toBeNull()
+    })
+
+    it('offers nothing in a recalled prompt, and ↑ keeps walking past it', () => {
+      const onSend = vi.fn()
+      render(<ChatInput onSend={onSend} history={{ name: 'agents' }} />)
+      typeInBox('older')
+      pressEnter()
+      typeKeys(':eye')
+      fireEvent.keyDown(textarea(), { key: 'Escape' })
+      pressEnter()
+      expect(onSend).toHaveBeenLastCalledWith(':eye', undefined, undefined)
+      pressUp()
+      expect(textarea().value).toBe(':eye')
+      expect(menu()).toBeNull()
+      pressUp()
+      expect(textarea().value).toBe('older')
+    })
   })
 })
