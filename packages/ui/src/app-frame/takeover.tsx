@@ -11,6 +11,10 @@ import {
 import { createPortal } from 'react-dom'
 import type { LinkTarget } from '../components/AppLink'
 import type { OpenMenu } from '../components/ContextMenu'
+import {
+  SHARED_COLLAPSED_GROUPS_STORAGE_KEY,
+  useCollapsedGroups,
+} from '../components/collapsedGroups'
 import type { MenuEntry } from '../components/MenuEntries'
 import { cx } from '../cx'
 import { AddIcon, ArrowLeftIcon, MoreIcon } from '../icons'
@@ -101,6 +105,7 @@ export type AppFrameTakeoverRow = LinkTarget & {
 }
 
 export interface AppFrameTakeoverGroup {
+  /** Also what remembers the group folded, so keep it the same across renders and visits. */
   key: string
   label: string
   rows: AppFrameTakeoverRow[]
@@ -108,11 +113,13 @@ export interface AppFrameTakeoverGroup {
 
 /** A page's list as the frame's navigation, rendered into the host's place for it while there
  *  is one. Each row carries its actions behind a button that is always shown, since a touch
- *  screen has no hover to reveal it. */
+ *  screen has no hover to reveal it. A group's heading folds its rows away, and the list
+ *  remembers it folded; a folded group shows how many rows it holds. */
 export function AppFrameListTakeover({
   newItem,
   top,
   groups,
+  groupsStorageKey = SHARED_COLLAPSED_GROUPS_STORAGE_KEY,
   empty,
   openMenu,
   moreLabel = 'More actions',
@@ -128,6 +135,9 @@ export function AppFrameListTakeover({
    *  search. */
   top?: ReactNode
   groups: AppFrameTakeoverGroup[]
+  /** Where the groups the reader folded are remembered. Give the same one as the list this
+   *  stands in for, such as a `ConversationSidebar`'s, so both fold the same groups. */
+  groupsStorageKey?: string
   /** In place of the groups when there are none. */
   empty?: ReactNode
   openMenu: OpenMenu
@@ -138,6 +148,7 @@ export function AppFrameListTakeover({
 }) {
   const { slot, showList } = use(TakeoverContext)
   const { isMobile, mobileOpen } = useAppFrame()
+  const collapsedGroups = useCollapsedGroups(groupsStorageKey)
 
   // Leaving for the app's navigation is a detour: the drawer opens on the list again next time.
   useEffect(() => {
@@ -167,7 +178,9 @@ export function AppFrameListTakeover({
               <AppFrameNavGroup
                 key={group.key}
                 label={group.label}
-                collapsible={false}
+                open={!collapsedGroups.collapsed.has(group.key)}
+                onOpenChange={() => collapsedGroups.toggle(group.key)}
+                count={group.rows.length}
                 selected={group.rows.some((row) => row.selected)}
               >
                 {group.rows.map(

@@ -84,6 +84,7 @@ function Demo(args: AppFrameProps) {
             label="Pinned"
             icon={<PinFilledIcon />}
             selected={pinned.includes(active)}
+            count={pinned.length}
           >
             {pinned.map((label) => (
               <AppFrameNavItem
@@ -273,7 +274,15 @@ const takeoverGroups = [
     ],
   },
 ]
-function SessionsPage({ empty, top }: { empty: boolean; top: boolean }) {
+function SessionsPage({
+  empty,
+  top,
+  groupsStorageKey,
+}: {
+  empty: boolean
+  top: boolean
+  groupsStorageKey: string
+}) {
   const [open, setOpen] = useState<string | null>('flaky')
   const [searching, setSearching] = useState(false)
   const [query, setQuery] = useState('')
@@ -305,6 +314,7 @@ function SessionsPage({ empty, top }: { empty: boolean; top: boolean }) {
                 })),
               }))
         }
+        groupsStorageKey={groupsStorageKey}
         empty={<p style={{ padding: '8px 12px', fontSize: 13 }}>No sessions yet</p>}
         openMenu={openMenu}
       >
@@ -322,8 +332,13 @@ function SessionsPage({ empty, top }: { empty: boolean; top: boolean }) {
     </>
   )
 }
-type TakeoverArgs = AppFrameProps & { empty?: boolean; top?: boolean }
-function TakeoverDemo({ empty = false, top = false, ...args }: TakeoverArgs) {
+type TakeoverArgs = AppFrameProps & { empty?: boolean; top?: boolean; groupsStorageKey?: string }
+function TakeoverDemo({
+  empty = false,
+  top = false,
+  groupsStorageKey = 'storyTakeoverGroups',
+  ...args
+}: TakeoverArgs) {
   // The story's page always has a list; a host also asks for a narrow viewport.
   const takeover = useAppFrameTakeover(true)
   return (
@@ -351,7 +366,7 @@ function TakeoverDemo({ empty = false, top = false, ...args }: TakeoverArgs) {
           }
           header={<Header />}
         >
-          <SessionsPage empty={empty} top={top} />
+          <SessionsPage empty={empty} top={top} groupsStorageKey={groupsStorageKey} />
         </AppFrame>
       </AppFrameTakeover>
     </ContextMenuProvider>
@@ -372,6 +387,24 @@ export const ListTakeoverEmpty: StoryObj<TakeoverArgs> = {
 export const ListTakeoverMoreItems: StoryObj<TakeoverArgs> = {
   render: TakeoverDemo,
   args: { empty: false, top: true },
+}
+const TAKEOVER_FOLDED_KEY = 'storyTakeoverFoldedGroups'
+/** A group's heading folds its rows away and brings them back, and the list remembers which
+ *  groups are folded, in the same place as the list it stands in for. A folded group shows how
+ *  many rows it holds. Recent starts folded here. */
+export const ListTakeoverFoldedGroups: StoryObj<TakeoverArgs & { folded: string[] }> = {
+  args: { folded: ['recent'] },
+  argTypes: {
+    folded: {
+      control: 'check',
+      options: takeoverGroups.map((group) => group.key),
+      description: 'The groups the list remembers folded (`groupsStorageKey`)',
+    },
+  },
+  render: ({ folded, ...args }) => {
+    localStorage.setItem(TAKEOVER_FOLDED_KEY, JSON.stringify(folded))
+    return <TakeoverDemo key={folded.join()} {...args} groupsStorageKey={TAKEOVER_FOLDED_KEY} />
+  },
 }
 
 /** Items can carry a second line, and need no icon: a row with none starts at its label, and the rail shows its first letter. */
