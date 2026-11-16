@@ -198,6 +198,24 @@ describe('SessionView find', () => {
     expect(current()?.map((r) => r.toString())).toEqual(['timeout'])
   })
 
+  it('finds in turns too far back for the list to have drawn them', () => {
+    const notes = (n: number): Message['parts'] =>
+      Array.from({ length: 99 }, (_, i) => ({ kind: 'text' as const, text: `note ${n}.${i}` }))
+    const long: Message[] = [
+      messages[0] as Message,
+      ...[0, 1, 2, 3].flatMap((n): Message[] => [
+        { id: `q${n}`, role: 'user', content: `Step ${n}` },
+        { id: `r${n}`, role: 'assistant', parts: notes(n) },
+      ]),
+    ]
+    render(<Session messages={long} />)
+    expect(screen.queryByText(/login test/)).not.toBeInTheDocument()
+
+    fireEvent.change(openFind(), { target: { value: 'login' } })
+
+    expect(count()).toHaveTextContent('1 of 1')
+  })
+
   it('keeps the query to search again when reopened', () => {
     render(<Session />)
     fireEvent.change(openFind(), { target: { value: 'redirect' } })

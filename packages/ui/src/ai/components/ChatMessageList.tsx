@@ -30,6 +30,27 @@ const READER_GROWTH_MS = 600
 
 const NO_MESSAGES: Message[] = []
 
+// About how many parts the list draws at a time: it starts with this many and
+// draws as many again while fewer than two screens sit above the view. Every
+// row drawn holds memory, which a phone has little of: a long agent session
+// drawn whole is enough for the browser to close the tab.
+const WINDOW_PARTS = 100
+
+/** Where a window of about WINDOW_PARTS parts that ends before `end` starts:
+ *  at the prompt of the turn it reaches into, so each turn drawn has its prompt. */
+function windowStart(messages: Message[], end: number): number {
+  let i = end
+  let held = 0
+  while (i > 0 && held < WINDOW_PARTS) {
+    i--
+    held += 1 + (messages[i]?.parts?.length ?? 0)
+  }
+  while (i > 0 && messages[i]?.role !== 'user') {
+    i--
+  }
+  return i
+}
+
 const jumpClasses =
   'chat-composer chat-jump rounded-full px-3 py-1.5 text-xs font-medium theme-text transition-colors'
 
@@ -88,6 +109,10 @@ interface ChatMessageListProps {
   /** Pins the prompt of the turn in view to the top once it scrolls out of
    *  sight, as a terminal transcript does; a click returns to it. */
   pinPrompt?: boolean
+  /** Draws every message, as a search of the whole conversation needs.
+   *  Otherwise a long conversation draws its end, and the turns before it as
+   *  the reader scrolls up to them. */
+  whole?: boolean
   ref?: Ref<ChatMessageListHandle> | undefined
 }
 
@@ -124,6 +149,7 @@ export default function ChatMessageList({
   footer,
   workingIndicator = true,
   pinPrompt,
+  whole = false,
   ref,
 }: ChatMessageListProps) {
   const { adapter, isStreaming: providerStreaming } = useChat()
@@ -216,6 +242,41 @@ export default function ChatMessageList({
     }
   }, [streamingReasoning, isThinking])
 
+  // The first message drawn once the reader has left the end or scrolled up
+  // for more; until then the window follows the end as the conversation grows.
+  const [from, setFrom] = useState<string | null>(null)
+  const endStart = useMemo(() => windowStart(messages, messages.length), [messages])
+  const fromIndex = useMemo(
+    () => (from === null ? -1 : messages.findIndex((m) => m.id === from)),
+    [messages, from],
+  )
+  const start = whole ? 0 : fromIndex >= 0 ? Math.min(fromIndex, endStart) : endStart
+  const drawn = useMemo(() => (start === 0 ? messages : messages.slice(start)), [messages, start])
+  const windowRef = useRef({ messages, start })
+  useLayoutEffect(() => {
+    windowRef.current = { messages, start }
+  })
+  // The first row drawn and where it was, so the rows drawn above it leave
+  // what the reader is looking at where it is.
+  const keptRef = useRef<{ row: Element; top: number } | null>(null)
+
+  // Draws the turns before the window once the reader is within two screens
+  // of its top, or the window doesn't fill the view.
+  const drawEarlier = useCallback(() => {
+    const el = containerRef.current
+    const { messages: all, start: at } = windowRef.current
+    if (!el || at === 0) {
+      return
+    }
+    const row = contentRef.current?.firstElementChild
+    keptRef.current = row ? { row, top: row.getBoundingClientRect().top } : null
+    // Not laid out yet, as in a hidden tab: its size says nothing about what fills it.
+    if (el.clientHeight === 0 || el.scrollTop > el.clientHeight * 2) {
+      return
+    }
+    setFrom(all[windowStart(all, at)]?.id ?? null)
+  }, [])
+
   // Stick-to-bottom: follow new content only while the user sits at the
   // bottom. Scrolling up releases it; scrolling back down to the bottom
   // re-arms it. Release must win over the autoscroll that grows the content
@@ -246,7 +307,8 @@ export default function ChatMessageList({
       isNearBottomRef.current = false
     }
     setPinned(isNearBottomRef.current)
-  }, [])
+    drawEarlier()
+  }, [drawEarlier])
 
   // Reads the position first: a jump up that its scroll event has not reported
   // yet has to count, or following would undo it before it was ever seen.
@@ -271,7 +333,23 @@ export default function ChatMessageList({
       isNearBottomRef.current = true
       setPinned(true)
     }
+    setFrom(null)
   }, [])
+
+  // A reader who left the end keeps the turns they left it from, as new
+  // ones arrive below.
+  useEffect(() => {
+    if (!pinned) {
+      setFrom((f) => f ?? windowRef.current.messages[windowRef.current.start]?.id ?? null)
+    }
+  }, [pinned])
+
+  // A search drew every message, and the reader may be reading one it found.
+  useEffect(() => {
+    if (whole) {
+      setFrom(windowRef.current.messages[0]?.id ?? null)
+    }
+  }, [whole])
 
   useImperativeHandle(ref, () => ({ jumpToLatest }), [jumpToLatest])
 
@@ -381,11 +459,30 @@ export default function ChatMessageList({
     }
   }, [messageCount])
 
+  // Rows drawn above the first move what the reader sees down by their
+  // height: scrolled by as much, the view stays put. A browser that anchors
+  // its scroll has already done it, and nothing is left to move.
+  const startRef = useRef(start)
+  useLayoutEffect(() => {
+    const el = containerRef.current
+    const kept = keptRef.current
+    if (el && kept?.row.isConnected && start < startRef.current) {
+      const moved = kept.row.getBoundingClientRect().top - kept.top
+      if (Math.abs(moved) >= 1) {
+        el.scrollTop += moved
+        lastScrollTopRef.current = el.scrollTop
+      }
+    }
+    startRef.current = start
+    drawEarlier()
+  }, [start, drawEarlier])
+
   // Reset hadMessages when conversation switches (messages go to 0 then back)
   useEffect(() => {
     if (messageCount === 0) {
       hadMessagesRef.current = false
       lastScrollTopRef.current = 0
+      setFrom(null)
     }
   }, [messageCount])
 
@@ -430,6 +527,7 @@ export default function ChatMessageList({
         followBottom()
       }
       findAnchor()
+      drawEarlier()
     })
     observer.observe(content)
     // The composer sticks to the list's bottom edge, so as it grows, with a
@@ -442,7 +540,7 @@ export default function ChatMessageList({
       content.removeEventListener('click', touched, true)
       content.removeEventListener('keydown', touched, true)
     }
-  }, [hasContent, findAnchor])
+  }, [hasContent, findAnchor, drawEarlier])
 
   // One keyed dock in both states, so the composer is not remounted as the
   // first message comes and goes: a send it is waiting on puts its text back
@@ -511,7 +609,7 @@ export default function ChatMessageList({
           className="w-full max-w-[var(--chat-column,50rem)] mx-auto pt-4 pb-6 px-4"
         >
           <MessageRows
-            messages={messages}
+            messages={drawn}
             allMessages={rowMessages}
             streaming={!!streamingMessage}
             prompts={!!pinPrompt}
@@ -906,7 +1004,10 @@ const MessageRows = memo(function MessageRows({
   const shownRef = useRef<ReadonlySet<string>>(new Set())
   const wasStreamingRef = useRef(streaming)
   const shown = shownRef.current
-  const appended = shown.size > 0 && messages.some((m) => shown.has(m.id))
+  // Rows drawn above the first that showed are earlier turns the reader
+  // scrolled up to, not new ones.
+  const firstShown = shown.size > 0 ? messages.findIndex((m) => shown.has(m.id)) : -1
+  const appended = firstShown >= 0
   // The reply that just finished streaming was already on screen as the
   // streaming row; it takes that row's place without entering again.
   const streamFinished = wasStreamingRef.current && !streaming
@@ -924,7 +1025,10 @@ const MessageRows = memo(function MessageRows({
       return null
     }
     const isNew =
-      appended && !shown.has(message.id) && !(streamFinished && message.role === 'assistant')
+      appended &&
+      i > firstShown &&
+      !shown.has(message.id) &&
+      !(streamFinished && message.role === 'assistant')
     // Every prompt marks its turn, text or not: a turn opened by a picture
     // alone hides the pin rather than leaving the previous turn's prompt there.
     const prompt = prompts && message.role === 'user'
