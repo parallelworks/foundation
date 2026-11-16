@@ -206,6 +206,25 @@ describe('SessionView', () => {
     },
   )
 
+  it('takes back what waits when the host asks, as ↑ does, without stopping the turn', async () => {
+    const onStop = vi.fn()
+    const view = createRef<SessionViewHandle>()
+    render(
+      <SessionView
+        ref={view}
+        sessionKey="s1"
+        messages={[ask]}
+        onSend={vi.fn()}
+        turn={{ running: false, onStop }}
+        composer={{ recall: { available: true, take: vi.fn() } }}
+      />,
+    )
+    await act(async () => view.current?.recall())
+    expect(recallComposer).toHaveBeenCalledTimes(1)
+    expect(recallComposer).toHaveBeenCalledWith({ focus: false })
+    expect(onStop).not.toHaveBeenCalled()
+  })
+
   it('stops at once when nothing waits to be taken back', () => {
     const onStop = vi.fn()
     render(

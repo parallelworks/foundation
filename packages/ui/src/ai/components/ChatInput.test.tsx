@@ -1250,6 +1250,22 @@ describe('ChatInput taking back what waits', () => {
     expect(textarea()).toHaveFocus()
   })
 
+  it('leaves focus where it is when the host takes back unasked', async () => {
+    const ref = createRef<ChatInputHandle>()
+    const recall = waiting([{ text: 'also the docs' }])
+    render(
+      <>
+        <input aria-label="Find" />
+        <ChatInput ref={ref} onSend={vi.fn()} recall={recall} />
+      </>,
+    )
+    const find = screen.getByLabelText('Find')
+    find.focus()
+    await act(async () => ref.current?.recall({ focus: false }))
+    expect(textarea().value).toBe('also the docs')
+    expect(find).toHaveFocus()
+  })
+
   describe('with a fine pointer', () => {
     const original = window.matchMedia
     beforeEach(() => {

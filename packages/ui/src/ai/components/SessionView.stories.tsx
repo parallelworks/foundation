@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { within } from 'storybook/test'
 import {
   makeAgentTurn,
@@ -14,7 +14,7 @@ import {
 import type { ChatMessage } from '../types'
 import { NoticeCard } from '../ui/Notice'
 import type { RecalledMessage } from './ChatInput'
-import SessionView from './SessionView'
+import SessionView, { type SessionViewHandle } from './SessionView'
 
 const meta: Meta = {
   title: 'Chat/Session view',
@@ -404,4 +404,87 @@ export const TakeBack: StoryObj<TakeBackArgs> = {
     },
   },
   render: (args) => <TakeBackExample key={String(args.withPaste)} {...args} />,
+}
+
+type HandBackArgs = { failMs: number }
+
+const FAILED_PROMPT = 'Rerun the flaky checkout test until it passes twice in a row.'
+
+function HandBackExample({ failMs }: HandBackArgs) {
+  const view = useRef<SessionViewHandle>(null)
+  const [ended, setEnded] = useState<'failed' | 'stopped' | null>(null)
+  const [unread, setUnread] = useState(true)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setEnded((current) => current ?? 'failed')
+      void view.current?.recall()
+    }, failMs)
+    return () => clearTimeout(timer)
+  }, [failMs])
+  const messages: ChatMessage[] = [
+    makeMessage({ id: 'hand-back-prompt', role: 'user', content: FAILED_PROMPT }),
+    ...(ended === 'failed'
+      ? [
+          makeMessage({
+            id: 'hand-back-error',
+            role: 'assistant',
+            content: null,
+            parts: [
+              {
+                kind: 'error' as const,
+                text: 'The model provider rejected the request: the allocation ran out.',
+              },
+            ],
+          }),
+        ]
+      : []),
+  ]
+  const recall = {
+    available: ended !== null && unread,
+    take: async (): Promise<RecalledMessage[]> => {
+      if (!unread) {
+        return []
+      }
+      setUnread(false)
+      return [{ text: FAILED_PROMPT }]
+    },
+  }
+  return (
+    <StoryChat>
+      <StoryViewport>
+        <SessionView
+          ref={view}
+          sessionKey="story-hand-back"
+          messages={messages}
+          turn={{
+            running: ended === null,
+            onStop: () => {
+              setEnded('stopped')
+              void view.current?.recall()
+            },
+          }}
+          onSend={() => true}
+          flush
+          workingIndicator={false}
+          composer={{ attachments: false, requireModel: false, recall }}
+        />
+      </StoryViewport>
+    </StoryChat>
+  )
+}
+
+/** A turn that fails before the agent reads its message leaves the message in
+ *  the transcript, where it was sent, and the host hands it back to the box
+ *  with `recall()` on the view's handle, as a terminal does, so it can be
+ *  sent again rather than read as sent. Stopped first, it comes back the same
+ *  way, without the failure. */
+export const HandBackAfterFailure: StoryObj<HandBackArgs> = {
+  args: { failMs: 1_500 },
+  argTypes: {
+    failMs: {
+      control: { type: 'range', min: 0, max: 5_000, step: 250 },
+      description: 'How long the turn runs before it fails',
+    },
+  },
+  render: (args) => <HandBackExample key={args.failMs} {...args} />,
 }
