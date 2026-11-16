@@ -93,7 +93,7 @@ export interface SessionViewHandle {
   stop: () => Promise<void>
   /** Takes back into the composer what the host's `composer.recall` gives,
    *  as ↑ does, for a message the host learns later was never read, such as
-   *  when its turn failed first. */
+   *  when its turn failed first. Focus held elsewhere stays there. */
   recall: () => Promise<void>
 }
 
@@ -160,10 +160,10 @@ export default function SessionView({
     () => ({
       stop,
       recall: async () => {
-        await editQueued()
+        await inputRef.current?.recall({ focus: false })
       },
     }),
-    [stop, editQueued],
+    [stop],
   )
 
   // A transcript that arrives before the renderer would show its replies as

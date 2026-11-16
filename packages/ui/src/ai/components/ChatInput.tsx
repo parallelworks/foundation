@@ -93,8 +93,10 @@ export interface ChatInputHandle {
   addFiles: (files: FileList | File[]) => void
   focus: () => void
   /** Takes back what waits into the box, ahead of anything typed there;
-   *  resolves once it is there, or once the host had nothing to give back. */
-  recall: () => Promise<void>
+   *  resolves once it is there, or once the host had nothing to give back.
+   *  `focus: false` is for a take the person did not ask for: focus held
+   *  elsewhere stays there. */
+  recall: (options?: { focus?: boolean }) => Promise<void>
 }
 
 /** A message taken back before it was read. */
@@ -313,8 +315,10 @@ export default function ChatInput({
       focus: () => {
         textareaRef.current?.focus()
       },
-      recall: () => {
-        textareaRef.current?.focus()
+      recall: ({ focus = true } = {}) => {
+        if (focus) {
+          textareaRef.current?.focus()
+        }
         return latestTakeBack.current()
       },
     }),

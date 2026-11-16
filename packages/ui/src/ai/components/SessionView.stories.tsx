@@ -412,18 +412,18 @@ const FAILED_PROMPT = 'Rerun the flaky checkout test until it passes twice in a 
 
 function HandBackExample({ failMs }: HandBackArgs) {
   const view = useRef<SessionViewHandle>(null)
-  const [failed, setFailed] = useState(false)
+  const [ended, setEnded] = useState<'failed' | 'stopped' | null>(null)
   const [unread, setUnread] = useState(true)
   useEffect(() => {
     const timer = setTimeout(() => {
-      setFailed(true)
+      setEnded((current) => current ?? 'failed')
       void view.current?.recall()
     }, failMs)
     return () => clearTimeout(timer)
   }, [failMs])
   const messages: ChatMessage[] = [
     makeMessage({ id: 'hand-back-prompt', role: 'user', content: FAILED_PROMPT }),
-    ...(failed
+    ...(ended === 'failed'
       ? [
           makeMessage({
             id: 'hand-back-error',
@@ -440,7 +440,7 @@ function HandBackExample({ failMs }: HandBackArgs) {
       : []),
   ]
   const recall = {
-    available: failed && unread,
+    available: ended !== null && unread,
     take: async (): Promise<RecalledMessage[]> => {
       if (!unread) {
         return []
@@ -456,7 +456,13 @@ function HandBackExample({ failMs }: HandBackArgs) {
           ref={view}
           sessionKey="story-hand-back"
           messages={messages}
-          turn={{ running: !failed, onStop: () => setFailed(true) }}
+          turn={{
+            running: ended === null,
+            onStop: () => {
+              setEnded('stopped')
+              void view.current?.recall()
+            },
+          }}
           onSend={() => true}
           flush
           workingIndicator={false}
@@ -470,7 +476,8 @@ function HandBackExample({ failMs }: HandBackArgs) {
 /** A turn that fails before the agent reads its message leaves the message in
  *  the transcript, where it was sent, and the host hands it back to the box
  *  with `recall()` on the view's handle, as a terminal does, so it can be
- *  sent again rather than read as sent. */
+ *  sent again rather than read as sent. Stopped first, it comes back the same
+ *  way, without the failure. */
 export const HandBackAfterFailure: StoryObj<HandBackArgs> = {
   args: { failMs: 1_500 },
   argTypes: {

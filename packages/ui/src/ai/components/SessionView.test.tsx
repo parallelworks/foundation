@@ -221,6 +221,7 @@ describe('SessionView', () => {
     )
     await act(async () => view.current?.recall())
     expect(recallComposer).toHaveBeenCalledTimes(1)
+    expect(recallComposer).toHaveBeenCalledWith({ focus: false })
     expect(onStop).not.toHaveBeenCalled()
   })
 

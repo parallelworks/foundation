@@ -1056,7 +1056,10 @@ does; `ChatMessageList` does this for any host that sets `onEditQueued`.
 Stopping the turn, with Escape or Stop, takes back what waits first and only
 then calls `turn.onStop`, so nothing waiting runs unasked after a stop or is
 lost to it. A host's own Stop elsewhere in the view stops the same way through
-the `ref`'s `SessionViewHandle.stop()`.
+the `ref`'s `SessionViewHandle.stop()`, and its `recall()` takes back what the
+composer's `recall` gives as ↑ does, for a message the host learns later was
+never read, such as one whose turn failed first; focus held elsewhere stays
+there.
 
 A host's own list of conversations or sessions builds on `ConversationSidebar`
 with the same pieces the chat's list uses: `SidebarRow` with `SidebarRowBody`
