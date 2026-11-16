@@ -91,6 +91,10 @@ export interface SessionViewHandle {
   /** Stops the turn as Escape does, for the host's own Stop outside the
    *  composer: what waits comes back to the composer first. */
   stop: () => Promise<void>
+  /** Takes back into the composer what the host's `composer.recall` gives,
+   *  as ↑ does, for a message the host learns later was never read, such as
+   *  when its turn failed first. */
+  recall: () => Promise<void>
 }
 
 /** One conversation or agent session: its transcript, with the composer at
@@ -151,7 +155,16 @@ export default function SessionView({
     }
     hostStop()
   }, [hostStop, takesBack, stopStreaming])
-  useImperativeHandle(ref, () => ({ stop }), [stop])
+  useImperativeHandle(
+    ref,
+    () => ({
+      stop,
+      recall: async () => {
+        await editQueued()
+      },
+    }),
+    [stop, editQueued],
+  )
 
   // A transcript that arrives before the renderer would show its replies as
   // raw text, then reflow, so it waits; never longer than this, since raw text
