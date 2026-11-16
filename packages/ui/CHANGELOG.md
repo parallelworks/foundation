@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.146.0](https://github.com/parallelworks/foundation/compare/ui-v0.145.1...ui-v0.146.0) (2026-11-16)
+
+
+### Features
+
+* **ui:** a host can hand a message back to the session view's composer, such as one whose turn failed before it was read ([#797](https://github.com/parallelworks/foundation/issues/797)) ([d1518c5](https://github.com/parallelworks/foundation/commit/d1518c5913abb04f14cbd3a7a024f56f60b7c93c))
+
 ## [0.145.1](https://github.com/parallelworks/foundation/compare/ui-v0.145.0...ui-v0.145.1) (2026-11-16)
 
 
