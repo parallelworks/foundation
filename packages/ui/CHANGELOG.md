@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.145.1](https://github.com/parallelworks/foundation/compare/ui-v0.145.0...ui-v0.145.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* **ui:** a long transcript draws its last turns and the rest as you scroll up, so a phone no longer closes the tab ([#795](https://github.com/parallelworks/foundation/issues/795)) ([251fdd2](https://github.com/parallelworks/foundation/commit/251fdd2e47eef1850ab9536263701962afeef91f))
+
 ## [0.145.0](https://github.com/parallelworks/foundation/compare/ui-v0.144.2...ui-v0.145.0) (2026-11-15)
 
 
