@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.145.0](https://github.com/parallelworks/foundation/compare/ui-v0.144.2...ui-v0.145.0) (2026-11-15)
+
+
+### Features
+
+* **ui:** a page's list in the app frame's navigation folds its groups as the list it stands in for does, and a folded group shows how many it holds ([#790](https://github.com/parallelworks/foundation/issues/790)) ([c0f0258](https://github.com/parallelworks/foundation/commit/c0f0258ce92ba078f426614402ec7793a2379f24))
+
 ## [0.144.2](https://github.com/parallelworks/foundation/compare/ui-v0.144.1...ui-v0.144.2) (2026-11-15)
 
 
