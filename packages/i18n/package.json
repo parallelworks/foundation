@@ -59,7 +59,7 @@
   },
   "dependencies": {
     "@babel/parser": "^8.1.0",
-    "@formatjs/icu-messageformat-parser": "^3.5.22"
+    "@formatjs/icu-messageformat-parser": "^3.5.23"
   },
   "peerDependencies": {
     "react": "^19.0.0",
@@ -85,7 +85,7 @@
     "react-dom": "^19.3.1",
     "typescript": "^7.0.2",
     "use-intl": "^4.14.9",
-    "vite": "^8.3.5",
+    "vite": "^8.3.7",
     "vitest": "^5.1.0"
   }
 }
