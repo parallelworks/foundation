@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { type ComponentProps, createRef } from 'react'
 import type { useChat, useChatStream } from '../core/ChatProvider'
+import { createTextIndex } from '../core/textIndex'
 import type { ChatMessage as Message } from '../types'
 import { ExpandAllProvider } from './agent/AgentMessageParts'
 import ChatMessageList, { type ChatMessageListHandle } from './ChatMessageList'
@@ -386,5 +387,88 @@ describe('ChatMessageList scrolled through a long conversation', () => {
     scrollWithin(log, 15 * ROW)
 
     expect(drawnIds()[0]).toBe('u22')
+  })
+})
+
+describe('ChatMessageList for a search', () => {
+  it('draws the turn of a message it reveals, with the message at the top of the view', async () => {
+    const { log, ref } = renderList(turns(1, 30))
+
+    let revealed: Promise<void> | undefined
+    act(() => {
+      revealed = ref.current?.reveal('a5')
+    })
+    await revealed
+
+    expect(drawnIds()).toContain('a5')
+    expect(drawnIds()).not.toContain('a30')
+    expect(log.scrollTop).toBe(ROW)
+    expect(screen.queryByText('Jump to latest')).toBeInTheDocument()
+  })
+
+  it('reads the turns it does not draw, a few at a time', async () => {
+    const conversation = turns(1, 10)
+    const index = createTextIndex()
+    // The rows each batch draws out of sight: a batch is drawn, read and let go of at once.
+    const batches: number[] = []
+    const watch = new MutationObserver((records) => {
+      const read = records.flatMap((r) =>
+        r.target instanceof Element && r.target.closest('[data-transcript]')
+          ? []
+          : [...r.addedNodes].filter((n) => n instanceof HTMLElement && n.hasAttribute('data-row')),
+      )
+      if (read.length > 0) {
+        batches.push(read.length)
+      }
+    })
+    watch.observe(document.body, { childList: true, subtree: true })
+    renderList(conversation, { textIndex: index, indexing: true })
+
+    await waitFor(() => expect(index.get(conversation[0] as Message)).toBe('Question 1'))
+    watch.disconnect()
+
+    expect(index.get(conversation[13] as Message)).toBe('')
+    expect(drawnIds()).toEqual(['u8', 'a8', 'u9', 'a9', 'u10', 'a10'])
+    // About 50 parts at a time, here a turn or two of the fourteen rows it doesn't draw.
+    expect(batches.length).toBeGreaterThanOrEqual(3)
+    expect(Math.max(...batches)).toBeLessThanOrEqual(4)
+  })
+
+  it('reads nothing while no search asks it to', async () => {
+    const conversation = turns(1, 10)
+    const index = createTextIndex()
+    renderList(conversation, { textIndex: index })
+
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
+
+    // The reply just before the window would be read first.
+    expect(index.get(conversation[13] as Message)).toBeUndefined()
+  })
+
+  it('keeps what a turn it lets go of showed', () => {
+    const conversation = turns(1, 30)
+    const index = createTextIndex()
+    const { log } = renderList(conversation, { textIndex: index })
+    scrollWithin(log, 0)
+
+    scrollWithin(log, 15 * ROW)
+
+    expect(index.get(conversation[42] as Message)).toBe('Question 22')
+  })
+
+  it('forgets what it read once what the reader opened starts afresh', () => {
+    const conversation = turns(1, 3)
+    const index = createTextIndex()
+    const list = (all: boolean) => (
+      <ExpandAllProvider value={all}>
+        <ChatMessageList messages={conversation} allMessages={conversation} textIndex={index} />
+      </ExpandAllProvider>
+    )
+    const { rerender } = render(list(false))
+    index.set(conversation[0] as Message, 'Question 1')
+
+    rerender(list(true))
+
+    expect(index.get(conversation[0] as Message)).toBeUndefined()
   })
 })

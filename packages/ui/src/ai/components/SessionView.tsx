@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
 } from 'react'
@@ -12,6 +13,7 @@ import { useMarkdownReady } from '../../components/Markdown'
 import { useChat } from '../core/ChatProvider'
 import type { ApprovalAnswerHandler } from '../core/config'
 import { listenWhileShown } from '../core/onScreen'
+import { createTextIndex } from '../core/textIndex'
 import useDragDrop from '../core/useDragDrop'
 import { escapeClosesLayer } from '../core/useKeyboardShortcuts'
 import type { ChatMessage as Message } from '../types'
@@ -19,7 +21,7 @@ import ChatActivity from './ChatActivity'
 import ChatInput, { type ChatInputHandle } from './ChatInput'
 import ChatMessageList, { type ChatMessageListHandle } from './ChatMessageList'
 import DragOverlay from './DragOverlay'
-import { TranscriptFindBar, useTranscriptFind } from './TranscriptFind'
+import { type FindSource, TranscriptFindBar, useTranscriptFind } from './TranscriptFind'
 
 type ComposerProps = Omit<
   ComponentProps<typeof ChatInput>,
@@ -137,7 +139,8 @@ export default function SessionView({
   const listRef = useRef<ChatMessageListHandle>(null)
   const editQueued = useCallback(() => inputRef.current?.recall(), [])
   const viewRef = useRef<HTMLDivElement>(null)
-  const finder = useTranscriptFind(viewRef, find)
+  // What find reads of the messages the list doesn't draw.
+  const [textIndex] = useState(createTextIndex)
   const [editingId, setEditingId] = useState<string | null>(null)
   const { isStreaming: providerStreaming, stopStreaming } = useChat()
   const running = turn ? turn.running : providerStreaming
@@ -182,6 +185,12 @@ export default function SessionView({
         ...(queuedMessages ? { queuedMessages } : {}),
       }
     : { messages: [], allMessages: [], streamingMessage: null, queuedMessages: [] }
+  const reveal = useCallback((id: string) => listRef.current?.reveal(id) ?? Promise.resolve(), [])
+  const findSource = useMemo<FindSource | undefined>(
+    () => (find ? { messages: transcript.messages, index: textIndex, reveal } : undefined),
+    [find, transcript.messages, textIndex, reveal],
+  )
+  const finder = useTranscriptFind(viewRef, find, findSource)
 
   // Escape stops the turn, wherever the turn runs, while the view is on screen.
   useEffect(() => {
@@ -304,7 +313,7 @@ export default function SessionView({
             {...(flush ? { flush } : {})}
             {...(foldEveryRun ? { foldEveryRun } : {})}
             {...(pinPrompt ? { pinPrompt } : {})}
-            whole={finder.open}
+            {...(find ? { textIndex, indexing: finder.open } : {})}
             workingIndicator={workingIndicator ?? !activity}
             inputElement={input}
           />

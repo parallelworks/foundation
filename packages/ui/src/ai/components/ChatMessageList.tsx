@@ -19,6 +19,8 @@ import { CheckIcon, ClockIcon } from '../../icons'
 import { useChat, useChatStream } from '../core/ChatProvider'
 import { type ApprovalAnswerHandler, useChatConfig } from '../core/config'
 import { createRowMemory, RowMemoryContext, useExpandAll } from '../core/rowMemory'
+import type { TextIndex } from '../core/textIndex'
+import { rowOf, visibleText } from '../core/transcriptFind'
 import type { ChatMessage as Message } from '../types'
 import Markdown from '../ui/Markdown'
 import AgentMessageParts from './agent/AgentMessageParts'
@@ -86,13 +88,6 @@ function turnEnd(messages: Message[], i: number): number {
   return at
 }
 
-/** The row a node is in, of those under content. */
-function rowOf(node: Node | null | undefined, content: Element): HTMLElement | null {
-  const el = node instanceof Element ? node : (node?.parentElement ?? null)
-  const row = el?.closest<HTMLElement>('[data-row]') ?? null
-  return row && content.contains(row) ? row : null
-}
-
 /** Rows the list must not let go of: one a reader is selecting text in, or
  *  one they reached with the keyboard, which would otherwise lose its place. */
 function heldRows(content: Element): HTMLElement[] {
@@ -107,6 +102,31 @@ function heldRows(content: Element): HTMLElement[] {
     rows.push(rowOf(active, content))
   }
   return rows.filter((row): row is HTMLElement => row !== null)
+}
+
+// About how many parts the list reads at a time for a search, between which
+// the page goes on.
+const READ_PARTS = 50
+
+/** The next messages to read for a search: those the list doesn't draw and
+ *  hasn't read, about READ_PARTS parts of them, nearest the window first. */
+function unread(messages: Message[], start: number, end: number, index: TextIndex): Message[] {
+  const picked: number[] = []
+  let parts = 0
+  let up = start - 1
+  let down = end
+  let upward = true
+  while (parts < READ_PARTS && (up >= 0 || down < messages.length)) {
+    const i = (upward && up >= 0) || down >= messages.length ? up-- : down++
+    upward = !upward
+    const message = messages[i]
+    if (!message || message.pseudo || index.get(message) !== undefined) {
+      continue
+    }
+    picked.push(i)
+    parts += 1 + (message.parts?.length ?? 0)
+  }
+  return picked.sort((a, b) => a - b).flatMap((i) => messages[i] ?? [])
 }
 
 const jumpClasses =
@@ -167,16 +187,24 @@ interface ChatMessageListProps {
   /** Pins the prompt of the turn in view to the top once it scrolls out of
    *  sight, as a terminal transcript does; a click returns to it. */
   pinPrompt?: boolean
-  /** Draws every message, as a search of the whole conversation needs.
-   *  Otherwise a long conversation draws its end, then the turns near the view
-   *  as the reader scrolls, letting go of those it left far behind. */
+  /** Draws every message at once, for a host that needs all of them on the
+   *  page. Otherwise a long conversation draws its end, then the turns near the
+   *  view as the reader scrolls, letting go of those it left far behind. */
   whole?: boolean
+  /** Keeps the text a reader sees in each message the list doesn't draw, for
+   *  a search of the whole conversation that doesn't draw it all. */
+  textIndex?: TextIndex | undefined
+  /** Reads the messages it doesn't draw into textIndex, a few at a time. */
+  indexing?: boolean | undefined
   ref?: Ref<ChatMessageListHandle> | undefined
 }
 
 export interface ChatMessageListHandle {
   /** Returns to the newest content and follows it again. */
   jumpToLatest: () => void
+  /** Draws the turn a message is in and brings the message into view;
+   *  resolves once it is drawn. */
+  reveal: (messageId: string) => Promise<void>
 }
 
 export default function ChatMessageList({
@@ -208,6 +236,8 @@ export default function ChatMessageList({
   workingIndicator = true,
   pinPrompt,
   whole = false,
+  textIndex,
+  indexing = false,
   ref,
 }: ChatMessageListProps) {
   const { adapter, isStreaming: providerStreaming } = useChat()
@@ -323,14 +353,49 @@ export default function ChatMessageList({
   const [conversations, setConversations] = useState(0)
   // biome-ignore lint/correctness/useExhaustiveDependencies: a new memory for each, not read from them
   const memory = useMemo(() => createRowMemory(), [expandAll, conversations])
-  const windowRef = useRef({ messages, indexOf, start, end, whole, editingMessageId })
+  const windowRef = useRef({ messages, indexOf, start, end, whole, editingMessageId, textIndex })
   useLayoutEffect(() => {
-    windowRef.current = { messages, indexOf, start, end, whole, editingMessageId }
+    windowRef.current = { messages, indexOf, start, end, whole, editingMessageId, textIndex }
   })
+  // What a search read of the messages depends on what the reader opened in them.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new memory means what was read is stale
+  useEffect(() => {
+    textIndex?.clear()
+  }, [memory, textIndex])
+  // The messages a search is reading now: drawn out of sight, read, let go of.
+  const [reading, setReading] = useState<Message[]>(NO_MESSAGES)
+  const readerRef = useRef<HTMLDivElement>(null)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new memory clears what was read, so reading starts again
+  useEffect(() => {
+    if (!indexing || !textIndex || reading.length > 0) {
+      return
+    }
+    // The page goes on between batches.
+    const timer = setTimeout(() => {
+      const next = unread(messages, start, end, textIndex)
+      if (next.length > 0) {
+        setReading(next)
+      }
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [indexing, textIndex, reading, messages, start, end, memory])
+  useLayoutEffect(() => {
+    if (reading.length === 0 || !textIndex) {
+      return
+    }
+    const rows = [...(readerRef.current?.children ?? [])]
+    for (const message of reading) {
+      const row = rows.find((r) => r instanceof HTMLElement && r.dataset['row'] === message.id)
+      textIndex.set(message, row ? visibleText(row) : '')
+    }
+    setReading(NO_MESSAGES)
+  }, [reading, textIndex])
   // The first row in view and where it was, so the rows drawn or let go of
   // around it leave what the reader is looking at where it is.
   const keptRef = useRef<{ row: Element; top: number } | null>(null)
   const jumpedRef = useRef(false)
+  // A message reveal is drawing, and what to call once it shows.
+  const revealRef = useRef<{ id: string; done: () => void } | null>(null)
 
   // Draws the turns beyond either edge of the window once the reader is
   // within DRAW_SCREENS of it, or the window doesn't fill the view, and lets
@@ -375,13 +440,25 @@ export default function ChatMessageList({
     const keep = [...held.filter((i) => i >= first && i < last), ...near.map(indexOfRow)]
     const lowest = keep.length > 0 ? Math.min(...keep) : indexOfRow(rows.at(-1))
     const highest = keep.length > 0 ? Math.max(...keep) : indexOfRow(rows[0])
+    // A search reads a row let go of from what it showed, as the reader left it.
+    const remember = (gone: (i: number) => boolean) => {
+      const index = windowRef.current.textIndex
+      for (const row of index ? rows : []) {
+        const message = all[indexOfRow(row)]
+        if (message && gone(indexOfRow(row))) {
+          index?.set(message, visibleText(row))
+        }
+      }
+    }
     const keepFrom = turnStart(all, lowest)
     if (keepFrom > first) {
+      remember((i) => i < keepFrom)
       setFrom(all[keepFrom]?.id ?? null)
       return
     }
     const keepTo = turnEnd(all, highest)
     if (keepTo < last) {
+      remember((i) => i >= keepTo)
       setTo(all[keepTo - 1]?.id ?? null)
     }
   }, [])
@@ -450,6 +527,27 @@ export default function ChatMessageList({
     setTo(null)
   }, [])
 
+  const reveal = useCallback(
+    (id: string) =>
+      new Promise<void>((resolve) => {
+        const { messages: all, indexOf: at, start: first, end: last } = windowRef.current
+        const i = at.get(id)
+        if (i === undefined || (i >= first && i < last)) {
+          resolve()
+          return
+        }
+        revealRef.current?.done()
+        revealRef.current = { id, done: resolve }
+        isNearBottomRef.current = false
+        setPinned(false)
+        const from = turnStart(all, i)
+        const to = Math.max(windowEnd(all, from), turnEnd(all, i))
+        setFrom(all[from]?.id ?? null)
+        setTo(to >= all.length ? null : (all[to - 1]?.id ?? null))
+      }),
+    [],
+  )
+
   // A reader who left the end keeps the turns they left it from, as new
   // ones arrive below.
   useEffect(() => {
@@ -466,7 +564,7 @@ export default function ChatMessageList({
     }
   }, [whole])
 
-  useImperativeHandle(ref, () => ({ jumpToLatest }), [jumpToLatest])
+  useImperativeHandle(ref, () => ({ jumpToLatest, reveal }), [jumpToLatest, reveal])
 
   // Attach listeners once the container exists (it is absent in the empty state)
   const queuedCount = queuedMessages?.length ?? 0
@@ -581,7 +679,18 @@ export default function ChatMessageList({
   useLayoutEffect(() => {
     const el = containerRef.current
     const kept = keptRef.current
-    if (el && jumpedRef.current) {
+    const revealing = revealRef.current
+    if (revealing) {
+      revealRef.current = null
+      const row = [...(contentRef.current?.children ?? [])].find(
+        (r) => r instanceof HTMLElement && r.dataset['row'] === revealing.id,
+      )
+      if (el && row) {
+        el.scrollTop += row.getBoundingClientRect().top - el.getBoundingClientRect().top
+        lastScrollTopRef.current = el.scrollTop
+      }
+      revealing.done()
+    } else if (el && jumpedRef.current) {
       jumpedRef.current = false
       el.scrollTop = el.scrollHeight
       lastScrollTopRef.current = el.scrollTop
@@ -703,6 +812,48 @@ export default function ChatMessageList({
 
   const pinnedText = pinPrompt && anchor ? promptLine(messages.find((m) => m.id === anchor)) : ''
 
+  const rowProps = {
+    conversation: messages,
+    allMessages: rowMessages,
+    prompts: !!pinPrompt,
+    flush,
+    foldEveryRun,
+    editingMessageId,
+    showAuthor,
+    currentUsername,
+    attachmentDownloadUrl,
+    onOpenAttachment,
+    onNavigateBranch,
+    onEditMessage,
+    onSaveEdit,
+    onCancelEdit,
+    onRegenerateMessage,
+    onRetryMessage,
+    onOpenReasoning,
+    onApprovalAnswer,
+  }
+
+  // Out of sight and out of reach: the rows a search reads, as they would show.
+  const reader = textIndex && (
+    <div
+      ref={readerRef}
+      aria-hidden="true"
+      inert
+      className="pointer-events-none fixed top-0 left-0 h-0 w-full max-w-[var(--chat-column,50rem)] overflow-hidden opacity-0 [contain:strict]"
+    >
+      {reading.length > 0 && (
+        <RowMemoryContext value={memory}>
+          <MessageRows
+            {...rowProps}
+            messages={reading}
+            attached={reading.at(-1) === messages.at(-1)}
+            streaming={false}
+          />
+        </RowMemoryContext>
+      )}
+    </div>
+  )
+
   const list = (
     <div
       ref={containerRef}
@@ -730,27 +881,10 @@ export default function ChatMessageList({
         >
           <RowMemoryContext value={memory}>
             <MessageRows
+              {...rowProps}
               messages={drawn}
-              conversation={messages}
               attached={attached}
-              allMessages={rowMessages}
               streaming={!!streamingMessage}
-              prompts={!!pinPrompt}
-              flush={flush}
-              foldEveryRun={foldEveryRun}
-              editingMessageId={editingMessageId}
-              showAuthor={showAuthor}
-              currentUsername={currentUsername}
-              attachmentDownloadUrl={attachmentDownloadUrl}
-              onOpenAttachment={onOpenAttachment}
-              onNavigateBranch={onNavigateBranch}
-              onEditMessage={onEditMessage}
-              onSaveEdit={onSaveEdit}
-              onCancelEdit={onCancelEdit}
-              onRegenerateMessage={onRegenerateMessage}
-              onRetryMessage={onRetryMessage}
-              onOpenReasoning={onOpenReasoning}
-              onApprovalAnswer={onApprovalAnswer}
             />
             {/* Thinking / "Thought for" section — visible during and after thinking */}
             {attached && isStreaming && streamingReasoning && (
@@ -859,7 +993,12 @@ export default function ChatMessageList({
   )
 
   if (!pinPrompt) {
-    return list
+    return (
+      <>
+        {list}
+        {reader}
+      </>
+    )
   }
   // The pin lies over the log rather than in it, so its coming and going is
   // not announced as a new message. It comes first so the tab order meets it
@@ -876,6 +1015,7 @@ export default function ChatMessageList({
         />
       )}
       {list}
+      {reader}
     </div>
   )
 }
