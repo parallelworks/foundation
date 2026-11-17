@@ -3,6 +3,7 @@ import {
   type RefObject,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from 'react'
@@ -13,52 +14,179 @@ import { ChevronDownIcon, ChevronUpIcon, CloseIcon, SearchIcon } from '../../ico
 import { useChatConfig } from '../core/config'
 import { FIND_IN_TRANSCRIPT_EVENT } from '../core/events'
 import { listenWhileShown, onScreen } from '../core/onScreen'
+import type { TextIndex } from '../core/textIndex'
 import {
+  countMatches,
+  findPattern,
   findRanges,
-  firstInView,
   MAX_MATCHES,
   revealRange,
+  rowOf,
   transcriptOf,
 } from '../core/transcriptFind'
+import type { ChatMessage as Message } from '../types'
 import { isMac } from '../utils'
 
 // The ::highlight() names ai.css paints.
 const MATCHES = 'transcript-find'
 const CURRENT = 'transcript-find-current'
 
+/** A match: a range in a message the list draws, or the k-th match in the
+ *  text of one it doesn't, which gets its range once that message is drawn. */
+interface Hit {
+  id: string | null
+  k: number
+  range: Range | null
+  /** Above the messages drawn, among them, or below them. */
+  where: 'before' | 'drawn' | 'after'
+}
+
 interface Found {
-  ranges: Range[]
+  hits: Hit[]
   current: number
+  /** More may match than counted: a message not read yet, or the cap. */
+  more: boolean
+}
+
+const NONE: Found = { hits: [], current: 0, more: false }
+
+/** What find searches beyond what the list draws: every message of the
+ *  conversation, the text the list read of those it doesn't draw, and a way
+ *  to draw one. */
+export interface FindSource {
+  messages: Message[]
+  index: TextIndex
+  reveal: (messageId: string) => Promise<void>
 }
 
 // Painted with the CSS Custom Highlight API, so the transcript's DOM, which
 // React owns, is never touched. A browser without it still counts and scrolls.
-function paint({ ranges, current }: Found) {
+function paint({ hits, current }: Pick<Found, 'hits' | 'current'>) {
   if (typeof CSS === 'undefined' || !('highlights' in CSS)) {
     return
   }
-  const shown = ranges[current]
-  if (!shown) {
+  const shown = hits[current]?.range
+  const others = hits.flatMap((hit) => (hit.range && hit.range !== shown ? [hit.range] : []))
+  if (others.length > 0) {
+    CSS.highlights.set(MATCHES, new Highlight(...others))
+  } else {
     CSS.highlights.delete(MATCHES)
+  }
+  if (!shown) {
     CSS.highlights.delete(CURRENT)
     return
   }
-  CSS.highlights.set(MATCHES, new Highlight(...ranges.filter((_, i) => i !== current)))
   const highlight = new Highlight(shown)
   highlight.priority = 1
   CSS.highlights.set(CURRENT, highlight)
 }
 
+/** Every match of the query, in reading order: in the messages above those
+ *  drawn, in those drawn, and in those below, up to MAX_MATCHES. */
+function search(
+  transcript: Element | null,
+  query: string,
+  source: FindSource | undefined,
+): Omit<Found, 'current'> {
+  if (!findPattern(query)) {
+    return { hits: [], more: false }
+  }
+  const counted = new Map<string | null, number>()
+  const drawn = (transcript ? findRanges(transcript, query) : []).map((range): Hit => {
+    const id = transcript ? (rowOf(range.startContainer, transcript)?.dataset['row'] ?? null) : null
+    const k = counted.get(id) ?? 0
+    counted.set(id, k + 1)
+    return { id, k, range, where: 'drawn' }
+  })
+  let more = drawn.length === MAX_MATCHES
+  if (!source) {
+    return { hits: drawn, more }
+  }
+  const { messages, index } = source
+  const rows = new Set(
+    [...(transcript?.querySelectorAll<HTMLElement>('[data-row]') ?? [])].map(
+      (row) => row.dataset['row'],
+    ),
+  )
+  const first = messages.findIndex((m) => rows.has(m.id))
+  const last = messages.findLastIndex((m) => rows.has(m.id))
+  const read = (from: number, to: number, where: Hit['where']) => {
+    const hits: Hit[] = []
+    for (const message of messages.slice(from, to)) {
+      if (message.pseudo) {
+        continue
+      }
+      const text = index.get(message)
+      if (text === undefined) {
+        more = true
+        continue
+      }
+      const count = countMatches(text, query, MAX_MATCHES)
+      for (let k = 0; k < count; k++) {
+        hits.push({ id: message.id, k, range: null, where })
+      }
+    }
+    return hits
+  }
+  const hits =
+    first === -1
+      ? read(0, messages.length, 'after')
+      : [...read(0, first, 'before'), ...drawn, ...read(last + 1, messages.length, 'after')]
+  if (hits.length > MAX_MATCHES) {
+    more = true
+  }
+  return { hits: hits.slice(0, MAX_MATCHES), more }
+}
+
+/** The first match from the top of what the reader is looking at, as a
+ *  browser's find starts from where the page is scrolled to. */
+function fromView(hits: Hit[], transcript: Element | null): number {
+  const top = transcript?.closest('[role="log"]')?.getBoundingClientRect().top
+  const index = hits.findIndex(
+    (hit) =>
+      hit.where === 'after' ||
+      (hit.where === 'drawn' &&
+        (top === undefined ||
+          !hit.range ||
+          typeof hit.range.getBoundingClientRect !== 'function' ||
+          hit.range.getBoundingClientRect().top >= top)),
+  )
+  return index === -1 ? Math.max(hits.length - 1, 0) : index
+}
+
+/** Where hit is among hits found again, or for a message that matches fewer
+ *  times now, its last match there. */
+function sameHit(hits: Hit[], hit: Hit | undefined): number {
+  if (!hit) {
+    return -1
+  }
+  const at = hits.findIndex((h) => h.id === hit.id && h.k === hit.k)
+  return at !== -1 || hit.id === null ? at : hits.findLastIndex((h) => h.id === hit.id)
+}
+
 /** Find in the transcript under root: ⌘F or FIND_IN_TRANSCRIPT_EVENT opens it,
- *  and it finds again as the transcript streams. */
-export function useTranscriptFind(root: RefObject<HTMLElement | null>, enabled: boolean) {
+ *  and it finds again as the transcript streams. With a source, it also finds
+ *  in the messages the list doesn't draw, and draws one to show a match in it. */
+export function useTranscriptFind(
+  root: RefObject<HTMLElement | null>,
+  enabled: boolean,
+  source?: FindSource,
+) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const [found, setFound] = useState<Found>({ ranges: [], current: 0 })
+  const [found, setFound] = useState<Found>(NONE)
   const [focusTick, setFocusTick] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const returnFocus = useRef<HTMLElement | null>(null)
   const foundRef = useRef(found)
+  const queryRef = useRef(query)
+  const sourceRef = useRef(source)
+  useLayoutEffect(() => {
+    queryRef.current = query
+    sourceRef.current = source
+  })
+  // Each landing on a match; one that finishes after a newer one began does nothing.
+  const landing = useRef(0)
 
   const show = useCallback(() => {
     if (!inputRef.current) {
@@ -69,18 +197,46 @@ export function useTranscriptFind(root: RefObject<HTMLElement | null>, enabled: 
     setFocusTick((n) => n + 1)
   }, [])
 
-  const step = useCallback((by: 1 | -1) => {
-    const { ranges, current } = foundRef.current
-    const target = (current + by + ranges.length) % ranges.length
-    const range = ranges[target]
-    if (!range) {
-      return
-    }
-    foundRef.current = { ranges, current: target }
-    setFound(foundRef.current)
-    revealRange(range)
+  const settle = useCallback((next: Found) => {
+    foundRef.current = next
+    setFound(next)
   }, [])
 
+  // Shows the match at target: one in a message the list doesn't draw is drawn first.
+  const land = useCallback(
+    async (base: Omit<Found, 'current'>, target: number) => {
+      const ticket = ++landing.current
+      const hit = base.hits[target]
+      settle({ ...base, current: target })
+      if (hit && !hit.range && hit.id !== null && sourceRef.current) {
+        await sourceRef.current.reveal(hit.id)
+        if (ticket !== landing.current) {
+          return
+        }
+        const again = search(transcriptOf(root.current), queryRef.current, sourceRef.current)
+        const at = sameHit(again.hits, hit)
+        settle({
+          ...again,
+          current: at === -1 ? Math.min(target, Math.max(again.hits.length - 1, 0)) : at,
+        })
+      }
+      const range = foundRef.current.hits[foundRef.current.current]?.range
+      if (range) {
+        revealRange(range)
+      }
+    },
+    [root, settle],
+  )
+
+  const step = useCallback(
+    (by: 1 | -1) => {
+      const { hits, current } = foundRef.current
+      if (hits.length > 0) {
+        void land(foundRef.current, (current + by + hits.length) % hits.length)
+      }
+    },
+    [land],
+  )
   useEffect(() => {
     if (!enabled) {
       return
@@ -125,68 +281,81 @@ export function useTranscriptFind(root: RefObject<HTMLElement | null>, enabled: 
 
   useEffect(() => {
     if (!open) {
-      setFound({ ranges: [], current: 0 })
+      landing.current++
+      settle(NONE)
       return
     }
     const transcript = transcriptOf(root.current)
-    const ranges = transcript ? findRanges(transcript, query) : []
-    const current = firstInView(ranges, transcript)
-    setFound({ ranges, current })
-    const range = ranges[current]
-    if (range) {
-      revealRange(range)
-    }
-  }, [open, query, root])
+    const base = search(transcript, query, sourceRef.current)
+    void land(base, fromView(base.hits, transcript))
+  }, [open, query, root, land, settle])
 
-  // Streaming adds text and a remount replaces it. Find again, keeping the
-  // reader's place rather than scrolling them away from what they are reading.
+  // Streaming adds text, a remount replaces it, and the list reads the messages
+  // it doesn't draw. Find again, keeping the reader's place rather than
+  // scrolling them away from what they are reading.
+  const index = source?.index
   useEffect(() => {
     const target = root.current
     if (!open || !query.trim() || !target) {
       return
     }
     let timer: ReturnType<typeof setTimeout> | undefined
-    const observer = new MutationObserver((records) => {
-      const transcript = transcriptOf(target)
-      // The bar's own count and the composer change too; only the messages,
-      // or a remount above them, can change what matches.
-      const changed = records.some(
-        (r) => !transcript || transcript.contains(r.target) || r.target.contains(transcript),
-      )
-      if (timer || !changed) {
+    const again = () => {
+      if (timer) {
         return
       }
       timer = setTimeout(() => {
         timer = undefined
-        const scope = transcriptOf(target)
-        const ranges = scope ? findRanges(scope, query) : []
-        setFound((prev) => ({
-          ranges,
-          current: Math.min(prev.current, Math.max(ranges.length - 1, 0)),
-        }))
+        const prev = foundRef.current
+        const transcript = transcriptOf(target)
+        const next = search(transcript, query, sourceRef.current)
+        // The first matches found while the list reads are shown as find shows any.
+        if (prev.hits.length === 0 && next.hits.length > 0) {
+          void land(next, fromView(next.hits, transcript))
+          return
+        }
+        const at = sameHit(next.hits, prev.hits[prev.current])
+        settle({
+          ...next,
+          current: at === -1 ? Math.min(prev.current, Math.max(next.hits.length - 1, 0)) : at,
+        })
       }, 200)
+    }
+    const observer = new MutationObserver((records) => {
+      const transcript = transcriptOf(target)
+      // The bar's own count, the composer and the rows the list reads change
+      // too; only the messages, or a remount above them, can change what matches.
+      if (
+        records.some(
+          (r) => !transcript || transcript.contains(r.target) || r.target.contains(transcript),
+        )
+      ) {
+        again()
+      }
     })
     observer.observe(target, { childList: true, subtree: true, characterData: true })
+    const stop = index?.subscribe(again)
     return () => {
       observer.disconnect()
+      stop?.()
       clearTimeout(timer)
     }
-  }, [open, query, root])
+  }, [open, query, root, index, land, settle])
 
   // The highlights are the page's, not this view's: only clear what this view painted,
   // so another view mounting or unmounting leaves an open find's matches alone.
   const painted = useRef(false)
   useEffect(() => {
-    foundRef.current = found
-    if (found.ranges.length > 0 || painted.current) {
+    const ranged = found.hits.some((hit) => hit.range)
+    if (ranged || painted.current) {
       paint(found)
-      painted.current = found.ranges.length > 0
+      painted.current = ranged
     }
   }, [found])
   useEffect(
     () => () => {
       if (painted.current) {
-        paint({ ranges: [], current: 0 })
+        paint(NONE)
       }
     },
     [],
@@ -207,8 +376,9 @@ export function useTranscriptFind(root: RefObject<HTMLElement | null>, enabled: 
     open: enabled && open,
     query,
     setQuery,
-    total: found.ranges.length,
+    total: found.hits.length,
     current: found.current,
+    more: found.more,
     next,
     previous,
     close,
@@ -225,12 +395,15 @@ export function TranscriptFindBar({ find }: { find: TranscriptFind }) {
   if (!find.open) {
     return null
   }
-  const { total, current } = find
+  const { total, current, more } = find
+  // While the list still reads the messages it doesn't draw, the count says more may come.
   const count = !find.query.trim()
     ? ''
     : total === 0
-      ? t.none
-      : (total === MAX_MATCHES ? t.countCapped : t.count)(current + 1, total)
+      ? more
+        ? ''
+        : t.none
+      : (more ? t.countCapped : t.count)(current + 1, total)
 
   const onKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Escape') {

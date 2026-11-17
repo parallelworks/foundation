@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useEffect, useRef, useState } from 'react'
-import { within } from 'storybook/test'
+import { userEvent, within } from 'storybook/test'
+import { FIND_IN_TRANSCRIPT_EVENT } from '../core/events'
 import {
   makeAgentTurn,
   makeLongConversation,
@@ -487,4 +488,55 @@ export const HandBackAfterFailure: StoryObj<HandBackArgs> = {
     },
   },
   render: (args) => <HandBackExample key={args.failMs} {...args} />,
+}
+
+// Forty turns of sixty commands each, as a long agent session runs.
+const longSession: ChatMessage[] = Array.from({ length: 40 }, (_, n) => [
+  makeMessage({
+    id: `find-ask-${n}`,
+    role: 'user',
+    content: `Run shard ${n + 1} and tell me what failed.`,
+  }),
+  makeMessage({
+    id: `find-work-${n}`,
+    role: 'assistant',
+    content: null,
+    parts: [
+      ...Array.from({ length: 60 }, () => makeToolCallPart({ resultLines: 2 })),
+      { kind: 'text', text: `Shard ${n + 1} passed once the flaky wait was retried.` },
+    ],
+  }),
+]).flat()
+
+type FindInLongSessionArgs = { query: string }
+
+/** Find in a long session, of which the view draws the last few turns: it
+ *  counts the matches in every turn, reading those it doesn't draw a few at a
+ *  time, and draws the turn of the match it shows. Until it has read them all,
+ *  the count says more may come. */
+export const FindInLongSession: StoryObj<FindInLongSessionArgs> = {
+  args: { query: 'Shard 3 passed' },
+  argTypes: { query: { control: 'text' } },
+  render: () => (
+    <StoryChat>
+      <StoryViewport>
+        <SessionView
+          sessionKey="story-find-long-session"
+          messages={longSession}
+          onSend={async () => true}
+          flush
+          foldEveryRun
+          find
+          workingIndicator={false}
+        />
+      </StoryViewport>
+    </StoryChat>
+  ),
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await canvas.findByText(/Shard 40 passed/)
+    document.dispatchEvent(new Event(FIND_IN_TRANSCRIPT_EVENT))
+    const input = await canvas.findByRole('textbox', { name: 'Find in conversation' })
+    await userEvent.type(input, args.query)
+  },
 }

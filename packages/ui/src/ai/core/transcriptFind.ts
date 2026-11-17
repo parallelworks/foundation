@@ -102,22 +102,37 @@ export function findRanges(scope: Element, query: string): Range[] {
   return ranges
 }
 
+/** The text a reader sees in scope, as find reads it. */
+export function visibleText(scope: Element): string {
+  return collectText(scope).text
+}
+
+/** How many times the query appears in text, up to max. */
+export function countMatches(text: string, query: string, max: number): number {
+  const pattern = findPattern(query)
+  if (!pattern || max <= 0) {
+    return 0
+  }
+  let count = 0
+  for (const _ of text.matchAll(pattern)) {
+    count++
+    if (count === max) {
+      break
+    }
+  }
+  return count
+}
+
 /** The messages under root, without the composer that scrolls with them. */
 export function transcriptOf(root: Element | null): Element | null {
   return root?.querySelector(TRANSCRIPT) ?? null
 }
 
-/** The first match from the top of what the reader is looking at, as a
- *  browser's find starts from where the page is scrolled to. */
-export function firstInView(ranges: Range[], transcript: Element | null): number {
-  const top = transcript?.closest('[role="log"]')?.getBoundingClientRect().top
-  if (top === undefined) {
-    return 0
-  }
-  const index = ranges.findIndex(
-    (r) => typeof r.getBoundingClientRect !== 'function' || r.getBoundingClientRect().top >= top,
-  )
-  return index === -1 ? Math.max(ranges.length - 1, 0) : index
+/** The message row a node is in, of those under scope. */
+export function rowOf(node: Node | null | undefined, scope: Element): HTMLElement | null {
+  const el = node instanceof Element ? node : (node?.parentElement ?? null)
+  const row = el?.closest<HTMLElement>('[data-row]') ?? null
+  return row && scope.contains(row) ? row : null
 }
 
 /** Brings a match into the part of the transcript the composer doesn't cover,

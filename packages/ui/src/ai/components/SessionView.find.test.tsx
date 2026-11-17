@@ -198,22 +198,63 @@ describe('SessionView find', () => {
     expect(current()?.map((r) => r.toString())).toEqual(['timeout'])
   })
 
-  it('finds in turns too far back for the list to have drawn them', () => {
-    const notes = (n: number): Message['parts'] =>
-      Array.from({ length: 99 }, (_, i) => ({ kind: 'text' as const, text: `note ${n}.${i}` }))
-    const long: Message[] = [
-      messages[0] as Message,
-      ...[0, 1, 2, 3].flatMap((n): Message[] => [
-        { id: `q${n}`, role: 'user', content: `Step ${n}` },
-        { id: `r${n}`, role: 'assistant', parts: notes(n) },
-      ]),
-    ]
+  // Turns of 99 notes each: the list draws the last of them, and the first turn
+  // asks about the login test.
+  const notes = (n: number): Message['parts'] =>
+    Array.from({ length: 99 }, (_, i) => ({ kind: 'text' as const, text: `note ${n}.${i}` }))
+  const long: Message[] = [
+    messages[0] as Message,
+    ...[0, 1, 2, 3].flatMap((n): Message[] => [
+      { id: `q${n}`, role: 'user', content: `Step ${n}` },
+      { id: `r${n}`, role: 'assistant', parts: notes(n) },
+    ]),
+  ]
+  const drawnRows = () => document.querySelectorAll('[data-transcript] [data-row]').length
+
+  it('finds in turns too far back for the list to have drawn them, and draws the turn to show it', async () => {
     render(<Session messages={long} />)
     expect(screen.queryByText(/login test/)).not.toBeInTheDocument()
 
     fireEvent.change(openFind(), { target: { value: 'login' } })
 
-    expect(count()).toHaveTextContent('1 of 1')
+    await waitFor(() => expect(count()).toHaveTextContent('1 of 1'))
+    await waitFor(() => expect(current()?.map((r) => r.toString())).toEqual(['login']))
+    expect(screen.getByText(/login test/)).toBeInTheDocument()
+  })
+
+  it('counts the matches in turns it does not draw without drawing them all', async () => {
+    render(<Session messages={long} />)
+    const drawnAtFirst = drawnRows()
+
+    fireEvent.change(openFind(), { target: { value: 'note' } })
+
+    await waitFor(() => expect(count()).toHaveTextContent(/^\d+ of 396$/))
+    expect(drawnRows()).toBeLessThan(long.length)
+    expect(drawnRows()).toBeLessThanOrEqual(drawnAtFirst + 2)
+  })
+
+  it('says more may match while it is still reading the turns it does not draw', async () => {
+    render(<Session messages={long} />)
+
+    fireEvent.change(openFind(), { target: { value: 'note' } })
+
+    expect(count()).not.toHaveTextContent(/^\d+ of \d+$/)
+    await waitFor(() => expect(count()).toHaveTextContent(/\+$/))
+    await waitFor(() => expect(count()).toHaveTextContent(/^\d+ of 396$/))
+  })
+
+  it('draws the turn of a match it steps to', async () => {
+    render(<Session messages={long} />)
+    const input = openFind()
+    fireEvent.change(input, { target: { value: 'Step' } })
+    // Only the last turn is drawn, so the match shown is its prompt's, the last of four.
+    await waitFor(() => expect(count()).toHaveTextContent('4 of 4'))
+    expect(screen.queryByText('Step 0')).not.toBeInTheDocument()
+
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    await waitFor(() => expect(count()).toHaveTextContent('1 of 4'))
+    await waitFor(() => expect(current()?.[0]?.startContainer.textContent).toBe('Step 0'))
   })
 
   it('keeps the query to search again when reopened', () => {

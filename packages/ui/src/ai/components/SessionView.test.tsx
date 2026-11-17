@@ -29,7 +29,7 @@ vi.mock('./ChatMessageList', () => ({
   __esModule: true,
   default: (props: ComponentProps<typeof ChatMessageList>) => {
     listProps = props
-    useImperativeHandle(props.ref, () => ({ jumpToLatest }), [])
+    useImperativeHandle(props.ref, () => ({ jumpToLatest, reveal: async () => {} }), [])
     return (
       <div data-testid="list">
         {props.footer}
