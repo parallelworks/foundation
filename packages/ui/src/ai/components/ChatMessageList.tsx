@@ -18,6 +18,7 @@ import { formatDuration } from '../../format'
 import { CheckIcon, ClockIcon } from '../../icons'
 import { useChat, useChatStream } from '../core/ChatProvider'
 import { type ApprovalAnswerHandler, useChatConfig } from '../core/config'
+import { createRowMemory, RowMemoryContext, useExpandAll } from '../core/rowMemory'
 import type { ChatMessage as Message } from '../types'
 import Markdown from '../ui/Markdown'
 import AgentMessageParts from './agent/AgentMessageParts'
@@ -31,10 +32,17 @@ const READER_GROWTH_MS = 600
 const NO_MESSAGES: Message[] = []
 
 // About how many parts the list draws at a time: it starts with this many and
-// draws as many again while fewer than two screens sit above the view. Every
-// row drawn holds memory, which a phone has little of: a long agent session
-// drawn whole is enough for the browser to close the tab.
+// draws as many again while fewer than DRAW_SCREENS screens of turns lie
+// beyond the view on a side. Every row drawn holds memory, which a phone has
+// little of: a long agent session drawn whole is enough for the browser to
+// close the tab.
 const WINDOW_PARTS = 100
+const DRAW_SCREENS = 2
+// Whole turns further than this from the view are let go of, so scrolling
+// through a long conversation holds a few screens of it either side rather
+// than all it passed. Further than DRAW_SCREENS, so what was let go of is not
+// drawn again at once.
+const KEEP_SCREENS = 4
 
 /** Where a window of about WINDOW_PARTS parts that ends before `end` starts:
  *  at the prompt of the turn it reaches into, so each turn drawn has its prompt. */
@@ -45,10 +53,60 @@ function windowStart(messages: Message[], end: number): number {
     i--
     held += 1 + (messages[i]?.parts?.length ?? 0)
   }
-  while (i > 0 && messages[i]?.role !== 'user') {
-    i--
+  return turnStart(messages, i)
+}
+
+/** Where a window of about WINDOW_PARTS parts that starts at `start` ends:
+ *  with the turn it reaches into. */
+function windowEnd(messages: Message[], start: number): number {
+  let i = start
+  let held = 0
+  while (i < messages.length && held < WINDOW_PARTS) {
+    held += 1 + (messages[i]?.parts?.length ?? 0)
+    i++
   }
-  return i
+  return i > start ? turnEnd(messages, i - 1) : i
+}
+
+/** The prompt that opens the turn `i` is in. */
+function turnStart(messages: Message[], i: number): number {
+  let at = i
+  while (at > 0 && messages[at]?.role !== 'user') {
+    at--
+  }
+  return at
+}
+
+/** Where the turn `i` is in ends: before the next prompt. */
+function turnEnd(messages: Message[], i: number): number {
+  let at = i + 1
+  while (at < messages.length && messages[at]?.role !== 'user') {
+    at++
+  }
+  return at
+}
+
+/** The row a node is in, of those under content. */
+function rowOf(node: Node | null | undefined, content: Element): HTMLElement | null {
+  const el = node instanceof Element ? node : (node?.parentElement ?? null)
+  const row = el?.closest<HTMLElement>('[data-row]') ?? null
+  return row && content.contains(row) ? row : null
+}
+
+/** Rows the list must not let go of: one a reader is selecting text in, or
+ *  one they reached with the keyboard, which would otherwise lose its place. */
+function heldRows(content: Element): HTMLElement[] {
+  const doc = content.ownerDocument
+  const rows: (HTMLElement | null)[] = []
+  const selection = doc.getSelection()
+  if (selection && !selection.isCollapsed) {
+    rows.push(rowOf(selection.anchorNode, content), rowOf(selection.focusNode, content))
+  }
+  const active = doc.activeElement
+  if (active && active !== doc.body && active.matches(':focus-visible')) {
+    rows.push(rowOf(active, content))
+  }
+  return rows.filter((row): row is HTMLElement => row !== null)
 }
 
 const jumpClasses =
@@ -110,8 +168,8 @@ interface ChatMessageListProps {
    *  sight, as a terminal transcript does; a click returns to it. */
   pinPrompt?: boolean
   /** Draws every message, as a search of the whole conversation needs.
-   *  Otherwise a long conversation draws its end, and the turns before it as
-   *  the reader scrolls up to them. */
+   *  Otherwise a long conversation draws its end, then the turns near the view
+   *  as the reader scrolls, letting go of those it left far behind. */
   whole?: boolean
   ref?: Ref<ChatMessageListHandle> | undefined
 }
@@ -245,36 +303,87 @@ export default function ChatMessageList({
   // The first message drawn once the reader has left the end or scrolled up
   // for more; until then the window follows the end as the conversation grows.
   const [from, setFrom] = useState<string | null>(null)
+  // The last message drawn once the reader has scrolled far enough from the
+  // end that it was let go of; until then the window reaches the end.
+  const [to, setTo] = useState<string | null>(null)
   const endStart = useMemo(() => windowStart(messages, messages.length), [messages])
-  const fromIndex = useMemo(
-    () => (from === null ? -1 : messages.findIndex((m) => m.id === from)),
-    [messages, from],
+  const indexOf = useMemo(() => new Map(messages.map((m, i) => [m.id, i])), [messages])
+  const fromIndex = from === null ? -1 : (indexOf.get(from) ?? -1)
+  const toIndex = to === null ? -1 : (indexOf.get(to) ?? -1)
+  const start = whole ? 0 : fromIndex >= 0 ? fromIndex : endStart
+  const end = whole || toIndex < start ? messages.length : toIndex + 1
+  const attached = end === messages.length
+  const drawn = useMemo(
+    () => (start === 0 && end === messages.length ? messages : messages.slice(start, end)),
+    [messages, start, end],
   )
-  const start = whole ? 0 : fromIndex >= 0 ? Math.min(fromIndex, endStart) : endStart
-  const drawn = useMemo(() => (start === 0 ? messages : messages.slice(start)), [messages, start])
-  const windowRef = useRef({ messages, start })
+  // What the reader opened in rows let go of, for when they are drawn again. Expand-all opens or
+  // closes every block at once, those not drawn included, and a new conversation starts afresh.
+  const expandAll = useExpandAll()
+  const [conversations, setConversations] = useState(0)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new memory for each, not read from them
+  const memory = useMemo(() => createRowMemory(), [expandAll, conversations])
+  const windowRef = useRef({ messages, indexOf, start, end, whole, editingMessageId })
   useLayoutEffect(() => {
-    windowRef.current = { messages, start }
+    windowRef.current = { messages, indexOf, start, end, whole, editingMessageId }
   })
-  // The first row drawn and where it was, so the rows drawn above it leave
-  // what the reader is looking at where it is.
+  // The first row in view and where it was, so the rows drawn or let go of
+  // around it leave what the reader is looking at where it is.
   const keptRef = useRef<{ row: Element; top: number } | null>(null)
+  const jumpedRef = useRef(false)
 
-  // Draws the turns before the window once the reader is within two screens
-  // of its top, or the window doesn't fill the view.
-  const drawEarlier = useCallback(() => {
+  // Draws the turns beyond either edge of the window once the reader is
+  // within DRAW_SCREENS of it, or the window doesn't fill the view, and lets
+  // go of whole turns more than KEEP_SCREENS from the view.
+  const fitWindow = useCallback(() => {
     const el = containerRef.current
-    const { messages: all, start: at } = windowRef.current
-    if (!el || at === 0) {
+    const content = contentRef.current
+    if (!el || !content) {
       return
     }
-    const row = contentRef.current?.firstElementChild
-    keptRef.current = row ? { row, top: row.getBoundingClientRect().top } : null
+    const rows = [...content.querySelectorAll<HTMLElement>(':scope > [data-row]')]
+    const box = el.getBoundingClientRect()
+    const shown = rows.find((row) => row.getBoundingClientRect().bottom > box.top)
+    keptRef.current = shown ? { row: shown, top: shown.getBoundingClientRect().top } : null
+    const { messages: all, indexOf: at, start: first, end: last, whole: every } = windowRef.current
+    const view = el.clientHeight
     // Not laid out yet, as in a hidden tab: its size says nothing about what fills it.
-    if (el.clientHeight === 0 || el.scrollTop > el.clientHeight * 2) {
+    if (every || view === 0 || rows.length === 0) {
       return
     }
-    setFrom(all[windowStart(all, at)]?.id ?? null)
+    if (first > 0 && el.scrollTop <= view * DRAW_SCREENS) {
+      setFrom(all[windowStart(all, first)]?.id ?? null)
+      return
+    }
+    if (last < all.length && el.scrollHeight - el.scrollTop - view <= view * DRAW_SCREENS) {
+      const next = windowEnd(all, last)
+      setTo(next >= all.length ? null : (all[next - 1]?.id ?? null))
+      return
+    }
+    const indexOfRow = (row: HTMLElement | undefined) => at.get(row?.dataset['row'] ?? '') ?? -1
+    const keepTop = box.top - view * KEEP_SCREENS
+    const keepBottom = box.top + view + view * KEEP_SCREENS
+    const near = rows.filter((row) => {
+      const r = row.getBoundingClientRect()
+      return r.bottom >= keepTop && r.top <= keepBottom
+    })
+    const held = heldRows(content).map(indexOfRow)
+    const editing = windowRef.current.editingMessageId
+    if (editing) {
+      held.push(at.get(editing) ?? -1)
+    }
+    const keep = [...held.filter((i) => i >= first && i < last), ...near.map(indexOfRow)]
+    const lowest = keep.length > 0 ? Math.min(...keep) : indexOfRow(rows.at(-1))
+    const highest = keep.length > 0 ? Math.max(...keep) : indexOfRow(rows[0])
+    const keepFrom = turnStart(all, lowest)
+    if (keepFrom > first) {
+      setFrom(all[keepFrom]?.id ?? null)
+      return
+    }
+    const keepTo = turnEnd(all, highest)
+    if (keepTo < last) {
+      setTo(all[keepTo - 1]?.id ?? null)
+    }
   }, [])
 
   // Stick-to-bottom: follow new content only while the user sits at the
@@ -297,8 +406,10 @@ export default function ChatMessageList({
     const { scrollTop, scrollHeight, clientHeight } = containerRef.current
     const scrolledDown = scrollTop >= lastScrollTopRef.current
     lastScrollTopRef.current = scrollTop
+    const { messages: all, end: last } = windowRef.current
     if (scrollHeight - scrollTop - clientHeight < 24) {
-      if (scrolledDown) {
+      // The foot of a window that doesn't reach the end is not the latest.
+      if (scrolledDown && last === all.length) {
         isNearBottomRef.current = true
       }
     } else if (!scrolledDown) {
@@ -307,8 +418,8 @@ export default function ChatMessageList({
       isNearBottomRef.current = false
     }
     setPinned(isNearBottomRef.current)
-    drawEarlier()
-  }, [drawEarlier])
+    fitWindow()
+  }, [fitWindow])
 
   // Reads the position first: a jump up that its scroll event has not reported
   // yet has to count, or following would undo it before it was ever seen.
@@ -333,7 +444,10 @@ export default function ChatMessageList({
       isNearBottomRef.current = true
       setPinned(true)
     }
+    // A window that had let go of the end draws it, and goes to it once drawn.
+    jumpedRef.current = windowRef.current.end < windowRef.current.messages.length
     setFrom(null)
+    setTo(null)
   }, [])
 
   // A reader who left the end keeps the turns they left it from, as new
@@ -348,6 +462,7 @@ export default function ChatMessageList({
   useEffect(() => {
     if (whole) {
       setFrom(windowRef.current.messages[0]?.id ?? null)
+      setTo(null)
     }
   }, [whole])
 
@@ -459,23 +574,26 @@ export default function ChatMessageList({
     }
   }, [messageCount])
 
-  // Rows drawn above the first move what the reader sees down by their
-  // height: scrolled by as much, the view stays put. A browser that anchors
-  // its scroll has already done it, and nothing is left to move.
-  const startRef = useRef(start)
+  // Rows drawn or let go of above the one in view move it by their height:
+  // scrolled by as much, the view stays put. A browser that anchors its scroll
+  // has already done it, and nothing is left to move.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs as the window moves, which the effect measures rather than reads
   useLayoutEffect(() => {
     const el = containerRef.current
     const kept = keptRef.current
-    if (el && kept?.row.isConnected && start < startRef.current) {
+    if (el && jumpedRef.current) {
+      jumpedRef.current = false
+      el.scrollTop = el.scrollHeight
+      lastScrollTopRef.current = el.scrollTop
+    } else if (el && kept?.row.isConnected) {
       const moved = kept.row.getBoundingClientRect().top - kept.top
       if (Math.abs(moved) >= 1) {
         el.scrollTop += moved
         lastScrollTopRef.current = el.scrollTop
       }
     }
-    startRef.current = start
-    drawEarlier()
-  }, [start, drawEarlier])
+    fitWindow()
+  }, [start, end, fitWindow])
 
   // Reset hadMessages when conversation switches (messages go to 0 then back)
   useEffect(() => {
@@ -483,6 +601,8 @@ export default function ChatMessageList({
       hadMessagesRef.current = false
       lastScrollTopRef.current = 0
       setFrom(null)
+      setTo(null)
+      setConversations((n) => n + 1)
     }
   }, [messageCount])
 
@@ -527,7 +647,7 @@ export default function ChatMessageList({
         followBottom()
       }
       findAnchor()
-      drawEarlier()
+      fitWindow()
     })
     observer.observe(content)
     // The composer sticks to the list's bottom edge, so as it grows, with a
@@ -540,7 +660,7 @@ export default function ChatMessageList({
       content.removeEventListener('click', touched, true)
       content.removeEventListener('keydown', touched, true)
     }
-  }, [hasContent, findAnchor, drawEarlier])
+  }, [hasContent, findAnchor, fitWindow])
 
   // One keyed dock in both states, so the composer is not remounted as the
   // first message comes and goes: a send it is waiting on puts its text back
@@ -608,113 +728,118 @@ export default function ChatMessageList({
           data-transcript=""
           className="w-full max-w-[var(--chat-column,50rem)] mx-auto pt-4 pb-6 px-4"
         >
-          <MessageRows
-            messages={drawn}
-            allMessages={rowMessages}
-            streaming={!!streamingMessage}
-            prompts={!!pinPrompt}
-            flush={flush}
-            foldEveryRun={foldEveryRun}
-            editingMessageId={editingMessageId}
-            showAuthor={showAuthor}
-            currentUsername={currentUsername}
-            attachmentDownloadUrl={attachmentDownloadUrl}
-            onOpenAttachment={onOpenAttachment}
-            onNavigateBranch={onNavigateBranch}
-            onEditMessage={onEditMessage}
-            onSaveEdit={onSaveEdit}
-            onCancelEdit={onCancelEdit}
-            onRegenerateMessage={onRegenerateMessage}
-            onRetryMessage={onRetryMessage}
-            onOpenReasoning={onOpenReasoning}
-            onApprovalAnswer={onApprovalAnswer}
-          />
-          {/* Thinking / "Thought for" section — visible during and after thinking */}
-          {isStreaming && streamingReasoning && (
-            <div key="thinking" className="animate-chat-enter">
-              <div className={cx('pt-3', !flush && 'sm:px-4')}>
-                <Reasoning
-                  label={
-                    <ThinkingLabel
-                      startedAt={isThinking ? thinkingStartTime : undefined}
-                      finalDuration={finalThinkingDuration}
-                    />
-                  }
-                  shimmer={isThinking}
-                  open={reasoningOpen}
-                  onOpenChange={setReasoningOpen}
-                  onOpenPanel={
-                    onOpenReasoning &&
-                    (() => onOpenReasoning(streamingReasoning, finalThinkingDuration))
-                  }
-                  // While thinking, its tail, faded at the top, so the work shows without taking the page.
-                  preview={
-                    isThinking && (
-                      <ReasoningBody className="chat-reasoning-tail">
-                        <div ref={reasoningScrollRef} className="max-h-20 overflow-y-hidden">
-                          <Markdown isStreaming>{streamingReasoning}</Markdown>
-                        </div>
-                      </ReasoningBody>
-                    )
-                  }
-                >
-                  <Markdown isStreaming={isThinking}>{streamingReasoning}</Markdown>
-                </Reasoning>
-              </div>
-            </div>
-          )}
-          {/* Tool calls and other parts streamed this turn, between the
-                thinking header and the answer — mirrors the stored-message
-                layout where parts precede content. */}
-          {isStreaming && streamingParts.length > 0 && (
-            <div
-              key="streaming-parts"
-              className={cx('animate-chat-enter py-1', !flush && 'sm:px-4')}
-            >
-              <AgentMessageParts message={streamingPartsMessage} isStreaming={isStreaming} />
-            </div>
-          )}
-          {/* Working indicator — until the answer starts streaming */}
-          {showWorkingIndicator && (
-            <div key="waiting" className="animate-chat-enter">
-              <div className={cx('py-3', !flush && 'sm:px-4')}>
-                <div className="animate-shimmer text-shimmer text-sm">{tThinking.ellipsis}</div>
-              </div>
-            </div>
-          )}
-          {streamingMessage && (
-            <div key="streaming" className="animate-chat-enter">
-              <ChatMessage
-                message={streamingMessage}
-                allMessages={rowMessages}
-                flush={flush}
-                foldEveryRun={foldEveryRun}
-                isStreaming={isStreaming}
-                attachmentDownloadUrl={attachmentDownloadUrl}
-                onOpenAttachment={onOpenAttachment}
-                onApprovalAnswer={onApprovalAnswer}
-              />
-            </div>
-          )}
-          {queued.map(({ msg, handedOver, delivery, reads }, i) => (
-            <QueuedMessage
-              key={msg.id}
-              message={msg}
+          <RowMemoryContext value={memory}>
+            <MessageRows
+              messages={drawn}
+              conversation={messages}
+              attached={attached}
               allMessages={rowMessages}
+              streaming={!!streamingMessage}
+              prompts={!!pinPrompt}
               flush={flush}
+              foldEveryRun={foldEveryRun}
+              editingMessageId={editingMessageId}
+              showAuthor={showAuthor}
+              currentUsername={currentUsername}
               attachmentDownloadUrl={attachmentDownloadUrl}
               onOpenAttachment={onOpenAttachment}
-              handedOver={handedOver}
-              delivery={delivery}
-              // Grouped, a run of messages that read alike says so once, under its last.
-              showStatus={!grouped || queued[i + 1]?.reads !== reads}
-              grouped={grouped}
-              stacked={grouped && i > 0}
-              onRemove={!grouped && !handedOver ? onRemoveQueued : undefined}
-              onEdit={grouped && editable && i === queued.length - 1 ? onEditQueued : undefined}
+              onNavigateBranch={onNavigateBranch}
+              onEditMessage={onEditMessage}
+              onSaveEdit={onSaveEdit}
+              onCancelEdit={onCancelEdit}
+              onRegenerateMessage={onRegenerateMessage}
+              onRetryMessage={onRetryMessage}
+              onOpenReasoning={onOpenReasoning}
+              onApprovalAnswer={onApprovalAnswer}
             />
-          ))}
-          {footer}
+            {/* Thinking / "Thought for" section — visible during and after thinking */}
+            {attached && isStreaming && streamingReasoning && (
+              <div key="thinking" className="animate-chat-enter">
+                <div className={cx('pt-3', !flush && 'sm:px-4')}>
+                  <Reasoning
+                    label={
+                      <ThinkingLabel
+                        startedAt={isThinking ? thinkingStartTime : undefined}
+                        finalDuration={finalThinkingDuration}
+                      />
+                    }
+                    shimmer={isThinking}
+                    open={reasoningOpen}
+                    onOpenChange={setReasoningOpen}
+                    onOpenPanel={
+                      onOpenReasoning &&
+                      (() => onOpenReasoning(streamingReasoning, finalThinkingDuration))
+                    }
+                    // While thinking, its tail, faded at the top, so the work shows without taking the page.
+                    preview={
+                      isThinking && (
+                        <ReasoningBody className="chat-reasoning-tail">
+                          <div ref={reasoningScrollRef} className="max-h-20 overflow-y-hidden">
+                            <Markdown isStreaming>{streamingReasoning}</Markdown>
+                          </div>
+                        </ReasoningBody>
+                      )
+                    }
+                  >
+                    <Markdown isStreaming={isThinking}>{streamingReasoning}</Markdown>
+                  </Reasoning>
+                </div>
+              </div>
+            )}
+            {/* Tool calls and other parts streamed this turn, between the
+                thinking header and the answer — mirrors the stored-message
+                layout where parts precede content. */}
+            {attached && isStreaming && streamingParts.length > 0 && (
+              <div
+                key="streaming-parts"
+                className={cx('animate-chat-enter py-1', !flush && 'sm:px-4')}
+              >
+                <AgentMessageParts message={streamingPartsMessage} isStreaming={isStreaming} />
+              </div>
+            )}
+            {/* Working indicator — until the answer starts streaming */}
+            {attached && showWorkingIndicator && (
+              <div key="waiting" className="animate-chat-enter">
+                <div className={cx('py-3', !flush && 'sm:px-4')}>
+                  <div className="animate-shimmer text-shimmer text-sm">{tThinking.ellipsis}</div>
+                </div>
+              </div>
+            )}
+            {attached && streamingMessage && (
+              <div key="streaming" className="animate-chat-enter">
+                <ChatMessage
+                  message={streamingMessage}
+                  allMessages={rowMessages}
+                  flush={flush}
+                  foldEveryRun={foldEveryRun}
+                  isStreaming={isStreaming}
+                  attachmentDownloadUrl={attachmentDownloadUrl}
+                  onOpenAttachment={onOpenAttachment}
+                  onApprovalAnswer={onApprovalAnswer}
+                />
+              </div>
+            )}
+            {attached &&
+              queued.map(({ msg, handedOver, delivery, reads }, i) => (
+                <QueuedMessage
+                  key={msg.id}
+                  message={msg}
+                  allMessages={rowMessages}
+                  flush={flush}
+                  attachmentDownloadUrl={attachmentDownloadUrl}
+                  onOpenAttachment={onOpenAttachment}
+                  handedOver={handedOver}
+                  delivery={delivery}
+                  // Grouped, a run of messages that read alike says so once, under its last.
+                  showStatus={!grouped || queued[i + 1]?.reads !== reads}
+                  grouped={grouped}
+                  stacked={grouped && i > 0}
+                  onRemove={!grouped && !handedOver ? onRemoveQueued : undefined}
+                  onEdit={grouped && editable && i === queued.length - 1 ? onEditQueued : undefined}
+                />
+              ))}
+            {attached && footer}
+          </RowMemoryContext>
           <div className="h-8" />
         </div>
       </div>
@@ -966,6 +1091,10 @@ type MessageRowsProps = Pick<ChatMessageListProps, 'messages' | 'allMessages'> &
       | 'onApprovalAnswer'
     >
   > & {
+    /** Every message of the conversation, of which `messages` are those drawn. */
+    conversation: Message[]
+    /** The drawn messages reach the conversation's end, so its last is among them. */
+    attached: boolean
     /** A reply is being written below these, so none of them is the latest. */
     streaming: boolean
     /** Marks each prompt for the pin to find and return to. */
@@ -978,6 +1107,8 @@ type MessageRowsProps = Pick<ChatMessageListProps, 'messages' | 'allMessages'> &
  *  for every streamed token, so a long conversation is not walked per token. */
 const MessageRows = memo(function MessageRows({
   messages,
+  conversation,
+  attached,
   allMessages,
   streaming,
   prompts,
@@ -997,27 +1128,29 @@ const MessageRows = memo(function MessageRows({
   onOpenReasoning,
   onApprovalAnswer,
 }: MessageRowsProps) {
-  // Rows enter with a short animation only when they are appended to what
-  // was already on screen; a conversation loaded or switched to appears at
-  // once. The ids shown at the last commit decide it, read here and written
+  // Rows enter with a short animation only when they are new to the
+  // conversation; one loaded or switched to appears at once, and so do the
+  // turns drawn again as the reader scrolls back to them. The ids the
+  // conversation had at the last commit decide it, read here and written
   // after commit, so a render React repeats or discards changes nothing.
-  const shownRef = useRef<ReadonlySet<string>>(new Set())
+  const knownRef = useRef<ReadonlySet<string>>(new Set())
   const wasStreamingRef = useRef(streaming)
-  const shown = shownRef.current
-  // Rows drawn above the first that showed are earlier turns the reader
-  // scrolled up to, not new ones.
-  const firstShown = shown.size > 0 ? messages.findIndex((m) => shown.has(m.id)) : -1
-  const appended = firstShown >= 0
+  const known = knownRef.current
+  // Rows drawn above the first that showed are earlier turns, not new ones:
+  // the rest of a conversation the host gave its end of first among them.
+  const firstKnown = known.size > 0 ? messages.findIndex((m) => known.has(m.id)) : -1
+  const appended = firstKnown >= 0
   // The reply that just finished streaming was already on screen as the
   // streaming row; it takes that row's place without entering again.
   const streamFinished = wasStreamingRef.current && !streaming
   useLayoutEffect(() => {
-    shownRef.current = new Set(messages.map((m) => m.id))
+    knownRef.current = new Set(conversation.map((m) => m.id))
     wasStreamingRef.current = streaming
-  }, [messages, streaming])
+  }, [conversation, streaming])
 
-  // Pseudo messages render nothing, so the latest is the last one that shows.
-  const lastIndex = messages.findLastIndex((m) => !m.pseudo)
+  // Pseudo messages render nothing, so the latest is the last one that shows,
+  // and only once the window reaches the conversation's end.
+  const lastIndex = attached ? messages.findLastIndex((m) => !m.pseudo) : -1
   return messages.map((message, i) => {
     // Recorded blocks flagged by an agent adapter are not the human
     // speaking; unflagged messages are untouched.
@@ -1026,8 +1159,8 @@ const MessageRows = memo(function MessageRows({
     }
     const isNew =
       appended &&
-      i > firstShown &&
-      !shown.has(message.id) &&
+      i > firstKnown &&
+      !known.has(message.id) &&
       !(streamFinished && message.role === 'assistant')
     // Every prompt marks its turn, text or not: a turn opened by a picture
     // alone hides the pin rather than leaving the previous turn's prompt there.
@@ -1035,6 +1168,7 @@ const MessageRows = memo(function MessageRows({
     return (
       <div
         key={message.id}
+        data-row={message.id}
         className={cx(isNew && 'animate-chat-enter', prompt && 'outline-none') || undefined}
         {...(prompt ? { 'data-prompt': message.id, tabIndex: -1 } : {})}
       >

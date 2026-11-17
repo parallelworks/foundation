@@ -258,8 +258,8 @@ const agentSession: ChatMessage[] = Array.from({ length: 40 }, (_, n) => [
 ]).flat()
 
 // Forty turns of sixty tool calls each: the list draws the last few turns,
-// and the ones before them as you scroll up. Whole draws every turn, as a
-// search of the conversation does.
+// then the turns near the view as you scroll, and lets go of those a few
+// screens behind. Whole draws every turn, as a search of the conversation does.
 export const LongAgentSession: StoryObj<{ whole: boolean }> = {
   args: { whole: false },
   render: ({ whole }) => (

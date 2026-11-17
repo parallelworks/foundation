@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ChatConfigProvider, resolveChatConfig } from '../../core/config'
+import { createRowMemory, RowMemoryContext } from '../../core/rowMemory'
 import type { ChatMessage, MessagePart, ToolCallPart, ToolDecision } from '../../types'
 import AgentMessageParts, { buildRenderItems, ExpandAllProvider } from './AgentMessageParts'
 
@@ -1692,5 +1693,51 @@ describe('host tool presentation', () => {
     expect(items.map((i) => i.kind)).toEqual(['rollup'])
     renderParts([call('a', 'misc-dev'), read], {}, { slots: slots() })
     expect(screen.getByText('Checked costs for 1 allocations, read 1 file')).toBeInTheDocument()
+  })
+})
+
+describe('AgentMessageParts drawn again', () => {
+  const bash: MessagePart = {
+    kind: 'tool_call',
+    id: 't1',
+    name: 'Bash',
+    args: JSON.stringify({ command: 'ls' }),
+    status: 'ok',
+    result: 'file-a\nfile-b',
+  }
+  const thought: MessagePart = { kind: 'reasoning', text: 'weighing the options' }
+  const parts = [bash, thought]
+
+  function drawn(memory: ReturnType<typeof createRowMemory>) {
+    return render(
+      <ChatConfigProvider value={resolveChatConfig()}>
+        <RowMemoryContext value={memory}>
+          <AgentMessageParts message={msg(parts)} />
+        </RowMemoryContext>
+      </ChatConfigProvider>,
+    )
+  }
+
+  it('shows what the reader opened once a list that let go of its row draws it again', () => {
+    const memory = createRowMemory()
+    const first = drawn(memory)
+    fireEvent.click(screen.getByText('Bash'))
+    fireEvent.click(screen.getByRole('button', { name: /Thought/ }))
+    first.unmount()
+
+    drawn(memory)
+
+    expect(screen.getByTestId('logviewer')).toHaveTextContent('file-a')
+    expect(screen.getByRole('button', { name: /Thought/ })).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('draws a block closed again in a list that keeps no memory of it', () => {
+    const first = drawn(createRowMemory())
+    fireEvent.click(screen.getByText('Bash'))
+    first.unmount()
+
+    drawn(createRowMemory())
+
+    expect(screen.queryByTestId('logviewer')).not.toBeInTheDocument()
   })
 })
