@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.146.2](https://github.com/parallelworks/foundation/compare/ui-v0.146.1...ui-v0.146.2) (2026-11-17)
+
+
+### Performance Improvements
+
+* **ui:** find in a long transcript opens at once instead of drawing the whole conversation, and holds a third less memory on a phone ([#804](https://github.com/parallelworks/foundation/issues/804)) ([1724937](https://github.com/parallelworks/foundation/commit/17249375acc09778de2d5b5f2ff858a4a82be2db))
+
 ## [0.146.1](https://github.com/parallelworks/foundation/compare/ui-v0.146.0...ui-v0.146.1) (2026-11-17)
 
 
