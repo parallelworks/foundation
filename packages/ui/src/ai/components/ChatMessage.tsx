@@ -13,6 +13,7 @@ import { formatDateTime, formatDuration, formatTimeLeft, toDateTime } from '../.
 import { EditIcon, RetryIcon } from '../../icons'
 import { useChatModelName } from '../core/ChatProvider'
 import { type ApprovalAnswerHandler, useChatConfig } from '../core/config'
+import { useRemembered } from '../core/rowMemory'
 import { replyText } from '../core/useKeyboardShortcuts'
 import type { AttachmentRef, ChatUser, ChatMessage as Message } from '../types'
 import Markdown from '../ui/Markdown'
@@ -167,9 +168,9 @@ function ChatMessage({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const [collapsible, setCollapsible] = useState(false)
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useRemembered(message.id, 'expanded', false)
   // Only without a host handler: a host that passes one shows reasoning itself.
-  const [reasoningOpen, setReasoningOpen] = useState(false)
+  const [reasoningOpen, setReasoningOpen] = useRemembered(message.id, 'reasoning', false)
 
   // Long finished assistant replies clamp with a fade; streaming replies never
   // clamp so the tail stays readable while it grows, and the latest reply never
@@ -487,7 +488,7 @@ function ChatMessage({
             {!isUser && collapsible && !isStreaming && !latest && (
               <button
                 type="button"
-                onClick={() => setExpanded((e) => !e)}
+                onClick={() => setExpanded(!expanded)}
                 className="text-xs font-medium theme-muted-text hover:theme-text transition-colors"
               >
                 {expanded ? common.showLess : common.showMore}

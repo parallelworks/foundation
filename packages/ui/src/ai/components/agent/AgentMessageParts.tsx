@@ -1,6 +1,5 @@
 import { DateTime } from 'luxon'
 import {
-  createContext,
   memo,
   type ReactNode,
   useContext,
@@ -48,6 +47,7 @@ import {
 import { thinkingHeading } from '../../agent/transcript'
 import { useChatAttachments } from '../../core/ChatProvider'
 import { type PartRendererProps, useChatConfig } from '../../core/config'
+import { ExpandAllContext, useRemembered } from '../../core/rowMemory'
 import type { ChatStrings } from '../../strings'
 import type {
   ApprovalPart,
@@ -71,21 +71,23 @@ import { SendingMark, useAnswerSending } from './answerSending'
 
 const COLLAPSED_RESULT_LINES = 12
 
-const ExpandAllContext = createContext<boolean | undefined>(undefined)
-
 /** Opens, or closes, every block of the transcripts under it at once; each
  *  still opens and closes on its own afterwards, and a block that appears
  *  later starts the same way. */
 export const ExpandAllProvider = ExpandAllContext.Provider
 
-function useExpandable(): [boolean, (open: boolean) => void] {
+/** A block's open state: as the reader left it when its row was drawn before,
+ *  otherwise as expand-all has it, and following expand-all as it changes. */
+function useExpandable(owner?: object | string, slot = 'open'): [boolean, (open: boolean) => void] {
   const all = useContext(ExpandAllContext)
-  const [open, setOpen] = useState(all ?? false)
+  const [open, setOpen] = useRemembered(owner, slot, all ?? false)
+  const seen = useRef(all)
   useEffect(() => {
-    if (all !== undefined) {
+    if (all !== undefined && all !== seen.current) {
       setOpen(all)
     }
-  }, [all])
+    seen.current = all
+  }, [all, setOpen])
   return [open, setOpen]
 }
 
@@ -284,7 +286,7 @@ function ResultBody({ part }: { part: ToolCallPart }) {
   const { strings } = useChatConfig()
   const { common } = useStrings()
   const t = strings.agentTranscript
-  const [showAll, setShowAll] = useState(false)
+  const [showAll, setShowAll] = useRemembered(part.id, 'all', false)
   const raw = part.result ?? ''
   const result = shownResult(part.name, part.args, raw, strings.tools)
   if (result.trim() === '') {
@@ -483,7 +485,7 @@ const ToolCallBody = memo(function ToolCallBody({
 }) {
   const { strings } = useChatConfig()
   const t = strings.agentTranscript
-  const [expanded, setExpanded] = useExpandable()
+  const [expanded, setExpanded] = useExpandable(part.id)
   // A named call keeps its drawing behind the row unless the host keeps it
   // open; a call waiting on an answer always shows what it asks.
   const drawingInPanel =
@@ -634,7 +636,7 @@ function DecisionLine({ decision }: { decision: ToolDecision }) {
 function SubagentCard({ part }: { part: SubagentPart }) {
   const { strings } = useChatConfig()
   const t = strings.agentTranscript
-  const [expanded, setExpanded] = useExpandable()
+  const [expanded, setExpanded] = useExpandable(part.id)
   const color = agentColorHex(part.color)
   const label = part.agentType && part.agentType !== 'default' ? part.agentType : t.subagent
   const actions = part.actions ?? []
@@ -996,7 +998,7 @@ function TodoSnapshotBlock({ part }: { part: TodoSnapshotPart }) {
 }
 
 function NoticeBlock({ part }: { part: NoticePart }) {
-  const [open, setOpen] = useExpandable()
+  const [open, setOpen] = useExpandable(part)
   if (part.kind === 'notice') {
     if (part.detail && part.open) {
       return (
@@ -1060,7 +1062,7 @@ const ReasoningBlock = memo(function ReasoningBlock({
 }) {
   const { strings } = useChatConfig()
   const t = strings.thinking
-  const [expanded, setExpanded] = useExpandable()
+  const [expanded, setExpanded] = useExpandable(part)
   if (part.text.trim() === '') {
     return null
   }
@@ -1419,7 +1421,8 @@ function RollupGroup({
   foldEveryRun: boolean
 }) {
   const { strings, slots } = useChatConfig()
-  const [open, setOpen] = useExpandable()
+  const first = members[0]?.part
+  const [open, setOpen] = useExpandable(first?.kind === 'tool_call' ? first.id : first, 'rollup')
   // A long turn folds thousands of calls that are never looked at, so a run's members are
   // drawn when it is first opened.
   const [opened, setOpened] = useState(open)
@@ -1556,7 +1559,7 @@ function CallGroup({
 }) {
   const { strings, slots } = useChatConfig()
   const t = strings.agentTranscript
-  const [open, setOpen] = useExpandable()
+  const [open, setOpen] = useExpandable(members[0]?.part.id, 'group')
   const name = members[0]?.part.name ?? ''
   const Tool = slots.toolRenderers?.[name]
   const header = toolHeaderFor(name)

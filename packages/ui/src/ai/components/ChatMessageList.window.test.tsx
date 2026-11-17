@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import { createRef } from 'react'
+import { type ComponentProps, createRef } from 'react'
 import type { useChat, useChatStream } from '../core/ChatProvider'
 import type { ChatMessage as Message } from '../types'
+import { ExpandAllProvider } from './agent/AgentMessageParts'
 import ChatMessageList, { type ChatMessageListHandle } from './ChatMessageList'
 
 type ChatState = ReturnType<typeof useChat> & ReturnType<typeof useChatStream>
@@ -23,12 +24,24 @@ vi.mock('../core/ChatProvider', () => ({
   useChatStream: () => mockChat,
 }))
 
-vi.mock('./ChatMessage', () => ({
-  __esModule: true,
-  default: ({ message }: { message: Message }) => (
-    <div data-testid="chat-message" data-id={message.id} />
-  ),
-}))
+// The memory of what was opened that the rows were drawn with.
+const rows = vi.hoisted(() => ({ memory: undefined as unknown }))
+
+vi.mock('./ChatMessage', async () => {
+  const { useContext } = await import('react')
+  const { RowMemoryContext } = await import('../core/rowMemory')
+  return {
+    __esModule: true,
+    default: function Row({ message, latest }: { message: Message; latest?: boolean }) {
+      rows.memory = useContext(RowMemoryContext)
+      return (
+        <div data-testid="chat-message" data-id={message.id} data-latest={latest || undefined}>
+          {message.content}
+        </div>
+      )
+    },
+  }
+})
 
 // Each row is this tall, one under another from the top of the list.
 const ROW = 200
@@ -78,15 +91,47 @@ beforeEach(() => {
 })
 afterEach(() => restoreRect())
 
-function renderList(messages: Message[], props: { whole?: boolean } = {}) {
+type ListProps = Partial<ComponentProps<typeof ChatMessageList>>
+
+function renderList(messages: Message[], props: ListProps = {}) {
   const ref = createRef<ChatMessageListHandle>()
   const result = render(
     <ChatMessageList ref={ref} messages={messages} allMessages={messages} {...props} />,
   )
   const log = screen.getByRole('log')
-  const rerender = (next: Message[], nextProps: { whole?: boolean } = {}) =>
+  const rerender = (next: Message[], nextProps: ListProps = {}) =>
     result.rerender(<ChatMessageList ref={ref} messages={next} allMessages={next} {...nextProps} />)
   return { log, ref, rerender }
+}
+
+/** Lays the list out in a view VIEW tall, as tall as the rows it draws at any
+ *  moment and kept within them as a browser keeps it, scrolled to `top`, and
+ *  tells it so. */
+function scrollWithin(log: HTMLElement, top: number) {
+  if (!Object.hasOwn(log, 'scrollHeight')) {
+    let at = 0
+    const height = () => log.querySelectorAll('[data-row]').length * ROW
+    const within = (y: number) => Math.max(0, Math.min(y, height() - VIEW))
+    Object.defineProperty(log, 'clientHeight', { configurable: true, value: VIEW })
+    Object.defineProperty(log, 'scrollHeight', { configurable: true, get: height })
+    Object.defineProperty(log, 'scrollTop', {
+      configurable: true,
+      get: () => within(at),
+      set: (y: number) => {
+        at = within(y)
+      },
+    })
+  }
+  log.scrollTop = top
+  fireEvent.scroll(log)
+}
+
+function rowOf(id: string): HTMLElement {
+  const row = screen.getAllByTestId('chat-message').find((el) => el.dataset['id'] === id)
+  if (!row?.parentElement) {
+    throw new Error(`${id} is not drawn`)
+  }
+  return row.parentElement
 }
 
 /** Lays the list out in a view VIEW tall, scrolled to `top`, and tells it so. */
@@ -180,5 +225,166 @@ describe('ChatMessageList in a long conversation', () => {
     rerender(turns(1, 10))
 
     expect(drawnIds()[0]).toBe('u8')
+  })
+})
+
+describe('ChatMessageList scrolled through a long conversation', () => {
+  afterEach(() => document.getSelection()?.removeAllRanges())
+
+  // Read up from the end to the turns two batches back: u22 to a30, with u28,
+  // where the reader started, at the top of the view.
+  function readUp(log: HTMLElement) {
+    scrollWithin(log, 0)
+    expect(drawnIds()[0]).toBe('u22')
+    expect(log.scrollTop).toBe(12 * ROW)
+  }
+
+  it('lets go of the turns far above the reader as they read down, leaving what they read in place', () => {
+    const { log } = renderList(turns(1, 30))
+    readUp(log)
+
+    // a29 at the top of the view: u22 and a22 end more than four screens above it.
+    scrollWithin(log, 15 * ROW)
+
+    expect(drawnIds()[0]).toBe('u23')
+    expect(log.scrollTop).toBe(13 * ROW)
+  })
+
+  it('lets go of the turns far below the reader as they read up, and draws them again on the way down', () => {
+    const { log } = renderList(turns(1, 30))
+    readUp(log)
+
+    scrollWithin(log, 0)
+    expect(drawnIds()[0]).toBe('u16')
+    expect(drawnIds().at(-1)).toBe('a29')
+
+    // Every row that entered on the way, not only those still entering once
+    // the list settles: a later commit takes the class from the same row.
+    const changes = new MutationObserver(() => {})
+    changes.observe(log, {
+      childList: true,
+      subtree: true,
+      attributeFilter: ['class'],
+      attributeOldValue: true,
+    })
+    scrollWithin(log, log.scrollHeight - VIEW)
+    const entering = (classes: string | null | undefined) =>
+      !!classes?.split(' ').includes('animate-chat-enter')
+    const entered = changes
+      .takeRecords()
+      .filter(
+        (r) =>
+          entering(r.oldValue) ||
+          [...r.addedNodes].some((node) => node instanceof HTMLElement && entering(node.className)),
+      )
+    changes.disconnect()
+
+    expect(drawnIds().at(-1)).toBe('a30')
+    expect(entered).toEqual([])
+  })
+
+  it('draws no new turn while it stops short of the end, and goes back to it on request', () => {
+    const { log, ref, rerender } = renderList(turns(1, 30))
+    readUp(log)
+    scrollWithin(log, 0)
+    expect(screen.queryByText('Jump to latest')).toBeInTheDocument()
+
+    rerender(turns(1, 31))
+    expect(drawnIds()).not.toContain('u31')
+    expect(document.querySelector('[data-latest]')).toBeNull()
+
+    rerender(turns(1, 31), {
+      streamingMessage: { id: 'streaming', role: 'assistant', content: 'Writing an answer' },
+    })
+    expect(screen.queryByText('Writing an answer')).not.toBeInTheDocument()
+
+    act(() => ref.current?.jumpToLatest())
+    // The end and the reply being written, and the turns before them that put
+    // two screens above the view.
+    expect(drawnIds()).toEqual([...turns(26, 31).map((m) => m.id), 'streaming'])
+    expect(log.scrollTop).toBe(log.scrollHeight - VIEW)
+    expect(screen.queryByText('Jump to latest')).not.toBeInTheDocument()
+  })
+
+  it('takes the foot of what it draws for the latest only once that is the end', () => {
+    const { log } = renderList(turns(1, 60))
+    for (let i = 0; i < 4; i++) {
+      scrollWithin(log, 0)
+    }
+    expect(drawnIds().at(-1)).not.toBe('a60')
+
+    scrollWithin(log, log.scrollHeight - VIEW)
+
+    expect(drawnIds().at(-1)).not.toBe('a60')
+    expect(screen.queryByText('Jump to latest')).toBeInTheDocument()
+  })
+
+  it('goes to the very end when the reader jumps from far above it', () => {
+    const short = (n: number): Message[] => [
+      { id: `q${n}`, role: 'user', content: `Ask ${n}` },
+      { id: `r${n}`, role: 'assistant', content: `Answer ${n}` },
+    ]
+    // Its last turns are short, so the end it draws is many screens tall.
+    const conversation = [
+      ...turns(1, 30),
+      ...Array.from({ length: 60 }, (_, i) => short(i + 1)).flat(),
+    ]
+    const { log, ref } = renderList(conversation)
+    for (let i = 0; i < 12; i++) {
+      scrollWithin(log, 0)
+    }
+    expect(drawnIds().at(-1)).not.toBe('r60')
+
+    act(() => ref.current?.jumpToLatest())
+
+    expect(drawnIds().at(-1)).toBe('r60')
+    expect(log.scrollTop).toBe(log.scrollHeight - VIEW)
+  })
+
+  it('opens or closes the blocks it does not draw with the ones it does, as expand-all changes', () => {
+    const list = (all: boolean, messages = turns(1, 3)) => (
+      <ExpandAllProvider value={all}>
+        <ChatMessageList messages={messages} allMessages={messages} />
+      </ExpandAllProvider>
+    )
+    const { rerender } = render(list(false))
+    const before = rows.memory
+
+    rerender(list(false, turns(1, 4)))
+    expect(rows.memory).toBe(before)
+
+    rerender(list(true, turns(1, 4)))
+    expect(rows.memory).not.toBe(before)
+  })
+
+  it('forgets what was opened in a conversation once it is cleared', () => {
+    const { rerender } = renderList(turns(1, 3))
+    const before = rows.memory
+
+    rerender([])
+    rerender(turns(1, 3))
+
+    expect(rows.memory).not.toBe(before)
+  })
+
+  it('keeps the turn the reader is editing', () => {
+    const { log } = renderList(turns(1, 30), { editingMessageId: 'u22' })
+    readUp(log)
+
+    scrollWithin(log, 15 * ROW)
+
+    expect(drawnIds()[0]).toBe('u22')
+  })
+
+  it('keeps a turn the reader is selecting text in', () => {
+    const { log } = renderList(turns(1, 30))
+    readUp(log)
+    const range = document.createRange()
+    range.selectNodeContents(rowOf('u22'))
+    document.getSelection()?.addRange(range)
+
+    scrollWithin(log, 15 * ROW)
+
+    expect(drawnIds()[0]).toBe('u22')
   })
 })
