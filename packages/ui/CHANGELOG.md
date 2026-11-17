@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.146.1](https://github.com/parallelworks/foundation/compare/ui-v0.146.0...ui-v0.146.1) (2026-11-17)
+
+
+### Performance Improvements
+
+* **ui:** a long transcript keeps only the turns near the view, so reading it back to its start no longer fills a phone's memory ([#802](https://github.com/parallelworks/foundation/issues/802)) ([90a1f5a](https://github.com/parallelworks/foundation/commit/90a1f5a1ba3f697c6522e469872c3222422e2709))
+
 ## [0.146.0](https://github.com/parallelworks/foundation/compare/ui-v0.145.1...ui-v0.146.0) (2026-11-16)
 
 
