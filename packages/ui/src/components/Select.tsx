@@ -246,6 +246,8 @@ export function Select<Value, Multiple extends boolean | undefined = false>({
                     </span>
                     <OptionDescription id={`${uid}${index}description`} item={item} />
                   </span>
+                  {/* The name joins label and hint with a space, so the row's text does too; unseen in a flex row. */}
+                  {item.hint && ' '}
                   <span className={pickerEndClassName}>
                     {item.hint && (
                       <span id={`${uid}${index}hint`} className={pickerHintClassName}>

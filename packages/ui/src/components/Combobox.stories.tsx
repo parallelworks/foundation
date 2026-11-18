@@ -208,6 +208,54 @@ export const GroupHeadings: StoryObj<FieldArgs> = {
   },
 }
 
+const cycles: ComboboxGroup[] = [
+  {
+    label: 'Past',
+    items: [
+      { label: 'Cycle 4', value: '4', hint: 'Sep 28 – Oct 11' },
+      { label: 'Cycle 5: Runner hardening', value: '5', hint: 'Oct 12 – 25' },
+    ],
+  },
+  {
+    label: 'Current',
+    items: [{ label: 'Cycle 1: Embedded polish', value: '1', hint: 'Nov 9 – 22' }],
+  },
+  {
+    label: 'Upcoming',
+    items: [
+      { label: 'Cycle 2', value: '2', hint: 'Nov 23 – Dec 6' },
+      { label: 'Cycle 3', value: '3', hint: 'Dec 7 – 20' },
+    ],
+  },
+]
+
+function HintsDemo(args: FieldArgs) {
+  const [value, setValue] = useState<string | null>('1')
+  return (
+    <Combobox
+      aria-label="Switch cycle"
+      placeholder="Find a cycle"
+      items={cycles}
+      value={value}
+      onValueChange={setValue}
+      disabled={args.disabled}
+      trigger={
+        <button
+          type="button"
+          className="inline-flex h-7 items-center rounded-md border border-(--theme-border) px-2 text-xs font-medium"
+        >
+          {`Cycle ${value}`}
+        </button>
+      }
+    />
+  )
+}
+
+/** Each option with a hint at its end, such as a cycle's dates: read with its label, and as legible as the label on the highlighted row. */
+export const Hints: StoryObj<FieldArgs> = {
+  render: (args) => <HintsDemo {...args} />,
+}
+
 const regions = Array.from({ length: 5000 }, (_, i) => `region-${String(i).padStart(4, '0')}`)
 
 function ManyDemo(args: FieldArgs) {
