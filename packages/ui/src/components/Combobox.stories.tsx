@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useState } from 'react'
-import { expect, screen, userEvent, within } from 'storybook/test'
+import { expect, screen, userEvent, waitFor, within } from 'storybook/test'
 import { CloudIcon, ClusterIcon, NodeIcon } from '../icons'
 import { Autocomplete, Combobox, type ComboboxGroup, type ComboboxItem } from './Combobox'
 
@@ -206,6 +206,104 @@ export const GroupHeadings: StoryObj<FieldArgs> = {
     await expect(screen.queryAllByRole('option')).toHaveLength(0)
     await expect(screen.getByText('gamma')).toBeInTheDocument()
   },
+}
+
+const models: ComboboxGroup[] = [
+  'Gateway',
+  'Pool',
+  'Workstation',
+  'Lab',
+  'Archive',
+  'Edge',
+  'Batch',
+  'Shared',
+].map((label) => ({
+  label,
+  icon: <CloudIcon />,
+  items: Array.from({ length: 8 }, (_, i) => {
+    const name = `${label.toLowerCase()}-model-${i + 1}`
+    return { label: name, value: name }
+  }),
+}))
+
+function ShortWindowDemo({ at, ...args }: FieldArgs & { at: 'top' | 'bottom' }) {
+  const [value, setValue] = useState<string | null>(null)
+  return (
+    // The story's own padding is 1rem on each side, so this fills the window to the bottom. The
+    // height is inline because the stylesheet doesn't scan stories for classes.
+    <div
+      className={at === 'bottom' ? 'flex items-end' : 'flex items-start'}
+      style={{ height: 'calc(100dvh - 2rem)' }}
+    >
+      <Combobox
+        aria-label="Model"
+        items={models}
+        value={value}
+        onValueChange={setValue}
+        disabled={args.disabled}
+        placeholder={args.placeholder}
+        trigger={
+          <button
+            type="button"
+            className="inline-flex h-7 items-center rounded-md border border-(--theme-border) px-2 text-xs font-medium"
+          >
+            {value ?? 'Model'}
+          </button>
+        }
+      />
+    </div>
+  )
+}
+
+// A 1280 × 1024 window at 400% zoom: shorter than the search and a full list together.
+const shortWindow = {
+  parameters: {
+    viewport: {
+      options: {
+        zoomed: { name: '400% zoom', styles: { width: '320px', height: '256px' }, type: 'mobile' },
+      },
+    },
+  },
+  globals: { viewport: { value: 'zoomed', isRotated: false } },
+}
+
+const reachesTheLastModel = async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+  await userEvent.click(within(canvasElement).getByRole('combobox', { name: 'Model' }))
+  const popup = await screen.findByRole('dialog', { name: 'Model' })
+  await Promise.all(popup.getAnimations().map((animation) => animation.finished))
+  const search = screen.getByPlaceholderText('Search models')
+  await expect(search.getBoundingClientRect().top).toBeGreaterThanOrEqual(0)
+  await expect(popup.getBoundingClientRect().top).toBeGreaterThanOrEqual(0)
+  await expect(popup.getBoundingClientRect().bottom).toBeLessThanOrEqual(window.innerHeight)
+  const list = screen.getByRole('listbox')
+  list.scrollTop = list.scrollHeight
+  const last = await screen.findByRole('option', { name: 'shared-model-8' })
+  await waitFor(() =>
+    expect(last.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      list.getBoundingClientRect().bottom,
+    ),
+  )
+  await expect(list.getBoundingClientRect().bottom).toBeLessThanOrEqual(window.innerHeight)
+  await userEvent.click(last)
+  await expect(
+    within(canvasElement).getByRole('combobox', { name: 'Model shared-model-8' }),
+  ).toBeInTheDocument()
+}
+
+/** In a window shorter than the search and a full list, the popup takes the room below the
+ *  button, search included, and the list scrolls inside it to the last model. */
+export const ShortWindow: StoryObj<FieldArgs & { at: 'top' | 'bottom' }> = {
+  ...shortWindow,
+  args: { at: 'top', placeholder: 'Search models' },
+  argTypes: { at: { control: 'inline-radio', options: ['top', 'bottom'] } },
+  render: (args) => <ShortWindowDemo {...args} />,
+  play: reachesTheLastModel,
+}
+
+/** The same with the button at the bottom: the popup opens up, and the search stays in view. */
+export const ShortWindowOpensUp: StoryObj<FieldArgs & { at: 'top' | 'bottom' }> = {
+  ...ShortWindow,
+  args: { at: 'bottom', placeholder: 'Search models' },
 }
 
 const regions = Array.from({ length: 5000 }, (_, i) => `region-${String(i).padStart(4, '0')}`)

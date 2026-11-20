@@ -433,6 +433,18 @@ describe('Combobox with a button trigger', () => {
     expect(within(list).getAllByRole('option').length).toBeGreaterThan(0)
   })
 
+  // jsdom has no layout, so this pins the classes that do it; the ShortWindow stories measure it.
+  it('caps the popup, search included, at the room there is, so the list scrolls inside it', async () => {
+    render(<Pill />)
+    fireEvent.click(screen.getByRole('combobox', { name: 'Size' }))
+    const list = await screen.findByRole('listbox')
+    const popup = screen.getByRole('dialog', { name: 'Size' })
+    expect(popup).toHaveClass('flex', 'flex-col', 'max-h-(--available-height)', 'overflow-hidden')
+    expect(popup).toContainElement(list)
+    expect(screen.getByPlaceholderText('Search').closest('.border-b')).toHaveClass('shrink-0')
+    expect(list).toHaveClass('min-h-0', 'max-h-60', 'overflow-auto')
+  })
+
   it('names the popup it opens, a dialog, by its label', async () => {
     render(<Pill />)
     fireEvent.click(screen.getByRole('combobox', { name: 'Size' }))

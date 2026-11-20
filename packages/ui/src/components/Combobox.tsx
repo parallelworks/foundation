@@ -543,7 +543,7 @@ export function Combobox<Value = string>(props: ComboboxProps<Value>) {
         empty={t.noOptionsFound}
         statusGroups={entries.statusGroups}
         query={inputValue ?? ''}
-        header={<div className="border-b border-(--theme-border) p-1.5">{input}</div>}
+        header={<div className="shrink-0 border-b border-(--theme-border) p-1.5">{input}</div>}
         label={ariaLabel || undefined}
         labelledBy={ariaLabelledBy}
         // As wide as its longest rows, from a floor that gives a small chip a list to read up
@@ -1034,11 +1034,16 @@ function ListPopup<Value>({
           aria-label={labelledBy ? undefined : label}
           aria-labelledby={labelledBy}
           className={cx(
-            'overflow-hidden',
+            'flex flex-col overflow-hidden',
             // The popup is the container its narrow layout answers to, wherever the field sits.
             // With a pane beside the list it takes the room there is, so the pane rarely
             // scrolls and many rows show, but not past a height that would be all list.
-            withDetails && '@container/picker flex h-[min(40rem,var(--available-height))] flex-col',
+            // Without one it is capped as a whole, search included, so in a short window the
+            // list gives up the room and scrolls rather than the search or the last rows
+            // running past the window's edge.
+            withDetails
+              ? '@container/picker h-[min(40rem,var(--available-height))]'
+              : 'max-h-(--available-height)',
             className,
             panelClassName,
             // Base UI leaves a popup with nothing to show open, as an empty panel, for its host to hide.
@@ -1192,7 +1197,7 @@ function VirtualList<Value>({
       className={cx(
         // The panel's gutter: the virtualizer pads the ends, so the list takes only the sides.
         'block overflow-auto overscroll-contain px-1',
-        tall ? 'min-h-0 max-h-full flex-1' : 'max-h-[min(15rem,var(--available-height))]',
+        tall ? 'min-h-0 max-h-full flex-1' : 'min-h-0 max-h-60',
       )}
       style={{ height: total }}
     >
