@@ -10,7 +10,7 @@ import AgentMessageParts, { buildRenderItems, ExpandAllProvider } from './AgentM
 vi.mock('../../ui/Markdown', () => ({
   __esModule: true,
   default: ({ children, compact }: { children: string; compact?: boolean }) => (
-    <div data-testid="markdown" data-compact={compact || undefined}>
+    <div data-testid="markdown" data-compact={compact}>
       {children}
     </div>
   ),

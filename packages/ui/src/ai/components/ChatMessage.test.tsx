@@ -22,7 +22,7 @@ vi.mock('./agent/AgentMessageParts', () => ({
 vi.mock('../ui/Markdown', () => ({
   __esModule: true,
   default: ({ children, compact }: { children: string; compact?: boolean }) => (
-    <div data-testid="markdown" data-compact={compact || undefined}>
+    <div data-testid="markdown" data-compact={compact}>
       {children}
     </div>
   ),
