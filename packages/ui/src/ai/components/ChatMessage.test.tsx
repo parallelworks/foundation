@@ -21,7 +21,11 @@ vi.mock('./agent/AgentMessageParts', () => ({
 // Mock the Markdown component
 vi.mock('../ui/Markdown', () => ({
   __esModule: true,
-  default: ({ children }: { children: string }) => <div data-testid="markdown">{children}</div>,
+  default: ({ children, compact }: { children: string; compact?: boolean }) => (
+    <div data-testid="markdown" data-compact={compact || undefined}>
+      {children}
+    </div>
+  ),
 }))
 
 // Mock BranchNavigator
@@ -158,9 +162,10 @@ describe('ChatMessage', () => {
       // A long path wraps after a separator, never mid-name.
       expect(screen.getByTestId('command-answer').querySelectorAll('wbr')).toHaveLength(1)
       expect(screen.getByTestId('command-document')).toHaveTextContent('1. Ship it')
+      expect(screen.getByTestId('markdown')).not.toHaveAttribute('data-compact')
     })
 
-    it('opens to more behind the line on request', () => {
+    it('opens to more behind the line on request, at the line’s size', () => {
       render(
         <ChatMessage
           {...defaultProps}
@@ -172,7 +177,8 @@ describe('ChatMessage', () => {
       )
       expect(screen.queryByText('Summary of the conversation.')).toBeNull()
       fireEvent.click(screen.getByRole('button', { name: /Compacted/ }))
-      expect(screen.getByText('Summary of the conversation.')).toBeInTheDocument()
+      expect(screen.getByTestId('markdown')).toHaveTextContent('Summary of the conversation.')
+      expect(screen.getByTestId('markdown')).toHaveAttribute('data-compact')
     })
   })
 

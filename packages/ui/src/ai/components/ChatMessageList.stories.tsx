@@ -314,7 +314,8 @@ const commands: ChatMessage[] = [
     content: '/compact',
     commandAnswer: {
       text: 'Compacted',
-      detail: 'The retry test fails because the backoff is applied twice on the second attempt.',
+      detail:
+        '# Conversation summary\n\n## Purpose\nFix the flaky retry test.\n\n## Findings\n- The backoff is applied twice on the second attempt.\n\n## Next\n- Apply the backoff once per attempt, then rerun the retry suite.',
     },
   }),
 ]

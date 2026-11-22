@@ -900,7 +900,7 @@ export const SubagentOutcomes: StoryObj<{ reviewing: number; launched: number }>
             status: 'done',
             description: 'Summarize the PR',
             summary: '1 tool use',
-            report: 'The PR changes the retry budget only.',
+            report: '## Findings\n\nThe PR changes the retry budget only.',
           },
           ...[
             'Sweep logs',
@@ -978,6 +978,12 @@ function TranscriptExtrasExample() {
               '[Message from subagent task-4 (Map routes) — it is still working]\nHalf way through.',
             ),
             notice('[Background command bash-1 (npm test) exited with code 1]'),
+            {
+              kind: 'notice',
+              text: '✻ Conversation compacted',
+              detail:
+                '# Conversation summary\n\n## Purpose\nRaise the retry budget.\n\n## Next\n- Add a test for the second retry.',
+            },
             {
               kind: 'tool_call',
               id: 'monitor-call',

@@ -9,7 +9,11 @@ import AgentMessageParts, { buildRenderItems, ExpandAllProvider } from './AgentM
 
 vi.mock('../../ui/Markdown', () => ({
   __esModule: true,
-  default: ({ children }: { children: string }) => <div data-testid="markdown">{children}</div>,
+  default: ({ children, compact }: { children: string; compact?: boolean }) => (
+    <div data-testid="markdown" data-compact={compact || undefined}>
+      {children}
+    </div>
+  ),
 }))
 
 vi.mock('../../../logviewer/index', () => ({
@@ -706,6 +710,19 @@ describe('transcript features', () => {
     expect(screen.getByTestId('markdown')).toHaveTextContent('a.go')
   })
 
+  it('sets a notice’s detail at the line’s size, open or behind it', () => {
+    renderParts([
+      { kind: 'notice', text: '! ls', detail: '```\na.go\n```', open: true },
+      { kind: 'notice', text: '✻ Conversation compacted', detail: '# Summary' },
+    ])
+    fireEvent.click(screen.getByRole('button', { name: /Conversation compacted/ }))
+    const details = screen.getAllByTestId('markdown')
+    expect(details).toHaveLength(2)
+    for (const detail of details) {
+      expect(detail).toHaveAttribute('data-compact')
+    }
+  })
+
   it('keeps an answered plan in view', () => {
     renderParts([
       {
@@ -790,12 +807,13 @@ describe('subagents', () => {
     expect(screen.getByText('Failed (interrupted)')).toBeInTheDocument()
   })
 
-  it('shows how a child ended when opened to its report', () => {
+  it('shows how a child ended when opened to its report, set at the block’s size', () => {
     renderParts([
       { kind: 'subagent', id: 's1', status: 'done', summary: 'ok', report: 'All good.' },
     ])
     fireEvent.click(screen.getByRole('button', { name: /Task/ }))
     expect(screen.getByTestId('subagent-outcome')).toHaveTextContent('Done (ok)')
+    expect(screen.getByTestId('markdown')).toHaveAttribute('data-compact')
   })
 
   it('says a reviewer is deciding on a child’s calls, in place of its latest action', () => {
