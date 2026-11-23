@@ -27,6 +27,7 @@ export { default as BranchNavigator } from './components/BranchNavigator'
 export { default as ChatEmptyState } from './components/ChatEmptyState'
 export {
   type ChatInputHandle,
+  type ComposerFiles,
   type ComposerRecall,
   default as ChatInput,
   type RecalledMessage,

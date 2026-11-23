@@ -56,6 +56,9 @@ interface ChatInputProps {
   allowEmpty?: boolean
   /** Attach, paste, and drop files. Off for a target that takes text only. */
   attachments?: boolean
+  /** Files picked from the +, dropped on the composer or pasted into it go to
+   *  the host in place of the chat's attachments. */
+  files?: ComposerFiles | undefined
   /** Hold sending until the provider's selected model is one it can serve.
    *  Off when the target picks its own model. */
   requireModel?: boolean
@@ -87,6 +90,13 @@ interface ChatInputProps {
   tools?: boolean
   pastes?: ComposerPastes | undefined
   ref?: Ref<ChatInputHandle> | undefined
+}
+
+/** Files the host takes itself, such as images a session saves where it runs. */
+export interface ComposerFiles {
+  /** The types the picker offers, as a file input's `accept`. */
+  accept?: string | undefined
+  onAdd: (files: File[]) => void
 }
 
 export interface ChatInputHandle {
@@ -239,6 +249,7 @@ export default function ChatInput({
   onEditLastMessage,
   allowEmpty = false,
   attachments: attachmentsWanted = true,
+  files,
   requireModel = true,
   inputLabel,
   sendLabel,
@@ -304,19 +315,35 @@ export default function ChatInput({
   const finePointer = useMediaQuery('(any-pointer: fine)')
   const shownPlaceholder =
     recall?.available && finePointer ? chatStrings.queue.editHint : effectivePlaceholder
-  const attachmentsAvailable = attachmentsWanted && !!adapter.attachments
+  const attachmentsAvailable = !files && attachmentsWanted && !!adapter.attachments
+  // A box the host holds takes no files, as it takes no typing.
+  const hostTakesFiles = !!files && !disabled
+  const takesFiles = attachmentsAvailable || hostTakesFiles
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const latestTakeBack = useRef(async (_ifEmpty: boolean) => false)
+  const latestFiles = useRef({ files, hostTakesFiles })
+  latestFiles.current = { files, hostTakesFiles }
+
+  const handleFilesDropped = useCallback((dropped: FileList | File[]) => {
+    const host = latestFiles.current
+    if (host.files) {
+      if (host.hostTakesFiles && dropped.length > 0) {
+        host.files.onAdd(Array.from(dropped))
+      }
+      return
+    }
+    setShowAttachments(true)
+    // Use setTimeout to ensure AttachmentUpload is mounted
+    setTimeout(() => {
+      attachmentUploadRef.current?.addFiles(dropped)
+    }, 0)
+  }, [])
 
   // Expose addFiles and focus methods to parent
   useImperativeHandle(
     ref,
     () => ({
-      addFiles: (files: FileList | File[]) => {
-        setShowAttachments(true)
-        setTimeout(() => {
-          attachmentUploadRef.current?.addFiles(files)
-        }, 0)
-      },
+      addFiles: handleFilesDropped,
       focus: () => {
         textareaRef.current?.focus()
       },
@@ -327,7 +354,7 @@ export default function ChatInput({
         return latestTakeBack.current(ifEmpty)
       },
     }),
-    [],
+    [handleFilesDropped],
   )
 
   useEffect(() => {
@@ -632,19 +659,11 @@ export default function ChatInput({
     }
   }
 
-  const handleFilesDropped = useCallback((files: FileList | File[]) => {
-    setShowAttachments(true)
-    // Use setTimeout to ensure AttachmentUpload is mounted
-    setTimeout(() => {
-      attachmentUploadRef.current?.addFiles(files)
-    }, 0)
-  }, [])
-
   const handlePaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
-    const files = Array.from(e.clipboardData?.files ?? [])
-    if (attachmentsAvailable && files.length > 0) {
+    const pasted = Array.from(e.clipboardData?.files ?? [])
+    if (takesFiles && pasted.length > 0) {
       e.preventDefault()
-      handleFilesDropped(files)
+      handleFilesDropped(pasted)
       return
     }
     // Text too big to send inline becomes a card; the rest pastes as usual.
@@ -659,7 +678,7 @@ export default function ChatInput({
 
   // A turn the provider doesn't run, such as an agent's, can't use its tools.
   const toolsAvailable = toolsAllowed && !turn && tools.length > 0
-  const toolbar = attachmentsAvailable || toolsAvailable || !!settingsRight
+  const toolbar = attachmentsAvailable || !!files || toolsAvailable || !!settingsRight
   const action =
     isStreaming && !input.trim() ? (
       <button
@@ -685,9 +704,24 @@ export default function ChatInput({
   return (
     <div
       className="chat-composer-dock relative px-4 pt-2 pb-5"
-      {...(attachmentsAvailable ? dragHandlers : {})}
+      {...(attachmentsAvailable || files ? dragHandlers : {})}
     >
-      {isDragging && <DragOverlay className="rounded-2xl" />}
+      {isDragging && takesFiles && <DragOverlay className="rounded-2xl" />}
+      {files && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept={files.accept}
+          className="hidden"
+          onChange={(e) => {
+            const picked = Array.from(e.currentTarget.files ?? [])
+            // The same file picked again is a change only once the input forgets it.
+            e.currentTarget.value = ''
+            handleFilesDropped(picked)
+          }}
+        />
+      )}
       <div className="mx-auto w-full max-w-[var(--chat-column,50rem)] space-y-2 sm:px-4">
         {notices}
         <div>
@@ -783,6 +817,7 @@ export default function ChatInput({
                     onToggleAttachments={
                       attachmentsAvailable ? () => setShowAttachments(!showAttachments) : undefined
                     }
+                    onPickFiles={files ? () => fileInputRef.current?.click() : undefined}
                     disabled={disabled}
                     withTools={toolsAllowed && !turn}
                   />

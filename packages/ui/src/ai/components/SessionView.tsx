@@ -70,7 +70,7 @@ export interface SessionViewProps {
   /** Still loading the first messages: the transcript stays empty and the
    *  composer disabled. */
   loading?: boolean
-  /** Files dropped anywhere on the view go to the composer's attachments. */
+  /** Files dropped anywhere on the view go to the composer, as if dropped on it. */
   dropFiles?: boolean
   footer?: ReactNode
   label?: string
@@ -242,6 +242,8 @@ export default function SessionView({
     inputRef.current?.addFiles(files)
   }, [])
   const { isDragging, dragHandlers } = useDragDrop({ onFilesDropped })
+  // A composer whose host takes the files takes none while it is held.
+  const takesDrop = dropFiles && !(composer?.files && (loading || composer.disabled))
 
   // A reader who scrolled up to read earlier turns still sees what they send and the reply to it.
   const send = useCallback<typeof onSend>(
@@ -287,7 +289,7 @@ export default function SessionView({
         className="flex min-w-0 flex-1 flex-col"
         {...(dropFiles ? dragHandlers : {})}
       >
-        {isDragging && dropFiles && <DragOverlay className="rounded-lg" />}
+        {isDragging && takesDrop && <DragOverlay className="rounded-lg" />}
         {banners}
         <TranscriptFindBar find={finder} />
         {error ?? (
