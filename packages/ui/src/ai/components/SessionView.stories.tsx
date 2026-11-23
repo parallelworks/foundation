@@ -418,7 +418,8 @@ function HandBackExample({ failMs }: HandBackArgs) {
   useEffect(() => {
     const timer = setTimeout(() => {
       setEnded((current) => current ?? 'failed')
-      void view.current?.recall()
+      // Still drawn where it was sent, so it waits for an empty box rather than join what is typed.
+      void view.current?.recall({ ifEmpty: true })
     }, failMs)
     return () => clearTimeout(timer)
   }, [failMs])
@@ -476,9 +477,11 @@ function HandBackExample({ failMs }: HandBackArgs) {
 
 /** A turn that fails before the agent reads its message leaves the message in
  *  the transcript, where it was sent, and the host hands it back to the box
- *  with `recall()` on the view's handle, as a terminal does, so it can be
- *  sent again rather than read as sent. Stopped first, it comes back the same
- *  way, without the failure. */
+ *  with `recall({ ifEmpty: true })` on the view's handle, as a terminal does,
+ *  so it can be sent again rather than read as sent. Typed into meanwhile,
+ *  the box keeps what was typed, and the message stays where it was sent.
+ *  Stopped first, it comes back with `recall()`, even ahead of what is typed,
+ *  since a stop leaves nothing of it in the transcript. */
 export const HandBackAfterFailure: StoryObj<HandBackArgs> = {
   args: { failMs: 1_500 },
   argTypes: {

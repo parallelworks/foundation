@@ -1250,6 +1250,27 @@ describe('ChatInput taking back what waits', () => {
     expect(textarea()).toHaveFocus()
   })
 
+  it('takes back only into an empty box when asked, as a terminal refills only an empty line', async () => {
+    const ref = createRef<ChatInputHandle>()
+    const recall = waiting([{ text: 'rerun the flaky test' }])
+    render(<ChatInput ref={ref} onSend={vi.fn()} recall={recall} />)
+    fireEvent.change(textarea(), { target: { value: 'and check the docs' } })
+    let took: boolean | undefined
+    await act(async () => {
+      took = await ref.current?.recall({ focus: false, ifEmpty: true })
+    })
+    expect(took).toBe(false)
+    expect(recall.take).not.toHaveBeenCalled()
+    expect(textarea().value).toBe('and check the docs')
+
+    fireEvent.change(textarea(), { target: { value: '' } })
+    await act(async () => {
+      took = await ref.current?.recall({ focus: false, ifEmpty: true })
+    })
+    expect(took).toBe(true)
+    expect(textarea().value).toBe('rerun the flaky test')
+  })
+
   it('leaves focus where it is when the host takes back unasked', async () => {
     const ref = createRef<ChatInputHandle>()
     const recall = waiting([{ text: 'also the docs' }])
