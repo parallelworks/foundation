@@ -1038,7 +1038,10 @@ function ListPopup<Value>({
             // The popup is the container its narrow layout answers to, wherever the field sits.
             // With a pane beside the list it takes the room there is, so the pane rarely
             // scrolls and many rows show, but not past a height that would be all list.
-            withDetails && '@container/picker flex h-[min(40rem,var(--available-height))] flex-col',
+            withDetails
+              ? '@container/picker flex h-[min(40rem,var(--available-height))] flex-col'
+              : // The search field above the list counts against the room too, so the list gives way to it.
+                'flex max-h-(--available-height) flex-col',
             className,
             panelClassName,
             // Base UI leaves a popup with nothing to show open, as an empty panel, for its host to hide.
@@ -1192,7 +1195,7 @@ function VirtualList<Value>({
       className={cx(
         // The panel's gutter: the virtualizer pads the ends, so the list takes only the sides.
         'block overflow-auto overscroll-contain px-1',
-        tall ? 'min-h-0 max-h-full flex-1' : 'max-h-[min(15rem,var(--available-height))]',
+        tall ? 'min-h-0 max-h-full flex-1' : 'min-h-0 max-h-60',
       )}
       style={{ height: total }}
     >
