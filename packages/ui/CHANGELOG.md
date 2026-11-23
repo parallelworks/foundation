@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.148.0](https://github.com/parallelworks/foundation/compare/ui-v0.147.0...ui-v0.148.0) (2026-11-23)
+
+
+### Features
+
+* **ui:** the composer tells the host which messages it took back went into the box ([#809](https://github.com/parallelworks/foundation/issues/809)) ([9d6d9e6](https://github.com/parallelworks/foundation/commit/9d6d9e6bfba76c73c3a2bb9a05a818caac531883))
+
 ## [0.147.0](https://github.com/parallelworks/foundation/compare/ui-v0.146.2...ui-v0.147.0) (2026-11-23)
 
 
