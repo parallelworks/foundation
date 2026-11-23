@@ -138,9 +138,11 @@ describe('ChatMessage', () => {
           })}
         />,
       )
+      // The hook it hangs from is drawn, not a character a reader would hear or copy.
       expect(screen.getByTestId('command-answer')).toHaveTextContent(
-        '⎿Goal set: the retry suite passes',
+        /^Goal set: the retry suite passes$/,
       )
+      expect(screen.getByTestId('command-answer-hook')).toHaveAttribute('aria-hidden', 'true')
       expect(screen.queryByTestId('command-document')).toBeNull()
     })
 
@@ -158,6 +160,19 @@ describe('ChatMessage', () => {
       // A long path wraps after a separator, never mid-name.
       expect(screen.getByTestId('command-answer').querySelectorAll('wbr')).toHaveLength(1)
       expect(screen.getByTestId('command-document')).toHaveTextContent('1. Ship it')
+    })
+
+    it('keeps a command the answer names whole, never breaking after its slash', () => {
+      render(
+        <ChatMessage
+          {...defaultProps}
+          message={createMockMessage({
+            content: '/review',
+            commandAnswer: { text: 'Its tools stay off until you run /skills trust review' },
+          })}
+        />,
+      )
+      expect(screen.getByTestId('command-answer').querySelectorAll('wbr')).toHaveLength(0)
     })
 
     it('opens to more behind the line on request', () => {

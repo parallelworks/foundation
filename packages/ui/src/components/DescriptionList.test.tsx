@@ -120,7 +120,7 @@ describe('DescriptionList', () => {
     const [path, url, owner] = [...container.querySelectorAll('[data-value]')].map(
       (value) => value.innerHTML,
     )
-    expect(path).toBe('/<wbr>mnt/<wbr>shared/<wbr>runs')
+    expect(path).toBe('/mnt/<wbr>shared/<wbr>runs')
     expect(url).toBe(
       '<a href="https://example.com/u/ada">https://<wbr>example.com/<wbr>u/<wbr>ada</a>',
     )

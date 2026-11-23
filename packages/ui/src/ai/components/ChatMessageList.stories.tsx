@@ -317,12 +317,29 @@ const commands: ChatMessage[] = [
       detail: 'The retry test fails because the backoff is applied twice on the second attempt.',
     },
   }),
+  makeMessage({
+    role: 'user',
+    content: '/review high src/retry',
+    commandAnswer: {
+      text: 'Activated project skill · its shell commands and allowed tools stay off until you run /skills trust review',
+    },
+  }),
+  makeMessage({
+    role: 'user',
+    content: '/goal the retry suite passes on every runner',
+    author: { id: 'u-2', username: 'priya', name: 'Priya Raman' },
+    commandAnswer: { text: 'Goal set: the retry suite passes on every runner' },
+  }),
 ]
 
 // A command the person ran keeps its answer under their message, as a
-// terminal draws it, instead of a reply; a plan it showed sits in a box.
+// terminal draws it, instead of a reply; a plan it showed sits in a box. The
+// answer hangs from the message's end for the reader's own, and from its
+// start, past the avatar, for someone else's.
 export const CommandAnswers: StoryObj = {
-  render: () => <MessageList messages={commands} allMessages={commands} />,
+  render: () => (
+    <MessageList messages={commands} allMessages={commands} showAuthor currentUsername="demo" />
+  ),
 }
 
 const failed: ChatMessage[] = [
