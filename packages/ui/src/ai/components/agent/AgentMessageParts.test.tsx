@@ -706,6 +706,20 @@ describe('transcript features', () => {
     expect(screen.getByTestId('markdown')).toHaveTextContent('a.go')
   })
 
+  it('wraps a word too long for the column in a notice’s detail, shown or opened', () => {
+    const detail = 'run --fields id,name,status,owner,created_at,updated_at,exit_code'
+    renderParts([
+      { kind: 'notice', text: '! run', detail, open: true },
+      { kind: 'notice', text: 'Started by a schedule', detail },
+    ])
+    fireEvent.click(screen.getByRole('button', { name: /Started by a schedule/ }))
+    const details = screen.getAllByTestId('markdown')
+    expect(details).toHaveLength(2)
+    for (const markdown of details) {
+      expect(markdown.closest('.wrap-break-word')).not.toBeNull()
+    }
+  })
+
   it('keeps an answered plan in view', () => {
     renderParts([
       {

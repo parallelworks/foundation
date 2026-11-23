@@ -713,6 +713,9 @@ export const TodoChecklist: StoryObj<{ pending: number; completed: number }> = {
   ),
 }
 
+const longWordDetail =
+  'Every hour, read the run log (./report --fields id,name,status,owner,created_at,updated_at,started_at,ended_at,exit_code) and say which runs failed since the last check.'
+
 export const Notices: StoryObj = {
   render: () => (
     <AgentMessageParts
@@ -722,6 +725,9 @@ export const Notices: StoryObj = {
           { kind: 'notice', text: 'Session resumed from checkpoint.' },
           { kind: 'warning', text: 'Hook rewrote the tool arguments.' },
           { kind: 'error', text: 'The provider returned a 429; retrying.' },
+          // A word too long for the column wraps rather than running past it, open or folded.
+          { kind: 'notice', text: '! ./report', detail: longWordDetail, open: true },
+          { kind: 'notice', text: '✻ Started by scheduled task a82adb24', detail: longWordDetail },
         ],
       })}
     />
