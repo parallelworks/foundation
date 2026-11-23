@@ -95,8 +95,10 @@ export interface SessionViewHandle {
   stop: () => Promise<void>
   /** Takes back into the composer what the host's `composer.recall` gives,
    *  as ↑ does, for a message the host learns later was never read, such as
-   *  when its turn failed first. Focus held elsewhere stays there. */
-  recall: () => Promise<void>
+   *  when its turn failed first. Focus held elsewhere stays there. Resolves
+   *  to whether anything came back: `ifEmpty` takes nothing while the person
+   *  has something in the box, as a terminal refills only an empty line. */
+  recall: (options?: { ifEmpty?: boolean }) => Promise<boolean>
 }
 
 /** One conversation or agent session: its transcript, with the composer at
@@ -162,9 +164,8 @@ export default function SessionView({
     ref,
     () => ({
       stop,
-      recall: async () => {
-        await inputRef.current?.recall({ focus: false })
-      },
+      recall: async ({ ifEmpty = false } = {}) =>
+        (await inputRef.current?.recall({ focus: false, ifEmpty })) ?? false,
     }),
     [stop],
   )

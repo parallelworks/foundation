@@ -93,10 +93,11 @@ export interface ChatInputHandle {
   addFiles: (files: FileList | File[]) => void
   focus: () => void
   /** Takes back what waits into the box, ahead of anything typed there;
-   *  resolves once it is there, or once the host had nothing to give back.
-   *  `focus: false` is for a take the person did not ask for: focus held
-   *  elsewhere stays there. */
-  recall: (options?: { focus?: boolean }) => Promise<void>
+   *  resolves once it is there, to whether anything came back. `focus: false`
+   *  is for a take the person did not ask for: focus held elsewhere stays
+   *  there. `ifEmpty` takes nothing while the box holds something the person
+   *  put there, as a terminal refills only an empty line. */
+  recall: (options?: { focus?: boolean; ifEmpty?: boolean }) => Promise<boolean>
 }
 
 /** A message taken back before it was read. */
@@ -104,6 +105,10 @@ export interface RecalledMessage {
   text: string
   /** Pastes the target saved, which the text names by placeholder. */
   pastes?: MessagePaste[] | undefined
+  /** Still drawn where it was sent, such as one whose turn failed: a take
+   *  that asked for an empty box lets it go when the box filled meanwhile,
+   *  rather than join what was typed. */
+  shown?: boolean | undefined
 }
 
 /** Messages sent but not read yet, as a terminal holds what is typed while it works. */
@@ -300,7 +305,7 @@ export default function ChatInput({
   const shownPlaceholder =
     recall?.available && finePointer ? chatStrings.queue.editHint : effectivePlaceholder
   const attachmentsAvailable = attachmentsWanted && !!adapter.attachments
-  const latestTakeBack = useRef(async () => {})
+  const latestTakeBack = useRef(async (_ifEmpty: boolean) => false)
 
   // Expose addFiles and focus methods to parent
   useImperativeHandle(
@@ -315,11 +320,11 @@ export default function ChatInput({
       focus: () => {
         textareaRef.current?.focus()
       },
-      recall: ({ focus = true } = {}) => {
+      recall: ({ focus = true, ifEmpty = false } = {}) => {
         if (focus) {
           textareaRef.current?.focus()
         }
-        return latestTakeBack.current()
+        return latestTakeBack.current(ifEmpty)
       },
     }),
     [],
@@ -419,8 +424,13 @@ export default function ChatInput({
   const composerHistory = useComposerHistory(history, input, setInput)
   // A send answers later, by when the box may hold something else or another
   // conversation. A recalled entry is not typing, so it gives way.
-  const box = useRef({ conversationId, typed: input })
-  box.current = { conversationId, typed: composerHistory.recalled ? '' : input }
+  const box = useRef({ conversationId, typed: input, holds: false })
+  const typed = composerHistory.recalled ? '' : input
+  box.current = {
+    conversationId,
+    typed,
+    holds: typed.trim() !== '' || cards.length > 0 || attachments.length > 0,
+  }
   const [refocus, setRefocus] = useState(false)
   const mounted = useRef(false)
   useEffect(() => {
@@ -449,8 +459,10 @@ export default function ChatInput({
       return
     }
     const value = [sent.input, typed].filter((text) => text.trim()).join('\n\n')
+    composerHistory.leave()
     setInput(value)
     box.current.typed = value
+    box.current.holds ||= value !== '' || sent.cards.length > 0 || sent.attachments.length > 0
     saveDraft(value)
     returnCards(sent.cards)
     if (sent.attachments.length > 0) {
@@ -462,21 +474,30 @@ export default function ChatInput({
 
   // Held while a take is out, so another ↑ neither takes again nor walks the history.
   const recalling = useRef(false)
-  const takeBack = async () => {
-    if (!recall || recalling.current) {
-      return
+  const boxFilled = (conversation: string | undefined) =>
+    mounted.current && box.current.conversationId === conversation
+      ? box.current.holds
+      : readDraft(conversation).trim() !== ''
+  const takeBack = async (ifEmpty = false) => {
+    if (!recall || recalling.current || (ifEmpty && box.current.holds)) {
+      return false
     }
     recalling.current = true
     const from = conversationId
     try {
-      const taken = await recall.take()
+      const took = await recall.take()
+      // Typed into while the take was out, the box keeps what was typed: a message
+      // still drawn where it was sent goes, and only what nothing else holds comes back.
+      const taken = ifEmpty && boxFilled(from) ? took.filter((m) => !m.shown) : took
       if (taken.length > 0) {
         const input = recalledText(taken)
         const cards = savedCards(taken.flatMap((m) => m.pastes ?? []))
         putBack({ conversationId: from, input, cards, attachments: [] }, true)
       }
+      return taken.length > 0
     } catch (error) {
       console.error('Failed to take back messages:', error)
+      return false
     } finally {
       recalling.current = false
     }
@@ -555,6 +576,7 @@ export default function ChatInput({
     setInput('')
     // A host can answer before the render that empties the box.
     box.current.typed = ''
+    box.current.holds = false
     clearDraft(conversationId)
     setAttachments([])
     setShowAttachments(false)

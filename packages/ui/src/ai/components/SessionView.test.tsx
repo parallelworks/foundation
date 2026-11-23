@@ -219,9 +219,19 @@ describe('SessionView', () => {
         composer={{ recall: { available: true, take: vi.fn() } }}
       />,
     )
-    await act(async () => view.current?.recall())
-    expect(recallComposer).toHaveBeenCalledTimes(1)
-    expect(recallComposer).toHaveBeenCalledWith({ focus: false })
+    recallComposer.mockResolvedValueOnce(true).mockResolvedValueOnce(false)
+    let took: boolean[] = []
+    await act(async () => {
+      took = [
+        (await view.current?.recall()) ?? true,
+        (await view.current?.recall({ ifEmpty: true })) ?? true,
+      ]
+    })
+    expect(recallComposer.mock.calls).toEqual([
+      [{ focus: false, ifEmpty: false }],
+      [{ focus: false, ifEmpty: true }],
+    ])
+    expect(took).toEqual([true, false])
     expect(onStop).not.toHaveBeenCalled()
   })
 

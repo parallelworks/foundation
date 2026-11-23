@@ -48,6 +48,11 @@ export function useComposerHistory(
     }
   }
 
+  /** What comes back into the box is the box's own, even with an entry's text. */
+  const leave = () => {
+    walk.current = null
+  }
+
   /** True when the key moved through the history. */
   const handleKey = (e: KeyboardEvent<HTMLTextAreaElement>): boolean => {
     const up = e.key === 'ArrowUp'
@@ -88,5 +93,5 @@ export function useComposerHistory(
     return true
   }
 
-  return { recalled, record, handleKey }
+  return { recalled, record, handleKey, leave }
 }

@@ -1250,6 +1250,112 @@ describe('ChatInput taking back what waits', () => {
     expect(textarea()).toHaveFocus()
   })
 
+  it('lets a shown message go when the box fills while the take is out, keeping what typing needs', async () => {
+    const ref = createRef<ChatInputHandle>()
+    let answer: (taken: RecalledMessage[]) => void = () => {}
+    const recall = {
+      available: true,
+      take: vi.fn(
+        () =>
+          new Promise<RecalledMessage[]>((resolve) => {
+            answer = resolve
+          }),
+      ),
+    }
+    render(<ChatInput ref={ref} onSend={vi.fn()} recall={recall} />)
+    let took: Promise<boolean> | undefined
+    act(() => {
+      took = ref.current?.recall({ focus: false, ifEmpty: true })
+    })
+    fireEvent.change(textarea(), { target: { value: 'my next message' } })
+    let result: boolean | undefined
+    await act(async () => {
+      answer([{ text: 'the failed one', shown: true }, { text: 'the queued one' }])
+      result = await took
+    })
+    expect(result).toBe(true)
+    expect(textarea().value).toBe('the queued one\n\nmy next message')
+  })
+
+  it('takes back only into an empty box when asked, as a terminal refills only an empty line', async () => {
+    const ref = createRef<ChatInputHandle>()
+    const recall = waiting([{ text: 'rerun the flaky test' }])
+    render(<ChatInput ref={ref} onSend={vi.fn()} recall={recall} />)
+    fireEvent.change(textarea(), { target: { value: 'and check the docs' } })
+    let took: boolean | undefined
+    await act(async () => {
+      took = await ref.current?.recall({ focus: false, ifEmpty: true })
+    })
+    expect(took).toBe(false)
+    expect(recall.take).not.toHaveBeenCalled()
+    expect(textarea().value).toBe('and check the docs')
+
+    fireEvent.change(textarea(), { target: { value: '' } })
+    await act(async () => {
+      took = await ref.current?.recall({ focus: false, ifEmpty: true })
+    })
+    expect(took).toBe(true)
+    expect(textarea().value).toBe('rerun the flaky test')
+  })
+
+  it('takes nothing into an empty box holding a paste card', async () => {
+    const ref = createRef<ChatInputHandle>()
+    const recall = waiting([{ text: 'rerun the flaky test' }])
+    const upload = vi.fn(() => new Promise<PasteUploadResult>(() => {}))
+    render(
+      <ChatInput
+        ref={ref}
+        onSend={vi.fn()}
+        recall={recall}
+        pastes={{ inlineMaxBytes: 10, upload }}
+      />,
+    )
+    fireEvent.paste(textarea(), {
+      clipboardData: { files: [], getData: () => 'a long paste\n'.repeat(20) },
+    })
+    expect(screen.getByTestId('composer-pastes')).toBeInTheDocument()
+    let took: boolean | undefined
+    await act(async () => {
+      took = await ref.current?.recall({ focus: false, ifEmpty: true })
+    })
+    expect(took).toBe(false)
+    expect(recall.take).not.toHaveBeenCalled()
+  })
+
+  it('counts what came back into an empty box as holding it, before the box redraws', async () => {
+    const ref = createRef<ChatInputHandle>()
+    const take = vi
+      .fn<() => Promise<RecalledMessage[]>>()
+      .mockResolvedValueOnce([{ text: 'first' }])
+      .mockResolvedValueOnce([{ text: 'second' }])
+    render(<ChatInput ref={ref} onSend={vi.fn()} recall={{ available: true, take }} />)
+    const took: boolean[] = []
+    await act(async () => {
+      took.push((await ref.current?.recall({ focus: false, ifEmpty: true })) ?? false)
+      took.push((await ref.current?.recall({ focus: false, ifEmpty: true })) ?? false)
+    })
+    expect(took).toEqual([true, false])
+    expect(take).toHaveBeenCalledTimes(1)
+    expect(textarea().value).toBe('first')
+  })
+
+  it('takes back over a browsed entry, which ↓ then leaves in the box though it has its text', async () => {
+    appendHistory('agents', 'older prompt')
+    appendHistory('agents', 'rerun the flaky test')
+    const ref = createRef<ChatInputHandle>()
+    const recall = { available: false, take: vi.fn(async () => [{ text: 'rerun the flaky test' }]) }
+    render(<ChatInput ref={ref} onSend={vi.fn()} history={{ name: 'agents' }} recall={recall} />)
+    pressUp()
+    expect(textarea().value).toBe('rerun the flaky test')
+    let took: boolean | undefined
+    await act(async () => {
+      took = await ref.current?.recall({ focus: false, ifEmpty: true })
+    })
+    expect(took).toBe(true)
+    pressDown()
+    expect(textarea().value).toBe('rerun the flaky test')
+  })
+
   it('leaves focus where it is when the host takes back unasked', async () => {
     const ref = createRef<ChatInputHandle>()
     const recall = waiting([{ text: 'also the docs' }])
