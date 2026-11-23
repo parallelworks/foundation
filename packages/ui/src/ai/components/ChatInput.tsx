@@ -118,6 +118,12 @@ export interface ComposerRecall {
   /** Takes back what waits, oldest first. One read meanwhile stays sent, so
    *  this can answer with fewer, or none. */
   take: () => Promise<RecalledMessage[]>
+  /** Told which of what `take` answered went into the box, the same objects
+   *  in their order, once it settles: a take into an empty box lets a `shown`
+   *  message go when the box filled meanwhile. A host that puts back parts
+   *  of a message the box does not hold, such as its images, puts back those
+   *  of these messages only. */
+  placed?: ((messages: RecalledMessage[]) => void) | undefined
 }
 
 /** Its pastes come back as cards, so the placeholders the send added go. */
@@ -493,6 +499,9 @@ export default function ChatInput({
         const input = recalledText(taken)
         const cards = savedCards(taken.flatMap((m) => m.pastes ?? []))
         putBack({ conversationId: from, input, cards, attachments: [] }, true)
+      }
+      if (took.length > 0) {
+        recall.placed?.(taken)
       }
       return taken.length > 0
     } catch (error) {

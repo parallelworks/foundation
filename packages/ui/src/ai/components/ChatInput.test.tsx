@@ -1261,6 +1261,7 @@ describe('ChatInput taking back what waits', () => {
             answer = resolve
           }),
       ),
+      placed: vi.fn(),
     }
     render(<ChatInput ref={ref} onSend={vi.fn()} recall={recall} />)
     let took: Promise<boolean> | undefined
@@ -1268,13 +1269,33 @@ describe('ChatInput taking back what waits', () => {
       took = ref.current?.recall({ focus: false, ifEmpty: true })
     })
     fireEvent.change(textarea(), { target: { value: 'my next message' } })
+    const failed = { text: 'the failed one', shown: true }
+    const queued = { text: 'the queued one' }
     let result: boolean | undefined
     await act(async () => {
-      answer([{ text: 'the failed one', shown: true }, { text: 'the queued one' }])
+      answer([failed, queued])
       result = await took
     })
     expect(result).toBe(true)
     expect(textarea().value).toBe('the queued one\n\nmy next message')
+    // The host puts back what the box does not hold, such as images, for these only.
+    expect(recall.placed).toHaveBeenCalledExactlyOnceWith([queued])
+    expect(recall.placed.mock.calls[0]?.[0][0]).toBe(queued)
+  })
+
+  it('tells the host everything a take answered went into the box', async () => {
+    const recall = {
+      ...waiting([{ text: 'also the docs' }, { text: 'and the tests' }]),
+      placed: vi.fn(),
+    }
+    render(<ChatInput onSend={vi.fn()} recall={recall} />)
+    pressUp()
+    await act(async () => {})
+    expect(textarea().value).toBe('also the docs\nand the tests')
+    expect(recall.placed).toHaveBeenCalledExactlyOnceWith([
+      { text: 'also the docs' },
+      { text: 'and the tests' },
+    ])
   })
 
   it('takes back only into an empty box when asked, as a terminal refills only an empty line', async () => {
