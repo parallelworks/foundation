@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.149.0](https://github.com/parallelworks/foundation/compare/ui-v0.148.0...ui-v0.149.0) (2026-11-23)
+
+
+### Features
+
+* **ui:** a host can take the files picked from the composer's +, dropped on it or pasted into it ([#811](https://github.com/parallelworks/foundation/issues/811)) ([acf91de](https://github.com/parallelworks/foundation/commit/acf91def4ee4b457cd8900759920412bd620e91c))
+
 ## [0.148.0](https://github.com/parallelworks/foundation/compare/ui-v0.147.0...ui-v0.148.0) (2026-11-23)
 
 
