@@ -46,6 +46,9 @@ const tab = (name: string) => screen.getByRole('tab', { name })
 const addNotes = () => screen.getByRole('button', { name: 'Add notes' })
 const notesField = () => screen.getByRole('textbox', { name: 'Notes' })
 const pressN = (target: Element) => fireEvent.keyDown(target, { key: 'n', code: 'KeyN' })
+const option = (label: string) => screen.getByRole('button', { name: new RegExp(`^${label}`) })
+// The option's card: its pick button and, once it is picked, its notes.
+const card = (label: string) => within(option(label).parentElement as HTMLElement)
 
 // The question left behind stays until its exit ends, a frame after the switch.
 const switched = () => waitFor(() => expect(screen.getAllByRole('tabpanel')).toHaveLength(1))
@@ -182,14 +185,16 @@ describe('AskApproval with several questions', () => {
     expect(screen.queryByRole('textbox', { name: 'Notes' })).not.toBeInTheDocument()
   })
 
-  it("opens the shown question's notes with N, and keeps notes with text across tabs", async () => {
+  it('picks an option with N without moving on, and keeps its notes across tabs', async () => {
     renderAsk([database, auth])
-    pressN(screen.getByRole('button', { name: /Postgres/ }))
+    pressN(option('Postgres'))
+    expect(option('Postgres')).toHaveAttribute('aria-pressed', 'true')
+    expect(tab('Database')).toHaveAttribute('aria-selected', 'true')
     expect(notesField()).toHaveFocus()
     fireEvent.change(notesField(), { target: { value: 'with read replicas' } })
     fireEvent.click(tab('Q2'))
     await switched()
-    expect(addNotes()).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add notes' })).not.toBeInTheDocument()
     fireEvent.click(tab('Database'))
     await switched()
     expect(notesField()).toHaveValue('with read replicas')
@@ -247,50 +252,70 @@ describe('AskApproval with one question', () => {
     expect(onAnswer).toHaveBeenLastCalledWith('q1', { kind: 'ask', answers: [{ text: 'Redis' }] })
   })
 
-  it('takes notes on a single-select question without previews, sent with its pick or typed answer', () => {
+  it("opens notes inside the picked option's card, which a new pick takes along", () => {
     const onAnswer = renderAsk([database])
-    expect(screen.queryByRole('textbox', { name: 'Notes' })).not.toBeInTheDocument()
-    expect(addNotes()).toHaveAttribute('aria-keyshortcuts', 'N')
+    expect(screen.queryByRole('button', { name: 'Add notes' })).not.toBeInTheDocument()
+    fireEvent.click(option('Postgres'))
+    expect(card('Postgres').getByRole('button', { name: 'Add notes' })).toHaveAttribute(
+      'aria-keyshortcuts',
+      'N',
+    )
     fireEvent.click(addNotes())
-    const field = notesField()
+    const field = card('Postgres').getByRole('textbox', { name: 'Notes' })
     expect(field).toHaveFocus()
     expect(field).toHaveAttribute('placeholder', 'Add notes…')
     fireEvent.change(field, { target: { value: ' with read replicas ' } })
-    expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled()
-    fireEvent.click(screen.getByRole('button', { name: /Postgres/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
     expect(onAnswer).toHaveBeenLastCalledWith('q1', {
       kind: 'ask',
       answers: [{ picked: ['Postgres'], notes: 'with read replicas' }],
     })
-    fireEvent.change(screen.getByRole('textbox', { name: 'Your answer' }), {
-      target: { value: 'SQLite' },
-    })
-    fireEvent.submit(field)
+    fireEvent.click(option('Mongo'))
+    expect(card('Postgres').queryByRole('textbox', { name: 'Notes' })).not.toBeInTheDocument()
+    expect(card('Mongo').getByRole('textbox', { name: 'Notes' })).toHaveValue(
+      ' with read replicas ',
+    )
+    fireEvent.submit(notesField())
     expect(onAnswer).toHaveBeenLastCalledWith('q1', {
       kind: 'ask',
-      answers: [{ text: 'SQLite', notes: 'with read replicas' }],
+      answers: [{ picked: ['Mongo'], notes: 'with read replicas' }],
     })
   })
 
-  it('opens the notes with N from an option or Send, but types N into a field', () => {
-    renderAsk([database])
-    const own = screen.getByRole('textbox', { name: 'Your answer' })
-    pressN(own)
-    expect(screen.queryByRole('textbox', { name: 'Notes' })).not.toBeInTheDocument()
-    fireEvent.keyDown(screen.getByRole('button', { name: /Postgres/ }), {
-      key: 'n',
-      code: 'KeyN',
-      metaKey: true,
+  it('leaves the notes out of a typed answer, and brings them back with a pick', () => {
+    const onAnswer = renderAsk([database])
+    fireEvent.click(option('Postgres'))
+    fireEvent.click(addNotes())
+    fireEvent.change(notesField(), { target: { value: 'with read replicas' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Your answer' }), {
+      target: { value: 'SQLite' },
     })
     expect(screen.queryByRole('textbox', { name: 'Notes' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /Postgres/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    expect(onAnswer).toHaveBeenLastCalledWith('q1', { kind: 'ask', answers: [{ text: 'SQLite' }] })
+    fireEvent.click(option('Postgres'))
+    expect(notesField()).toHaveValue('with read replicas')
+  })
+
+  it("picks the focused option with N, opens the pick's notes from Send, and types N into a field", () => {
+    const onAnswer = renderAsk([database])
+    pressN(screen.getByRole('textbox', { name: 'Your answer' }))
     pressN(screen.getByRole('button', { name: 'Send' }))
-    expect(notesField()).toHaveFocus()
+    fireEvent.keyDown(option('Postgres'), { key: 'n', code: 'KeyN', metaKey: true })
+    expect(screen.queryByRole('textbox', { name: 'Notes' })).not.toBeInTheDocument()
+    expect(option('Postgres')).toHaveAttribute('aria-pressed', 'false')
+    pressN(option('Mongo'))
+    expect(option('Mongo')).toHaveAttribute('aria-pressed', 'true')
+    expect(card('Mongo').getByRole('textbox', { name: 'Notes' })).toHaveFocus()
+    expect(onAnswer).not.toHaveBeenCalled()
+    fireEvent.keyDown(notesField(), { key: 'Escape' })
+    pressN(screen.getByRole('button', { name: 'Send' }))
+    expect(card('Mongo').getByRole('textbox', { name: 'Notes' })).toHaveFocus()
   })
 
   it('closes empty notes with Escape, back on their button, and keeps notes with text', () => {
     renderAsk([database])
+    fireEvent.click(option('Postgres'))
     fireEvent.click(addNotes())
     fireEvent.change(notesField(), { target: { value: '  ' } })
     fireEvent.keyDown(notesField(), { key: 'Escape' })
@@ -409,11 +434,14 @@ describe('AskApproval with option previews', () => {
     }
   })
 
-  it('sends the notes with the option picked after them', () => {
+  it("sends the notes with the pick they are opened on, showing that pick's preview", () => {
     const onAnswer = renderAsk([layout])
-    fireEvent.click(addNotes())
+    fireEvent.click(option('Tabs'))
+    fireEvent.focus(option('Sidebar'))
+    fireEvent.click(card('Tabs').getByRole('button', { name: 'Add notes' }))
+    fireEvent.focus(notesField())
+    expect(pane('Tabs')).toBeInTheDocument()
     fireEvent.change(notesField(), { target: { value: ' narrower ' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Tabs' }))
     expect(onAnswer).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
     expect(onAnswer).toHaveBeenCalledWith('q1', {
@@ -422,17 +450,19 @@ describe('AskApproval with option previews', () => {
     })
   })
 
-  it('sends the notes alone on Enter, and keeps empty ones waiting', () => {
+  it('sends the pick with its notes on Enter in them, empty or not', () => {
     const onAnswer = renderAsk([layout])
-    pressN(screen.getByRole('button', { name: 'Sidebar' }))
-    const notes = notesField()
-    fireEvent.submit(notes)
-    expect(onAnswer).not.toHaveBeenCalled()
-    fireEvent.change(notes, { target: { value: 'something in between' } })
-    fireEvent.submit(notes)
-    expect(onAnswer).toHaveBeenCalledWith('q1', {
+    pressN(option('Sidebar'))
+    fireEvent.submit(notesField())
+    expect(onAnswer).toHaveBeenLastCalledWith('q1', {
       kind: 'ask',
-      answers: [{ notes: 'something in between' }],
+      answers: [{ picked: ['Sidebar'] }],
+    })
+    fireEvent.change(notesField(), { target: { value: 'something in between' } })
+    fireEvent.submit(notesField())
+    expect(onAnswer).toHaveBeenLastCalledWith('q1', {
+      kind: 'ask',
+      answers: [{ picked: ['Sidebar'], notes: 'something in between' }],
     })
   })
 

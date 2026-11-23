@@ -31,8 +31,9 @@ function kindOf(question: ApprovalQuestion): QuestionKind {
   return question.multiSelect ? 'multi' : 'single'
 }
 
-const optionRow =
-  'flex w-full items-start gap-2 rounded-md border px-3 py-1.5 text-left text-xs hover:theme-hover'
+// The part of an option that picks it; a single-select option's card holds it and its notes.
+const optionHit = 'flex w-full items-start gap-2 px-3 py-1.5 text-left text-xs hover:theme-hover'
+const optionRow = cx(optionHit, 'rounded-md border')
 const primaryButton =
   'px-3 py-1 text-xs font-medium rounded-full bg-(--theme-accent) text-(--theme-accent-text) disabled:opacity-50'
 const outlineButton =
@@ -75,7 +76,8 @@ function answerOf(question: ApprovalQuestion, given: Given | undefined): Approva
     .filter((label) => given?.picked.includes(label))
   // A single-select question takes a pick or typed text, not both.
   const text = given && (kindOf(question) !== 'single' || given.own) ? given.text.trim() : ''
-  const notes = given && takesNotes(question) ? given.notes.trim() : ''
+  // Notes are shown on the pick, so they go only with one.
+  const notes = given && takesNotes(question) && picked.length > 0 ? given.notes.trim() : ''
   return {
     ...(picked.length > 0 ? { picked } : {}),
     ...(text ? { text } : {}),
@@ -213,12 +215,22 @@ function AskForm({
     setNotesOpen(notesOpen.map((o, j) => (j === i ? open : o)))
   }
 
+  // N on an option picks it and opens its notes without moving on; elsewhere it opens the pick's.
   const notesKey = (e: KeyboardEvent<HTMLDivElement>) => {
     const q = questions[active]
-    if (q && takesNotes(q) && !typingIn(e.target) && matchesShortcut(e, notesShortcut)) {
-      e.preventDefault()
-      setNotes(active, true)
+    if (!q || !takesNotes(q) || typingIn(e.target) || !matchesShortcut(e, notesShortcut)) {
+      return
     }
+    const g = given[active] ?? unanswered
+    const focused =
+      e.target instanceof HTMLElement ? e.target.closest<HTMLElement>('[data-option]') : null
+    const label = focused ? q.options?.[Number(focused.dataset['option'])]?.label : g.picked[0]
+    if (label === undefined) {
+      return
+    }
+    e.preventDefault()
+    setGiven(given.map((x, j) => (j === active ? { ...x, picked: [label], own: false } : x)))
+    setNotes(active, true)
   }
 
   const fields = (q: ApprovalQuestion, i: number) => (
@@ -400,41 +412,6 @@ function AskQuestionFields({
       </div>
     )
   }
-  // Rows rather than a radio group, so moving through them with the keyboard never picks one.
-  const rows = (
-    <div className="flex flex-col gap-1.5">
-      {options.map((o, i) => {
-        const picked = given.picked.includes(o.label)
-        return (
-          <button
-            key={o.label}
-            type="button"
-            aria-pressed={picked}
-            onClick={() => onPick({ ...given, picked: [o.label], own: false })}
-            {...(previews
-              ? {
-                  onFocus: () => show(i),
-                  onMouseEnter: () => {
-                    clearTimeout(hover.current)
-                    hover.current = setTimeout(setShown, previewHoverDelay, i)
-                  },
-                  onMouseLeave: () => clearTimeout(hover.current),
-                }
-              : {})}
-            className={cx(
-              optionRow,
-              focusOutline,
-              picked ? 'border-(--theme-focus)' : 'theme-border',
-            )}
-          >
-            <ChoiceMark on={picked} box={false} />
-            <OptionText label={o.label} description={o.description} />
-          </button>
-        )
-      })}
-      {ownRow}
-    </div>
-  )
   const submitNotes = (e: FormEvent) => {
     e.preventDefault()
     if (hasAnswer(answerOf(question, given))) {
@@ -450,71 +427,109 @@ function AskQuestionFields({
       onNotesOpen(false)
     }
   }
-  // Open or closed, the icon holds the option marks' column and the row their height, so
-  // opening the notes moves nothing.
-  const notesField =
-    notesOpen || given.notes.trim() !== '' ? (
-      <form onSubmit={submitNotes}>
-        <label
-          className={cx(
-            fieldBox({ size: 'sm', within: true, padded: false }),
-            'flex cursor-text items-center gap-2 px-3',
-          )}
-        >
-          <CommentIcon aria-hidden="true" className="size-4 shrink-0 theme-muted-text" />
+  // Under the pick's label, a button until the notes are opened or hold text, then the field,
+  // both one height so opening them moves nothing.
+  const pickNotes = (i: number) => (
+    <div className="ps-9 pe-3 pb-2">
+      {notesOpen || given.notes.trim() !== '' ? (
+        <form onSubmit={submitNotes}>
           <input
             data-notes=""
             value={given.notes}
             onChange={(e) => onChange({ ...given, notes: e.target.value })}
             onKeyDown={closeNotes}
+            onFocus={previews ? () => show(i) : undefined}
             aria-label={t.notesLabel}
             placeholder={t.notesPlaceholder}
-            className="h-full min-w-0 flex-1 bg-transparent outline-none placeholder:text-(--theme-placeholder)"
+            className={fieldBox({ size: 'sm' })}
           />
-        </label>
-      </form>
-    ) : (
-      <button
-        type="button"
-        data-add-notes=""
-        aria-keyshortcuts={ariaKeyShortcuts(notesShortcut)}
-        onClick={() => onNotesOpen(true)}
-        className={cx(
-          'flex h-7 items-center gap-2 self-start rounded-md border border-transparent px-3 text-xs theme-muted-text hover:theme-hover',
-          focusOutline,
-        )}
-      >
-        <CommentIcon aria-hidden="true" className="size-4 shrink-0" />
-        {t.addNotes}
-        {/* A key to press means nothing without a keyboard. */}
-        <Kbd keys={notesShortcut} size="xs" aria-hidden="true" className="pointer-coarse:hidden" />
-      </button>
-    )
+        </form>
+      ) : (
+        <button
+          type="button"
+          data-add-notes=""
+          aria-keyshortcuts={ariaKeyShortcuts(notesShortcut)}
+          onClick={() => onNotesOpen(true)}
+          className={cx(
+            '-ms-1.5 flex h-7 items-center gap-1.5 rounded px-1.5 text-xs theme-muted-text hover:theme-hover',
+            focusOutline,
+          )}
+        >
+          <CommentIcon aria-hidden="true" className="size-3.5 shrink-0" />
+          {t.addNotes}
+          {/* A key to press means nothing without a keyboard. */}
+          <Kbd
+            keys={notesShortcut}
+            size="xs"
+            aria-hidden="true"
+            className="pointer-coarse:hidden"
+          />
+        </button>
+      )}
+    </div>
+  )
+  // Rows rather than a radio group, so moving through them with the keyboard never picks one.
+  // Notes belong to the pick, so they open inside its card, and a new pick takes them along.
+  const rows = (
+    <div className="flex flex-col gap-1.5">
+      {options.map((o, i) => {
+        const picked = given.picked.includes(o.label)
+        return (
+          <div
+            key={o.label}
+            className={cx(
+              'rounded-md border has-[>button:focus-visible]:outline-2 has-[>button:focus-visible]:outline-offset-2 has-[>button:focus-visible]:outline-(--theme-focus)',
+              picked ? 'border-(--theme-focus)' : 'theme-border',
+            )}
+          >
+            <button
+              type="button"
+              data-option={i}
+              aria-pressed={picked}
+              onClick={() => onPick({ ...given, picked: [o.label], own: false })}
+              {...(previews
+                ? {
+                    onFocus: () => show(i),
+                    onMouseEnter: () => {
+                      clearTimeout(hover.current)
+                      hover.current = setTimeout(setShown, previewHoverDelay, i)
+                    },
+                    onMouseLeave: () => clearTimeout(hover.current),
+                  }
+                : {})}
+              className={cx(
+                optionHit,
+                'outline-none',
+                picked ? 'rounded-t-[5px]' : 'rounded-[5px]',
+              )}
+            >
+              <ChoiceMark on={picked} box={false} />
+              <OptionText label={o.label} description={o.description} />
+            </button>
+            {picked && pickNotes(i)}
+          </div>
+        )
+      })}
+      {ownRow}
+    </div>
+  )
   if (!previews) {
-    return (
-      <div className="flex flex-col gap-2">
-        {rows}
-        {notesField}
-      </div>
-    )
+    return rows
   }
   return (
     <div className="@container/ask">
       <div className="flex flex-col gap-2 @md/ask:flex-row">
         <div className="shrink-0 @md/ask:w-56">{rows}</div>
-        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-          {/* Panes share one cell, so the tallest sets the height and nothing below shifts. */}
-          <div className="grid grid-cols-1">
-            {options.map((o, i) => (
-              <PreviewPane key={o.label} label={o.label} preview={o.preview} shown={i === shown} />
-            ))}
-            <PreviewPane
-              label={t.ownAnswerLabel}
-              preview={undefined}
-              shown={shown === options.length}
-            />
-          </div>
-          {notesField}
+        {/* Panes share one cell, so the tallest sets the height and nothing below shifts. */}
+        <div className="grid min-w-0 flex-1 grid-cols-1 self-start">
+          {options.map((o, i) => (
+            <PreviewPane key={o.label} label={o.label} preview={o.preview} shown={i === shown} />
+          ))}
+          <PreviewPane
+            label={t.ownAnswerLabel}
+            preview={undefined}
+            shown={shown === options.length}
+          />
         </div>
       </div>
     </div>

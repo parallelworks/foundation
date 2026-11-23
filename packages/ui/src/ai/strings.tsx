@@ -380,7 +380,7 @@ export interface ChatStrings {
     /** Names the notes on a single-select question, in their field and under an answer. */
     notesLabel: string
     notesPlaceholder: string
-    /** The button that opens a question's notes, which N also opens. */
+    /** The button on a picked option that opens its notes, which N also opens. */
     addNotes: string
     /** An answer that is notes alone, which an answered ask shows over the notes. */
     notesOnly: string
