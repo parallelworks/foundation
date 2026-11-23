@@ -283,6 +283,84 @@ describe('ChatInput paste-to-attach', () => {
   })
 })
 
+describe('ChatInput with files the host takes', () => {
+  const file = new File(['x'], 'shot.png', { type: 'image/png' })
+
+  function renderHost(disabled = false) {
+    const onAdd = vi.fn()
+    const ref = createRef<ChatInputHandle>()
+    const { container } = render(
+      <ChatInput
+        ref={ref}
+        onSend={vi.fn()}
+        conversationId="c1"
+        disabled={disabled}
+        files={{ accept: 'image/png,image/jpeg', onAdd }}
+      />,
+    )
+    const picker = container.querySelector<HTMLInputElement>('input[type="file"]')
+    if (!picker) {
+      throw new Error('no file picker')
+    }
+    return { onAdd, ref, picker }
+  }
+
+  const drop = (files: File[]) =>
+    fireEvent.drop(textarea(), { dataTransfer: { files, types: ['Files'] } })
+
+  it('opens the picker from the + and hands what is picked to the host', () => {
+    const { onAdd, picker } = renderHost()
+    const click = vi.spyOn(picker, 'click')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Attach files' }))
+    expect(click).toHaveBeenCalled()
+    expect(picker).toHaveAttribute('accept', 'image/png,image/jpeg')
+
+    fireEvent.change(picker, { target: { files: [file] } })
+    expect(onAdd).toHaveBeenCalledWith([file])
+    expect(screen.queryByTestId('attachment-upload')).toBeNull()
+  })
+
+  it('hands dropped and pasted files to the host instead of uploading them', () => {
+    const { onAdd } = renderHost()
+
+    drop([file])
+    pasteFiles([file])
+
+    expect(onAdd).toHaveBeenCalledTimes(2)
+    expect(onAdd).toHaveBeenNthCalledWith(1, [file])
+    expect(onAdd).toHaveBeenNthCalledWith(2, [file])
+    expect(addFilesMock).not.toHaveBeenCalled()
+  })
+
+  it('leaves text dragged into the box to the browser', () => {
+    const { onAdd } = renderHost()
+
+    const dropped = fireEvent.drop(textarea(), {
+      dataTransfer: { files: [], types: ['text/plain'] },
+    })
+
+    expect(dropped).toBe(true)
+    expect(onAdd).not.toHaveBeenCalled()
+  })
+
+  it('hands files added through its handle to the host', () => {
+    const { onAdd, ref } = renderHost()
+    act(() => ref.current?.addFiles([file]))
+    expect(onAdd).toHaveBeenCalledWith([file])
+  })
+
+  it('takes no files while the host holds the box', () => {
+    const { onAdd, ref } = renderHost(true)
+
+    expect(screen.getByRole('button', { name: 'Attach files' })).toBeDisabled()
+    drop([file])
+    act(() => ref.current?.addFiles([file]))
+
+    expect(onAdd).not.toHaveBeenCalled()
+  })
+})
+
 describe('ChatInput with a host-driven turn', () => {
   const stopButton = () => screen.queryByRole('button', { name: /stop/i })
 

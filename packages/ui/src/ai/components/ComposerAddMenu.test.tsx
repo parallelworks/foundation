@@ -4,7 +4,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import type { ChatToolOption } from '../adapter/types'
 import { makeManyTools, makeStaticAdapter, makeTools, StoryChat } from '../stories/harness'
 import { defaultChatStrings } from '../strings'
-import ChatInput from './ChatInput'
+import ChatInput, { type ComposerFiles } from './ChatInput'
 import { ConnectToolsLink } from './ComposerChrome'
 
 const ADD_FILES_PANEL = defaultChatStrings.attachmentUpload.addFiles
@@ -15,6 +15,7 @@ function renderComposer(options: {
   attachments?: boolean
   connect?: boolean
   agentTurn?: boolean
+  files?: ComposerFiles
 }) {
   const adapter = makeStaticAdapter({
     attachments: options.attachments ?? false,
@@ -27,6 +28,7 @@ function renderComposer(options: {
         conversationId="conv-tools"
         settingsLeft={<ConnectToolsLink />}
         {...(options.agentTurn ? { turn: { running: false, onStop: () => {} } } : {})}
+        {...(options.files ? { files: options.files } : {})}
       />
     </StoryChat>,
   )
@@ -89,6 +91,18 @@ describe('the composer + menu', () => {
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Add files' }))
 
     expect(await screen.findByText(ADD_FILES_PANEL)).toBeInTheDocument()
+  })
+
+  it("opens the host's file picker from Add files when the host takes the files", async () => {
+    const click = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => {})
+    renderComposer({ attachments: true, tools: makeTools(), files: { onAdd: () => {} } })
+    const menu = await openMenu(/^Add files and tools$/)
+
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Add files' }))
+
+    expect(click).toHaveBeenCalled()
+    expect(screen.queryByText(ADD_FILES_PANEL)).not.toBeInTheDocument()
+    click.mockRestore()
   })
 
   it('turns a tool off, keeps the menu open, remembers it and marks the +', async () => {
