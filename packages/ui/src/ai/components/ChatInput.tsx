@@ -105,6 +105,10 @@ export interface RecalledMessage {
   text: string
   /** Pastes the target saved, which the text names by placeholder. */
   pastes?: MessagePaste[] | undefined
+  /** Still drawn where it was sent, such as one whose turn failed: a take
+   *  that asked for an empty box lets it go when the box filled meanwhile,
+   *  rather than join what was typed. */
+  shown?: boolean | undefined
 }
 
 /** Messages sent but not read yet, as a terminal holds what is typed while it works. */
@@ -455,8 +459,10 @@ export default function ChatInput({
       return
     }
     const value = [sent.input, typed].filter((text) => text.trim()).join('\n\n')
+    composerHistory.leave()
     setInput(value)
     box.current.typed = value
+    box.current.holds ||= value !== '' || sent.cards.length > 0 || sent.attachments.length > 0
     saveDraft(value)
     returnCards(sent.cards)
     if (sent.attachments.length > 0) {
@@ -468,6 +474,10 @@ export default function ChatInput({
 
   // Held while a take is out, so another ↑ neither takes again nor walks the history.
   const recalling = useRef(false)
+  const boxFilled = (conversation: string | undefined) =>
+    mounted.current && box.current.conversationId === conversation
+      ? box.current.holds
+      : readDraft(conversation).trim() !== ''
   const takeBack = async (ifEmpty = false) => {
     if (!recall || recalling.current || (ifEmpty && box.current.holds)) {
       return false
@@ -475,7 +485,10 @@ export default function ChatInput({
     recalling.current = true
     const from = conversationId
     try {
-      const taken = await recall.take()
+      const took = await recall.take()
+      // Typed into while the take was out, the box keeps what was typed: a message
+      // still drawn where it was sent goes, and only what nothing else holds comes back.
+      const taken = ifEmpty && boxFilled(from) ? took.filter((m) => !m.shown) : took
       if (taken.length > 0) {
         const input = recalledText(taken)
         const cards = savedCards(taken.flatMap((m) => m.pastes ?? []))
@@ -563,6 +576,7 @@ export default function ChatInput({
     setInput('')
     // A host can answer before the render that empties the box.
     box.current.typed = ''
+    box.current.holds = false
     clearDraft(conversationId)
     setAttachments([])
     setShowAttachments(false)

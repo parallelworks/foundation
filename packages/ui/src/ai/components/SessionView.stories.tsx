@@ -418,8 +418,13 @@ function HandBackExample({ failMs }: HandBackArgs) {
   useEffect(() => {
     const timer = setTimeout(() => {
       setEnded((current) => current ?? 'failed')
-      // Still drawn where it was sent, so it waits for an empty box rather than join what is typed.
-      void view.current?.recall({ ifEmpty: true })
+      // Still drawn where it was sent, so it waits for an empty box rather than join what is typed,
+      // and is let go when the box holds something: ↑ no longer offers it as waiting.
+      void view.current?.recall({ ifEmpty: true }).then((took) => {
+        if (!took) {
+          setUnread(false)
+        }
+      })
     }, failMs)
     return () => clearTimeout(timer)
   }, [failMs])
@@ -448,7 +453,8 @@ function HandBackExample({ failMs }: HandBackArgs) {
         return []
       }
       setUnread(false)
-      return [{ text: FAILED_PROMPT }]
+      // A failed turn leaves it drawn where it was sent; a stop does not.
+      return [{ text: FAILED_PROMPT, shown: ended === 'failed' }]
     },
   }
   return (

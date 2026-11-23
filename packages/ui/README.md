@@ -1061,7 +1061,9 @@ composer's `recall` gives as ↑ does, for a message the host learns later was
 never read, such as one whose turn failed first; focus held elsewhere stays
 there. It resolves to whether anything came back, and `recall({ ifEmpty: true })`
 takes nothing while the box holds what the person put there, as a terminal
-refills only an empty line.
+refills only an empty line. Typed into while the take is out, the box keeps
+what was typed: a `RecalledMessage` the host marks `shown`, still drawn where
+it was sent, is let go, and the rest still comes back.
 
 A host's own list of conversations or sessions builds on `ConversationSidebar`
 with the same pieces the chat's list uses: `SidebarRow` with `SidebarRowBody`
