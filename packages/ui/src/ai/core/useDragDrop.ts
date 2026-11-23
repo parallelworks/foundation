@@ -26,17 +26,24 @@ export default function useDragDrop({ onFilesDropped }: UseDragDropOptions) {
     }
   }, [])
 
+  // Text or a link dragged in drops as the browser would, such as into a text box.
   const onDragOver = useCallback((e: DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) {
+      return
+    }
     e.preventDefault()
     e.stopPropagation()
   }, [])
 
   const onDrop = useCallback(
     (e: DragEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
       dragCounterRef.current = 0
       setIsDragging(false)
+      if (!e.dataTransfer.types.includes('Files')) {
+        return
+      }
+      e.preventDefault()
+      e.stopPropagation()
 
       if (e.dataTransfer.files.length > 0) {
         onFilesDropped(e.dataTransfer.files)

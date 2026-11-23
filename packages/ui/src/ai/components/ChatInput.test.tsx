@@ -333,6 +333,17 @@ describe('ChatInput with files the host takes', () => {
     expect(addFilesMock).not.toHaveBeenCalled()
   })
 
+  it('leaves text dragged into the box to the browser', () => {
+    const { onAdd } = renderHost()
+
+    const dropped = fireEvent.drop(textarea(), {
+      dataTransfer: { files: [], types: ['text/plain'] },
+    })
+
+    expect(dropped).toBe(true)
+    expect(onAdd).not.toHaveBeenCalled()
+  })
+
   it('hands files added through its handle to the host', () => {
     const { onAdd, ref } = renderHost()
     act(() => ref.current?.addFiles([file]))

@@ -242,8 +242,9 @@ export default function SessionView({
     inputRef.current?.addFiles(files)
   }, [])
   const { isDragging, dragHandlers } = useDragDrop({ onFilesDropped })
+  const composerHeld = loading || !!composer?.disabled
   // A composer whose host takes the files takes none while it is held.
-  const takesDrop = dropFiles && !(composer?.files && (loading || composer.disabled))
+  const takesDrop = dropFiles && !(composer?.files && composerHeld)
 
   // A reader who scrolled up to read earlier turns still sees what they send and the reply to it.
   const send = useCallback<typeof onSend>(
@@ -266,7 +267,7 @@ export default function SessionView({
       activity={activity}
       onSend={send}
       conversationId={sessionKey}
-      disabled={loading || !!composer?.disabled}
+      disabled={composerHeld}
       {...(turn ? { turn: { ...turn, onStop: () => void stop() } } : {})}
       {...(onEdit ? { onEditLastMessage: editLast } : {})}
     />
