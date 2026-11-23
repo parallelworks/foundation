@@ -1,10 +1,11 @@
-import { type FormEvent, useEffect, useRef, useState } from 'react'
+import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { Checkbox } from '../../../components/Checkbox'
 import { fieldBox, focusOutline } from '../../../components/fieldBox'
+import { ariaKeyShortcuts, Kbd, matchesShortcut } from '../../../components/Kbd'
 import { useStrings } from '../../../components/Provider'
 import { TabPanel, Tabs } from '../../../components/Tabs'
 import { cx } from '../../../cx'
-import { ChatIcon, CheckIcon } from '../../../icons'
+import { ChatIcon, CheckIcon, CommentIcon } from '../../../icons'
 import { type PartRendererProps, useChatConfig } from '../../core/config'
 import type { ApprovalPart, ApprovalQuestion, ApprovalQuestionAnswer } from '../../types'
 import Markdown from '../../ui/Markdown'
@@ -50,6 +51,23 @@ function showsPreviews(question: ApprovalQuestion): boolean {
   )
 }
 
+function takesNotes(question: ApprovalQuestion): boolean {
+  return kindOf(question) === 'single'
+}
+
+const notesShortcut = 'N'
+
+// Where focus goes as the notes open, and back to as they close.
+const notesTarget = { notes: '[data-notes]', addNotes: '[data-add-notes]' } as const
+
+// The shortcut is a letter, so it never fires while the reader is typing one.
+function typingIn(target: EventTarget): boolean {
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable || target.matches('input, textarea, select'))
+  )
+}
+
 function answerOf(question: ApprovalQuestion, given: Given | undefined): ApprovalQuestionAnswer {
   // In option order, however they were ticked.
   const picked = (question.options ?? [])
@@ -57,7 +75,7 @@ function answerOf(question: ApprovalQuestion, given: Given | undefined): Approva
     .filter((label) => given?.picked.includes(label))
   // A single-select question takes a pick or typed text, not both.
   const text = given && (kindOf(question) !== 'single' || given.own) ? given.text.trim() : ''
-  const notes = given && kindOf(question) === 'single' ? given.notes.trim() : ''
+  const notes = given && takesNotes(question) ? given.notes.trim() : ''
   return {
     ...(picked.length > 0 ? { picked } : {}),
     ...(text ? { text } : {}),
@@ -138,11 +156,13 @@ function AskForm({
   const t = strings.agentTranscript
   const [given, setGiven] = useState<Given[]>(() => questions.map(() => unanswered))
   const [active, setActive] = useState(0)
+  // Notes stay open once they hold text; until then they are a button that opens them.
+  const [notesOpen, setNotesOpen] = useState<boolean[]>(() => questions.map(() => false))
   const body = useRef<HTMLDivElement>(null)
   const submit = useRef<HTMLButtonElement>(null)
   // What an answer moves focus to isn't rendered (the next question) or enabled (a lone
   // question's Send) until after it, so focus moves in an effect.
-  const focusNext = useRef<number | 'submit' | null>(null)
+  const focusNext = useRef<number | 'submit' | 'notes' | 'addNotes' | null>(null)
   const several = questions.length > 1
   const answers = questions.map((q, i) => answerOf(q, given[i]))
 
@@ -177,13 +197,29 @@ function AskForm({
   }
 
   useEffect(() => {
-    if (focusNext.current === 'submit') {
+    const next = focusNext.current
+    focusNext.current = null
+    if (next === 'submit') {
       submit.current?.focus()
-    } else if (focusNext.current === active) {
+    } else if (next === 'notes' || next === 'addNotes') {
+      body.current?.querySelector<HTMLElement>(notesTarget[next])?.focus()
+    } else if (next === active) {
       body.current?.querySelector<HTMLElement>('button, input')?.focus()
     }
-    focusNext.current = null
   })
+
+  const setNotes = (i: number, open: boolean) => {
+    focusNext.current = open ? 'notes' : 'addNotes'
+    setNotesOpen(notesOpen.map((o, j) => (j === i ? open : o)))
+  }
+
+  const notesKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    const q = questions[active]
+    if (q && takesNotes(q) && !typingIn(e.target) && matchesShortcut(e, notesShortcut)) {
+      e.preventDefault()
+      setNotes(active, true)
+    }
+  }
 
   const fields = (q: ApprovalQuestion, i: number) => (
     <div ref={i === active ? body : undefined} className="space-y-2">
@@ -191,6 +227,8 @@ function AskForm({
       <AskQuestionFields
         question={q}
         given={given[i] ?? unanswered}
+        notesOpen={notesOpen[i] ?? false}
+        onNotesOpen={(open) => setNotes(i, open)}
         onChange={(next) => setGiven(given.map((g, j) => (j === i ? next : g)))}
         onPick={(next) => done(i, next, false)}
         onDone={(next) => done(i, next, true)}
@@ -202,7 +240,8 @@ function AskForm({
   const loneKind = lone ? kindOf(lone) : 'text'
   const onLast = active === questions.length - 1
   return (
-    <>
+    // N opens the notes from anywhere in the card that isn't a field, Send included.
+    <div role="none" className="space-y-2" onKeyDown={notesKey}>
       {several ? (
         <Tabs
           label={t.questionsLabel}
@@ -252,19 +291,23 @@ function AskForm({
           {several ? (onLast ? t.submitAnswers : common.next) : common.send}
         </button>
       </div>
-    </>
+    </div>
   )
 }
 
 function AskQuestionFields({
   question,
   given,
+  notesOpen,
+  onNotesOpen,
   onChange,
   onPick,
   onDone,
 }: {
   question: ApprovalQuestion
   given: Given
+  notesOpen: boolean
+  onNotesOpen: (open: boolean) => void
   onChange: (next: Given) => void
   onPick: (next: Given) => void
   onDone: (next: Given) => void
@@ -398,17 +441,55 @@ function AskQuestionFields({
       onDone(given)
     }
   }
-  const notesField = (
-    <form onSubmit={submitNotes}>
-      <input
-        value={given.notes}
-        onChange={(e) => onChange({ ...given, notes: e.target.value })}
-        aria-label={t.notesLabel}
-        placeholder={t.notesPlaceholder}
-        className={fieldBox({ size: 'sm' })}
-      />
-    </form>
-  )
+  // Escape takes back notes opened by mistake; ones with text stay, as they would be sent.
+  const closeNotes = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape' && given.notes.trim() === '') {
+      e.preventDefault()
+      e.stopPropagation()
+      onChange({ ...given, notes: '' })
+      onNotesOpen(false)
+    }
+  }
+  // Open or closed, the icon holds the option marks' column and the row their height, so
+  // opening the notes moves nothing.
+  const notesField =
+    notesOpen || given.notes.trim() !== '' ? (
+      <form onSubmit={submitNotes}>
+        <label
+          className={cx(
+            fieldBox({ size: 'sm', within: true, padded: false }),
+            'flex cursor-text items-center gap-2 px-3',
+          )}
+        >
+          <CommentIcon aria-hidden="true" className="size-4 shrink-0 theme-muted-text" />
+          <input
+            data-notes=""
+            value={given.notes}
+            onChange={(e) => onChange({ ...given, notes: e.target.value })}
+            onKeyDown={closeNotes}
+            aria-label={t.notesLabel}
+            placeholder={t.notesPlaceholder}
+            className="h-full min-w-0 flex-1 bg-transparent outline-none placeholder:text-(--theme-placeholder)"
+          />
+        </label>
+      </form>
+    ) : (
+      <button
+        type="button"
+        data-add-notes=""
+        aria-keyshortcuts={ariaKeyShortcuts(notesShortcut)}
+        onClick={() => onNotesOpen(true)}
+        className={cx(
+          'flex h-7 items-center gap-2 self-start rounded-md border border-transparent px-3 text-xs theme-muted-text hover:theme-hover',
+          focusOutline,
+        )}
+      >
+        <CommentIcon aria-hidden="true" className="size-4 shrink-0" />
+        {t.addNotes}
+        {/* A key to press means nothing without a keyboard. */}
+        <Kbd keys={notesShortcut} size="xs" aria-hidden="true" className="pointer-coarse:hidden" />
+      </button>
+    )
   if (!previews) {
     return (
       <div className="flex flex-col gap-2">

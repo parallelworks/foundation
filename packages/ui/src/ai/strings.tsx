@@ -380,6 +380,8 @@ export interface ChatStrings {
     /** Names the notes on a single-select question, in their field and under an answer. */
     notesLabel: string
     notesPlaceholder: string
+    /** The button that opens a question's notes, which N also opens. */
+    addNotes: string
     /** An answer that is notes alone, which an answered ask shows over the notes. */
     notesOnly: string
     /** Read out in place of a task's checkbox glyph. */
@@ -743,6 +745,7 @@ export const defaultChatStrings: ChatStrings = {
     previewOf: (label) => `Preview: ${label}`,
     notesLabel: 'Notes',
     notesPlaceholder: 'Add notes…',
+    addNotes: 'Add notes',
     notesOnly: '(notes only)',
     todoPending: 'To do',
     todoInProgress: 'In progress',

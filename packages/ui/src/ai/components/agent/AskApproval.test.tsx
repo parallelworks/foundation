@@ -43,6 +43,10 @@ function renderAsk(questions: ApprovalQuestion[]) {
 
 const tab = (name: string) => screen.getByRole('tab', { name })
 
+const addNotes = () => screen.getByRole('button', { name: 'Add notes' })
+const notesField = () => screen.getByRole('textbox', { name: 'Notes' })
+const pressN = (target: Element) => fireEvent.keyDown(target, { key: 'n', code: 'KeyN' })
+
 // The question left behind stays until its exit ends, a frame after the switch.
 const switched = () => waitFor(() => expect(screen.getAllByRole('tabpanel')).toHaveLength(1))
 
@@ -165,6 +169,8 @@ describe('AskApproval with several questions', () => {
 
   it('takes no notes on a multi-select question or one without options', async () => {
     renderAsk([checks, notes])
+    pressN(screen.getByRole('checkbox', { name: 'Lint' }))
+    expect(screen.queryByRole('button', { name: 'Add notes' })).not.toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: 'Notes' })).not.toBeInTheDocument()
     fireEvent.click(tab('Notes'))
     await switched()
@@ -172,7 +178,21 @@ describe('AskApproval with several questions', () => {
       'placeholder',
       'Type your answer…',
     )
+    expect(screen.queryByRole('button', { name: 'Add notes' })).not.toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: 'Notes' })).not.toBeInTheDocument()
+  })
+
+  it("opens the shown question's notes with N, and keeps notes with text across tabs", async () => {
+    renderAsk([database, auth])
+    pressN(screen.getByRole('button', { name: /Postgres/ }))
+    expect(notesField()).toHaveFocus()
+    fireEvent.change(notesField(), { target: { value: 'with read replicas' } })
+    fireEvent.click(tab('Q2'))
+    await switched()
+    expect(addNotes()).toBeInTheDocument()
+    fireEvent.click(tab('Database'))
+    await switched()
+    expect(notesField()).toHaveValue('with read replicas')
   })
 })
 
@@ -229,7 +249,11 @@ describe('AskApproval with one question', () => {
 
   it('takes notes on a single-select question without previews, sent with its pick or typed answer', () => {
     const onAnswer = renderAsk([database])
-    const field = screen.getByRole('textbox', { name: 'Notes' })
+    expect(screen.queryByRole('textbox', { name: 'Notes' })).not.toBeInTheDocument()
+    expect(addNotes()).toHaveAttribute('aria-keyshortcuts', 'N')
+    fireEvent.click(addNotes())
+    const field = notesField()
+    expect(field).toHaveFocus()
     expect(field).toHaveAttribute('placeholder', 'Add notes…')
     fireEvent.change(field, { target: { value: ' with read replicas ' } })
     expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled()
@@ -247,6 +271,36 @@ describe('AskApproval with one question', () => {
       kind: 'ask',
       answers: [{ text: 'SQLite', notes: 'with read replicas' }],
     })
+  })
+
+  it('opens the notes with N from an option or Send, but types N into a field', () => {
+    renderAsk([database])
+    const own = screen.getByRole('textbox', { name: 'Your answer' })
+    pressN(own)
+    expect(screen.queryByRole('textbox', { name: 'Notes' })).not.toBeInTheDocument()
+    fireEvent.keyDown(screen.getByRole('button', { name: /Postgres/ }), {
+      key: 'n',
+      code: 'KeyN',
+      metaKey: true,
+    })
+    expect(screen.queryByRole('textbox', { name: 'Notes' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Postgres/ }))
+    pressN(screen.getByRole('button', { name: 'Send' }))
+    expect(notesField()).toHaveFocus()
+  })
+
+  it('closes empty notes with Escape, back on their button, and keeps notes with text', () => {
+    renderAsk([database])
+    fireEvent.click(addNotes())
+    fireEvent.change(notesField(), { target: { value: '  ' } })
+    fireEvent.keyDown(notesField(), { key: 'Escape' })
+    expect(screen.queryByRole('textbox', { name: 'Notes' })).not.toBeInTheDocument()
+    expect(addNotes()).toHaveFocus()
+    fireEvent.click(addNotes())
+    expect(notesField()).toHaveValue('')
+    fireEvent.change(notesField(), { target: { value: 'replicas' } })
+    fireEvent.keyDown(notesField(), { key: 'Escape' })
+    expect(notesField()).toHaveValue('replicas')
   })
 
   it('sends a multi-select question with nothing ticked', () => {
@@ -357,9 +411,8 @@ describe('AskApproval with option previews', () => {
 
   it('sends the notes with the option picked after them', () => {
     const onAnswer = renderAsk([layout])
-    fireEvent.change(screen.getByRole('textbox', { name: 'Notes' }), {
-      target: { value: ' narrower ' },
-    })
+    fireEvent.click(addNotes())
+    fireEvent.change(notesField(), { target: { value: ' narrower ' } })
     fireEvent.click(screen.getByRole('button', { name: 'Tabs' }))
     expect(onAnswer).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
@@ -371,7 +424,8 @@ describe('AskApproval with option previews', () => {
 
   it('sends the notes alone on Enter, and keeps empty ones waiting', () => {
     const onAnswer = renderAsk([layout])
-    const notes = screen.getByRole('textbox', { name: 'Notes' })
+    pressN(screen.getByRole('button', { name: 'Sidebar' }))
+    const notes = notesField()
     fireEvent.submit(notes)
     expect(onAnswer).not.toHaveBeenCalled()
     fireEvent.change(notes, { target: { value: 'something in between' } })

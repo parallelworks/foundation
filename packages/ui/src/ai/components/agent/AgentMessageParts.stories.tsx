@@ -615,7 +615,8 @@ function AskRoundTrip({
   )
 }
 
-// A lone question: a pick only chooses, and Send sends it; a single-select one takes notes with it.
+// A lone question: a pick only chooses, and Send sends it; on a single-select one, Add notes or N
+// opens notes for the pick.
 export const AskQuestion: StoryObj<{ multiSelect: boolean }> = {
   args: { multiSelect: false },
   render: ({ multiSelect }) => <AskRoundTrip questions={1} multiSelect={multiSelect} />,
@@ -625,6 +626,7 @@ export const AskQuestion: StoryObj<{ multiSelect: boolean }> = {
     }
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: /Shard 4/ }))
+    await userEvent.keyboard('n')
     await userEvent.type(canvas.getByRole('textbox', { name: 'Notes' }), 'Only the flaky jobs')
   },
 }
@@ -663,6 +665,7 @@ export const AskPreviews: StoryObj<{ questions: number }> = {
     await expect(
       await canvas.findByRole('region', { name: 'Preview: Shard 12' }),
     ).toBeInTheDocument()
+    await userEvent.click(canvas.getByRole('button', { name: 'Add notes' }))
     await userEvent.type(canvas.getByRole('textbox', { name: 'Notes' }), 'Only the flaky jobs')
   },
 }
