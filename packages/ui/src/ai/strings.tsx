@@ -377,7 +377,7 @@ export interface ChatStrings {
     noPreview: string
     /** Names the pane showing an option's preview. */
     previewOf: (label: string) => string
-    /** Names the notes on a question with previews, in their field and under an answer. */
+    /** Names the notes on a single-select question, in their field and under an answer. */
     notesLabel: string
     notesPlaceholder: string
     /** An answer that is notes alone, which an answered ask shows over the notes. */
@@ -742,7 +742,7 @@ export const defaultChatStrings: ChatStrings = {
     noPreview: 'No preview for this option',
     previewOf: (label) => `Preview: ${label}`,
     notesLabel: 'Notes',
-    notesPlaceholder: 'Add notes on this design…',
+    notesPlaceholder: 'Add notes…',
     notesOnly: '(notes only)',
     todoPending: 'To do',
     todoInProgress: 'In progress',

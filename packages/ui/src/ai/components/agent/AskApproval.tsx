@@ -57,7 +57,7 @@ function answerOf(question: ApprovalQuestion, given: Given | undefined): Approva
     .filter((label) => given?.picked.includes(label))
   // A single-select question takes a pick or typed text, not both.
   const text = given && (kindOf(question) !== 'single' || given.own) ? given.text.trim() : ''
-  const notes = given && showsPreviews(question) ? given.notes.trim() : ''
+  const notes = given && kindOf(question) === 'single' ? given.notes.trim() : ''
   return {
     ...(picked.length > 0 ? { picked } : {}),
     ...(text ? { text } : {}),
@@ -392,14 +392,30 @@ function AskQuestionFields({
       {ownRow}
     </div>
   )
-  if (!previews) {
-    return rows
-  }
   const submitNotes = (e: FormEvent) => {
     e.preventDefault()
     if (hasAnswer(answerOf(question, given))) {
       onDone(given)
     }
+  }
+  const notesField = (
+    <form onSubmit={submitNotes}>
+      <input
+        value={given.notes}
+        onChange={(e) => onChange({ ...given, notes: e.target.value })}
+        aria-label={t.notesLabel}
+        placeholder={t.notesPlaceholder}
+        className={fieldBox({ size: 'sm' })}
+      />
+    </form>
+  )
+  if (!previews) {
+    return (
+      <div className="flex flex-col gap-2">
+        {rows}
+        {notesField}
+      </div>
+    )
   }
   return (
     <div className="@container/ask">
@@ -417,15 +433,7 @@ function AskQuestionFields({
               shown={shown === options.length}
             />
           </div>
-          <form onSubmit={submitNotes}>
-            <input
-              value={given.notes}
-              onChange={(e) => onChange({ ...given, notes: e.target.value })}
-              aria-label={t.notesLabel}
-              placeholder={t.notesPlaceholder}
-              className={fieldBox({ size: 'sm' })}
-            />
-          </form>
+          {notesField}
         </div>
       </div>
     </div>

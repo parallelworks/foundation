@@ -180,7 +180,7 @@ export interface ApprovalQuestion {
   options?: ApprovalOption[]
 }
 
-/** `picked` is in option order; `notes` come only on a question with previews. */
+/** `picked` is in option order; `notes` come only on a single-select question. */
 export interface ApprovalQuestionAnswer {
   picked?: string[]
   text?: string

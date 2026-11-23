@@ -162,6 +162,18 @@ describe('AskApproval with several questions', () => {
       chat: true,
     })
   })
+
+  it('takes no notes on a multi-select question or one without options', async () => {
+    renderAsk([checks, notes])
+    expect(screen.queryByRole('textbox', { name: 'Notes' })).not.toBeInTheDocument()
+    fireEvent.click(tab('Notes'))
+    await switched()
+    expect(screen.getByRole('textbox', { name: 'Your answer' })).toHaveAttribute(
+      'placeholder',
+      'Type your answer…',
+    )
+    expect(screen.queryByRole('textbox', { name: 'Notes' })).not.toBeInTheDocument()
+  })
 })
 
 describe('AskApproval with one question', () => {
@@ -213,6 +225,28 @@ describe('AskApproval with one question', () => {
     fireEvent.change(field, { target: { value: 'Redis' } })
     fireEvent.submit(field)
     expect(onAnswer).toHaveBeenLastCalledWith('q1', { kind: 'ask', answers: [{ text: 'Redis' }] })
+  })
+
+  it('takes notes on a single-select question without previews, sent with its pick or typed answer', () => {
+    const onAnswer = renderAsk([database])
+    const field = screen.getByRole('textbox', { name: 'Notes' })
+    expect(field).toHaveAttribute('placeholder', 'Add notes…')
+    fireEvent.change(field, { target: { value: ' with read replicas ' } })
+    expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: /Postgres/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    expect(onAnswer).toHaveBeenLastCalledWith('q1', {
+      kind: 'ask',
+      answers: [{ picked: ['Postgres'], notes: 'with read replicas' }],
+    })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Your answer' }), {
+      target: { value: 'SQLite' },
+    })
+    fireEvent.submit(field)
+    expect(onAnswer).toHaveBeenLastCalledWith('q1', {
+      kind: 'ask',
+      answers: [{ text: 'SQLite', notes: 'with read replicas' }],
+    })
   })
 
   it('sends a multi-select question with nothing ticked', () => {

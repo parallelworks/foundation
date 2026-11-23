@@ -615,10 +615,18 @@ function AskRoundTrip({
   )
 }
 
-// A lone question: a pick only chooses, and Send sends it.
+// A lone question: a pick only chooses, and Send sends it; a single-select one takes notes with it.
 export const AskQuestion: StoryObj<{ multiSelect: boolean }> = {
   args: { multiSelect: false },
   render: ({ multiSelect }) => <AskRoundTrip questions={1} multiSelect={multiSelect} />,
+  play: async ({ canvasElement, args }) => {
+    if (args.multiSelect) {
+      return
+    }
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /Shard 4/ }))
+    await userEvent.type(canvas.getByRole('textbox', { name: 'Notes' }), 'Only the flaky jobs')
+  },
 }
 
 // Several questions, one tab each; a pick or Enter moves on.
