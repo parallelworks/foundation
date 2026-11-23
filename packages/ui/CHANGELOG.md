@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.147.0](https://github.com/parallelworks/foundation/compare/ui-v0.146.2...ui-v0.147.0) (2026-11-23)
+
+
+### Features
+
+* **ui:** the session view's recall() can fill only an empty composer, and says whether anything came back ([#807](https://github.com/parallelworks/foundation/issues/807)) ([22ef2c5](https://github.com/parallelworks/foundation/commit/22ef2c56f8dfc748e37e0f01b8466d7d2d9ad3aa))
+
 ## [0.146.2](https://github.com/parallelworks/foundation/compare/ui-v0.146.1...ui-v0.146.2) (2026-11-17)
 
 
