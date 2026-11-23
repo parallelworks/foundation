@@ -701,6 +701,16 @@ export default function ChatMessageList({
         lastScrollTopRef.current = el.scrollTop
       }
     }
+    // Rows let go of can leave the list shorter than the position, and the
+    // browser moves it up to the new end. That move is not the reader's: read
+    // as one, the next follow of the end sees a scroll up and stops following.
+    if (
+      el &&
+      el.scrollTop < lastScrollTopRef.current &&
+      el.scrollHeight - el.clientHeight - el.scrollTop < 1
+    ) {
+      lastScrollTopRef.current = el.scrollTop
+    }
     fitWindow()
   }, [start, end, fitWindow])
 
