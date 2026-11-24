@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Loader } from '../../../components/Loader'
 import type { ApprovalAnswerHandler } from '../../core/config'
+import { useReleaseReaderHold } from '../../core/readerHold'
 import type { ApprovalAnswerValue } from '../../types'
 
 /** Sends an approval's answer, and names the control whose answer is still on its way: a host
@@ -11,10 +12,13 @@ export function useAnswerSending<Control extends string>(
   onAnswer: ApprovalAnswerHandler | undefined,
 ): { sending: Control | null; answer: (control: Control, value: ApprovalAnswerValue) => void } {
   const [sending, setSending] = useState<Control | null>(null)
+  const releaseReaderHold = useReleaseReaderHold()
   const answer = (control: Control, value: ApprovalAnswerValue) => {
     if (sending !== null) {
       return
     }
+    // The turn goes on from here, and a reply can come before the reader's click stops counting.
+    releaseReaderHold()
     const sent = onAnswer?.(id, value)
     if (sent instanceof Promise) {
       setSending(control)

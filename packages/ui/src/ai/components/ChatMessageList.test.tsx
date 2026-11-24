@@ -25,13 +25,29 @@ vi.mock('../core/ChatProvider', () => ({
   useChatStream: () => mockChat,
 }))
 
-vi.mock('./ChatMessage', () => ({
-  __esModule: true,
-  default: (props: { message: Message; status?: ReactNode }) => {
-    messageRenders.push(props.message.id)
-    return <div data-testid="chat-message">{props.status}</div>
-  },
-}))
+vi.mock('./ChatMessage', async () => {
+  const { useAnswerSending } = await import('./agent/answerSending')
+  function AnswerButton() {
+    const { answer } = useAnswerSending<'submit'>('ap1', () => undefined)
+    return (
+      <button type="button" onClick={() => answer('submit', { kind: 'ask', answers: [] })}>
+        Send
+      </button>
+    )
+  }
+  return {
+    __esModule: true,
+    default: (props: { message: Message; status?: ReactNode }) => {
+      messageRenders.push(props.message.id)
+      return (
+        <div data-testid="chat-message">
+          {props.status}
+          {props.message.id === 'ask' && <AnswerButton />}
+        </div>
+      )
+    },
+  }
+})
 
 vi.mock('../ui/Markdown', () => ({
   __esModule: true,
@@ -584,6 +600,20 @@ describe('ChatMessageList after a reply', () => {
     resized?.()
 
     expect(container.scrollTop).toBe(before)
+  })
+
+  it('follows what the turn adds after the reader answers an approval, however soon it comes', () => {
+    const result = render(
+      <ChatMessageList messages={[createMockMessage({ id: 'ask' })]} allMessages={[]} />,
+    )
+    const container = result.container.firstElementChild as HTMLElement
+    armAtBottom(container)
+
+    fireEvent.click(result.getByRole('button', { name: 'Send' }))
+    setDimensions(container, { scrollHeight: 1300, clientHeight: 400 })
+    resized?.()
+
+    expect(container.scrollTop).toBe(1300)
   })
 
   it('leaves the reader where they are once they scrolled up', () => {
