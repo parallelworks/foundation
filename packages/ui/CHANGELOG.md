@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.150.1](https://github.com/parallelworks/foundation/compare/ui-v0.150.0...ui-v0.150.1) (2026-11-24)
+
+
+### Bug Fixes
+
+* **ui:** a command's answer hangs from its message instead of from a hook floating under it ([#817](https://github.com/parallelworks/foundation/issues/817)) ([b53e6e6](https://github.com/parallelworks/foundation/commit/b53e6e6e88949d25424f19d135709c8f8242f2b8))
+
 ## [0.150.0](https://github.com/parallelworks/foundation/compare/ui-v0.149.0...ui-v0.150.0) (2026-11-24)
 
 
