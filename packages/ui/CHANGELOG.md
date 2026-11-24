@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.150.2](https://github.com/parallelworks/foundation/compare/ui-v0.150.1...ui-v0.150.2) (2026-11-24)
+
+
+### Bug Fixes
+
+* **ui:** after answering an approval, a reply that comes at once stops below the fold ([#821](https://github.com/parallelworks/foundation/issues/821)) ([12c0167](https://github.com/parallelworks/foundation/commit/12c01673f7d4eeaf9e6038e64d06ba470e2c4e8e))
+
 ## [0.150.1](https://github.com/parallelworks/foundation/compare/ui-v0.150.0...ui-v0.150.1) (2026-11-24)
 
 
