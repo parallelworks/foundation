@@ -4,8 +4,9 @@ import { Children, cloneElement, Fragment, isValidElement, type ReactNode } from
 // break after a slash before a letter. Text that must wrap then splits mid-word,
 // "/projects/simulatio|n-runs". A <wbr> after each separator gives it the places
 // a reader expects, and adds nothing to the copied or read-out text.
-// A run of them, the // of a URL, stays whole.
-const SEPARATOR = /(?<=[/\\])(?![/\\])/
+// A run of them, the // of a URL, stays whole, and one that starts a word, as
+// in /mnt or a command such as /skills, keeps to the word it starts.
+const SEPARATOR = /(?<=[^\s/\\][/\\]+)(?![/\\])/
 
 /** The pieces of `text` with a break allowed after each, split after each path
  *  separator; one piece when it holds none. */
