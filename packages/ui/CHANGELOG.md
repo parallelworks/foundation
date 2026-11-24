@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.150.0](https://github.com/parallelworks/foundation/compare/ui-v0.149.0...ui-v0.150.0) (2026-11-24)
+
+
+### Features
+
+* **ui:** AskApproval takes notes on every single-select question ([#815](https://github.com/parallelworks/foundation/issues/815)) ([ee18329](https://github.com/parallelworks/foundation/commit/ee18329fd811632a0c59489efa776629ee81fec3))
+
+
+### Bug Fixes
+
+* **ui:** a long word in a notice's detail runs past the column on a narrow screen ([#816](https://github.com/parallelworks/foundation/issues/816)) ([ffd00bc](https://github.com/parallelworks/foundation/commit/ffd00bc2c3d8f23ac726ce6877fdebfa6dd6cbe6))
+* **ui:** after a send, a long transcript can stop above the new message instead of following it ([#819](https://github.com/parallelworks/foundation/issues/819)) ([eb05a57](https://github.com/parallelworks/foundation/commit/eb05a575fc9cd603b6630f348009f0cd3cd7df97))
+
 ## [0.149.0](https://github.com/parallelworks/foundation/compare/ui-v0.148.0...ui-v0.149.0) (2026-11-23)
 
 
