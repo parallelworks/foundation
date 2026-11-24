@@ -18,6 +18,7 @@ import { formatDuration } from '../../format'
 import { CheckIcon, ClockIcon } from '../../icons'
 import { useChat, useChatStream } from '../core/ChatProvider'
 import { type ApprovalAnswerHandler, useChatConfig } from '../core/config'
+import { ReaderHoldContext } from '../core/readerHold'
 import { createRowMemory, RowMemoryContext, useExpandAll } from '../core/rowMemory'
 import type { TextIndex } from '../core/textIndex'
 import { rowOf, visibleText } from '../core/transcriptFind'
@@ -475,6 +476,11 @@ export default function ChatMessageList({
   // Mirrors the ref for the jump control; the ref stays the source of truth
   // for the scroll effects so a re-render never races them.
   const [pinned, setPinned] = useState(true)
+  // When the reader last clicked or typed in the rows: growth that soon after is theirs.
+  const touchedAtRef = useRef(Number.NEGATIVE_INFINITY)
+  const releaseReaderHold = useCallback(() => {
+    touchedAtRef.current = Number.NEGATIVE_INFINITY
+  }, [])
 
   const handleScroll = useCallback(() => {
     if (!containerRef.current) {
@@ -754,15 +760,14 @@ export default function ChatMessageList({
     }
     // Growth the reader caused, such as opening a tool's row, stays put: the
     // row they clicked must not jump out from under the pointer.
-    let touchedAt = Number.NEGATIVE_INFINITY
     const touched = () => {
-      touchedAt = performance.now()
+      touchedAtRef.current = performance.now()
     }
     content.addEventListener('click', touched, true)
     content.addEventListener('keydown', touched, true)
     const observer = new ResizeObserver(() => {
       floor.style.minHeight = `${content.offsetHeight}px`
-      if (performance.now() - touchedAt > READER_GROWTH_MS) {
+      if (performance.now() - touchedAtRef.current > READER_GROWTH_MS) {
         followBottom()
       }
       findAnchor()
@@ -889,101 +894,105 @@ export default function ChatMessageList({
           data-transcript=""
           className="w-full max-w-[var(--chat-column,50rem)] mx-auto pt-4 pb-6 px-4"
         >
-          <RowMemoryContext value={memory}>
-            <MessageRows
-              {...rowProps}
-              messages={drawn}
-              attached={attached}
-              streaming={!!streamingMessage}
-            />
-            {/* Thinking / "Thought for" section — visible during and after thinking */}
-            {attached && isStreaming && streamingReasoning && (
-              <div key="thinking" className="animate-chat-enter">
-                <div className={cx('pt-3', !flush && 'sm:px-4')}>
-                  <Reasoning
-                    label={
-                      <ThinkingLabel
-                        startedAt={isThinking ? thinkingStartTime : undefined}
-                        finalDuration={finalThinkingDuration}
-                      />
-                    }
-                    shimmer={isThinking}
-                    open={reasoningOpen}
-                    onOpenChange={setReasoningOpen}
-                    onOpenPanel={
-                      onOpenReasoning &&
-                      (() => onOpenReasoning(streamingReasoning, finalThinkingDuration))
-                    }
-                    // While thinking, its tail, faded at the top, so the work shows without taking the page.
-                    preview={
-                      isThinking && (
-                        <ReasoningBody className="chat-reasoning-tail">
-                          <div ref={reasoningScrollRef} className="max-h-20 overflow-y-hidden">
-                            <Markdown isStreaming>{streamingReasoning}</Markdown>
-                          </div>
-                        </ReasoningBody>
-                      )
-                    }
-                  >
-                    <Markdown isStreaming={isThinking}>{streamingReasoning}</Markdown>
-                  </Reasoning>
+          <ReaderHoldContext value={releaseReaderHold}>
+            <RowMemoryContext value={memory}>
+              <MessageRows
+                {...rowProps}
+                messages={drawn}
+                attached={attached}
+                streaming={!!streamingMessage}
+              />
+              {/* Thinking / "Thought for" section — visible during and after thinking */}
+              {attached && isStreaming && streamingReasoning && (
+                <div key="thinking" className="animate-chat-enter">
+                  <div className={cx('pt-3', !flush && 'sm:px-4')}>
+                    <Reasoning
+                      label={
+                        <ThinkingLabel
+                          startedAt={isThinking ? thinkingStartTime : undefined}
+                          finalDuration={finalThinkingDuration}
+                        />
+                      }
+                      shimmer={isThinking}
+                      open={reasoningOpen}
+                      onOpenChange={setReasoningOpen}
+                      onOpenPanel={
+                        onOpenReasoning &&
+                        (() => onOpenReasoning(streamingReasoning, finalThinkingDuration))
+                      }
+                      // While thinking, its tail, faded at the top, so the work shows without taking the page.
+                      preview={
+                        isThinking && (
+                          <ReasoningBody className="chat-reasoning-tail">
+                            <div ref={reasoningScrollRef} className="max-h-20 overflow-y-hidden">
+                              <Markdown isStreaming>{streamingReasoning}</Markdown>
+                            </div>
+                          </ReasoningBody>
+                        )
+                      }
+                    >
+                      <Markdown isStreaming={isThinking}>{streamingReasoning}</Markdown>
+                    </Reasoning>
+                  </div>
                 </div>
-              </div>
-            )}
-            {/* Tool calls and other parts streamed this turn, between the
+              )}
+              {/* Tool calls and other parts streamed this turn, between the
                 thinking header and the answer — mirrors the stored-message
                 layout where parts precede content. */}
-            {attached && isStreaming && streamingParts.length > 0 && (
-              <div
-                key="streaming-parts"
-                className={cx('animate-chat-enter py-1', !flush && 'sm:px-4')}
-              >
-                <AgentMessageParts message={streamingPartsMessage} isStreaming={isStreaming} />
-              </div>
-            )}
-            {/* Working indicator — until the answer starts streaming */}
-            {attached && showWorkingIndicator && (
-              <div key="waiting" className="animate-chat-enter">
-                <div className={cx('py-3', !flush && 'sm:px-4')}>
-                  <div className="animate-shimmer text-shimmer text-sm">{tThinking.ellipsis}</div>
+              {attached && isStreaming && streamingParts.length > 0 && (
+                <div
+                  key="streaming-parts"
+                  className={cx('animate-chat-enter py-1', !flush && 'sm:px-4')}
+                >
+                  <AgentMessageParts message={streamingPartsMessage} isStreaming={isStreaming} />
                 </div>
-              </div>
-            )}
-            {attached && streamingMessage && (
-              <div key="streaming" className="animate-chat-enter">
-                <ChatMessage
-                  message={streamingMessage}
-                  allMessages={rowMessages}
-                  flush={flush}
-                  foldEveryRun={foldEveryRun}
-                  isStreaming={isStreaming}
-                  attachmentDownloadUrl={attachmentDownloadUrl}
-                  onOpenAttachment={onOpenAttachment}
-                  onApprovalAnswer={onApprovalAnswer}
-                />
-              </div>
-            )}
-            {attached &&
-              queued.map(({ msg, handedOver, delivery, reads }, i) => (
-                <QueuedMessage
-                  key={msg.id}
-                  message={msg}
-                  allMessages={rowMessages}
-                  flush={flush}
-                  attachmentDownloadUrl={attachmentDownloadUrl}
-                  onOpenAttachment={onOpenAttachment}
-                  handedOver={handedOver}
-                  delivery={delivery}
-                  // Grouped, a run of messages that read alike says so once, under its last.
-                  showStatus={!grouped || queued[i + 1]?.reads !== reads}
-                  grouped={grouped}
-                  stacked={grouped && i > 0}
-                  onRemove={!grouped && !handedOver ? onRemoveQueued : undefined}
-                  onEdit={grouped && editable && i === queued.length - 1 ? onEditQueued : undefined}
-                />
-              ))}
-            {attached && footer}
-          </RowMemoryContext>
+              )}
+              {/* Working indicator — until the answer starts streaming */}
+              {attached && showWorkingIndicator && (
+                <div key="waiting" className="animate-chat-enter">
+                  <div className={cx('py-3', !flush && 'sm:px-4')}>
+                    <div className="animate-shimmer text-shimmer text-sm">{tThinking.ellipsis}</div>
+                  </div>
+                </div>
+              )}
+              {attached && streamingMessage && (
+                <div key="streaming" className="animate-chat-enter">
+                  <ChatMessage
+                    message={streamingMessage}
+                    allMessages={rowMessages}
+                    flush={flush}
+                    foldEveryRun={foldEveryRun}
+                    isStreaming={isStreaming}
+                    attachmentDownloadUrl={attachmentDownloadUrl}
+                    onOpenAttachment={onOpenAttachment}
+                    onApprovalAnswer={onApprovalAnswer}
+                  />
+                </div>
+              )}
+              {attached &&
+                queued.map(({ msg, handedOver, delivery, reads }, i) => (
+                  <QueuedMessage
+                    key={msg.id}
+                    message={msg}
+                    allMessages={rowMessages}
+                    flush={flush}
+                    attachmentDownloadUrl={attachmentDownloadUrl}
+                    onOpenAttachment={onOpenAttachment}
+                    handedOver={handedOver}
+                    delivery={delivery}
+                    // Grouped, a run of messages that read alike says so once, under its last.
+                    showStatus={!grouped || queued[i + 1]?.reads !== reads}
+                    grouped={grouped}
+                    stacked={grouped && i > 0}
+                    onRemove={!grouped && !handedOver ? onRemoveQueued : undefined}
+                    onEdit={
+                      grouped && editable && i === queued.length - 1 ? onEditQueued : undefined
+                    }
+                  />
+                ))}
+              {attached && footer}
+            </RowMemoryContext>
+          </ReaderHoldContext>
           <div className="h-8" />
         </div>
       </div>
