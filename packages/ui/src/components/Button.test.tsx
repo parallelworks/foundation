@@ -97,6 +97,22 @@ describe('buttonClasses', () => {
     expect(classes).not.toContain('h-8')
     expect(classes).not.toContain('whitespace-nowrap')
   })
+
+  it('reaches past the edges it rises from while hovered, so a pointer on its bottom edge keeps it risen', () => {
+    const classes = buttonClasses().split(' ')
+    const hovered = 'hover:not-disabled:not-aria-disabled:not-[[aria-pressed]]:'
+    expect(classes).toContain(`${hovered}-translate-y-px`)
+    for (const strip of [
+      'isolate',
+      'after:absolute',
+      'after:inset-x-0',
+      'after:-inset-y-0.5',
+      'after:-z-10',
+    ]) {
+      expect(classes).toContain(hovered + strip)
+    }
+    expect(classes.filter((c) => c.includes('after:') && !c.startsWith(hovered))).toEqual([])
+  })
 })
 
 describe('FileButton', () => {

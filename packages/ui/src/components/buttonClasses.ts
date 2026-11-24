@@ -30,13 +30,20 @@ export interface ButtonStyle {
 // Hover classes carry not-disabled and not-aria-disabled so a button that
 // can't be pressed doesn't react. Hovered, a button rises a pixel on a soft
 // shadow and settles back while pressed; with reduced motion it keeps the
-// shadow and doesn't move. A toggle (`aria-pressed`) stays put: it says it is
-// on by its fill, and a filter row of them that rose would read as a row of
-// actions and lift its top edge out of a box that clips. A row keeps a button
-// on one line (shrink-0); max-w-full wraps the label only once the button alone
-// is wider than its row. Written out in full for Tailwind's scanner.
+// shadow and doesn't move. While hovered, a strip under its label reaches past
+// its top and bottom edges, so a pointer on the bottom edge stays on it: the
+// risen button would leave that pointer, fall back under it and rise again,
+// flickering. The strip is placed from inside the border, so it reaches 2px to
+// clear a 1px border by the pixel the button rises. It sits under the label in
+// the button's own stack (isolate, -z-10), so what the label holds still takes
+// the pointer. A toggle (`aria-pressed`)
+// stays put: it says it is on by its fill, and a filter row of them that rose
+// would read as a row of actions and lift its top edge out of a box that
+// clips. A row keeps a button on one line (shrink-0); max-w-full wraps the
+// label only once the button alone is wider than its row. Written out in full
+// for Tailwind's scanner.
 const base =
-  'relative inline-flex max-w-full shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-md text-center font-medium no-underline transition-[color,background-color,border-color,box-shadow,translate] duration-150 hover:not-disabled:not-aria-disabled:not-[[aria-pressed]]:-translate-y-px hover:not-disabled:not-aria-disabled:not-[[aria-pressed]]:shadow-(--theme-shadow-sm) active:not-disabled:not-aria-disabled:translate-y-0 active:not-disabled:not-aria-disabled:shadow-none motion-reduce:hover:not-disabled:not-aria-disabled:translate-y-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--theme-focus) disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50'
+  'relative inline-flex max-w-full shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-md text-center font-medium no-underline transition-[color,background-color,border-color,box-shadow,translate] duration-150 hover:not-disabled:not-aria-disabled:not-[[aria-pressed]]:-translate-y-px hover:not-disabled:not-aria-disabled:not-[[aria-pressed]]:shadow-(--theme-shadow-sm) hover:not-disabled:not-aria-disabled:not-[[aria-pressed]]:isolate hover:not-disabled:not-aria-disabled:not-[[aria-pressed]]:after:absolute hover:not-disabled:not-aria-disabled:not-[[aria-pressed]]:after:inset-x-0 hover:not-disabled:not-aria-disabled:not-[[aria-pressed]]:after:-inset-y-0.5 hover:not-disabled:not-aria-disabled:not-[[aria-pressed]]:after:-z-10 active:not-disabled:not-aria-disabled:translate-y-0 active:not-disabled:not-aria-disabled:shadow-none motion-reduce:hover:not-disabled:not-aria-disabled:translate-y-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--theme-focus) disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50'
 
 const variants: Record<ButtonVariant, string> = {
   primary:

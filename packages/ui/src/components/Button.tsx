@@ -87,8 +87,11 @@ interface MethodButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>
   loading?: boolean
 }
 
+// Hovered, it rises 2px over a strip under its content that reaches 3px from
+// inside its 1px border, as far past its edges as it rises, so a pointer on
+// its bottom edge keeps it risen (see buttonClasses).
 const methodClasses =
-  'group flex w-full cursor-pointer items-center rounded-xl border border-(--theme-border) bg-(--theme-muted-panel-bg) p-4 text-[0.9375rem] font-medium text-(--theme-app) no-underline transition-[background-color,border-color,translate] duration-200 hover:not-disabled:not-aria-disabled:border-(--theme-muted-text-color) hover:not-disabled:not-aria-disabled:bg-(--theme-border) hover:not-disabled:not-aria-disabled:-translate-y-0.5 active:translate-y-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--theme-focus) disabled:cursor-not-allowed disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 motion-reduce:transition-none motion-reduce:hover:translate-y-0'
+  'group relative flex w-full cursor-pointer items-center rounded-xl border border-(--theme-border) bg-(--theme-muted-panel-bg) p-4 text-[0.9375rem] font-medium text-(--theme-app) no-underline transition-[background-color,border-color,translate] duration-200 hover:not-disabled:not-aria-disabled:border-(--theme-muted-text-color) hover:not-disabled:not-aria-disabled:bg-(--theme-border) hover:not-disabled:not-aria-disabled:-translate-y-0.5 hover:not-disabled:not-aria-disabled:isolate hover:not-disabled:not-aria-disabled:after:absolute hover:not-disabled:not-aria-disabled:after:inset-x-0 hover:not-disabled:not-aria-disabled:after:-inset-y-0.75 hover:not-disabled:not-aria-disabled:after:-z-10 active:translate-y-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--theme-focus) disabled:cursor-not-allowed disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 motion-reduce:transition-none motion-reduce:hover:translate-y-0'
 
 /** One way to go on, such as a sign-in method: a large row with an icon, a
  *  label and a line under it. A list of them is spaced by its container. */
