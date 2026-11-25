@@ -379,6 +379,65 @@ describe('ChatMessageList scrolled through a long conversation', () => {
     expect(screen.queryByText('Jump to latest')).not.toBeInTheDocument()
   })
 
+  it('stays at the end it jumps to from the turns the reader read up to', () => {
+    const { log, ref } = renderList(turns(1, 30))
+    readUp(log)
+    expect(drawnIds().at(-1)).toBe('a30')
+
+    act(() => ref.current?.jumpToLatest())
+
+    expect(log.scrollTop).toBe(log.scrollHeight - VIEW)
+  })
+
+  it('keeps the reply being written where it is as it lets go of the turns above it', () => {
+    const LIVE = 'Still working through the files'
+    // A reply many screens tall, at the end of the turns the list draws.
+    const TALL = 30 * ROW
+    const conversation = turns(1, 10)
+    const { log } = renderList(conversation, {
+      isStreaming: true,
+      streamingMessage: { id: 'streaming', role: 'assistant', content: LIVE },
+    })
+    const content = log.querySelector<HTMLElement>('[data-transcript]')
+    if (!content) {
+      throw new Error('the transcript is not drawn')
+    }
+    const heightOf = (el: Element) =>
+      el.hasAttribute('data-row') ? ROW : el.textContent?.includes(LIVE) ? TALL : 0
+    const laidOut = () => [...content.children].reduce((sum, child) => sum + heightOf(child), 0)
+    HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
+      const siblings = this.parentElement === content ? [...content.children] : []
+      const before = siblings
+        .slice(0, siblings.indexOf(this))
+        .reduce((sum, c) => sum + heightOf(c), 0)
+      const top = siblings.length > 0 ? before - log.scrollTop : 0
+      const height = siblings.length > 0 ? heightOf(this) : ROW
+      return { top, bottom: top + height, left: 0, right: 800, width: 800, height } as DOMRect
+    }
+    // As the floor under the transcript does, the list holds its height until
+    // it next observes it, so letting go of rows does not move the position.
+    const held = laidOut()
+    let at = 0
+    Object.defineProperty(log, 'clientHeight', { configurable: true, value: VIEW })
+    Object.defineProperty(log, 'scrollHeight', { configurable: true, get: () => held })
+    Object.defineProperty(log, 'scrollTop', {
+      configurable: true,
+      get: () => at,
+      set: (y: number) => {
+        at = Math.max(0, Math.min(y, held - VIEW))
+      },
+    })
+    const live = () => screen.getByText(LIVE).parentElement as HTMLElement
+    const drawn = drawnIds().length
+    log.scrollTop = held - VIEW
+    const shown = live().getBoundingClientRect().top
+
+    fireEvent.scroll(log)
+
+    expect(drawnIds().length).toBeLessThan(drawn)
+    expect(live().getBoundingClientRect().top).toBe(shown)
+  })
+
   it('opens or closes the blocks it does not draw with the ones it does, as expand-all changes', () => {
     const list = (all: boolean, messages = turns(1, 3)) => (
       <ExpandAllProvider value={all}>

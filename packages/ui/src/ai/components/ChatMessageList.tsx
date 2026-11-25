@@ -391,8 +391,9 @@ export default function ChatMessageList({
     }
     setReading(NO_MESSAGES)
   }, [reading, textIndex])
-  // The first row in view and where it was, so the rows drawn or let go of
-  // around it leave what the reader is looking at where it is.
+  // What the reader is looking at and where it was, so the rows drawn or let
+  // go of around it leave it where it is. A row, or the reply being written
+  // when no row is in view, as when a long one fills it.
   const keptRef = useRef<{ row: Element; top: number } | null>(null)
   const jumpedRef = useRef(false)
   // A message reveal is drawing, and what to call once it shows.
@@ -409,7 +410,9 @@ export default function ChatMessageList({
     }
     const rows = [...content.querySelectorAll<HTMLElement>(':scope > [data-row]')]
     const box = el.getBoundingClientRect()
-    const shown = rows.find((row) => row.getBoundingClientRect().bottom > box.top)
+    const shown = [...content.children].find(
+      (child) => child.getBoundingClientRect().bottom > box.top,
+    )
     keptRef.current = shown ? { row: shown, top: shown.getBoundingClientRect().top } : null
     const { messages: all, indexOf: at, start: first, end: last, whole: every } = windowRef.current
     const view = el.clientHeight
@@ -482,6 +485,18 @@ export default function ChatMessageList({
     touchedAtRef.current = Number.NEGATIVE_INFINITY
   }, [])
 
+  // The list's own scrolls carry what it keeps in place with them: kept from
+  // before, a window change after would scroll back to where the list was.
+  const scrollList = useCallback((el: HTMLElement, top: number) => {
+    const before = el.scrollTop
+    el.scrollTop = top
+    lastScrollTopRef.current = el.scrollTop
+    const kept = keptRef.current
+    if (kept) {
+      keptRef.current = { row: kept.row, top: kept.top - (el.scrollTop - before) }
+    }
+  }, [])
+
   const handleScroll = useCallback(() => {
     if (!containerRef.current) {
       return
@@ -513,17 +528,15 @@ export default function ChatMessageList({
     }
     handleScroll()
     if (isNearBottomRef.current) {
-      el.scrollTop = el.scrollHeight
-      lastScrollTopRef.current = el.scrollTop
+      scrollList(el, el.scrollHeight)
     }
-  }, [handleScroll])
+  }, [handleScroll, scrollList])
 
   // Assigned, not animated: smooth scroll is throttled to nothing in a hidden tab.
   const jumpToLatest = useCallback(() => {
     const el = containerRef.current
     if (el) {
-      el.scrollTop = el.scrollHeight
-      lastScrollTopRef.current = el.scrollTop
+      scrollList(el, el.scrollHeight)
       isNearBottomRef.current = true
       setPinned(true)
     }
@@ -531,7 +544,7 @@ export default function ChatMessageList({
     jumpedRef.current = windowRef.current.end < windowRef.current.messages.length
     setFrom(null)
     setTo(null)
-  }, [])
+  }, [scrollList])
 
   const reveal = useCallback(
     (id: string) =>
