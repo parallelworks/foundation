@@ -1,9 +1,11 @@
 import { Fragment } from 'react'
+import { ExternalLink } from '../../components/ExternalLink'
 import { Loader } from '../../components/Loader'
 import { cx } from '../../cx'
 import { formatBytes } from '../../format'
 import { FileIcon, RemoveIcon } from '../../icons'
 import { useChatConfig } from '../core/config'
+import { splitLinks } from '../core/links'
 import { fencePaste } from '../core/pasteLanguage'
 import { splitPastes } from '../core/pastes'
 import type { MessagePaste } from '../types'
@@ -66,9 +68,32 @@ export function PasteFileCard({
   )
 }
 
-/** A user message as typed: an inline paste as a code block in the language
- *  it reads as, one sent as its file as a card. The blank lines the composer puts around a
- *  paste would stack on the block's own spacing, so they are dropped. */
+function LinkedText({ text }: { text: string }) {
+  return (
+    <>
+      {splitLinks(text).map((part, i) =>
+        typeof part === 'string' ? (
+          // biome-ignore lint/suspicious/noArrayIndexKey: parts are positional
+          <Fragment key={i}>{part}</Fragment>
+        ) : (
+          <ExternalLink
+            // biome-ignore lint/suspicious/noArrayIndexKey: parts are positional
+            key={i}
+            href={part.url}
+            className="text-(--theme-link) hover:underline"
+          >
+            {part.url}
+          </ExternalLink>
+        ),
+      )}
+    </>
+  )
+}
+
+/** A user message as typed, its URLs as links: an inline paste as a code
+ *  block in the language it reads as, one sent as its file as a card. The blank
+ *  lines the composer puts around a paste would stack on the block's own
+ *  spacing, so they are dropped. */
 export function UserMessageText({
   content,
   pastes,
@@ -77,7 +102,7 @@ export function UserMessageText({
   pastes?: MessagePaste[] | null | undefined
 }) {
   if (!pastes?.length) {
-    return <>{content}</>
+    return <LinkedText text={content} />
   }
   const segments = splitPastes(content, pastes)
   // A block keeps its margin wherever something sits on that side of it. CSS
@@ -100,7 +125,7 @@ export function UserMessageText({
             text = text.replace(/\n+$/, '')
           }
           // biome-ignore lint/suspicious/noArrayIndexKey: segments are positional
-          return text ? <Fragment key={i}>{text}</Fragment> : null
+          return text ? <LinkedText key={i} text={text} /> : null
         }
         if (segment.inline && segment.text !== undefined) {
           // Rendered as the assistant's code is, in the language the paste

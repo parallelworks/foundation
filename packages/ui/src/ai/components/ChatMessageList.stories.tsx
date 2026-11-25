@@ -215,10 +215,20 @@ const longUrls: ChatMessage[] = [
   }),
 ]
 
-// A URL has nowhere to wrap, so it breaks inside the bubble rather than
+// A URL is a link in the reader's bubble as in the reply, opening in a new
+// tab. It has nowhere to wrap, so it breaks inside the bubble rather than
 // running past its edge.
 export const LongUrls: StoryObj = {
   render: () => <MessageList messages={longUrls} allMessages={longUrls} />,
+  play: async ({ canvasElement }) => {
+    await waitFor(() =>
+      expect(
+        within(canvasElement)
+          .getAllByRole('link')
+          .map((a) => a.getAttribute('href')),
+      ).toEqual([LINK, LINK]),
+    )
+  },
 }
 
 const LONG_REPLY = Array.from(

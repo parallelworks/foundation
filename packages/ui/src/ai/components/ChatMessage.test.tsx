@@ -73,6 +73,26 @@ describe('ChatMessage', () => {
       expect(screen.getByText('Hello, world!')).toBeInTheDocument()
     })
 
+    it('links the URLs in a user message, around and between its pastes', () => {
+      const paste = { id: 1, placeholder: '[Pasted text #1]', lines: 40, bytes: 4000 }
+      const message = createMockMessage({
+        role: 'user',
+        content: `Match https://example.com/a.\n\n${paste.placeholder}\n\nand (http://example.org/b)`,
+        pastes: [paste],
+      })
+
+      render(<ChatMessage {...defaultProps} message={message} />)
+
+      const links = screen.getAllByRole('link')
+      expect(links.map((a) => a.getAttribute('href'))).toEqual([
+        'https://example.com/a',
+        'http://example.org/b',
+      ])
+      expect(links[0]).toHaveAttribute('target', '_blank')
+      expect(links[0]).toHaveAttribute('rel', 'noopener noreferrer')
+      expect(screen.getByTestId('paste-file-card')).toBeInTheDocument()
+    })
+
     it('renders assistant message with Markdown', () => {
       const message = createMockMessage({
         role: 'assistant',
