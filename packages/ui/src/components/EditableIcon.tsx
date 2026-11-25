@@ -82,7 +82,7 @@ export function EditableIcon({
             aria-label={label ?? edit}
             onClick={onEdit}
             className={cx(
-              'absolute inset-0 flex cursor-pointer items-center justify-center bg-black/75 p-1 text-center text-xs font-medium text-white opacity-0 transition-opacity select-none group-hover/icon:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--theme-accent)',
+              'absolute inset-0 flex cursor-pointer items-center justify-center bg-black/75 p-1 text-center text-xs font-medium text-white opacity-0 transition-opacity select-none group-hover/icon:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--theme-focus)',
               round,
             )}
           >
@@ -96,7 +96,7 @@ export function EditableIcon({
           aria-label={remove}
           title={remove}
           onClick={() => void onRemove()}
-          className="absolute -top-1.5 -right-1.5 flex size-6 items-center justify-center rounded-full border theme-border bg-(--theme-panel-bg) text-(--theme-muted-text-color) opacity-0 shadow-sm transition-opacity group-focus-within/icon:opacity-100 group-hover/icon:opacity-100 hover:text-(--theme-error) focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-(--theme-accent)"
+          className="absolute -top-1.5 -right-1.5 flex size-6 items-center justify-center rounded-full border theme-border bg-(--theme-panel-bg) text-(--theme-muted-text-color) opacity-0 shadow-sm transition-opacity group-focus-within/icon:opacity-100 group-hover/icon:opacity-100 hover:text-(--theme-error) focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-(--theme-focus)"
         >
           <TrashIcon className="size-3.5" />
         </button>
