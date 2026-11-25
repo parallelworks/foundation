@@ -27,20 +27,54 @@ import { Tooltip } from '../components/Tooltip'
 import { cx } from '../cx'
 import { formatInteger } from '../format'
 import { CloseIcon, RemoveIcon, SearchIcon } from '../icons'
+import type { ListUrl } from './useListFilters'
 
 const NO_TERMS: string[] = []
+const SEARCH_PARAM = 'search'
+
+const searchParam = (url: ListUrl | undefined) => {
+  const value = url?.search[SEARCH_PARAM]
+  return typeof value === 'string' && value !== '' ? value : ''
+}
 
 /** Pass `enabled: false` to suspend the global ⌘F/`/` hijack (e.g. when search isn't shown and browser Find should stay active).
- *  `/` is off too while UIProvider's `characterKeyShortcuts` is. */
-export function useListSearch(enabled = true, storageKey?: string) {
-  const [filter, setFilter] = useState('')
-  const [searchOpen, setSearchOpen] = useState(false)
+ *  `/` is off too while UIProvider's `characterKeyShortcuts` is. With `url`, the text follows
+ *  the page's `?search=` param both ways, so a link opens the list already searched. */
+export function useListSearch(enabled = true, storageKey?: string, url?: ListUrl) {
+  const [filter, setFilter] = useState(() => searchParam(url))
+  const [searchOpen, setSearchOpen] = useState(() => searchParam(url) !== '')
   const [storedTerms, setStoredTerms] = usePersistedState<string[]>(
     `${storageKey ?? 'list'}:searchTerms`,
     NO_TERMS,
   )
   const terms = storageKey ? storedTerms : NO_TERMS
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // The text the URL and the box last agreed on, so a param the list wrote isn't read back as a
+  // new link, and a change to another param leaves what is being typed alone.
+  const urlText = searchParam(url)
+  const synced = useRef(urlText)
+  const latestUrl = useRef(url)
+  latestUrl.current = url
+  useEffect(() => {
+    const current = latestUrl.current
+    if (!current || filter === synced.current) {
+      return
+    }
+    synced.current = filter
+    const { [SEARCH_PARAM]: _, ...rest } = current.search
+    current.onChange(filter === '' ? rest : { ...rest, [SEARCH_PARAM]: filter })
+  }, [filter])
+  useEffect(() => {
+    if (urlText === synced.current) {
+      return
+    }
+    synced.current = urlText
+    setFilter(urlText)
+    if (urlText !== '') {
+      setSearchOpen(true)
+    }
+  }, [urlText])
 
   useEffect(() => {
     if (searchOpen) {

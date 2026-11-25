@@ -3,6 +3,7 @@ import { usePersistedState } from '../components/Provider'
 import {
   type ActiveFilter,
   applyFilterList,
+  decodeFilters,
   type FilterField,
   type FilterOperator,
   type FilterOption,
@@ -13,6 +14,7 @@ import {
   type StoredFilters,
   sameFilters,
   toStored,
+  withFilterParams,
 } from './filterModel'
 
 /** Where filters live besides what the list remembers, such as the page's URL. */
@@ -21,6 +23,33 @@ export interface FilterStore {
    *  so the remembered filters apply. */
   value: readonly ActiveFilter[] | null
   onChange: (next: ActiveFilter[]) => void
+}
+
+/** The page's URL as a list reads and writes it, for the host to bind its router to. */
+export interface ListUrl {
+  search: Record<string, unknown>
+  /** Puts these params in the URL in place of the current ones. A list writes on every change,
+   *  so a host usually replaces the history entry instead of adding one. */
+  onChange: (next: Record<string, unknown>) => void
+}
+
+/** Keeps the fields' filters in the page's URL, leaving its other params alone. */
+export function useUrlFilterStore<T>(
+  url: ListUrl | undefined,
+  fields: readonly FilterField<T>[],
+): FilterStore | undefined {
+  const search = url?.search
+  const onChange = url?.onChange
+  return useMemo(
+    () =>
+      search && onChange
+        ? {
+            value: decodeFilters(search, fields),
+            onChange: (next: ActiveFilter[]) => onChange(withFilterParams(search, next, fields)),
+          }
+        : undefined,
+    [search, onChange, fields],
+  )
 }
 
 export interface ListFiltersConfig<T> {

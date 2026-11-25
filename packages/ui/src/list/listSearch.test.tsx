@@ -5,6 +5,7 @@ import { ariaKeyShortcuts } from '../components/Kbd'
 import { UIProvider } from '../components/Provider'
 import { memoryStorage } from '../test/storage'
 import { ListCount, ListSearchControl, useListSearch } from './listSearch'
+import type { ListUrl } from './useListFilters'
 
 function Harness({ storageKey }: { storageKey?: string }) {
   const search = useListSearch(true, storageKey)
@@ -105,6 +106,59 @@ describe('list search term chips', () => {
     expect(getInput()).toHaveValue('alpha')
     expect(screen.getByTestId('queries')).toHaveTextContent(/^alpha$/)
     expect(screen.queryByLabelText('Remove filter alpha')).not.toBeInTheDocument()
+  })
+})
+
+function LinkedHarness({ url }: { url: ListUrl }) {
+  const search = useListSearch(true, undefined, url)
+  return (
+    <div>
+      <ListSearchControl search={search} placeholder="Filter" />
+      <div data-testid="queries">{search.queries.join(',')}</div>
+    </div>
+  )
+}
+
+describe('list search in the URL', () => {
+  const linked = (search: Record<string, unknown>, onChange = vi.fn()) => {
+    const view = render(<LinkedHarness url={{ search, onChange }} />)
+    return {
+      onChange,
+      navigate: (next: Record<string, unknown>) =>
+        view.rerender(<LinkedHarness url={{ search: next, onChange }} />),
+    }
+  }
+
+  it('opens searched by the text a link names', () => {
+    linked({ search: 'alpha' })
+    expect(getInput()).toHaveValue('alpha')
+    expect(screen.getByTestId('queries')).toHaveTextContent('alpha')
+  })
+
+  it('writes typed text to the URL, keeping its other params, and drops it once cleared', () => {
+    const { onChange } = linked({ tab: 'all' })
+    openSearch()
+    fireEvent.change(getInput(), { target: { value: 'beta' } })
+    expect(onChange).toHaveBeenLastCalledWith({ tab: 'all', search: 'beta' })
+    fireEvent.change(getInput(), { target: { value: '' } })
+    expect(onChange).toHaveBeenLastCalledWith({ tab: 'all' })
+  })
+
+  it('follows the URL: a new link searches again and a link without it clears the text', () => {
+    const { navigate } = linked({ search: 'alpha' })
+    navigate({ search: 'beta' })
+    expect(getInput()).toHaveValue('beta')
+    navigate({})
+    expect(screen.getByTestId('queries')).toHaveTextContent('')
+  })
+
+  it('keeps what is being typed when another param changes', () => {
+    const { navigate } = linked({})
+    openSearch()
+    fireEvent.change(getInput(), { target: { value: 'gam' } })
+    navigate({ search: 'gam' })
+    navigate({ search: 'gam', tab: 'all' })
+    expect(getInput()).toHaveValue('gam')
   })
 })
 

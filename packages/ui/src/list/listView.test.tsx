@@ -101,6 +101,69 @@ describe('shared list view filters', () => {
   })
 })
 
+describe('filters in the URL', () => {
+  beforeEach(() => {
+    Object.defineProperty(window, 'localStorage', {
+      value: memoryStorage(),
+      configurable: true,
+    })
+  })
+
+  const renderLinked = (search: Record<string, unknown>, onChange = vi.fn()) =>
+    renderHook(
+      ({ search: current }) =>
+        useListView<Row>({
+          storageKey: 'linked',
+          columns: COLUMNS,
+          facets: FACETS,
+          url: { search: current, onChange },
+        }),
+      { initialProps: { search } },
+    )
+
+  it('opens with the filters a link names', () => {
+    const view = renderLinked({ kind: 'pod,job', namespace: 'alpha' })
+    expect(view.result.current.filters).toEqual({ kind: ['pod', 'job'], namespace: ['alpha'] })
+  })
+
+  it('keeps the remembered filters while the URL names none', () => {
+    window.localStorage.setItem('linked:filters', JSON.stringify({ kind: ['job'] }))
+    const view = renderLinked({ tab: 'all' })
+    expect(view.result.current.filters).toEqual({ kind: ['job'] })
+  })
+
+  it('writes a change to the URL, keeping its other params', () => {
+    const onChange = vi.fn()
+    const view = renderLinked({ kind: 'pod', tab: 'all' }, onChange)
+    act(() => view.result.current.setFacetValues('kind', ['job']))
+    expect(onChange).toHaveBeenLastCalledWith({ kind: 'job', tab: 'all' })
+    act(() => view.result.current.clearFilters())
+    expect(onChange).toHaveBeenLastCalledWith({ tab: 'all' })
+  })
+
+  it('follows the URL when it changes', () => {
+    const view = renderLinked({ kind: 'pod' })
+    view.rerender({ search: { kind: 'job' } })
+    expect(view.result.current.filters).toEqual({ kind: ['job'] })
+  })
+
+  it('leaves the URL alone when the page passes its own filter store', () => {
+    const onChange = vi.fn()
+    const view = renderHook(() =>
+      useListView<Row>({
+        storageKey: 'linked',
+        columns: COLUMNS,
+        facets: FACETS,
+        filterStore: { value: [{ field: 'kind', op: 'is', values: ['job'] }], onChange: vi.fn() },
+        url: { search: { kind: 'pod' }, onChange },
+      }),
+    )
+    expect(view.result.current.filters).toEqual({ kind: ['job'] })
+    act(() => view.result.current.setFacetValues('kind', ['pod']))
+    expect(onChange).not.toHaveBeenCalled()
+  })
+})
+
 describe('stacked columns', () => {
   it('stacks columns without a priority by default, except the first and any set not to', () => {
     const { result } = renderHook(() =>
