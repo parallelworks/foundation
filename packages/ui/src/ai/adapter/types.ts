@@ -101,6 +101,7 @@ export type PartDelta =
       name: string
       args: string
       startLine?: number
+      startedAt?: string
     }
   | { type: 'tool_update'; id: string; args: string }
   // The call waits for the user's approval before it runs.

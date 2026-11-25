@@ -404,15 +404,54 @@ export const ReviewedRun: StoryObj = {
   },
 }
 
-export const EveryRunFolded: StoryObj<{ failed: boolean; running: boolean }> = {
+const LONG_COMMAND = [
+  'set -euo pipefail',
+  'export GOFLAGS=-count=1',
+  'for pkg in ./internal/server/ ./internal/store/ ./internal/raft/; do',
+  '  echo "== $pkg"',
+  '  go test "$pkg" -run \'TestPartition|TestRebalance|TestLeaderElection|TestSnapshotRestore|TestCompaction|TestMembershipChange\' -timeout 120s 2>&1 | tail -5',
+  'done',
+  'go vet ./internal/...',
+  'staticcheck ./internal/...',
+  'git status --short',
+  'git diff --stat',
+  'echo "partition suite done"',
+  'date -u +%FT%TZ',
+  'du -sh ~/.cache/go-build',
+].join('\n')
+
+export const EveryRunFolded: StoryObj<{
+  failed: boolean
+  running: boolean
+  approved: boolean
+  secondsRunning: number
+  longCommand: boolean
+}> = {
   name: 'Every run folded',
-  args: { failed: true, running: false },
+  args: { failed: true, running: false, approved: true, secondsRunning: 57, longCommand: false },
   argTypes: {
-    failed: { description: 'A failed call folds with the rest, with no success mark on the row' },
-    running: { description: 'The row reads as under way and the call shows below it' },
+    longCommand: {
+      description:
+        'The last command is a script past 10 lines: running, it hangs cut, saying how many more lines open with the run',
+    },
+    failed: {
+      description:
+        'A failed call folds with the rest, with no success mark on the row; once the run is done, its line counts it',
+    },
+    running: {
+      description:
+        'The line reads as under way and the command hangs under it, dim until the pointer is on it; a click opens the run',
+    },
+    approved: { description: 'The auto-reviewer approved the last command, a row under its call' },
+    secondsRunning: {
+      control: { type: 'range', min: 0, max: 600 },
+      description:
+        'How long the running command has run (the call’s startedAt); the line shows it from 2 seconds',
+    },
   },
-  render: ({ failed, running }) => (
+  render: ({ failed, running, approved, secondsRunning, longCommand }) => (
     <AgentMessageParts
+      key={`${running}-${secondsRunning}`}
       foldEveryRun
       message={makeMessage({
         content: null,
@@ -421,14 +460,25 @@ export const EveryRunFolded: StoryObj<{ failed: boolean; running: boolean }> = {
             ...makeToolCallPart({ name: 'ReadFile', status: 'ok', resultLines: 4 }),
             args: JSON.stringify({ path: 'internal/server/server.go' }),
           },
-          makeToolCallPart({ name: 'Bash', status: failed ? 'error' : 'ok', resultLines: 3 }),
+          makeToolCallPart({
+            command: 'go vet ./internal/server/',
+            status: failed ? 'error' : 'ok',
+            resultLines: 3,
+          }),
           {
             ...makeToolCallPart({
-              name: 'GrepSearch',
+              command: longCommand
+                ? LONG_COMMAND
+                : 'go test ./internal/server/ -run TestPartition -count=1 2>&1 | tail -5',
               status: running ? 'running' : 'ok',
               resultLines: 2,
             }),
-            args: JSON.stringify({ pattern: 'partition' }),
+            ...(running
+              ? { startedAt: new Date(Date.now() - secondsRunning * 1000).toISOString() }
+              : {}),
+            ...(approved
+              ? { decision: { status: 'approved', by: 'auto-reviewer', at: minutesAgo(0) } }
+              : {}),
           },
         ],
       })}

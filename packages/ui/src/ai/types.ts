@@ -140,6 +140,8 @@ export interface ToolCallPart {
   foldDiff?: boolean
   /** A hook changed the arguments the model sent before the call ran. */
   argsRewritten?: boolean
+  /** ISO time a running call last started, which its run's line counts from. A host leaves it out while a person's answer holds the call. */
+  startedAt?: string
 }
 
 export type SubagentStatus = 'running' | 'done' | 'failed'

@@ -239,6 +239,25 @@ export function fullToolArgs(primary: string | undefined, argsJSON: string): str
   return formatToolArgs(primary, argsJSON, { valueClip: 0, totalClip: 0, multiline: true })
 }
 
+/** A running call as it hangs under its folded run: a command as `$ command`, line breaks
+ *  kept, and any other call as its header. */
+export function runningCallLabel(name: string, argsJSON: string): string {
+  const header = toolHeaderFor(name)
+  if (name === 'Bash') {
+    let command: unknown
+    try {
+      command = JSON.parse(argsJSON)?.command
+    } catch {
+      command = undefined
+    }
+    if (typeof command === 'string' && command !== '') {
+      return `$ ${displayArg(command, { valueClip: 0, totalClip: 0, multiline: true })}`
+    }
+  }
+  const args = summarizeToolArgs(header.arg, argsJSON, header.argOnly)
+  return args ? `${header.label}(${args})` : header.label
+}
+
 // limitToolResult appends this to an oversized result; summaries cut it off
 // before counting.
 const TOOL_OUTPUT_TRUNCATION_MARKER = '\n\n... output truncated to '

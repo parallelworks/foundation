@@ -14,7 +14,7 @@ import { fieldBox } from '../../../components/fieldBox'
 import { focusOnMount } from '../../../components/focus'
 import { Loader } from '../../../components/Loader'
 import { useStrings } from '../../../components/Provider'
-import { RelativeTime } from '../../../components/relativeTime'
+import { RelativeTime, useElapsed } from '../../../components/relativeTime'
 import { toneSurface } from '../../../components/tone'
 import { useNearViewport } from '../../../components/useNearViewport'
 import { cx } from '../../../cx'
@@ -34,11 +34,13 @@ import {
   agentColorHex,
   fullToolArgs,
   isGroupableTool,
+  isUnattendedToolUse,
   isUserInterruptedTool,
   parseRejection,
   resultNotRun,
   rollupClauses,
   runClauses,
+  runningCallLabel,
   shownResult,
   summarizeToolArgs,
   toolHeaderFor,
@@ -47,6 +49,7 @@ import {
 import { thinkingHeading } from '../../agent/transcript'
 import { useChatAttachments } from '../../core/ChatProvider'
 import { type PartRendererProps, useChatConfig } from '../../core/config'
+import { UNFINISHED_CALL_RESULT } from '../../core/parts'
 import { ExpandAllContext, useRemembered } from '../../core/rowMemory'
 import type { ChatStrings } from '../../strings'
 import type {
@@ -366,20 +369,21 @@ function ToolStatusDot({ part }: { part: ToolCallPart }) {
       </StatusMark>
     )
   }
+  // A call a person declined or stopped, that nobody could approve, or whose turn ended under it
+  // didn't fail, and didn't succeed either, whichever status it ended with.
+  const result = part.result ?? ''
+  if (isUserInterruptedTool(result) || result === UNFINISHED_CALL_RESULT) {
+    return <NeutralDot status={t.interrupted} />
+  }
+  if (parseRejection(result) || isUnattendedToolUse(result)) {
+    return <NeutralDot status={t.approvalDenied} />
+  }
   if (part.status === 'error') {
     return (
       <StatusMark status={t.failed}>
         <span className="leading-none text-(--theme-error)">●</span>
       </StatusMark>
     )
-  }
-  // A call a person declined or stopped didn't fail, and didn't succeed either.
-  const result = part.result ?? ''
-  if (isUserInterruptedTool(result)) {
-    return <NeutralDot status={t.interrupted} />
-  }
-  if (parseRejection(result)) {
-    return <NeutralDot status={t.approvalDenied} />
   }
   return (
     <StatusMark status={t.done}>
@@ -416,7 +420,7 @@ function FailedOutput({ part }: { part: ToolCallPart }) {
   return (
     <div className="ml-5 mt-0.5 min-w-0 text-(--theme-error-text)" data-testid="failed-output">
       <div className="text-[13px] break-words">
-        {resultNotRun(part.result ?? '') ? first : strings.agentTranscript.failedWith(first)}
+        {endedUnrun(part.result ?? '') ? first : strings.agentTranscript.failedWith(first)}
       </div>
       {rest.length > 0 && (
         <pre className="overflow-x-auto font-mono text-xs leading-5 whitespace-pre-wrap break-words">
@@ -596,6 +600,8 @@ function decisionLabel(d: ToolDecision, t: ChatStrings['agentTranscript']): stri
 function DecisionLine({ decision }: { decision: ToolDecision }) {
   const { strings } = useChatConfig()
   const approved = decision.status === 'approved'
+  // The reviewer's plain yes hangs off its call, as the terminal draws it, rather than reading as a verdict.
+  const hung = reviewerApproval(decision)
   // An approval needs no reason to read; a reviewer's no, or its failure to answer, does.
   const showReason = !!decision.reason && decision.by === 'auto-reviewer' && !approved
   return (
@@ -603,9 +609,9 @@ function DecisionLine({ decision }: { decision: ToolDecision }) {
       <div className="flex min-w-0 flex-wrap items-baseline gap-x-1">
         <span
           aria-hidden="true"
-          className={cx('leading-none', approved && 'text-(--theme-success)')}
+          className={cx('leading-none', approved && !hung && 'text-(--theme-success)')}
         >
-          {approved ? '✓' : '✗'}
+          {hung ? '⎿' : approved ? '✓' : '✗'}
         </span>
         <span>{decisionLabel(decision, strings.agentTranscript)}</span>
         {decision.note && <span className="min-w-0 max-w-full truncate">({decision.note})</span>}
@@ -1357,6 +1363,10 @@ function plainApproval(d: ToolDecision): boolean {
   return d.status === 'approved' && !d.note
 }
 
+function reviewerApproval(d: ToolDecision): boolean {
+  return d.by === 'auto-reviewer' && plainApproval(d)
+}
+
 /** A call that can share a row with the same tool's calls beside it: never one
  *  still running, so its progress stays in view, one waiting on an answer, or
  *  one whose decision line names who answered it. */
@@ -1395,8 +1405,14 @@ function groupRepeatedCalls(items: RenderItem[]): RenderItem[] {
   return out
 }
 
-// A new call in a folded run keeps to the run's line this long, so a quick one never flashes a block.
+// A new call in a folded run keeps to the run's line this long, so a quick one never flashes under it.
 const HOLD_RUNNING_CALL_MS = 1000
+
+// A call runs this long before its run's line shows its time, so a quick one never flashes a clock.
+const SHOW_RUNNING_TIME_MS = 2000
+
+// A folded run's running call shows this much of a long command; the rest opens with the run.
+const RUNNING_CALL_LINES = 10
 
 function HeldCall({ show, children }: { show: boolean; children: ReactNode }) {
   const [waited, setWaited] = useState(false)
@@ -1407,8 +1423,91 @@ function HeldCall({ show, children }: { show: boolean; children: ReactNode }) {
   return show || waited ? children : null
 }
 
-function isRunningCall(m: RunMember): boolean {
+function isRunningCall(m: RunMember): m is { part: ToolCallPart; index: number } {
   return m.part.kind === 'tool_call' && m.part.status === 'running'
+}
+
+/** A call that went wrong on its own: not one a person declined or stopped, nobody could
+ *  approve, or whose end never came. */
+function failedCall(m: RunMember): boolean {
+  return (
+    m.part.kind === 'tool_call' && m.part.status === 'error' && !endedUnrun(m.part.result ?? '')
+  )
+}
+
+/** A call that never ran to an end of its own, which reads as neither failed nor done. */
+function endedUnrun(result: string): boolean {
+  return resultNotRun(result) || result === UNFINISHED_CALL_RESULT
+}
+
+function RunningTime({ startedAt }: { startedAt: string }) {
+  const elapsed = useElapsed(startedAt)
+  return elapsed !== null && elapsed >= SHOW_RUNNING_TIME_MS ? (
+    <span className="theme-muted-text">
+      {' · '}
+      {formatDuration(elapsed)}
+    </span>
+  ) : null
+}
+
+/** A call still running in a folded run, hung under the run's line: dim until the pointer is on
+ *  it, and a click opens the run, whose line is the keyboard's way in. */
+function RunningCallRow({
+  part,
+  message,
+  onOpen,
+}: {
+  part: ToolCallPart
+  message: PartRendererProps['message']
+  onOpen: () => void
+}) {
+  const { strings, slots } = useChatConfig()
+  const t = strings.agentTranscript
+  const presentation = slots.toolPresentation?.(part, message)
+  const Footer = slots.toolFooters?.[part.name]
+  const lines = (presentation?.label ?? runningCallLabel(part.name, part.args)).split('\n')
+  const more = lines.length - RUNNING_CALL_LINES
+  return (
+    <div
+      className="ml-5 grid grid-cols-[auto_minmax(0,1fr)] gap-x-1.5 text-[13px] leading-5"
+      data-testid="running-call"
+    >
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: a pointer's way to open the run; its line is the keyboard's and the screen reader's */}
+      {/* biome-ignore lint/a11y/useKeyWithClickEvents: the run's line opens it from the keyboard */}
+      <div
+        className="col-span-2 grid cursor-pointer grid-cols-subgrid theme-muted-text hover:theme-text"
+        onClick={onOpen}
+      >
+        {/* biome-ignore lint/style/noJsxLiterals: a gutter glyph, not words */}
+        <span aria-hidden="true">⎿</span>
+        {/* Clamped to RUNNING_CALL_LINES rows as well as cut to that many lines, so one long line that wraps can't outgrow the cut. */}
+        <span
+          className={cx(
+            'min-w-0 line-clamp-10 whitespace-pre-wrap break-words',
+            !presentation && 'font-mono',
+          )}
+        >
+          {lines.slice(0, RUNNING_CALL_LINES).join('\n')}
+        </span>
+        {more > 0 && <div className="col-start-2 text-xs">{t.moreLines(more)}</div>}
+      </div>
+      {part.argsRewritten && (
+        <div className="col-start-2 text-xs theme-muted-text">{t.argsRewritten}</div>
+      )}
+      {part.decision && reviewerApproval(part.decision) && (
+        <div className="col-span-2 grid grid-cols-subgrid text-xs theme-muted-text">
+          {/* biome-ignore lint/style/noJsxLiterals: a gutter glyph, not words */}
+          <span aria-hidden="true">⎿</span>
+          <span>{t.allowedByReviewer}</span>
+        </div>
+      )}
+      {Footer && (
+        <div className="col-start-2 min-w-0">
+          <Footer part={part} message={message} />
+        </div>
+      )}
+    </div>
+  )
 }
 
 function RollupGroup({
@@ -1432,6 +1531,9 @@ function RollupGroup({
   const live = members.filter(isRunningCall)
   const settled = members.filter((m) => !isRunningCall(m))
   const running = live.length > 0
+  // The time is the newest call's, not the run's: a call that just started shows none yet.
+  const newest = live.at(-1)?.part
+  const failed = running ? 0 : members.filter(failedCall).length
   const builtin: string[] = []
   const named = new Map<string, { count: number; rollup: (count: number) => string }>()
   for (const m of members) {
@@ -1467,28 +1569,44 @@ function RollupGroup({
       <Disclosure
         open={open}
         onOpenChange={setOpen}
-        disabled={settled.length === 0}
         // Once drawn, members stay mounted so their own expand state survives refolding.
         keepMounted={opened}
         summaryClassName={rowSummaryClasses}
         summary={
           <>
-            {/* Kept for alignment: a run that may hold a failure must not read as a success. */}
-            <span
-              className={cx('leading-none', foldEveryRun ? 'invisible' : 'text-(--theme-success)')}
-              aria-hidden="true"
-            >
-              ●
-            </span>
+            {running && !open ? (
+              // Folded, the line stands for the calls in flight, whose own blocks would spin.
+              <Loader inline decorative size={14} color="var(--theme-muted-text-color)" />
+            ) : (
+              // Kept for alignment: a run that may hold a failure must not read as a success.
+              <span
+                className={cx(
+                  'leading-none',
+                  foldEveryRun ? 'invisible' : 'text-(--theme-success)',
+                )}
+                aria-hidden="true"
+              >
+                ●
+              </span>
+            )}
             <span
               className={cx(
                 'text-[13px] min-w-0',
                 // The row is all a folded run shows, so it wraps rather than losing its end.
                 !foldEveryRun && 'truncate',
-                allNamed ? 'theme-text' : 'font-mono theme-muted-text',
+                !allNamed && 'font-mono',
+                // Working, the line reads plain; once done, it steps back.
+                allNamed || running ? 'theme-text' : 'theme-muted-text',
               )}
             >
               {sentence}
+              {newest?.startedAt && <RunningTime startedAt={newest.startedAt} />}
+              {failed > 0 && (
+                <span className="text-(--theme-error-text)">
+                  {' · '}
+                  {strings.agentTranscript.failedCount(failed)}
+                </span>
+              )}
             </span>
           </>
         }
@@ -1500,7 +1618,11 @@ function RollupGroup({
       </Disclosure>
       {live.map((m) => (
         <HeldCall key={m.index} show={open}>
-          <PartDispatch part={m.part} message={message} />
+          {open ? (
+            <PartDispatch part={m.part} message={message} />
+          ) : (
+            <RunningCallRow part={m.part} message={message} onOpen={() => setOpen(true)} />
+          )}
         </HeldCall>
       ))}
     </div>
