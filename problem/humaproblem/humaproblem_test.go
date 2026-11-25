@@ -356,6 +356,7 @@ func TestOnlyHandWrittenTextIsSent(t *testing.T) {
 		"expected", "length", // huma's validator
 		"10.0.0.5", "connection refused", "no such item", "load item", // a Go error
 		"strconv", "invalid syntax", "pq:", "duplicate key", "insert item", "unexpected error occurred",
+		"object key", // huma's duplicate-key check
 	}
 	cases := []struct {
 		name   string
@@ -363,6 +364,7 @@ func TestOnlyHandWrittenTextIsSent(t *testing.T) {
 		status int
 	}{
 		{"malformed JSON", strings.NewReader(`{"name": "ab", "count": 1,,}`), http.StatusBadRequest},
+		{"duplicate key", strings.NewReader(`{"name": "ab", "name": "cd", "count": 1}`), http.StatusBadRequest},
 		{"validation", map[string]any{"name": 5, "count": "x", "tags": []string{"a", "b"}}, http.StatusUnprocessableEntity},
 		{"wrapped Go error", map[string]any{"name": "gone", "count": 1}, http.StatusInternalServerError},
 		{"dependency text given to huma", map[string]any{"name": "odd", "count": 1}, http.StatusUnprocessableEntity},
