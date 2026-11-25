@@ -190,6 +190,32 @@ describe('SessionView find', () => {
     await waitFor(() => expect(count()).toHaveTextContent('2 of 3'))
   })
 
+  it.each<CSSProperties>([{ visibility: 'hidden' }, { display: 'none' }])(
+    'keeps what it found while the host hides the view with %o, and finds again once it shows',
+    async (style) => {
+      const view = (hidden: boolean, more: Message[]) => (
+        <div style={hidden ? style : {}}>
+          <Session messages={[...messages, ...more]} />
+        </div>
+      )
+      const added: Message[] = [
+        { id: 'u2', role: 'user', content: 'Raise the timeout?', parentId: 'a1' },
+      ]
+      const { rerender } = render(view(false, []))
+      const input = openFind()
+      fireEvent.change(input, { target: { value: 'timeout' } })
+      fireEvent.keyDown(input, { key: 'Enter' })
+
+      rerender(view(true, []))
+      rerender(view(true, added))
+      await act(() => new Promise((resolve) => setTimeout(resolve, 300)))
+      expect(count()).toHaveTextContent('2 of 2')
+
+      rerender(view(false, added))
+      await waitFor(() => expect(count()).toHaveTextContent('2 of 3'))
+    },
+  )
+
   it("leaves another view's matches painted when a view without find comes and goes", () => {
     render(<Session />)
     fireEvent.change(openFind(), { target: { value: 'timeout' } })

@@ -551,6 +551,53 @@ export const FindInLongSession: StoryObj<FindInLongSessionArgs> = {
   },
 }
 
+const inspections: ChatMessage[] = Array.from({ length: 120 }, (_, n) => [
+  makeMessage({ id: `away-ask-${n}`, role: 'user', content: `Inspect gauge ${n + 1}.` }),
+  makeMessage({
+    id: `away-answer-${n}`,
+    role: 'assistant',
+    content: `Gauge ${n + 1} reads in range.`,
+  }),
+]).flat()
+
+function FindAfterAnotherPageExample({ away }: { away: boolean }) {
+  const [turns, setTurns] = useState(4)
+  useEffect(() => {
+    if (!away) {
+      return
+    }
+    const timer = setInterval(() => setTurns((n) => Math.min(n + 4, inspections.length / 2)), 50)
+    return () => clearInterval(timer)
+  }, [away])
+  return (
+    <StoryChat>
+      <StoryViewport>
+        <div className="flex h-full flex-col" style={{ visibility: away ? 'hidden' : undefined }}>
+          <SessionView
+            sessionKey="story-find-after-another-page"
+            messages={inspections.slice(0, turns * 2)}
+            onSend={async () => true}
+            flush
+            find
+            workingIndicator={false}
+          />
+        </div>
+      </StoryViewport>
+    </StoryChat>
+  )
+}
+
+/** Find in a session that went on while its host showed another page, hiding
+ *  this one with `visibility: hidden`: it finds what was said meanwhile. Turn
+ *  `away` on for a few seconds and off again, then find "Gauge 20 reads". */
+export const FindAfterAnotherPage: StoryObj<{ away: boolean }> = {
+  args: { away: false },
+  argTypes: {
+    away: { control: 'boolean', description: 'The host shows another page, and turns arrive' },
+  },
+  render: (args) => <FindAfterAnotherPageExample {...args} />,
+}
+
 const answeredApprovalReply = [
   'Deleted web-frontend-7d9f. Its deployment is already starting a new pod in its place, which should be serving again in about a minute.',
   'The old pod’s last logs show why it was stuck:',
