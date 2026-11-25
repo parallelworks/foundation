@@ -404,7 +404,7 @@ export function useListView<T>({
     () => [...facets.map(facetField), ...(filterFields ?? [])],
     [facets, filterFields],
   )
-  const urlStore = useUrlFilterStore(url, fields)
+  const urlStore = useUrlFilterStore(url, fields, defaultFilters)
   const filterState = useListFilters<T>({
     storageKey,
     sharedFiltersKey,
