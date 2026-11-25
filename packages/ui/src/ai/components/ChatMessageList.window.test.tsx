@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { type ComponentProps, createRef } from 'react'
+import { mockCheckVisibility } from '../../test/visibility'
 import type { useChat, useChatStream } from '../core/ChatProvider'
 import { createTextIndex } from '../core/textIndex'
 import type { ChatMessage as Message } from '../types'
@@ -517,6 +518,79 @@ describe('ChatMessageList for a search', () => {
     scrollWithin(log, 15 * ROW)
 
     expect(index.get(conversation[42] as Message)).toBe('Question 22')
+  })
+
+  describe('in a view its host hides', () => {
+    let restoreVisibility: () => void
+    beforeEach(() => {
+      restoreVisibility = mockCheckVisibility()
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+      document.body.style.visibility = ''
+      restoreVisibility()
+    })
+    const hide = (hidden: boolean) => {
+      document.body.style.visibility = hidden ? 'hidden' : ''
+    }
+    // Long enough to read every turn, a batch to a tick.
+    const pass = () => {
+      for (let i = 0; i < 20; i++) {
+        act(() => void vi.advanceTimersByTime(250))
+      }
+    }
+
+    it('reads a turn it let go of while hidden once it shows', async () => {
+      const conversation = turns(1, 30)
+      const index = createTextIndex()
+      const { log, rerender } = renderList(conversation, { textIndex: index })
+      scrollWithin(log, 0)
+      hide(true)
+
+      scrollWithin(log, 15 * ROW)
+
+      expect(drawnIds()).not.toContain('u22')
+      expect(index.get(conversation[42] as Message)).toBeUndefined()
+
+      hide(false)
+      rerender(conversation, { textIndex: index, indexing: true })
+      await waitFor(() => expect(index.get(conversation[42] as Message)).toBe('Question 22'))
+    })
+
+    it('reads nothing for a search until it shows', () => {
+      vi.useFakeTimers()
+      const conversation = turns(1, 10)
+      const index = createTextIndex()
+      renderList(conversation, { textIndex: index, indexing: true })
+      hide(true)
+
+      pass()
+      expect(conversation.filter((m) => index.get(m) !== undefined)).toEqual([])
+
+      hide(false)
+      pass()
+      expect(index.get(conversation[0] as Message)).toBe('Question 1')
+    })
+
+    it('reads again the turns it picked just before it was hidden', () => {
+      vi.useFakeTimers()
+      const conversation = turns(1, 10)
+      const index = createTextIndex()
+      renderList(conversation, { textIndex: index, indexing: true })
+      // Shown as the turns are picked, hidden by the time they are drawn.
+      let looks = 0
+      const look = vi
+        .spyOn(Element.prototype, 'checkVisibility')
+        .mockImplementation(() => looks++ === 0)
+
+      pass()
+      expect(looks).toBeGreaterThan(1)
+      expect(conversation.filter((m) => index.get(m) !== undefined)).toEqual([])
+
+      look.mockRestore()
+      pass()
+      expect(index.get(conversation[0] as Message)).toBe('Question 1')
+    })
   })
 
   it('forgets what it read once what the reader opened starts afresh', () => {

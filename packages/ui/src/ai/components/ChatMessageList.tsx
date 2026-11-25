@@ -18,6 +18,7 @@ import { formatDuration } from '../../format'
 import { CheckIcon, ClockIcon } from '../../icons'
 import { useChat, useChatStream } from '../core/ChatProvider'
 import { type ApprovalAnswerHandler, useChatConfig } from '../core/config'
+import { HIDDEN_WAIT_MS, onScreen } from '../core/onScreen'
 import { ReaderHoldContext } from '../core/readerHold'
 import { createRowMemory, RowMemoryContext, useExpandAll } from '../core/rowMemory'
 import type { TextIndex } from '../core/textIndex'
@@ -373,13 +374,20 @@ export default function ChatMessageList({
     if (!indexing || !textIndex || reading.length > 0) {
       return
     }
-    // The page goes on between batches.
-    const timer = setTimeout(() => {
+    let timer: ReturnType<typeof setTimeout>
+    const read = () => {
+      // Nothing in a hidden list shows, so it has no text to read until it does.
+      if (!onScreen(readerRef.current)) {
+        timer = setTimeout(read, HIDDEN_WAIT_MS)
+        return
+      }
       const next = unread(messages, start, end, textIndex)
       if (next.length > 0) {
         setReading(next)
       }
-    }, 0)
+    }
+    // The page goes on between batches.
+    timer = setTimeout(read, 0)
     return () => clearTimeout(timer)
   }, [indexing, textIndex, reading, messages, start, end, memory])
   useLayoutEffect(() => {
@@ -387,7 +395,8 @@ export default function ChatMessageList({
       return
     }
     const rows = [...(readerRef.current?.children ?? [])]
-    for (const message of reading) {
+    // Hidden since they were picked, they are read again once the list shows.
+    for (const message of onScreen(readerRef.current) ? reading : NO_MESSAGES) {
       const row = rows.find((r) => r instanceof HTMLElement && r.dataset['row'] === message.id)
       textIndex.set(message, row ? visibleText(row) : '')
     }
@@ -446,8 +455,9 @@ export default function ChatMessageList({
     const lowest = keep.length > 0 ? Math.min(...keep) : indexOfRow(rows.at(-1))
     const highest = keep.length > 0 ? Math.max(...keep) : indexOfRow(rows[0])
     // A search reads a row let go of from what it showed, as the reader left it.
+    // One in a hidden list shows nothing, and is read once the list shows.
     const remember = (gone: (i: number) => boolean) => {
-      const index = windowRef.current.textIndex
+      const index = onScreen(content) ? windowRef.current.textIndex : undefined
       for (const row of index ? rows : []) {
         const message = all[indexOfRow(row)]
         if (message && gone(indexOfRow(row))) {

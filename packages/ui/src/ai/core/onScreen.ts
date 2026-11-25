@@ -6,6 +6,9 @@ export function onScreen(el: Element | null): boolean {
   return el?.checkVisibility?.({ visibilityProperty: true }) ?? true
 }
 
+/** How often something that waits for a hidden view looks whether it shows. */
+export const HIDDEN_WAIT_MS = 500
+
 /** Listens on target for the key presses `wants` picks that began while el
  *  showed. A capture listener on window reads that before any other handler
  *  runs, since one that closes a layer on another page can show the view again

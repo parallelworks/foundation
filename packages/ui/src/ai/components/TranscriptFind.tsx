@@ -13,7 +13,7 @@ import { cx } from '../../cx'
 import { ChevronDownIcon, ChevronUpIcon, CloseIcon, SearchIcon } from '../../icons'
 import { useChatConfig } from '../core/config'
 import { FIND_IN_TRANSCRIPT_EVENT } from '../core/events'
-import { listenWhileShown, onScreen } from '../core/onScreen'
+import { HIDDEN_WAIT_MS, listenWhileShown, onScreen } from '../core/onScreen'
 import type { TextIndex } from '../core/textIndex'
 import {
   countMatches,
@@ -304,7 +304,12 @@ export function useTranscriptFind(
       if (timer) {
         return
       }
-      timer = setTimeout(() => {
+      timer = setTimeout(function find() {
+        // Nothing in a hidden transcript can be found: what was stays until it shows.
+        if (!onScreen(target)) {
+          timer = setTimeout(find, HIDDEN_WAIT_MS)
+          return
+        }
         timer = undefined
         const prev = foundRef.current
         const transcript = transcriptOf(target)
