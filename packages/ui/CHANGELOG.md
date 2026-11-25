@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.151.0](https://github.com/parallelworks/foundation/compare/ui-v0.150.2...ui-v0.151.0) (2026-11-25)
+
+
+### Features
+
+* **ui:** a host that runs `!` lines as shell commands can give the composer a terminal's shell mode ([#829](https://github.com/parallelworks/foundation/issues/829)) ([c60329b](https://github.com/parallelworks/foundation/commit/c60329baa18d5eccc112cc58975b2e37ccfc1078))
+
+
+### Bug Fixes
+
+* **ui:** a hovered button stays risen under a pointer on its bottom edge instead of flickering ([#826](https://github.com/parallelworks/foundation/issues/826)) ([ae5ffdc](https://github.com/parallelworks/foundation/commit/ae5ffdc51ff6c701b3c08d2199e57f686290845a))
+* **ui:** a searchable dropdown opened with little room runs off the screen, hiding its search field ([#814](https://github.com/parallelworks/foundation/issues/814)) ([7520a61](https://github.com/parallelworks/foundation/commit/7520a61baea565c5c67ca832becf047ffda17fbe))
+* **ui:** CreateModal flashes its empty name red when the dialog is dismissed ([#828](https://github.com/parallelworks/foundation/issues/828)) ([205cfb8](https://github.com/parallelworks/foundation/commit/205cfb8fbd79ebb37ddb385161091eef2e218225))
+
 ## [0.150.2](https://github.com/parallelworks/foundation/compare/ui-v0.150.1...ui-v0.150.2) (2026-11-24)
 
 
