@@ -215,13 +215,16 @@ export function toolTurnMessages(
   ]
 }
 
+/** What finalizeParts records for a call whose end never came. */
+export const UNFINISHED_CALL_RESULT = 'interrupted'
+
 /** A turn can end (completed or stopped) with tool calls still marked
  *  running — the transport died before their tool_end arrived. A stored
  *  message must not spin forever, so close them out as interrupted. */
 export function finalizeParts(parts: MessagePart[]): MessagePart[] {
   return parts.map((p) => {
     if (p.kind === 'tool_call' && p.status === 'running') {
-      return { ...p, status: 'error' as const, result: p.result ?? 'interrupted' }
+      return { ...p, status: 'error' as const, result: p.result ?? UNFINISHED_CALL_RESULT }
     }
     // A child the turn ended under ended with it, and its own end may never come. One in the background outlives it.
     if (p.kind === 'subagent' && p.status === 'running' && !p.background && !p.detached) {

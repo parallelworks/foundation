@@ -48,6 +48,7 @@ import {
 import { thinkingHeading } from '../../agent/transcript'
 import { useChatAttachments } from '../../core/ChatProvider'
 import { type PartRendererProps, useChatConfig } from '../../core/config'
+import { UNFINISHED_CALL_RESULT } from '../../core/parts'
 import { ExpandAllContext, useRemembered } from '../../core/rowMemory'
 import type { ChatStrings } from '../../strings'
 import type {
@@ -1424,11 +1425,14 @@ function isRunningCall(m: RunMember): m is { part: ToolCallPart; index: number }
   return m.part.kind === 'tool_call' && m.part.status === 'running'
 }
 
-/** A call that went wrong on its own: not one a person declined or stopped, or nobody could approve. */
+/** A call that went wrong on its own: not one a person declined or stopped, nobody could
+ *  approve, or whose end never came. */
 function failedCall(m: RunMember): boolean {
-  return (
-    m.part.kind === 'tool_call' && m.part.status === 'error' && !resultNotRun(m.part.result ?? '')
-  )
+  if (m.part.kind !== 'tool_call' || m.part.status !== 'error') {
+    return false
+  }
+  const result = m.part.result ?? ''
+  return !resultNotRun(result) && result !== UNFINISHED_CALL_RESULT
 }
 
 function RunningTime({ startedAt }: { startedAt: string }) {

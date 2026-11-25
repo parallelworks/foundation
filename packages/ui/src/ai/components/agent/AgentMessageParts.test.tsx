@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ChatConfigProvider, resolveChatConfig } from '../../core/config'
+import { finalizeParts } from '../../core/parts'
 import { createRowMemory, RowMemoryContext } from '../../core/rowMemory'
 import type { ChatMessage, MessagePart, ToolCallPart, ToolDecision } from '../../types'
 import AgentMessageParts, { buildRenderItems, ExpandAllProvider } from './AgentMessageParts'
@@ -1269,15 +1270,19 @@ describe('foldEveryRun', () => {
     expect(line()).not.toHaveTextContent('·')
   })
 
-  it('counts the calls that failed once the run is done, leaving out one a person declined', () => {
+  it('counts the calls that failed once the run is done, leaving out one a person declined or one whose end never came', () => {
     const declined: MessagePart = {
       ...(tc('t3', 'Bash', 'error') as ToolCallPart),
       result:
         "The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file).",
     }
-    const { rerender } = render(folded([tc('t1', 'Bash', 'error'), tc('t2', 'Bash'), declined]))
-    expect(screen.getByRole('button', { name: /Ran 3 shell commands/ })).toHaveTextContent(
-      'Ran 3 shell commands · 1 failed',
+    const { result: _none, ...running } = tc('t4', 'Bash', 'running') as ToolCallPart
+    const [unfinished] = finalizeParts([running])
+    const { rerender } = render(
+      folded([tc('t1', 'Bash', 'error'), tc('t2', 'Bash'), declined, unfinished as MessagePart]),
+    )
+    expect(screen.getByRole('button', { name: /Ran 4 shell commands/ })).toHaveTextContent(
+      'Ran 4 shell commands · 1 failed',
     )
     rerender(folded([tc('t1', 'Bash', 'error'), tc('t2', 'Bash', 'running')]))
     expect(screen.getByRole('button', { name: /Running 2 shell commands/ })).not.toHaveTextContent(
