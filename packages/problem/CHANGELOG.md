@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.3](https://github.com/parallelworks/foundation/compare/problem-v0.6.2...problem-v0.6.3) (2026-11-25)
+
+
+### Bug Fixes
+
+* **deps:** ui accepts monaco-editor 0.58, with the npm packages at their latest ([#832](https://github.com/parallelworks/foundation/issues/832)) ([ad6a64b](https://github.com/parallelworks/foundation/commit/ad6a64b417c8ca95f828925230d0192f428a8b38))
+
 ## [0.6.2](https://github.com/parallelworks/foundation/compare/problem-v0.6.1...problem-v0.6.2) (2026-11-12)
 
 
