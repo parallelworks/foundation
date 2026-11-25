@@ -409,7 +409,9 @@ export default function ChatMessageList({
     }
     const rows = [...content.querySelectorAll<HTMLElement>(':scope > [data-row]')]
     const box = el.getBoundingClientRect()
-    const shown = rows.find((row) => row.getBoundingClientRect().bottom > box.top)
+    // While the reply being written fills the view no row is in it, and the
+    // last row, just above, stands for the place to keep.
+    const shown = rows.find((row) => row.getBoundingClientRect().bottom > box.top) ?? rows.at(-1)
     keptRef.current = shown ? { row: shown, top: shown.getBoundingClientRect().top } : null
     const { messages: all, indexOf: at, start: first, end: last, whole: every } = windowRef.current
     const view = el.clientHeight

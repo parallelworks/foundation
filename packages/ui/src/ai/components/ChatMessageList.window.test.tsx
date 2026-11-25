@@ -379,6 +379,32 @@ describe('ChatMessageList scrolled through a long conversation', () => {
     expect(screen.queryByText('Jump to latest')).not.toBeInTheDocument()
   })
 
+  it('keeps the reply being written in place as it lets go of turns above, with no row in view', () => {
+    const short = (n: number): Message[] => [
+      { id: `q${n}`, role: 'user', content: `Ask ${n}` },
+      { id: `r${n}`, role: 'assistant', content: `Answer ${n}` },
+    ]
+    const conversation = Array.from({ length: 60 }, (_, i) => short(i + 1)).flat()
+    const { log } = renderList(conversation, {
+      streamingMessage: { id: 'streaming', role: 'assistant', content: 'A long answer' },
+    })
+    // The reply is two screens tall, and the list's floor holds its height
+    // while the rows above go.
+    const held = log.querySelectorAll('[data-row]').length * ROW + 2 * VIEW
+    Object.defineProperty(log, 'clientHeight', { configurable: true, value: VIEW })
+    Object.defineProperty(log, 'scrollHeight', { configurable: true, value: held })
+    const before = drawnIds().length
+    log.scrollTop = held - VIEW
+    const top = rowOf('r60').getBoundingClientRect().top
+
+    fireEvent.scroll(log)
+
+    expect(drawnIds().length).toBeLessThan(before)
+    expect(rowOf('r60').getBoundingClientRect().top).toBe(top)
+    // The turns four screens above the view stay drawn.
+    expect(drawnIds()).toContain('q58')
+  })
+
   it('opens or closes the blocks it does not draw with the ones it does, as expand-all changes', () => {
     const list = (all: boolean, messages = turns(1, 3)) => (
       <ExpandAllProvider value={all}>
