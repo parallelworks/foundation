@@ -38,7 +38,9 @@ test('the editor has every feature monaco-editor’s main entry has, less its la
     .filter((file) => !file.startsWith('languages/') && !file.startsWith('../external/'))
     // Registers only an internal command for a provider Monaco's API gives no way to add, and
     // nothing in the editor runs it. It is absent before 0.58, which the peer range still allows.
-    .filter((file) => file !== 'editor/contrib/structuralDiff/common/structuralDiff.contribution.js')
+    .filter(
+      (file) => file !== 'editor/contrib/structuralDiff/common/structuralDiff.contribution.js',
+    )
   const ours = imports(readFileSync(new URL('./monacoFeatures.ts', import.meta.url), 'utf8'))
     .filter((spec) => spec.startsWith('monaco-editor/'))
     .map((spec) => `${spec.slice('monaco-editor/'.length)}.js`)
