@@ -1,9 +1,15 @@
 // @vitest-environment jsdom
 import { render, waitFor } from '@testing-library/react'
 import { act } from 'react'
-import { type ChatAdapter, ChatAdapterError, type StreamResult } from '../adapter/types'
+import {
+  type ChatAdapter,
+  ChatAdapterError,
+  type StreamHandlers,
+  type StreamRequest,
+  type StreamResult,
+} from '../adapter/types'
 import ChatMessageList from '../components/ChatMessageList'
-import type { ChatModel, ChatNavigation, Conversation } from '../types'
+import type { ChatMessage, ChatModel, ChatNavigation, Conversation } from '../types'
 import { ChatProvider, useChat, useChatStream } from './ChatProvider'
 
 const SELECTED_MODEL_KEY = 'aiChat.model'
@@ -1241,6 +1247,254 @@ describe('leaving the chat while a reply streams', () => {
     expect(vi.mocked(adapter.streamCompletion).mock.calls[1]![0].messages.at(-1)?.content).toBe(
       'and four?',
     )
+  })
+})
+
+describe('replies in several conversations at once', () => {
+  interface Reply {
+    conversationId: string
+    asked: StreamRequest['messages'][number]['content'][]
+    handlers: StreamHandlers
+    signal: AbortSignal | undefined
+    finish: (content: string) => Promise<void>
+  }
+  let replies: Reply[]
+  let saved: Map<string, ChatMessage[]>
+  let reading: Promise<void> | null
+  let shown: string[]
+
+  // The text drawn for the open conversation, in the order it came.
+  const drawn = () =>
+    chat.streamingParts.some((p) => p.kind === 'text')
+      ? chat.streamingParts.map((p) => (p.kind === 'text' ? p.text : '')).join('')
+      : chat.streamingContent
+
+  async function start() {
+    replies = []
+    saved = new Map()
+    reading = null
+    shown = []
+    let created = 0
+    const adapter = makeAdapter({
+      streamCompletion: vi.fn(
+        (req: StreamRequest, handlers: StreamHandlers, signal?: AbortSignal) => {
+          const stream = deferred<StreamResult>()
+          let reject: (error: unknown) => void = () => {}
+          const stopped = new Promise<StreamResult>((_, r) => {
+            reject = r
+          })
+          signal?.addEventListener('abort', () => reject(new DOMException('', 'AbortError')))
+          const id = `reply-${replies.length + 1}`
+          replies.push({
+            conversationId: req.conversationId,
+            asked: req.messages.filter((m) => m.role === 'user').map((m) => m.content),
+            handlers,
+            signal,
+            finish: async (content) => {
+              await act(async () => {
+                const message = { id, role: 'assistant' as const, content }
+                saved.set(req.conversationId, [...(saved.get(req.conversationId) ?? []), message])
+                stream.resolve({ ...emptyStreamResult(), content, messageId: id })
+                await flush()
+              })
+            },
+          })
+          return Promise.race([stream.promise, stopped])
+        },
+      ),
+    })
+    adapter.conversations.create = vi.fn(async () => ({
+      id: `conv-${++created}`,
+      messageCount: 0,
+      createdAt: '2026-01-05T00:00:00Z',
+      isOwner: true,
+      canCollaborate: true,
+    }))
+    adapter.conversations.get = vi.fn(async (id: string) => {
+      const conversation = { id, messages: saved.get(id) ?? [] }
+      await reading
+      return conversation
+    })
+    await renderProvider(adapter)
+    return adapter
+  }
+
+  const send = (content: string) =>
+    act(async () => {
+      void chat.sendMessage(content)
+      await flush()
+    })
+  const open = (id: string) =>
+    act(async () => {
+      await chat.loadConversation(id)
+      await flush()
+    })
+  const newChat = () => act(async () => chat.clearCurrentConversation())
+  const word = (n: number, text: string) =>
+    act(async () => {
+      replies[n - 1]!.handlers.onContent(text)
+      await new Promise((r) => setTimeout(r, 60))
+      shown.push(drawn())
+    })
+  const tool = (n: number, id: string) =>
+    act(async () => {
+      replies[n - 1]!.handlers.onPart?.({ type: 'tool_start', id, name: 'search', args: '{}' })
+      await flush()
+    })
+
+  afterEach(async () => {
+    for (const reply of replies) {
+      await reply.finish('done')
+    }
+  })
+
+  it("draws a new conversation's reply alone while another is written", async () => {
+    await start()
+    await send('first')
+    await word(1, 'pier one ')
+    await newChat()
+    await word(1, 'pier two ')
+    expect(drawn()).toBe('')
+
+    await send('second')
+    await word(2, 'boat one ')
+    await word(1, 'pier three ')
+    await word(2, 'boat two ')
+    await waitFor(() => expect(drawn()).toBe('boat one boat two '))
+    expect(shown.slice(2).join('')).not.toContain('pier')
+
+    await replies[0]!.finish('pier one pier two pier three ')
+    expect(chat.isStreaming).toBe(true)
+    await word(2, 'boat three ')
+    await waitFor(() => expect(drawn()).toBe('boat one boat two boat three '))
+  })
+
+  it('draws no reasoning, parts or usage of a conversation left', async () => {
+    await start()
+    await send('first')
+    await tool(1, 'call-1')
+    await newChat()
+    await send('second')
+    await act(async () => {
+      replies[0]!.handlers.onReasoning?.('pier thoughts')
+      replies[0]!.handlers.onUsage?.({ prompt_tokens: 1, completion_tokens: 2, total_tokens: 3 })
+      await flush()
+    })
+    await tool(1, 'call-2')
+    expect(chat.streamingReasoning).toBe('')
+    expect(chat.streamingUsage).toBeNull()
+    expect(chat.streamingParts).toEqual([])
+  })
+
+  it('draws each whole and in order, opened back and forth while both are written', async () => {
+    await start()
+    await send('first')
+    await word(1, 'pier one ')
+    await tool(1, 'call-1')
+    await newChat()
+    await send('second')
+    await word(2, 'boat one ')
+    await tool(2, 'call-2')
+    await word(1, 'pier two ')
+
+    await open('conv-1')
+    await waitFor(() => expect(drawn()).toBe('pier one pier two '))
+    expect(chat.streamingParts.map((p) => p.kind)).toEqual(['text', 'tool_call', 'text'])
+    await word(2, 'boat two ')
+    await word(1, 'pier three ')
+    await waitFor(() => expect(drawn()).toBe('pier one pier two pier three '))
+
+    await open('conv-2')
+    await waitFor(() => expect(drawn()).toBe('boat one boat two '))
+    await open('conv-1')
+    await waitFor(() => expect(drawn()).toBe('pier one pier two pier three '))
+    await open('conv-2')
+    await word(2, 'boat three ')
+    await waitFor(() => expect(drawn()).toBe('boat one boat two boat three '))
+  })
+
+  it('stays with the conversation opened last when another was still being read', async () => {
+    await start()
+    await send('first')
+    await newChat()
+    await send('second')
+    await word(2, 'boat one ')
+    const read = deferred<void>()
+    reading = read.promise
+    await act(async () => {
+      void chat.loadConversation('conv-1')
+    })
+    await word(2, 'boat two ')
+    expect(drawn()).toBe('')
+    await act(async () => {
+      void chat.loadConversation('conv-2')
+      reading = null
+      read.resolve()
+      await flush()
+    })
+    expect(chat.currentConversation?.id).toBe('conv-2')
+    expect(chat.isLoadingConversation).toBe(false)
+    await waitFor(() => expect(drawn()).toBe('boat one boat two '))
+  })
+
+  it('stops the reply of the open conversation only', async () => {
+    await start()
+    await send('first')
+    await word(1, 'pier one ')
+    await newChat()
+    await send('second')
+    await word(2, 'boat one ')
+    await open('conv-1')
+    await act(async () => {
+      chat.stopStreaming()
+      await flush()
+    })
+    expect(replies[0]!.signal?.aborted).toBe(true)
+    expect(replies[1]!.signal?.aborted).toBe(false)
+
+    await open('conv-2')
+    expect(chat.isStreaming).toBe(true)
+    await word(2, 'boat two ')
+    await waitFor(() => expect(drawn()).toBe('boat one boat two '))
+  })
+
+  it('keeps a queued message for its conversation, and sends it there once that is open', async () => {
+    await start()
+    await send('first')
+    await send('for the first')
+    expect(chat.queuedMessages.map((m) => m.content)).toEqual(['for the first'])
+    await newChat()
+    expect(chat.queuedMessages).toEqual([])
+    await send('second')
+    await send('for the second')
+    expect(chat.queuedMessages.map((m) => m.content)).toEqual(['for the second'])
+
+    await open('conv-1')
+    expect(chat.queuedMessages.map((m) => m.content)).toEqual(['for the first'])
+    await open('conv-2')
+    await replies[0]!.finish('pier one ')
+    expect(replies).toHaveLength(2)
+    await replies[1]!.finish('boat one ')
+    expect(replies[2]).toMatchObject({ conversationId: 'conv-2' })
+    expect(replies[2]!.asked.at(-1)).toBe('for the second')
+
+    await open('conv-1')
+    await waitFor(() => expect(replies).toHaveLength(4))
+    expect(replies[3]).toMatchObject({ conversationId: 'conv-1' })
+    expect(replies[3]!.asked.at(-1)).toBe('for the first')
+    expect(chat.queuedMessages).toEqual([])
+  })
+
+  it('sends to another conversation at once, and holds sends to the one still writing', async () => {
+    await start()
+    await send('first')
+    saved.set('conv-old', [])
+    await open('conv-old')
+    await send('to the old one')
+    expect(replies.map((r) => r.conversationId)).toEqual(['conv-1', 'conv-old'])
+    await send('and again')
+    expect(replies).toHaveLength(2)
+    expect(chat.queuedMessages.map((m) => m.content)).toEqual(['and again'])
   })
 })
 

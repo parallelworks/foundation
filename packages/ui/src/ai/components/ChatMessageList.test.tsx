@@ -630,6 +630,48 @@ describe('ChatMessageList after a reply', () => {
   })
 })
 
+describe("ChatMessageList with a host's own reply", () => {
+  const part: ToolCallPart = {
+    kind: 'tool_call',
+    id: 'tool-1',
+    name: 'search',
+    args: '{}',
+    status: 'running',
+  }
+
+  beforeEach(() => {
+    Object.assign(mockChat, { streamingParts: [part], streamingReasoning: 'Another reply' })
+  })
+
+  afterEach(() => {
+    Object.assign(mockChat, { streamingParts: [], streamingReasoning: '' })
+  })
+
+  it.each([
+    ['none being written', null],
+    ['one being written', createMockMessage({ id: 'own', role: 'assistant', content: 'Own' })],
+  ])("draws none of the provider's stream, with %s", (_name, streamingMessage) => {
+    const { container, queryByTestId } = render(
+      <ChatMessageList
+        messages={[createMockMessage({ id: 'm1' })]}
+        allMessages={[]}
+        streamingMessage={streamingMessage}
+      />,
+    )
+
+    expect(queryByTestId('agent-parts')).not.toBeInTheDocument()
+    expect(container).not.toHaveTextContent(/another reply/i)
+  })
+
+  it("draws the provider's stream when the host passes none", () => {
+    const { getByTestId } = render(
+      <ChatMessageList messages={[createMockMessage({ id: 'm1' })]} allMessages={[]} />,
+    )
+
+    expect(getByTestId('agent-parts')).toBeInTheDocument()
+  })
+})
+
 describe('ChatMessageList working indicator', () => {
   const toolPart: ToolCallPart = {
     kind: 'tool_call',
@@ -648,7 +690,7 @@ describe('ChatMessageList working indicator', () => {
       <ChatMessageList
         messages={[createMockMessage({ id: 'm1' })]}
         allMessages={[]}
-        streamingMessage={streamingMessage ?? null}
+        {...(streamingMessage ? { streamingMessage } : {})}
       />,
     )
 

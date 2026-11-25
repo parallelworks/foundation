@@ -25,8 +25,8 @@ export interface BackgroundStream {
 const backgroundStreams = new Map<string, BackgroundStream>()
 
 interface UseSSEStreamResult {
-  /** Feed a chunk of text into the animation buffer */
-  onStreamingChunk: (chunk: string) => void
+  /** Feed a chunk of a conversation's reply into the animation buffer; ignored unless that conversation's reply is the one revealed */
+  onStreamingChunk: (conversationId: string, chunk: string) => void
   /** Start the animation loop for a conversation */
   startStreaming: (conversationId: string) => void
   /** Stop the animation loop, flush remaining content */
@@ -39,6 +39,8 @@ interface UseSSEStreamResult {
   resetAnimationRefs: () => void
   /** Ref to the target content buffer */
   targetStreamContentRef: React.RefObject<string>
+  /** Ref to how much of the buffer is revealed */
+  revealedLengthRef: React.MutableRefObject<number>
   /** Ref tracking whether streaming is active */
   streamActiveRef: React.MutableRefObject<boolean>
   /** Ref tracking which conversation is being streamed */
@@ -159,10 +161,10 @@ export function useSSEStream(dispatch: React.Dispatch<ChatAction>): UseSSEStream
   }, [dispatch, settleDrain, runPending])
 
   const onStreamingChunk = useCallback(
-    (chunk: string) => {
-      // Only update UI if streaming is still active for the current view
-      // (user may have navigated away)
-      if (!streamActiveRef.current) {
+    (conversationId: string, chunk: string) => {
+      // The buffer is revealed as one conversation's text. A reply left running
+      // in another keeps streaming, and its text would be labeled as this one's.
+      if (!streamActiveRef.current || streamingConversationIdRef.current !== conversationId) {
         return
       }
 
@@ -243,6 +245,7 @@ export function useSSEStream(dispatch: React.Dispatch<ChatAction>): UseSSEStream
     afterReveal,
     resetAnimationRefs,
     targetStreamContentRef,
+    revealedLengthRef,
     streamActiveRef,
     streamingConversationIdRef,
     backgroundStreamsRef,

@@ -1,7 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { type CSSProperties, useMemo, useState } from 'react'
 import { userEvent, within } from 'storybook/test'
+import { SegmentedControl } from '../../components/SegmentedControl'
 import { createMockChatAdapter } from '../adapter/mock'
+import type { ChatAdapter } from '../adapter/types'
+import { useChat } from '../core/ChatProvider'
 import type { ToolRendererProps } from '../core/config'
 import { FIND_IN_TRANSCRIPT_EVENT } from '../core/events'
 import {
@@ -18,7 +21,12 @@ import {
   sendFromComposer,
   storyTeammate,
 } from '../stories/harness'
-import type { ToolCallPart, ToolPresentation } from '../types'
+import type {
+  Conversation as ChatConversation,
+  ChatMessage,
+  ToolCallPart,
+  ToolPresentation,
+} from '../types'
 import ChatEmptyState from './ChatEmptyState'
 import ChatLayout from './ChatLayout'
 import ChatThread from './ChatThread'
@@ -148,6 +156,119 @@ export const Find: StoryObj<FindStoryArgs> = {
 export const FindNoMatches: StoryObj<FindStoryArgs> = {
   ...Find,
   args: { find: true, query: 'deadlock' },
+}
+
+const AT_ONCE = [
+  { id: 'at-once-1', title: 'Partition limits', word: 'partition' },
+  { id: 'at-once-2', title: 'Disk quotas', word: 'quota' },
+]
+
+// Each reply is its conversation's own word, numbered, so a word out of place shows.
+function makeAtOnceAdapter(wordDelayMs: number) {
+  const conversations: ChatConversation[] = AT_ONCE.map(({ id, title }) => ({
+    id,
+    title,
+    messages: [],
+    activeBranchId: null,
+  }))
+  const base = makeStaticAdapter({ conversations })
+  return {
+    ...base,
+    streamCompletion: (async (req, handlers, signal) => {
+      const { word } = AT_ONCE.find((c) => c.id === req.conversationId) ?? { word: 'word' }
+      let content = ''
+      const messageId = `${req.userMessageId}-reply`
+      const conversation = conversations.find((c) => c.id === req.conversationId)
+      // Saved as a backend saves them, so a conversation opened again has them.
+      const save = (message: Partial<ChatMessage>) => {
+        if (conversation) {
+          conversation.messages = [
+            ...conversation.messages,
+            makeMessage({ ...message, conversationId: conversation.id }),
+          ]
+          conversation.activeBranchId = message.id ?? null
+        }
+      }
+      const saveReply = (stopped: boolean) =>
+        save({ id: messageId, parentId: req.userMessageId, role: 'assistant', content, stopped })
+      save({
+        id: req.userMessageId,
+        parentId: req.parentMessageId ?? null,
+        role: 'user',
+        content: String(req.messages.at(-1)?.content ?? ''),
+      })
+      handlers.onMessageId?.(messageId)
+      for (let i = 1; i <= 400; i++) {
+        content += `${word} ${i} `
+        handlers.onContent(`${word} ${i} `)
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(resolve, wordDelayMs)
+          signal?.addEventListener('abort', () => {
+            clearTimeout(timer)
+            reject(new DOMException('aborted', 'AbortError'))
+          })
+        }).catch((error: unknown) => {
+          saveReply(true)
+          throw error
+        })
+      }
+      saveReply(false)
+      return {
+        content,
+        messageId,
+        toolCalls: [],
+        finishReason: 'stop',
+        model: req.model,
+        reasoning: '',
+        responsesOutput: [],
+      }
+    }) satisfies ChatAdapter['streamCompletion'],
+  }
+}
+
+function AtOnceConversations() {
+  const { loadConversation, currentConversation } = useChat()
+  const open = currentConversation?.id ?? ''
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex shrink-0 p-3">
+        <SegmentedControl
+          label="Conversation"
+          options={AT_ONCE.map(({ id, title }) => ({ value: id, label: title }))}
+          value={open}
+          onValueChange={(id) => loadConversation(id)}
+        />
+      </div>
+      <div className="min-h-0 flex-1">{open && <ChatThread conversationId={open} />}</div>
+    </div>
+  )
+}
+
+function RepliesAtOnceExample({ wordDelayMs }: { wordDelayMs: number }) {
+  const adapter = useMemo(() => makeAtOnceAdapter(wordDelayMs), [wordDelayMs])
+  return (
+    <StoryChat adapter={adapter} conversationId={null}>
+      <StoryViewport>
+        <AtOnceConversations />
+      </StoryViewport>
+    </StoryChat>
+  )
+}
+
+/** A reply left running goes on in its own conversation: the one open draws
+ *  its own reply alone, and Stop and queued messages are its own too. */
+export const RepliesAtOnce: StoryObj<{ wordDelayMs: number }> = {
+  args: { wordDelayMs: 120 },
+  argTypes: { wordDelayMs: { control: { type: 'range', min: 10, max: 500 } } },
+  render: (args) => <RepliesAtOnceExample {...args} />,
+  play: async ({ canvasElement }) => {
+    for (const { title } of AT_ONCE) {
+      await userEvent.click(await within(canvasElement).findByRole('button', { name: title }))
+      await new Promise((resolve) => setTimeout(resolve, 600))
+      sendFromComposer(canvasElement, `Tell me about ${title.toLowerCase()}.`)
+      await new Promise((resolve) => setTimeout(resolve, 1200))
+    }
+  },
 }
 
 type StreamingSimulationStoryArgs = {
