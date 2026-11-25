@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.154.0](https://github.com/parallelworks/foundation/compare/ui-v0.153.0...ui-v0.154.0) (2026-11-25)
+
+
+### Features
+
+* **ui:** a conversation list can be the app frame's navigation at any width, with a switch between sibling lists ([#848](https://github.com/parallelworks/foundation/issues/848)) ([4ffc1fb](https://github.com/parallelworks/foundation/commit/4ffc1fb2d6f40f1b1389fc7ee38edb84de9782a8))
+
 ## [0.153.0](https://github.com/parallelworks/foundation/compare/ui-v0.152.0...ui-v0.153.0) (2026-11-25)
 
 
