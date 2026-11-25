@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.153.0](https://github.com/parallelworks/foundation/compare/ui-v0.152.0...ui-v0.153.0) (2026-11-25)
+
+
+### Features
+
+* **ui:** a folded run's running calls hang under its line, which shows the newest call's time and, once done, counts the calls that failed ([#841](https://github.com/parallelworks/foundation/issues/841)) ([df04bcd](https://github.com/parallelworks/foundation/commit/df04bcde404d2752adf5174b72343a44bf999a64))
+
 ## [0.152.0](https://github.com/parallelworks/foundation/compare/ui-v0.151.1...ui-v0.152.0) (2026-11-25)
 
 
