@@ -133,6 +133,8 @@ function unread(messages: Message[], start: number, end: number, index: TextInde
 const jumpClasses =
   'chat-composer chat-jump rounded-full px-3 py-1.5 text-xs font-medium theme-text transition-colors'
 
+const pinFrameClasses = 'relative flex min-h-0 flex-1 flex-col'
+
 export type QueueDelivery = 'afterReply' | 'nextStep'
 
 interface ChatMessageListProps {
@@ -810,21 +812,37 @@ export default function ChatMessageList({
     </div>
   )
 
+  // Scroll anchoring keeps a reader who scrolled up in place. At the bottom
+  // the list follows on its own, and an anchoring adjustment (WebKit makes
+  // one when markdown replaces its loading text) would read as the reader
+  // scrolling up.
+  const threadClasses = cx(
+    'chat-thread flex-1 overflow-y-auto theme-scrollbar flex flex-col bg-(--theme-panel-bg)',
+    pinned && '[overflow-anchor:none]',
+  )
+
   // If no messages and no streaming, just return empty scrollable container
   // The parent page handles the welcome/empty state UI. Queued messages still
   // render — a canceled first turn must keep them visible.
+  // It has the transcript's shape, so the first message keeps the thread, the
+  // frame a prompt pins in and the composer as the nodes they were. The spacer
+  // and footer are its own, so the transcript's held height never stays in them.
   if (!hasContent) {
-    return (
-      <div className="chat-thread flex-1 overflow-y-auto flex flex-col bg-(--theme-panel-bg)">
-        <div className="flex-1" />
+    const empty = (
+      <div key="thread" className={threadClasses}>
+        <div key="spacer" className="flex-1" />
         {footer && (
-          <div className={cx('w-full max-w-[var(--chat-column,50rem)] mx-auto', !flush && 'px-4')}>
+          <div
+            key="footer"
+            className={cx('w-full max-w-[var(--chat-column,50rem)] mx-auto', !flush && 'px-4')}
+          >
             {footer}
           </div>
         )}
         {dock}
       </div>
     )
+    return pinPrompt ? <div className={pinFrameClasses}>{empty}</div> : empty
   }
 
   const pinnedText = pinPrompt && anchor ? promptLine(messages.find((m) => m.id === anchor)) : ''
@@ -873,6 +891,7 @@ export default function ChatMessageList({
 
   const list = (
     <div
+      key="thread"
       ref={containerRef}
       // A live log: each new message is announced as it is added. Busy while a
       // reply streams, so a screen reader reads it once rather than word by word.
@@ -880,14 +899,7 @@ export default function ChatMessageList({
       aria-relevant="additions"
       aria-label={label ?? strings.thread.label}
       aria-busy={isStreaming || undefined}
-      // Scroll anchoring keeps a reader who scrolled up in place. At the bottom
-      // the list follows on its own, and an anchoring adjustment (WebKit makes
-      // one when markdown replaces its loading text) would read as the reader
-      // scrolling up.
-      className={cx(
-        'chat-thread flex-1 overflow-y-auto theme-scrollbar flex flex-col bg-(--theme-panel-bg)',
-        pinned && '[overflow-anchor:none]',
-      )}
+      className={threadClasses}
     >
       {/* Holds the content's last observed height: see the resize observer. */}
       <div ref={floorRef} className="flex-1">
@@ -1025,7 +1037,7 @@ export default function ChatMessageList({
   // not announced as a new message. It comes first so the tab order meets it
   // where it shows, at the top.
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col">
+    <div className={pinFrameClasses}>
       {anchor && pinnedText && (
         <PinnedPrompt
           text={pinnedText}
