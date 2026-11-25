@@ -475,6 +475,8 @@ export default function ChatMessageList({
   // flip the flag back.
   const isNearBottomRef = useRef(true)
   const lastScrollTopRef = useRef(0)
+  // The composer's height as the position was last read.
+  const dockHeightRef = useRef<number | null>(null)
   // Mirrors the ref for the jump control; the ref stays the source of truth
   // for the scroll effects so a re-render never races them.
   const [pinned, setPinned] = useState(true)
@@ -489,7 +491,18 @@ export default function ChatMessageList({
       return
     }
     const { scrollTop, scrollHeight, clientHeight } = containerRef.current
-    const scrolledDown = scrollTop >= lastScrollTopRef.current
+    // A composer that gets shorter, such as one that answered an approval, can
+    // leave the list shorter than the position for a moment, and the browser
+    // moves it up by what went. Read as the reader's, that move would end
+    // following.
+    const dockHeight = dockRef.current?.offsetHeight ?? 0
+    const lastDockHeight = dockHeightRef.current ?? dockHeight
+    const clamped =
+      isNearBottomRef.current &&
+      dockHeight !== lastDockHeight &&
+      lastScrollTopRef.current - scrollTop < Math.max(dockHeight, lastDockHeight)
+    dockHeightRef.current = dockHeight
+    const scrolledDown = clamped || scrollTop >= lastScrollTopRef.current
     lastScrollTopRef.current = scrollTop
     const { messages: all, end: last } = windowRef.current
     if (scrollHeight - scrollTop - clientHeight < 24) {
@@ -506,6 +519,17 @@ export default function ChatMessageList({
     fitWindow()
   }, [fitWindow])
 
+  // Follows before the observer below has reported the growth it follows. Until
+  // the floor holds the new height too, a layout partway through (see there)
+  // would clamp the position back to the old one.
+  const raiseFloor = useCallback(() => {
+    const floor = floorRef.current
+    const height = contentRef.current?.offsetHeight ?? 0
+    if (floor && height > (Number.parseFloat(floor.style.minHeight) || 0)) {
+      floor.style.minHeight = `${height}px`
+    }
+  }, [])
+
   // Reads the position first: a jump up that its scroll event has not reported
   // yet has to count, or following would undo it before it was ever seen.
   const followBottom = useCallback(() => {
@@ -515,10 +539,11 @@ export default function ChatMessageList({
     }
     handleScroll()
     if (isNearBottomRef.current) {
+      raiseFloor()
       el.scrollTop = el.scrollHeight
       lastScrollTopRef.current = el.scrollTop
     }
-  }, [handleScroll])
+  }, [handleScroll, raiseFloor])
 
   // Assigned, not animated: smooth scroll is throttled to nothing in a hidden tab.
   const jumpToLatest = useCallback(() => {
@@ -705,6 +730,7 @@ export default function ChatMessageList({
     } else if (el && kept?.row.isConnected) {
       const moved = kept.row.getBoundingClientRect().top - kept.top
       if (Math.abs(moved) >= 1) {
+        raiseFloor()
         el.scrollTop += moved
         lastScrollTopRef.current = el.scrollTop
       }
@@ -720,7 +746,7 @@ export default function ChatMessageList({
       lastScrollTopRef.current = el.scrollTop
     }
     fitWindow()
-  }, [start, end, fitWindow])
+  }, [start, end, fitWindow, raiseFloor])
 
   // Reset hadMessages when conversation switches (messages go to 0 then back)
   useEffect(() => {
