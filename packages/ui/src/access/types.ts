@@ -101,9 +101,11 @@ export interface AccessRule {
 export interface AccessVisibility {
   restricted: boolean
   /** Saves the switch, as `onChange` saves a grant: until the promise settles the switch shows
-   *  it is saving, and when it rejects the panel says nothing changed and offers to retry. */
+   *  it is saving, and when it rejects the panel says nothing changed and offers to retry.
+   *  `false` (or a promise of it) means the host made no change, such as when the person
+   *  declined a confirmation it asked for: the panel then says nothing. */
   // biome-ignore lint/suspicious/noConfusingVoidType: accepts sync and async handlers
-  onChange: (restricted: boolean) => void | Promise<unknown>
+  onChange: (restricted: boolean) => void | boolean | Promise<unknown>
   /** The open choice, which names what it is open to: "Everyone in the workspace". */
   openLabel: string
   /** The restricted choice; defaults to the strings' "Only people with access". */
