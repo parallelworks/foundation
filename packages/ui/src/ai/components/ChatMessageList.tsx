@@ -16,7 +16,7 @@ import { useElapsed } from '../../components/relativeTime'
 import { cx } from '../../cx'
 import { formatDuration } from '../../format'
 import { CheckIcon, ClockIcon } from '../../icons'
-import { useChat, useChatStream } from '../core/ChatProvider'
+import { type ChatStream, useChat, useChatStream } from '../core/ChatProvider'
 import { type ApprovalAnswerHandler, useChatConfig } from '../core/config'
 import { ReaderHoldContext } from '../core/readerHold'
 import { createRowMemory, RowMemoryContext, useExpandAll } from '../core/rowMemory'
@@ -128,6 +128,15 @@ function unread(messages: Message[], start: number, end: number, index: TextInde
     parts += 1 + (message.parts?.length ?? 0)
   }
   return picked.sort((a, b) => a - b).flatMap((i) => messages[i] ?? [])
+}
+
+const NO_STREAM: ChatStream = {
+  isThinking: false,
+  streamingContent: '',
+  streamingReasoning: '',
+  streamingParts: [],
+  streamingUsage: null,
+  thinkingStartTime: null,
 }
 
 const jumpClasses =
@@ -244,8 +253,11 @@ export default function ChatMessageList({
   ref,
 }: ChatMessageListProps) {
   const { adapter, isStreaming: providerStreaming } = useChat()
+  const providerStream = useChatStream()
+  // A host that draws its own reply shows none of the provider's, which may be
+  // another conversation's.
   const { isThinking, streamingContent, streamingReasoning, streamingParts, thinkingStartTime } =
-    useChatStream()
+    streamingMessageProp === undefined ? providerStream : NO_STREAM
   const isStreaming = isStreamingProp ?? providerStreaming
   const conversationId = messages[0]?.conversationId
   // One object per token rather than per render, so the streaming row's memo

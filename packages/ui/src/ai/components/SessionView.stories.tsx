@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { userEvent, within } from 'storybook/test'
+import { useChat } from '../core/ChatProvider'
 import { FIND_IN_TRANSCRIPT_EVENT } from '../core/events'
 import {
   makeAgentTurn,
@@ -9,9 +10,11 @@ import {
   makeMessage,
   makePaste,
   makePasteText,
+  makeStaticAdapter,
   makeToolCallPart,
   StoryChat,
   StoryViewport,
+  useStreamedText,
 } from '../stories/harness'
 import type { ChatMessage } from '../types'
 import { NoticeCard } from '../ui/Notice'
@@ -106,6 +109,57 @@ export const PinnedPrompt: StoryObj<PinnedPromptArgs> = {
   args: { pinPrompt: true },
   argTypes: { pinPrompt: { control: 'boolean' } },
   render: (args) => <PinnedPromptExample {...args} />,
+}
+
+const running: ChatMessage[] = [
+  makeMessage({
+    id: 'running-prompt',
+    role: 'user',
+    content: 'Which of these tests wait on the sign-in form?',
+  }),
+]
+
+function BesideAnotherReplyExample() {
+  const adapter = useMemo(
+    () => makeStaticAdapter({ streaming: { reasoningMs: 0, toolCalls: 2, replyWords: 200 } }),
+    [],
+  )
+  return (
+    <StoryChat adapter={adapter}>
+      <StoryViewport>
+        <BesideAnotherReplySession />
+      </StoryViewport>
+    </StoryChat>
+  )
+}
+
+function BesideAnotherReplySession() {
+  const { sendMessage, loadConversation, isSelectedModelAvailable, isStreaming } = useChat()
+  const { text } = useStreamedText('Three of them do, all in the checkout suite.', 4000)
+  const sent = useRef(false)
+  useEffect(() => {
+    if (isSelectedModelAvailable && !sent.current) {
+      sent.current = true
+      void loadConversation('conv-1').then(() => sendMessage('Run the checks.'))
+    }
+  }, [isSelectedModelAvailable, loadConversation, sendMessage])
+  return (
+    <SessionView
+      sessionKey="story-beside-another-reply"
+      messages={running}
+      streamingMessage={makeMessage({ id: 'running-reply', role: 'assistant', content: text })}
+      turn={{ running: isStreaming, onStop: () => {} }}
+      onSend={async () => true}
+      flush
+      workingIndicator={false}
+    />
+  )
+}
+
+/** A session a host draws itself, while the chat it is drawn in writes a reply
+ *  of its own in another conversation: the session draws only its own. */
+export const BesideAnotherReply: StoryObj = {
+  render: () => <BesideAnotherReplyExample />,
 }
 
 const delegated: ChatMessage[] = [
