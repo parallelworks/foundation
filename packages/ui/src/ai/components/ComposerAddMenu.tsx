@@ -333,18 +333,22 @@ function ToolsModal({
 }
 
 /** The composer's + button. With only attachments it opens their panel, as it
- *  always has; once the adapter lists tools it opens a menu of Add files and
- *  Tools, whose submenu toggles each one. Past TOOLS_IN_MENU, Tools opens a
- *  modal instead. A dot on the + says some tools are off. */
+ *  always has, or the host's file picker; once the adapter lists tools it
+ *  opens a menu of Add files and Tools, whose submenu toggles each one. Past
+ *  TOOLS_IN_MENU, Tools opens a modal instead. A dot on the + says some tools
+ *  are off. */
 export default function ComposerAddMenu({
   attachmentsOpen,
   onToggleAttachments,
+  onPickFiles,
   disabled,
   withTools,
 }: {
   attachmentsOpen: boolean
-  /** Absent when the composer takes no files. */
+  /** Absent when the composer takes no files, or the host takes them. */
   onToggleAttachments?: (() => void) | undefined
+  /** Opens the picker for files the host takes, in place of the attachments panel. */
+  onPickFiles?: (() => void) | undefined
   disabled: boolean
   /** Offer the provider's tools, for a turn the provider runs. */
   withTools: boolean
@@ -355,18 +359,19 @@ export default function ComposerAddMenu({
   const narrow = useNarrow()
   const t = strings.composerMenu
   const listed = withTools ? tools : []
+  const addFiles = onToggleAttachments ?? onPickFiles
 
   if (listed.length === 0) {
-    if (!onToggleAttachments) {
+    if (!addFiles) {
       return null
     }
     return (
       <PlusButton
         open={attachmentsOpen}
-        aria-expanded={attachmentsOpen}
+        {...(onToggleAttachments ? { 'aria-expanded': attachmentsOpen } : {})}
         disabled={disabled}
         label={strings.input.attachFiles}
-        onClick={onToggleAttachments}
+        onClick={addFiles}
       />
     )
   }
@@ -375,9 +380,9 @@ export default function ComposerAddMenu({
   const someOff = enabled < listed.length
   const many = listed.length > TOOLS_IN_MENU
   const connect = extraLinks.connectTools
-  const label = onToggleAttachments ? t.label : t.tools
+  const label = addFiles ? t.label : t.tools
 
-  if (many && !onToggleAttachments) {
+  if (many && !addFiles) {
     return (
       <>
         <PlusButton
@@ -399,7 +404,7 @@ export default function ComposerAddMenu({
       {t.tools}
       <OnCount enabled={enabled} total={listed.length} />
     </MenuItem>
-  ) : onToggleAttachments && !narrow ? (
+  ) : addFiles && !narrow ? (
     <Menu.SubmenuRoot>
       <MenuSubmenuTrigger>
         <ToolsIcon className="h-4 w-4 shrink-0 theme-muted-text" />
@@ -433,15 +438,15 @@ export default function ComposerAddMenu({
         />
         {/* Without files, or on a phone, the menu lists the tools itself rather than a step to them. */}
         <MenuPopup side="top" align="start" className={toolsEntry ? 'w-56' : 'w-72'}>
-          {onToggleAttachments && (
-            <MenuItem onClick={onToggleAttachments}>
+          {addFiles && (
+            <MenuItem onClick={addFiles}>
               <AttachmentIcon className="h-4 w-4 shrink-0 theme-muted-text" />
               {t.addFiles}
             </MenuItem>
           )}
           {toolsEntry ?? (
             <>
-              {onToggleAttachments && <MenuSeparator />}
+              {addFiles && <MenuSeparator />}
               <ToolsList listed={listed} />
               {connect && (
                 <>

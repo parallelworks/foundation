@@ -1004,7 +1004,7 @@ function NoticeBlock({ part }: { part: NoticePart }) {
       return (
         <div className="my-1.5" data-testid="notice-part">
           <div className="whitespace-pre-wrap text-[13px] theme-muted-text">{part.text}</div>
-          <div className="ml-4 mt-1 text-sm theme-muted-text">
+          <div className="ml-4 mt-1 text-sm theme-muted-text wrap-break-word">
             <Markdown compact>{part.detail}</Markdown>
           </div>
         </div>
@@ -1027,7 +1027,7 @@ function NoticeBlock({ part }: { part: NoticePart }) {
           onOpenChange={setOpen}
           summary={<span className="min-w-0 flex-1 whitespace-pre-wrap">{part.text}</span>}
           summaryClassName="w-full text-[13px] theme-muted-text hover:theme-text"
-          panelClassName="ml-4 mt-1 border-l-2 theme-border pl-3 text-sm theme-muted-text"
+          panelClassName="ml-4 mt-1 border-l-2 theme-border pl-3 text-sm theme-muted-text wrap-break-word"
         >
           <Markdown compact>{part.detail}</Markdown>
         </Disclosure>

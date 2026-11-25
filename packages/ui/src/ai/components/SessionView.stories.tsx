@@ -4,6 +4,7 @@ import { userEvent, within } from 'storybook/test'
 import { FIND_IN_TRANSCRIPT_EVENT } from '../core/events'
 import {
   makeAgentTurn,
+  makeApprovalPart,
   makeLongConversation,
   makeMessage,
   makePaste,
@@ -418,7 +419,13 @@ function HandBackExample({ failMs }: HandBackArgs) {
   useEffect(() => {
     const timer = setTimeout(() => {
       setEnded((current) => current ?? 'failed')
-      void view.current?.recall()
+      // Still drawn where it was sent, so it waits for an empty box rather than join what is typed,
+      // and is let go when the box holds something: ↑ no longer offers it as waiting.
+      void view.current?.recall({ ifEmpty: true }).then((took) => {
+        if (!took) {
+          setUnread(false)
+        }
+      })
     }, failMs)
     return () => clearTimeout(timer)
   }, [failMs])
@@ -447,7 +454,8 @@ function HandBackExample({ failMs }: HandBackArgs) {
         return []
       }
       setUnread(false)
-      return [{ text: FAILED_PROMPT }]
+      // A failed turn leaves it drawn where it was sent; a stop does not.
+      return [{ text: FAILED_PROMPT, shown: ended === 'failed' }]
     },
   }
   return (
@@ -476,9 +484,11 @@ function HandBackExample({ failMs }: HandBackArgs) {
 
 /** A turn that fails before the agent reads its message leaves the message in
  *  the transcript, where it was sent, and the host hands it back to the box
- *  with `recall()` on the view's handle, as a terminal does, so it can be
- *  sent again rather than read as sent. Stopped first, it comes back the same
- *  way, without the failure. */
+ *  with `recall({ ifEmpty: true })` on the view's handle, as a terminal does,
+ *  so it can be sent again rather than read as sent. Typed into meanwhile,
+ *  the box keeps what was typed, and the message stays where it was sent.
+ *  Stopped first, it comes back with `recall()`, even ahead of what is typed,
+ *  since a stop leaves nothing of it in the transcript. */
 export const HandBackAfterFailure: StoryObj<HandBackArgs> = {
   args: { failMs: 1_500 },
   argTypes: {
@@ -538,5 +548,70 @@ export const FindInLongSession: StoryObj<FindInLongSessionArgs> = {
     document.dispatchEvent(new Event(FIND_IN_TRANSCRIPT_EVENT))
     const input = await canvas.findByRole('textbox', { name: 'Find in conversation' })
     await userEvent.type(input, args.query)
+  },
+}
+
+const answeredApprovalReply = [
+  'Deleted web-frontend-7d9f. Its deployment is already starting a new pod in its place, which should be serving again in about a minute.',
+  'The old pod’s last logs show why it was stuck:',
+  '- The readiness check timed out after 30 seconds on every attempt',
+  '- Each attempt waited on the session store, which was failing over',
+  '- The store finished failing over at 09:42, after the pod had stopped retrying',
+  'So the new pod should pass its check now that the store is back. I will read its logs once it is ready and tell you whether it did.',
+].join('\n\n')
+
+function AnsweredApprovalExample() {
+  const [messages, setMessages] = useState<ChatMessage[]>(() => [
+    ...makeLongConversation(4, 'answered-approval').messages,
+    makeMessage({ role: 'user', content: 'The frontend pod is stuck, delete it so it restarts.' }),
+    makeMessage({ id: 'held', content: '', parts: [makeApprovalPart()] }),
+  ])
+  return (
+    <StoryChat>
+      <StoryViewport>
+        <SessionView
+          sessionKey="story-answered-approval"
+          messages={messages}
+          onSend={async () => true}
+          onApprovalAnswer={(id) =>
+            setMessages((current) =>
+              current.map((m) =>
+                m.id !== 'held'
+                  ? m
+                  : {
+                      ...m,
+                      parts: [
+                        ...(m.parts ?? []).map((p) =>
+                          p.kind === 'approval' && p.id === id
+                            ? { ...p, resolved: true, answer: 'Allowed once' }
+                            : p,
+                        ),
+                        { kind: 'text' as const, text: answeredApprovalReply },
+                      ],
+                    },
+              ),
+            )
+          }
+          flush
+          foldEveryRun
+          workingIndicator={false}
+        />
+      </StoryViewport>
+    </StoryChat>
+  )
+}
+
+/** At the end of a long session, what the turn adds as soon as an approval is
+ *  answered scrolls into view: the answer hands the turn back, so the click
+ *  that sent it doesn't hold the view as a click opening a row does. */
+export const AnsweredApproval: StoryObj = {
+  render: () => <AnsweredApprovalExample />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const [allow] = await canvas.findAllByRole('button', { name: /^Yes/ })
+    if (allow) {
+      await userEvent.click(allow)
+    }
+    await canvas.findByText(/Deleted web-frontend-7d9f/)
   },
 }

@@ -1059,7 +1059,14 @@ lost to it. A host's own Stop elsewhere in the view stops the same way through
 the `ref`'s `SessionViewHandle.stop()`, and its `recall()` takes back what the
 composer's `recall` gives as ↑ does, for a message the host learns later was
 never read, such as one whose turn failed first; focus held elsewhere stays
-there.
+there. It resolves to whether anything came back, and `recall({ ifEmpty: true })`
+takes nothing while the box holds what the person put there, as a terminal
+refills only an empty line. Typed into while the take is out, the box keeps
+what was typed: a `RecalledMessage` the host marks `shown`, still drawn where
+it was sent, is let go, and the rest still comes back. The recall's `placed`
+hears which of what `take` answered went into the box, the same objects, so a
+host that puts back parts of a message the box does not hold, such as its
+images, puts back those of the messages placed only.
 
 A host's own list of conversations or sessions builds on `ConversationSidebar`
 with the same pieces the chat's list uses: `SidebarRow` with `SidebarRowBody`

@@ -342,6 +342,43 @@ describe('ChatMessageList scrolled through a long conversation', () => {
     expect(log.scrollTop).toBe(log.scrollHeight - VIEW)
   })
 
+  it('keeps following the end after a send that draws the turns it let go of and lets go of them again', () => {
+    const short = (n: number): Message[] => [
+      { id: `q${n}`, role: 'user', content: `Ask ${n}` },
+      { id: `r${n}`, role: 'assistant', content: `Answer ${n}` },
+    ]
+    // Short turns: the end it draws reaches many screens back, and it lets go
+    // of all but the last few as soon as it lays them out.
+    const conversation = Array.from({ length: 60 }, (_, i) => short(i + 1)).flat()
+    const { log, ref, rerender } = renderList(conversation)
+    // As a browser does, a list that shrinks below the position moves it up to fit.
+    let at = 0
+    const height = () => log.querySelectorAll('[data-row]').length * ROW
+    const clamp = () => {
+      at = Math.max(0, Math.min(at, height() - VIEW))
+      return at
+    }
+    Object.defineProperty(log, 'clientHeight', { configurable: true, value: VIEW })
+    Object.defineProperty(log, 'scrollHeight', { configurable: true, get: height })
+    Object.defineProperty(log, 'scrollTop', {
+      configurable: true,
+      get: clamp,
+      set: (y: number) => {
+        at = y
+        clamp()
+      },
+    })
+    scrollWithin(log, Number.MAX_SAFE_INTEGER)
+    expect(drawnIds().length).toBeLessThan(conversation.length - 40)
+
+    // A send: the view goes to the end, then the message joins the conversation.
+    act(() => ref.current?.jumpToLatest())
+    rerender([...conversation, { id: 'q61', role: 'user', content: 'Ask 61' }])
+
+    expect(log.scrollTop).toBe(log.scrollHeight - VIEW)
+    expect(screen.queryByText('Jump to latest')).not.toBeInTheDocument()
+  })
+
   it('opens or closes the blocks it does not draw with the ones it does, as expand-all changes', () => {
     const list = (all: boolean, messages = turns(1, 3)) => (
       <ExpandAllProvider value={all}>

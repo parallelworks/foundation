@@ -171,6 +171,62 @@ export const AgentComposer: StoryObj<{
   ),
 }
 
+type HostFilesStoryArgs = { accept: string; disabled: boolean }
+
+function HostFilesExample({ accept, disabled }: HostFilesStoryArgs) {
+  const [names, setNames] = useState<string[]>([])
+  return (
+    <StoryChat>
+      <div>
+        <ChatInput
+          onSend={send}
+          attachments={false}
+          requireModel={false}
+          conversationId="agent-files"
+          disabled={disabled}
+          files={{
+            accept: accept || undefined,
+            onAdd: (files) => setNames((current) => [...current, ...files.map((f) => f.name)]),
+          }}
+          notices={names.length > 0 && <NoticeCard>Holding {names.join(', ')}</NoticeCard>}
+          settingsRight={<EffortPicker effort="high" onPick={() => {}} />}
+        />
+      </div>
+    </StoryChat>
+  )
+}
+
+// Files the host takes itself, as an agent's composer does with images it
+// saves where the agent runs: the + opens the picker, and a drop on the
+// composer or a paste into it hands them over. The host draws what it holds.
+// The play pastes one image.
+export const HostFiles: StoryObj<HostFilesStoryArgs> = {
+  args: { accept: 'image/png,image/jpeg,image/gif,image/webp', disabled: false },
+  argTypes: {
+    accept: {
+      control: 'text',
+      description: "The types the picker offers, as a file input's accept",
+    },
+    disabled: {
+      control: 'boolean',
+      description: 'The host holds the box: the + and a drop take nothing',
+    },
+  },
+  render: (args) => <HostFilesExample {...args} />,
+  play: async ({ canvasElement }) => {
+    const textarea = canvasElement.querySelector('textarea')
+    if (!textarea || textarea.disabled) {
+      return
+    }
+    const clipboardData = new DataTransfer()
+    clipboardData.items.add(new File(['x'], 'diagram.png', { type: 'image/png' }))
+    textarea.dispatchEvent(
+      new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true }),
+    )
+    await within(canvasElement).findByText('Holding diagram.png')
+  },
+}
+
 const slashCommands = [
   { name: 'model', description: 'Show or change the current model', argumentHint: '[model-name]' },
   { name: 'recap', description: 'Recap the session in a sentence or two' },
@@ -255,6 +311,45 @@ export const EmojiShortcodes: StoryObj<{ typed: string }> = {
   ),
   play: async ({ canvasElement, args }) => {
     await userEvent.type(within(canvasElement).getByRole('textbox'), args.typed)
+  },
+}
+
+type ShellStoryArgs = { typed: string; shell: boolean; toolbar: boolean }
+
+// A target that runs a `!` line as a shell command, as a terminal's shell mode
+// does: a `!` typed first becomes the box's magenta prompt, the box takes the
+// shell's edge and a monospace face, and the hint line says what Enter does.
+// Backspace at the command's start, or Escape on an empty one, leaves it, and ↑
+// from a bare `!` walks only shell commands. The play types `typed`.
+export const ShellMode: StoryObj<ShellStoryArgs> = {
+  args: { typed: '!git log --oneline -5', shell: true, toolbar: true },
+  argTypes: {
+    typed: { control: 'text', description: 'Typed into the composer' },
+    shell: { control: 'boolean', description: 'The host runs a `!` line as a shell command' },
+    toolbar: { control: 'boolean', description: 'The host puts controls of its own in the box' },
+  },
+  render: (args) => (
+    <StoryChat>
+      <div>
+        <ChatInput
+          key={`${args.shell}${args.toolbar}`}
+          onSend={send}
+          attachments={false}
+          requireModel={false}
+          conversationId="conv-shell"
+          history={{ name: 'story-shell' }}
+          shell={args.shell}
+          settingsRight={args.toolbar ? <EffortPicker effort="high" onPick={() => {}} /> : null}
+        />
+      </div>
+    </StoryChat>
+  ),
+  play: async ({ canvasElement, args }) => {
+    const box = within(canvasElement).getByRole('textbox')
+    // Clearing a command keeps shell mode; Escape on the empty command leaves it.
+    await userEvent.clear(box)
+    await userEvent.keyboard('{Escape}')
+    await userEvent.type(box, args.typed)
   },
 }
 

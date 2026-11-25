@@ -615,10 +615,20 @@ function AskRoundTrip({
   )
 }
 
-// A lone question: a pick only chooses, and Send sends it.
+// A lone question: a pick only chooses, and Send sends it; on a single-select one, the pick's card
+// opens its notes from Add notes or N.
 export const AskQuestion: StoryObj<{ multiSelect: boolean }> = {
   args: { multiSelect: false },
   render: ({ multiSelect }) => <AskRoundTrip questions={1} multiSelect={multiSelect} />,
+  play: async ({ canvasElement, args }) => {
+    if (args.multiSelect) {
+      return
+    }
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /Shard 4/ }))
+    await userEvent.keyboard('n')
+    await userEvent.type(canvas.getByRole('textbox', { name: 'Notes' }), 'Only the flaky jobs')
+  },
 }
 
 // Several questions, one tab each; a pick or Enter moves on.
@@ -655,6 +665,8 @@ export const AskPreviews: StoryObj<{ questions: number }> = {
     await expect(
       await canvas.findByRole('region', { name: 'Preview: Shard 12' }),
     ).toBeInTheDocument()
+    await userEvent.click(canvas.getByRole('button', { name: /Shard 12/ }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Add notes' }))
     await userEvent.type(canvas.getByRole('textbox', { name: 'Notes' }), 'Only the flaky jobs')
   },
 }
@@ -713,6 +725,9 @@ export const TodoChecklist: StoryObj<{ pending: number; completed: number }> = {
   ),
 }
 
+const longWordDetail =
+  'Every hour, read the run log (./report --fields id,name,status,owner,created_at,updated_at,started_at,ended_at,exit_code) and say which runs failed since the last check.'
+
 export const Notices: StoryObj = {
   render: () => (
     <AgentMessageParts
@@ -722,6 +737,9 @@ export const Notices: StoryObj = {
           { kind: 'notice', text: 'Session resumed from checkpoint.' },
           { kind: 'warning', text: 'Hook rewrote the tool arguments.' },
           { kind: 'error', text: 'The provider returned a 429; retrying.' },
+          // A word too long for the column wraps rather than running past it, open or folded.
+          { kind: 'notice', text: '! ./report', detail: longWordDetail, open: true },
+          { kind: 'notice', text: '✻ Started by scheduled task a82adb24', detail: longWordDetail },
         ],
       })}
     />

@@ -149,14 +149,29 @@ describe('CreateModal name', () => {
     expect(name).toBeInvalid()
   })
 
-  it('marks an empty name once focus leaves the dialog', async () => {
+  it('leaves an empty name unmarked when focus leaves the dialog, as a click outside does', async () => {
     render(<Blank outside />)
     const name = await screen.findByRole('textbox', { name: 'Issue title' })
-    // Once the dialog has put focus there itself, so its opening doesn't refocus it later.
     await waitFor(() => expect(name).toHaveFocus())
     // Focus that lands on nothing in the dialog, as on the page behind it.
     name.blur()
-    await waitFor(() => expect(name).toBeInvalid())
+    await settle()
+    expect(name).not.toBeInvalid()
+  })
+
+  it('clears a marked name when the dialog closes', async () => {
+    const props = {
+      onClose: vi.fn(),
+      typeLabel: 'Issue',
+      namePlaceholder: 'Issue title',
+      onSubmit: vi.fn(),
+    }
+    const { rerender } = render(<CreateModal open {...props} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Create' }))
+    expect(screen.getByRole('textbox', { name: 'Issue title' })).toBeInvalid()
+    rerender(<CreateModal open={false} {...props} />)
+    rerender(<CreateModal open {...props} />)
+    expect(await screen.findByRole('textbox', { name: 'Issue title' })).not.toBeInvalid()
   })
 
   it('starts each opening with a fresh name', async () => {

@@ -283,6 +283,84 @@ describe('ChatInput paste-to-attach', () => {
   })
 })
 
+describe('ChatInput with files the host takes', () => {
+  const file = new File(['x'], 'shot.png', { type: 'image/png' })
+
+  function renderHost(disabled = false) {
+    const onAdd = vi.fn()
+    const ref = createRef<ChatInputHandle>()
+    const { container } = render(
+      <ChatInput
+        ref={ref}
+        onSend={vi.fn()}
+        conversationId="c1"
+        disabled={disabled}
+        files={{ accept: 'image/png,image/jpeg', onAdd }}
+      />,
+    )
+    const picker = container.querySelector<HTMLInputElement>('input[type="file"]')
+    if (!picker) {
+      throw new Error('no file picker')
+    }
+    return { onAdd, ref, picker }
+  }
+
+  const drop = (files: File[]) =>
+    fireEvent.drop(textarea(), { dataTransfer: { files, types: ['Files'] } })
+
+  it('opens the picker from the + and hands what is picked to the host', () => {
+    const { onAdd, picker } = renderHost()
+    const click = vi.spyOn(picker, 'click')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Attach files' }))
+    expect(click).toHaveBeenCalled()
+    expect(picker).toHaveAttribute('accept', 'image/png,image/jpeg')
+
+    fireEvent.change(picker, { target: { files: [file] } })
+    expect(onAdd).toHaveBeenCalledWith([file])
+    expect(screen.queryByTestId('attachment-upload')).toBeNull()
+  })
+
+  it('hands dropped and pasted files to the host instead of uploading them', () => {
+    const { onAdd } = renderHost()
+
+    drop([file])
+    pasteFiles([file])
+
+    expect(onAdd).toHaveBeenCalledTimes(2)
+    expect(onAdd).toHaveBeenNthCalledWith(1, [file])
+    expect(onAdd).toHaveBeenNthCalledWith(2, [file])
+    expect(addFilesMock).not.toHaveBeenCalled()
+  })
+
+  it('leaves text dragged into the box to the browser', () => {
+    const { onAdd } = renderHost()
+
+    const dropped = fireEvent.drop(textarea(), {
+      dataTransfer: { files: [], types: ['text/plain'] },
+    })
+
+    expect(dropped).toBe(true)
+    expect(onAdd).not.toHaveBeenCalled()
+  })
+
+  it('hands files added through its handle to the host', () => {
+    const { onAdd, ref } = renderHost()
+    act(() => ref.current?.addFiles([file]))
+    expect(onAdd).toHaveBeenCalledWith([file])
+  })
+
+  it('takes no files while the host holds the box', () => {
+    const { onAdd, ref } = renderHost(true)
+
+    expect(screen.getByRole('button', { name: 'Attach files' })).toBeDisabled()
+    drop([file])
+    act(() => ref.current?.addFiles([file]))
+
+    expect(onAdd).not.toHaveBeenCalled()
+  })
+})
+
 describe('ChatInput with a host-driven turn', () => {
   const stopButton = () => screen.queryByRole('button', { name: /stop/i })
 
@@ -696,6 +774,20 @@ const pressEnter = () => fireEvent.keyDown(textarea(), { key: 'Enter' })
 const pressUp = (init?: KeyboardEventInit) =>
   fireEvent.keyDown(textarea(), { key: 'ArrowUp', ...init })
 const pressDown = () => fireEvent.keyDown(textarea(), { key: 'ArrowDown' })
+/** Types at the caret a key at a time, as a person does, unlike typeInBox's one change. */
+const typeKeys = (keys: string, box: () => HTMLTextAreaElement = textarea) => {
+  for (const key of keys) {
+    const el = box()
+    const caret = el.selectionStart + key.length
+    fireEvent.change(el, {
+      target: {
+        value: el.value.slice(0, el.selectionStart) + key + el.value.slice(el.selectionEnd),
+        selectionStart: caret,
+        selectionEnd: caret,
+      },
+    })
+  }
+}
 
 describe('ChatInput failed sends', () => {
   it.each([
@@ -1194,12 +1286,13 @@ describe('ChatInput taking back what waits', () => {
   })
 
   it('leaves the box as it was when everything was read first', async () => {
-    const recall = waiting([])
+    const recall = { ...waiting([]), placed: vi.fn() }
     render(<ChatInput onSend={vi.fn()} conversationId="c1" recall={recall} />)
     pressUp()
     await act(async () => {})
     expect(textarea().value).toBe('')
     expect(storage.has('aiChatDraft:c1')).toBe(false)
+    expect(recall.placed).not.toHaveBeenCalled()
   })
 
   it('brings back what must not be remembered, without saving it as a draft', async () => {
@@ -1248,6 +1341,160 @@ describe('ChatInput taking back what waits', () => {
     await act(async () => ref.current?.recall())
     expect(textarea().value).toBe('also the docs\nand the tests\n\nmy draft')
     expect(textarea()).toHaveFocus()
+  })
+
+  it('lets a shown message go when the box fills while the take is out, keeping what typing needs', async () => {
+    const ref = createRef<ChatInputHandle>()
+    let answer: (taken: RecalledMessage[]) => void = () => {}
+    const recall = {
+      available: true,
+      take: vi.fn(
+        () =>
+          new Promise<RecalledMessage[]>((resolve) => {
+            answer = resolve
+          }),
+      ),
+      placed: vi.fn(),
+    }
+    render(<ChatInput ref={ref} onSend={vi.fn()} recall={recall} />)
+    let took: Promise<boolean> | undefined
+    act(() => {
+      took = ref.current?.recall({ focus: false, ifEmpty: true })
+    })
+    fireEvent.change(textarea(), { target: { value: 'my next message' } })
+    const failed = { text: 'the failed one', shown: true }
+    const queued = { text: 'the queued one' }
+    let result: boolean | undefined
+    await act(async () => {
+      answer([failed, queued])
+      result = await took
+    })
+    expect(result).toBe(true)
+    expect(textarea().value).toBe('the queued one\n\nmy next message')
+    // The host puts back what the box does not hold, such as images, for these only.
+    expect(recall.placed).toHaveBeenCalledExactlyOnceWith([queued])
+    expect(recall.placed.mock.calls[0]?.[0][0]).toBe(queued)
+  })
+
+  it('tells the host nothing went in when the box filled meanwhile let everything go', async () => {
+    const ref = createRef<ChatInputHandle>()
+    let answer: (taken: RecalledMessage[]) => void = () => {}
+    const recall = {
+      available: true,
+      take: vi.fn(
+        () =>
+          new Promise<RecalledMessage[]>((resolve) => {
+            answer = resolve
+          }),
+      ),
+      placed: vi.fn(),
+    }
+    render(<ChatInput ref={ref} onSend={vi.fn()} recall={recall} />)
+    let took: Promise<boolean> | undefined
+    act(() => {
+      took = ref.current?.recall({ focus: false, ifEmpty: true })
+    })
+    fireEvent.change(textarea(), { target: { value: 'my next message' } })
+    let result: boolean | undefined
+    await act(async () => {
+      answer([{ text: 'the failed one', shown: true }])
+      result = await took
+    })
+    expect(result).toBe(false)
+    expect(textarea().value).toBe('my next message')
+    expect(recall.placed).toHaveBeenCalledExactlyOnceWith([])
+  })
+
+  it('tells the host everything a take answered went into the box', async () => {
+    const docs = { text: 'also the docs' }
+    const tests = { text: 'and the tests' }
+    const recall = { ...waiting([docs, tests]), placed: vi.fn() }
+    render(<ChatInput onSend={vi.fn()} recall={recall} />)
+    pressUp()
+    await act(async () => {})
+    expect(textarea().value).toBe('also the docs\nand the tests')
+    expect(recall.placed).toHaveBeenCalledExactlyOnceWith([docs, tests])
+    expect(recall.placed.mock.calls[0]?.[0][0]).toBe(docs)
+    expect(recall.placed.mock.calls[0]?.[0][1]).toBe(tests)
+  })
+
+  it('takes back only into an empty box when asked, as a terminal refills only an empty line', async () => {
+    const ref = createRef<ChatInputHandle>()
+    const recall = waiting([{ text: 'rerun the flaky test' }])
+    render(<ChatInput ref={ref} onSend={vi.fn()} recall={recall} />)
+    fireEvent.change(textarea(), { target: { value: 'and check the docs' } })
+    let took: boolean | undefined
+    await act(async () => {
+      took = await ref.current?.recall({ focus: false, ifEmpty: true })
+    })
+    expect(took).toBe(false)
+    expect(recall.take).not.toHaveBeenCalled()
+    expect(textarea().value).toBe('and check the docs')
+
+    fireEvent.change(textarea(), { target: { value: '' } })
+    await act(async () => {
+      took = await ref.current?.recall({ focus: false, ifEmpty: true })
+    })
+    expect(took).toBe(true)
+    expect(textarea().value).toBe('rerun the flaky test')
+  })
+
+  it('takes nothing into an empty box holding a paste card', async () => {
+    const ref = createRef<ChatInputHandle>()
+    const recall = waiting([{ text: 'rerun the flaky test' }])
+    const upload = vi.fn(() => new Promise<PasteUploadResult>(() => {}))
+    render(
+      <ChatInput
+        ref={ref}
+        onSend={vi.fn()}
+        recall={recall}
+        pastes={{ inlineMaxBytes: 10, upload }}
+      />,
+    )
+    fireEvent.paste(textarea(), {
+      clipboardData: { files: [], getData: () => 'a long paste\n'.repeat(20) },
+    })
+    expect(screen.getByTestId('composer-pastes')).toBeInTheDocument()
+    let took: boolean | undefined
+    await act(async () => {
+      took = await ref.current?.recall({ focus: false, ifEmpty: true })
+    })
+    expect(took).toBe(false)
+    expect(recall.take).not.toHaveBeenCalled()
+  })
+
+  it('counts what came back into an empty box as holding it, before the box redraws', async () => {
+    const ref = createRef<ChatInputHandle>()
+    const take = vi
+      .fn<() => Promise<RecalledMessage[]>>()
+      .mockResolvedValueOnce([{ text: 'first' }])
+      .mockResolvedValueOnce([{ text: 'second' }])
+    render(<ChatInput ref={ref} onSend={vi.fn()} recall={{ available: true, take }} />)
+    const took: boolean[] = []
+    await act(async () => {
+      took.push((await ref.current?.recall({ focus: false, ifEmpty: true })) ?? false)
+      took.push((await ref.current?.recall({ focus: false, ifEmpty: true })) ?? false)
+    })
+    expect(took).toEqual([true, false])
+    expect(take).toHaveBeenCalledTimes(1)
+    expect(textarea().value).toBe('first')
+  })
+
+  it('takes back over a browsed entry, which ↓ then leaves in the box though it has its text', async () => {
+    appendHistory('agents', 'older prompt')
+    appendHistory('agents', 'rerun the flaky test')
+    const ref = createRef<ChatInputHandle>()
+    const recall = { available: false, take: vi.fn(async () => [{ text: 'rerun the flaky test' }]) }
+    render(<ChatInput ref={ref} onSend={vi.fn()} history={{ name: 'agents' }} recall={recall} />)
+    pressUp()
+    expect(textarea().value).toBe('rerun the flaky test')
+    let took: boolean | undefined
+    await act(async () => {
+      took = await ref.current?.recall({ focus: false, ifEmpty: true })
+    })
+    expect(took).toBe(true)
+    pressDown()
+    expect(textarea().value).toBe('rerun the flaky test')
   })
 
   it('leaves focus where it is when the host takes back unasked', async () => {
@@ -1385,20 +1632,6 @@ describe('chatHistory', () => {
 })
 
 describe('ChatInput emoji shortcodes', () => {
-  const typeKeys = (keys: string) => {
-    for (const key of keys) {
-      const el = textarea()
-      const caret = el.selectionStart + key.length
-      fireEvent.change(el, {
-        target: {
-          value: el.value.slice(0, el.selectionStart) + key + el.value.slice(el.selectionEnd),
-          selectionStart: caret,
-          selectionEnd: caret,
-        },
-      })
-    }
-  }
-
   it('turns a shortcode into its emoji as its closing colon is typed', () => {
     const onSend = vi.fn()
     render(<ChatInput onSend={onSend} conversationId="c1" />)
@@ -1536,5 +1769,127 @@ describe('ChatInput emoji shortcodes', () => {
       pressUp()
       expect(textarea().value).toBe('older')
     })
+  })
+})
+
+describe('ChatInput shell mode', () => {
+  // The box's placeholder is the one shell mode hides, so these find it by its role.
+  const box = () => screen.getByRole('textbox') as HTMLTextAreaElement
+  const type = (keys: string) => typeKeys(keys, box)
+  const key = (k: string) => fireEvent.keyDown(box(), { key: k })
+  const inShell = () => !!box().getAttribute('aria-describedby')
+
+  it('takes a ! typed first as the prompt, and sends the line ! and all', () => {
+    const onSend = vi.fn()
+    render(<ChatInput onSend={onSend} shell conversationId="c1" />)
+    type('!ls')
+    expect(box().value).toBe('ls')
+    expect(box()).toHaveAttribute('placeholder', '')
+    expect(box()).toHaveAccessibleDescription(
+      '! shell modeEnter runs it, and its output is added to the conversation',
+    )
+    expect(document.querySelector('[aria-live="polite"]')).toHaveTextContent('shell mode')
+    expect(JSON.parse(storage.get('aiChatDraft:c1') ?? '').text).toBe('!ls')
+    key('Enter')
+    expect(onSend).toHaveBeenCalledWith('!ls', undefined, undefined)
+    expect(box()).toHaveAttribute('placeholder', 'Ask anything')
+    expect(inShell()).toBe(false)
+  })
+
+  it('leaves the mode on backspace at the start, keeping the command', () => {
+    render(<ChatInput onSend={vi.fn()} shell />)
+    type('!ls')
+    box().setSelectionRange(0, 0)
+    expect(key('Backspace')).toBe(false)
+    expect(box().value).toBe('ls')
+    expect(inShell()).toBe(false)
+    // A ! typed before the text leaves the caret at the command's start.
+    type('!x')
+    expect(box().value).toBe('xls')
+    expect(inShell()).toBe(true)
+  })
+
+  it('leaves an empty command on Escape, before Escape reaches a running turn', () => {
+    render(<ChatInput onSend={vi.fn()} shell />)
+    type('!ls')
+    expect(key('Escape')).toBe(true)
+    expect(inShell()).toBe(true)
+    fireEvent.change(box(), { target: { value: '' } })
+    expect(key('Escape')).toBe(false)
+    expect(box()).toHaveAttribute('placeholder', 'Ask anything')
+    expect(inShell()).toBe(false)
+  })
+
+  it('takes a pasted shell line as the mode, caret at its end', () => {
+    render(<ChatInput onSend={vi.fn()} shell />)
+    fireEvent.change(box(), {
+      target: { value: '!git status', selectionStart: 11, selectionEnd: 11 },
+    })
+    expect(box().value).toBe('git status')
+    expect(box().selectionStart).toBe(10)
+    expect(inShell()).toBe(true)
+  })
+
+  it('sends nothing for a bare !, even where an empty send is allowed', () => {
+    const onSend = vi.fn()
+    render(<ChatInput onSend={onSend} shell allowEmpty sendLabel="Send" />)
+    type('!')
+    key('Enter')
+    expect(onSend).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
+    expect(inShell()).toBe(true)
+  })
+
+  it('walks only shell commands from a bare !, and everything from an empty box', () => {
+    render(
+      <ChatInput
+        onSend={vi.fn()}
+        shell
+        history={{ name: 'agents', seed: ['fix it', '!make', 'explain the diff', '!git status'] }}
+      />,
+    )
+    type('!')
+    const walked = ['ArrowUp', 'ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown'].map((k) => {
+      key(k)
+      return `${inShell() ? '!' : ''}${box().value}`
+    })
+    expect(walked).toEqual(['!git status', '!make', '!make', '!git status', '!'])
+
+    key('Escape')
+    key('ArrowUp')
+    expect([box().value, inShell()]).toEqual(['git status', true])
+    key('ArrowUp')
+    expect([box().value, inShell()]).toEqual(['explain the diff', false])
+  })
+
+  it('keeps the mode in a draft', () => {
+    const { unmount } = render(<ChatInput onSend={vi.fn()} shell conversationId="c1" />)
+    type('!make test')
+    unmount()
+    render(<ChatInput onSend={vi.fn()} shell conversationId="c1" />)
+    expect(box().value).toBe('make test')
+    expect(inShell()).toBe(true)
+  })
+
+  it('leaves shortcodes in a command as typed', () => {
+    render(<ChatInput onSend={vi.fn()} shell />)
+    type('!echo :ey')
+    expect(screen.queryByTestId('emoji-menu')).toBeNull()
+    type('es:')
+    expect(box().value).toBe('echo :eyes:')
+  })
+
+  it("gives the hint line to the host's own hint", () => {
+    render(<ChatInput onSend={vi.fn()} shell hint="Read-only while archived" />)
+    type('!ls')
+    expect(screen.getByText('Read-only while archived')).toBeInTheDocument()
+    expect(screen.queryByText(/Enter runs it/)).toBeNull()
+  })
+
+  it('is a message like any other for a target without a shell', () => {
+    render(<ChatInput onSend={vi.fn()} />)
+    typeKeys('!wow :eyes:')
+    expect(textarea().value).toBe('!wow 👀')
+    expect(textarea()).not.toHaveAccessibleDescription()
   })
 })

@@ -6,6 +6,7 @@ import {
   type Ref,
   useCallback,
   useEffect,
+  useId,
   useImperativeHandle,
   useLayoutEffect,
   useRef,
@@ -29,6 +30,7 @@ import { EmojiMenu, useEmojiMenu } from './EmojiMenu'
 import { closeShortcode } from './emojiShortcode'
 import { PasteFileCard } from './PastedText'
 import { SlashArgumentHint, SlashMenu, type SlashMenuConfig, useSlashMenu } from './SlashMenu'
+import { isShellLine, shellText } from './shellLine'
 import { type ComposerHistory, useComposerHistory } from './useComposerHistory'
 import { usePasteCards } from './usePasteCards'
 
@@ -56,6 +58,9 @@ interface ChatInputProps {
   allowEmpty?: boolean
   /** Attach, paste, and drop files. Off for a target that takes text only. */
   attachments?: boolean
+  /** Files picked from the +, dropped on the composer or pasted into it go to
+   *  the host in place of the chat's attachments. */
+  files?: ComposerFiles | undefined
   /** Hold sending until the provider's selected model is one it can serve.
    *  Off when the target picks its own model. */
   requireModel?: boolean
@@ -64,6 +69,11 @@ interface ChatInputProps {
   sendTestId?: string
   /** Offers the host's slash commands as the input starts with /. */
   slash?: SlashMenuConfig | undefined
+  /** The host runs a message starting with `!` as a shell command, as a
+   *  terminal's shell mode does: a `!` typed first becomes the box's prompt,
+   *  the hint line says what Enter does, and ↑ walks only shell commands.
+   *  Backspace at the command's start, or Escape on an empty one, leaves it. */
+  shell?: boolean | undefined
   /** Cards above everything else, such as a warning about this turn. */
   notices?: ReactNode
   /** Sits where a terminal's spinner line would, just above the box. */
@@ -89,14 +99,22 @@ interface ChatInputProps {
   ref?: Ref<ChatInputHandle> | undefined
 }
 
+/** Files the host takes itself, such as images a session saves where it runs. */
+export interface ComposerFiles {
+  /** The types the picker offers, as a file input's `accept`. */
+  accept?: string | undefined
+  onAdd: (files: File[]) => void
+}
+
 export interface ChatInputHandle {
   addFiles: (files: FileList | File[]) => void
   focus: () => void
   /** Takes back what waits into the box, ahead of anything typed there;
-   *  resolves once it is there, or once the host had nothing to give back.
-   *  `focus: false` is for a take the person did not ask for: focus held
-   *  elsewhere stays there. */
-  recall: (options?: { focus?: boolean }) => Promise<void>
+   *  resolves once it is there, to whether anything came back. `focus: false`
+   *  is for a take the person did not ask for: focus held elsewhere stays
+   *  there. `ifEmpty` takes nothing while the box holds something the person
+   *  put there, as a terminal refills only an empty line. */
+  recall: (options?: { focus?: boolean; ifEmpty?: boolean }) => Promise<boolean>
 }
 
 /** A message taken back before it was read. */
@@ -104,6 +122,10 @@ export interface RecalledMessage {
   text: string
   /** Pastes the target saved, which the text names by placeholder. */
   pastes?: MessagePaste[] | undefined
+  /** Still drawn where it was sent, such as one whose turn failed: a take
+   *  that asked for an empty box lets it go when the box filled meanwhile,
+   *  rather than join what was typed. */
+  shown?: boolean | undefined
 }
 
 /** Messages sent but not read yet, as a terminal holds what is typed while it works. */
@@ -113,6 +135,12 @@ export interface ComposerRecall {
   /** Takes back what waits, oldest first. One read meanwhile stays sent, so
    *  this can answer with fewer, or none. */
   take: () => Promise<RecalledMessage[]>
+  /** Told which of what `take` answered went into the box, the same objects
+   *  in their order, once it settles: a take into an empty box lets a `shown`
+   *  message go when the box filled meanwhile. A host that puts back parts
+   *  of a message the box does not hold, such as its images, puts back those
+   *  of these messages only. */
+  placed?: ((messages: RecalledMessage[]) => void) | undefined
 }
 
 /** Its pastes come back as cards, so the placeholders the send added go. */
@@ -145,6 +173,29 @@ function sendability({
   const canSend =
     (hasText || canFlushQueue || allowEmpty) && !disabled && modelReady && pendingCount === 0
   return { canSend, emphasized: canSend && (hasText || !allowEmpty) }
+}
+
+/** Backspace at the very start of a shell command leaves shell mode, as deleting a
+ *  typed `!` would, and Escape leaves an empty one before it reaches a running turn. */
+function leavesShell(e: KeyboardEvent<HTMLTextAreaElement>, command: string): boolean {
+  if (e.nativeEvent.isComposing) {
+    return false
+  }
+  const { selectionStart, selectionEnd } = e.currentTarget
+  if (e.key === 'Backspace') {
+    return selectionStart === 0 && selectionEnd === 0
+  }
+  return e.key === 'Escape' && command === ''
+}
+
+/** Takes a `!` typed or pasted first as the prompt, leaving the box what follows it, caret and all. */
+function enterShell(el: HTMLTextAreaElement): string {
+  const cut = el.value.indexOf('!') + 1
+  const caret = Math.max(0, el.selectionStart - cut)
+  const command = el.value.slice(cut)
+  el.value = command
+  el.setSelectionRange(caret, caret)
+  return `!${command}`
 }
 
 function keyAction(
@@ -234,11 +285,13 @@ export default function ChatInput({
   onEditLastMessage,
   allowEmpty = false,
   attachments: attachmentsWanted = true,
+  files,
   requireModel = true,
   inputLabel,
   sendLabel,
   sendTestId,
   slash,
+  shell = false,
   notices,
   activity,
   context,
@@ -295,34 +348,54 @@ export default function ChatInput({
   const chatStrings = useChatConfig().strings
   const t = chatStrings.input
   const effectivePlaceholder = placeholder ?? t.placeholder
+  const shellMode = shell && isShellLine(input)
+  // Drafts, history and sends hold the whole line; the box holds only the command beside its `!` prompt.
+  const boxText = shellMode ? shellText(input) : input
+  const shellHintId = useId()
   // A phone has no ↑ to press, so only a box with a fine pointer offers it.
   const finePointer = useMediaQuery('(any-pointer: fine)')
   const shownPlaceholder =
     recall?.available && finePointer ? chatStrings.queue.editHint : effectivePlaceholder
-  const attachmentsAvailable = attachmentsWanted && !!adapter.attachments
-  const latestTakeBack = useRef(async () => {})
+  const attachmentsAvailable = !files && attachmentsWanted && !!adapter.attachments
+  // A box the host holds takes no files, as it takes no typing.
+  const hostTakesFiles = !!files && !disabled
+  const takesFiles = attachmentsAvailable || hostTakesFiles
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const latestTakeBack = useRef(async (_ifEmpty: boolean) => false)
+  const latestFiles = useRef({ files, hostTakesFiles })
+  latestFiles.current = { files, hostTakesFiles }
+
+  const handleFilesDropped = useCallback((dropped: FileList | File[]) => {
+    const host = latestFiles.current
+    if (host.files) {
+      if (host.hostTakesFiles && dropped.length > 0) {
+        host.files.onAdd(Array.from(dropped))
+      }
+      return
+    }
+    setShowAttachments(true)
+    // Use setTimeout to ensure AttachmentUpload is mounted
+    setTimeout(() => {
+      attachmentUploadRef.current?.addFiles(dropped)
+    }, 0)
+  }, [])
 
   // Expose addFiles and focus methods to parent
   useImperativeHandle(
     ref,
     () => ({
-      addFiles: (files: FileList | File[]) => {
-        setShowAttachments(true)
-        setTimeout(() => {
-          attachmentUploadRef.current?.addFiles(files)
-        }, 0)
-      },
+      addFiles: handleFilesDropped,
       focus: () => {
         textareaRef.current?.focus()
       },
-      recall: ({ focus = true } = {}) => {
+      recall: ({ focus = true, ifEmpty = false } = {}) => {
         if (focus) {
           textareaRef.current?.focus()
         }
-        return latestTakeBack.current()
+        return latestTakeBack.current(ifEmpty)
       },
     }),
-    [],
+    [handleFilesDropped],
   )
 
   useEffect(() => {
@@ -406,6 +479,11 @@ export default function ChatInput({
 
   const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     const el = e.currentTarget
+    if (shell && (shellMode || isShellLine(el.value))) {
+      setInputAndPersist(shellMode ? `!${el.value}` : enterShell(el))
+      readCaret(el)
+      return
+    }
     // An input method still composing owns the text until it commits.
     const composing = 'isComposing' in e.nativeEvent && e.nativeEvent.isComposing === true
     const emoji = composing ? null : closeShortcode(input, el.value, el.selectionStart)
@@ -416,11 +494,16 @@ export default function ChatInput({
     setInputAndPersist(el.value)
   }
 
-  const composerHistory = useComposerHistory(history, input, setInput)
+  const composerHistory = useComposerHistory(history, input, setInput, shell)
   // A send answers later, by when the box may hold something else or another
   // conversation. A recalled entry is not typing, so it gives way.
-  const box = useRef({ conversationId, typed: input })
-  box.current = { conversationId, typed: composerHistory.recalled ? '' : input }
+  const box = useRef({ conversationId, typed: input, holds: false })
+  const typed = composerHistory.recalled ? '' : input
+  box.current = {
+    conversationId,
+    typed,
+    holds: typed.trim() !== '' || cards.length > 0 || attachments.length > 0,
+  }
   const [refocus, setRefocus] = useState(false)
   const mounted = useRef(false)
   useEffect(() => {
@@ -449,8 +532,10 @@ export default function ChatInput({
       return
     }
     const value = [sent.input, typed].filter((text) => text.trim()).join('\n\n')
+    composerHistory.leave()
     setInput(value)
     box.current.typed = value
+    box.current.holds ||= value !== '' || sent.cards.length > 0 || sent.attachments.length > 0
     saveDraft(value)
     returnCards(sent.cards)
     if (sent.attachments.length > 0) {
@@ -462,21 +547,33 @@ export default function ChatInput({
 
   // Held while a take is out, so another ↑ neither takes again nor walks the history.
   const recalling = useRef(false)
-  const takeBack = async () => {
-    if (!recall || recalling.current) {
-      return
+  const boxFilled = (conversation: string | undefined) =>
+    mounted.current && box.current.conversationId === conversation
+      ? box.current.holds
+      : readDraft(conversation).trim() !== ''
+  const takeBack = async (ifEmpty = false) => {
+    if (!recall || recalling.current || (ifEmpty && box.current.holds)) {
+      return false
     }
     recalling.current = true
     const from = conversationId
     try {
-      const taken = await recall.take()
+      const took = await recall.take()
+      // Typed into while the take was out, the box keeps what was typed: a message
+      // still drawn where it was sent goes, and only what nothing else holds comes back.
+      const taken = ifEmpty && boxFilled(from) ? took.filter((m) => !m.shown) : took
       if (taken.length > 0) {
         const input = recalledText(taken)
         const cards = savedCards(taken.flatMap((m) => m.pastes ?? []))
         putBack({ conversationId: from, input, cards, attachments: [] }, true)
       }
+      if (took.length > 0) {
+        recall.placed?.(taken)
+      }
+      return taken.length > 0
     } catch (error) {
       console.error('Failed to take back messages:', error)
+      return false
     } finally {
       recalling.current = false
     }
@@ -513,9 +610,10 @@ export default function ChatInput({
   // A queue held across a canceled or failed turn can be sent on its own.
   const canFlushQueue = !isStreaming && queuedCount > 0 && !disabled
   const { canSend, emphasized } = sendability({
-    hasText: input.trim().length > 0 || cards.length > 0,
+    hasText: boxText.trim().length > 0 || cards.length > 0,
     canFlushQueue,
-    allowEmpty,
+    // A bare `!` runs nothing, so it sends nothing either.
+    allowEmpty: allowEmpty && !shellMode,
     disabled,
     modelReady: isSelectedModelAvailable || !requireModel,
     pendingCount: pendingCount + (pastesBlocking ? 1 : 0),
@@ -525,7 +623,7 @@ export default function ChatInput({
     if (!canSend) {
       return
     }
-    if (!input.trim() && cards.length === 0 && canFlushQueue) {
+    if (!boxText.trim() && cards.length === 0 && canFlushQueue) {
       flushQueuedMessages()
       return
     }
@@ -555,6 +653,7 @@ export default function ChatInput({
     setInput('')
     // A host can answer before the render that empties the box.
     box.current.typed = ''
+    box.current.holds = false
     clearDraft(conversationId)
     setAttachments([])
     setShowAttachments(false)
@@ -577,17 +676,27 @@ export default function ChatInput({
     composerHistory.recalled ? undefined : slash,
     setInputAndPersist,
   )
-  const emojiMenu = useEmojiMenu(input, caret, !composerHistory.recalled, (text, at) => {
-    const el = textareaRef.current
-    if (el) {
-      putEmoji(el, text, at)
-      el.focus()
-    }
-    setCaret(at)
-    setInputAndPersist(text)
-  })
+  const emojiMenu = useEmojiMenu(
+    input,
+    caret,
+    !composerHistory.recalled && !shellMode,
+    (text, at) => {
+      const el = textareaRef.current
+      if (el) {
+        putEmoji(el, text, at)
+        el.focus()
+      }
+      setCaret(at)
+      setInputAndPersist(text)
+    },
+  )
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (shellMode && leavesShell(e, boxText)) {
+      e.preventDefault()
+      setInputAndPersist(boxText)
+      return
+    }
     if (recallKey(e)) {
       e.preventDefault()
       void takeBack()
@@ -610,19 +719,11 @@ export default function ChatInput({
     }
   }
 
-  const handleFilesDropped = useCallback((files: FileList | File[]) => {
-    setShowAttachments(true)
-    // Use setTimeout to ensure AttachmentUpload is mounted
-    setTimeout(() => {
-      attachmentUploadRef.current?.addFiles(files)
-    }, 0)
-  }, [])
-
   const handlePaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
-    const files = Array.from(e.clipboardData?.files ?? [])
-    if (attachmentsAvailable && files.length > 0) {
+    const pasted = Array.from(e.clipboardData?.files ?? [])
+    if (takesFiles && pasted.length > 0) {
       e.preventDefault()
-      handleFilesDropped(files)
+      handleFilesDropped(pasted)
       return
     }
     // Text too big to send inline becomes a card; the rest pastes as usual.
@@ -637,9 +738,9 @@ export default function ChatInput({
 
   // A turn the provider doesn't run, such as an agent's, can't use its tools.
   const toolsAvailable = toolsAllowed && !turn && tools.length > 0
-  const toolbar = attachmentsAvailable || toolsAvailable || !!settingsRight
+  const toolbar = attachmentsAvailable || !!files || toolsAvailable || !!settingsRight
   const action =
-    isStreaming && !input.trim() ? (
+    isStreaming && !boxText.trim() ? (
       <button
         type="button"
         onClick={stopStreaming}
@@ -659,13 +760,31 @@ export default function ChatInput({
         testId={sendTestId}
       />
     )
+  // As a terminal's footer does, the hint line says what Enter does with a command,
+  // unless the host has something of its own to say there.
+  const shellHint = shellMode && !hint
 
   return (
     <div
       className="chat-composer-dock relative px-4 pt-2 pb-5"
-      {...(attachmentsAvailable ? dragHandlers : {})}
+      {...(attachmentsAvailable || files ? dragHandlers : {})}
     >
-      {isDragging && <DragOverlay className="rounded-2xl" />}
+      {isDragging && takesFiles && <DragOverlay className="rounded-2xl" />}
+      {files && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept={files.accept}
+          className="hidden"
+          onChange={(e) => {
+            const picked = Array.from(e.currentTarget.files ?? [])
+            // The same file picked again is a change only once the input forgets it.
+            e.currentTarget.value = ''
+            handleFilesDropped(picked)
+          }}
+        />
+      )}
       <div className="mx-auto w-full max-w-[var(--chat-column,50rem)] space-y-2 sm:px-4">
         {notices}
         <div>
@@ -708,7 +827,12 @@ export default function ChatInput({
               attached above, the attach and send controls in a toolbar
               under the text, and the model on that toolbar's right, so the
               eye never leaves the box to see where it goes. */}
-            <div className="chat-composer @container flex flex-col rounded-[1.25rem] bg-(--theme-panel-bg)">
+            <div
+              className={cx(
+                'chat-composer @container flex flex-col rounded-[1.25rem] bg-(--theme-panel-bg)',
+                shellMode && 'chat-composer-shell',
+              )}
+            >
               {showAttachments && attachmentsAvailable && (
                 <div className="px-3 pt-3">
                   <AttachmentUpload
@@ -724,25 +848,45 @@ export default function ChatInput({
               {/* With nothing to put beside it, send sits at the end of the
                 text's own row rather than alone on an empty toolbar. */}
               <div className={cx(!toolbar && 'flex items-end gap-2 pr-2 pb-2')}>
-                <div className="max-h-[200px] min-w-0 flex-1 overflow-y-auto">
+                <div
+                  className={cx(
+                    'max-h-[200px] min-w-0 flex-1 overflow-y-auto',
+                    shellMode && 'flex items-start',
+                  )}
+                >
+                  {/* A terminal's shell-mode prompt: the `!` is no part of the text. */}
+                  {shellMode && (
+                    <span
+                      aria-hidden="true"
+                      className={cx(
+                        'shrink-0 select-none pl-4 font-mono text-[1rem] leading-relaxed font-bold text-(--theme-ansi-magenta)',
+                        toolbar ? 'pt-3.5' : 'pt-3',
+                        disabled && 'opacity-50',
+                      )}
+                    >
+                      !
+                    </span>
+                  )}
                   <textarea
                     ref={textareaRef}
-                    value={input}
+                    value={boxText}
                     onChange={handleChange}
                     onKeyDown={handleKeyDown}
                     onPaste={handlePaste}
                     onSelect={(e) => readCaret(e.currentTarget)}
                     {...slashMenu.inputProps}
                     {...emojiMenu.inputProps}
-                    placeholder={shownPlaceholder}
+                    {...(shellHint ? { 'aria-describedby': shellHintId } : {})}
+                    placeholder={shellMode ? '' : shownPlaceholder}
                     aria-label={inputLabel ?? effectivePlaceholder}
                     disabled={disabled}
                     autoComplete="off"
                     data-1p-ignore
                     rows={1}
                     className={cx(
-                      'theme-text block w-full resize-none overflow-hidden',
-                      'bg-transparent border-0 px-4',
+                      'theme-text block resize-none overflow-hidden',
+                      'bg-transparent border-0',
+                      shellMode ? 'min-w-0 flex-1 pr-4 pl-2 font-mono' : 'w-full px-4',
                       toolbar ? 'pt-3.5 pb-1' : 'pt-3 pb-1',
                       'placeholder:text-(--theme-placeholder)',
                       'focus:outline-none focus:ring-0',
@@ -761,6 +905,7 @@ export default function ChatInput({
                     onToggleAttachments={
                       attachmentsAvailable ? () => setShowAttachments(!showAttachments) : undefined
                     }
+                    onPickFiles={files ? () => fileInputRef.current?.click() : undefined}
                     disabled={disabled}
                     withTools={toolsAllowed && !turn}
                   />
@@ -792,6 +937,20 @@ export default function ChatInput({
             />
           )}
           {hint && <p className="mt-1 text-center text-[11px] theme-muted-text">{hint}</p>}
+          {shellHint && (
+            <p id={shellHintId} className="mt-1 text-center text-[11px] theme-muted-text">
+              <span className="font-mono font-semibold text-(--theme-ansi-magenta)">
+                ! {t.shellMode}
+              </span>
+              <span className="ml-2">{t.shellHint}</span>
+            </p>
+          )}
+          {/* The `!` leaves the text as it is typed, so a screen reader hears the mode change. */}
+          {shell && (
+            <span className="sr-only" aria-live="polite">
+              {shellMode ? t.shellMode : ''}
+            </span>
+          )}
         </div>
       </div>
     </div>

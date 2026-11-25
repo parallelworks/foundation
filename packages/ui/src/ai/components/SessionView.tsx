@@ -70,7 +70,7 @@ export interface SessionViewProps {
   /** Still loading the first messages: the transcript stays empty and the
    *  composer disabled. */
   loading?: boolean
-  /** Files dropped anywhere on the view go to the composer's attachments. */
+  /** Files dropped anywhere on the view go to the composer, as if dropped on it. */
   dropFiles?: boolean
   footer?: ReactNode
   label?: string
@@ -95,8 +95,10 @@ export interface SessionViewHandle {
   stop: () => Promise<void>
   /** Takes back into the composer what the host's `composer.recall` gives,
    *  as ↑ does, for a message the host learns later was never read, such as
-   *  when its turn failed first. Focus held elsewhere stays there. */
-  recall: () => Promise<void>
+   *  when its turn failed first. Focus held elsewhere stays there. Resolves
+   *  to whether anything came back: `ifEmpty` takes nothing while the person
+   *  has something in the box, as a terminal refills only an empty line. */
+  recall: (options?: { ifEmpty?: boolean }) => Promise<boolean>
 }
 
 /** One conversation or agent session: its transcript, with the composer at
@@ -162,9 +164,8 @@ export default function SessionView({
     ref,
     () => ({
       stop,
-      recall: async () => {
-        await inputRef.current?.recall({ focus: false })
-      },
+      recall: async ({ ifEmpty = false } = {}) =>
+        (await inputRef.current?.recall({ focus: false, ifEmpty })) ?? false,
     }),
     [stop],
   )
@@ -241,6 +242,9 @@ export default function SessionView({
     inputRef.current?.addFiles(files)
   }, [])
   const { isDragging, dragHandlers } = useDragDrop({ onFilesDropped })
+  const composerHeld = loading || !!composer?.disabled
+  // A composer whose host takes the files takes none while it is held.
+  const takesDrop = dropFiles && !(composer?.files && composerHeld)
 
   // A reader who scrolled up to read earlier turns still sees what they send and the reply to it.
   const send = useCallback<typeof onSend>(
@@ -263,7 +267,7 @@ export default function SessionView({
       activity={activity}
       onSend={send}
       conversationId={sessionKey}
-      disabled={loading || !!composer?.disabled}
+      disabled={composerHeld}
       {...(turn ? { turn: { ...turn, onStop: () => void stop() } } : {})}
       {...(onEdit ? { onEditLastMessage: editLast } : {})}
     />
@@ -286,7 +290,7 @@ export default function SessionView({
         className="flex min-w-0 flex-1 flex-col"
         {...(dropFiles ? dragHandlers : {})}
       >
-        {isDragging && dropFiles && <DragOverlay className="rounded-lg" />}
+        {isDragging && takesDrop && <DragOverlay className="rounded-lg" />}
         {banners}
         <TranscriptFindBar find={finder} />
         {error ?? (

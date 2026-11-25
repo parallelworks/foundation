@@ -1498,13 +1498,14 @@ describe('a run’s view', () => {
       )
     }
     const { kept } = await zoomedIn(<Host />)
-    // The other run renders, then a sibling suspends, so React keeps showing this run.
-    act(() =>
+    // The other run renders, then a sibling suspends, so React keeps showing this run. An act not
+    // awaited drops the suspended render's task, leaving this run's update for the clock's next tick.
+    await act(() =>
       startTransition(() =>
         host.show({ run: update('', { ...run, id: 'run-2', slug: 'wf-2' }), suspend: true }),
       ),
     )
-    act(() => host.show({ run: update('running'), suspend: false }))
+    await act(() => host.show({ run: update('running'), suspend: false }))
     await waitFor(() =>
       expect(panZoom.setTransform).toHaveBeenCalledWith(
         kept.positionX,

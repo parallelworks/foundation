@@ -1,5 +1,67 @@
 # Changelog
 
+## [0.151.0](https://github.com/parallelworks/foundation/compare/ui-v0.150.2...ui-v0.151.0) (2026-11-25)
+
+
+### Features
+
+* **ui:** a host that runs `!` lines as shell commands can give the composer a terminal's shell mode ([#829](https://github.com/parallelworks/foundation/issues/829)) ([c60329b](https://github.com/parallelworks/foundation/commit/c60329baa18d5eccc112cc58975b2e37ccfc1078))
+
+
+### Bug Fixes
+
+* **ui:** a hovered button stays risen under a pointer on its bottom edge instead of flickering ([#826](https://github.com/parallelworks/foundation/issues/826)) ([ae5ffdc](https://github.com/parallelworks/foundation/commit/ae5ffdc51ff6c701b3c08d2199e57f686290845a))
+* **ui:** a searchable dropdown opened with little room runs off the screen, hiding its search field ([#814](https://github.com/parallelworks/foundation/issues/814)) ([7520a61](https://github.com/parallelworks/foundation/commit/7520a61baea565c5c67ca832becf047ffda17fbe))
+* **ui:** CreateModal flashes its empty name red when the dialog is dismissed ([#828](https://github.com/parallelworks/foundation/issues/828)) ([205cfb8](https://github.com/parallelworks/foundation/commit/205cfb8fbd79ebb37ddb385161091eef2e218225))
+
+## [0.150.2](https://github.com/parallelworks/foundation/compare/ui-v0.150.1...ui-v0.150.2) (2026-11-24)
+
+
+### Bug Fixes
+
+* **ui:** after answering an approval, a reply that comes at once stops below the fold ([#821](https://github.com/parallelworks/foundation/issues/821)) ([12c0167](https://github.com/parallelworks/foundation/commit/12c01673f7d4eeaf9e6038e64d06ba470e2c4e8e))
+
+## [0.150.1](https://github.com/parallelworks/foundation/compare/ui-v0.150.0...ui-v0.150.1) (2026-11-24)
+
+
+### Bug Fixes
+
+* **ui:** a command's answer hangs from its message instead of from a hook floating under it ([#817](https://github.com/parallelworks/foundation/issues/817)) ([b53e6e6](https://github.com/parallelworks/foundation/commit/b53e6e6e88949d25424f19d135709c8f8242f2b8))
+
+## [0.150.0](https://github.com/parallelworks/foundation/compare/ui-v0.149.0...ui-v0.150.0) (2026-11-24)
+
+
+### Features
+
+* **ui:** AskApproval takes notes on every single-select question ([#815](https://github.com/parallelworks/foundation/issues/815)) ([ee18329](https://github.com/parallelworks/foundation/commit/ee18329fd811632a0c59489efa776629ee81fec3))
+
+
+### Bug Fixes
+
+* **ui:** a long word in a notice's detail runs past the column on a narrow screen ([#816](https://github.com/parallelworks/foundation/issues/816)) ([ffd00bc](https://github.com/parallelworks/foundation/commit/ffd00bc2c3d8f23ac726ce6877fdebfa6dd6cbe6))
+* **ui:** after a send, a long transcript can stop above the new message instead of following it ([#819](https://github.com/parallelworks/foundation/issues/819)) ([eb05a57](https://github.com/parallelworks/foundation/commit/eb05a575fc9cd603b6630f348009f0cd3cd7df97))
+
+## [0.149.0](https://github.com/parallelworks/foundation/compare/ui-v0.148.0...ui-v0.149.0) (2026-11-23)
+
+
+### Features
+
+* **ui:** a host can take the files picked from the composer's +, dropped on it or pasted into it ([#811](https://github.com/parallelworks/foundation/issues/811)) ([acf91de](https://github.com/parallelworks/foundation/commit/acf91def4ee4b457cd8900759920412bd620e91c))
+
+## [0.148.0](https://github.com/parallelworks/foundation/compare/ui-v0.147.0...ui-v0.148.0) (2026-11-23)
+
+
+### Features
+
+* **ui:** the composer tells the host which messages it took back went into the box ([#809](https://github.com/parallelworks/foundation/issues/809)) ([9d6d9e6](https://github.com/parallelworks/foundation/commit/9d6d9e6bfba76c73c3a2bb9a05a818caac531883))
+
+## [0.147.0](https://github.com/parallelworks/foundation/compare/ui-v0.146.2...ui-v0.147.0) (2026-11-23)
+
+
+### Features
+
+* **ui:** the session view's recall() can fill only an empty composer, and says whether anything came back ([#807](https://github.com/parallelworks/foundation/issues/807)) ([22ef2c5](https://github.com/parallelworks/foundation/commit/22ef2c56f8dfc748e37e0f01b8466d7d2d9ad3aa))
+
 ## [0.146.2](https://github.com/parallelworks/foundation/compare/ui-v0.146.1...ui-v0.146.2) (2026-11-17)
 
 

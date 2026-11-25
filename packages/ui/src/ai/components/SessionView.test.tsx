@@ -127,6 +127,27 @@ describe('SessionView', () => {
     })
   })
 
+  it('offers no drop over the view while a composer whose host takes the files is held', () => {
+    const view = (disabled: boolean) => (
+      <SessionView
+        sessionKey="s1"
+        messages={[ask]}
+        onSend={vi.fn()}
+        dropFiles
+        composer={{ disabled, files: { onAdd: vi.fn() } }}
+      />
+    )
+    const drag = () =>
+      fireEvent.dragEnter(screen.getByTestId('list'), { dataTransfer: { types: ['Files'] } })
+    const { rerender } = render(view(true))
+
+    drag()
+    expect(screen.queryByText('Drop files here')).not.toBeInTheDocument()
+
+    rerender(view(false))
+    expect(screen.getByText('Drop files here')).toBeInTheDocument()
+  })
+
   it("shows the working line above the composer for the chat provider's reply, in place of the list's indicator", () => {
     chat.isStreaming = true
     render(<SessionView sessionKey="s1" messages={[ask]} onSend={vi.fn()} />)
@@ -219,9 +240,19 @@ describe('SessionView', () => {
         composer={{ recall: { available: true, take: vi.fn() } }}
       />,
     )
-    await act(async () => view.current?.recall())
-    expect(recallComposer).toHaveBeenCalledTimes(1)
-    expect(recallComposer).toHaveBeenCalledWith({ focus: false })
+    recallComposer.mockResolvedValueOnce(true).mockResolvedValueOnce(false)
+    let took: boolean[] = []
+    await act(async () => {
+      took = [
+        (await view.current?.recall()) ?? true,
+        (await view.current?.recall({ ifEmpty: true })) ?? true,
+      ]
+    })
+    expect(recallComposer.mock.calls).toEqual([
+      [{ focus: false, ifEmpty: false }],
+      [{ focus: false, ifEmpty: true }],
+    ])
+    expect(took).toEqual([true, false])
     expect(onStop).not.toHaveBeenCalled()
   })
 

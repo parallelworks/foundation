@@ -482,7 +482,11 @@ function ChatMessage({
             ) : null}
 
             {isUser && message.commandAnswer && (
-              <CommandAnswer answer={message.commandAnswer} alignEnd={isRightAligned} />
+              <CommandAnswer
+                answer={message.commandAnswer}
+                alignEnd={isRightAligned}
+                afterAvatar={!!otherAuthor && otherAuthor.kind !== 'agent'}
+              />
             )}
 
             {!isUser && collapsible && !isStreaming && !latest && (

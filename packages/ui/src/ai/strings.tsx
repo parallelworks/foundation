@@ -133,6 +133,10 @@ export interface ChatStrings {
     loadingCommands: string
     /** Names the list of emoji offered while a `:shortcode` is typed. */
     emoji: string
+    /** Marks a `!` line, which a composer with `shell` runs as a shell command. */
+    shellMode: string
+    /** Beside `shellMode` under the box: what Enter does with the command. */
+    shellHint: string
   }
   paste: {
     title: string
@@ -377,9 +381,11 @@ export interface ChatStrings {
     noPreview: string
     /** Names the pane showing an option's preview. */
     previewOf: (label: string) => string
-    /** Names the notes on a question with previews, in their field and under an answer. */
+    /** Names the notes on a single-select question, in their field and under an answer. */
     notesLabel: string
     notesPlaceholder: string
+    /** The button on a picked option that opens its notes, which N also opens. */
+    addNotes: string
     /** An answer that is notes alone, which an answered ask shows over the notes. */
     notesOnly: string
     /** Read out in place of a task's checkbox glyph. */
@@ -546,6 +552,8 @@ export const defaultChatStrings: ChatStrings = {
     filesAttached: (count) => `${countOf(count, 'file', 'files')} attached`,
     loadingCommands: 'Loading commands…',
     emoji: 'Emoji',
+    shellMode: 'shell mode',
+    shellHint: 'Enter runs it, and its output is added to the conversation',
   },
   paste: {
     title: 'Pasted text',
@@ -742,7 +750,8 @@ export const defaultChatStrings: ChatStrings = {
     noPreview: 'No preview for this option',
     previewOf: (label) => `Preview: ${label}`,
     notesLabel: 'Notes',
-    notesPlaceholder: 'Add notes on this design…',
+    notesPlaceholder: 'Add notes…',
+    addNotes: 'Add notes',
     notesOnly: '(notes only)',
     todoPending: 'To do',
     todoInProgress: 'In progress',

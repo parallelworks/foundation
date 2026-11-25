@@ -1445,7 +1445,7 @@ export const CreateModalHints: StoryObj<{ failing: boolean; size: ModalSize }> =
 /** Opening the dialog's own team menu before typing a title leaves the empty title unmarked:
  *  that is still filling the form in. Escape closes the menu and hands focus back to its chip,
  *  with no tooltip there to take the next Escape, which closes the dialog. The title is marked
- *  once a create is tried, or when focus leaves the dialog with it empty. */
+ *  only once a create is tried, never on leaving or closing the dialog. */
 export const CreateModalTitleUnmarked: StoryObj = {
   name: 'Create modal, title unmarked while choosing a team',
   render: () => <NewIssueDemo failing={false} />,
