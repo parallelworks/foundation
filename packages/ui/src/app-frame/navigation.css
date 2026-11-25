@@ -243,24 +243,24 @@
      text that at 70%, as an item's second line is, with the theme's tokens for both pointed at
      these so what the page renders in its rows follows. */
   .pw-frame-list {
-    --theme-app: oklch(
-      from var(--pw-frame-ink) calc(l + (l - 0.5) * 0.5) c h /
-      calc(alpha + (1 - alpha) * 0.5)
-    );
+    --theme-app: var(--pw-frame-ink-strong);
     --theme-muted-text-color: color-mix(in oklab, var(--theme-app) 70%, transparent);
     --theme-hover: var(--pw-frame-hover);
     --theme-focus: var(--theme-app);
     --theme-border: color-mix(in oklch, var(--pw-frame-ink) 20%, transparent);
+    /* A field, such as the list's search, is a tint of the navigation rather than a page's
+       light or dark box. */
+    --theme-input-bg: color-mix(in oklab, var(--pw-frame-ink) 8%, transparent);
+    --theme-border-field: color-mix(in oklab, var(--pw-frame-ink) 22%, transparent);
+    --theme-border-strong: color-mix(in oklab, var(--pw-frame-ink) 40%, transparent);
+    --theme-placeholder: color-mix(in oklab, var(--theme-app) 55%, transparent);
     /* The theme's warning text is made for its panels; pulled toward the navigation's text, it
        reads on a navigation of either lightness. Oklab, so the mix keeps the warning's hue rather
        than turning through green or pink on its way to the text's. */
     --theme-warning-text: color-mix(in oklab, var(--theme-warning) 60%, var(--theme-app));
   }
   .pw-frame-list [data-sidebar-row][data-selected] {
-    --theme-app: oklch(
-      from var(--pw-frame-active-ink) calc(l + (l - 0.5) * 0.5) c h /
-      calc(alpha + (1 - alpha) * 0.5)
-    );
+    --theme-app: var(--pw-frame-active-ink-strong);
     --theme-muted-text-color: color-mix(in oklab, var(--theme-app) 70%, transparent);
     --theme-focus: var(--pw-frame-active-ink);
   }
@@ -320,10 +320,7 @@
   }
   .pw-frame-nav-switch-item:hover {
     background: var(--pw-frame-hover, var(--theme-hover));
-    color: oklch(
-      from var(--pw-frame-ink, var(--theme-app)) calc(l + (l - 0.5) * 0.5) c h /
-      calc(alpha + (1 - alpha) * 0.5)
-    );
+    color: var(--pw-frame-ink-strong, var(--theme-app));
   }
   .pw-frame-nav-switch-item[aria-current] {
     background: color-mix(in oklch, var(--pw-frame-ink, var(--theme-app)) 18%, transparent);

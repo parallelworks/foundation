@@ -12,6 +12,7 @@ import {
   AppFrameTakeoverBack,
   AppFrameTakeoverContent,
   AppFrameToggle,
+  useAppFrame,
   useAppFrameNavigationPlacement,
   useAppFrameTakeover,
 } from './index'
@@ -262,10 +263,36 @@ describe('AppFrame list takeover', () => {
 
 function Placement() {
   const placement = useAppFrameNavigationPlacement()
-  return <p>{placement ? `in the navigation, ${placement.collapsed ? 'rail' : 'open'}` : 'away'}</p>
+  return (
+    <>
+      <p>{placement ? `in the navigation, ${placement.collapsed ? 'rail' : 'open'}` : 'away'}</p>
+      {placement && (
+        <>
+          <input aria-label="Search the list" />
+          <button type="button" onClick={placement.reveal}>
+            Reveal
+          </button>
+          <button type="button" onClick={placement.closeNavigation}>
+            Done
+          </button>
+        </>
+      )}
+    </>
+  )
 }
 
-function ContentHost({ defaultExpanded = true }: { defaultExpanded?: boolean }) {
+function NarrowToggle() {
+  return useAppFrame().isMobile ? <AppFrameToggle /> : null
+}
+
+function ContentHost({
+  defaultExpanded = true,
+  page = true,
+}: {
+  defaultExpanded?: boolean
+  /** The page with the content is showing. */
+  page?: boolean
+}) {
   const takeover = useAppFrameTakeover(true)
   return (
     <AppFrameTakeover value={takeover.takeover}>
@@ -281,11 +308,14 @@ function ContentHost({ defaultExpanded = true }: { defaultExpanded?: boolean }) 
             <AppFrameNavItem label="Sessions" onClick={takeover.showList} />
           )
         }
-        footer={<AppFrameToggle />}
+        header={<NarrowToggle />}
+        footer={({ isMobile }) => !isMobile && <AppFrameToggle />}
       >
-        <AppFrameTakeoverContent>
-          <Placement />
-        </AppFrameTakeoverContent>
+        {page && (
+          <AppFrameTakeoverContent>
+            <Placement />
+          </AppFrameTakeoverContent>
+        )}
         <Placement />
       </AppFrame>
     </AppFrameTakeover>
@@ -316,6 +346,41 @@ describe('AppFrame takeover content', () => {
     expect(screen.queryByText(/in the navigation/)).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Sessions' }))
     expect(screen.getByText('in the navigation, open')).toBeInTheDocument()
+  })
+
+  it("keeps what it holds through a visit to the app's navigation", () => {
+    render(<ContentHost />)
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search the list' }), {
+      target: { value: 'flaky' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Main menu' }))
+    expect(screen.queryByRole('textbox', { name: 'Search the list' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Sessions' }))
+    expect(screen.getByRole('textbox', { name: 'Search the list' })).toHaveValue('flaky')
+  })
+
+  it("shows the page's list again when the reader comes back to the page", () => {
+    const { rerender } = render(<ContentHost />)
+    fireEvent.click(screen.getByRole('button', { name: 'Main menu' }))
+    rerender(<ContentHost page={false} />)
+    rerender(<ContentHost />)
+    expect(screen.getByText('in the navigation, open')).toBeInTheDocument()
+  })
+
+  it('reveals itself out of the rail', () => {
+    render(<ContentHost defaultExpanded={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Reveal' }))
+    expect(screen.getByText('in the navigation, open')).toBeInTheDocument()
+  })
+
+  it('closes the drawer it is in on a pick that leaves the page where it is', () => {
+    mobile = true
+    render(<ContentHost />)
+    const toggle = screen.getByRole('button', { name: 'Open navigation' })
+    expect(screen.queryByText('in the navigation, open')).not.toBeInTheDocument()
+    fireEvent.click(toggle)
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('shows Main menu as its arrow alone in the rail, named by its label', () => {

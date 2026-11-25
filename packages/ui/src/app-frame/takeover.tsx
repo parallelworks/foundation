@@ -5,7 +5,9 @@ import {
   use,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
 import { createPortal } from 'react-dom'
@@ -20,7 +22,7 @@ import { Tooltip } from '../components/Tooltip'
 import { cx } from '../cx'
 import { AddIcon, ArrowLeftIcon, MoreIcon } from '../icons'
 import { AppFrameNavGroup, AppFrameNavItem, useAppFrame } from './index'
-import { PlacementContext } from './placement'
+import { type AppFrameNavigationPlacement, PlacementContext } from './placement'
 
 interface Takeover {
   /** Where a page's list renders; null while the app's own navigation shows. */
@@ -69,24 +71,59 @@ export function useAppFrameTakeover(enabled: boolean): AppFrameTakeoverState {
   }
 }
 
-/** Renders a page's own content in place of the app's navigation while the page has it, and
- *  nothing while the app's navigation shows. What it renders reads where it is from
- *  `useAppFrameNavigationPlacement`, as `ConversationSidebar` does to become the navigation's
- *  list rather than a column beside the page. */
+/** Renders a page's own content in place of the app's navigation while the page has it. While
+ *  the app's navigation shows, or a phone's drawer is closed, the content stays mounted out of
+ *  view, so it keeps what it holds, such as a search, and still hears its shortcuts. What it
+ *  renders reads where it is from `useAppFrameNavigationPlacement`, as `ConversationSidebar`
+ *  does to become the navigation's list rather than a column beside the page. */
 export function AppFrameTakeoverContent({ children }: { children: ReactNode }) {
   const { slot, showList } = use(TakeoverContext)
-  const { expanded, isMobile, mobileOpen } = useAppFrame()
-  const placement = useMemo(() => ({ collapsed: !expanded }), [expanded])
+  const frame = useAppFrame()
+  const latest = useRef(frame)
+  latest.current = frame
+  // The content's own element, moved into the navigation while there is a place for it there.
+  const [container] = useState(() => {
+    if (typeof document === 'undefined') {
+      return null
+    }
+    const element = document.createElement('div')
+    element.className = 'space-y-1'
+    return element
+  })
+  useLayoutEffect(() => {
+    if (!container || !slot) {
+      return
+    }
+    slot.appendChild(container)
+    return () => container.remove()
+  }, [container, slot])
 
-  // Leaving for the app's navigation is a detour: the drawer opens on the list again next time.
+  // Leaving for the app's navigation is a detour: the drawer opens on the list again next time,
+  // and the page shows its list again when the reader comes back to it.
   useEffect(() => {
-    if (isMobile && !mobileOpen) {
+    if (frame.isMobile && !frame.mobileOpen) {
       showList()
     }
-  }, [isMobile, mobileOpen, showList])
+  }, [frame.isMobile, frame.mobileOpen, showList])
+  useEffect(() => () => showList(), [showList])
 
-  return slot
-    ? createPortal(<PlacementContext value={placement}>{children}</PlacementContext>, slot)
+  const placement = useMemo<AppFrameNavigationPlacement>(
+    () => ({
+      collapsed: !frame.expanded,
+      reveal: () => {
+        showList()
+        const now = latest.current
+        if (now.isMobile ? !now.mobileOpen : !now.expanded) {
+          now.toggle()
+        }
+      },
+      closeNavigation: () => latest.current.closeNavigation(),
+    }),
+    [frame.expanded, showList],
+  )
+
+  return container
+    ? createPortal(<PlacementContext value={placement}>{children}</PlacementContext>, container)
     : null
 }
 

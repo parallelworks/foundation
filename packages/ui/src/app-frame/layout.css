@@ -34,6 +34,16 @@
     --pw-frame-hover: var(--theme-sidebar-hover, var(--theme-hover));
     --pw-frame-active-bg: var(--theme-sidebar-active-bg, var(--theme-accent-subtle));
     --pw-frame-active-ink: var(--theme-sidebar-active-text, var(--theme-accent));
+    /* Each ink halfway to full contrast, as a hovered item's text is: a translucent ink also
+       gains half its missing opacity. */
+    --pw-frame-ink-strong: oklch(
+      from var(--pw-frame-ink) calc(l + (l - 0.5) * 0.5) c h /
+      calc(alpha + (1 - alpha) * 0.5)
+    );
+    --pw-frame-active-ink-strong: oklch(
+      from var(--pw-frame-active-ink) calc(l + (l - 0.5) * 0.5) c h /
+      calc(alpha + (1 - alpha) * 0.5)
+    );
   }
   .pw-frame-sidebar {
     position: relative;

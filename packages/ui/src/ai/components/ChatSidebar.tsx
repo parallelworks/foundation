@@ -91,17 +91,20 @@ export default function ChatSidebar({
   const drawer = !frame && sidebarPresentation === 'drawer'
   // The drawer always opens to the full list; the rail is for a column.
   const sidebarCollapsed = frame ? frame.collapsed : !drawer && sidebar !== 'expanded'
-  // Picking something in the drawer is done with it; with no drawer open
-  // this does nothing.
-  const closeDrawer = () => setDrawerOpen(false)
+  // Picking something in the drawer is done with it, the frame's included, even
+  // when the pick leaves the page where it is; with no drawer open this does
+  // nothing.
+  const closeDrawer = () => (frame ? frame.closeNavigation() : setDrawerOpen(false))
 
   const [search, setSearch] = useState('')
   const searchInputRef = useRef<HTMLInputElement>(null)
   const revealRef = useRef(() => {})
   revealRef.current = () => {
-    if (drawer) {
+    if (frame) {
+      frame.reveal()
+    } else if (drawer) {
       setDrawerOpen(true)
-    } else if (!frame && sidebar !== 'expanded') {
+    } else if (sidebar !== 'expanded') {
       setSidebar('expanded')
     }
   }

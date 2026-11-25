@@ -1,7 +1,17 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
+import {
+  AppFrame,
+  AppFrameNavItem,
+  AppFrameTakeover,
+  AppFrameTakeoverBack,
+  AppFrameTakeoverContent,
+  AppFrameToggle,
+  useAppFrame,
+  useAppFrameTakeover,
+} from '../../app-frame/index'
 import { toast } from '../../components/Toast'
 import type { SidebarPresentation, SidebarState } from '../core/sidebarState'
 import ChatSidebar from './ChatSidebar'
@@ -367,6 +377,116 @@ describe('ChatSidebar sharing', () => {
     fireEvent.click(theirs as HTMLElement)
     await screen.findAllByText('Download')
     expect(screen.queryByText('Share')).not.toBeInTheDocument()
+  })
+})
+
+describe("ChatSidebar as the app frame's navigation", () => {
+  let narrow = false
+  beforeEach(() => {
+    narrow = false
+    chatState.loadConversations.mockClear()
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn(() => ({ matches: narrow, addEventListener() {}, removeEventListener() {} })),
+    )
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  function NarrowToggle() {
+    return useAppFrame().isMobile ? <AppFrameToggle /> : null
+  }
+
+  function InFrame({ defaultExpanded = true }: { defaultExpanded?: boolean }) {
+    const takeover = useAppFrameTakeover(true)
+    return (
+      <AppFrameTakeover value={takeover.takeover}>
+        <AppFrame
+          defaultExpanded={defaultExpanded}
+          brand={
+            takeover.active ? (
+              <AppFrameTakeoverBack onBack={takeover.showNavigation} />
+            ) : (
+              'Workspace'
+            )
+          }
+          navigation={
+            takeover.active ? (
+              takeover.navigation
+            ) : (
+              <AppFrameNavItem label="Chat" onClick={takeover.showList} />
+            )
+          }
+          header={<NarrowToggle />}
+          footer={({ isMobile }) => !isMobile && <AppFrameToggle />}
+        >
+          <AppFrameTakeoverContent>
+            <ChatSidebar />
+          </AppFrameTakeoverContent>
+        </AppFrame>
+      </AppFrameTakeover>
+    )
+  }
+
+  const search = () => screen.queryByPlaceholderText('Search conversations')
+
+  it('shows in the navigation with no drawer or handle of its own, even while its column is hidden', () => {
+    chatState.sidebar = 'hidden'
+    chatState.sidebarPresentation = 'drawer'
+    chatState.conversations = [conversation('1', 'Alpha planning')]
+    render(<InFrame />)
+    expect(screen.getByRole('complementary')).toContainElement(screen.getByText('Alpha planning'))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('separator')).toHaveLength(1)
+  })
+
+  it("follows the frame's rail rather than its own collapsed state", () => {
+    chatState.sidebar = 'collapsed'
+    chatState.conversations = [conversation('1', 'Alpha planning')]
+    render(<InFrame />)
+    expect(search()).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }))
+    expect(search()).not.toBeInTheDocument()
+  })
+
+  it('opens the rail for the search shortcut and focuses the search', async () => {
+    chatState.conversations = [conversation('1', 'Alpha planning')]
+    render(<InFrame defaultExpanded={false} />)
+    act(() => {
+      document.dispatchEvent(new Event('aichat:focus-sidebar-search'))
+    })
+    expect(screen.getByRole('button', { name: 'Collapse sidebar' })).toBeInTheDocument()
+    await act(() => new Promise((resolve) => requestAnimationFrame(resolve)))
+    expect(search()).toHaveFocus()
+    expect(chatState.setSidebar).not.toHaveBeenCalled()
+  })
+
+  it("comes back from the app's navigation for the search shortcut, keeping its search and list", () => {
+    chatState.conversations = [conversation('1', 'Alpha planning'), conversation('2', 'Beta notes')]
+    render(<InFrame />)
+    fireEvent.change(search() as HTMLElement, { target: { value: 'alpha' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Main menu' }))
+    expect(search()).not.toBeInTheDocument()
+    act(() => {
+      document.dispatchEvent(new Event('aichat:focus-sidebar-search'))
+    })
+    expect(search()).toHaveValue('alpha')
+    expect(screen.queryByText('Beta notes')).not.toBeInTheDocument()
+    expect(chatState.loadConversations).toHaveBeenCalledTimes(1)
+  })
+
+  it("closes the frame's drawer when the open conversation or a new chat is picked", () => {
+    narrow = true
+    chatState.conversations = [conversation('1', 'Alpha planning')]
+    chatState.activeConversationId = '1'
+    render(<InFrame />)
+    const toggle = screen.getByRole('button', { name: 'Open navigation' })
+    fireEvent.click(toggle)
+    fireEvent.click(screen.getByText('Alpha planning'))
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(toggle)
+    fireEvent.click(screen.getByText('New chat'))
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(chatState.setDrawerOpen).not.toHaveBeenCalled()
   })
 })
 
