@@ -404,15 +404,36 @@ export const ReviewedRun: StoryObj = {
   },
 }
 
+const LONG_COMMAND = [
+  'set -euo pipefail',
+  'export GOFLAGS=-count=1',
+  'for pkg in ./internal/server/ ./internal/store/ ./internal/raft/; do',
+  '  echo "== $pkg"',
+  '  go test "$pkg" -run \'TestPartition|TestRebalance|TestLeaderElection|TestSnapshotRestore|TestCompaction|TestMembershipChange\' -timeout 120s 2>&1 | tail -5',
+  'done',
+  'go vet ./internal/...',
+  'staticcheck ./internal/...',
+  'git status --short',
+  'git diff --stat',
+  'echo "partition suite done"',
+  'date -u +%FT%TZ',
+  'du -sh ~/.cache/go-build',
+].join('\n')
+
 export const EveryRunFolded: StoryObj<{
   failed: boolean
   running: boolean
   approved: boolean
   secondsRunning: number
+  longCommand: boolean
 }> = {
   name: 'Every run folded',
-  args: { failed: true, running: false, approved: true, secondsRunning: 57 },
+  args: { failed: true, running: false, approved: true, secondsRunning: 57, longCommand: false },
   argTypes: {
+    longCommand: {
+      description:
+        'The last command is a script past 10 lines: running, it hangs cut, saying how many more lines open with the run',
+    },
     failed: {
       description:
         'A failed call folds with the rest, with no success mark on the row; once the run is done, its line counts it',
@@ -428,7 +449,7 @@ export const EveryRunFolded: StoryObj<{
         'How long the running command has run (the call’s startedAt); the line shows it from 2 seconds',
     },
   },
-  render: ({ failed, running, approved, secondsRunning }) => (
+  render: ({ failed, running, approved, secondsRunning, longCommand }) => (
     <AgentMessageParts
       key={`${running}-${secondsRunning}`}
       foldEveryRun
@@ -446,7 +467,9 @@ export const EveryRunFolded: StoryObj<{
           }),
           {
             ...makeToolCallPart({
-              command: 'go test ./internal/server/ -run TestPartition -count=1 2>&1 | tail -5',
+              command: longCommand
+                ? LONG_COMMAND
+                : 'go test ./internal/server/ -run TestPartition -count=1 2>&1 | tail -5',
               status: running ? 'running' : 'ok',
               resultLines: 2,
             }),

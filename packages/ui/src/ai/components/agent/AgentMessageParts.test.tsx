@@ -1229,7 +1229,9 @@ describe('foldEveryRun', () => {
     const row = screen.getByTestId('running-call')
     expect(row).toHaveTextContent('echo 10')
     expect(row).not.toHaveTextContent('echo 11')
-    expect(row).toHaveTextContent('+2 more lines')
+    fireEvent.click(screen.getByText('+2 more lines'))
+    expect(screen.queryByTestId('running-call')).toBeNull()
+    expect(screen.getByTestId('tool-call-part')).toHaveTextContent('echo 12')
   })
 
   it('hangs the auto-reviewer’s approval under its running call, and no one else’s', () => {
@@ -1284,6 +1286,13 @@ describe('foldEveryRun', () => {
     expect(screen.getByRole('button', { name: /Ran 4 shell commands/ })).toHaveTextContent(
       'Ran 4 shell commands · 1 failed',
     )
+    // Opened, the run marks as failed only the call its line counts.
+    fireEvent.click(screen.getByRole('button', { name: /Ran 4 shell commands/ }))
+    const marks = screen
+      .getAllByTestId('tool-call-part')
+      .map((block) => block.querySelector('.sr-only')?.textContent)
+    expect(marks).toEqual(['Failed', 'Done', 'Declined', 'Interrupted'])
+    expect(screen.queryByText('Failed: interrupted')).toBeNull()
     rerender(folded([tc('t1', 'Bash', 'error'), tc('t2', 'Bash', 'running')]))
     expect(screen.getByRole('button', { name: /Running 2 shell commands/ })).not.toHaveTextContent(
       'failed',

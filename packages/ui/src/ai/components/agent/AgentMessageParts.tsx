@@ -34,6 +34,7 @@ import {
   agentColorHex,
   fullToolArgs,
   isGroupableTool,
+  isUnattendedToolUse,
   isUserInterruptedTool,
   parseRejection,
   resultNotRun,
@@ -368,20 +369,21 @@ function ToolStatusDot({ part }: { part: ToolCallPart }) {
       </StatusMark>
     )
   }
+  // A call a person declined or stopped, that nobody could approve, or whose turn ended under it
+  // didn't fail, and didn't succeed either, whichever status it ended with.
+  const result = part.result ?? ''
+  if (isUserInterruptedTool(result) || result === UNFINISHED_CALL_RESULT) {
+    return <NeutralDot status={t.interrupted} />
+  }
+  if (parseRejection(result) || isUnattendedToolUse(result)) {
+    return <NeutralDot status={t.approvalDenied} />
+  }
   if (part.status === 'error') {
     return (
       <StatusMark status={t.failed}>
         <span className="leading-none text-(--theme-error)">●</span>
       </StatusMark>
     )
-  }
-  // A call a person declined or stopped didn't fail, and didn't succeed either.
-  const result = part.result ?? ''
-  if (isUserInterruptedTool(result)) {
-    return <NeutralDot status={t.interrupted} />
-  }
-  if (parseRejection(result)) {
-    return <NeutralDot status={t.approvalDenied} />
   }
   return (
     <StatusMark status={t.done}>
@@ -418,7 +420,7 @@ function FailedOutput({ part }: { part: ToolCallPart }) {
   return (
     <div className="ml-5 mt-0.5 min-w-0 text-(--theme-error-text)" data-testid="failed-output">
       <div className="text-[13px] break-words">
-        {resultNotRun(part.result ?? '') ? first : strings.agentTranscript.failedWith(first)}
+        {endedUnrun(part.result ?? '') ? first : strings.agentTranscript.failedWith(first)}
       </div>
       {rest.length > 0 && (
         <pre className="overflow-x-auto font-mono text-xs leading-5 whitespace-pre-wrap break-words">
@@ -1428,11 +1430,14 @@ function isRunningCall(m: RunMember): m is { part: ToolCallPart; index: number }
 /** A call that went wrong on its own: not one a person declined or stopped, nobody could
  *  approve, or whose end never came. */
 function failedCall(m: RunMember): boolean {
-  if (m.part.kind !== 'tool_call' || m.part.status !== 'error') {
-    return false
-  }
-  const result = m.part.result ?? ''
-  return !resultNotRun(result) && result !== UNFINISHED_CALL_RESULT
+  return (
+    m.part.kind === 'tool_call' && m.part.status === 'error' && !endedUnrun(m.part.result ?? '')
+  )
+}
+
+/** A call that never ran to an end of its own, which reads as neither failed nor done. */
+function endedUnrun(result: string): boolean {
+  return resultNotRun(result) || result === UNFINISHED_CALL_RESULT
 }
 
 function RunningTime({ startedAt }: { startedAt: string }) {
@@ -1475,13 +1480,17 @@ function RunningCallRow({
       >
         {/* biome-ignore lint/style/noJsxLiterals: a gutter glyph, not words */}
         <span aria-hidden="true">⎿</span>
+        {/* Clamped to RUNNING_CALL_LINES rows as well as cut to that many lines, so one long line that wraps can't outgrow the cut. */}
         <span
-          className={cx('min-w-0 whitespace-pre-wrap break-words', !presentation && 'font-mono')}
+          className={cx(
+            'min-w-0 line-clamp-10 whitespace-pre-wrap break-words',
+            !presentation && 'font-mono',
+          )}
         >
           {lines.slice(0, RUNNING_CALL_LINES).join('\n')}
         </span>
+        {more > 0 && <div className="col-start-2 text-xs">{t.moreLines(more)}</div>}
       </div>
-      {more > 0 && <div className="col-start-2 text-xs theme-muted-text">{t.moreLines(more)}</div>}
       {part.argsRewritten && (
         <div className="col-start-2 text-xs theme-muted-text">{t.argsRewritten}</div>
       )}
