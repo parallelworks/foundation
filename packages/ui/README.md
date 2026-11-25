@@ -1189,6 +1189,35 @@ a sent message back into its text and pastes, `PASTE_CARD_MIN_BYTES` is the
 size below which a paste stays text whatever the model, and `PASTE_INLINE_CAP`
 is the most text one message sends inline.
 
+It takes back what waits as `ChatInput` does too. `createTakeBack` reads the
+host's `ComposerRecall` and box as each take starts, so what comes back goes
+into the box the take started from, even once the composer shows another
+conversation. The box's `holds` and `put` are called again once the take
+answers, so they read the box as it is then:
+
+```ts
+const takeBack = createTakeBack({
+  recall: () => recall,
+  box: () => ({
+    holds: () => composer.text.trim() !== '' || composer.cards.length > 0,
+    put: (text, pastes) => {
+      composer.setText(joinTakenBack(text, composer.text))
+      cards.returnCards(cards.savedCards(pastes))
+    },
+  }),
+})
+```
+
+`take()` resolves to whether anything came back, one take at a time.
+`take({ ifEmpty: true })` takes nothing while the box `holds` what the person
+put there, and lets a `shown` message go when the box fills while the take is
+out; the recall's `placed` hears which messages went in. `put` gets their text,
+without the placeholders of their pastes, and the pastes to show as cards, and
+`joinTakenBack` puts it ahead of what was typed as `ChatInput` does.
+`handleKey(key, text)` takes back on ↑ alone in an empty box, before the
+history, and answers true so the box leaves the key out. It answers true while
+a take is out too, so another ↑ neither takes again nor walks the history.
+
 `defaultModel` is the model the chat starts on once the models load: the
 current one, else the one last chosen, while the list still offers it; else
 the first whose provider has no issue (`providerIssueFor`), else the first.
