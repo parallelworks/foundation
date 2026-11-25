@@ -21,13 +21,37 @@ describe('ImageUpload', () => {
     expect(container).toHaveTextContent('P')
   })
 
-  it('names its menu after what the image stands for, and hides it when disabled', () => {
+  it('names its edit button after what the image stands for, and hides it when disabled', () => {
     const { rerender } = render(<ImageUpload name="Platform" onUpload={async () => {}} />)
     expect(
       screen.getByRole('button', { name: 'Change the image for Platform' }),
     ).toBeInTheDocument()
     rerender(<ImageUpload name="Platform" disabled onUpload={async () => {}} />)
     expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  it('removes the image from the corner button, which shows only with an image', () => {
+    const onRemove = vi.fn()
+    const { rerender } = render(
+      <ImageUpload name="Platform" onUpload={async () => {}} onRemove={onRemove} />,
+    )
+    expect(screen.queryByRole('button', { name: 'Remove image' })).toBeNull()
+    rerender(
+      <ImageUpload name="Platform" src="/icon.png" onUpload={async () => {}} onRemove={onRemove} />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Remove image' }))
+    expect(onRemove).toHaveBeenCalledOnce()
+  })
+
+  it('saves a GIF as it is, without the crop dialog, with a still for a server that refuses it', () => {
+    const onUpload = vi.fn(async () => {})
+    const { container } = render(<ImageUpload name="Platform" onUpload={onUpload} />)
+    const gif = new File(['GIF89a'], 'spin.gif', { type: 'image/gif' })
+    fireEvent.change(container.querySelector('input[type=file]') as HTMLInputElement, {
+      target: { files: [gif] },
+    })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(onUpload).toHaveBeenCalledWith(gif, expect.any(Function))
   })
 
   it('opens the crop dialog only for an image file', async () => {

@@ -8,13 +8,12 @@ import {
   useState,
 } from 'react'
 import { cx } from '../cx'
-import { EditIcon, TrashIcon } from '../icons'
-import { ActionMenu } from './ActionMenu'
 import { Button } from './Button'
-import { buttonClasses } from './buttonClasses'
+import { EditableIcon } from './EditableIcon'
 import { Modal } from './Modal'
 import { useStrings } from './Provider'
 import { Slider } from './Slider'
+import { toast } from './Toast'
 
 /** The side of the saved square, large enough to stay crisp on a high-density screen. */
 export const IMAGE_UPLOAD_SIZE = 512
@@ -33,9 +32,11 @@ export interface ImageUploadProps {
   /** What the image stands for, such as a team: it names the controls and gives the letter. */
   name: string
   /** Saves the cropped square, a PNG `IMAGE_UPLOAD_SIZE` pixels on a side. A rejection
-   *  keeps the dialog open with its message. */
-  onUpload: (image: Blob) => Promise<void>
-  /** Removes the image; without it there is no Remove item. */
+   *  keeps the dialog open with its message. An animated GIF is saved as it is, uncropped,
+   *  with `still` making its centered square as a PNG for a server that won't take a GIF;
+   *  its rejection shows in a toast. */
+  onUpload: (image: Blob, still?: () => Promise<Blob>) => Promise<void>
+  /** Removes the image; without it there is no remove button. */
   onRemove?: (() => Promise<void> | void) | undefined
   disabled?: boolean | undefined
   /** The tile's side in CSS pixels. */
@@ -44,8 +45,9 @@ export interface ImageUploadProps {
 }
 
 /** An icon a person uploads for something, such as a workspace or a project: a square
- *  tile with a menu to upload, crop and save an image, or remove it. An image can also be
- *  dropped on the tile. */
+ *  tile that, hovered or focused, offers to edit it, opening a picker to upload, crop and
+ *  save an image, with a button on its corner to remove it. An image can also be dropped
+ *  on the tile. */
 export function ImageUpload({
   src,
   name,
@@ -59,13 +61,18 @@ export function ImageUpload({
   const input = useRef<HTMLInputElement>(null)
   const [picked, setPicked] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
-  // The image that failed to load, so a new one is tried again.
-  const [broken, setBroken] = useState<string>()
 
   // A data: URL rather than a blob: one, which a strict Content-Security-Policy's
   // img-src often leaves out.
   const pick = (file: File | undefined) => {
     if (!file || !accept.split(',').includes(file.type)) return
+    // Cropping draws one frame, so a GIF keeps its animation by skipping the crop.
+    if (file.type === 'image/gif') {
+      onUpload(file, () => centeredPNG(file)).catch((err: unknown) => {
+        toast.error(err instanceof Error && err.message ? err.message : t.failed)
+      })
+      return
+    }
     const reader = new FileReader()
     reader.onload = () => typeof reader.result === 'string' && setPicked(reader.result)
     reader.readAsDataURL(file)
@@ -79,10 +86,18 @@ export function ImageUpload({
     setDragging(false)
     if (!disabled) pick(e.dataTransfer.files[0])
   }
-  const shown = src && src !== broken
+  const letter = (
+    <span
+      aria-hidden
+      style={{ fontSize: size * 0.42 }}
+      className="font-semibold text-(--theme-muted-text-color) uppercase"
+    >
+      {[...name.trim()][0] ?? ''}
+    </span>
+  )
   return (
     <div className={cx('flex items-center gap-3', className)}>
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: a drop target for the pointer; the menu beside it uploads too */}
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: a drop target for the pointer; the tile's button uploads too */}
       <div
         onDragOver={(e) => {
           if (disabled) return
@@ -93,47 +108,22 @@ export function ImageUpload({
         onDrop={onDrop}
         style={{ width: size, height: size }}
         className={cx(
-          'flex shrink-0 items-center justify-center overflow-hidden rounded-lg border theme-border bg-(--theme-muted-panel-bg)',
+          'shrink-0 rounded-lg bg-(--theme-muted-panel-bg)',
           dragging && 'outline-2 outline-offset-2 outline-(--theme-accent)',
         )}
       >
-        {shown ? (
-          <img src={src} alt="" onError={() => setBroken(src)} className="size-full object-cover" />
-        ) : (
-          <span
-            aria-hidden
-            style={{ fontSize: size * 0.42 }}
-            className="font-semibold text-(--theme-muted-text-color) uppercase"
-          >
-            {[...name.trim()][0] ?? ''}
-          </span>
-        )}
-      </div>
-      {!disabled && (
-        <ActionMenu
+        <EditableIcon
+          icon={src}
+          fallbackIcon={letter}
+          shape="square"
+          border
+          className="size-full"
+          editable={!disabled}
           label={t.change(name)}
-          triggerClassName={buttonClasses({ variant: 'outline', size: 'sm' })}
-          items={[
-            {
-              icon: <EditIcon />,
-              label: shown ? t.replace : t.upload,
-              onClick: () => input.current?.click(),
-            },
-            ...(onRemove && shown
-              ? [
-                  {
-                    icon: <TrashIcon />,
-                    label: t.remove,
-                    destructive: true,
-                    onClick: () => void onRemove(),
-                  },
-                ]
-              : []),
-          ]}
-        >
-          {t.edit}
-        </ActionMenu>
-      )}
+          onEdit={() => input.current?.click()}
+          onRemove={onRemove}
+        />
+      </div>
       <input ref={input} type="file" accept={accept} onChange={onFile} hidden />
       {picked && (
         <CropDialog image={picked} name={name} onSave={onUpload} onClose={() => setPicked(null)} />
@@ -316,6 +306,22 @@ function CropDialog({
       </div>
     </Modal>
   )
+}
+
+/** The centered square of an image file as a PNG, like a crop left as it opens. */
+async function centeredPNG(file: Blob) {
+  // A data: URL, as a strict Content-Security-Policy's img-src often leaves blob: out.
+  const url = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => (typeof reader.result === 'string' ? resolve(reader.result) : reject())
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(file)
+  })
+  const img = new Image()
+  img.src = url
+  await img.decode()
+  const side = Math.min(img.naturalWidth, img.naturalHeight)
+  return squarePNG(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side)
 }
 
 /** The square of `img` at (sx, sy) with side `side`, as a PNG `IMAGE_UPLOAD_SIZE` on a

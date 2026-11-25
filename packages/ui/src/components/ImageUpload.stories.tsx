@@ -26,8 +26,9 @@ interface UploadArgs {
   size: number
 }
 
-/** A tile with a menu to upload, replace or remove the image. Saving keeps the cropped
- *  square in the story, as a host would after its upload succeeds. */
+/** A tile that, hovered or focused, offers to edit the image, with a button on its corner to
+ *  remove it. Saving keeps the cropped square in the story, as a host would after its upload
+ *  succeeds. */
 export const Upload: StoryObj<UploadArgs> = {
   args: { name: 'Platform', withImage: true, removable: true, disabled: false, size: 64 },
   argTypes: {
@@ -36,8 +37,11 @@ export const Upload: StoryObj<UploadArgs> = {
       description: 'What the image stands for; its letter shows without one.',
     },
     withImage: { control: 'boolean', description: 'Starts with an image.' },
-    removable: { control: 'boolean', description: 'Passes onRemove, which adds Remove.' },
-    disabled: { control: 'boolean', description: 'Shows the tile without its menu.' },
+    removable: {
+      control: 'boolean',
+      description: 'Passes onRemove, which adds the remove button.',
+    },
+    disabled: { control: 'boolean', description: 'Shows the tile without its edit controls.' },
     size: { control: { type: 'range', min: 24, max: 128, step: 4 } },
   },
   render: function Render({ name, withImage, removable, disabled, size }) {

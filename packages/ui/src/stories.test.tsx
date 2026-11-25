@@ -20,6 +20,7 @@ import * as copy from './components/CopyButton.stories'
 import * as charts from './components/chart.stories'
 import * as controls from './components/controls.stories'
 import * as descriptionList from './components/DescriptionList.stories'
+import * as editableIcon from './components/EditableIcon.stories'
 import * as errorPage from './components/ErrorPage.stories'
 import * as fields from './components/fields.stories'
 import * as imageUpload from './components/ImageUpload.stories'
@@ -127,6 +128,7 @@ const SUITES = {
   pickers,
   controls,
   copy,
+  editableIcon,
   imageUpload,
   fields,
   menus,

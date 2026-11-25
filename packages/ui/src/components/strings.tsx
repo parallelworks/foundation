@@ -159,12 +159,11 @@ export interface UIStrings {
     invalid: string
   }
   imageUpload: {
-    /** Names the tile's menu: what the image stands for, such as a team's name. */
+    /** Names the tile's edit button: what the image stands for, such as a team's name. */
     change: (name: string) => string
-    /** The menu trigger beside the tile. */
+    /** The text on a hovered or focused icon that opens the picker. */
     edit: string
-    upload: string
-    replace: string
+    /** Names the button on the icon's corner that removes the image. */
     remove: string
     cropTitle: (name: string) => string
     cropHint: string
@@ -720,8 +719,6 @@ const DEFAULT_STRINGS: UIStrings = {
   imageUpload: {
     change: (name) => `Change the image for ${name}`,
     edit: 'Edit image',
-    upload: 'Upload image',
-    replace: 'Upload a new image',
     remove: 'Remove image',
     cropTitle: (name) => `Image for ${name}`,
     cropHint: 'Drag to move it, and zoom to fit.',

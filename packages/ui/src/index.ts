@@ -126,6 +126,7 @@ export {
   type DisclosureProps,
 } from './components/Disclosure'
 export { Drawer, type DrawerProps } from './components/Drawer'
+export { EditableIcon, type EditableIconProps } from './components/EditableIcon'
 export { EmptyState, type EmptyStateProps, type EmptyStateVariant } from './components/EmptyState'
 export {
   ErrorPage,
