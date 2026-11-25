@@ -159,6 +159,20 @@ export const ButtonTrigger: StoryObj<FieldArgs> = {
   },
 }
 
+/** Opened with little room, such as a phone on its side: the search input stays on screen and the list scrolls below it. */
+export const ButtonTriggerLittleRoom: StoryObj<FieldArgs> = {
+  render: (args) => (
+    <div className="fixed bottom-4 left-4">
+      <ButtonTriggerDemo {...args} />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole('combobox', { name: /^Cluster/ }))
+    const search = await screen.findByPlaceholderText('Pick one')
+    await expect(search.getBoundingClientRect().top).toBeGreaterThanOrEqual(0)
+  },
+}
+
 const sessions: ComboboxGroup[] = [
   {
     label: 'alpha',
