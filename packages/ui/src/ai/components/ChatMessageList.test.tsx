@@ -874,6 +874,38 @@ describe('ChatMessageList composer', () => {
       expect(box).toHaveValue('still here')
     },
   )
+
+  it.each([false, true])(
+    'keeps the thread, its frame and a focused draft as the conversation empties and fills again (pinned prompt: %s)',
+    (pinPrompt) => {
+      const list = (messages: Message[]) => (
+        <ChatMessageList
+          messages={messages}
+          allMessages={messages}
+          pinPrompt={pinPrompt}
+          inputElement={<textarea aria-label="Message" />}
+        />
+      )
+      const { container, getByRole, rerender } = render(list([createMockMessage({ id: 'm1' })]))
+      const frame = container.firstElementChild
+      const thread = getByRole('log')
+      const box = getByRole('textbox', { name: 'Message' })
+      box.focus()
+      fireEvent.change(box, { target: { value: 'still here' } })
+
+      rerender(list([]))
+      expect(container.firstElementChild).toBe(frame)
+      expect(getByRole('textbox', { name: 'Message' })).toBe(box)
+      expect(box).toHaveFocus()
+
+      rerender(list([createMockMessage({ id: 'm2' })]))
+      expect(getByRole('log')).toBe(thread)
+      expect(container.firstElementChild).toBe(frame)
+      expect(getByRole('textbox', { name: 'Message' })).toBe(box)
+      expect(box).toHaveFocus()
+      expect(box).toHaveValue('still here')
+    },
+  )
 })
 
 describe('ChatMessageList as a log', () => {

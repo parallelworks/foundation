@@ -576,7 +576,7 @@ export default function ChatMessageList({
 
   useImperativeHandle(ref, () => ({ jumpToLatest, reveal }), [jumpToLatest, reveal])
 
-  // Attach listeners once the container exists (it is absent in the empty state)
+  // Attach listeners once the container ref is set (the empty state leaves it unset)
   const queuedCount = queuedMessages?.length ?? 0
   const grouped = !!onEditQueued
   const queued = (queuedMessages ?? []).map((msg) => {
@@ -594,7 +594,7 @@ export default function ChatMessageList({
     !streamingMessage &&
     !textInParts &&
     !awaitingApproval
-  // biome-ignore lint/correctness/useExhaustiveDependencies: hasContent re-attaches once the container mounts; it is absent in the empty state.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: hasContent re-attaches once the container ref is set; the empty state leaves it unset.
   useEffect(() => {
     const container = containerRef.current
     if (!container) {
@@ -637,7 +637,7 @@ export default function ChatMessageList({
     })
   }, [pinPrompt])
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: hasContent re-attaches once the container mounts; it is absent in the empty state.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: hasContent re-attaches once the container ref is set; the empty state leaves it unset.
   useEffect(() => {
     const container = containerRef.current
     if (!container || !pinPrompt) {
@@ -824,9 +824,10 @@ export default function ChatMessageList({
   // If no messages and no streaming, just return empty scrollable container
   // The parent page handles the welcome/empty state UI. Queued messages still
   // render — a canceled first turn must keep them visible.
-  // It has the transcript's shape, so the first message keeps the thread, the
-  // frame a prompt pins in and the composer as the nodes they were. The spacer
-  // and footer are its own, so the transcript's held height never stays in them.
+  // The empty state has the transcript's shape, so the first message keeps the
+  // thread, the frame a prompt pins in and the composer as the nodes they were.
+  // The spacer and footer are its own, so the transcript's held height never
+  // stays in them.
   if (!hasContent) {
     const empty = (
       <div key="thread" className={threadClasses}>
