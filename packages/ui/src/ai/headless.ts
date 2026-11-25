@@ -1,8 +1,9 @@
 // The chat without its components: what a message and its parts are, the reducers that build
-// them, how an agent's tool calls read, how a composer turns large pastes into cards, and which
-// model and allocation the chat starts on. Nothing reachable from here imports React, a
-// stylesheet, another package or a component, so a host that draws the chat itself, or reads
-// one where there is no DOM, can import it. scripts/verify-pack.mjs fails when that stops holding.
+// them, how an agent's tool calls read, how a composer turns large pastes into cards and takes
+// back what waits, and which model and allocation the chat starts on. Nothing reachable from
+// here imports React, a stylesheet, another package or a component, so a host that draws the
+// chat itself, or reads one where there is no DOM, can import it. scripts/verify-pack.mjs fails
+// when that stops holding.
 export * from './adapter/types'
 export * from './agent/index'
 export {
@@ -36,4 +37,14 @@ export {
   splitPastes,
   utf8Bytes,
 } from './core/pastes'
+export {
+  type ComposerKey,
+  type ComposerRecall,
+  createTakeBack,
+  joinTakenBack,
+  type RecalledMessage,
+  type TakeBack,
+  type TakeBackBox,
+  type TakeBackHost,
+} from './core/takeBack'
 export * from './types'

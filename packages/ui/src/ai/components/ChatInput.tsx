@@ -19,6 +19,12 @@ import { useChat } from '../core/ChatProvider'
 import { useChatConfig } from '../core/config'
 import type { ComposerPastes, PasteCard } from '../core/pasteCards'
 import { joinPastes } from '../core/pastes'
+import {
+  type ComposerRecall,
+  createTakeBack,
+  joinTakenBack,
+  type TakeBackHost,
+} from '../core/takeBack'
 import useDragDrop from '../core/useDragDrop'
 import type { AttachmentMeta, MessagePaste } from '../types'
 import AttachmentUpload, { type Attachment, type AttachmentUploadHandle } from './AttachmentUpload'
@@ -33,6 +39,8 @@ import { SlashArgumentHint, SlashMenu, type SlashMenuConfig, useSlashMenu } from
 import { isShellLine, shellText } from './shellLine'
 import { type ComposerHistory, useComposerHistory } from './useComposerHistory'
 import { usePasteCards } from './usePasteCards'
+
+export type { ComposerRecall, RecalledMessage } from '../core/takeBack'
 
 interface ChatInputProps {
   /** The box empties at once. Answering false, or with a promise of false or
@@ -115,42 +123,6 @@ export interface ChatInputHandle {
    *  there. `ifEmpty` takes nothing while the box holds something the person
    *  put there, as a terminal refills only an empty line. */
   recall: (options?: { focus?: boolean; ifEmpty?: boolean }) => Promise<boolean>
-}
-
-/** A message taken back before it was read. */
-export interface RecalledMessage {
-  text: string
-  /** Pastes the target saved, which the text names by placeholder. */
-  pastes?: MessagePaste[] | undefined
-  /** Still drawn where it was sent, such as one whose turn failed: a take
-   *  that asked for an empty box lets it go when the box filled meanwhile,
-   *  rather than join what was typed. */
-  shown?: boolean | undefined
-}
-
-/** Messages sent but not read yet, as a terminal holds what is typed while it works. */
-export interface ComposerRecall {
-  /** Something waiting can still be taken back. */
-  available: boolean
-  /** Takes back what waits, oldest first. One read meanwhile stays sent, so
-   *  this can answer with fewer, or none. */
-  take: () => Promise<RecalledMessage[]>
-  /** Told which of what `take` answered went into the box, the same objects
-   *  in their order, once it settles: a take into an empty box lets a `shown`
-   *  message go when the box filled meanwhile. A host that puts back parts
-   *  of a message the box does not hold, such as its images, puts back those
-   *  of these messages only. */
-  placed?: ((messages: RecalledMessage[]) => void) | undefined
-}
-
-/** Its pastes come back as cards, so the placeholders the send added go. */
-function recalledText(messages: RecalledMessage[]): string {
-  return messages
-    .map((m) =>
-      (m.pastes ?? []).reduce((text, p) => text.replace(p.placeholder, () => ''), m.text).trim(),
-    )
-    .filter(Boolean)
-    .join('\n')
 }
 
 /** An optional box that is still empty should not wear the filled look of
@@ -371,7 +343,16 @@ export default function ChatInput({
   const hostTakesFiles = !!files && !disabled
   const takesFiles = attachmentsAvailable || hostTakesFiles
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const latestTakeBack = useRef(async (_ifEmpty: boolean) => false)
+  const takeBackHost = useRef<TakeBackHost>({
+    recall: () => undefined,
+    box: () => ({ holds: () => false, put: () => {} }),
+  })
+  const [takeBack] = useState(() =>
+    createTakeBack({
+      recall: () => takeBackHost.current.recall(),
+      box: () => takeBackHost.current.box(),
+    }),
+  )
   const latestFiles = useRef({ files, hostTakesFiles })
   latestFiles.current = { files, hostTakesFiles }
 
@@ -402,10 +383,10 @@ export default function ChatInput({
         if (focus) {
           textareaRef.current?.focus()
         }
-        return latestTakeBack.current(ifEmpty)
+        return takeBack.take({ ifEmpty })
       },
     }),
-    [handleFilesDropped],
+    [handleFilesDropped, takeBack],
   )
 
   useEffect(() => {
@@ -534,14 +515,11 @@ export default function ChatInput({
       // Nothing else holds what was taken back, so it joins a draft there rather than give way to it.
       const draft = readDraft(sent.conversationId)
       if (!forgets(sent.input) && (takenBack || !draft)) {
-        storeDraft(
-          sent.conversationId,
-          [sent.input, draft].filter((text) => text.trim()).join('\n\n'),
-        )
+        storeDraft(sent.conversationId, joinTakenBack(sent.input, draft))
       }
       return
     }
-    const value = [sent.input, typed].filter((text) => text.trim()).join('\n\n')
+    const value = joinTakenBack(sent.input, typed)
     composerHistory.leave()
     setInput(value)
     box.current.typed = value
@@ -555,51 +533,18 @@ export default function ChatInput({
     setRefocus(true)
   }
 
-  // Held while a take is out, so another ↑ neither takes again nor walks the history.
-  const recalling = useRef(false)
   const boxFilled = (conversation: string | undefined) =>
     mounted.current && box.current.conversationId === conversation
       ? box.current.holds
       : readDraft(conversation).trim() !== ''
-  const takeBack = async (ifEmpty = false) => {
-    if (!recall || recalling.current || (ifEmpty && box.current.holds)) {
-      return false
-    }
-    recalling.current = true
-    const from = conversationId
-    try {
-      const took = await recall.take()
-      // Typed into while the take was out, the box keeps what was typed: a message
-      // still drawn where it was sent goes, and only what nothing else holds comes back.
-      const taken = ifEmpty && boxFilled(from) ? took.filter((m) => !m.shown) : took
-      if (taken.length > 0) {
-        const input = recalledText(taken)
-        const cards = savedCards(taken.flatMap((m) => m.pastes ?? []))
-        putBack({ conversationId: from, input, cards, attachments: [] }, true)
-      }
-      if (took.length > 0) {
-        recall.placed?.(taken)
-      }
-      return taken.length > 0
-    } catch (error) {
-      console.error('Failed to take back messages:', error)
-      return false
-    } finally {
-      recalling.current = false
-    }
+  takeBackHost.current = {
+    recall: () => recall,
+    box: () => ({
+      holds: () => boxFilled(conversationId),
+      put: (text, pastes) =>
+        putBack({ conversationId, input: text, cards: savedCards(pastes), attachments: [] }, true),
+    }),
   }
-  latestTakeBack.current = takeBack
-
-  const recallKey = (e: KeyboardEvent<HTMLTextAreaElement>) =>
-    !!recall &&
-    (recall.available || recalling.current) &&
-    e.key === 'ArrowUp' &&
-    !e.shiftKey &&
-    !e.altKey &&
-    !e.metaKey &&
-    !e.ctrlKey &&
-    !e.nativeEvent.isComposing &&
-    input.trim() === ''
 
   // Waits on disabled because a host may hold the box while it sends, and a
   // disabled box can't take focus. Focus moved elsewhere meanwhile stays there.
@@ -707,9 +652,8 @@ export default function ChatInput({
       setInputAndPersist(boxText)
       return
     }
-    if (recallKey(e)) {
+    if (takeBack.handleKey(e.nativeEvent, input)) {
       e.preventDefault()
-      void takeBack()
       return
     }
     if (composerHistory.handleKey(e)) {
