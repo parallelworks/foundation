@@ -133,6 +133,10 @@ export interface ChatStrings {
     loadingCommands: string
     /** Names the list of emoji offered while a `:shortcode` is typed. */
     emoji: string
+    /** Marks a `!` line, which a composer with `shell` runs as a shell command. */
+    shellMode: string
+    /** Beside `shellMode` under the box: what Enter does with the command. */
+    shellHint: string
   }
   paste: {
     title: string
@@ -548,6 +552,8 @@ export const defaultChatStrings: ChatStrings = {
     filesAttached: (count) => `${countOf(count, 'file', 'files')} attached`,
     loadingCommands: 'Loading commands…',
     emoji: 'Emoji',
+    shellMode: 'shell mode',
+    shellHint: 'Enter runs it, and its output is added to the conversation',
   },
   paste: {
     title: 'Pasted text',

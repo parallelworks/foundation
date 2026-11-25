@@ -314,6 +314,45 @@ export const EmojiShortcodes: StoryObj<{ typed: string }> = {
   },
 }
 
+type ShellStoryArgs = { typed: string; shell: boolean; toolbar: boolean }
+
+// A target that runs a `!` line as a shell command, as a terminal's shell mode
+// does: a `!` typed first becomes the box's magenta prompt, the box takes the
+// shell's edge and a monospace face, and the hint line says what Enter does.
+// Backspace at the command's start, or Escape on an empty one, leaves it, and ↑
+// from a bare `!` walks only shell commands. The play types `typed`.
+export const ShellMode: StoryObj<ShellStoryArgs> = {
+  args: { typed: '!git log --oneline -5', shell: true, toolbar: true },
+  argTypes: {
+    typed: { control: 'text', description: 'Typed into the composer' },
+    shell: { control: 'boolean', description: 'The host runs a `!` line as a shell command' },
+    toolbar: { control: 'boolean', description: 'The host puts controls of its own in the box' },
+  },
+  render: (args) => (
+    <StoryChat>
+      <div>
+        <ChatInput
+          key={`${args.shell}${args.toolbar}`}
+          onSend={send}
+          attachments={false}
+          requireModel={false}
+          conversationId="conv-shell"
+          history={{ name: 'story-shell' }}
+          shell={args.shell}
+          settingsRight={args.toolbar ? <EffortPicker effort="high" onPick={() => {}} /> : null}
+        />
+      </div>
+    </StoryChat>
+  ),
+  play: async ({ canvasElement, args }) => {
+    const box = within(canvasElement).getByRole('textbox')
+    // Clearing a command keeps shell mode; Escape on the empty command leaves it.
+    await userEvent.clear(box)
+    await userEvent.keyboard('{Escape}')
+    await userEvent.type(box, args.typed)
+  },
+}
+
 type SharedProvidersStoryArgs = {
   pickerOpen: boolean
   listProviders: boolean
