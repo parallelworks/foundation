@@ -312,8 +312,9 @@ describe('a series’ detail', () => {
     expect(screen.getByRole('list').style.gridTemplateColumns).toContain('repeat(2')
     plain.unmount()
     render(<ChartReadout items={[...items, south]} />)
+    // Serialized as a browser serializes it, with the zero given its unit.
     expect(screen.getByRole('list').style.gridTemplateColumns).toBe(
-      'auto minmax(0, max-content) auto 1fr',
+      'auto minmax(0px, max-content) auto 1fr',
     )
     width.mockRestore()
   })

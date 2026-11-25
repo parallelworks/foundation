@@ -297,7 +297,8 @@ describe('AvatarGroup', () => {
     const group = screen.getByRole('group', { name: '2 people here' })
     expect(ref.current).toBe(group)
     expect(group).toHaveAttribute('data-testid', 'stack')
-    expect(group).toHaveStyle({ marginTop: '4px', '--avatar-ring': 'var(--theme-panel-bg)' })
+    expect(group).toHaveStyle({ marginTop: '4px' })
+    expect(group.style.getPropertyValue('--avatar-ring')).toBe('var(--theme-panel-bg)')
   })
 
   it('can be the direct child of a tooltip', async () => {
