@@ -29,6 +29,18 @@ import * as notices from './ui/Notice.stories'
 
 // jsdom lacks these; the thread relies on them for scroll plumbing.
 
+// jsdom lacks this too; the app frame a list can render in asks it whether it is narrow.
+window.matchMedia ??= (media) => ({
+  media,
+  matches: false,
+  onchange: null,
+  addListener() {},
+  removeListener() {},
+  addEventListener() {},
+  removeEventListener() {},
+  dispatchEvent: () => true,
+})
+
 const SUITES = {
   agentParts,
   effortPicker,

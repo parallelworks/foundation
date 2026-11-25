@@ -1,4 +1,5 @@
 import { type MouseEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { useAppFrameNavigationPlacement } from '../../app-frame/placement'
 import { isPlainClick } from '../../components/AppLink'
 import type { OpenMenu } from '../../components/ContextMenu'
 import type { MenuEntry } from '../../components/MenuEntries'
@@ -85,9 +86,11 @@ export default function ChatSidebar({
   const attachmentsAvailable = !!adapter.attachments
   const { menuItems, openMenu, overlays } = useConversationActions()
 
-  const drawer = sidebarPresentation === 'drawer'
+  // As the app's navigation, the list is wherever the frame is, at the frame's width.
+  const frame = useAppFrameNavigationPlacement()
+  const drawer = !frame && sidebarPresentation === 'drawer'
   // The drawer always opens to the full list; the rail is for a column.
-  const sidebarCollapsed = !drawer && sidebar !== 'expanded'
+  const sidebarCollapsed = frame ? frame.collapsed : !drawer && sidebar !== 'expanded'
   // Picking something in the drawer is done with it; with no drawer open
   // this does nothing.
   const closeDrawer = () => setDrawerOpen(false)
@@ -98,7 +101,7 @@ export default function ChatSidebar({
   revealRef.current = () => {
     if (drawer) {
       setDrawerOpen(true)
-    } else if (sidebar !== 'expanded') {
+    } else if (!frame && sidebar !== 'expanded') {
       setSidebar('expanded')
     }
   }
@@ -254,7 +257,7 @@ export default function ChatSidebar({
 
   return (
     <>
-      {(drawer || sidebar !== 'hidden') && list}
+      {(frame || drawer || sidebar !== 'hidden') && list}
 
       {overlays}
     </>

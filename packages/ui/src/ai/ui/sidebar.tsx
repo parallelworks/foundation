@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { useAppFrameNavigationPlacement } from '../../app-frame/placement'
 import { AppLink, isPlainClick } from '../../components/AppLink'
 import { ConfirmModal } from '../../components/ConfirmModal'
 import type { OpenMenu } from '../../components/ContextMenu'
@@ -36,6 +37,19 @@ export const SIDEBAR_DEFAULT_WIDTH_PX = 256
 // a passing pointer.
 const HIGHLIGHT_SELECTED = 'bg-[color-mix(in_oklab,var(--theme-accent)_12%,transparent)]'
 const HIGHLIGHT_HOVER = 'hover:bg-[color-mix(in_oklab,var(--theme-app)_5%,transparent)]'
+
+// In the app's navigation a row is one of its items: the open one takes the
+// navigation's fill for the current page, and a passing pointer its hover.
+const FRAME_SELECTED = 'bg-(--pw-frame-active-bg)'
+const FRAME_HOVER = 'hover:bg-(--pw-frame-hover)'
+const FRAME_MENU_OPEN = 'bg-(--pw-frame-hover)'
+
+function highlight(inFrame: boolean, selected: boolean, menuOpen: boolean): string {
+  if (inFrame) {
+    return selected ? FRAME_SELECTED : menuOpen ? FRAME_MENU_OPEN : FRAME_HOVER
+  }
+  return selected || menuOpen ? HIGHLIGHT_SELECTED : HIGHLIGHT_HOVER
+}
 
 // A row's menu button sits over the time rather than holding room of its own
 // at the end of every row, so the time steps aside whenever the button shows.
@@ -320,6 +334,7 @@ export function SidebarRow({
   children: ReactNode
 }) {
   const { active, openMenu: openRowMenu } = useRowMenuActive(openMenu)
+  const inFrame = useAppFrameNavigationPlacement() !== null
   const row = useRef<HTMLLIElement>(null)
   const items = () =>
     typeof menuItems === 'function' ? (row.current ? menuItems(row.current) : []) : menuItems
@@ -351,10 +366,11 @@ export function SidebarRow({
       ref={row}
       data-sidebar-row=""
       data-menu-open={active || undefined}
+      data-selected={selected || undefined}
       className={cx(
         'group/sidebar-row group relative flex items-center justify-between rounded-lg px-2 py-[3px] transition-colors duration-150 pointer-coarse:pr-9',
         ROW_FOCUS_RING,
-        selected || active ? HIGHLIGHT_SELECTED : HIGHLIGHT_HOVER,
+        highlight(inFrame, selected, active),
         className,
       )}
       onKeyDown={shortcuts ? onKeyDown : undefined}
@@ -389,14 +405,16 @@ export function SidebarRailItem({
   testId?: string
   children: ReactNode
 }) {
+  const inFrame = useAppFrameNavigationPlacement() !== null
   const props = {
     'data-testid': testId,
     'aria-label': label,
     'aria-current': selected ? ('page' as const) : undefined,
     className: cx(
-      'flex h-7 w-7 items-center justify-center rounded-md transition-colors',
-      HIGHLIGHT_HOVER,
-      selected && HIGHLIGHT_SELECTED,
+      'flex items-center justify-center transition-colors',
+      // The navigation's rail items are the rail's width and 40px tall.
+      inFrame ? 'h-10 w-full rounded-lg' : 'h-7 w-7 rounded-md',
+      highlight(inFrame, selected, false),
     ),
   }
   return (

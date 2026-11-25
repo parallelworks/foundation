@@ -6,6 +6,7 @@ import {
   useId,
   useRef,
 } from 'react'
+import { useAppFrameNavigationPlacement } from '../../app-frame/placement'
 import {
   SHARED_COLLAPSED_GROUPS_STORAGE_KEY,
   useCollapsedGroups,
@@ -135,7 +136,10 @@ const ROW_CONTROL = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="
  *  collapse to a rail, with an optional drag handle for the width. The host
  *  decides what is listed, how it is grouped and how each row reads. A group's
  *  heading folds its rows away, and the list remembers it folded. ↑ and ↓
- *  move focus between its rows. */
+ *  move focus between its rows. Rendered by `AppFrameTakeoverContent`, it is
+ *  the app's navigation instead: the frame's rail and width are its own, and
+ *  it takes the navigation's colors, so `collapsed`, the toggle and `resize`
+ *  go unused. */
 export function ConversationSidebar<T>({
   label,
   collapsed: collapsedProp,
@@ -208,11 +212,67 @@ export function ConversationSidebar<T>({
   })
   const collapsedGroups = useCollapsedGroups(groupsStorageKey)
   const groupsId = useId()
+  const frame = useAppFrameNavigationPlacement()
   // A folded group's rows are out of sight, so cycling passes them by too.
   useItemCycling(
     groups.flatMap((g) => (collapsedGroups.collapsed.has(g.key) ? [] : g.items)),
     cycle,
   )
+
+  const body = loading ? (
+    <LoadingRegion className="space-y-3 px-2 pt-2">
+      {positionKeys(5, 'skeleton').map((key, i) => (
+        <Skeleton key={key} width={`${70 - i * 10}%`} height={16} className={SKELETON_TINT} />
+      ))}
+    </LoadingRegion>
+  ) : groups.length === 0 ? (
+    placeholder
+  ) : (
+    groups.map((group, i) => {
+      const folded = collapsedGroups.collapsed.has(group.key)
+      const rowsId = `${groupsId}-${i}`
+      return (
+        <div key={group.key} className="mb-2">
+          <SidebarGroupHeading
+            tone={group.tone ?? 'default'}
+            testId={groupTestId}
+            toggle={{
+              collapsed: folded,
+              onToggle: () => collapsedGroups.toggle(group.key),
+              controls: rowsId,
+              count: group.items.length,
+            }}
+          >
+            {group.label}
+          </SidebarGroupHeading>
+          {/* Folded, the rows unmount, and the list they leave is hidden, so nothing
+              reads it. */}
+          <ul id={rowsId} hidden={folded} className="space-y-0.5">
+            {!folded &&
+              group.items.map((item) => <Fragment key={getKey(item)}>{renderRow(item)}</Fragment>)}
+          </ul>
+        </div>
+      )
+    })
+  )
+
+  if (frame) {
+    return (
+      <>
+        <section aria-label={label} className="pw-frame-list">
+          {top && <div className="pw-frame-list-top">{top}</div>}
+          {frame.collapsed ? (
+            rail && <ul className="pw-frame-list-rail">{rail}</ul>
+          ) : (
+            // biome-ignore lint/a11y/noStaticElementInteractions: it only hears the arrows the rows' own controls let bubble
+            <div onKeyDown={moveBetweenRows}>{body}</div>
+          )}
+          {!frame.collapsed && footer && <div className="pw-frame-list-footer">{footer}</div>}
+        </section>
+        {children}
+      </>
+    )
+  }
 
   const fill = fillProp || !!drawer
   const collapsed = collapsedProp && !fill
@@ -241,49 +301,7 @@ export function ConversationSidebar<T>({
           )}
           onKeyDown={moveBetweenRows}
         >
-          {loading ? (
-            <LoadingRegion className="space-y-3 px-2 pt-2">
-              {positionKeys(5, 'skeleton').map((key, i) => (
-                <Skeleton
-                  key={key}
-                  width={`${70 - i * 10}%`}
-                  height={16}
-                  className={SKELETON_TINT}
-                />
-              ))}
-            </LoadingRegion>
-          ) : groups.length === 0 ? (
-            placeholder
-          ) : (
-            groups.map((group, i) => {
-              const folded = collapsedGroups.collapsed.has(group.key)
-              const rowsId = `${groupsId}-${i}`
-              return (
-                <div key={group.key} className="mb-2">
-                  <SidebarGroupHeading
-                    tone={group.tone ?? 'default'}
-                    testId={groupTestId}
-                    toggle={{
-                      collapsed: folded,
-                      onToggle: () => collapsedGroups.toggle(group.key),
-                      controls: rowsId,
-                      count: group.items.length,
-                    }}
-                  >
-                    {group.label}
-                  </SidebarGroupHeading>
-                  {/* Folded, the rows unmount, and the list they leave is hidden, so nothing
-                      reads it. */}
-                  <ul id={rowsId} hidden={folded} className="space-y-0.5">
-                    {!folded &&
-                      group.items.map((item) => (
-                        <Fragment key={getKey(item)}>{renderRow(item)}</Fragment>
-                      ))}
-                  </ul>
-                </div>
-              )
-            })
-          )}
+          {body}
         </div>
       )}
 

@@ -1,6 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
+import {
+  AppFrame,
+  AppFrameTakeover,
+  AppFrameTakeoverContent,
+  AppFrameToggle,
+  useAppFrameTakeover,
+} from '../../app-frame/index'
 import { planRemoval, removalTarget } from '../../components/focusAfterRemoval'
 import { ConversationSidebar, type ConversationSidebarGroup } from './ConversationSidebar'
 import { SidebarRailItem, SidebarRow } from './sidebar'
@@ -238,6 +245,85 @@ describe('ConversationSidebar', () => {
     // Arrows with a modifier are another shortcut's.
     fireEvent.keyDown(row('Item b'), { key: 'ArrowDown', shiftKey: true })
     expect(row('Item b')).toHaveFocus()
+  })
+})
+
+describe('ConversationSidebar in the app frame', () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn(() => ({ matches: false, addEventListener() {}, removeEventListener() {} })),
+    )
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  function InFrame({
+    defaultExpanded = true,
+    ...props
+  }: Partial<Parameters<typeof ConversationSidebar<Item>>[0]> & { defaultExpanded?: boolean }) {
+    const takeover = useAppFrameTakeover(true)
+    return (
+      <AppFrameTakeover value={takeover.takeover}>
+        <AppFrame
+          defaultExpanded={defaultExpanded}
+          navigation={takeover.navigation}
+          footer={<AppFrameToggle />}
+        >
+          <AppFrameTakeoverContent>
+            <Sidebar {...props} />
+          </AppFrameTakeoverContent>
+        </AppFrame>
+      </AppFrameTakeover>
+    )
+  }
+
+  const list = () => screen.getByRole('region', { name: 'Items' })
+
+  it("is the frame's navigation, with no column, toggle or handle of its own", () => {
+    render(<InFrame resize={{ label: 'Resize', hint: '' }} footer={<a href="#p">Providers</a>} />)
+    expect(screen.getByRole('complementary')).toContainElement(list())
+    expect(list()).toHaveClass('pw-frame-list')
+    expect(screen.queryByRole('complementary', { name: 'Items' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('separator', { name: 'Resize' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Providers' })).toBeInTheDocument()
+  })
+
+  it("follows the frame's rail, whatever its own collapsed says", () => {
+    render(<InFrame collapsed rail={<li>Rail</li>} />)
+    expect(screen.getByText('Item a')).toBeInTheDocument()
+    expect(screen.queryByText('Rail')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }))
+    expect(screen.getByText('Rail')).toBeInTheDocument()
+    expect(screen.queryByText('Item a')).not.toBeInTheDocument()
+  })
+
+  it('keeps its top and leaves its footer out in the rail', () => {
+    render(
+      <InFrame
+        defaultExpanded={false}
+        top={<button type="button">New</button>}
+        footer={<a href="#p">Providers</a>}
+      />,
+    )
+    expect(screen.getByRole('button', { name: 'New' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Providers' })).not.toBeInTheDocument()
+  })
+
+  it("marks the open row with the navigation's fill for the current page", () => {
+    render(
+      <InFrame
+        renderRow={(i) => (
+          <SidebarRow selected={i.id === 'b'} menuItems={[]} openMenu={() => {}}>
+            <a href={`#${i.id}`}>{i.title}</a>
+          </SidebarRow>
+        )}
+      />,
+    )
+    const open = screen.getByText('Item b').closest('li')
+    expect(open).toHaveAttribute('data-selected')
+    expect(open).toHaveClass('bg-(--pw-frame-active-bg)')
+    expect(screen.getByText('Item a').closest('li')).toHaveClass('hover:bg-(--pw-frame-hover)')
   })
 })
 

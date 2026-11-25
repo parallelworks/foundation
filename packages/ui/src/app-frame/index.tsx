@@ -752,10 +752,13 @@ export function AppFrameNavGroup({
   )
 }
 
+export { AppFrameNavSwitch, type AppFrameNavSwitchItem } from './navSwitch'
+export { type AppFrameNavigationPlacement, useAppFrameNavigationPlacement } from './placement'
 export {
   AppFrameListTakeover,
   AppFrameTakeover,
   AppFrameTakeoverBack,
+  AppFrameTakeoverContent,
   type AppFrameTakeoverGroup,
   type AppFrameTakeoverRow,
   type AppFrameTakeoverState,

@@ -1,6 +1,17 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useState } from 'react'
 import { expect, screen, userEvent, waitFor, within } from 'storybook/test'
+import {
+  AppFrame,
+  AppFrameNavItem,
+  AppFrameNavSwitch,
+  type AppFrameNavSwitchItem,
+  AppFrameTakeover,
+  AppFrameTakeoverBack,
+  AppFrameTakeoverContent,
+  AppFrameToggle,
+  useAppFrameTakeover,
+} from '../../app-frame/index'
 import { AppLink } from '../../components/AppLink'
 import { useContextMenu } from '../../components/ContextMenu'
 import { Drawer } from '../../components/Drawer'
@@ -8,8 +19,9 @@ import { EmptyState } from '../../components/EmptyState'
 import { useShortcutFormat } from '../../components/Kbd'
 import type { MenuEntry } from '../../components/MenuEntries'
 import { RunStatusIcon } from '../../components/RunStatusIcon'
-import { StatusDot } from '../../components/StatusBadge'
+import { CountBadge, StatusDot } from '../../components/StatusBadge'
 import { cx } from '../../cx'
+import { FileTextIcon, InboxIcon, ListViewIcon, SettingsIcon } from '../../icons'
 import { StoryViewport } from '../stories/harness'
 import {
   ConversationSidebar,
@@ -155,11 +167,14 @@ function TaskSidebar({
   loading = false,
   groupsStorageKey = 'storyTaskSidebarGroups',
   onToggle,
+  viewport = true,
 }: {
   tasks: Task[]
   startCollapsed: boolean
   /** The host is still fetching the tasks. */
   loading?: boolean
+  /** False where the list fills somewhere the story already sized, such as a frame. */
+  viewport?: boolean
   groupsStorageKey?: string
   fill?: boolean
   onToggle?: () => void
@@ -174,83 +189,80 @@ function TaskSidebar({
   const { openMenu, contextMenu } = useContextMenu()
   const actions = useTaskActions(setTasks)
   const open = tasks.find((t) => t.id === openId)
-  return (
-    <StoryViewport>
-      <ConversationSidebar<Task>
-        label="Tasks"
-        collapsed={collapsed}
-        fill={fill}
-        onToggle={onToggle ?? (() => setCollapsed((c) => !c))}
-        toggleLabels={{ open: 'Open sidebar', close: 'Close sidebar' }}
-        resize={{
-          storageKey: 'storyTaskSidebarWidth',
-          label: 'Resize task list',
-          hint: 'Drag to resize; double-click to reset',
-        }}
-        groups={grouped(tasks)}
-        groupsStorageKey={groupsStorageKey}
-        getKey={(t) => t.id}
-        cycle={{ current: open, onSelect: (t) => setOpenId(t.id) }}
-        loading={loading}
-        placeholder={<EmptyState variant="bare" title="No tasks yet" />}
-        renderRow={(t) => {
-          const body = (
-            <SidebarRowBody
-              leading={t.state !== 'idle' && <TaskMark state={t.state} size="row" />}
-              title={t.title}
-              time={t.age}
-              detail={
-                t.host && <span className="truncate font-mono theme-muted-text">{t.host}</span>
-              }
-            />
-          )
-          return (
-            <SidebarRow
-              selected={t.id === openId}
-              openMenu={openMenu}
-              menuItems={keyboard ? actions.menuItems(t) : RENAME_ONLY}
-              shortcuts={keyboard ? actions.shortcuts(t) : undefined}
-            >
-              {links ? (
-                <AppLink
-                  href={taskHref(t)}
-                  onClick={() => setOpenId(t.id)}
-                  className="flex min-w-0 flex-1 py-1 text-left"
-                >
-                  {body}
-                </AppLink>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setOpenId(t.id)}
-                  className="flex min-w-0 flex-1 py-1 text-left"
-                >
-                  {body}
-                </button>
-              )}
-            </SidebarRow>
-          )
-        }}
-        rail={tasks.map(
-          (t) =>
-            t.state !== 'idle' && (
-              <SidebarRailItem
-                key={t.id}
-                label={t.title}
-                selected={t.id === openId}
-                href={links ? taskHref(t) : undefined}
-                onSelect={() => setOpenId(t.id)}
+  const list = (
+    <ConversationSidebar<Task>
+      label="Tasks"
+      collapsed={collapsed}
+      fill={fill}
+      onToggle={onToggle ?? (() => setCollapsed((c) => !c))}
+      toggleLabels={{ open: 'Open sidebar', close: 'Close sidebar' }}
+      resize={{
+        storageKey: 'storyTaskSidebarWidth',
+        label: 'Resize task list',
+        hint: 'Drag to resize; double-click to reset',
+      }}
+      groups={grouped(tasks)}
+      groupsStorageKey={groupsStorageKey}
+      getKey={(t) => t.id}
+      cycle={{ current: open, onSelect: (t) => setOpenId(t.id) }}
+      loading={loading}
+      placeholder={<EmptyState variant="bare" title="No tasks yet" />}
+      renderRow={(t) => {
+        const body = (
+          <SidebarRowBody
+            leading={t.state !== 'idle' && <TaskMark state={t.state} size="row" />}
+            title={t.title}
+            time={t.age}
+            detail={t.host && <span className="truncate font-mono theme-muted-text">{t.host}</span>}
+          />
+        )
+        return (
+          <SidebarRow
+            selected={t.id === openId}
+            openMenu={openMenu}
+            menuItems={keyboard ? actions.menuItems(t) : RENAME_ONLY}
+            shortcuts={keyboard ? actions.shortcuts(t) : undefined}
+          >
+            {links ? (
+              <AppLink
+                href={taskHref(t)}
+                onClick={() => setOpenId(t.id)}
+                className="flex min-w-0 flex-1 py-1 text-left"
               >
-                <TaskMark state={t.state} size="rail" />
-              </SidebarRailItem>
-            ),
-        )}
-      >
-        {contextMenu}
-        {keyboard && actions.dialogs}
-      </ConversationSidebar>
-    </StoryViewport>
+                {body}
+              </AppLink>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setOpenId(t.id)}
+                className="flex min-w-0 flex-1 py-1 text-left"
+              >
+                {body}
+              </button>
+            )}
+          </SidebarRow>
+        )
+      }}
+      rail={tasks.map(
+        (t) =>
+          t.state !== 'idle' && (
+            <SidebarRailItem
+              key={t.id}
+              label={t.title}
+              selected={t.id === openId}
+              href={links ? taskHref(t) : undefined}
+              onSelect={() => setOpenId(t.id)}
+            >
+              <TaskMark state={t.state} size="rail" />
+            </SidebarRailItem>
+          ),
+      )}
+    >
+      {contextMenu}
+      {keyboard && actions.dialogs}
+    </ConversationSidebar>
   )
+  return viewport ? <StoryViewport>{list}</StoryViewport> : list
 }
 
 const RENAME_ONLY: MenuEntry[] = [{ label: 'Rename', onClick: () => {} }]
@@ -407,6 +419,111 @@ export const Rail: StoryObj = {
 
 export const Empty: StoryObj = {
   render: () => <TaskSidebar tasks={[]} startCollapsed={false} />,
+}
+
+type InNavigationArgs = { collapsed: boolean; switcher: boolean }
+
+const NAV_SWITCH_ITEMS: AppFrameNavSwitchItem[] = [
+  {
+    href: '/tasks',
+    label: 'Tasks',
+    icon: <ListViewIcon />,
+    selected: true,
+    badge: <CountBadge count={1} label="1 needs you" size="sm" />,
+  },
+  { href: '/notes', label: 'Notes', icon: <FileTextIcon />, selected: false },
+]
+
+function InNavigationExample({ collapsed, switcher }: InNavigationArgs) {
+  const takeover = useAppFrameTakeover(true)
+  return (
+    <AppFrameTakeover value={takeover.takeover}>
+      <AppFrame
+        defaultExpanded={!collapsed}
+        style={{ height: '100dvh' }}
+        brand={({ expanded }) =>
+          takeover.active ? (
+            <AppFrameTakeoverBack onBack={takeover.showNavigation} />
+          ) : (
+            <strong className="block py-1.5" style={{ textAlign: expanded ? 'start' : 'center' }}>
+              {expanded ? 'Workspace' : 'W'}
+            </strong>
+          )
+        }
+        navigation={
+          takeover.active ? (
+            takeover.navigation
+          ) : (
+            <nav aria-label="Main navigation">
+              <AppFrameNavItem label="Inbox" icon={<InboxIcon />} />
+              <AppFrameNavItem
+                label="Tasks"
+                icon={<ListViewIcon />}
+                selected
+                onClick={takeover.showList}
+              />
+              <AppFrameNavItem label="Settings" icon={<SettingsIcon />} />
+            </nav>
+          )
+        }
+        footer={({ isMobile }) => !isMobile && <AppFrameToggle />}
+      >
+        <AppFrameTakeoverContent>
+          {switcher && <AppFrameNavSwitch label="Lists" items={NAV_SWITCH_ITEMS} />}
+          <TaskSidebar tasks={TASKS} startCollapsed={false} links viewport={false} />
+        </AppFrameTakeoverContent>
+        <div className="p-6 theme-text">Fix the flaky upload test</div>
+      </AppFrame>
+    </AppFrameTakeover>
+  )
+}
+
+const inNavigation: StoryObj<InNavigationArgs> = {
+  args: { collapsed: false, switcher: true },
+  argTypes: {
+    collapsed: { control: 'boolean', description: "The frame's rail" },
+    switcher: { control: 'boolean', description: 'An `AppFrameNavSwitch` above the list' },
+  },
+  render: (args) => <InNavigationExample key={String(args.collapsed)} {...args} />,
+}
+
+/** Rendered by `AppFrameTakeoverContent`, the list is the app's navigation instead of a second
+ *  column beside the page: it scrolls under what stays at its top, takes the navigation's colors,
+ *  and marks the open row with the navigation's fill for the current page. The frame's own toggle
+ *  and drag handle collapse and size it. Main menu shows the app's navigation; its Tasks item
+ *  brings the list back. An `AppFrameNavSwitch` above it moves between sibling lists. */
+export const InAppNavigation: StoryObj<InNavigationArgs> = {
+  ...inNavigation,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const list = canvas.getByRole('region', { name: 'Tasks' })
+    await expect(
+      within(list).getByRole('link', { name: /Fix the flaky upload test/ }),
+    ).toBeVisible()
+    await expect(canvas.queryByRole('button', { name: 'Close sidebar' })).toBeNull()
+    await userEvent.click(canvas.getByRole('button', { name: 'Main menu' }))
+    await expect(canvas.queryByRole('region', { name: 'Tasks' })).toBeNull()
+    await userEvent.click(canvas.getByRole('button', { name: 'Tasks' }))
+    await expect(canvas.getByRole('region', { name: 'Tasks' })).toBeVisible()
+  },
+}
+
+/** In the frame's rail, the list shows its rail items at the rail's width, under the switch's
+ *  icons. */
+export const InAppNavigationRail: StoryObj<InNavigationArgs> = {
+  ...inNavigation,
+  args: { collapsed: true, switcher: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('link', { name: 'Fix the flaky upload test' })).toBeVisible()
+    await expect(canvas.queryByText('Needs you')).toBeNull()
+  },
+}
+
+/** The same in the dark scheme, where the navigation and the page are both dark. */
+export const InAppNavigationDark: StoryObj<InNavigationArgs> = {
+  ...inNavigation,
+  globals: { mode: 'dark' },
 }
 
 /** While the host is still fetching, the list sketches its rows in a tint that shows on the
