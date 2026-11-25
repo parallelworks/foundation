@@ -155,6 +155,7 @@ export type { FloatingAnchor } from './components/floating'
 export { HoverCard, type HoverCardProps } from './components/HoverCard'
 export { IconButton, type IconButtonProps } from './components/IconButton'
 export {
+  CropDialog,
   IMAGE_UPLOAD_SIZE,
   ImageUpload,
   type ImageUploadProps,

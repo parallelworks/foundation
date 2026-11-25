@@ -30,6 +30,9 @@ export interface EditableIconProps {
   className?: string | undefined
   /** Classes for the image itself, such as padding around a default icon. */
   imageClassName?: string | undefined
+  /** Smaller text and a smaller corner button, for an icon too small for the usual ones to
+   *  fit beside each other, such as one beside a heading. */
+  compact?: boolean | undefined
 }
 
 /** An icon someone can change: hovering or focusing it dims it and offers to edit it, and a
@@ -49,6 +52,7 @@ export function EditableIcon({
   bgColor,
   className = 'size-24',
   imageClassName,
+  compact = false,
 }: EditableIconProps) {
   const { imageUpload: t } = useStrings()
   // The image that failed to load, so a new one is tried again.
@@ -82,7 +86,8 @@ export function EditableIcon({
             aria-label={label ?? edit}
             onClick={onEdit}
             className={cx(
-              'absolute inset-0 flex cursor-pointer items-center justify-center bg-black/75 p-1 text-center text-xs font-medium text-white opacity-0 transition-opacity select-none group-hover/icon:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--theme-focus)',
+              'absolute inset-0 flex cursor-pointer items-center justify-center bg-black/75 p-1 text-center font-medium text-white opacity-0 transition-opacity select-none group-hover/icon:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--theme-focus)',
+              compact ? 'text-[10px] leading-tight' : 'text-xs',
               round,
             )}
           >
@@ -96,9 +101,12 @@ export function EditableIcon({
           aria-label={remove}
           title={remove}
           onClick={() => void onRemove()}
-          className="absolute -top-1.5 -right-1.5 flex size-6 items-center justify-center rounded-full border theme-border bg-(--theme-panel-bg) text-(--theme-muted-text-color) opacity-0 shadow-sm transition-opacity group-focus-within/icon:opacity-100 group-hover/icon:opacity-100 hover:text-(--theme-error) focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-(--theme-focus)"
+          className={cx(
+            'absolute flex items-center justify-center rounded-full border theme-border bg-(--theme-panel-bg) text-(--theme-muted-text-color) opacity-0 shadow-sm transition-opacity group-focus-within/icon:opacity-100 group-hover/icon:opacity-100 hover:text-(--theme-error) focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-(--theme-focus)',
+            compact ? '-top-2 -right-2 size-5' : '-top-1.5 -right-1.5 size-6',
+          )}
         >
-          <TrashIcon className="size-3.5" />
+          <TrashIcon className={compact ? 'size-3' : 'size-3.5'} />
         </button>
       )}
     </div>

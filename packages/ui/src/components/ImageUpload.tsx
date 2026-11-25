@@ -120,6 +120,7 @@ export function ImageUpload({
           className="size-full"
           editable={!disabled}
           label={t.change(name)}
+          compact={size < 56}
           onEdit={() => input.current?.click()}
           onRemove={onRemove}
         />
@@ -137,9 +138,10 @@ interface Point {
   y: number
 }
 
-/** Crops `image` to a square: drag to move it, zoom with the slider, the wheel or
- *  the keyboard, then save. */
-function CropDialog({
+/** Crops `image` (a data: URL) to a square: drag to move it, zoom with the slider, the
+ *  wheel or the keyboard, then save the square as a PNG `IMAGE_UPLOAD_SIZE` on a side. A
+ *  host that picks its own image, such as from a menu, shows it here. */
+export function CropDialog({
   image,
   name,
   onSave,

@@ -67,7 +67,8 @@ export const Icon: StoryObj<IconArgs> = {
   },
 }
 
-/** Without an image the fallback shows, and there is nothing to remove. */
+/** Without an image the fallback shows, and there is nothing to remove; a small icon is
+ *  compact, its text and corner button smaller. */
 export const Fallback: StoryObj = {
   render: () => (
     <div className="flex gap-6 p-8">
@@ -83,6 +84,15 @@ export const Fallback: StoryObj = {
         border
         className="size-16"
         onEdit={() => {}}
+      />
+      <EditableIcon
+        icon={mark}
+        shape="square"
+        border
+        compact
+        className="size-10"
+        onEdit={() => {}}
+        onRemove={() => {}}
       />
     </div>
   ),
