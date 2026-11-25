@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.151.1](https://github.com/parallelworks/foundation/compare/ui-v0.151.0...ui-v0.151.1) (2026-11-25)
+
+
+### Bug Fixes
+
+* **deps:** ui accepts monaco-editor 0.58, with the npm packages at their latest ([#832](https://github.com/parallelworks/foundation/issues/832)) ([ad6a64b](https://github.com/parallelworks/foundation/commit/ad6a64b417c8ca95f828925230d0192f428a8b38))
+* **ui:** a summary opened under a command, notice or subagent in a transcript draws its headings at a document's size ([#806](https://github.com/parallelworks/foundation/issues/806)) ([d90d893](https://github.com/parallelworks/foundation/commit/d90d893d3852c3c9c4dcd37694443276613ce084))
+* **ui:** a transcript at its latest turn moves as the composer is typed in, and loops under a live reply as tall as the view ([#839](https://github.com/parallelworks/foundation/issues/839)) ([1d01bb5](https://github.com/parallelworks/foundation/commit/1d01bb5e4ffc3add0ab178e19ff876fad35c1ad7))
+* **ui:** a URL in a message the reader sent shows as plain text instead of a link ([#838](https://github.com/parallelworks/foundation/issues/838)) ([a84820a](https://github.com/parallelworks/foundation/commit/a84820a3b1a88efeb2b1f1df56be52dc29cac38c))
+
 ## [0.151.0](https://github.com/parallelworks/foundation/compare/ui-v0.150.2...ui-v0.151.0) (2026-11-25)
 
 
