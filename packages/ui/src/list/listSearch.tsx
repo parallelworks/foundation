@@ -27,25 +27,87 @@ import { Tooltip } from '../components/Tooltip'
 import { cx } from '../cx'
 import { formatInteger } from '../format'
 import { CloseIcon, RemoveIcon, SearchIcon } from '../icons'
+import type { ListUrl } from './useListFilters'
 
 const NO_TERMS: string[] = []
+const SEARCH_PARAM = 'search'
+
+// Writes to the URL wait for a pause in typing, so a router isn't asked to navigate per key.
+const URL_WRITE_DELAY_MS = 300
+
+// A router may hand the param back parsed, as a number, a boolean or a list.
+const searchParam = (url: ListUrl | undefined): string => {
+  const value = url?.search[SEARCH_PARAM]
+  const first = Array.isArray(value) ? value[0] : value
+  return typeof first === 'string' || typeof first === 'number' || typeof first === 'boolean'
+    ? String(first)
+    : ''
+}
 
 /** Pass `enabled: false` to suspend the global ⌘F/`/` hijack (e.g. when search isn't shown and browser Find should stay active).
- *  `/` is off too while UIProvider's `characterKeyShortcuts` is. */
-export function useListSearch(enabled = true, storageKey?: string) {
-  const [filter, setFilter] = useState('')
-  const [searchOpen, setSearchOpen] = useState(false)
+ *  `/` is off too while UIProvider's `characterKeyShortcuts` is. With `url`, the text follows
+ *  the page's `?search=` param both ways, so a link opens the list already searched; Enter then
+ *  keeps the text in the box rather than making it a chip, which a link couldn't carry. */
+export function useListSearch(enabled = true, storageKey?: string, url?: ListUrl) {
+  const [filter, setFilter] = useState(() => searchParam(url))
+  const [searchOpen, setSearchOpen] = useState(() => searchParam(url) !== '')
   const [storedTerms, setStoredTerms] = usePersistedState<string[]>(
     `${storageKey ?? 'list'}:searchTerms`,
     NO_TERMS,
   )
-  const terms = storageKey ? storedTerms : NO_TERMS
+  const chips = Boolean(storageKey) && !url
+  const terms = chips ? storedTerms : NO_TERMS
   const inputRef = useRef<HTMLInputElement>(null)
+  // A box a link opened shows its text without taking focus from the page.
+  const focusOnOpen = useRef(searchParam(url) === '')
+
+  const urlText = searchParam(url)
+  const onUrlChange = url?.onChange
+  // Text written to the URL that it hasn't shown yet, oldest first, so the router's late echo
+  // of an earlier write isn't read as a new link and doesn't undo what was typed since.
+  const written = useRef<string[]>([])
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const shownText = useRef(urlText)
+  useEffect(() => () => clearTimeout(timer.current), [])
+  useEffect(() => {
+    clearTimeout(timer.current)
+    if (!onUrlChange || filter === (written.current.at(-1) ?? shownText.current)) {
+      return
+    }
+    timer.current = setTimeout(() => {
+      written.current.push(filter)
+      onUrlChange((current) => {
+        const { [SEARCH_PARAM]: _, ...rest } = current
+        return filter === '' ? rest : { ...rest, [SEARCH_PARAM]: filter }
+      })
+    }, URL_WRITE_DELAY_MS)
+  }, [filter, onUrlChange])
+  useEffect(() => {
+    if (urlText === shownText.current) {
+      return
+    }
+    shownText.current = urlText
+    const echo = written.current.indexOf(urlText)
+    if (echo !== -1) {
+      written.current = written.current.slice(echo + 1)
+      return
+    }
+    written.current = []
+    clearTimeout(timer.current)
+    setFilter(urlText)
+    if (urlText !== '') {
+      focusOnOpen.current = false
+      setSearchOpen(true)
+    } else if (document.activeElement !== inputRef.current) {
+      setSearchOpen(false)
+    }
+  }, [urlText])
 
   useEffect(() => {
-    if (searchOpen) {
+    if (searchOpen && focusOnOpen.current) {
       inputRef.current?.focus()
     }
+    focusOnOpen.current = true
   }, [searchOpen])
 
   useEffect(() => {
@@ -75,7 +137,7 @@ export function useListSearch(enabled = true, storageKey?: string) {
   const addTerm = useCallback(
     (term: string) => {
       const trimmed = term.trim()
-      if (!storageKey || !trimmed) {
+      if (!chips || !trimmed) {
         return
       }
       setStoredTerms((prev) =>
@@ -83,7 +145,7 @@ export function useListSearch(enabled = true, storageKey?: string) {
       )
       setFilter('')
     },
-    [storageKey, setStoredTerms],
+    [chips, setStoredTerms],
   )
 
   const removeTerm = useCallback(

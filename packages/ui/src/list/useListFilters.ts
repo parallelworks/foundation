@@ -1,8 +1,9 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePersistedState } from '../components/Provider'
 import {
   type ActiveFilter,
   applyFilterList,
+  decodeFilters,
   type FilterField,
   type FilterOperator,
   type FilterOption,
@@ -13,7 +14,10 @@ import {
   type StoredFilters,
   sameFilters,
   toStored,
+  withFilterParams,
 } from './filterModel'
+
+const NONE: readonly ActiveFilter[] = []
 
 /** Where filters live besides what the list remembers, such as the page's URL. */
 export interface FilterStore {
@@ -21,6 +25,73 @@ export interface FilterStore {
    *  so the remembered filters apply. */
   value: readonly ActiveFilter[] | null
   onChange: (next: ActiveFilter[]) => void
+}
+
+/** The page's URL as a list reads and writes it, for the host to bind its router to. */
+export interface ListUrl {
+  search: Record<string, unknown>
+  /** Applies `update` to the URL's params as they are when the host applies it, such as a
+   *  router's `navigate({ search: update, replace: true })`. An update touches only the list's
+   *  own params, so two lists, or a list's filters and its search, never undo each other. */
+  onChange: (update: (current: Record<string, unknown>) => Record<string, unknown>) => void
+}
+
+/** The param a list writes when its filters are cleared on a page with defaults, so the
+ *  defaults stay cleared instead of coming back. */
+export const NO_FILTERS_PARAM = 'filters'
+const NO_FILTERS = 'none'
+
+const decodeUrl = (search: Record<string, unknown>, fields: readonly FilterField<unknown>[]) =>
+  decodeFilters(search, fields) ?? (search[NO_FILTERS_PARAM] === NO_FILTERS ? [] : null)
+
+/** Keeps the fields' filters in the page's URL, leaving its other params alone. Filters written
+ *  but not yet in the URL stay in effect, since a router applies a change after it is asked to. */
+export function useUrlFilterStore<T>(
+  url: ListUrl | undefined,
+  fields: readonly FilterField<T>[],
+  defaultFilters: readonly ActiveFilter[] = NONE,
+): FilterStore | undefined {
+  const search = url?.search
+  const onChange = url?.onChange
+  const decoded = useMemo(
+    () => (search ? decodeUrl(search, fields as readonly FilterField<unknown>[]) : null),
+    [search, fields],
+  )
+  // Every write the URL hasn't shown yet, oldest first.
+  const [pending, setPending] = useState<readonly ActiveFilter[][]>([])
+  const previous = useRef(decoded)
+  useEffect(() => {
+    const before = previous.current
+    previous.current = decoded
+    if (sameFilters(before ?? NONE, decoded ?? NONE)) {
+      return
+    }
+    setPending((writes) => {
+      const shown = writes.findIndex((w) => sameFilters(w, decoded ?? NONE))
+      // A write the URL now shows settles it and every write before it; a change the list
+      // didn't write, such as following a link, wins over the rest.
+      return shown === -1 ? [] : writes.slice(shown + 1)
+    })
+  }, [decoded])
+
+  const hasDefaults = defaultFilters.length > 0
+  return useMemo(() => {
+    if (!onChange) {
+      return undefined
+    }
+    return {
+      value: pending.at(-1) ?? decoded,
+      onChange: (next: ActiveFilter[]) => {
+        setPending((writes) => [...writes, next])
+        onChange((current) => {
+          const { [NO_FILTERS_PARAM]: _, ...rest } = withFilterParams(current, next, fields)
+          return next.length === 0 && hasDefaults
+            ? { ...rest, [NO_FILTERS_PARAM]: NO_FILTERS }
+            : rest
+        })
+      },
+    }
+  }, [onChange, pending, decoded, fields, hasDefaults])
 }
 
 export interface ListFiltersConfig<T> {
@@ -89,7 +160,6 @@ export interface ListFilters {
   registerBar: () => () => void
 }
 
-const NONE: readonly ActiveFilter[] = []
 const NO_QUICK: readonly QuickFilter[] = []
 
 /** A list's active filters: which, in what order, where they are remembered and how rows

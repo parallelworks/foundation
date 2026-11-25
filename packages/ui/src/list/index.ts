@@ -105,5 +105,7 @@ export {
   type FilterStore,
   type ListFilters,
   type ListFiltersConfig,
+  type ListUrl,
   useListFilters,
+  useUrlFilterStore,
 } from './useListFilters'

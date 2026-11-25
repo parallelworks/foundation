@@ -3,7 +3,13 @@ import { useCallback, useMemo, useState } from 'react'
 import { usePersistedState, useStrings } from '../components/Provider'
 import type { ActiveFilter, FilterField, QuickFilter } from './filterModel'
 import { actionsColumnWidth } from './ListTable'
-import { type FilterStore, type ListFilters, useListFilters } from './useListFilters'
+import {
+  type FilterStore,
+  type ListFilters,
+  type ListUrl,
+  useListFilters,
+  useUrlFilterStore,
+} from './useListFilters'
 
 /** A toggleable column. Rendering stays in the page's row component, gated by
  * {@link ListView.isVisible}; this is just the header metadata + visibility. */
@@ -147,6 +153,9 @@ export interface ListViewConfig<T> {
   /** Filters held outside the list too, such as the URL: its filters win while it has any, and
    *  changes go to both. See `decodeFilters` and `encodeFilters`. */
   filterStore?: FilterStore | undefined
+  /** Keeps the filters in the page's URL, such as `?status=running,pending`, so a link opens
+   *  the list with them. `filterStore`, when given too, wins. */
+  url?: ListUrl | undefined
   /** False leaves remembering the filters to `filterStore` alone. */
   rememberFilters?: boolean | undefined
   /** Fields whose values also show as toggles above the chips, such as a job's state with how
@@ -292,6 +301,7 @@ export function useListView<T>({
   filterFields,
   defaultFilters,
   filterStore,
+  url,
   rememberFilters = true,
   quickFilters,
   actions = [],
@@ -394,12 +404,13 @@ export function useListView<T>({
     () => [...facets.map(facetField), ...(filterFields ?? [])],
     [facets, filterFields],
   )
+  const urlStore = useUrlFilterStore(url, fields, defaultFilters)
   const filterState = useListFilters<T>({
     storageKey,
     sharedFiltersKey,
     fields,
     defaultFilters,
-    store: filterStore,
+    store: filterStore ?? urlStore,
     remember: rememberFilters,
     quick: quickFilters,
   })

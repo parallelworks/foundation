@@ -20,21 +20,15 @@ import {
   UserIcon,
 } from '../icons'
 import source from './filterBar.stories.tsx?raw'
-import {
-  type ActiveFilter,
-  decodeFilters,
-  encodeFilters,
-  type FilterField,
-  type FilterOption,
-  toDay,
-} from './filterModel'
+import { type ActiveFilter, type FilterField, type FilterOption, toDay } from './filterModel'
 import { ListFilterBar } from './ListFilterBar'
 import { ListPage } from './ListPage'
 import { listTableProps } from './ListTable'
 import { ListToolbar } from './ListToolbar'
 import { ListFilterMenu } from './ListViewControls'
+import { useListSearch } from './listSearch'
 import { useListView } from './listView'
-import { useListFilters } from './useListFilters'
+import { useListFilters, useUrlFilterStore } from './useListFilters'
 
 const meta: Meta = {
   title: 'UI/List/Filters',
@@ -224,8 +218,8 @@ function Shell({ children, width }: { children: ReactNode; width?: number | unde
   )
 }
 
-/** An issue list whose filters live in search params, as a host router would hold them;
- *  a plain `?label=bug` link still reads. */
+/** An issue list whose filters and search text live in search params, as a host router would
+ *  hold them; a plain `?label=bug` link still reads. */
 function IssuesDemo({
   link,
   width,
@@ -235,21 +229,19 @@ function IssuesDemo({
   width?: number
   fields?: FilterField<Issue>[]
 }) {
-  const [search, setSearch] = useState(() => new URLSearchParams(link))
-  const store = useMemo(
-    () => ({
-      value: decodeFilters(search, fields),
-      onChange: (next: ActiveFilter[]) => setSearch(new URLSearchParams(encodeFilters(next))),
-    }),
-    [search, fields],
+  const [params, setParams] = useState<Record<string, unknown>>(() =>
+    Object.fromEntries(new URLSearchParams(link)),
   )
+  const url = useMemo(() => ({ search: params, onChange: setParams }), [params])
   const filters = useListFilters<Issue>({
     storageKey: `story-issues-${link}`,
     fields,
-    store,
+    store: useUrlFilterStore(url, fields),
     remember: false,
   })
-  const rows = filters.apply(ISSUES)
+  const search = useListSearch(true, undefined, url)
+  const query = search.filter.trim().toLowerCase()
+  const rows = filters.apply(ISSUES).filter((issue) => issue.title.toLowerCase().includes(query))
   return (
     <Shell width={width}>
       <div className="flex h-12 shrink-0 items-center border-b border-(--theme-border) px-4 text-[16px] font-semibold">
@@ -258,9 +250,13 @@ function IssuesDemo({
       <ListPage
         total={ISSUES.length}
         matches={rows.length}
-        count={{ noun: 'issue', nounPlural: 'issues', filterActive: filters.count > 0 }}
+        count={{
+          noun: 'issue',
+          nounPlural: 'issues',
+          filterActive: filters.count > 0 || query !== '',
+        }}
         toolbar={
-          <ListToolbar>
+          <ListToolbar search={search} searchLabel="Search issues">
             <ListFilterMenu filters={filters} />
           </ListToolbar>
         }
@@ -330,6 +326,18 @@ export const IssuesFromALink: StoryObj<IssuesArgs> = {
   args: { link: ISSUE_LINK },
   argTypes: { link: { control: 'text' } },
   render: (args) => <IssuesDemo link={args.link} />,
+}
+
+/** A link that also names search text: the list opens searched, with the search field open. */
+export const IssuesFromASearchLink: StoryObj<IssuesArgs> = {
+  ...IssuesFromALink,
+  args: { link: '?status=todo,started,review,backlog&search=invoice' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(await canvas.findByRole('textbox', { name: 'Search issues' })).toHaveValue(
+      'invoice',
+    )
+  },
 }
 
 export const IssuesDark: StoryObj<IssuesArgs> = {

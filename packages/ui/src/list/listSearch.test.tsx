@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { ariaKeyShortcuts } from '../components/Kbd'
 import { UIProvider } from '../components/Provider'
 import { memoryStorage } from '../test/storage'
 import { ListCount, ListSearchControl, useListSearch } from './listSearch'
+import type { ListUrl } from './useListFilters'
 
 function Harness({ storageKey }: { storageKey?: string }) {
   const search = useListSearch(true, storageKey)
@@ -105,6 +106,99 @@ describe('list search term chips', () => {
     expect(getInput()).toHaveValue('alpha')
     expect(screen.getByTestId('queries')).toHaveTextContent(/^alpha$/)
     expect(screen.queryByLabelText('Remove filter alpha')).not.toBeInTheDocument()
+  })
+})
+
+function LinkedHarness({ url, storageKey }: { url: ListUrl; storageKey?: string | undefined }) {
+  const search = useListSearch(true, storageKey, url)
+  return (
+    <div>
+      <ListSearchControl search={search} placeholder="Filter" />
+      <div data-testid="queries">{search.queries.join(',')}</div>
+    </div>
+  )
+}
+
+describe('list search in the URL', () => {
+  type Update = (current: Record<string, unknown>) => Record<string, unknown>
+  beforeEach(() => {
+    vi.useFakeTimers()
+    Object.defineProperty(window, 'localStorage', { value: memoryStorage(), configurable: true })
+  })
+  afterEach(() => vi.useRealTimers())
+
+  const linked = (search: Record<string, unknown>, storageKey?: string) => {
+    const onChange = vi.fn()
+    const view = render(<LinkedHarness url={{ search, onChange }} storageKey={storageKey} />)
+    return {
+      onChange,
+      written: (current: Record<string, unknown>) => {
+        const update = onChange.mock.lastCall?.[0] as Update | undefined
+        if (!update) {
+          throw new Error('nothing was written')
+        }
+        return update(current)
+      },
+      navigate: (next: Record<string, unknown>) =>
+        view.rerender(<LinkedHarness url={{ search: next, onChange }} storageKey={storageKey} />),
+    }
+  }
+  const type = (value: string) => fireEvent.change(getInput(), { target: { value } })
+  const pause = () => act(() => vi.advanceTimersByTime(300))
+
+  it('opens searched by the text a link names, without taking focus', () => {
+    linked({ search: 'alpha' })
+    expect(getInput()).toHaveValue('alpha')
+    expect(getInput()).not.toHaveFocus()
+    expect(screen.getByTestId('queries')).toHaveTextContent('alpha')
+  })
+
+  it('reads text a router parsed as a number', () => {
+    linked({ search: 4012 })
+    expect(getInput()).toHaveValue('4012')
+  })
+
+  it('writes typed text once typing pauses, keeping the other params, and drops it once cleared', () => {
+    const { onChange, written } = linked({ tab: 'all' })
+    openSearch()
+    type('b')
+    type('be')
+    expect(onChange).not.toHaveBeenCalled()
+    pause()
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(written({ tab: 'all', kind: 'pod' })).toEqual({ tab: 'all', kind: 'pod', search: 'be' })
+    type('')
+    pause()
+    expect(written({ tab: 'all', search: 'be' })).toEqual({ tab: 'all' })
+  })
+
+  it('keeps what was typed when the router applies an earlier write late', () => {
+    const { navigate } = linked({})
+    openSearch()
+    type('a')
+    pause()
+    type('ab')
+    navigate({ search: 'a' })
+    expect(getInput()).toHaveValue('ab')
+    pause()
+    navigate({ search: 'ab' })
+    expect(getInput()).toHaveValue('ab')
+  })
+
+  it('follows a link it did not write: new text searches, and none clears and closes the box', () => {
+    const { navigate } = linked({ search: 'alpha' })
+    navigate({ search: 'beta' })
+    expect(getInput()).toHaveValue('beta')
+    navigate({})
+    expect(screen.getByTestId('queries')).toHaveTextContent('')
+    expect(screen.queryByPlaceholderText('Filter')).not.toBeInTheDocument()
+  })
+
+  it('keeps the text in the box on Enter, since a link carries no chips', () => {
+    linked({ search: 'gamma' }, 'linked-list')
+    fireEvent.keyDown(getInput(), { key: 'Enter' })
+    expect(getInput()).toHaveValue('gamma')
+    expect(screen.queryByLabelText('Remove filter gamma')).not.toBeInTheDocument()
   })
 })
 

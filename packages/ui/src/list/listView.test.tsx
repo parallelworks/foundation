@@ -101,6 +101,116 @@ describe('shared list view filters', () => {
   })
 })
 
+describe('filters in the URL', () => {
+  beforeEach(() => {
+    Object.defineProperty(window, 'localStorage', {
+      value: memoryStorage(),
+      configurable: true,
+    })
+  })
+
+  type Update = (current: Record<string, unknown>) => Record<string, unknown>
+  const lastUpdate = (onChange: ReturnType<typeof vi.fn>, current: Record<string, unknown>) => {
+    const update = onChange.mock.lastCall?.[0] as Update | undefined
+    if (!update) {
+      throw new Error('nothing was written')
+    }
+    return update(current)
+  }
+
+  const renderLinked = (
+    search: Record<string, unknown>,
+    onChange = vi.fn(),
+    extra: Partial<Parameters<typeof useListView<Row>>[0]> = {},
+  ) =>
+    renderHook(
+      ({ search: current }) =>
+        useListView<Row>({
+          storageKey: 'linked',
+          columns: COLUMNS,
+          facets: FACETS,
+          url: { search: current, onChange },
+          ...extra,
+        }),
+      { initialProps: { search } },
+    )
+
+  it('opens with the filters a link names', () => {
+    const view = renderLinked({ kind: 'pod,job', namespace: 'alpha' })
+    expect(view.result.current.filters).toEqual({ kind: ['pod', 'job'], namespace: ['alpha'] })
+  })
+
+  it('keeps the remembered filters while the URL names none', () => {
+    window.localStorage.setItem('linked:filters', JSON.stringify({ kind: ['job'] }))
+    const view = renderLinked({ tab: 'all' })
+    expect(view.result.current.filters).toEqual({ kind: ['job'] })
+  })
+
+  it('writes only its own params, onto the URL as the router has it then', () => {
+    const onChange = vi.fn()
+    const view = renderLinked({ kind: 'pod', tab: 'all' }, onChange)
+    act(() => view.result.current.setFacetValues('kind', ['job']))
+    expect(lastUpdate(onChange, { kind: 'pod', tab: 'all', search: 'x' })).toEqual({
+      kind: 'job',
+      tab: 'all',
+      search: 'x',
+    })
+    act(() => view.result.current.clearFilters())
+    expect(lastUpdate(onChange, { kind: 'job', tab: 'all' })).toEqual({ tab: 'all' })
+  })
+
+  it('keeps a change in effect until a router that applies it late catches up', () => {
+    const view = renderLinked({ kind: 'pod' })
+    act(() => view.result.current.setFacetValues('kind', ['pod', 'job']))
+    expect(view.result.current.filters).toEqual({ kind: ['pod', 'job'] })
+    // Another param moves before the router applies the change.
+    view.rerender({ search: { kind: 'pod', search: 'x' } })
+    expect(view.result.current.filters).toEqual({ kind: ['pod', 'job'] })
+    act(() => view.result.current.setFacetValues('kind', ['pod', 'job', 'cron']))
+    view.rerender({ search: { kind: 'pod,job', search: 'x' } })
+    expect(view.result.current.filters).toEqual({ kind: ['pod', 'job', 'cron'] })
+    view.rerender({ search: { kind: 'pod,job,cron', search: 'x' } })
+    expect(view.result.current.filters).toEqual({ kind: ['pod', 'job', 'cron'] })
+  })
+
+  it('follows a link it did not write, over changes still on their way', () => {
+    const view = renderLinked({ kind: 'pod' })
+    act(() => view.result.current.setFacetValues('kind', ['job']))
+    view.rerender({ search: { namespace: 'beta' } })
+    expect(view.result.current.filters).toEqual({ namespace: ['beta'] })
+  })
+
+  it("keeps a page's defaults cleared once the reader clears them", () => {
+    const onChange = vi.fn()
+    const view = renderLinked({}, onChange, {
+      rememberFilters: false,
+      defaultFilters: [{ field: 'kind', op: 'is', values: ['pod'] }],
+    })
+    expect(view.result.current.filters).toEqual({ kind: ['pod'] })
+    act(() => view.result.current.clearFilters())
+    const cleared = lastUpdate(onChange, {})
+    expect(cleared).toEqual({ filters: 'none' })
+    view.rerender({ search: cleared })
+    expect(view.result.current.activeFilterCount).toBe(0)
+  })
+
+  it('leaves the URL alone when the page passes its own filter store', () => {
+    const onChange = vi.fn()
+    const view = renderHook(() =>
+      useListView<Row>({
+        storageKey: 'linked',
+        columns: COLUMNS,
+        facets: FACETS,
+        filterStore: { value: [{ field: 'kind', op: 'is', values: ['job'] }], onChange: vi.fn() },
+        url: { search: { kind: 'pod' }, onChange },
+      }),
+    )
+    expect(view.result.current.filters).toEqual({ kind: ['job'] })
+    act(() => view.result.current.setFacetValues('kind', ['pod']))
+    expect(onChange).not.toHaveBeenCalled()
+  })
+})
+
 describe('stacked columns', () => {
   it('stacks columns without a priority by default, except the first and any set not to', () => {
     const { result } = renderHook(() =>
