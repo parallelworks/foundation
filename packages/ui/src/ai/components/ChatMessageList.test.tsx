@@ -468,6 +468,24 @@ describe('ChatMessageList after a reply', () => {
     expect(container.scrollTop).toBe(200)
   })
 
+  it.each([false, true])(
+    'holds no height in the empty list once the conversation empties (pinned prompt: %s)',
+    (pinPrompt) => {
+      const first = createMockMessage({ id: 'm1' })
+      const { container, rerender } = render(
+        <ChatMessageList messages={[first]} allMessages={[first]} pinPrompt={pinPrompt} />,
+      )
+      const content = container.querySelector('[data-transcript]') as HTMLElement
+      Object.defineProperty(content, 'offsetHeight', { configurable: true, value: 900 })
+      resized?.()
+      expect(container.querySelector('[style*="min-height"]')).not.toBeNull()
+
+      rerender(<ChatMessageList messages={[]} allMessages={[]} pinPrompt={pinPrompt} />)
+
+      expect(container.querySelector('[style*="min-height"]')).toBeNull()
+    },
+  )
+
   it('follows the composer as it grows, so it never covers the last lines', () => {
     const result = render(
       <ChatMessageList
@@ -823,6 +841,71 @@ describe('ChatMessageList composer', () => {
     expect(getByRole('textbox', { name: 'Message' })).toBe(box)
     expect(box.value).toBe('still here')
   })
+
+  // A node handed another's place keeps its scroll and moves to the other's
+  // styles, which a host's transitions animate.
+  it.each([false, true])(
+    'keeps the thread, its frame and a draft being typed as the first message comes (pinned prompt: %s)',
+    (pinPrompt) => {
+      const list = (messages: Message[]) => (
+        <ChatMessageList
+          messages={messages}
+          allMessages={messages}
+          pinPrompt={pinPrompt}
+          footer={<p>Ask about your clusters</p>}
+          inputElement={<textarea aria-label="Message" />}
+        />
+      )
+      const { container, getByRole, rerender } = render(list([]))
+      const frame = container.firstElementChild
+      const thread = container.querySelector('.chat-thread')
+      const dock = container.querySelector('[data-composer-dock]')
+      const box = getByRole('textbox', { name: 'Message' })
+      box.focus()
+      fireEvent.change(box, { target: { value: 'still here' } })
+
+      rerender(list([createMockMessage({ id: 'm1' })]))
+
+      expect(getByRole('log')).toBe(thread)
+      expect(container.firstElementChild).toBe(frame)
+      expect(container.querySelector('[data-composer-dock]')).toBe(dock)
+      expect(getByRole('textbox', { name: 'Message' })).toBe(box)
+      expect(box).toHaveFocus()
+      expect(box).toHaveValue('still here')
+    },
+  )
+
+  it.each([false, true])(
+    'keeps the thread, its frame and a focused draft as the conversation empties and fills again (pinned prompt: %s)',
+    (pinPrompt) => {
+      const list = (messages: Message[]) => (
+        <ChatMessageList
+          messages={messages}
+          allMessages={messages}
+          pinPrompt={pinPrompt}
+          inputElement={<textarea aria-label="Message" />}
+        />
+      )
+      const { container, getByRole, rerender } = render(list([createMockMessage({ id: 'm1' })]))
+      const frame = container.firstElementChild
+      const thread = getByRole('log')
+      const box = getByRole('textbox', { name: 'Message' })
+      box.focus()
+      fireEvent.change(box, { target: { value: 'still here' } })
+
+      rerender(list([]))
+      expect(container.firstElementChild).toBe(frame)
+      expect(getByRole('textbox', { name: 'Message' })).toBe(box)
+      expect(box).toHaveFocus()
+
+      rerender(list([createMockMessage({ id: 'm2' })]))
+      expect(getByRole('log')).toBe(thread)
+      expect(container.firstElementChild).toBe(frame)
+      expect(getByRole('textbox', { name: 'Message' })).toBe(box)
+      expect(box).toHaveFocus()
+      expect(box).toHaveValue('still here')
+    },
+  )
 })
 
 describe('ChatMessageList as a log', () => {
