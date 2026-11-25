@@ -11,6 +11,7 @@ import {
   resultFailed,
   rollupSentence,
   runClauses,
+  runningCallLabel,
   sanitizeLabel,
   sanitizePanelText,
   shownResult,
@@ -60,6 +61,19 @@ describe('calls that did not run', () => {
       'The user interrupted ReadFile before it finished.',
     )
     expect(resultFailed('ReadFile', stopped)).toBe(false)
+  })
+})
+
+describe('runningCallLabel', () => {
+  it('reads a command as typed and any other call as its header', () => {
+    expect(runningCallLabel('Bash', JSON.stringify({ command: 'go test ./...\n' }))).toBe(
+      '$ go test ./...',
+    )
+    expect(runningCallLabel('Bash', JSON.stringify({ command: 'make \\\n\tall' }))).toBe(
+      '$ make \\\n all',
+    )
+    expect(runningCallLabel('ReadFile', JSON.stringify({ path: 'go.mod' }))).toBe('Read(go.mod)')
+    expect(runningCallLabel('Bash', '{')).toBe('Bash')
   })
 })
 

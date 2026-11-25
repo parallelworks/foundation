@@ -21,6 +21,17 @@ describe('applyPartDelta', () => {
     expect(parts).toEqual([runningTool()])
   })
 
+  it('keeps when a call started, for its run’s line to count from', () => {
+    const [part] = applyPartDelta([], {
+      type: 'tool_start',
+      id: 't1',
+      name: 'Bash',
+      args: '{}',
+      startedAt: '2026-10-19T12:00:00Z',
+    })
+    expect(part).toMatchObject({ status: 'running', startedAt: '2026-10-19T12:00:00Z' })
+  })
+
   it('records a decision on its tool call', () => {
     const decision = {
       status: 'approved',

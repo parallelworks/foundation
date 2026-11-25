@@ -938,7 +938,11 @@ describe('tool decisions', () => {
     [{ status: 'approved', by: 'user', name: 'ana' }, '✓ana approved'],
     [{ status: 'denied', by: 'user', name: 'bob' }, '✗bob denied'],
     [{ status: 'approved', by: 'user' }, '✓Approved'],
-    [{ status: 'approved', by: 'auto-reviewer' }, '✓Auto-reviewer approved'],
+    [{ status: 'approved', by: 'auto-reviewer' }, '⎿Auto-reviewer approved'],
+    [
+      { status: 'approved', by: 'auto-reviewer', note: 'rules saved' },
+      '✓Auto-reviewer approved(rules saved)',
+    ],
     [{ status: 'expired', by: 'user' }, '✗Expired without an answer'],
     [{ status: 'timed_out', by: 'user' }, '✗Denied: no answer in time'],
     [{ status: 'timed_out', by: 'auto-reviewer' }, '✗Auto-review timed out'],
@@ -1172,21 +1176,112 @@ describe('foldEveryRun', () => {
     expect(toggle.querySelector('.invisible')).not.toBeNull()
   })
 
-  it('holds a running call to the line for a moment, then shows its block below', () => {
+  it('holds a running call off the line for a moment, then hangs it under the line', () => {
     vi.useFakeTimers()
     const { rerender } = render(folded([tc('t1', 'ReadFile'), tc('t2', 'GrepSearch', 'running')]))
     expect(screen.getByTestId('tool-rollup')).toHaveTextContent(
       'Searching for 1 pattern, reading 1 file…',
     )
-    // The finished call is in the fold, which draws it when opened.
-    expect(screen.queryAllByTestId('tool-call-part')).toHaveLength(0)
+    expect(screen.queryByTestId('running-call')).toBeNull()
     act(() => {
       vi.advanceTimersByTime(1000)
     })
-    expect(screen.getAllByTestId('tool-call-part')).toHaveLength(1)
+    // A row under the line, not a block of its own.
+    expect(screen.getByTestId('running-call')).toHaveTextContent('Grep(x')
+    expect(screen.queryAllByTestId('tool-call-part')).toHaveLength(0)
     rerender(folded([tc('t1', 'ReadFile'), tc('t2', 'GrepSearch')]))
     expect(screen.getByTestId('tool-rollup')).toHaveTextContent(
       'Searched for 1 pattern, read 1 file',
+    )
+    expect(screen.queryByTestId('running-call')).toBeNull()
+  })
+
+  it('hangs a command as typed, and opens the run from it', () => {
+    vi.useFakeTimers()
+    render(folded([tc('t1', 'ReadFile'), tc('t2', 'Bash', 'running')]))
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+    fireEvent.click(screen.getByText('$ ls'))
+    expect(screen.getByRole('button', { name: /running 1 shell command/ })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+    expect(screen.queryByTestId('running-call')).toBeNull()
+    expect(screen.getAllByTestId('tool-call-part')).toHaveLength(2)
+  })
+
+  it('shows the start of a long command, and how much more opens with the run', () => {
+    vi.useFakeTimers()
+    const script = Array.from({ length: 12 }, (_, i) => `echo ${i + 1}`).join('\n')
+    render(
+      folded([
+        {
+          ...(tc('t1', 'Bash', 'running') as ToolCallPart),
+          args: JSON.stringify({ command: script }),
+        },
+      ]),
+    )
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+    const row = screen.getByTestId('running-call')
+    expect(row).toHaveTextContent('echo 10')
+    expect(row).not.toHaveTextContent('echo 11')
+    expect(row).toHaveTextContent('+2 more lines')
+  })
+
+  it('hangs the auto-reviewer’s approval under its running call, and no one else’s', () => {
+    vi.useFakeTimers()
+    const running = (id: string, decision: ToolDecision): MessagePart => ({
+      ...(tc(id, 'Bash', 'running') as ToolCallPart),
+      decision,
+    })
+    render(
+      folded([
+        running('t1', { status: 'approved', by: 'auto-reviewer' }),
+        running('t2', { status: 'approved', by: 'user', name: 'ana' }),
+      ]),
+    )
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+    const [reviewed, person] = screen.getAllByTestId('running-call')
+    expect(reviewed).toHaveTextContent('$ ls⎿Auto-reviewer approved')
+    expect(person).toHaveTextContent(/^⎿\$ ls$/)
+  })
+
+  it('shows how long the newest call has run, once it has run a while', () => {
+    vi.useFakeTimers()
+    const started = (id: string, ago: number): MessagePart => ({
+      ...(tc(id, 'Bash', 'running') as ToolCallPart),
+      startedAt: new Date(Date.now() - ago).toISOString(),
+    })
+    const line = () => screen.getByRole('button', { name: /Running/ })
+    const { rerender } = render(folded([started('t1', 1000)]))
+    expect(line()).not.toHaveTextContent('·')
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+    expect(line()).toHaveTextContent(/· 2\s?s$/)
+    // A call that just started has no time to show yet.
+    rerender(folded([started('t1', 2000), started('t2', 0)]))
+    expect(line()).not.toHaveTextContent('·')
+  })
+
+  it('counts the calls that failed once the run is done, leaving out one a person declined', () => {
+    const declined: MessagePart = {
+      ...(tc('t3', 'Bash', 'error') as ToolCallPart),
+      result:
+        "The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file).",
+    }
+    const { rerender } = render(folded([tc('t1', 'Bash', 'error'), tc('t2', 'Bash'), declined]))
+    expect(screen.getByRole('button', { name: /Ran 3 shell commands/ })).toHaveTextContent(
+      'Ran 3 shell commands · 1 failed',
+    )
+    rerender(folded([tc('t1', 'Bash', 'error'), tc('t2', 'Bash', 'running')]))
+    expect(screen.getByRole('button', { name: /Running 2 shell commands/ })).not.toHaveTextContent(
+      'failed',
     )
   })
 
@@ -1206,9 +1301,10 @@ describe('foldEveryRun', () => {
     expect(screen.getByText('Searched for 1 pattern, read 1 file')).toHaveClass('truncate')
   })
 
-  it('has nothing to open until a call finishes', () => {
+  it('opens a run whose calls are all running to their blocks', () => {
     render(folded([tc('t1', 'Bash', 'running')]))
-    expect(screen.getByRole('button', { name: /Running 1 shell command/ })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: /Running 1 shell command/ }))
+    expect(screen.getAllByTestId('tool-call-part')).toHaveLength(1)
   })
 
   it('keeps a run open as it grows', () => {

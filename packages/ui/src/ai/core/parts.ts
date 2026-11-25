@@ -33,6 +33,7 @@ export function applyPartDelta(parts: MessagePart[], delta: PartDelta): MessageP
           args: delta.args,
           status: 'running',
           ...(delta.startLine !== undefined ? { startLine: delta.startLine } : {}),
+          ...(delta.startedAt !== undefined ? { startedAt: delta.startedAt } : {}),
         },
       ]
     case 'tool_update':
