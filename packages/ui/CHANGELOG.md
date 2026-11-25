@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.152.0](https://github.com/parallelworks/foundation/compare/ui-v0.151.1...ui-v0.152.0) (2026-11-25)
+
+
+### Features
+
+* **ui:** the composer's take-back rules import without a DOM ([#844](https://github.com/parallelworks/foundation/issues/844)) ([4005d35](https://github.com/parallelworks/foundation/commit/4005d35175c552c122ec1dbe9bdbf1c8ea721554))
+
+
+### Bug Fixes
+
+* **ui:** a composer under a pinned prompt keeps its focus and draft as the first message arrives ([#846](https://github.com/parallelworks/foundation/issues/846)) ([552503f](https://github.com/parallelworks/foundation/commit/552503f6707d315931a147820dfbc2523b317fcd))
+
 ## [0.151.1](https://github.com/parallelworks/foundation/compare/ui-v0.151.0...ui-v0.151.1) (2026-11-25)
 
 
