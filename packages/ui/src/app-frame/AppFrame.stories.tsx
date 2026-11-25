@@ -22,6 +22,7 @@ import {
   AppFrameListTakeover,
   AppFrameNavGroup,
   AppFrameNavItem,
+  AppFrameNavSwitch,
   type AppFrameProps,
   AppFrameTakeover,
   AppFrameTakeoverBack,
@@ -274,13 +275,19 @@ const takeoverGroups = [
     ],
   },
 ]
+const listSwitchItems = [
+  { href: '/sessions', label: 'Sessions', icon: <ListViewIcon />, selected: true },
+  { href: '/notes', label: 'Notes', icon: <FileTextIcon />, selected: false },
+]
 function SessionsPage({
   empty,
   top,
+  header,
   groupsStorageKey,
 }: {
   empty: boolean
   top: boolean
+  header: boolean
   groupsStorageKey: string
 }) {
   const [open, setOpen] = useState<string | null>('flaky')
@@ -290,6 +297,7 @@ function SessionsPage({
   return (
     <>
       <AppFrameListTakeover
+        header={header && <AppFrameNavSwitch label="Lists" items={listSwitchItems} />}
         newItem={{ label: 'New session', selected: open === null, onClick: () => setOpen(null) }}
         top={
           top && (
@@ -332,10 +340,16 @@ function SessionsPage({
     </>
   )
 }
-type TakeoverArgs = AppFrameProps & { empty?: boolean; top?: boolean; groupsStorageKey?: string }
+type TakeoverArgs = AppFrameProps & {
+  empty?: boolean
+  top?: boolean
+  header?: boolean
+  groupsStorageKey?: string
+}
 function TakeoverDemo({
   empty = false,
   top = false,
+  header = false,
   groupsStorageKey = 'storyTakeoverGroups',
   ...args
 }: TakeoverArgs) {
@@ -366,7 +380,12 @@ function TakeoverDemo({
           }
           header={<Header />}
         >
-          <SessionsPage empty={empty} top={top} groupsStorageKey={groupsStorageKey} />
+          <SessionsPage
+            empty={empty}
+            top={top}
+            header={header}
+            groupsStorageKey={groupsStorageKey}
+          />
         </AppFrame>
       </AppFrameTakeover>
     </ContextMenuProvider>
@@ -375,8 +394,42 @@ function TakeoverDemo({
 /** A page's own list takes the place of the app's navigation, with a way back to it, rather than open a second drawer. Each row keeps its menu behind a button that is always shown. */
 export const ListTakeover: StoryObj<TakeoverArgs> = {
   render: TakeoverDemo,
-  args: { empty: false, top: false },
-  argTypes: { empty: { control: 'boolean' }, top: { control: 'boolean' } },
+  args: { empty: false, top: false, header: false },
+  argTypes: {
+    empty: { control: 'boolean' },
+    top: { control: 'boolean' },
+    header: { control: 'boolean', description: 'An `AppFrameNavSwitch` above the new item' },
+  },
+}
+/** A switch above the list moves between it and a sibling's, such as two kinds of list that share the navigation. The open one is the current page, in a tonal thumb, so the navigation's fill stays with the open row. */
+export const ListTakeoverSwitch: StoryObj<TakeoverArgs> = {
+  render: TakeoverDemo,
+  args: { empty: false, top: true, header: true },
+  play: async ({ canvasElement }) => {
+    const lists = within(canvasElement).getByRole('navigation', { name: 'Lists' })
+    await expect(within(lists).getByRole('link', { name: 'Sessions' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+    await expect(within(lists).getByRole('link', { name: 'Notes' })).not.toHaveAttribute(
+      'aria-current',
+    )
+  },
+}
+/** In the rail, the switch's items are the navigation's icon items, named by their tooltips, and
+ *  Main menu is its arrow alone. */
+export const ListTakeoverSwitchRail: StoryObj<TakeoverArgs> = {
+  render: TakeoverDemo,
+  args: { empty: false, top: true, header: true, defaultExpanded: false },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('button', { name: 'Main menu' })).toBeVisible()
+    const lists = canvas.getByRole('navigation', { name: 'Lists' })
+    await expect(within(lists).getByRole('link', { name: 'Sessions' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+  },
 }
 /** With nothing to list, the page says so under the item that starts one. */
 export const ListTakeoverEmpty: StoryObj<TakeoverArgs> = {

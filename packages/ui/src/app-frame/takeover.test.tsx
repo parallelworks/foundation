@@ -7,9 +7,13 @@ import {
   AppFrame,
   AppFrameListTakeover,
   AppFrameNavItem,
+  AppFrameNavSwitch,
   AppFrameTakeover,
   AppFrameTakeoverBack,
+  AppFrameTakeoverContent,
   AppFrameToggle,
+  useAppFrame,
+  useAppFrameNavigationPlacement,
   useAppFrameTakeover,
 } from './index'
 
@@ -48,11 +52,13 @@ function Host({
   enabled = true,
   rows = true,
   top,
+  header,
   groupsStorageKey,
 }: {
   enabled?: boolean
   rows?: boolean
   top?: ReactNode
+  header?: ReactNode
   groupsStorageKey?: string
 }) {
   const takeover = useAppFrameTakeover(enabled)
@@ -68,6 +74,7 @@ function Host({
         header={<AppFrameToggle />}
       >
         <AppFrameListTakeover
+          header={header}
           newItem={{ label: 'New session', selected: false, onClick: onNew }}
           top={top}
           groups={
@@ -240,5 +247,182 @@ describe('AppFrame list takeover', () => {
   it("renders the list's own menus and dialogs outside the navigation", () => {
     render(<Host />)
     expect(screen.getByText('Dialogs')).toBeInTheDocument()
+  })
+
+  it('shows its header above the new item', () => {
+    render(<Host header={<p>Switch</p>} />)
+    const drawer = openDrawer()
+    expect(
+      drawer
+        .getByText('Switch')
+        .compareDocumentPosition(drawer.getByRole('button', { name: 'New session' })) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+})
+
+function Placement() {
+  const placement = useAppFrameNavigationPlacement()
+  return (
+    <>
+      <p>{placement ? `in the navigation, ${placement.collapsed ? 'rail' : 'open'}` : 'away'}</p>
+      {placement && (
+        <>
+          <input aria-label="Search the list" />
+          <button type="button" onClick={placement.reveal}>
+            Reveal
+          </button>
+          <button type="button" onClick={placement.closeNavigation}>
+            Done
+          </button>
+        </>
+      )}
+    </>
+  )
+}
+
+function NarrowToggle() {
+  return useAppFrame().isMobile ? <AppFrameToggle /> : null
+}
+
+function ContentHost({
+  defaultExpanded = true,
+  page = true,
+}: {
+  defaultExpanded?: boolean
+  /** The page with the content is showing. */
+  page?: boolean
+}) {
+  const takeover = useAppFrameTakeover(true)
+  return (
+    <AppFrameTakeover value={takeover.takeover}>
+      <AppFrame
+        defaultExpanded={defaultExpanded}
+        brand={
+          takeover.active ? <AppFrameTakeoverBack onBack={takeover.showNavigation} /> : 'Workspace'
+        }
+        navigation={
+          takeover.active ? (
+            takeover.navigation
+          ) : (
+            <AppFrameNavItem label="Sessions" onClick={takeover.showList} />
+          )
+        }
+        header={<NarrowToggle />}
+        footer={({ isMobile }) => !isMobile && <AppFrameToggle />}
+      >
+        {page && (
+          <AppFrameTakeoverContent>
+            <Placement />
+          </AppFrameTakeoverContent>
+        )}
+        <Placement />
+      </AppFrame>
+    </AppFrameTakeover>
+  )
+}
+
+describe('AppFrame takeover content', () => {
+  beforeEach(() => {
+    mobile = false
+  })
+
+  it("renders in the frame's navigation beside the page, and tells what it renders so", () => {
+    render(<ContentHost />)
+    const nav = within(screen.getByRole('complementary'))
+    expect(nav.getByText('in the navigation, open')).toBeInTheDocument()
+    expect(within(screen.getByRole('main')).getByText('away')).toBeInTheDocument()
+  })
+
+  it('tells it the navigation is the rail when the frame collapses', () => {
+    render(<ContentHost />)
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }))
+    expect(screen.getByText('in the navigation, rail')).toBeInTheDocument()
+  })
+
+  it("leaves for the app's navigation and comes back to the list", () => {
+    render(<ContentHost />)
+    fireEvent.click(screen.getByRole('button', { name: 'Main menu' }))
+    expect(screen.queryByText(/in the navigation/)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Sessions' }))
+    expect(screen.getByText('in the navigation, open')).toBeInTheDocument()
+  })
+
+  it("keeps what it holds through a visit to the app's navigation", () => {
+    render(<ContentHost />)
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search the list' }), {
+      target: { value: 'flaky' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Main menu' }))
+    expect(screen.queryByRole('textbox', { name: 'Search the list' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Sessions' }))
+    expect(screen.getByRole('textbox', { name: 'Search the list' })).toHaveValue('flaky')
+  })
+
+  it("shows the page's list again when the reader comes back to the page", () => {
+    const { rerender } = render(<ContentHost />)
+    fireEvent.click(screen.getByRole('button', { name: 'Main menu' }))
+    rerender(<ContentHost page={false} />)
+    rerender(<ContentHost />)
+    expect(screen.getByText('in the navigation, open')).toBeInTheDocument()
+  })
+
+  it('reveals itself out of the rail', () => {
+    render(<ContentHost defaultExpanded={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Reveal' }))
+    expect(screen.getByText('in the navigation, open')).toBeInTheDocument()
+  })
+
+  it('closes the drawer it is in on a pick that leaves the page where it is', () => {
+    mobile = true
+    render(<ContentHost />)
+    const toggle = screen.getByRole('button', { name: 'Open navigation' })
+    expect(screen.queryByText('in the navigation, open')).not.toBeInTheDocument()
+    fireEvent.click(toggle)
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('shows Main menu as its arrow alone in the rail, named by its label', () => {
+    render(<ContentHost defaultExpanded={false} />)
+    const back = screen.getByRole('button', { name: 'Main menu' })
+    expect(back).not.toHaveTextContent('Main menu')
+  })
+})
+
+describe('AppFrameNavSwitch', () => {
+  beforeEach(() => {
+    mobile = false
+  })
+
+  const items = [
+    { href: '#sessions', label: 'Sessions', icon: <svg />, selected: true, badge: '2' },
+    { href: '#notes', label: 'Notes', icon: <svg />, selected: false },
+  ]
+
+  it('links to each place side by side, marking the one showing as the page', () => {
+    render(
+      <AppFrame navigation={<AppFrameNavSwitch label="Lists" items={items} />}>{null}</AppFrame>,
+    )
+    const lists = within(screen.getByRole('navigation', { name: 'Lists' }))
+    const sessions = lists.getByRole('link', { name: 'Sessions 2' })
+    expect(sessions).toHaveAttribute('href', '#sessions')
+    expect(sessions).toHaveAttribute('aria-current', 'page')
+    expect(lists.getByRole('link', { name: 'Notes' })).not.toHaveAttribute('aria-current')
+  })
+
+  it("shows the navigation's icon items in the rail, still named and marked", () => {
+    render(
+      <AppFrame
+        defaultExpanded={false}
+        navigation={<AppFrameNavSwitch label="Lists" items={items} />}
+      >
+        {null}
+      </AppFrame>,
+    )
+    const lists = within(screen.getByRole('navigation', { name: 'Lists' }))
+    const sessions = lists.getByRole('link', { name: 'Sessions 2' })
+    expect(sessions).toHaveClass('pw-frame-nav-item')
+    expect(sessions).toHaveAttribute('aria-current', 'page')
   })
 })

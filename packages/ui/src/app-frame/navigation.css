@@ -238,12 +238,130 @@
     justify-content: center;
     height: 40px;
   }
+  /* A page's list made for a panel beside it, such as its conversations, as the navigation: its
+     text one step brighter than the navigation's items, as a hovered item's is, and its secondary
+     text that at 70%, as an item's second line is, with the theme's tokens for both pointed at
+     these so what the page renders in its rows follows. */
+  .pw-frame-list {
+    --theme-app: var(--pw-frame-ink-strong);
+    --theme-muted-text-color: color-mix(in oklab, var(--theme-app) 70%, transparent);
+    --theme-hover: var(--pw-frame-hover);
+    --theme-focus: var(--theme-app);
+    --theme-border: color-mix(in oklch, var(--pw-frame-ink) 20%, transparent);
+    /* A field, such as the list's search, is a tint of the navigation rather than a page's
+       light or dark box. */
+    --theme-input-bg: color-mix(in oklab, var(--pw-frame-ink) 8%, transparent);
+    --theme-border-field: color-mix(in oklab, var(--pw-frame-ink) 22%, transparent);
+    --theme-border-strong: color-mix(in oklab, var(--pw-frame-ink) 40%, transparent);
+    --theme-placeholder: color-mix(in oklab, var(--theme-app) 55%, transparent);
+    /* The theme's warning text is made for its panels; pulled toward the navigation's text, it
+       reads on a navigation of either lightness. Oklab, so the mix keeps the warning's hue rather
+       than turning through green or pink on its way to the text's. */
+    --theme-warning-text: color-mix(in oklab, var(--theme-warning) 60%, var(--theme-app));
+  }
+  .pw-frame-list [data-sidebar-row][data-selected] {
+    --theme-app: var(--pw-frame-active-ink-strong);
+    --theme-muted-text-color: color-mix(in oklab, var(--theme-app) 70%, transparent);
+    --theme-focus: var(--pw-frame-active-ink);
+  }
+  /* The row draws its own ring on its highlight's edge. */
+  .pw-frame-list [data-sidebar-row] > :not([aria-haspopup="menu"]):focus-visible {
+    outline: none;
+  }
+  /* What starts a new item and searches stays in view while the rows scroll under it. */
+  .pw-frame-list-top {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding-block-end: 4px;
+    background: var(--pw-frame-bg);
+  }
+  .pw-frame-list-footer {
+    position: sticky;
+    bottom: 0;
+    padding-block-start: 4px;
+    background: var(--pw-frame-bg);
+  }
+  .pw-frame-list-rail {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+    padding-block: 4px;
+  }
+  /* A tonal thumb rather than the active fill: the switch picks which list shows, and the
+     navigation's fill stays for the page that is open in it. */
+  .pw-frame-nav-switch {
+    display: grid;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
+    gap: 2px;
+    margin-block-end: 8px;
+    border-radius: 8px;
+    padding: 2px;
+    background: color-mix(in oklch, var(--pw-frame-ink, var(--theme-app)) 8%, transparent);
+  }
+  .pw-frame-nav-switch-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-width: 0;
+    height: 28px;
+    border-radius: 6px;
+    padding-inline: 8px;
+    color: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 20px;
+    text-decoration: none;
+    transition:
+      background-color 150ms ease-out,
+      color 150ms ease-out;
+  }
+  .pw-frame-nav-switch-item:hover {
+    background: var(--pw-frame-hover, var(--theme-hover));
+    color: var(--pw-frame-ink-strong, var(--theme-app));
+  }
+  .pw-frame-nav-switch-item[aria-current] {
+    background: color-mix(in oklch, var(--pw-frame-ink, var(--theme-app)) 18%, transparent);
+    /* Full contrast: the sidebar's text pushed all the way to white or black. */
+    color: oklch(from var(--pw-frame-ink, var(--theme-app)) calc(l + (l - 0.5)) c h / 1);
+  }
+  .pw-frame-sidebar .pw-frame-nav-switch-item:focus-visible,
+  .pw-frame-drawer .pw-frame-nav-switch-item:focus-visible {
+    outline-offset: 0;
+  }
+  .pw-frame-nav-switch-icon {
+    display: flex;
+    flex-shrink: 0;
+  }
+  .pw-frame-nav-switch-icon svg {
+    width: 16px;
+    height: 16px;
+  }
+  .pw-frame-nav-switch-item > .pw-frame-nav-label {
+    flex: 0 1 auto;
+  }
+  .pw-frame-nav-switch-badge {
+    flex-shrink: 0;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  .pw-frame-nav-switch-rail {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    margin-block-end: 8px;
+    border-block-end: 1px solid
+      color-mix(in oklch, var(--pw-frame-ink, var(--theme-app)) 15%, transparent);
+    padding-block-end: 8px;
+  }
   @media (prefers-reduced-motion: reduce) {
     .pw-frame-nav-item,
     .pw-frame-nav-item::before,
     .pw-frame-nav-item::after,
     .pw-frame-nav-action,
-    .pw-frame-nav-group-chevron {
+    .pw-frame-nav-group-chevron,
+    .pw-frame-nav-switch-item {
       transition: none;
     }
   }

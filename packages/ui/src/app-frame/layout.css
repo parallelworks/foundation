@@ -25,6 +25,26 @@
     background: var(--theme-sidebar-bg, var(--theme-muted-panel-bg));
     color: var(--theme-sidebar-text, var(--theme-app));
   }
+  /* The navigation's colors, with the fallbacks its own items use, resolved here so content a page
+     puts in the navigation can take them on without repeating every fallback. */
+  .pw-frame-sidebar,
+  .pw-frame-drawer {
+    --pw-frame-bg: var(--theme-sidebar-bg, var(--theme-muted-panel-bg));
+    --pw-frame-ink: var(--theme-sidebar-text, var(--theme-app));
+    --pw-frame-hover: var(--theme-sidebar-hover, var(--theme-hover));
+    --pw-frame-active-bg: var(--theme-sidebar-active-bg, var(--theme-accent-subtle));
+    --pw-frame-active-ink: var(--theme-sidebar-active-text, var(--theme-accent));
+    /* Each ink halfway to full contrast, as a hovered item's text is: a translucent ink also
+       gains half its missing opacity. */
+    --pw-frame-ink-strong: oklch(
+      from var(--pw-frame-ink) calc(l + (l - 0.5) * 0.5) c h /
+      calc(alpha + (1 - alpha) * 0.5)
+    );
+    --pw-frame-active-ink-strong: oklch(
+      from var(--pw-frame-active-ink) calc(l + (l - 0.5) * 0.5) c h /
+      calc(alpha + (1 - alpha) * 0.5)
+    );
+  }
   .pw-frame-sidebar {
     position: relative;
     transition: width 200ms cubic-bezier(0.25, 0.1, 0.25, 1);

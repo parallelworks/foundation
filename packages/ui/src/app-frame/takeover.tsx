@@ -5,7 +5,9 @@ import {
   use,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
 import { createPortal } from 'react-dom'
@@ -16,9 +18,11 @@ import {
   useCollapsedGroups,
 } from '../components/collapsedGroups'
 import type { MenuEntry } from '../components/MenuEntries'
+import { Tooltip } from '../components/Tooltip'
 import { cx } from '../cx'
 import { AddIcon, ArrowLeftIcon, MoreIcon } from '../icons'
 import { AppFrameNavGroup, AppFrameNavItem, useAppFrame } from './index'
+import { type AppFrameNavigationPlacement, PlacementContext } from './placement'
 
 interface Takeover {
   /** Where a page's list renders; null while the app's own navigation shows. */
@@ -35,15 +39,19 @@ export interface AppFrameTakeoverState {
   navigation: ReactNode
   /** Leaves the list for the app's navigation, staying on the page. */
   showNavigation: () => void
+  /** Brings the list back after `showNavigation`, such as when the reader picks the page's own
+   *  item in the app's navigation. */
+  showList: () => void
   /** Give to `AppFrameTakeover`. */
   takeover: Takeover
 }
 
-/** On a narrow screen a page's own list, such as its conversations, can take the place of the
- *  app's navigation rather than open a second drawer. The host owns the frame and the page owns
- *  the list, so the host holds this: it renders `navigation` in the frame while `active`, and
- *  wraps the frame in `AppFrameTakeover` so the page's `AppFrameListTakeover` finds its place.
- *  `enabled` is the host's call, such as a narrow viewport on a page that has a list. */
+/** A page's own list, such as its conversations, can take the place of the app's navigation
+ *  rather than open a second drawer on a narrow screen or a second column on a wide one. The host
+ *  owns the frame and the page owns the list, so the host holds this: it renders `navigation` in
+ *  the frame while `active`, and wraps the frame in `AppFrameTakeover` so the page's
+ *  `AppFrameListTakeover` or `AppFrameTakeoverContent` finds its place. `enabled` is the host's
+ *  call, such as a page that has a list. */
 export function useAppFrameTakeover(enabled: boolean): AppFrameTakeoverState {
   const [slot, setSlot] = useState<HTMLElement | null>(null)
   const [showingNavigation, setShowingNavigation] = useState(false)
@@ -58,15 +66,73 @@ export function useAppFrameTakeover(enabled: boolean): AppFrameTakeoverState {
     active,
     navigation: <div ref={setSlot} className="space-y-1" />,
     showNavigation,
+    showList,
     takeover,
   }
+}
+
+/** Renders a page's own content in place of the app's navigation while the page has it. While
+ *  the app's navigation shows, or a phone's drawer is closed, the content stays mounted out of
+ *  view, so it keeps what it holds, such as a search, and still hears its shortcuts. What it
+ *  renders reads where it is from `useAppFrameNavigationPlacement`, as `ConversationSidebar`
+ *  does to become the navigation's list rather than a column beside the page. */
+export function AppFrameTakeoverContent({ children }: { children: ReactNode }) {
+  const { slot, showList } = use(TakeoverContext)
+  const frame = useAppFrame()
+  const latest = useRef(frame)
+  latest.current = frame
+  // The content's own element, moved into the navigation while there is a place for it there.
+  const [container] = useState(() => {
+    if (typeof document === 'undefined') {
+      return null
+    }
+    const element = document.createElement('div')
+    element.className = 'space-y-1'
+    return element
+  })
+  useLayoutEffect(() => {
+    if (!container || !slot) {
+      return
+    }
+    slot.appendChild(container)
+    return () => container.remove()
+  }, [container, slot])
+
+  // Leaving for the app's navigation is a detour: the drawer opens on the list again next time,
+  // and the page shows its list again when the reader comes back to it.
+  useEffect(() => {
+    if (frame.isMobile && !frame.mobileOpen) {
+      showList()
+    }
+  }, [frame.isMobile, frame.mobileOpen, showList])
+  useEffect(() => () => showList(), [showList])
+
+  const placement = useMemo<AppFrameNavigationPlacement>(
+    () => ({
+      collapsed: !frame.expanded,
+      reveal: () => {
+        showList()
+        const now = latest.current
+        if (now.isMobile ? !now.mobileOpen : !now.expanded) {
+          now.toggle()
+        }
+      },
+      closeNavigation: () => latest.current.closeNavigation(),
+    }),
+    [frame.expanded, showList],
+  )
+
+  return container
+    ? createPortal(<PlacementContext value={placement}>{children}</PlacementContext>, container)
+    : null
 }
 
 export function AppFrameTakeover({ value, children }: { value: Takeover; children: ReactNode }) {
   return <TakeoverContext value={value}>{children}</TakeoverContext>
 }
 
-/** Atop a list that has the navigation: back to the app's own, staying on the page. */
+/** Atop a list that has the navigation: back to the app's own, staying on the page. The rail
+ *  shows its arrow alone, named by the label. */
 export function AppFrameTakeoverBack({
   onBack,
   label = 'Main menu',
@@ -76,18 +142,28 @@ export function AppFrameTakeoverBack({
   label?: string
   className?: string
 }) {
-  return (
+  const { expanded } = useAppFrame()
+  const button = (
     <button
       type="button"
       onClick={onBack}
+      aria-label={expanded ? undefined : label}
       className={cx(
-        'flex min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 py-1 text-(--theme-sidebar-text,var(--theme-muted-text-color)) transition-colors hover:bg-(--theme-sidebar-hover,var(--theme-hover))',
+        'flex min-w-0 items-center gap-2 rounded-md py-1 text-(--theme-sidebar-text,var(--theme-muted-text-color)) transition-colors hover:bg-(--theme-sidebar-hover,var(--theme-hover))',
+        expanded ? 'flex-1 px-1.5' : 'h-9 w-full justify-center',
         className,
       )}
     >
       <ArrowLeftIcon className="h-4 w-4 shrink-0" />
-      <span className="truncate text-sm font-medium">{label}</span>
+      {expanded && <span className="truncate text-sm font-medium">{label}</span>}
     </button>
+  )
+  return expanded ? (
+    button
+  ) : (
+    <Tooltip content={label} side="right" delay={0}>
+      {button}
+    </Tooltip>
   )
 }
 
@@ -116,6 +192,7 @@ export interface AppFrameTakeoverGroup {
  *  screen has no hover to reveal it. A group's heading folds its rows away, and the list
  *  remembers it folded; a folded group shows how many rows it holds. */
 export function AppFrameListTakeover({
+  header,
   newItem,
   top,
   groups,
@@ -125,6 +202,8 @@ export function AppFrameListTakeover({
   moreLabel = 'More actions',
   children,
 }: {
+  /** Above the new item, such as an `AppFrameNavSwitch` between this list and a sibling's. */
+  header?: ReactNode
   /** Starts a new one, above the list. */
   newItem: LinkTarget & {
     label: string
@@ -146,89 +225,67 @@ export function AppFrameListTakeover({
   /** The list's menus and dialogs, rendered outside the navigation. */
   children?: ReactNode
 }) {
-  const { slot, showList } = use(TakeoverContext)
-  const { isMobile, mobileOpen } = useAppFrame()
   const collapsedGroups = useCollapsedGroups(groupsStorageKey)
-
-  // Leaving for the app's navigation is a detour: the drawer opens on the list again next time.
-  useEffect(() => {
-    if (isMobile && !mobileOpen) {
-      showList()
-    }
-  }, [isMobile, mobileOpen, showList])
 
   const { label: newLabel, selected: newSelected, onClick: onNew, ...newTarget } = newItem
   return (
     <>
-      {slot &&
-        createPortal(
-          <>
-            <div className="space-y-1">
-              <AppFrameNavItem
-                {...newTarget}
-                {...(onNew ? { onClick: onNew } : {})}
-                icon={<AddIcon />}
-                label={newLabel}
-                selected={newSelected}
-              />
-              {top}
-            </div>
-            {groups.length === 0 && empty}
-            {groups.map((group) => (
-              <AppFrameNavGroup
-                key={group.key}
-                label={group.label}
-                open={!collapsedGroups.collapsed.has(group.key)}
-                onOpenChange={() => collapsedGroups.toggle(group.key)}
-                count={group.rows.length}
-                selected={group.rows.some((row) => row.selected)}
-              >
-                {group.rows.map(
-                  ({
-                    key,
-                    label,
-                    leading,
-                    time,
-                    detail,
-                    selected,
-                    menuItems,
-                    onClick,
-                    ...target
-                  }) => (
-                    <AppFrameNavItem
-                      key={key}
-                      {...target}
-                      {...(onClick ? { onClick } : {})}
-                      icon={leading}
-                      label={label}
-                      badge={
-                        time && (
-                          // The row keeps room for its menu button, which a pointer only shows on hover: the time takes that room until then.
-                          <span className="inline-block [@media(hover:hover)]:-me-6 [@media(hover:hover)]:[.pw-frame-nav-row:focus-within_&]:invisible [@media(hover:hover)]:[.pw-frame-nav-row:hover_&]:invisible">
-                            {time}
-                          </span>
-                        )
-                      }
-                      detail={detail}
-                      selected={selected}
-                      action={
-                        <button
-                          type="button"
-                          aria-label={moreLabel}
-                          onClick={(event) => openMenu(event.currentTarget, menuItems)}
-                          className="rounded-md p-1.5 transition-colors hover:bg-(--theme-sidebar-hover,var(--theme-hover))"
-                        >
-                          <MoreIcon className="h-4 w-4" />
-                        </button>
-                      }
-                    />
-                  ),
-                )}
-              </AppFrameNavGroup>
-            ))}
-          </>,
-          slot,
-        )}
+      <AppFrameTakeoverContent>
+        {header}
+        <div className="space-y-1">
+          <AppFrameNavItem
+            {...newTarget}
+            {...(onNew ? { onClick: onNew } : {})}
+            icon={<AddIcon />}
+            label={newLabel}
+            selected={newSelected}
+          />
+          {top}
+        </div>
+        {groups.length === 0 && empty}
+        {groups.map((group) => (
+          <AppFrameNavGroup
+            key={group.key}
+            label={group.label}
+            open={!collapsedGroups.collapsed.has(group.key)}
+            onOpenChange={() => collapsedGroups.toggle(group.key)}
+            count={group.rows.length}
+            selected={group.rows.some((row) => row.selected)}
+          >
+            {group.rows.map(
+              ({ key, label, leading, time, detail, selected, menuItems, onClick, ...target }) => (
+                <AppFrameNavItem
+                  key={key}
+                  {...target}
+                  {...(onClick ? { onClick } : {})}
+                  icon={leading}
+                  label={label}
+                  badge={
+                    time && (
+                      // The row keeps room for its menu button, which a pointer only shows on hover: the time takes that room until then.
+                      <span className="inline-block [@media(hover:hover)]:-me-6 [@media(hover:hover)]:[.pw-frame-nav-row:focus-within_&]:invisible [@media(hover:hover)]:[.pw-frame-nav-row:hover_&]:invisible">
+                        {time}
+                      </span>
+                    )
+                  }
+                  detail={detail}
+                  selected={selected}
+                  action={
+                    <button
+                      type="button"
+                      aria-label={moreLabel}
+                      onClick={(event) => openMenu(event.currentTarget, menuItems)}
+                      className="rounded-md p-1.5 transition-colors hover:bg-(--theme-sidebar-hover,var(--theme-hover))"
+                    >
+                      <MoreIcon className="h-4 w-4" />
+                    </button>
+                  }
+                />
+              ),
+            )}
+          </AppFrameNavGroup>
+        ))}
+      </AppFrameTakeoverContent>
       {children}
     </>
   )
