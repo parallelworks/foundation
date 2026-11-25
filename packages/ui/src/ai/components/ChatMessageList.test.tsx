@@ -504,6 +504,36 @@ describe('ChatMessageList after a reply', () => {
     expect(container.scrollTop).toBe(1040)
   })
 
+  it('keeps following as the composer getting shorter moves the list up', () => {
+    const result = render(
+      <ChatMessageList
+        messages={[createMockMessage({ id: 'm1' })]}
+        allMessages={[]}
+        inputElement={<textarea aria-label="Message" />}
+      />,
+    )
+    const container = result.container.firstElementChild as HTMLElement
+    const dock = container.querySelector('[data-composer-dock]') as HTMLElement
+    const dockHeight = (value: number) =>
+      Object.defineProperty(dock, 'offsetHeight', { configurable: true, value })
+    dockHeight(173)
+    armAtBottom(container)
+    const end = container.scrollTop
+
+    // The browser clamps the position to the shorter list, which is taller again by the event.
+    dockHeight(213)
+    container.scrollTop = end - 40
+    fireEvent.scroll(container)
+    expect(result.queryByText('Jump to latest')).not.toBeInTheDocument()
+
+    // At a height that stays, the same move is the reader's.
+    container.scrollTop = end
+    fireEvent.scroll(container)
+    container.scrollTop = end - 40
+    fireEvent.scroll(container)
+    expect(result.getByText('Jump to latest')).toBeInTheDocument()
+  })
+
   it('lets a reply that finished streaming take its row without entering again', () => {
     const user = createMockMessage({ id: 'm1' })
     const result = render(
@@ -565,6 +595,27 @@ describe('ChatMessageList after a reply', () => {
     Object.defineProperty(content, 'offsetHeight', { configurable: true, value: 860 })
     resized?.()
     expect(floor).toHaveStyle({ minHeight: '860px' })
+  })
+
+  // Following a message, or a turn let go of above, scrolls before that is observed.
+  it('holds the height it scrolls to as it follows, before that height is observed', () => {
+    const { container, addMessage } = renderDone()
+    const floor = container.firstElementChild as HTMLElement
+    const content = floor.firstElementChild as HTMLElement
+    const height = (value: number) =>
+      Object.defineProperty(content, 'offsetHeight', { configurable: true, value })
+    height(900)
+    resized?.()
+    armAtBottom(container)
+
+    height(1300)
+    addMessage()
+    expect(floor).toHaveStyle({ minHeight: '1300px' })
+
+    // What is observed next is what it holds, shorter or not.
+    height(1000)
+    resized?.()
+    expect(floor).toHaveStyle({ minHeight: '1000px' })
   })
 
   it('still lets a new question enter', () => {
