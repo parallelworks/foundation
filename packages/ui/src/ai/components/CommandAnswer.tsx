@@ -58,7 +58,7 @@ export default function CommandAnswer({
               summaryClassName="hover:theme-text"
               panelClassName="mt-1 text-sm"
             >
-              <Markdown>{answer.detail}</Markdown>
+              <Markdown compact>{answer.detail}</Markdown>
             </Disclosure>
           ) : (
             text
