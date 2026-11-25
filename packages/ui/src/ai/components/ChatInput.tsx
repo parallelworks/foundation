@@ -261,8 +261,18 @@ function streamControls(chat: ReturnType<typeof useChat>, turn: ChatInputProps['
 }
 
 function fitToContent(el: HTMLTextAreaElement) {
+  // What holds the box keeps its height while the box is measured. Docked in a
+  // transcript at its end, a composer that shrinks for the measurement shortens
+  // the transcript, and the browser scrolls it up to fit.
+  const holder = el.parentElement
+  if (holder) {
+    holder.style.minHeight = `${holder.offsetHeight}px`
+  }
   el.style.height = 'auto'
   el.style.height = `${el.scrollHeight}px`
+  if (holder) {
+    holder.style.minHeight = ''
+  }
 }
 
 /** What left the box with a send, kept until the host answers. */

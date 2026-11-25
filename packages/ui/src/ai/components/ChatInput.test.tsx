@@ -719,6 +719,27 @@ describe('ChatInput large pastes', () => {
 })
 
 describe('ChatInput height', () => {
+  it('keeps the height around the box while it is measured, so a transcript it is docked in stays put', () => {
+    render(<ChatInput onSend={vi.fn()} />)
+    const box = textarea()
+    const holder = box.parentElement as HTMLElement
+    Object.defineProperty(holder, 'offsetHeight', { configurable: true, value: 96 })
+    const measured: string[] = []
+    Object.defineProperty(box, 'scrollHeight', {
+      configurable: true,
+      get: () => {
+        measured.push(holder.style.minHeight)
+        return 70
+      },
+    })
+
+    fireEvent.change(box, { target: { value: 'a line' } })
+
+    expect(measured).toEqual(['96px'])
+    expect(holder.style.minHeight).toBe('')
+    expect(box.style.height).toBe('70px')
+  })
+
   it('fits its text again when its width changes', () => {
     let notify: (() => void) | undefined
     const original = globalThis.ResizeObserver
