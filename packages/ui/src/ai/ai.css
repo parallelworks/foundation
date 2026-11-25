@@ -346,6 +346,15 @@
     0 1px 2px rgb(0 0 0 / 0.05),
     0 10px 24px -10px rgb(0 0 0 / 0.18);
 }
+/* A `!` command takes a terminal's shell-mode magenta as the box's accent: its
+ * edge, its caret and its focus ring. */
+.chat-composer.chat-composer-shell {
+  --chat-accent: var(--theme-ansi-magenta);
+  box-shadow:
+    0 0 0 1px var(--theme-ansi-magenta),
+    0 1px 2px rgb(0 0 0 / 0.04),
+    0 6px 16px -8px rgb(0 0 0 / 0.12);
+}
 
 /* The thread scrolls under the dock and the jump pill, so they must hide it
  * even when a theme makes the panel color translucent: a second layer of the

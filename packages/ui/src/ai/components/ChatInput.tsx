@@ -6,6 +6,7 @@ import {
   type Ref,
   useCallback,
   useEffect,
+  useId,
   useImperativeHandle,
   useLayoutEffect,
   useRef,
@@ -29,6 +30,7 @@ import { EmojiMenu, useEmojiMenu } from './EmojiMenu'
 import { closeShortcode } from './emojiShortcode'
 import { PasteFileCard } from './PastedText'
 import { SlashArgumentHint, SlashMenu, type SlashMenuConfig, useSlashMenu } from './SlashMenu'
+import { isShellLine, shellText } from './shellLine'
 import { type ComposerHistory, useComposerHistory } from './useComposerHistory'
 import { usePasteCards } from './usePasteCards'
 
@@ -67,6 +69,11 @@ interface ChatInputProps {
   sendTestId?: string
   /** Offers the host's slash commands as the input starts with /. */
   slash?: SlashMenuConfig | undefined
+  /** The host runs a message starting with `!` as a shell command, as a
+   *  terminal's shell mode does: a `!` typed first becomes the box's prompt,
+   *  the hint line says what Enter does, and ↑ walks only shell commands.
+   *  Backspace at the command's start, or Escape on an empty one, leaves it. */
+  shell?: boolean | undefined
   /** Cards above everything else, such as a warning about this turn. */
   notices?: ReactNode
   /** Sits where a terminal's spinner line would, just above the box. */
@@ -168,6 +175,29 @@ function sendability({
   return { canSend, emphasized: canSend && (hasText || !allowEmpty) }
 }
 
+/** Backspace at the very start of a shell command leaves shell mode, as deleting a
+ *  typed `!` would, and Escape leaves an empty one before it reaches a running turn. */
+function leavesShell(e: KeyboardEvent<HTMLTextAreaElement>, command: string): boolean {
+  if (e.nativeEvent.isComposing) {
+    return false
+  }
+  const { selectionStart, selectionEnd } = e.currentTarget
+  if (e.key === 'Backspace') {
+    return selectionStart === 0 && selectionEnd === 0
+  }
+  return e.key === 'Escape' && command === ''
+}
+
+/** Takes a `!` typed or pasted first as the prompt, leaving the box what follows it, caret and all. */
+function enterShell(el: HTMLTextAreaElement): string {
+  const cut = el.value.indexOf('!') + 1
+  const caret = Math.max(0, el.selectionStart - cut)
+  const command = el.value.slice(cut)
+  el.value = command
+  el.setSelectionRange(caret, caret)
+  return `!${command}`
+}
+
 function keyAction(
   e: KeyboardEvent<HTMLTextAreaElement>,
   empty: boolean,
@@ -261,6 +291,7 @@ export default function ChatInput({
   sendLabel,
   sendTestId,
   slash,
+  shell = false,
   notices,
   activity,
   context,
@@ -317,6 +348,10 @@ export default function ChatInput({
   const chatStrings = useChatConfig().strings
   const t = chatStrings.input
   const effectivePlaceholder = placeholder ?? t.placeholder
+  const shellMode = shell && isShellLine(input)
+  // Drafts, history and sends hold the whole line; the box holds only the command beside its `!` prompt.
+  const boxText = shellMode ? shellText(input) : input
+  const shellHintId = useId()
   // A phone has no ↑ to press, so only a box with a fine pointer offers it.
   const finePointer = useMediaQuery('(any-pointer: fine)')
   const shownPlaceholder =
@@ -444,6 +479,11 @@ export default function ChatInput({
 
   const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     const el = e.currentTarget
+    if (shell && (shellMode || isShellLine(el.value))) {
+      setInputAndPersist(shellMode ? `!${el.value}` : enterShell(el))
+      readCaret(el)
+      return
+    }
     // An input method still composing owns the text until it commits.
     const composing = 'isComposing' in e.nativeEvent && e.nativeEvent.isComposing === true
     const emoji = composing ? null : closeShortcode(input, el.value, el.selectionStart)
@@ -454,7 +494,7 @@ export default function ChatInput({
     setInputAndPersist(el.value)
   }
 
-  const composerHistory = useComposerHistory(history, input, setInput)
+  const composerHistory = useComposerHistory(history, input, setInput, shell)
   // A send answers later, by when the box may hold something else or another
   // conversation. A recalled entry is not typing, so it gives way.
   const box = useRef({ conversationId, typed: input, holds: false })
@@ -570,9 +610,10 @@ export default function ChatInput({
   // A queue held across a canceled or failed turn can be sent on its own.
   const canFlushQueue = !isStreaming && queuedCount > 0 && !disabled
   const { canSend, emphasized } = sendability({
-    hasText: input.trim().length > 0 || cards.length > 0,
+    hasText: boxText.trim().length > 0 || cards.length > 0,
     canFlushQueue,
-    allowEmpty,
+    // A bare `!` runs nothing, so it sends nothing either.
+    allowEmpty: allowEmpty && !shellMode,
     disabled,
     modelReady: isSelectedModelAvailable || !requireModel,
     pendingCount: pendingCount + (pastesBlocking ? 1 : 0),
@@ -582,7 +623,7 @@ export default function ChatInput({
     if (!canSend) {
       return
     }
-    if (!input.trim() && cards.length === 0 && canFlushQueue) {
+    if (!boxText.trim() && cards.length === 0 && canFlushQueue) {
       flushQueuedMessages()
       return
     }
@@ -635,17 +676,27 @@ export default function ChatInput({
     composerHistory.recalled ? undefined : slash,
     setInputAndPersist,
   )
-  const emojiMenu = useEmojiMenu(input, caret, !composerHistory.recalled, (text, at) => {
-    const el = textareaRef.current
-    if (el) {
-      putEmoji(el, text, at)
-      el.focus()
-    }
-    setCaret(at)
-    setInputAndPersist(text)
-  })
+  const emojiMenu = useEmojiMenu(
+    input,
+    caret,
+    !composerHistory.recalled && !shellMode,
+    (text, at) => {
+      const el = textareaRef.current
+      if (el) {
+        putEmoji(el, text, at)
+        el.focus()
+      }
+      setCaret(at)
+      setInputAndPersist(text)
+    },
+  )
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (shellMode && leavesShell(e, boxText)) {
+      e.preventDefault()
+      setInputAndPersist(boxText)
+      return
+    }
     if (recallKey(e)) {
       e.preventDefault()
       void takeBack()
@@ -689,7 +740,7 @@ export default function ChatInput({
   const toolsAvailable = toolsAllowed && !turn && tools.length > 0
   const toolbar = attachmentsAvailable || !!files || toolsAvailable || !!settingsRight
   const action =
-    isStreaming && !input.trim() ? (
+    isStreaming && !boxText.trim() ? (
       <button
         type="button"
         onClick={stopStreaming}
@@ -709,6 +760,9 @@ export default function ChatInput({
         testId={sendTestId}
       />
     )
+  // As a terminal's footer does, the hint line says what Enter does with a command,
+  // unless the host has something of its own to say there.
+  const shellHint = shellMode && !hint
 
   return (
     <div
@@ -773,7 +827,12 @@ export default function ChatInput({
               attached above, the attach and send controls in a toolbar
               under the text, and the model on that toolbar's right, so the
               eye never leaves the box to see where it goes. */}
-            <div className="chat-composer @container flex flex-col rounded-[1.25rem] bg-(--theme-panel-bg)">
+            <div
+              className={cx(
+                'chat-composer @container flex flex-col rounded-[1.25rem] bg-(--theme-panel-bg)',
+                shellMode && 'chat-composer-shell',
+              )}
+            >
               {showAttachments && attachmentsAvailable && (
                 <div className="px-3 pt-3">
                   <AttachmentUpload
@@ -789,25 +848,45 @@ export default function ChatInput({
               {/* With nothing to put beside it, send sits at the end of the
                 text's own row rather than alone on an empty toolbar. */}
               <div className={cx(!toolbar && 'flex items-end gap-2 pr-2 pb-2')}>
-                <div className="max-h-[200px] min-w-0 flex-1 overflow-y-auto">
+                <div
+                  className={cx(
+                    'max-h-[200px] min-w-0 flex-1 overflow-y-auto',
+                    shellMode && 'flex items-start',
+                  )}
+                >
+                  {/* A terminal's shell-mode prompt: the `!` is no part of the text. */}
+                  {shellMode && (
+                    <span
+                      aria-hidden="true"
+                      className={cx(
+                        'shrink-0 select-none pl-4 font-mono text-[1rem] leading-relaxed font-bold text-(--theme-ansi-magenta)',
+                        toolbar ? 'pt-3.5' : 'pt-3',
+                        disabled && 'opacity-50',
+                      )}
+                    >
+                      !
+                    </span>
+                  )}
                   <textarea
                     ref={textareaRef}
-                    value={input}
+                    value={boxText}
                     onChange={handleChange}
                     onKeyDown={handleKeyDown}
                     onPaste={handlePaste}
                     onSelect={(e) => readCaret(e.currentTarget)}
                     {...slashMenu.inputProps}
                     {...emojiMenu.inputProps}
-                    placeholder={shownPlaceholder}
+                    {...(shellHint ? { 'aria-describedby': shellHintId } : {})}
+                    placeholder={shellMode ? '' : shownPlaceholder}
                     aria-label={inputLabel ?? effectivePlaceholder}
                     disabled={disabled}
                     autoComplete="off"
                     data-1p-ignore
                     rows={1}
                     className={cx(
-                      'theme-text block w-full resize-none overflow-hidden',
-                      'bg-transparent border-0 px-4',
+                      'theme-text block resize-none overflow-hidden',
+                      'bg-transparent border-0',
+                      shellMode ? 'min-w-0 flex-1 pr-4 pl-2 font-mono' : 'w-full px-4',
                       toolbar ? 'pt-3.5 pb-1' : 'pt-3 pb-1',
                       'placeholder:text-(--theme-placeholder)',
                       'focus:outline-none focus:ring-0',
@@ -858,6 +937,20 @@ export default function ChatInput({
             />
           )}
           {hint && <p className="mt-1 text-center text-[11px] theme-muted-text">{hint}</p>}
+          {shellHint && (
+            <p id={shellHintId} className="mt-1 text-center text-[11px] theme-muted-text">
+              <span className="font-mono font-semibold text-(--theme-ansi-magenta)">
+                ! {t.shellMode}
+              </span>
+              <span className="ml-2">{t.shellHint}</span>
+            </p>
+          )}
+          {/* The `!` leaves the text as it is typed, so a screen reader hears the mode change. */}
+          {shell && (
+            <span className="sr-only" aria-live="polite">
+              {shellMode ? t.shellMode : ''}
+            </span>
+          )}
         </div>
       </div>
     </div>

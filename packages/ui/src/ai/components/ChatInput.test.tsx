@@ -774,6 +774,20 @@ const pressEnter = () => fireEvent.keyDown(textarea(), { key: 'Enter' })
 const pressUp = (init?: KeyboardEventInit) =>
   fireEvent.keyDown(textarea(), { key: 'ArrowUp', ...init })
 const pressDown = () => fireEvent.keyDown(textarea(), { key: 'ArrowDown' })
+/** Types at the caret a key at a time, as a person does, unlike typeInBox's one change. */
+const typeKeys = (keys: string, box: () => HTMLTextAreaElement = textarea) => {
+  for (const key of keys) {
+    const el = box()
+    const caret = el.selectionStart + key.length
+    fireEvent.change(el, {
+      target: {
+        value: el.value.slice(0, el.selectionStart) + key + el.value.slice(el.selectionEnd),
+        selectionStart: caret,
+        selectionEnd: caret,
+      },
+    })
+  }
+}
 
 describe('ChatInput failed sends', () => {
   it.each([
@@ -1618,20 +1632,6 @@ describe('chatHistory', () => {
 })
 
 describe('ChatInput emoji shortcodes', () => {
-  const typeKeys = (keys: string) => {
-    for (const key of keys) {
-      const el = textarea()
-      const caret = el.selectionStart + key.length
-      fireEvent.change(el, {
-        target: {
-          value: el.value.slice(0, el.selectionStart) + key + el.value.slice(el.selectionEnd),
-          selectionStart: caret,
-          selectionEnd: caret,
-        },
-      })
-    }
-  }
-
   it('turns a shortcode into its emoji as its closing colon is typed', () => {
     const onSend = vi.fn()
     render(<ChatInput onSend={onSend} conversationId="c1" />)
@@ -1769,5 +1769,127 @@ describe('ChatInput emoji shortcodes', () => {
       pressUp()
       expect(textarea().value).toBe('older')
     })
+  })
+})
+
+describe('ChatInput shell mode', () => {
+  // The box's placeholder is the one shell mode hides, so these find it by its role.
+  const box = () => screen.getByRole('textbox') as HTMLTextAreaElement
+  const type = (keys: string) => typeKeys(keys, box)
+  const key = (k: string) => fireEvent.keyDown(box(), { key: k })
+  const inShell = () => !!box().getAttribute('aria-describedby')
+
+  it('takes a ! typed first as the prompt, and sends the line ! and all', () => {
+    const onSend = vi.fn()
+    render(<ChatInput onSend={onSend} shell conversationId="c1" />)
+    type('!ls')
+    expect(box().value).toBe('ls')
+    expect(box()).toHaveAttribute('placeholder', '')
+    expect(box()).toHaveAccessibleDescription(
+      '! shell modeEnter runs it, and its output is added to the conversation',
+    )
+    expect(document.querySelector('[aria-live="polite"]')).toHaveTextContent('shell mode')
+    expect(JSON.parse(storage.get('aiChatDraft:c1') ?? '').text).toBe('!ls')
+    key('Enter')
+    expect(onSend).toHaveBeenCalledWith('!ls', undefined, undefined)
+    expect(box()).toHaveAttribute('placeholder', 'Ask anything')
+    expect(inShell()).toBe(false)
+  })
+
+  it('leaves the mode on backspace at the start, keeping the command', () => {
+    render(<ChatInput onSend={vi.fn()} shell />)
+    type('!ls')
+    box().setSelectionRange(0, 0)
+    expect(key('Backspace')).toBe(false)
+    expect(box().value).toBe('ls')
+    expect(inShell()).toBe(false)
+    // A ! typed before the text leaves the caret at the command's start.
+    type('!x')
+    expect(box().value).toBe('xls')
+    expect(inShell()).toBe(true)
+  })
+
+  it('leaves an empty command on Escape, before Escape reaches a running turn', () => {
+    render(<ChatInput onSend={vi.fn()} shell />)
+    type('!ls')
+    expect(key('Escape')).toBe(true)
+    expect(inShell()).toBe(true)
+    fireEvent.change(box(), { target: { value: '' } })
+    expect(key('Escape')).toBe(false)
+    expect(box()).toHaveAttribute('placeholder', 'Ask anything')
+    expect(inShell()).toBe(false)
+  })
+
+  it('takes a pasted shell line as the mode, caret at its end', () => {
+    render(<ChatInput onSend={vi.fn()} shell />)
+    fireEvent.change(box(), {
+      target: { value: '!git status', selectionStart: 11, selectionEnd: 11 },
+    })
+    expect(box().value).toBe('git status')
+    expect(box().selectionStart).toBe(10)
+    expect(inShell()).toBe(true)
+  })
+
+  it('sends nothing for a bare !, even where an empty send is allowed', () => {
+    const onSend = vi.fn()
+    render(<ChatInput onSend={onSend} shell allowEmpty sendLabel="Send" />)
+    type('!')
+    key('Enter')
+    expect(onSend).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
+    expect(inShell()).toBe(true)
+  })
+
+  it('walks only shell commands from a bare !, and everything from an empty box', () => {
+    render(
+      <ChatInput
+        onSend={vi.fn()}
+        shell
+        history={{ name: 'agents', seed: ['fix it', '!make', 'explain the diff', '!git status'] }}
+      />,
+    )
+    type('!')
+    const walked = ['ArrowUp', 'ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown'].map((k) => {
+      key(k)
+      return `${inShell() ? '!' : ''}${box().value}`
+    })
+    expect(walked).toEqual(['!git status', '!make', '!make', '!git status', '!'])
+
+    key('Escape')
+    key('ArrowUp')
+    expect([box().value, inShell()]).toEqual(['git status', true])
+    key('ArrowUp')
+    expect([box().value, inShell()]).toEqual(['explain the diff', false])
+  })
+
+  it('keeps the mode in a draft', () => {
+    const { unmount } = render(<ChatInput onSend={vi.fn()} shell conversationId="c1" />)
+    type('!make test')
+    unmount()
+    render(<ChatInput onSend={vi.fn()} shell conversationId="c1" />)
+    expect(box().value).toBe('make test')
+    expect(inShell()).toBe(true)
+  })
+
+  it('leaves shortcodes in a command as typed', () => {
+    render(<ChatInput onSend={vi.fn()} shell />)
+    type('!echo :ey')
+    expect(screen.queryByTestId('emoji-menu')).toBeNull()
+    type('es:')
+    expect(box().value).toBe('echo :eyes:')
+  })
+
+  it("gives the hint line to the host's own hint", () => {
+    render(<ChatInput onSend={vi.fn()} shell hint="Read-only while archived" />)
+    type('!ls')
+    expect(screen.getByText('Read-only while archived')).toBeInTheDocument()
+    expect(screen.queryByText(/Enter runs it/)).toBeNull()
+  })
+
+  it('is a message like any other for a target without a shell', () => {
+    render(<ChatInput onSend={vi.fn()} />)
+    typeKeys('!wow :eyes:')
+    expect(textarea().value).toBe('!wow 👀')
+    expect(textarea()).not.toHaveAccessibleDescription()
   })
 })

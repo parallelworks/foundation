@@ -1,5 +1,6 @@
 import { type KeyboardEvent, useEffect, useRef } from 'react'
 import { appendHistory, mergeHistory, readHistory } from './chatHistory'
+import { isShellLine, shellText } from './shellLine'
 
 export interface ComposerHistory {
   /** Composers with the same name in a tab share one history, which ends with the tab. */
@@ -14,19 +15,26 @@ export interface ComposerHistory {
 interface Walk {
   entries: string[]
   index: number
+  /** What the box held when the walk began, which ↓ past the newest entry brings back: empty, or a bare `!`. */
+  draft: string
 }
 
 /** ↑ and ↓ step through what was sent, as a shell's history does. A walk starts
  *  from an empty box, so arrows in a draft still move the caret. Moving the caret
  *  off the end of a recalled entry hands the arrows back too, so a long entry
- *  can be edited. */
+ *  can be edited. In a composer with `shell`, a walk begun on a bare `!` steps
+ *  through shell commands only, as a terminal's shell mode does. */
 export function useComposerHistory(
   history: ComposerHistory | undefined,
   input: string,
   setInput: (value: string) => void,
+  shell = false,
 ) {
   const walk = useRef<Walk | null>(null)
   const recalled = walk.current?.entries[walk.current.index] === input
+  const inShell = shell && isShellLine(input)
+  // A shell line's `!` is the box's prompt, so the caret moves through its command alone.
+  const box = inShell ? shellText(input) : input
 
   // An edit ends the walk, or retyping an entry's text would read as recalling it.
   useEffect(() => {
@@ -35,8 +43,8 @@ export function useComposerHistory(
     }
   }, [recalled])
 
-  const show = (entries: string[], index: number) => {
-    walk.current = { entries, index }
+  const show = (entries: string[], index: number, draft: string) => {
+    walk.current = { entries, index, draft }
     setInput(entries[index] ?? '')
   }
 
@@ -68,9 +76,7 @@ export function useComposerHistory(
       return false
     }
     const { selectionStart, selectionEnd } = e.currentTarget
-    if (
-      recalled ? selectionStart !== input.length || selectionEnd !== input.length : input.trim()
-    ) {
+    if (recalled ? selectionStart !== box.length || selectionEnd !== box.length : box.trim()) {
       return false
     }
     const current = recalled ? walk.current : null
@@ -78,18 +84,19 @@ export function useComposerHistory(
       const index = current.index + (up ? -1 : 1)
       if (index >= current.entries.length) {
         walk.current = null
-        setInput('')
+        setInput(current.draft)
       } else if (index >= 0) {
-        show(current.entries, index)
+        show(current.entries, index, current.draft)
       }
       return true
     }
     const seed = history.seed?.filter((text) => !history.skip?.(text)) ?? []
-    const entries = up ? mergeHistory(seed, readHistory(history.name)) : []
+    const sent = up ? mergeHistory(seed, readHistory(history.name)) : []
+    const entries = inShell ? sent.filter(isShellLine) : sent
     if (entries.length === 0) {
       return false
     }
-    show(entries, entries.length - 1)
+    show(entries, entries.length - 1, inShell ? '!' : '')
     return true
   }
 
