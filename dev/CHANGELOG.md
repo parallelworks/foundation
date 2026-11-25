@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.5](https://github.com/parallelworks/foundation/compare/dev/v0.18.4...dev/v0.18.5) (2026-11-25)
+
+
+### Bug Fixes
+
+* **deps:** pgx 5.13 for the Rows.Values panic advisory and huma 2.41 for its body validation fix, with the Go modules at their latest ([#831](https://github.com/parallelworks/foundation/issues/831)) ([ac5ad07](https://github.com/parallelworks/foundation/commit/ac5ad07f1ba5e61a2fdc2c38e4b63807cba62ffa))
+
 ## [0.18.4](https://github.com/parallelworks/foundation/compare/dev/v0.18.3...dev/v0.18.4) (2026-11-14)
 
 
