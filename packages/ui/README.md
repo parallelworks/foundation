@@ -1192,8 +1192,8 @@ is the most text one message sends inline.
 It takes back what waits as `ChatInput` does too. `createTakeBack` reads the
 host's `ComposerRecall` and box as each take starts, so what comes back goes
 into the box the take started from, even once the composer shows another
-conversation. The box's `holds` and `put` are called again once the take
-answers, so they read the box as it is then:
+conversation. The box's `holds` and `put` are called once the take answers
+too, so they read the box as it is then:
 
 ```ts
 const takeBack = createTakeBack({
@@ -1214,8 +1214,9 @@ put there, and lets a `shown` message go when the box fills while the take is
 out; the recall's `placed` hears which messages went in. `put` gets their text,
 without the placeholders of their pastes, and the pastes to show as cards, and
 `joinTakenBack` puts it ahead of what was typed as `ChatInput` does.
-`handleKey(key, text)` takes back on ↑ alone in an empty box, before the
-history, and answers true so the box leaves the key out. It answers true while
+`handleKey(key, text)` takes back on ↑ alone in an empty box while the recall
+is `available`, before the history, and answers true so the box leaves the
+key out. It answers true while
 a take is out too, so another ↑ neither takes again nor walks the history.
 
 `defaultModel` is the model the chat starts on once the models load: the

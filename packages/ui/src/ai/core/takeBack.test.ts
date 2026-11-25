@@ -174,10 +174,10 @@ describe('createTakeBack', () => {
     expect(box.text).toBe('the failed one\n\nmy next message')
   })
 
-  it('puts back into the box the take started from, after the composer moved on', async () => {
+  it('reads and puts back into the box the take started from, after the composer moved on', async () => {
     const { recall, answer } = outstanding()
     const first = { text: '', put: vi.fn() }
-    const second = { text: '', put: vi.fn() }
+    const second = { text: 'typed in the other conversation', put: vi.fn() }
     let showing = first
     const takeBack = createTakeBack({
       recall: () => recall,
@@ -186,12 +186,14 @@ describe('createTakeBack', () => {
         return { holds: () => at.text !== '', put: at.put }
       },
     })
-    const took = takeBack.take()
+    const took = takeBack.take({ ifEmpty: true })
     showing = second
-    answer([{ text: 'also the docs' }])
+    const failed = { text: 'the failed one', shown: true }
+    answer([failed])
     await expect(took).resolves.toBe(true)
-    expect(first.put).toHaveBeenCalledExactlyOnceWith('also the docs', [])
+    expect(first.put).toHaveBeenCalledExactlyOnceWith('the failed one', [])
     expect(second.put).not.toHaveBeenCalled()
+    expect(recall.placed).toHaveBeenCalledExactlyOnceWith([failed])
   })
 
   it('answers false when the take fails, and can take again', async () => {

@@ -37,7 +37,7 @@ export interface ComposerKey {
   isComposing?: boolean | undefined
 }
 
-/** The box a take puts back into, as it was when the take started. */
+/** The box a take started from, which it reads again and puts back into once the take answers. */
 export interface TakeBackBox {
   /** Holds something the person put there: typing, a paste card or a file,
    *  but not a sent message being browsed. */
@@ -58,8 +58,8 @@ export interface TakeBack {
    *  back. `ifEmpty` takes nothing while the box holds something, as a
    *  terminal refills only an empty line. */
   take: (options?: { ifEmpty?: boolean | undefined }) => Promise<boolean>
-  /** Takes back on ↑ in an empty box, reporting whether it did, so the caller
-   *  stops the key moving the caret or walking the history. */
+  /** Takes back on ↑ in an empty box, reporting whether the key was its own,
+   *  so the caller stops it moving the caret or walking the history. */
   handleKey: (key: ComposerKey, text: string) => boolean
 }
 

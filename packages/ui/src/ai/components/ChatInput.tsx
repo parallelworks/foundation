@@ -652,16 +652,7 @@ export default function ChatInput({
       setInputAndPersist(boxText)
       return
     }
-    const { key, shiftKey, altKey, metaKey, ctrlKey } = e
-    const pressed = {
-      key,
-      shiftKey,
-      altKey,
-      metaKey,
-      ctrlKey,
-      isComposing: e.nativeEvent.isComposing,
-    }
-    if (takeBack.handleKey(pressed, input)) {
+    if (takeBack.handleKey(e.nativeEvent, input)) {
       e.preventDefault()
       return
     }
