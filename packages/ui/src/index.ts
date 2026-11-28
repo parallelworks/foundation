@@ -126,6 +126,7 @@ export {
   type DisclosureProps,
 } from './components/Disclosure'
 export { Drawer, type DrawerProps } from './components/Drawer'
+export { EditableIcon, type EditableIconProps } from './components/EditableIcon'
 export { EmptyState, type EmptyStateProps, type EmptyStateVariant } from './components/EmptyState'
 export {
   ErrorPage,
@@ -154,6 +155,7 @@ export type { FloatingAnchor } from './components/floating'
 export { HoverCard, type HoverCardProps } from './components/HoverCard'
 export { IconButton, type IconButtonProps } from './components/IconButton'
 export {
+  CropDialog,
   IMAGE_UPLOAD_SIZE,
   ImageUpload,
   type ImageUploadProps,
