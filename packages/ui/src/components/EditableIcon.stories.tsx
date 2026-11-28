@@ -85,15 +85,7 @@ export const Fallback: StoryObj = {
         className="size-16"
         onEdit={() => {}}
       />
-      <EditableIcon
-        icon={mark}
-        shape="square"
-        border
-        compact
-        className="size-10"
-        onEdit={() => {}}
-        onRemove={() => {}}
-      />
+      <EditableIcon icon={mark} compact className="size-10" onEdit={() => {}} onRemove={() => {}} />
     </div>
   ),
 }

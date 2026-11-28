@@ -103,7 +103,14 @@ export function EditableIcon({
           onClick={() => void onRemove()}
           className={cx(
             'absolute flex items-center justify-center rounded-full border theme-border bg-(--theme-panel-bg) text-(--theme-muted-text-color) opacity-0 shadow-sm transition-opacity group-focus-within/icon:opacity-100 group-hover/icon:opacity-100 hover:text-(--theme-error) focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-(--theme-focus)',
-            compact ? '-top-2 -right-2 size-5' : '-top-1.5 -right-1.5 size-6',
+            // On a circle the box's corner is already outside the edge; a square's is on it.
+            shape === 'circle'
+              ? compact
+                ? '-top-1.5 -right-1.5 size-5'
+                : '-top-1 -right-1 size-6'
+              : compact
+                ? '-top-2 -right-2 size-5'
+                : '-top-1.5 -right-1.5 size-6',
           )}
         >
           <TrashIcon className={compact ? 'size-3' : 'size-3.5'} />

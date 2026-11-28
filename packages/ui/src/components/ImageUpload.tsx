@@ -44,7 +44,7 @@ export interface ImageUploadProps {
   className?: string | undefined
 }
 
-/** An icon a person uploads for something, such as a workspace or a project: a square
+/** An icon a person uploads for something, such as a workspace or a project: a round
  *  tile that, hovered or focused, offers to edit it, opening a picker to upload, crop and
  *  save an image, with a button on its corner to remove it. An image can also be dropped
  *  on the tile. */
@@ -108,14 +108,13 @@ export function ImageUpload({
         onDrop={onDrop}
         style={{ width: size, height: size }}
         className={cx(
-          'shrink-0 rounded-lg bg-(--theme-muted-panel-bg)',
+          'shrink-0 rounded-full bg-(--theme-muted-panel-bg)',
           dragging && 'outline-2 outline-offset-2 outline-(--theme-accent)',
         )}
       >
         <EditableIcon
           icon={src}
           fallbackIcon={letter}
-          shape="square"
           border
           className="size-full"
           editable={!disabled}
